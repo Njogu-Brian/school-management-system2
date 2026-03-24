@@ -29,6 +29,12 @@ export const academicsApi = {
         return apiClient.get<Exam>(`/exams/${id}`);
     },
 
+    async getExamMarkingOptions(examId: number): Promise<
+        ApiResponse<{ classroom_id: number; classroom_name: string; subject_id: number; subject_name: string }[]>
+    > {
+        return apiClient.get(`/exams/${examId}/marking-options`);
+    },
+
     async createExam(data: any): Promise<ApiResponse<Exam>> {
         return apiClient.post<Exam>('/exams', data);
     },
@@ -58,9 +64,10 @@ export const academicsApi = {
     async enterMarks(data: {
         exam_id: number;
         subject_id: number;
+        classroom_id: number;
         marks: { student_id: number; marks: number; remarks?: string }[];
     }): Promise<ApiResponse<{ count: number; message: string }>> {
-        return apiClient.post('/marks/batch', data);
+        return apiClient.post('/exam-marks/batch', data);
     },
 
     async updateMark(id: number, data: { marks: number; remarks?: string }): Promise<ApiResponse<Mark>> {

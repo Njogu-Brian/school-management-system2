@@ -16,6 +16,7 @@ import { Button } from '@components/common/Button';
 import { Input } from '@components/common/Input';
 import { validators } from '@utils/validators';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { BRAND, RADIUS } from '@constants/designTokens';
 
 interface LoginScreenProps {
     navigation: any;
@@ -63,7 +64,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         <SafeAreaView
             style={[
                 styles.container,
-                { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
+                { backgroundColor: isDark ? colors.backgroundDark : BRAND.bg },
             ]}
         >
             <KeyboardAvoidingView
@@ -80,15 +81,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                             <View
                                 style={[
                                     styles.logo,
-                                    { backgroundColor: colors.primary + '20', borderColor: colors.primary },
+                                    {
+                                        backgroundColor: BRAND.primary + '18',
+                                        borderColor: BRAND.primary,
+                                        borderRadius: RADIUS.card,
+                                    },
                                 ]}
                             >
-                                <Text style={[styles.logoText, { color: colors.primary }]}>SE</Text>
+                                <Text style={[styles.logoText, { color: BRAND.primary }]}>SE</Text>
                             </View>
-                            <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                            <Text style={[styles.title, { color: isDark ? colors.textMainDark : BRAND.text }]}>
                                 School ERP
                             </Text>
-                            <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                            <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : BRAND.muted }]}>
                                 Sign in to continue
                             </Text>
                         </View>
@@ -136,8 +141,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                         style={[
                                             styles.checkboxBox,
                                             {
-                                                borderColor: isDark ? colors.borderDark : colors.borderLight,
-                                                backgroundColor: rememberMe ? colors.primary : 'transparent',
+                                                borderColor: isDark ? colors.borderDark : BRAND.border,
+                                                backgroundColor: rememberMe ? BRAND.primary : 'transparent',
                                             },
                                         ]}
                                     >
@@ -149,7 +154,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                 </TouchableOpacity>
 
                                 <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
-                                    <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot Password?</Text>
+                                    <Text style={[styles.forgotText, { color: BRAND.primary }]}>Forgot Password?</Text>
                                 </TouchableOpacity>
                             </View>
 

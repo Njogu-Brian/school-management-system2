@@ -1,5 +1,5 @@
 module.exports = {
-    presets: ['module:@react-native/babel-preset'],
+    presets: ['babel-preset-expo'],
     plugins: [
         [
             'module-resolver',
@@ -7,6 +7,7 @@ module.exports = {
                 root: ['./src'],
                 extensions: ['.ios.js', '.android.js', '.js', '.ts', '.tsx', '.json'],
                 alias: {
+                    'react-native-vector-icons/MaterialIcons': './src/components/Icon',
                     '@components': './src/components',
                     '@screens': './src/screens',
                     '@navigation': './src/navigation',

@@ -8,7 +8,12 @@ export interface Student {
     date_of_birth: string;
     gender: 'male' | 'female' | 'other';
     class_id: number;
+    classroom_id?: number;
     stream_id?: number;
+    category_id?: number;
+    trip_id?: number | null;
+    drop_off_point_id?: number | null;
+    drop_off_point_other?: string | null;
     class_name?: string;
     stream_name?: string;
     status: 'active' | 'archived' | 'transferred' | 'graduated';
@@ -17,6 +22,47 @@ export interface Student {
     phone?: string;
     email?: string;
     address?: string;
+    residential_area?: string | null;
+    preferred_hospital?: string | null;
+    nemis_number?: string | null;
+    knec_assessment_number?: string | null;
+    religion?: string | null;
+    has_allergies?: boolean;
+    allergies_notes?: string | null;
+    is_fully_immunized?: boolean | null;
+    emergency_contact_name?: string | null;
+    emergency_contact_phone?: string | null;
+    emergency_contact_phone_local?: string | null;
+    blood_group?: string;
+    admission_date?: string;
+    enrollment_year?: string | number | null;
+    parent?: {
+        father_name?: string | null;
+        mother_name?: string | null;
+        father_phone?: string | null;
+        mother_phone?: string | null;
+        father_email?: string | null;
+        mother_email?: string | null;
+        guardian_name?: string | null;
+        guardian_phone?: string | null;
+        guardian_email?: string | null;
+        father_whatsapp?: string | null;
+        mother_whatsapp?: string | null;
+        guardian_whatsapp?: string | null;
+        guardian_relationship?: string | null;
+        marital_status?: string | null;
+        father_id_number?: string | null;
+        mother_id_number?: string | null;
+        father_phone_country_code?: string | null;
+        mother_phone_country_code?: string | null;
+        guardian_phone_country_code?: string | null;
+        father_phone_local?: string | null;
+        mother_phone_local?: string | null;
+        guardian_phone_local?: string | null;
+        father_whatsapp_local?: string | null;
+        mother_whatsapp_local?: string | null;
+        guardian_whatsapp_local?: string | null;
+    };
 
     // Guardians
     guardians?: Guardian[];
@@ -33,6 +79,7 @@ export interface Student {
 export interface Guardian {
     id: number;
     name: string;
+    full_name?: string;
     relationship: string;
     phone: string;
     email?: string;

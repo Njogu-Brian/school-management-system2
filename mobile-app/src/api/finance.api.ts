@@ -69,7 +69,7 @@ export const financeApi = {
     },
 
     // ========== Payments ==========
-    async getPayments(filters?: FinanceFilters): Promise<ApiResponse<PaginatedResponse<Payment>>> {
+    async getPayments(filters?: FinanceFilters & { student_id?: number }): Promise<ApiResponse<PaginatedResponse<Payment>>> {
         return apiClient.get<PaginatedResponse<Payment>>('/payments', filters);
     },
 
@@ -100,12 +100,10 @@ export const financeApi = {
     // ========== Student Statements ==========
     async getStudentStatement(
         studentId: number,
-        dateFrom?: string,
-        dateTo?: string
-    ): Promise<ApiResponse<StudentStatement>> {
-        return apiClient.get<StudentStatement>(`/students/${studentId}/statement`, {
-            date_from: dateFrom,
-            date_to: dateTo,
+        year?: number
+    ): Promise<ApiResponse<StudentStatement & { year?: number }>> {
+        return apiClient.get<StudentStatement & { year?: number }>(`/students/${studentId}/statement`, {
+            year: year ?? new Date().getFullYear(),
         });
     },
 
@@ -148,5 +146,32 @@ export const financeApi = {
         payments_this_month: number;
     }>> {
         return apiClient.get('/finance/summary', filters);
+    },
+
+    /** Admin STK push (same as web Prompt parent to pay). */
+    async mpesaPrompt(
+        studentId: number,
+        body: {
+            phone_number: string;
+            amount: number;
+            invoice_id?: number | null;
+            notes?: string;
+            is_swimming?: boolean;
+        }
+    ): Promise<
+        ApiResponse<{
+            transaction_id: number;
+            waiting_url: string | null;
+            status_poll_url: string | null;
+        }>
+    > {
+        return apiClient.post(`/students/${studentId}/mpesa/prompt`, body);
+    },
+
+    /** Public payment page URL(s) for the student / family. */
+    async getMpesaPaymentLink(studentId: number): Promise<
+        ApiResponse<{ payment_link_id: number; url: string; short_url: string }>
+    > {
+        return apiClient.get(`/students/${studentId}/mpesa/payment-link`);
     },
 };

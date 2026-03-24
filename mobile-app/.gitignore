@@ -11,6 +11,9 @@ ios/Pods/
 .env
 .env.local
 
+# Expo local
+.expo/
+
 # IDE
 .vscode/
 .idea/

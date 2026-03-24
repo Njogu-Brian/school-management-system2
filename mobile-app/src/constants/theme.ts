@@ -1,26 +1,26 @@
 export const COLORS = {
-    // Primary colors
-    primary: '#137fec',
-    primaryDark: '#0b5ed7',
-    primaryLight: '#5da3f5',
+    // Primary - richer teal/blue
+    primary: '#0d9488',
+    primaryDark: '#0f766e',
+    primaryLight: '#2dd4bf',
 
-    // Background
-    backgroundLight: '#f6f7f8',
-    backgroundDark: '#101922',
+    // Background - warm off-white / deep navy
+    backgroundLight: '#f1f5f9',
+    backgroundDark: '#0f172a',
 
-    // Surface
+    // Surface - subtle warmth in light, slate in dark
     surfaceLight: '#ffffff',
     surfaceDark: '#1e293b',
 
     // Text
-    textMainLight: '#0d141b',
-    textMainDark: '#ffffff',
-    textSubLight: '#4c739a',
+    textMainLight: '#0f172a',
+    textMainDark: '#f8fafc',
+    textSubLight: '#64748b',
     textSubDark: '#94a3b8',
 
     // Border
     borderLight: '#e2e8f0',
-    borderDark: '#2d3748',
+    borderDark: '#334155',
 
     // Status colors
     success: '#10b981',
@@ -32,7 +32,36 @@ export const COLORS = {
     present: '#10b981',
     absent: '#ef4444',
     late: '#f59e0b',
-    excused: '#3b82f6',
+    excused: '#6366f1',
+
+    // Accent for cards/sections
+    accentLight: '#e0f2fe',
+    accentDark: '#0c4a6e',
+};
+
+// Shadow/elevation for Android
+export const SHADOWS = {
+    sm: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    md: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    lg: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        elevation: 8,
+    },
 };
 
 export const SPACING = {

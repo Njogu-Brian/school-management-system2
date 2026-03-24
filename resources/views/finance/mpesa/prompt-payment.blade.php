@@ -517,7 +517,7 @@ $(document).ready(function() {
         $('#phoneSelectionGroup').show();
         $('#studentDataAlert').addClass('d-none').text('');
 
-        $.get('/api/students/' + studentId, function(student) {
+        $.get('/api/finance/students/' + studentId, function(student) {
             currentStudentData = student;
             currentFeeBalance = parseFloat(student.fee_balance || 0);
             const currentSwimmingBalance = parseFloat(student.swimming_balance || 0);
@@ -610,7 +610,7 @@ $(document).ready(function() {
             }
 
             // Load invoices
-            $.get('/api/students/' + studentId + '/invoices', function(invoices) {
+            $.get('/api/finance/students/' + studentId + '/invoices', function(invoices) {
                 let invoiceSelect = $('#invoice_id');
                 invoiceSelect.empty();
                 invoiceSelect.append('<option value="">-- Select Invoice (or leave blank) --</option>');
@@ -627,7 +627,7 @@ $(document).ready(function() {
                 }
             });
         }).fail(function(xhr) {
-            let message = 'Failed to load student data from /api/students/{id}.';
+            let message = 'Failed to load student data from /api/finance/students/{id}.';
             if (xhr?.responseJSON?.message) {
                 message += ' ' + xhr.responseJSON.message;
             } else if (xhr?.status) {

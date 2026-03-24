@@ -8,6 +8,7 @@ import {
     TouchableOpacity,
     Alert,
     ScrollView,
+    Dimensions,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { Button } from '@components/common/Button';
@@ -18,11 +19,14 @@ import { studentsApi } from '@api/students.api';
 import { attendanceApi } from '@api/attendance.api';
 import { Student, Class, Stream } from '@types/student.types';
 import { SPACING, FONT_SIZES, BORDER_RADIUS, COLORS } from '@constants/theme';
+import { BRAND, RADIUS } from '@constants/designTokens';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-interface AttendanceStatus {
+type AttendanceStatus = 'unmarked' | 'present' | 'absent' | 'late';
+
+interface AttendanceRecord {
     student_id: number;
-    status: 'present' | 'absent' | 'late' | 'excused';
+    status: AttendanceStatus;
 }
 
 interface MarkAttendanceScreenProps {
@@ -31,42 +35,29 @@ interface MarkAttendanceScreenProps {
 
 export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
-
+    const [step, setStep] = useState<'select' | 'mark'>('select');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClass, setSelectedClass] = useState<Class | null>(null);
     const [streams, setStreams] = useState<Stream[]>([]);
     const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
-    const [attendance, setAttendance] = useState<AttendanceStatus[]>([]);
+    const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    // Load classes on mount
     useEffect(() => {
         loadClasses();
     }, []);
 
-    // Load streams when class is selected
     useEffect(() => {
-        if (selectedClass) {
-            loadStreams(selectedClass.id);
-        }
+        if (selectedClass) loadStreams(selectedClass.id);
     }, [selectedClass]);
-
-    // Load students when class/stream is selected
-    useEffect(() => {
-        if (selectedClass) {
-            loadStudents();
-        }
-    }, [selectedClass, selectedStream]);
 
     const loadClasses = async () => {
         try {
             const response = await studentsApi.getClasses();
-            if (response.success && response.data) {
-                setClasses(response.data);
-            }
+            if (response.success && response.data) setClasses(response.data);
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to load classes');
         }
@@ -75,35 +66,58 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
     const loadStreams = async (classId: number) => {
         try {
             const response = await studentsApi.getStreams(classId);
-            if (response.success && response.data) {
-                setStreams(response.data);
-            }
-        } catch (error: any) {
-            console.error('Failed to load streams:', error);
+            if (response.success && response.data) setStreams(response.data);
+        } catch {
             setStreams([]);
         }
     };
 
-    const loadStudents = async () => {
+    const handleSelectClass = (cls: Class) => {
+        setSelectedClass(cls);
+        setSelectedStream(null);
+    };
+
+    const handleSelectStream = (stream: Stream | null) => {
+        setSelectedStream(stream);
+    };
+
+    const handleProceedToMark = async () => {
+        if (!selectedClass) return;
         setLoading(true);
         try {
             const response = await studentsApi.getStudents({
-                class_id: selectedClass?.id,
+                class_id: selectedClass.id,
                 stream_id: selectedStream?.id,
                 status: 'active',
-                per_page: 100,
+                per_page: 200,
             });
-
             if (response.success && response.data) {
-                setStudents(response.data.data);
-
-                // Initialize all as present
-                setAttendance(
-                    response.data.data.map((student) => ({
-                        student_id: student.id,
-                        status: 'present',
-                    }))
-                );
+                const list = response.data.data;
+                setStudents(list);
+                let rows: AttendanceRecord[] = list.map((s) => ({ student_id: s.id, status: 'unmarked' as AttendanceStatus }));
+                try {
+                    const live = await attendanceApi.getClassAttendance(
+                        selectedDate,
+                        selectedClass.id,
+                        selectedStream?.id
+                    );
+                    if (live.success && live.data && Array.isArray(live.data)) {
+                        const byId = new Map(
+                            live.data.map((r: { student_id: number; status: string }) => [r.student_id, r.status])
+                        );
+                        rows = list.map((s) => {
+                            const st = byId.get(s.id);
+                            if (st === 'present' || st === 'absent' || st === 'late') {
+                                return { student_id: s.id, status: st as AttendanceStatus };
+                            }
+                            return { student_id: s.id, status: 'unmarked' as AttendanceStatus };
+                        });
+                    }
+                } catch {
+                    /* use all unmarked */
+                }
+                setAttendance(rows);
+                setStep('mark');
             }
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to load students');
@@ -112,70 +126,213 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
         }
     };
 
-    const updateAttendance = (studentId: number, status: 'present' | 'absent' | 'late' | 'excused') => {
+    const handleBackToClasses = () => {
+        setStep('select');
+        setStudents([]);
+        setAttendance([]);
+    };
+
+    const shiftDate = (delta: number) => {
+        const [y, m, d] = selectedDate.split('-').map((n) => parseInt(n, 10));
+        const next = new Date(y, m - 1, d);
+        next.setDate(next.getDate() + delta);
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        if (next > today) return;
+        const yy = next.getFullYear();
+        const mm = String(next.getMonth() + 1).padStart(2, '0');
+        const dd = String(next.getDate()).padStart(2, '0');
+        setSelectedDate(`${yy}-${mm}-${dd}`);
+    };
+
+    const updateAttendance = (studentId: number, status: AttendanceStatus) => {
         setAttendance((prev) =>
-            prev.map((item) =>
-                item.student_id === studentId ? { ...item, status } : item
-            )
+            prev.map((item) => (item.student_id === studentId ? { ...item, status } : item))
         );
     };
 
     const markAllPresent = () => {
-        setAttendance((prev) =>
-            prev.map((item) => ({ ...item, status: 'present' }))
-        );
+        setAttendance((prev) => prev.map((item) => ({ ...item, status: 'present' as AttendanceStatus })));
     };
 
     const handleSave = async () => {
-        if (!selectedClass) {
-            Alert.alert('Error', 'Please select a class');
+        if (!selectedClass) return;
+        const hasChanges = attendance.some((a) => a.status !== 'unmarked');
+        if (!hasChanges) {
+            Alert.alert('No Changes', 'Mark at least one student to save.');
             return;
         }
-
         setSaving(true);
         try {
             const response = await attendanceApi.markAttendance({
                 date: selectedDate,
                 class_id: selectedClass.id,
                 stream_id: selectedStream?.id,
-                records: attendance,
+                records: attendance.map((a) => ({
+                    student_id: a.student_id,
+                    status: a.status === 'unmarked' ? 'unmarked' : a.status,
+                })),
             });
-
             if (response.success) {
-                Alert.alert('Success', response.data?.message || 'Attendance marked successfully', [
+                Alert.alert('Success', response.data?.message || 'Attendance saved.', [
                     { text: 'OK', onPress: () => navigation.goBack() },
                 ]);
             }
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to save attendance');
+            Alert.alert('Error', error.message || 'Failed to save');
         } finally {
             setSaving(false);
         }
     };
 
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status: AttendanceStatus) => {
         switch (status) {
-            case 'present':
-                return COLORS.present;
-            case 'absent':
-                return COLORS.absent;
-            case 'late':
-                return COLORS.late;
-            case 'excused':
-                return COLORS.excused;
-            default:
-                return colors.primary;
+            case 'present': return COLORS.present;
+            case 'absent': return COLORS.absent;
+            case 'late': return COLORS.late;
+            default: return isDark ? colors.borderDark : colors.borderLight;
         }
     };
 
+    const markedCount = attendance.filter((a) => a.status !== 'unmarked').length;
+
+    // ————— STEP 1: Class Selection —————
+    if (step === 'select') {
+        return (
+            <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+                <View style={[styles.header, { borderBottomColor: isDark ? colors.borderDark : colors.borderLight }]}>
+                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                        <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
+                    </TouchableOpacity>
+                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                        Mark Attendance
+                    </Text>
+                    <View style={{ width: 24 }} />
+                </View>
+
+                <ScrollView contentContainerStyle={styles.selectContent}>
+                    <View
+                        style={[
+                            styles.dateCard,
+                            {
+                                backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                                borderColor: isDark ? colors.borderDark : BRAND.border,
+                                borderRadius: RADIUS.card,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.sectionLabel, styles.dateSectionLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                            Attendance date
+                        </Text>
+                        <View style={styles.dateRow}>
+                            <TouchableOpacity
+                                style={[styles.dateArrow, { borderColor: BRAND.primary }]}
+                                onPress={() => shiftDate(-1)}
+                            >
+                                <Icon name="chevron-left" size={28} color={BRAND.primary} />
+                            </TouchableOpacity>
+                            <Text style={[styles.dateText, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                {selectedDate}
+                            </Text>
+                            <TouchableOpacity
+                                style={[styles.dateArrow, { borderColor: BRAND.primary }]}
+                                onPress={() => shiftDate(1)}
+                            >
+                                <Icon name="chevron-right" size={28} color={BRAND.primary} />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={[styles.dateHint, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                            You can mark or edit past days like on the web portal (up to today).
+                        </Text>
+                    </View>
+
+                    <Text style={[styles.sectionLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                        Select Class
+                    </Text>
+                    <View style={styles.classGrid}>
+                        {classes.map((cls) => (
+                            <TouchableOpacity
+                                key={cls.id}
+                                style={[
+                                    styles.classCard,
+                                    {
+                                        backgroundColor: selectedClass?.id === cls.id ? colors.primary + '20' : isDark ? colors.surfaceDark : colors.surfaceLight,
+                                        borderColor: selectedClass?.id === cls.id ? colors.primary : isDark ? colors.borderDark : colors.borderLight,
+                                        borderWidth: selectedClass?.id === cls.id ? 2 : 1,
+                                    },
+                                ]}
+                                onPress={() => handleSelectClass(cls)}
+                            >
+                                <Icon name="class" size={28} color={selectedClass?.id === cls.id ? colors.primary : (isDark ? colors.textSubDark : colors.textSubLight)} />
+                                <Text style={[styles.className, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{cls.name}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {selectedClass && streams.length > 0 && (
+                        <>
+                            <Text style={[styles.sectionLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                Select Stream (optional)
+                            </Text>
+                            <View style={styles.streamRow}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.streamChip,
+                                        {
+                                            backgroundColor: !selectedStream ? colors.primary : isDark ? colors.surfaceDark : colors.surfaceLight,
+                                            borderColor: !selectedStream ? colors.primary : isDark ? colors.borderDark : colors.borderLight,
+                                        },
+                                    ]}
+                                    onPress={() => handleSelectStream(null)}
+                                >
+                                    <Text style={[styles.streamChipText, { color: !selectedStream ? '#fff' : (isDark ? colors.textMainDark : colors.textMainLight) }]}>
+                                        All
+                                    </Text>
+                                </TouchableOpacity>
+                                {streams.map((s) => (
+                                    <TouchableOpacity
+                                        key={s.id}
+                                        style={[
+                                            styles.streamChip,
+                                            {
+                                                backgroundColor: selectedStream?.id === s.id ? colors.primary : isDark ? colors.surfaceDark : colors.surfaceLight,
+                                                borderColor: selectedStream?.id === s.id ? colors.primary : isDark ? colors.borderDark : colors.borderLight,
+                                            },
+                                        ]}
+                                        onPress={() => handleSelectStream(s)}
+                                    >
+                                        <Text style={[styles.streamChipText, { color: selectedStream?.id === s.id ? '#fff' : (isDark ? colors.textMainDark : colors.textMainLight) }]}>
+                                            {s.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </>
+                    )}
+
+                    {selectedClass && (
+                        <Button
+                            title={loading ? 'Loading...' : 'Proceed to Mark Students'}
+                            onPress={handleProceedToMark}
+                            loading={loading}
+                            fullWidth
+                            style={styles.proceedBtn}
+                        />
+                    )}
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
+    // ————— STEP 2: Mark Students —————
     const renderStudent = ({ item }: { item: Student }) => {
-        const studentAttendance = attendance.find((a) => a.student_id === item.id);
-        const status = studentAttendance?.status || 'present';
+        const rec = attendance.find((a) => a.student_id === item.id);
+        const status = rec?.status ?? 'unmarked';
 
         return (
-            <Card style={styles.studentCard}>
+            <Card style={[styles.studentCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}>
                 <View style={styles.studentInfo}>
-                    <Avatar name={item.full_name} imageUrl={item.avatar} size={40} />
+                    <Avatar name={item.full_name} imageUrl={item.avatar} size={44} />
                     <View style={styles.studentDetails}>
                         <Text style={[styles.studentName, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                             {item.full_name}
@@ -186,28 +343,21 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                     </View>
                 </View>
 
-                <View style={styles.statusButtons}>
-                    {['present', 'absent', 'late', 'excused'].map((s) => (
+                <View style={styles.statusRow}>
+                    {(['present', 'absent', 'late'] as const).map((s) => (
                         <TouchableOpacity
                             key={s}
                             style={[
-                                styles.statusButton,
+                                styles.statusBtn,
                                 {
                                     backgroundColor: status === s ? getStatusColor(s) : 'transparent',
                                     borderColor: getStatusColor(s),
                                 },
                             ]}
-                            onPress={() => updateAttendance(item.id, s as any)}
+                            onPress={() => updateAttendance(item.id, status === s ? 'unmarked' : s)}
                         >
-                            <Text
-                                style={[
-                                    styles.statusText,
-                                    {
-                                        color: status === s ? '#ffffff' : getStatusColor(s),
-                                    },
-                                ]}
-                            >
-                                {s[0].toUpperCase()}
+                            <Text style={[styles.statusBtnText, { color: status === s ? '#fff' : getStatusColor(s) }]}>
+                                {s === 'present' ? 'P' : s === 'absent' ? 'A' : 'L'}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -216,122 +366,39 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
         );
     };
 
-    if (loading) {
-        return (
-            <SafeAreaView
-                style={[
-                    styles.container,
-                    { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
-                ]}
-            >
-                <LoadingState message="Loading students..." />
-            </SafeAreaView>
-        );
-    }
-
     return (
-        <SafeAreaView
-            style={[
-                styles.container,
-                { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
-            ]}
-        >
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
+        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+            {/* Header with back to classes */}
+            <View style={[styles.header, { borderBottomColor: isDark ? colors.borderDark : colors.borderLight }]}>
+                <TouchableOpacity onPress={handleBackToClasses}>
                     <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
                 </TouchableOpacity>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    Mark Attendance
-                </Text>
+                <View style={styles.headerCenter}>
+                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                        Marking: {selectedClass?.name}{selectedStream ? ` - ${selectedStream.name}` : ''}
+                    </Text>
+                    <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                        {selectedDate}
+                    </Text>
+                </View>
                 <View style={{ width: 24 }} />
             </View>
 
-            {/* Selectors */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectors}>
-                {/* Class Selector */}
-                <View style={styles.selector}>
-                    <Text style={[styles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        Class
-                    </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {classes.map((cls) => (
-                            <TouchableOpacity
-                                key={cls.id}
-                                style={[
-                                    styles.chip,
-                                    {
-                                        backgroundColor: selectedClass?.id === cls.id ? colors.primary : isDark ? colors.surfaceDark : colors.surfaceLight,
-                                        borderColor: isDark ? colors.borderDark : colors.borderLight,
-                                    },
-                                ]}
-                                onPress={() => {
-                                    setSelectedClass(cls);
-                                    setSelectedStream(null);
-                                }}
-                            >
-                                <Text
-                                    style={[
-                                        styles.chipText,
-                                        {
-                                            color: selectedClass?.id === cls.id ? '#ffffff' : isDark ? colors.textMainDark : colors.textMainLight,
-                                        },
-                                    ]}
-                                >
-                                    {cls.name}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
+            {/* Legend */}
+            <View style={[styles.legend, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}>
+                <Text style={[styles.legendText, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                    P=Present  A=Absent  L=Late (tap again to unmark)
+                </Text>
+            </View>
 
-                {/* Stream Selector (if streams exist) */}
-                {streams.length > 0 && (
-                    <View style={styles.selector}>
-                        <Text style={[styles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                            Stream
-                        </Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            {streams.map((stream) => (
-                                <TouchableOpacity
-                                    key={stream.id}
-                                    style={[
-                                        styles.chip,
-                                        {
-                                            backgroundColor: selectedStream?.id === stream.id ? colors.primary : isDark ? colors.surfaceDark : colors.surfaceLight,
-                                            borderColor: isDark ? colors.borderDark : colors.borderLight,
-                                        },
-                                    ]}
-                                    onPress={() => setSelectedStream(stream)}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.chipText,
-                                            {
-                                                color: selectedStream?.id === stream.id ? '#ffffff' : isDark ? colors.textMainDark : colors.textMainLight,
-                                            },
-                                        ]}
-                                    >
-                                        {stream.name}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                )}
-            </ScrollView>
+            {/* Action bar */}
+            <View style={styles.actionBar}>
+                <Button title="Mark All Present" onPress={markAllPresent} variant="outline" size="small" />
+                <Text style={[styles.countText, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                    {markedCount} marked / {students.length} total
+                </Text>
+            </View>
 
-            {/* Action Bar */}
-            {students.length > 0 && (
-                <View style={styles.actionBar}>
-                    <Button title="Mark All Present" onPress={markAllPresent} variant="outline" size="small" />
-                    <Text style={[styles.countText, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        {attendance.filter((a) => a.status === 'present').length}/{students.length} Present
-                    </Text>
-                </View>
-            )}
-
-            {/* Students List */}
             <FlatList
                 data={students}
                 renderItem={renderStudent}
@@ -339,113 +406,90 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                 contentContainerStyle={styles.listContent}
             />
 
-            {/* Save Button */}
-            {students.length > 0 && (
-                <View style={styles.footer}>
-                    <Button
-                        title="Save Attendance"
-                        onPress={handleSave}
-                        loading={saving}
-                        fullWidth
-                    />
-                </View>
-            )}
+            <View style={[styles.footer, { borderTopColor: isDark ? colors.borderDark : colors.borderLight }]}>
+                <Button title="Save Attendance" onPress={handleSave} loading={saving} fullWidth />
+            </View>
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: SPACING.xl,
+        paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.md,
+        borderBottomWidth: 1,
     },
-    title: {
-        fontSize: FONT_SIZES.xl,
-        fontWeight: 'bold',
+    headerCenter: { flex: 1, alignItems: 'center' },
+    title: { fontSize: FONT_SIZES.lg, fontWeight: 'bold' },
+    subtitle: { fontSize: FONT_SIZES.xs, marginTop: 2 },
+    selectContent: { padding: SPACING.xl },
+    dateCard: { padding: SPACING.lg, borderWidth: 1, marginBottom: SPACING.md },
+    dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
+    dateArrow: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+    dateText: { fontSize: FONT_SIZES.lg, fontWeight: '700', minWidth: 120, textAlign: 'center' },
+    dateHint: { fontSize: FONT_SIZES.xs, marginTop: SPACING.sm, lineHeight: 18 },
+    dateSectionLabel: { marginTop: 0 },
+    sectionLabel: { fontSize: FONT_SIZES.sm, fontWeight: '600', marginBottom: SPACING.sm, marginTop: SPACING.lg },
+    classGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.md,
     },
-    selectors: {
-        paddingHorizontal: SPACING.xl,
-        marginBottom: SPACING.md,
+    classCard: {
+        width: (Dimensions.get('window').width - SPACING.xl * 2 - SPACING.md * 2) / 2,
+        padding: SPACING.lg,
+        borderRadius: BORDER_RADIUS.xl,
+        alignItems: 'center',
+        gap: SPACING.sm,
     },
-    selector: {
-        marginRight: SPACING.lg,
-    },
-    label: {
-        fontSize: FONT_SIZES.sm,
-        fontWeight: '500',
-        marginBottom: SPACING.xs,
-    },
-    chip: {
+    className: { fontSize: FONT_SIZES.md, fontWeight: '600' },
+    streamRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.lg },
+    streamChip: {
         paddingHorizontal: SPACING.md,
         paddingVertical: SPACING.sm,
         borderRadius: BORDER_RADIUS.lg,
         borderWidth: 1,
-        marginRight: SPACING.sm,
     },
-    chipText: {
-        fontSize: FONT_SIZES.sm,
-        fontWeight: '600',
-    },
+    streamChipText: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
+    proceedBtn: { marginTop: SPACING.xl },
+    legend: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+    legendText: { fontSize: FONT_SIZES.xs },
     actionBar: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: SPACING.xl,
-        paddingVertical: SPACING.sm,
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.md,
     },
-    countText: {
-        fontSize: FONT_SIZES.sm,
-        fontWeight: '600',
-    },
-    listContent: {
-        paddingHorizontal: SPACING.xl,
-    },
+    countText: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
+    listContent: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl },
     studentCard: {
         flexDirection: 'row',
-        justifyContentalignItems: 'center',
-        gap: SPACING.md,
-    },
-    studentInfo: {
-        flexDirection: 'row',
         alignItems: 'center',
-        flex: 1,
-        gap: SPACING.sm,
+        justifyContent: 'space-between',
+        padding: SPACING.md,
+        marginBottom: SPACING.sm,
+        borderRadius: BORDER_RADIUS.lg,
     },
-    studentDetails: {
-        flex: 1,
-    },
-    studentName: {
-        fontSize: FONT_SIZES.sm,
-        fontWeight: '600',
-    },
-    admissionNumber: {
-        fontSize: FONT_SIZES.xs,
-    },
-    statusButtons: {
-        flexDirection: 'row',
-        gap: 4,
-    },
-    statusButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+    studentInfo: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: SPACING.sm },
+    studentDetails: { flex: 1 },
+    studentName: { fontSize: FONT_SIZES.md, fontWeight: '600' },
+    admissionNumber: { fontSize: FONT_SIZES.xs },
+    statusRow: { flexDirection: 'row', gap: 6 },
+    statusBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         borderWidth: 2,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    statusText: {
-        fontSize: FONT_SIZES.xs,
-        fontWeight: 'bold',
-    },
+    statusBtnText: { fontSize: FONT_SIZES.xs, fontWeight: 'bold' },
     footer: {
-        padding: SPACING.xl,
+        padding: SPACING.lg,
         borderTopWidth: 1,
-        borderTopColor: '#e2e8f0',
     },
 });

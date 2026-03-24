@@ -26,7 +26,7 @@ interface MarksEntryScreenProps {
 
 export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, route }) => {
     const { isDark, colors } = useTheme();
-    const { examId, subjectId, classId } = route.params;
+    const { examId, subjectId, classId } = route.params || {};
 
     const [exam, setExam] = useState<Exam | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
@@ -36,17 +36,18 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        loadData();
+        if (examId && subjectId && classId) loadData();
     }, [examId, subjectId, classId]);
 
     const loadData = async () => {
+        if (!examId || !subjectId || !classId) return;
         try {
             setLoading(true);
 
             const [examRes, studentsRes, marksRes] = await Promise.all([
                 academicsApi.getExam(examId),
                 studentsApi.getStudents({ class_id: classId, per_page: 100 }),
-                academicsApi.getMarks({ exam_id: examId, subject_id: subjectId }),
+                academicsApi.getMarks({ exam_id: examId, subject_id: subjectId, classroom_id: classId }),
             ]);
 
             if (examRes.success && examRes.data) {
@@ -140,6 +141,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
             const response = await academicsApi.enterMarks({
                 exam_id: examId,
                 subject_id: subjectId,
+                classroom_id: classId,
                 marks: marksData as any,
             });
 
@@ -154,6 +156,16 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
             setSaving(false);
         }
     };
+
+    if (!examId || !subjectId || !classId) {
+        return (
+            <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+                <Text style={[styles.loading, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                    Missing exam, class, or subject. Go back and try again.
+                </Text>
+            </SafeAreaView>
+        );
+    }
 
     if (loading) {
         return (
@@ -181,7 +193,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                         Enter Marks
                     </Text>
                     <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        {exam?.name} - Total: {exam?.total_marks || 100} marks
+                        {exam?.name} - Total: {exam?.total_marks ?? 100} marks
                     </Text>
                 </View>
                 <View style={{ width: 24 }} />

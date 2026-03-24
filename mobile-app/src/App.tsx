@@ -1,23 +1,22 @@
 import React from 'react';
-import { StatusBar } from 'react-native';
+import { View, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '@contexts/AuthContext';
 import { ThemeProvider } from '@contexts/ThemeContext';
 import { AppNavigator } from '@navigation/AppNavigator';
 
 const App = () => {
     return (
-        <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
             <SafeAreaProvider>
                 <ThemeProvider>
                     <AuthProvider>
-                        <StatusBar barStyle="light-content" />
+                        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
                         <AppNavigator />
                     </AuthProvider>
                 </ThemeProvider>
             </SafeAreaProvider>
-        </GestureHandlerRootView>
+        </View>
     );
 };
 

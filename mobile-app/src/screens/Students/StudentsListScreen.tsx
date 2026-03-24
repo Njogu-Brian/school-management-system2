@@ -18,6 +18,7 @@ import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { studentsApi } from '@api/students.api';
 import { Student, StudentFilters } from '@types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { BRAND, SCREEN } from '@constants/designTokens';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface StudentsListScreenProps {
@@ -154,24 +155,24 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
         <SafeAreaView
             style={[
                 styles.container,
-                { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
+                { backgroundColor: isDark ? colors.backgroundDark : BRAND.bg },
             ]}
         >
             {/* Header */}
-            <View style={styles.header}>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+            <View style={[styles.header, { paddingHorizontal: SCREEN.paddingHorizontal }]}>
+                <Text style={[styles.title, { color: isDark ? colors.textMainDark : BRAND.text }]}>
                     Students
                 </Text>
                 <TouchableOpacity
                     style={styles.addButton}
                     onPress={() => navigation.navigate('AddStudent')}
                 >
-                    <Icon name="add" size={24} color={colors.primary} />
+                    <Icon name="add" size={24} color={BRAND.primary} />
                 </TouchableOpacity>
             </View>
 
             {/* Search Bar */}
-            <View style={styles.searchContainer}>
+            <View style={[styles.searchContainer, { paddingHorizontal: SCREEN.paddingHorizontal }]}>
                 <Input
                     placeholder="Search students..."
                     value={searchQuery}
@@ -182,14 +183,14 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
                 <TouchableOpacity
                     style={[
                         styles.filterButton,
-                        { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight },
+                        { backgroundColor: isDark ? colors.surfaceDark : BRAND.surface, borderColor: BRAND.border },
                     ]}
                     onPress={() => {
                         // TODO: Open filter modal
                         Alert.alert('Filters', 'Filter modal coming soon');
                     }}
                 >
-                    <Icon name="filter-list" size={24} color={colors.primary} />
+                    <Icon name="filter-list" size={24} color={BRAND.primary} />
                 </TouchableOpacity>
             </View>
 
@@ -203,8 +204,8 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={handleRefresh}
-                        colors={[colors.primary]}
-                        tintColor={colors.primary}
+                        colors={[BRAND.primary]}
+                        tintColor={BRAND.primary}
                     />
                 }
                 onEndReached={handleLoadMore}
@@ -260,6 +261,7 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 12,
+        borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },

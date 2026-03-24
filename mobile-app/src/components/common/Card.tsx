@@ -1,21 +1,23 @@
 import React from 'react';
 import {
     View,
-    Text,
     StyleSheet,
     TouchableOpacity,
     ViewStyle,
+    Platform,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
-import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { SPACING } from '@constants/theme';
+import { BRAND, RADIUS, CARD_STYLE } from '@constants/designTokens';
 
 interface CardProps {
     children: React.ReactNode;
     onPress?: () => void;
     style?: ViewStyle;
+    elevated?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ children, onPress, style }) => {
+export const Card: React.FC<CardProps> = ({ children, onPress, style, elevated = true }) => {
     const { isDark, colors } = useTheme();
 
     const content = (
@@ -24,8 +26,18 @@ export const Card: React.FC<CardProps> = ({ children, onPress, style }) => {
                 styles.card,
                 {
                     backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                    borderColor: isDark ? colors.borderDark : colors.borderLight,
+                    borderColor: isDark ? colors.borderDark : BRAND.border,
+                    borderRadius: RADIUS.card,
                 },
+                elevated &&
+                    (Platform.OS === 'ios'
+                        ? {
+                              shadowColor: '#000',
+                              shadowOffset: CARD_STYLE.shadowOffset,
+                              shadowOpacity: CARD_STYLE.shadowOpacity,
+                              shadowRadius: CARD_STYLE.shadowRadius,
+                          }
+                        : { elevation: CARD_STYLE.elevation }),
                 style,
             ]}
         >
@@ -47,8 +59,7 @@ export const Card: React.FC<CardProps> = ({ children, onPress, style }) => {
 const styles = StyleSheet.create({
     card: {
         padding: SPACING.md,
-        borderRadius: BORDER_RADIUS.xl,
-        borderWidth: 1,
+        borderWidth: CARD_STYLE.borderWidth,
         marginBottom: SPACING.md,
     },
 });

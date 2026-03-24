@@ -2,16 +2,18 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StudentsListScreen } from '@screens/Students/StudentsListScreen';
 import { StudentDetailScreen } from '@screens/Students/StudentDetailScreen';
-import { AddStudentScreen } from '@screens/Students/AddStudentScreen';
+import { AddStudentScreen, EditStudentScreen } from '@screens/Students/StudentFormScreen';
 import { MarkAttendanceScreen } from '@screens/Attendance/MarkAttendanceScreen';
 import { InvoicesListScreen } from '@screens/Finance/InvoicesListScreen';
 import { RecordPaymentScreen } from '@screens/Finance/RecordPaymentScreen';
+import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
 import { StaffDirectoryScreen } from '@screens/HR/StaffDirectoryScreen';
 import { RoutesListScreen } from '@screens/Transport/RoutesListScreen';
 import { LibraryBooksScreen } from '@screens/Library/LibraryBooksScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
 import { ExamsListScreen } from '@screens/Academics/ExamsListScreen';
+import { ExamMarksSetupScreen } from '@screens/Academics/ExamMarksSetupScreen';
 import { MarksEntryScreen } from '@screens/Academics/MarksEntryScreen';
 import { TimetableScreen } from '@screens/Academics/TimetableScreen';
 import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
@@ -30,7 +32,9 @@ export const StudentsNavigator = () => {
             <Stack.Screen name="StudentsList" component={StudentsListScreen} />
             <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
             <Stack.Screen name="AddStudent" component={AddStudentScreen} />
-            <Stack.Screen name="EditStudent" component={PlaceholderScreen} />
+            <Stack.Screen name="EditStudent" component={EditStudentScreen} />
+            <Stack.Screen name="RecordPayment" component={RecordPaymentScreen} />
+            <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
         </Stack.Navigator>
     );
 };
@@ -49,6 +53,7 @@ export const AcademicsNavigator = () => {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="ExamsList" component={ExamsListScreen} />
+            <Stack.Screen name="ExamMarksSetup" component={ExamMarksSetupScreen} />
             <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />
             <Stack.Screen name="Timetable" component={TimetableScreen} />
             <Stack.Screen name="ReportCard" component={ReportCardScreen} />
@@ -70,7 +75,7 @@ export const FinanceNavigator = () => {
             <Stack.Screen name="InvoiceDetail" component={PlaceholderScreen} />
             <Stack.Screen name="CreateInvoice" component={PlaceholderScreen} />
             <Stack.Screen name="RecordPayment" component={RecordPaymentScreen} />
-            <Stack.Screen name="StudentStatement" component={PlaceholderScreen} />
+            <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
             <Stack.Screen name="FeeStructures" component={PlaceholderScreen} />
             <Stack.Screen name="Receipts" component={PlaceholderScreen} />
             <Stack.Screen name="Defaulters" component={PlaceholderScreen} />

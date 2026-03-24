@@ -1,5 +1,6 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, ReactNode } from 'react';
 import { authApi } from '@api/auth.api';
+import { apiClient } from '@api/client';
 import {
     User,
     LoginCredentials,
@@ -13,7 +14,6 @@ import {
     getUser,
     clearAuthData,
     saveRememberMe,
-    getRememberMe,
 } from '@utils/storage';
 import { normalizeRole } from '@utils/roleUtils';
 
@@ -28,7 +28,7 @@ interface AuthContextType extends AuthState {
     checkAuth: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
     children: ReactNode;
@@ -51,15 +51,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuth = async () => {
         try {
             const token = await getToken();
-            const user = await getUser();
-            const remember = await getRememberMe();
 
-            if (token && user && remember) {
-                // Verify token is still valid
+            // Restore session whenever a token exists — validate with the API (not gated on "remember me").
+            // Previously we only called getProfile when remember===true, which left tokens in storage but
+            // set isAuthenticated false after restart, or caused confusing 401s when the UI thought the user was logged in.
+            if (token) {
                 try {
                     const response = await authApi.getProfile();
                     if (response.success && response.data) {
                         const user = normalizeUserRole(response.data);
+                        await saveUser(user);
                         setState({
                             isAuthenticated: true,
                             user,
@@ -69,8 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         });
                         return;
                     }
-                } catch (error) {
-                    // Token invalid, clear data
+                } catch {
                     await clearAuthData();
                 }
             }
@@ -82,7 +82,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 loading: false,
                 error: null,
             });
-        } catch (error) {
+        } catch {
             setState({
                 isAuthenticated: false,
                 user: null,
@@ -118,24 +118,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             } else {
                 throw new Error(response.message || 'Login failed');
             }
-        } catch (error: any) {
+        } catch (err) {
+            const msg =
+                (err as { message?: string })?.message ||
+                (err instanceof Error ? err.message : null) ||
+                String(err) ||
+                'Login failed. Please try again.';
             setState((prev) => ({
                 ...prev,
                 loading: false,
-                error: error.message || 'Login failed. Please try again.',
+                error: msg,
             }));
-            throw error;
+            throw err;
         }
     };
+
+    const logoutRef = useRef<() => Promise<void>>();
 
     const logout = async () => {
         try {
             setState((prev) => ({ ...prev, loading: true }));
 
-            // Call logout API
-            await authApi.logout();
-        } catch (error) {
-            console.error('Logout API error:', error);
+            const token = await getToken();
+            if (token) {
+                try {
+                    await authApi.logout();
+                } catch {
+                    /* token may already be invalid; local clear still runs */
+                }
+            }
+        } catch (err) {
+            console.error('Logout error:', err);
         } finally {
             // Clear local data regardless of API result
             await clearAuthData();
@@ -149,6 +162,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             });
         }
     };
+
+    logoutRef.current = logout;
+
+    useEffect(() => {
+        apiClient.setOnUnauthorized(() => {
+            logoutRef.current?.();
+        });
+        return () => apiClient.setOnUnauthorized(null);
+    }, []);
 
     const value: AuthContextType = {
         ...state,

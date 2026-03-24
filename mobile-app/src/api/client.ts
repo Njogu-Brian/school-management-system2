@@ -1,18 +1,28 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { API_BASE_URL, API_TIMEOUT } from '@env';
+import { API_BASE_URL, API_TIMEOUT } from '@utils/env';
 import { getToken, clearToken } from '@utils/storage';
 import { ApiError, ApiResponse } from '@types/api.types';
 
+type UnauthorizedCallback = () => void | Promise<void>;
+
 class ApiClient {
     private client: AxiosInstance;
+    private onUnauthorized: UnauthorizedCallback | null = null;
+
+    setOnUnauthorized(cb: UnauthorizedCallback | null) {
+        this.onUnauthorized = cb;
+    }
 
     constructor() {
+        const baseURL = API_BASE_URL || 'http://localhost:8000/api';
+        const isNgrok = baseURL.includes('ngrok');
         this.client = axios.create({
-            baseURL: API_BASE_URL || 'http://localhost:8000/api',
+            baseURL,
             timeout: parseInt(API_TIMEOUT || '30000', 10),
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
+                ...(isNgrok && { 'ngrok-skip-browser-warning': '1' }),
             },
         });
 
@@ -27,6 +37,16 @@ class ApiClient {
                 if (token && config.headers) {
                     config.headers.Authorization = `Bearer ${token}`;
                 }
+                // Let the runtime set multipart boundary (default JSON Content-Type breaks file uploads)
+                const body = config.data as unknown;
+                if (
+                    body &&
+                    typeof body === 'object' &&
+                    typeof (body as FormData).append === 'function' &&
+                    config.headers
+                ) {
+                    delete config.headers['Content-Type'];
+                }
                 return config;
             },
             (error) => {
@@ -40,10 +60,15 @@ class ApiClient {
                 return response;
             },
             async (error: AxiosError) => {
-                if (error.response?.status === 401) {
-                    // Unauthorized - clear token and redirect to login
+                const url = String(error.config?.url ?? '');
+                const isAuthRoute =
+                    url.endsWith('/login') ||
+                    url.includes('/logout') ||
+                    url.endsWith('/register');
+
+                if (error.response?.status === 401 && !isAuthRoute) {
                     await clearToken();
-                    // Navigation will be handled by AuthContext
+                    this.onUnauthorized?.();
                 }
 
                 const apiError: ApiError = {
@@ -87,13 +112,9 @@ class ApiClient {
         return response.data;
     }
 
-    // Upload file
+    // Upload file (multipart; Content-Type stripped in interceptor for correct boundary)
     async upload<T>(url: string, formData: FormData): Promise<ApiResponse<T>> {
-        const response = await this.client.post(url, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
+        const response = await this.client.post(url, formData);
         return response.data;
     }
 }

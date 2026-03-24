@@ -180,6 +180,7 @@ export interface LessonPlan {
 export interface AcademicsFilters {
     exam_id?: number;
     class_id?: number;
+    classroom_id?: number;
     subject_id?: number;
     student_id?: number;
     teacher_id?: number;

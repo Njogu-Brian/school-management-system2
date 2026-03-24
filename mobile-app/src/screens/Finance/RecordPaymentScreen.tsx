@@ -7,18 +7,25 @@ import {
     ScrollView,
     TouchableOpacity,
     Alert,
+    Linking,
+    Share,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
 import { Button } from '@components/common/Button';
 import { Input } from '@components/common/Input';
 import { Card } from '@components/common/Card';
 import { Avatar } from '@components/common/Avatar';
 import { financeApi } from '@api/finance.api';
 import { studentsApi } from '@api/students.api';
-import { Student, Invoice } from '../types/student.types';
+import { Student } from '@types/student.types';
+import { Invoice } from '@types/finance.types';
 import { formatters } from '@utils/formatters';
 import { validators } from '@utils/validators';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { BRAND, RADIUS } from '@constants/designTokens';
+import { MpesaPromptModal } from '@components/MpesaPromptModal';
+import { canUseMpesaFinanceTools } from '@utils/financeRoles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface RecordPaymentScreenProps {
@@ -59,7 +66,7 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
         try {
             const [studentRes, invoicesRes] = await Promise.all([
                 studentsApi.getStudent(studentId),
-                financeApi.getInvoices({ student_id: studentId, status: 'issued,partially_paid,overdue' }),
+                financeApi.getInvoices({ student_id: studentId, per_page: 100 }),
             ]);
 
             if (studentRes.success && studentRes.data) {
@@ -67,7 +74,7 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
             }
 
             if (invoicesRes.success && invoicesRes.data) {
-                setInvoices(invoicesRes.data.data.filter((inv: Invoice) => inv.balance > 0));
+                setInvoices(invoicesRes.data.data.filter((inv: Invoice) => inv.balance > 0.009));
             }
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to load student data');
@@ -109,6 +116,23 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
         return Object.keys(newErrors).length === 0;
     };
 
+    const openPaymentLinkForParent = async () => {
+        if (!studentId) return;
+        try {
+            const res = await financeApi.getMpesaPaymentLink(studentId);
+            if (res.success && res.data?.url) {
+                const url = res.data.url;
+                Alert.alert('Payment link', url, [
+                    { text: 'Open', onPress: () => Linking.openURL(url) },
+                    { text: 'Share', onPress: () => Share.share({ message: url }) },
+                    { text: 'Cancel', style: 'cancel' },
+                ]);
+            }
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Could not get payment link');
+        }
+    };
+
     const handleSubmit = async () => {
         if (!validate()) return;
 
@@ -140,7 +164,7 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
         <SafeAreaView
             style={[
                 styles.container,
-                { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
+                { backgroundColor: isDark ? colors.backgroundDark : BRAND.bg },
             ]}
         >
             {/* Header */}
@@ -174,6 +198,30 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
                                 )}
                             </View>
                         </View>
+                    </Card>
+                )}
+
+                {studentId && canFinanceMpesa && (
+                    <Card style={{ borderRadius: RADIUS.card, borderColor: BRAND.border }}>
+                        <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                            M-Pesa (same as web)
+                        </Text>
+                        <Text style={[styles.mpesaHint, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                            Send STK to parent or copy the public pay link.
+                        </Text>
+                        <Button
+                            title="Prompt parent (M-Pesa)"
+                            onPress={() => setMpesaOpen(true)}
+                            fullWidth
+                            style={styles.mpesaBtn}
+                        />
+                        <Button
+                            title="Parent payment link"
+                            onPress={openPaymentLinkForParent}
+                            variant="outline"
+                            fullWidth
+                            style={styles.mpesaBtn}
+                        />
                     </Card>
                 )}
 
@@ -297,6 +345,18 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
                     style={styles.submitButton}
                 />
             </ScrollView>
+            {studentId && (
+                <MpesaPromptModal
+                    visible={mpesaOpen}
+                    studentId={studentId}
+                    defaultAmount={
+                        student?.fees_balance != null && student.fees_balance > 0
+                            ? String(Math.ceil(student.fees_balance))
+                            : ''
+                    }
+                    onClose={() => setMpesaOpen(false)}
+                />
+            )}
         </SafeAreaView>
     );
 };
@@ -411,6 +471,13 @@ const styles = StyleSheet.create({
     },
     errorText: {
         fontSize: FONT_SIZES.sm,
+        marginBottom: SPACING.sm,
+    },
+    mpesaHint: {
+        fontSize: FONT_SIZES.sm,
+        marginBottom: SPACING.md,
+    },
+    mpesaBtn: {
         marginBottom: SPACING.sm,
     },
     submitButton: {

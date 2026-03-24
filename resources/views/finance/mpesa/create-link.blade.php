@@ -290,7 +290,7 @@ $(document).ready(function() {
         $('#parentsList').html('<div class="text-center text-muted py-2">Loading parent information...</div>');
         $('#studentDataAlertLink').addClass('d-none').find('.alert-message').text('');
 
-        $.get('/api/students/' + studentId)
+        $.get('/api/finance/students/' + studentId)
             .done(function(student) {
                 console.log('Student data loaded:', student);
                 studentData = student;
@@ -380,7 +380,7 @@ $(document).ready(function() {
 
     // Load invoices with checkboxes
     function loadInvoices(studentId) {
-        return $.get('/api/students/' + studentId + '/invoices')
+        return $.get('/api/finance/students/' + studentId + '/invoices')
             .done(function(invoices) {
                 console.log('Invoices loaded:', invoices);
                 let unpaidInvoices = invoices.filter(inv => inv.balance > 0);

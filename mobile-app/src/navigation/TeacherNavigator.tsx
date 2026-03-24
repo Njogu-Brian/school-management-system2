@@ -9,6 +9,7 @@ import { TimetableScreen } from '@screens/Academics/TimetableScreen';
 import { AssignmentsScreen } from '@screens/Academics/AssignmentsScreen';
 import { MarksEntryScreen } from '@screens/Academics/MarksEntryScreen';
 import { ExamsListScreen } from '@screens/Academics/ExamsListScreen';
+import { ExamMarksSetupScreen } from '@screens/Academics/ExamMarksSetupScreen';
 import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
 import { RoutesListScreen } from '@screens/Transport/RoutesListScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
@@ -21,6 +22,8 @@ import { LeaveManagementScreen } from '@screens/HR/LeaveManagementScreen';
 import { SupervisedClassroomsScreen } from '@screens/SeniorTeacher/SupervisedClassroomsScreen';
 import { SupervisedStaffScreen } from '@screens/SeniorTeacher/SupervisedStaffScreen';
 import { FeeBalancesScreen } from '@screens/SeniorTeacher/FeeBalancesScreen';
+import { RecordPaymentScreen } from '@screens/Finance/RecordPaymentScreen';
+import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
 
 const Stack = createStackNavigator();
 
@@ -38,6 +41,8 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="MyClasses" component={StudentsListScreen} />
             <Stack.Screen name="StudentsList" component={StudentsListScreen} />
             <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
+            <Stack.Screen name="RecordPayment" component={RecordPaymentScreen} />
+            <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
             {/* Attendance */}
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
             <Stack.Screen name="AttendanceRecords" component={AttendanceRecordsScreen} />
@@ -47,6 +52,7 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="LessonPlans" component={LessonPlansScreen} />
             <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />
             <Stack.Screen name="ExamsList" component={ExamsListScreen} />
+            <Stack.Screen name="ExamMarksSetup" component={ExamMarksSetupScreen} />
             <Stack.Screen name="ExamDetail" component={PlaceholderScreen} />
             <Stack.Screen name="ReportCard" component={ReportCardScreen} />
             {/* Transport, Diary, Profile, Salary */}

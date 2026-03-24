@@ -299,7 +299,7 @@ $(document).ready(function() {
         console.log('Set student_id to:', $('#student_id').val());
         
         // Get full student data to set selectedStudent (for loading invoices/siblings)
-        $.get('/api/students/' + preSelectedStudentId, function(student) {
+        $.get('/api/finance/students/' + preSelectedStudentId, function(student) {
             console.log('Loaded student data:', student);
             if (student) {
                 selectedStudent = student;
@@ -359,7 +359,7 @@ function selectSuggestion(suggestion) {
         loadSiblingsFromSuggestion(suggestion);
     } else if (isSwimming) {
         // Load siblings for selected student
-        $.get('/api/students/' + suggestion.student_id, function(student) {
+        $.get('/api/finance/students/' + suggestion.student_id, function(student) {
             if (student) {
                 loadSiblings(student);
             }
@@ -378,7 +378,7 @@ function loadSiblingsFromSuggestion(suggestion) {
     
     // Load all sibling details
     Promise.all(siblingIds.map(id => 
-        fetch('/api/students/' + id).then(r => r.json())
+        fetch('/api/finance/students/' + id).then(r => r.json())
     )).then(students => {
         displaySiblings(students, suggestion.student_id);
     });
@@ -419,7 +419,7 @@ function loadSiblings(student) {
         // If we found the student but no siblings in results, try to get the student first to ensure we have family_id
         if (familyMembers.length === 0 && results.length > 0) {
             // Get full student data to ensure we have family_id
-            $.get('/api/students/' + student.id, function(fullStudent) {
+            $.get('/api/finance/students/' + student.id, function(fullStudent) {
                 if (fullStudent.family_id) {
                     // Search again with a broader query to find siblings
                     $.get('/api/students/search?q=' + encodeURIComponent(fullStudent.admission_number.substring(0, 3)) + '&include_alumni_archived=0', function(allResults) {
@@ -613,7 +613,7 @@ function loadStudentInvoices(studentId) {
     $('#invoiceAllocationSection').show();
     $('#invoicesList').html('<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading invoices...</div>');
     
-    $.get('/api/students/' + studentId + '/invoices', function(invoices) {
+    $.get('/api/finance/students/' + studentId + '/invoices', function(invoices) {
         let unpaidInvoices = invoices.filter(inv => inv.balance > 0);
         
         if (unpaidInvoices.length === 0) {

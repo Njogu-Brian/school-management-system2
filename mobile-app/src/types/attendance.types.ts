@@ -22,7 +22,7 @@ export interface MarkAttendanceData {
     stream_id?: number;
     records: {
         student_id: number;
-        status: 'present' | 'absent' | 'late' | 'excused';
+        status: 'present' | 'absent' | 'late' | 'unmarked';
         reason?: string;
     }[];
 }

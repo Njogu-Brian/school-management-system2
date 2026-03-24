@@ -20,6 +20,7 @@ export function normalizeRole(role: unknown): string {
         'secretary': UserRole.SECRETARY,
         'accountant': UserRole.ACCOUNTANT,
         'finance': UserRole.FINANCE,
+        'finance officer': UserRole.FINANCE,
         'parent': UserRole.PARENT,
         'guardian': UserRole.GUARDIAN,
         'student': UserRole.STUDENT,

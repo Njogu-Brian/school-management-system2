@@ -1041,11 +1041,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::get('/api/students/search', [StudentController::class, 'search'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('api.students.search');
     
-    // Student API endpoints for M-PESA payment forms
-    Route::get('/api/students/{student}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentData'])
-        ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.students.show');
-    Route::get('/api/students/{student}/invoices', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentInvoices'])
-        ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.students.invoices');
+    // M-PESA JSON helpers (must NOT use /api/students/{id} — that path is reserved for Sanctum mobile API in routes/api.php)
+    Route::get('/api/finance/students/{student}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentData'])
+        ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.finance.students.show');
+    Route::get('/api/finance/students/{student}/invoices', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentInvoices'])
+        ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.finance.students.invoices');
 
     // Export filtered list
     Route::get('/students/export', [StudentController::class, 'export'])

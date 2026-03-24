@@ -61,9 +61,8 @@ export const ExamsListScreen: React.FC<ExamsListScreenProps> = ({ navigation }) 
     };
 
     const handleExamPress = (exam: Exam) => {
-        // Teachers can enter marks, students/parents can view marks
-        if (user?.role === 'teacher' || user?.role === 'senior_teacher' || user?.role === 'supervisor' || user?.role === 'admin' || user?.role === 'super_admin') {
-            navigation.navigate('ExamDetail', { examId: exam.id });
+        if (user?.role === 'teacher' || user?.role === 'senior_teacher' || user?.role === 'supervisor' || user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'secretary') {
+            navigation.navigate('ExamMarksSetup', { examId: exam.id });
         } else {
             navigation.navigate('ViewMarks', { examId: exam.id });
         }

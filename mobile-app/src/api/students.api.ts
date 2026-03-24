@@ -9,6 +9,8 @@ import {
 } from '@types/student.types';
 import { ApiResponse, PaginatedResponse } from '@types/api.types';
 
+export type StudentCategoryRow = { id: number; name: string; description?: string | null };
+
 export const studentsApi = {
     // Get students list with filters
     async getStudents(filters?: StudentFilters): Promise<ApiResponse<PaginatedResponse<Student>>> {
@@ -20,14 +22,32 @@ export const studentsApi = {
         return apiClient.get<Student>(`/students/${id}`);
     },
 
-    // Create new student
+    // Create new student (multipart: photo, parent ID docs)
     async createStudent(data: CreateStudentData): Promise<ApiResponse<Student>> {
         return apiClient.post<Student>('/students', data);
     },
 
-    // Update student
+    async createStudentMultipart(formData: FormData): Promise<ApiResponse<Student>> {
+        return apiClient.upload<Student>('/students', formData);
+    },
+
+    // Update student (multipart)
     async updateStudent(id: number, data: UpdateStudentData): Promise<ApiResponse<Student>> {
         return apiClient.put<Student>(`/students/${id}`, data);
+    },
+
+    async updateStudentMultipart(id: number, formData: FormData): Promise<ApiResponse<Student>> {
+        return apiClient.upload<Student>(`/students/${id}/update`, formData);
+    },
+
+    async getStudentCategories(): Promise<ApiResponse<StudentCategoryRow[]>> {
+        return apiClient.get<StudentCategoryRow[]>('/student-categories');
+    },
+
+    async getProfileUpdateLink(
+        id: number
+    ): Promise<ApiResponse<{ url: string; token: string }>> {
+        return apiClient.get<{ url: string; token: string }>(`/students/${id}/profile-update-link`);
     },
 
     // Delete/Archive student
@@ -62,10 +82,21 @@ export const studentsApi = {
 
     // Get student stats (for detail screen)
     async getStudentStats(id: number): Promise<ApiResponse<{
-        attendance_percentage: number;
+        attendance_percentage: number | null;
+        attendance_days_marked?: number;
         fees_balance: number;
-        exam_average: number;
+        exam_average: number | null;
     }>> {
         return apiClient.get(`/students/${id}/stats`);
+    },
+
+    async getAttendanceCalendar(
+        id: number,
+        year: number,
+        month: number
+    ): Promise<
+        ApiResponse<{ date: string; status: string; is_excused: boolean }[]>
+    > {
+        return apiClient.get(`/students/${id}/attendance-calendar`, { year, month });
     },
 };
