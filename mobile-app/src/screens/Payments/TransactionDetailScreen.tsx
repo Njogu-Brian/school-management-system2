@@ -133,8 +133,19 @@ export const TransactionDetailScreen: React.FC<Props> = ({ navigation, route }) 
                     <Text style={[styles.line, { color: textMain }]}>
                         {String(detail?.reference_number ?? detail?.trans_id ?? `#${transactionId}`)}
                     </Text>
+                    {detail?.description ? (
+                        <Text style={[styles.lineSm, { color: textSub }]} numberOfLines={4}>
+                            {String(detail.description)}
+                        </Text>
+                    ) : null}
+                    {detail?.bill_ref_number ? (
+                        <Text style={[styles.lineSm, { color: textSub }]}>Bill ref: {String(detail.bill_ref_number)}</Text>
+                    ) : null}
+                    {detail?.trans_time ? (
+                        <Text style={[styles.lineSm, { color: textSub }]}>M-Pesa time: {String(detail.trans_time)}</Text>
+                    ) : null}
                     <Text style={[styles.lineSm, { color: textSub }]}>
-                        {String(detail?.status ?? '')} · {String(detail?.match_status ?? '')}
+                        {String(detail?.status ?? '')} · {String(detail?.match_status ?? detail?.allocation_status ?? '')}
                     </Text>
                     {detail?.is_swimming_transaction ? (
                         <Text style={[styles.swim, { color: '#0d9488' }]}>Marked as swimming</Text>

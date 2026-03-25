@@ -28,13 +28,13 @@ class ApiPaymentController extends Controller
             'search' => 'nullable|string|max:255',
             'date_from' => 'nullable|date',
             'date_to' => 'nullable|date',
-            'active_only' => 'nullable|boolean',
             'class_id' => 'nullable|integer',
         ]);
 
         $user = $request->user();
         $perPage = (int) $request->input('per_page', 30);
-        $activeOnly = $request->boolean('active_only', true);
+        // Do not use the `boolean` rule on query/body — clients send true/false/1/0 inconsistently.
+        $activeOnly = $request->has('active_only') ? $request->boolean('active_only') : true;
 
         $query = Payment::query()
             ->with(['paymentMethod', 'student'])

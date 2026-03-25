@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -45,6 +45,8 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
     const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const selectedDateRef = useRef(selectedDate);
+    selectedDateRef.current = selectedDate;
 
     useEffect(() => {
         loadClasses();
@@ -81,50 +83,63 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
         setSelectedStream(stream);
     };
 
-    const handleProceedToMark = async () => {
-        if (!selectedClass) return;
-        setLoading(true);
-        try {
-            const response = await studentsApi.getStudents({
-                class_id: selectedClass.id,
-                stream_id: selectedStream?.id,
-                status: 'active',
-                per_page: 200,
-            });
-            if (response.success && response.data) {
-                const list = response.data.data;
-                setStudents(list);
-                let rows: AttendanceRecord[] = list.map((s) => ({ student_id: s.id, status: 'unmarked' as AttendanceStatus }));
-                try {
-                    const live = await attendanceApi.getClassAttendance(
-                        selectedDate,
-                        selectedClass.id,
-                        selectedStream?.id
-                    );
-                    if (live.success && live.data && Array.isArray(live.data)) {
-                        const byId = new Map(
-                            live.data.map((r: { student_id: number; status: string }) => [r.student_id, r.status])
+    const loadMarkingData = useCallback(
+        async (dateStr?: string) => {
+            if (!selectedClass) return;
+            const date = dateStr ?? selectedDateRef.current;
+            setLoading(true);
+            try {
+                const response = await studentsApi.getStudents({
+                    class_id: selectedClass.id,
+                    stream_id: selectedStream?.id,
+                    status: 'active',
+                    per_page: 200,
+                });
+                if (response.success && response.data) {
+                    const list = response.data.data;
+                    setStudents(list);
+                    let rows: AttendanceRecord[] = list.map((s) => ({ student_id: s.id, status: 'unmarked' as AttendanceStatus }));
+                    try {
+                        const live = await attendanceApi.getClassAttendance(
+                            date,
+                            selectedClass.id,
+                            selectedStream?.id
                         );
-                        rows = list.map((s) => {
-                            const st = byId.get(s.id);
-                            if (st === 'present' || st === 'absent' || st === 'late') {
-                                return { student_id: s.id, status: st as AttendanceStatus };
-                            }
-                            return { student_id: s.id, status: 'unmarked' as AttendanceStatus };
-                        });
+                        if (live.success && live.data && Array.isArray(live.data)) {
+                            const byId = new Map(
+                                live.data.map((r: { student_id: number; status: string }) => [r.student_id, r.status])
+                            );
+                            rows = list.map((s) => {
+                                const st = byId.get(s.id);
+                                if (st === 'present' || st === 'absent' || st === 'late') {
+                                    return { student_id: s.id, status: st as AttendanceStatus };
+                                }
+                                return { student_id: s.id, status: 'unmarked' as AttendanceStatus };
+                            });
+                        }
+                    } catch {
+                        /* use all unmarked */
                     }
-                } catch {
-                    /* use all unmarked */
+                    setAttendance(rows);
+                    setStep('mark');
                 }
-                setAttendance(rows);
-                setStep('mark');
+            } catch (error: any) {
+                Alert.alert('Error', error.message || 'Failed to load students');
+            } finally {
+                setLoading(false);
             }
-        } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to load students');
-        } finally {
-            setLoading(false);
-        }
-    };
+        },
+        [selectedClass, selectedStream]
+    );
+
+    /** After class/stream is chosen, go straight to marking (no extra “Proceed” step). */
+    useEffect(() => {
+        if (step !== 'select' || !selectedClass) return;
+        const t = setTimeout(() => {
+            void loadMarkingData();
+        }, 350);
+        return () => clearTimeout(t);
+    }, [step, selectedClass, selectedStream, streams.length, loadMarkingData]);
 
     const handleBackToClasses = () => {
         setStep('select');
@@ -142,7 +157,11 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
         const yy = next.getFullYear();
         const mm = String(next.getMonth() + 1).padStart(2, '0');
         const dd = String(next.getDate()).padStart(2, '0');
-        setSelectedDate(`${yy}-${mm}-${dd}`);
+        const nextStr = `${yy}-${mm}-${dd}`;
+        setSelectedDate(nextStr);
+        if (step === 'mark' && selectedClass) {
+            setTimeout(() => void loadMarkingData(nextStr), 0);
+        }
     };
 
     const updateAttendance = (studentId: number, status: AttendanceStatus) => {
@@ -211,41 +230,6 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                 </View>
 
                 <ScrollView contentContainerStyle={styles.selectContent}>
-                    <View
-                        style={[
-                            styles.dateCard,
-                            {
-                                backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
-                                borderColor: isDark ? colors.borderDark : BRAND.border,
-                                borderRadius: RADIUS.card,
-                            },
-                        ]}
-                    >
-                        <Text style={[styles.sectionLabel, styles.dateSectionLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                            Attendance date
-                        </Text>
-                        <View style={styles.dateRow}>
-                            <TouchableOpacity
-                                style={[styles.dateArrow, { borderColor: BRAND.primary }]}
-                                onPress={() => shiftDate(-1)}
-                            >
-                                <Icon name="chevron-left" size={28} color={BRAND.primary} />
-                            </TouchableOpacity>
-                            <Text style={[styles.dateText, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                                {selectedDate}
-                            </Text>
-                            <TouchableOpacity
-                                style={[styles.dateArrow, { borderColor: BRAND.primary }]}
-                                onPress={() => shiftDate(1)}
-                            >
-                                <Icon name="chevron-right" size={28} color={BRAND.primary} />
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={[styles.dateHint, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                            You can mark or edit past days like on the web portal (up to today).
-                        </Text>
-                    </View>
-
                     <Text style={[styles.sectionLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                         Select Class
                     </Text>
@@ -310,15 +294,11 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                         </>
                     )}
 
-                    {selectedClass && (
-                        <Button
-                            title={loading ? 'Loading...' : 'Proceed to Mark Students'}
-                            onPress={handleProceedToMark}
-                            loading={loading}
-                            fullWidth
-                            style={styles.proceedBtn}
-                        />
-                    )}
+                    {selectedClass && loading ? (
+                        <Text style={[styles.loadingHint, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                            Loading students…
+                        </Text>
+                    ) : null}
                 </ScrollView>
             </SafeAreaView>
         );
@@ -377,11 +357,44 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                     <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                         Marking: {selectedClass?.name}{selectedStream ? ` - ${selectedStream.name}` : ''}
                     </Text>
-                    <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        {selectedDate}
-                    </Text>
                 </View>
                 <View style={{ width: 24 }} />
+            </View>
+
+            <View
+                style={[
+                    styles.dateCard,
+                    {
+                        marginHorizontal: SPACING.lg,
+                        backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                        borderColor: isDark ? colors.borderDark : BRAND.border,
+                        borderRadius: RADIUS.card,
+                    },
+                ]}
+            >
+                <Text style={[styles.sectionLabel, styles.dateSectionLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                    Attendance date
+                </Text>
+                <View style={styles.dateRow}>
+                    <TouchableOpacity
+                        style={[styles.dateArrow, { borderColor: BRAND.primary }]}
+                        onPress={() => shiftDate(-1)}
+                    >
+                        <Icon name="chevron-left" size={28} color={BRAND.primary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.dateText, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                        {selectedDate}
+                    </Text>
+                    <TouchableOpacity
+                        style={[styles.dateArrow, { borderColor: BRAND.primary }]}
+                        onPress={() => shiftDate(1)}
+                    >
+                        <Icon name="chevron-right" size={28} color={BRAND.primary} />
+                    </TouchableOpacity>
+                </View>
+                <Text style={[styles.dateHint, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                    Change the date here to mark a different day for this class/stream.
+                </Text>
             </View>
 
             {/* Legend */}
@@ -454,7 +467,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     streamChipText: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
-    proceedBtn: { marginTop: SPACING.xl },
+    loadingHint: { marginTop: SPACING.lg, textAlign: 'center', fontSize: FONT_SIZES.sm },
     legend: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
     legendText: { fontSize: FONT_SIZES.xs },
     actionBar: {

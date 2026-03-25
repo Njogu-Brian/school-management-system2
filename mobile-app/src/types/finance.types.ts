@@ -166,6 +166,7 @@ export interface FinanceTransaction {
     trans_amount: number | null;
     trans_code: string | null;
     description?: string | null;
+    bill_ref_number?: string | null;
     phone_number?: string | null;
     payer_name?: string | null;
     student_id?: number | null;
@@ -177,6 +178,8 @@ export interface FinanceTransaction {
     is_archived: boolean;
     payment_created: boolean;
     is_swimming_transaction: boolean;
+    /** ISO-8601 when the row was recorded in the system */
+    recorded_at?: string | null;
 }
 
 export interface FinanceFilters {

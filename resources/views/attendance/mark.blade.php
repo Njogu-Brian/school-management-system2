@@ -62,6 +62,7 @@
       </div>
       <div class="card-body">
         <form method="GET" action="{{ route('attendance.mark.form') }}" class="row g-3">
+          <input type="hidden" name="date" value="{{ $selectedDate }}">
           @if(($showCampusFilter ?? false) && !$classes->isEmpty())
           <div class="col-md-2">
             <label class="form-label">Campus</label>
@@ -93,11 +94,6 @@
           </div>
 
           <div class="col-md-2">
-            <label class="form-label">Date</label>
-            <input type="date" name="date" class="form-control" value="{{ $selectedDate }}" onchange="this.form.submit()">
-          </div>
-
-          <div class="col-md-2">
             <label class="form-label">Show</label>
             <select name="marked_filter" class="form-select" onchange="this.form.submit()">
               <option value="all" {{ ($markedFilter ?? 'all') === 'all' ? 'selected' : '' }}>All students</option>
@@ -118,6 +114,25 @@
     </div>
 
     @if ($students->isNotEmpty())
+    <form method="GET" action="{{ route('attendance.mark.form') }}" class="settings-card mb-3">
+      <div class="card-body row g-3 align-items-end">
+        <div class="col-md-4 col-lg-3">
+          <label class="form-label fw-semibold">Attendance date</label>
+          <input type="date" name="date" class="form-control" value="{{ $selectedDate }}" max="{{ now()->toDateString() }}" onchange="this.form.submit()">
+          <input type="hidden" name="class" value="{{ $selectedClass }}">
+          <input type="hidden" name="stream" value="{{ $selectedStream }}">
+          @if(($showCampusFilter ?? false))
+          <input type="hidden" name="campus" value="{{ $selectedCampus ?? '' }}">
+          @endif
+          <input type="hidden" name="marked_filter" value="{{ $markedFilter ?? 'all' }}">
+          <input type="hidden" name="q" value="{{ $q ?? '' }}">
+        </div>
+        <div class="col-md-8 col-lg-9 text-muted small">
+          Change the date to mark or review attendance for another school day (same class/stream). Filters above stay applied.
+        </div>
+      </div>
+    </form>
+
     <form id="attendanceForm" method="POST" action="{{ route('attendance.mark') }}">
       @csrf
       <input type="hidden" name="date" value="{{ $selectedDate }}">

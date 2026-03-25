@@ -21,10 +21,14 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const VIEW_FILTERS: { key: string; label: string }[] = [
     { key: 'all', label: 'All' },
-    { key: 'swimming', label: 'Swimming' },
     { key: 'unassigned', label: 'Unassigned' },
     { key: 'auto-assigned', label: 'Auto' },
+    { key: 'manual-assigned', label: 'Manual' },
+    { key: 'draft', label: 'Draft' },
+    { key: 'collected', label: 'Collected' },
+    { key: 'swimming', label: 'Swimming' },
     { key: 'duplicate', label: 'Duplicates' },
+    { key: 'archived', label: 'Archived' },
 ];
 
 interface Props {
@@ -56,6 +60,8 @@ export const TransactionsListScreen: React.FC<Props> = ({ navigation, embedded =
                     search: search ?? searchQuery,
                     page: pageNum,
                     per_page: 20,
+                    date_from: dateFrom.trim() || undefined,
+                    date_to: dateTo.trim() || undefined,
                 });
                 if (response.success && response.data) {
                     if (pageNum === 1) {
@@ -73,7 +79,7 @@ export const TransactionsListScreen: React.FC<Props> = ({ navigation, embedded =
                 setRefreshing(false);
             }
         },
-        [searchQuery, view]
+        [searchQuery, view, dateFrom, dateTo]
     );
 
     useEffect(() => {
@@ -82,7 +88,7 @@ export const TransactionsListScreen: React.FC<Props> = ({ navigation, embedded =
             fetchRows(1, searchQuery);
         }, delay);
         return () => clearTimeout(t);
-    }, [searchQuery, view]);
+    }, [searchQuery, view, dateFrom, dateTo]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -132,11 +138,21 @@ export const TransactionsListScreen: React.FC<Props> = ({ navigation, embedded =
                     <Text style={[styles.student, { color: textSub }]} numberOfLines={1}>
                         {item.student_name || item.payer_name || item.description || '—'}
                     </Text>
-                    <Text style={[styles.meta, { color: textSub }]}>
-                        {item.trans_date ? formatters.formatDate(String(item.trans_date)) : '—'} ·{' '}
+                    <Text style={[styles.meta, { color: textSub }]} numberOfLines={2}>
+                        {item.trans_date ? formatters.formatDate(String(item.trans_date)) : '—'}
+                        {item.recorded_at
+                            ? ` · ${new Date(item.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : ''}
+                        {' · '}
                         {item.match_status || item.status || '—'}
+                        {item.bill_ref_number ? ` · Ref ${item.bill_ref_number}` : ''}
                         {item.is_swimming_transaction ? ' · Swimming' : ''}
                     </Text>
+                    {item.description ? (
+                        <Text style={[styles.desc, { color: textSub }]} numberOfLines={2}>
+                            {item.description}
+                        </Text>
+                    ) : null}
                 </View>
                 <Text style={[styles.amount, { color: colors.success }]}>
                     {item.trans_amount != null ? formatters.formatCurrency(item.trans_amount) : '—'}
@@ -191,6 +207,20 @@ export const TransactionsListScreen: React.FC<Props> = ({ navigation, embedded =
                     icon="search"
                     containerStyle={styles.searchInput}
                 />
+                <View style={styles.dateRow}>
+                    <Input
+                        placeholder="From (YYYY-MM-DD)"
+                        value={dateFrom}
+                        onChangeText={setDateFrom}
+                        containerStyle={styles.dateInput}
+                    />
+                    <Input
+                        placeholder="To (YYYY-MM-DD)"
+                        value={dateTo}
+                        onChangeText={setDateTo}
+                        containerStyle={styles.dateInput}
+                    />
+                </View>
             </View>
             <FlatList
                 style={embedded ? { flex: 1 } : undefined}
@@ -233,6 +263,9 @@ const styles = StyleSheet.create({
     },
     searchWrap: { paddingHorizontal: SPACING.xl, marginBottom: SPACING.sm },
     searchInput: { marginBottom: 0 },
+    dateRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
+    dateInput: { flex: 1, marginBottom: 0 },
+    desc: { fontSize: FONT_SIZES.xs, marginTop: 4 },
     list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xl, gap: SPACING.sm },
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     info: { flex: 1, paddingRight: SPACING.sm },

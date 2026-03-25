@@ -103,6 +103,7 @@ class UnifiedTransactionService
                 'amount as trans_amount',
                 'reference_number as trans_code',
                 'description',
+                DB::raw('NULL as bill_ref_number'),
                 'phone_number',
                 'payer_name',
                 'student_id',
@@ -126,6 +127,7 @@ class UnifiedTransactionService
                 'trans_amount',
                 'trans_id as trans_code',
                 DB::raw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(middle_name, ''), ' ', COALESCE(last_name, '')) as description"),
+                'bill_ref_number',
                 'msisdn as phone_number',
                 DB::raw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')) as payer_name"),
                 'student_id',
@@ -208,11 +210,72 @@ class UnifiedTransactionService
                     $query->whereRaw('1 = 0');
                 }
                 break;
+            case 'manual-assigned':
+                if ($type === 'bank') {
+                    $query->where('is_duplicate', false)
+                        ->where('is_archived', false)
+                        ->where('transaction_type', 'credit')
+                        ->where(function ($q) {
+                            $q->where('match_status', 'manual')
+                                ->orWhere(function ($q2) {
+                                    $q2->where('status', 'confirmed')
+                                        ->where('payment_created', false)
+                                        ->whereNotNull('student_id');
+                                });
+                        });
+                } else {
+                    $query->where('allocation_status', 'manually_allocated')
+                        ->where('is_duplicate', false);
+                }
+                break;
+            case 'draft':
+                if ($type === 'bank') {
+                    $query->where('is_duplicate', false)
+                        ->where('is_archived', false)
+                        ->where('transaction_type', 'credit')
+                        ->where(function ($q) {
+                            $q->where('match_status', 'multiple_matches')
+                                ->orWhere(function ($q2) {
+                                    $q2->where('match_status', 'matched')
+                                        ->where('match_confidence', '>', 0)
+                                        ->where('match_confidence', '<', 0.85);
+                                });
+                        })
+                        ->where('payment_created', false);
+                } else {
+                    $query->whereIn('status', ['pending', 'processing'])
+                        ->where('is_duplicate', false);
+                }
+                break;
+            case 'collected':
+                if ($type === 'bank') {
+                    $query->where('payment_created', true)
+                        ->where('is_duplicate', false)
+                        ->where('is_archived', false)
+                        ->where('transaction_type', 'credit');
+                } else {
+                    $query->whereNotNull('payment_id')
+                        ->where('is_duplicate', false);
+                }
+                break;
+            case 'archived':
+                if ($type === 'bank') {
+                    $query->where('is_archived', true)
+                        ->where('transaction_type', 'credit');
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+                break;
             default:
                 if ($type === 'bank') {
-                    $query->where('is_archived', false);
+                    $query->where('is_archived', false)
+                        ->where(function ($q) {
+                            $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
+                        })
+                        ->where('transaction_type', 'credit');
+                } else {
+                    $query->where('is_duplicate', false);
                 }
-                $query->where('is_duplicate', false);
         }
 
         // Additional filters

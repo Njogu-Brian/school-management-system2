@@ -22,7 +22,7 @@ class ApiFinanceTransactionsController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-            'view' => 'nullable|string|in:all,auto-assigned,unassigned,duplicate,swimming',
+            'view' => 'nullable|string|in:all,auto-assigned,unassigned,duplicate,swimming,manual-assigned,draft,collected,archived',
             'search' => 'nullable|string|max:255',
             'date_from' => 'nullable|date',
             'date_to' => 'nullable|date',
@@ -110,6 +110,15 @@ class ApiFinanceTransactionsController extends Controller
             $studentName = trim(($s->first_name ?? '').' '.($s->last_name ?? ''));
         }
 
+        $recordedAt = null;
+        if (! empty($row->created_at)) {
+            try {
+                $recordedAt = \Carbon\Carbon::parse($row->created_at)->toIso8601String();
+            } catch (\Throwable) {
+                $recordedAt = (string) $row->created_at;
+            }
+        }
+
         return [
             'id' => (int) $row->id,
             'transaction_type' => $type,
@@ -117,6 +126,7 @@ class ApiFinanceTransactionsController extends Controller
             'trans_amount' => isset($row->trans_amount) ? (float) $row->trans_amount : null,
             'trans_code' => $row->trans_code ?? null,
             'description' => $row->description ?? null,
+            'bill_ref_number' => $row->bill_ref_number ?? null,
             'phone_number' => $row->phone_number ?? null,
             'payer_name' => $row->payer_name ?? null,
             'student_id' => $sid,
@@ -128,6 +138,7 @@ class ApiFinanceTransactionsController extends Controller
             'is_archived' => (bool) ($row->is_archived ?? false),
             'payment_created' => (bool) ($row->payment_created ?? false),
             'is_swimming_transaction' => (bool) ($row->is_swimming_transaction ?? false),
+            'recorded_at' => $recordedAt,
         ];
     }
 
