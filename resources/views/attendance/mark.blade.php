@@ -5,6 +5,11 @@
 @endpush
 
 @section('content')
+@php
+  $studentAttendanceEligibility = $studentAttendanceEligibility ?? [];
+  $dateAllowsMarking = $dateAllowsMarking ?? true;
+  $dateBlockReason = $dateBlockReason ?? null;
+@endphp
 <div class="settings-page">
   <div class="settings-shell">
     <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
@@ -34,6 +39,16 @@
       <div class="alert alert-danger alert-dismissible fade show">
         {{ session('error') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    @endif
+
+    @if(!empty($dateBlockReason))
+      <div class="alert alert-warning border-0 mb-3">
+        @if($dateBlockReason === 'future')
+          <i class="bi bi-calendar-x"></i> You cannot record attendance for a future date. Choose today or an earlier school day.
+        @else
+          <i class="bi bi-calendar-x"></i> This date is not a school day (weekend, public holiday, break, or custom non-school day). Attendance cannot be recorded here.
+        @endif
       </div>
     @endif
 
@@ -112,7 +127,7 @@
       <div class="settings-card mb-3">
         <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div class="d-flex gap-2">
-            <button type="button" id="btnMarkAllPresent" class="btn btn-ghost-strong btn-sm">
+            <button type="button" id="btnMarkAllPresent" class="btn btn-ghost-strong btn-sm" @if(!($dateAllowsMarking ?? true)) disabled @endif>
               <i class="bi bi-check-all"></i> Mark All Present
             </button>
           </div>
@@ -148,8 +163,10 @@
                     $reasonCodeId = $att ? $att->reason_code_id : null;
                     $excuseNotes = $att ? $att->excuse_notes : '';
                     $consecutive = $att ? $att->consecutive_absence_count : 0;
+                    $eligible = $studentAttendanceEligibility[$student->id] ?? false;
+                    $rowDisabled = !($dateAllowsMarking ?? true) || !$eligible;
                   @endphp
-                  <tr data-student-id="{{ $student->id }}" data-search="{{ strtolower($student->admission_number.' '.$student->first_name.' '.$student->middle_name.' '.$student->last_name) }}">
+                  <tr data-student-id="{{ $student->id }}" data-attendance-eligible="{{ $eligible && ($dateAllowsMarking ?? true) ? '1' : '0' }}" data-search="{{ strtolower($student->admission_number.' '.$student->first_name.' '.$student->middle_name.' '.$student->last_name) }}" class="{{ $rowDisabled ? 'table-secondary text-muted' : '' }}">
                     <td>{{ $row }}</td>
                     <td class="fw-semibold">{{ $student->admission_number }}</td>
                     <td>
@@ -171,21 +188,30 @@
                         <input type="hidden" name="unmark_{{ $student->id }}" class="unmark-input" data-student-id="{{ $student->id }}" value="">
                       @endif
                       <div class="btn-group btn-group-sm status-btn-group" role="group" data-student-id="{{ $student->id }}" data-can-unmark="{{ ($canUnmark ?? false) ? '1' : '0' }}">
-                        <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="present" id="present_{{ $student->id }}" {{ $status === 'present' ? 'checked' : '' }}>
+                        <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="present" id="present_{{ $student->id }}" {{ $status === 'present' ? 'checked' : '' }} @disabled($rowDisabled)>
                         <label class="btn btn-outline-success status-label" for="present_{{ $student->id }}" data-value="present">Present</label>
 
-                        <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="absent" id="absent_{{ $student->id }}" {{ $status === 'absent' ? 'checked' : '' }}>
+                        <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="absent" id="absent_{{ $student->id }}" {{ $status === 'absent' ? 'checked' : '' }} @disabled($rowDisabled)>
                         <label class="btn btn-outline-danger status-label" for="absent_{{ $student->id }}" data-value="absent">Absent</label>
 
-                        <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="late" id="late_{{ $student->id }}" {{ $status === 'late' ? 'checked' : '' }}>
+                        <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="late" id="late_{{ $student->id }}" {{ $status === 'late' ? 'checked' : '' }} @disabled($rowDisabled)>
                         <label class="btn btn-outline-warning status-label" for="late_{{ $student->id }}" data-value="late">Late</label>
                       </div>
-                      @if($canUnmark ?? false)
+                      @if($rowDisabled)
+                        @if(!($dateAllowsMarking ?? true))
+                          <small class="text-muted d-block mt-1">{{ ($dateBlockReason ?? '') === 'future' ? 'Future date.' : 'Not a school day.' }}</small>
+                        @else
+                          <small class="text-muted d-block mt-1">Not enrolled on this date.</small>
+                        @endif
+                      @elseif($canUnmark ?? false)
                         <small class="text-muted d-block mt-1">Click same button again to unmark</small>
+                      @endif
+                      @if(($canUnmark ?? false) && $rowDisabled && $att)
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-1 btn-clear-attendance-mark" data-student-id="{{ $student->id }}">Clear mark</button>
                       @endif
                     </td>
                     <td>
-                      <select name="reason_code_{{ $student->id }}" class="form-select form-select-sm reason-code-select" {{ $status === 'present' ? 'disabled' : '' }}>
+                      <select name="reason_code_{{ $student->id }}" class="form-select form-select-sm reason-code-select" {{ $status === 'present' || $rowDisabled ? 'disabled' : '' }}>
                         <option value="">Select Preset Reason</option>
                         @foreach($reasonCodes as $code)
                           <option value="{{ $code->id }}" @selected($reasonCodeId == $code->id)>{{ $code->name }}</option>
@@ -193,7 +219,7 @@
                       </select>
                     </td>
                     <td>
-                      <textarea name="excuse_notes_{{ $student->id }}" class="form-control form-control-sm" rows="2" placeholder="Notes..." {{ $status === 'present' ? 'disabled' : '' }}>{{ $excuseNotes }}</textarea>
+                      <textarea name="excuse_notes_{{ $student->id }}" class="form-control form-control-sm" rows="2" placeholder="Notes..." {{ $status === 'present' || $rowDisabled ? 'disabled' : '' }}>{{ $excuseNotes }}</textarea>
                     </td>
                   </tr>
                 @endforeach
@@ -205,7 +231,7 @@
           <div class="small text-muted">
             Total Students: <strong>{{ $students->count() }}</strong>
           </div>
-          <button type="button" id="btnOpenSummary" class="btn btn-settings-primary">
+          <button type="button" id="btnOpenSummary" class="btn btn-settings-primary" @if(!($dateAllowsMarking ?? true)) disabled @endif>
             <i class="bi bi-check-circle"></i> Submit Attendance
           </button>
         </div>
@@ -391,9 +417,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // Mark all present
+  document.querySelectorAll('.btn-clear-attendance-mark').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const sid = this.getAttribute('data-student-id');
+      const unmark = document.querySelector('.unmark-input[data-student-id="' + sid + '"]');
+      if (unmark) {
+        unmark.value = '1';
+        document.getElementById('attendanceForm').submit();
+      }
+    });
+  });
+
+  // Mark all present (eligible rows only)
   document.getElementById('btnMarkAllPresent')?.addEventListener('click', function() {
-    document.querySelectorAll('.mark-radio[value="present"]').forEach(r => {
+    document.querySelectorAll('#attendanceTable tbody tr[data-attendance-eligible="1"] .mark-radio[value="present"]').forEach(r => {
       r.checked = true;
       r.dispatchEvent(new Event('change'));
     });
@@ -401,7 +438,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Summary modal
   document.getElementById('btnOpenSummary')?.addEventListener('click', function() {
-    const rows = Array.from(document.querySelectorAll('#attendanceTable tbody tr'));
+    const rows = Array.from(document.querySelectorAll('#attendanceTable tbody tr[data-attendance-eligible="1"]'));
     let total = 0, present = 0, absent = 0, late = 0;
     const absentNames = [];
 

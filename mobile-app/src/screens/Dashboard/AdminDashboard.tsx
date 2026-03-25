@@ -15,7 +15,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { dashboardApi, DashboardStats } from '@api/dashboard.api';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES, BORDER_RADIUS, COLORS } from '@constants/theme';
-import { BRAND, RADIUS, SCREEN, CARD_STYLE } from '@constants/designTokens';
+import { BRAND, RADIUS, SCREEN, CARD_STYLE, HEADER } from '@constants/designTokens';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const { width } = Dimensions.get('window');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
+use App\Models\Student;
 use Illuminate\Http\Request;
 
 class ApiInvoiceController extends Controller
@@ -13,6 +14,12 @@ class ApiInvoiceController extends Controller
         $perPage = (int) $request->input('per_page', 20);
 
         $query = Invoice::with(['student.classroom', 'student.stream', 'items', 'term', 'academicYear'])
+            ->when(! $request->boolean('include_reversed'), function ($q) {
+                $q->whereNull('reversed_at')
+                    ->where(function ($qq) {
+                        $qq->whereNull('status')->orWhere('status', '!=', 'reversed');
+                    });
+            })
             ->when($request->filled('year') || $request->filled('year_id'), fn($q) => $q->where('academic_year_id', $request->year ?? $request->year_id))
             ->when($request->filled('term') || $request->filled('term_id'), fn($q) => $q->where('term_id', $request->term ?? $request->term_id))
             ->when($request->filled('student_id'), fn($q) => $q->where('student_id', (int) $request->student_id))
@@ -43,6 +50,74 @@ class ApiInvoiceController extends Controller
                 'to' => $paginated->lastItem(),
             ],
         ]);
+    }
+
+    public function show(Request $request, int $id)
+    {
+        $invoice = Invoice::with(['student.classroom', 'student.stream', 'items.votehead', 'term', 'academicYear'])
+            ->findOrFail($id);
+
+        $this->assertFinanceOrViewStudent($request->user(), (int) $invoice->student_id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->formatInvoiceDetail($invoice),
+        ]);
+    }
+
+    protected function assertFinanceOrViewStudent($user, int $studentId): void
+    {
+        if (! $user) {
+            abort(401);
+        }
+        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+            return;
+        }
+        Student::findOrFail($studentId);
+        if ($user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+            $query = Student::where('id', $studentId)->where('archive', 0)->where('is_alumni', false);
+            $user->applyTeacherStudentFilter($query);
+            if (! $query->exists()) {
+                abort(403, 'You do not have access to this invoice.');
+            }
+
+            return;
+        }
+        abort(403, 'You do not have access to this invoice.');
+    }
+
+    protected function formatInvoiceDetail(Invoice $inv): array
+    {
+        $base = $this->formatInvoice($inv);
+
+        return array_merge($base, [
+            'issue_date' => ($inv->issued_date ?? $inv->created_at)?->format('Y-m-d'),
+            'items' => $this->formatInvoiceLineItems($inv),
+            'term_name' => $inv->term->name ?? null,
+            'academic_year_name' => $inv->academicYear->name ?? null,
+            'notes' => $inv->notes,
+        ]);
+    }
+
+    protected function formatInvoiceLineItems(Invoice $inv): array
+    {
+        return $inv->items
+            ->filter(fn ($item) => ($item->status ?? 'active') === 'active')
+            ->map(function ($item) {
+                $net = (float) $item->amount - (float) ($item->discount_amount ?? 0);
+
+                return [
+                    'id' => $item->id,
+                    'invoice_id' => $item->invoice_id,
+                    'votehead_id' => $item->votehead_id,
+                    'votehead_name' => $item->votehead->name ?? 'Item',
+                    'amount' => (float) $item->amount,
+                    'quantity' => 1,
+                    'total' => round($net, 2),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     protected function formatInvoice(\App\Models\Invoice $inv): array

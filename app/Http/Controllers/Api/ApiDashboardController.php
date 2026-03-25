@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Models\Staff;
 use App\Models\Attendance;
 use App\Models\Payment;
+use App\Models\SchoolDay;
 use Illuminate\Http\Request;
 
 class ApiDashboardController extends Controller
@@ -17,7 +18,9 @@ class ApiDashboardController extends Controller
 
         $totalStudents = Student::where('archive', 0)->where('is_alumni', false)->count();
         $totalStaff = Staff::count();
-        $presentToday = Attendance::whereDate('date', $today)->where('status', 'present')->count();
+        $presentToday = SchoolDay::isSchoolDay($today)
+            ? Attendance::whereDate('date', $today)->where('status', 'present')->count()
+            : 0;
         $feesCollected = Payment::where(function ($q) {
             $q->whereNull('reversed')->orWhere('reversed', false);
         })->sum('amount');

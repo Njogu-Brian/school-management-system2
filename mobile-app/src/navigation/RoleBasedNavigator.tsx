@@ -4,7 +4,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { User } from '../types/auth.types';
 import { UserRole } from '@constants/roles';
 import { AdminDashboard } from '@screens/Dashboard/AdminDashboard';
-import { StudentsNavigator, AttendanceNavigator, FinanceNavigator } from './ModuleNavigators';
+import { StudentsNavigator, AttendanceNavigator, FinanceNavigator, PaymentsNavigator } from './ModuleNavigators';
 import { MoreNavigator } from './MoreNavigator';
 import { TeacherNavigator } from './TeacherNavigator';
 import { useTheme } from '@contexts/ThemeContext';
@@ -22,7 +22,13 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
     const { isDark, colors } = useTheme();
 
     // Admin/Super Admin Navigation
-    if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN || user.role === UserRole.SECRETARY) {
+    if (
+        user.role === UserRole.SUPER_ADMIN ||
+        user.role === UserRole.ADMIN ||
+        user.role === UserRole.SECRETARY ||
+        user.role === UserRole.ACCOUNTANT ||
+        user.role === UserRole.FINANCE
+    ) {
         return (
             <Tab.Navigator
                 screenOptions={{
@@ -50,6 +56,15 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
                     }}
                 />
                 <Tab.Screen
+                    name="Payments"
+                    component={PaymentsNavigator}
+                    options={{
+                        tabBarIcon: ({ color, size }) => (
+                            <Icon name="account-balance-wallet" size={size} color={color} />
+                        ),
+                    }}
+                />
+                <Tab.Screen
                     name="Attendance"
                     component={AttendanceNavigator}
                     options={{
@@ -60,7 +75,7 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
                     name="Finance"
                     component={FinanceNavigator}
                     options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="payments" size={size} color={color} />,
+                        tabBarIcon: ({ color, size }) => <Icon name="receipt-long" size={size} color={color} />,
                     }}
                 />
                 <Tab.Screen

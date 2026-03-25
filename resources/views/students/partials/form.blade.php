@@ -431,7 +431,7 @@
       </select>
     </div>
     <div class="col-md-6">
-      <label class="form-label">Admission Date</label>
+      <label class="form-label">Enrolment date</label>
       <input type="date" name="admission_date" class="form-control" value="{{ old('admission_date', $s->admission_date?->toDateString() ?? '') }}">
     </div>
     <div class="col-md-6">
@@ -458,9 +458,16 @@
     </div>
   </div>
   @else
-  {{-- For create mode, just set default status --}}
-  <input type="hidden" name="status" value="active">
-  <input type="hidden" name="admission_date" value="{{ today()->toDateString() }}">
+  <hr class="my-4">
+  <h6 class="text-uppercase text-muted mb-3">Status & Lifecycle</h6>
+  <div class="row g-3">
+    <input type="hidden" name="status" value="active">
+    <div class="col-md-6">
+      <label class="form-label">Enrolment date</label>
+      <input type="date" name="admission_date" class="form-control" value="{{ old('admission_date', today()->toDateString()) }}">
+      <small class="text-muted">Defaults to today if left blank in the app.</small>
+    </div>
+  </div>
   @endif
 
 </div>

@@ -2,9 +2,14 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StudentsListScreen } from '@screens/Students/StudentsListScreen';
 import { StudentDetailScreen } from '@screens/Students/StudentDetailScreen';
-import { AddStudentScreen, EditStudentScreen } from '@screens/Students/StudentFormScreen';
+import { AddStudentScreen } from '@screens/Students/AddStudentScreen';
+import { EditStudentScreen } from '@screens/Students/StudentFormScreen';
 import { MarkAttendanceScreen } from '@screens/Attendance/MarkAttendanceScreen';
+import { FinanceHomeScreen } from '@screens/Finance/FinanceHomeScreen';
 import { InvoicesListScreen } from '@screens/Finance/InvoicesListScreen';
+import { InvoiceDetailScreen } from '@screens/Finance/InvoiceDetailScreen';
+import { PaymentsListScreen } from '@screens/Finance/PaymentsListScreen';
+import { PaymentDetailScreen } from '@screens/Finance/PaymentDetailScreen';
 import { RecordPaymentScreen } from '@screens/Finance/RecordPaymentScreen';
 import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
 import { MpesaWaitingWebViewScreen } from '@screens/Finance/MpesaWaitingWebViewScreen';
@@ -71,10 +76,12 @@ export const AcademicsNavigator = () => {
 
 export const FinanceNavigator = () => {
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="FinanceHome">
+            <Stack.Screen name="FinanceHome" component={FinanceHomeScreen} />
             <Stack.Screen name="InvoicesList" component={InvoicesListScreen} />
-            <Stack.Screen name="InvoiceDetail" component={PlaceholderScreen} />
-            <Stack.Screen name="CreateInvoice" component={PlaceholderScreen} />
+            <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} />
+            <Stack.Screen name="PaymentsList" component={PaymentsListScreen} />
+            <Stack.Screen name="PaymentDetail" component={PaymentDetailScreen} />
             <Stack.Screen name="RecordPayment" component={RecordPaymentScreen} />
             <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
             <Stack.Screen name="FeeStructures" component={PlaceholderScreen} />
@@ -131,3 +138,5 @@ export const CommunicationNavigator = () => {
         </Stack.Navigator>
     );
 };
+
+export { PaymentsNavigator } from './PaymentsNavigator';

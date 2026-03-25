@@ -74,6 +74,14 @@ export interface Payment {
     created_at: string;
     updated_at: string;
     allocations?: PaymentAllocation[];
+    /** Public web URL (no login) to view/print receipt */
+    receipt_public_url?: string;
+    /** Shown on detail to steer advanced actions to the portal */
+    portal_note?: string;
+    unallocated_amount?: number;
+    allocated_amount?: number;
+    mpesa_receipt_number?: string;
+    reversed?: boolean;
 }
 
 export interface PaymentAllocation {
@@ -150,6 +158,27 @@ export interface OnlinePaymentResponse {
     status: 'pending' | 'completed' | 'failed';
 }
 
+/** Unified bank import + M-Pesa C2B row (GET /finance/transactions). */
+export interface FinanceTransaction {
+    id: number;
+    transaction_type: 'bank' | 'c2b';
+    trans_date: string | null;
+    trans_amount: number | null;
+    trans_code: string | null;
+    description?: string | null;
+    phone_number?: string | null;
+    payer_name?: string | null;
+    student_id?: number | null;
+    student_name?: string | null;
+    match_status?: string | null;
+    match_confidence?: number | null;
+    status?: string | null;
+    is_duplicate: boolean;
+    is_archived: boolean;
+    payment_created: boolean;
+    is_swimming_transaction: boolean;
+}
+
 export interface FinanceFilters {
     student_id?: number;
     class_id?: number;
@@ -162,4 +191,10 @@ export interface FinanceFilters {
     search?: string;
     page?: number;
     per_page?: number;
+    /** Invoices: omit reversed invoices (default API behaviour). */
+    include_reversed?: boolean;
+    /** Payments: exclude reversed (default true). */
+    active_only?: boolean;
+    /** Unified transactions: all | auto-assigned | unassigned | duplicate | swimming */
+    view?: string;
 }

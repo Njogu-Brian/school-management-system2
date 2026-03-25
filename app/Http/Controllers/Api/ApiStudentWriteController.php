@@ -9,6 +9,7 @@ use App\Models\DropOffPoint;
 use App\Models\ParentInfo;
 use App\Models\Setting;
 use App\Models\Student;
+use App\Models\ActivityLog;
 use App\Models\StudentCategory;
 use App\Services\PhoneNumberService;
 use Illuminate\Http\Request;
@@ -204,6 +205,11 @@ class ApiStudentWriteController extends Controller
                 if (isset($studentData['stream_id']) && ($studentData['stream_id'] === '' || (int) ($studentData['stream_id'] ?? 0) < 1)) {
                     $studentData['stream_id'] = null;
                 }
+                if (empty($studentData['admission_date'])) {
+                    $studentData['admission_date'] = now()->toDateString();
+                } else {
+                    $studentData['admission_date'] = \Carbon\Carbon::parse($studentData['admission_date'])->toDateString();
+                }
 
                 $student = Student::create(array_merge($studentData, [
                     'admission_number' => $admissionNumber,
@@ -307,7 +313,7 @@ class ApiStudentWriteController extends Controller
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
             'religion' => 'nullable|string|max:255',
-            'admission_date' => 'nullable|date',
+            'admission_date' => 'required|date',
         ]);
 
         $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
@@ -331,8 +337,10 @@ class ApiStudentWriteController extends Controller
 
         $phone = app(PhoneNumberService::class);
 
+        $previousAdmissionDate = $student->admission_date?->toDateString();
+
         try {
-            DB::transaction(function () use ($request, $student, $phone) {
+            DB::transaction(function () use ($request, $student, $phone, $previousAdmissionDate) {
                 $updateData = $request->only([
                     'first_name', 'middle_name', 'last_name', 'gender', 'dob',
                     'classroom_id', 'stream_id', 'category_id',
@@ -353,6 +361,9 @@ class ApiStudentWriteController extends Controller
                 if (isset($updateData['dob']) && $updateData['dob'] === '') {
                     $updateData['dob'] = null;
                 }
+                if (! empty($updateData['admission_date'])) {
+                    $updateData['admission_date'] = \Carbon\Carbon::parse($updateData['admission_date'])->toDateString();
+                }
 
                 $dropOffPointLabel = null;
                 if ($request->filled('drop_off_point_other')) {
@@ -368,6 +379,17 @@ class ApiStudentWriteController extends Controller
                 );
 
                 $student->update($updateData);
+                $student->refresh();
+
+                if (array_key_exists('admission_date', $updateData) && $previousAdmissionDate !== $student->admission_date?->toDateString()) {
+                    ActivityLog::log(
+                        'update',
+                        $student,
+                        "Enrolment date changed for {$student->full_name} ({$student->admission_number}): {$previousAdmissionDate} → {$student->admission_date->toDateString()} (API)",
+                        ['admission_date' => $previousAdmissionDate],
+                        ['admission_date' => $student->admission_date->toDateString()]
+                    );
+                }
 
                 if ($request->hasFile('photo')) {
                     if ($student->photo_path) {

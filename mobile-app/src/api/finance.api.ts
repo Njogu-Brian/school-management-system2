@@ -4,6 +4,7 @@ import {
     Votehead,
     Invoice,
     Payment,
+    FinanceTransaction,
     StudentStatement,
     PaymentPlan,
     OnlinePaymentRequest,
@@ -95,6 +96,33 @@ export const financeApi = {
 
     async downloadReceipt(id: number): Promise<ApiResponse<Blob>> {
         return apiClient.get<Blob>(`/payments/${id}/receipt`);
+    },
+
+    // ========== Bank + C2B transactions (unified) ==========
+    async getFinanceTransactions(
+        filters?: FinanceFilters & { view?: string }
+    ): Promise<ApiResponse<PaginatedResponse<FinanceTransaction>>> {
+        return apiClient.get<PaginatedResponse<FinanceTransaction>>('/finance/transactions', filters);
+    },
+
+    async getFinanceTransaction(
+        id: number,
+        type: 'bank' | 'c2b'
+    ): Promise<ApiResponse<Record<string, unknown>>> {
+        return apiClient.get<Record<string, unknown>>(`/finance/transactions/${id}`, { type });
+    },
+
+    async markTransactionsAsSwimming(transactionIds: number[]): Promise<
+        ApiResponse<{ message?: string; errors?: string[]; marked?: number; processed?: number; skipped?: number }>
+    > {
+        return apiClient.post('/finance/transactions/mark-swimming', { transaction_ids: transactionIds });
+    },
+
+    async shareFinanceTransaction(
+        id: number,
+        allocations: { student_id: number; amount: number }[]
+    ): Promise<ApiResponse<{ message?: string }>> {
+        return apiClient.post(`/finance/transactions/${id}/share`, { allocations });
     },
 
     // ========== Student Statements ==========

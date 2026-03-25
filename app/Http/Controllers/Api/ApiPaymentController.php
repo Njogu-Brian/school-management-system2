@@ -23,37 +23,66 @@ class ApiPaymentController extends Controller
     public function index(Request $request)
     {
         $request->validate([
-            'student_id' => 'required|exists:students,id',
+            'student_id' => 'nullable|exists:students,id',
             'per_page' => 'nullable|integer|min:1|max:100',
+            'search' => 'nullable|string|max:255',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date',
+            'active_only' => 'nullable|boolean',
+            'class_id' => 'nullable|integer',
         ]);
 
         $user = $request->user();
-        $this->assertFinanceOrViewStudent($user, (int) $request->student_id);
-
         $perPage = (int) $request->input('per_page', 30);
+        $activeOnly = $request->boolean('active_only', true);
 
-        $paginated = Payment::with(['paymentMethod'])
-            ->where('student_id', (int) $request->student_id)
-            ->whereNull('deleted_at')
-            ->where('reversed', false)
-            ->orderByDesc('payment_date')
-            ->paginate($perPage);
+        $query = Payment::query()
+            ->with(['paymentMethod', 'student'])
+            ->whereHas('student', function ($q) {
+                $q->where('archive', 0)->where('is_alumni', false);
+            })
+            ->where('receipt_number', 'not like', 'SWIM-%')
+            ->whereNull('deleted_at');
 
-        $data = $paginated->getCollection()->map(function (Payment $p) {
-            return [
-                'id' => $p->id,
-                'receipt_number' => $p->receipt_number,
-                'student_id' => $p->student_id,
-                'amount' => (float) $p->amount,
-                'payment_method' => strtolower(str_replace('_', '_', $p->paymentMethod->code ?? 'cash')),
-                'payment_date' => $p->payment_date?->format('Y-m-d'),
-                'reference_number' => $p->transaction_code,
-                'notes' => $p->narration,
-                'status' => 'completed',
-                'created_at' => $p->created_at->toIso8601String(),
-                'updated_at' => $p->updated_at->toIso8601String(),
-            ];
-        })->values();
+        if ($activeOnly) {
+            $query->where('reversed', false);
+        }
+
+        if ($request->filled('class_id')) {
+            $query->whereHas('student', fn ($s) => $s->where('classroom_id', (int) $request->class_id));
+        }
+
+        if ($request->filled('search')) {
+            $term = '%'.addcslashes($request->search, '%_\\').'%';
+            $query->where(function ($qq) use ($term) {
+                $qq->where('receipt_number', 'like', $term)
+                    ->orWhere('transaction_code', 'like', $term)
+                    ->orWhereHas('student', function ($s) use ($term) {
+                        $s->where('first_name', 'like', $term)
+                            ->orWhere('last_name', 'like', $term)
+                            ->orWhere('admission_number', 'like', $term);
+                    });
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('payment_date', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('payment_date', '<=', $request->date_to);
+        }
+
+        $query->orderByDesc('payment_date');
+
+        if ($request->filled('student_id')) {
+            $this->assertFinanceOrViewStudent($user, (int) $request->student_id);
+            $paginated = $query->where('student_id', (int) $request->student_id)->paginate($perPage);
+        } else {
+            $this->assertFinanceStaff($user);
+            $paginated = $query->paginate($perPage);
+        }
+
+        $data = $paginated->getCollection()->map(fn (Payment $p) => $this->formatPaymentList($p))->values();
 
         return response()->json([
             'success' => true,
@@ -66,6 +95,78 @@ class ApiPaymentController extends Controller
                 'from' => $paginated->firstItem(),
                 'to' => $paginated->lastItem(),
             ],
+        ]);
+    }
+
+    public function show(Request $request, int $id)
+    {
+        $payment = Payment::with([
+            'paymentMethod',
+            'student.classroom',
+            'student.stream',
+            'allocations.invoiceItem.invoice',
+        ])->findOrFail($id);
+
+        $this->assertFinanceOrViewStudent($request->user(), (int) $payment->student_id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->formatPaymentDetail($payment),
+        ]);
+    }
+
+    protected function formatPaymentList(Payment $p): array
+    {
+        $student = $p->student;
+
+        return [
+            'id' => $p->id,
+            'receipt_number' => $p->receipt_number,
+            'student_id' => $p->student_id,
+            'student_name' => $student ? trim(($student->first_name ?? '').' '.($student->last_name ?? '')) : null,
+            'student_admission_number' => $student->admission_number ?? null,
+            'amount' => (float) $p->amount,
+            'payment_method' => strtolower(str_replace('_', '_', $p->paymentMethod->code ?? 'cash')),
+            'payment_date' => $p->payment_date?->format('Y-m-d'),
+            'reference_number' => $p->transaction_code,
+            'notes' => $p->narration,
+            'status' => $p->reversed ? 'reversed' : 'completed',
+            'unallocated_amount' => (float) ($p->unallocated_amount ?? 0),
+            'created_at' => $p->created_at->toIso8601String(),
+            'updated_at' => $p->updated_at->toIso8601String(),
+        ];
+    }
+
+    protected function formatPaymentDetail(Payment $p): array
+    {
+        $base = $this->formatPaymentList($p);
+        $student = $p->student;
+
+        $allocations = $p->allocations->map(function ($a) {
+            $inv = $a->invoiceItem?->invoice;
+
+            return [
+                'id' => $a->id,
+                'amount' => (float) $a->amount,
+                'invoice_id' => $inv?->id,
+                'invoice_number' => $inv?->invoice_number ?? null,
+            ];
+        })->values()->all();
+
+        $receiptPublicUrl = $p->public_token
+            ? url('/receipt/'.$p->public_token)
+            : null;
+
+        return array_merge($base, [
+            'mpesa_receipt_number' => $p->mpesa_receipt_number,
+            'allocated_amount' => (float) ($p->allocated_amount ?? 0),
+            'unallocated_amount' => (float) ($p->unallocated_amount ?? 0),
+            'reversed' => (bool) $p->reversed,
+            'receipt_public_url' => $receiptPublicUrl,
+            'allocations' => $allocations,
+            'class_name' => $student?->classroom?->name,
+            'stream_name' => $student?->stream?->name,
+            'portal_note' => 'Transfers, sharing with siblings, auto-assign, archiving, and bank/M-Pesa transaction allocation are done in the web portal.',
         ]);
     }
 
@@ -150,6 +251,9 @@ class ApiPaymentController extends Controller
                 'amount' => (float) $payment->amount,
                 'payment_date' => $payment->payment_date?->format('Y-m-d'),
                 'transaction_code' => $payment->transaction_code,
+                'receipt_public_url' => $payment->public_token
+                    ? url('/receipt/'.$payment->public_token)
+                    : null,
             ],
             'message' => 'Payment recorded.',
         ], 201);
@@ -171,6 +275,13 @@ class ApiPaymentController extends Controller
         }
 
         return PaymentMethod::active()->orderBy('display_order')->firstOrFail()->id;
+    }
+
+    protected function assertFinanceStaff(\Illuminate\Contracts\Auth\Authenticatable $user): void
+    {
+        if (! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+            abort(403, 'You do not have permission to list all payments.');
+        }
     }
 
     protected function assertFinanceOrViewStudent($user, int $studentId): void

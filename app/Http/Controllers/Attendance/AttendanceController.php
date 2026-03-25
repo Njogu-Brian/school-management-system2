@@ -12,6 +12,7 @@ use App\Models\CommunicationTemplate;
 use App\Models\CommunicationLog;
 use App\Services\AttendanceReportService;
 use App\Services\AttendanceAnalyticsService;
+use App\Services\StudentAttendanceCalendarService;
 use App\Services\SMSService;
 use App\Models\AttendanceReasonCode;
 use App\Models\Academics\Subject;
@@ -23,15 +24,18 @@ class AttendanceController extends Controller
     protected SMSService $smsService;
     protected AttendanceReportService $reportService;
     protected AttendanceAnalyticsService $analyticsService;
+    protected StudentAttendanceCalendarService $attendanceCalendar;
 
     public function __construct(
-        SMSService $smsService, 
+        SMSService $smsService,
         AttendanceReportService $reportService,
-        AttendanceAnalyticsService $analyticsService
+        AttendanceAnalyticsService $analyticsService,
+        StudentAttendanceCalendarService $attendanceCalendar
     ) {
         $this->smsService = $smsService;
         $this->reportService = $reportService;
         $this->analyticsService = $analyticsService;
+        $this->attendanceCalendar = $attendanceCalendar;
     }
 
     // -------------------- MARKING FORM --------------------
@@ -145,6 +149,16 @@ class AttendanceController extends Controller
         
         $students = $studentsQuery->orderBy('first_name')->get();
 
+        $selectedCarbon = Carbon::parse($selectedDate)->startOfDay();
+        $isFutureDate = $selectedCarbon->isFuture();
+        $isSchoolDay = $this->attendanceCalendar->isValidSchoolDay($selectedDate);
+        $dateAllowsMarking = ! $isFutureDate && $isSchoolDay;
+
+        $studentAttendanceEligibility = [];
+        foreach ($students as $stu) {
+            $studentAttendanceEligibility[$stu->id] = $this->attendanceCalendar->canMarkAttendanceForDate($stu, $selectedDate);
+        }
+
         $attendanceRecords = Attendance::whereDate('date', $selectedDate)
             ->with('reasonCode', 'markedBy')
             ->get()
@@ -154,19 +168,31 @@ class AttendanceController extends Controller
         if ($markedFilter === 'marked') {
             $students = $students->filter(fn ($s) => $attendanceRecords->has($s->id));
         } elseif ($markedFilter === 'unmarked') {
-            $students = $students->filter(fn ($s) => !$attendanceRecords->has($s->id));
+            $students = $students->filter(fn ($s) => ! $attendanceRecords->has($s->id));
         }
 
-        $unmarkedCount = max(0, $students->count() - $students->filter(fn ($s) => $attendanceRecords->has($s->id))->count());
-        
+        $eligibleStudents = $students->filter(fn ($s) => $studentAttendanceEligibility[$s->id] ?? false);
+        $unmarkedCount = max(
+            0,
+            $eligibleStudents->count() - $eligibleStudents->filter(fn ($s) => $attendanceRecords->has($s->id))->count()
+        );
+
         $reasonCodes = AttendanceReasonCode::active()->get();
 
-        $showCampusFilter = !$isTeacher;
+        $showCampusFilter = ! $isTeacher;
+
+        $dateBlockReason = null;
+        if ($isFutureDate) {
+            $dateBlockReason = 'future';
+        } elseif (! $isSchoolDay) {
+            $dateBlockReason = 'non_school_day';
+        }
 
         return view('attendance.mark', compact(
             'classes', 'streams', 'students', 'attendanceRecords',
             'selectedClass', 'selectedStream', 'selectedDate', 'q', 'unmarkedCount',
-            'reasonCodes', 'canUnmark', 'selectedCampus', 'markedFilter', 'showCampusFilter'
+            'reasonCodes', 'canUnmark', 'selectedCampus', 'markedFilter', 'showCampusFilter',
+            'studentAttendanceEligibility', 'dateAllowsMarking', 'dateBlockReason'
         ));
     }
 
@@ -178,6 +204,18 @@ public function mark(Request $request)
 
     if (Carbon::parse($date)->isFuture()) {
         return back()->with('error', 'You cannot mark attendance for a future date.');
+    }
+
+    $hasStatusPayload = false;
+    foreach ($request->all() as $key => $_) {
+        if (str_starts_with((string) $key, 'status_')) {
+            $hasStatusPayload = true;
+            break;
+        }
+    }
+
+    if ($hasStatusPayload && ! $this->attendanceCalendar->isValidSchoolDay($date)) {
+        return back()->with('error', 'Attendance cannot be recorded on this date (weekend, holiday, mid-term break, or other non-school day).');
     }
 
     $user = auth()->user();
@@ -234,6 +272,11 @@ public function mark(Request $request)
         $status    = $value; // present|absent|late
         $reasonCodeId = $request->input('reason_code_' . $studentId);
         $excuseNotes = $request->input('excuse_notes_' . $studentId);
+
+        $studentRow = Student::find($studentId);
+        if (! $studentRow || ! $this->attendanceCalendar->canMarkAttendanceForDate($studentRow, $date)) {
+            return back()->with('error', 'Invalid attendance: one or more students cannot be marked for this date (not enrolled on this date or not a school day).');
+        }
 
         $attendance = Attendance::firstOrNew([
             'student_id' => $studentId,
@@ -620,27 +663,18 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     // Student-specific tab
         $student = null;
         $studentRecords = collect();
-        $studentStats = ['present'=>0,'absent'=>0,'late'=>0,'percent'=>0];
+        $studentStats = ['present' => 0, 'absent' => 0, 'late' => 0, 'percent' => 0, 'total' => 0];
 
         if ($studentId) {
-            $student = Student::with('classroom','stream')->find($studentId);
-            if ($student && (!$isTeacher || $students->pluck('id')->contains($student->id))) {
+            $student = Student::with('classroom', 'stream')->find($studentId);
+            if ($student && (! $isTeacher || $students->pluck('id')->contains($student->id))) {
                 $studentRecords = Attendance::where('student_id', $student->id)
                     ->whereBetween('date', [$startDate, $endDate])
                     ->with('reasonCode', 'markedBy')
                     ->orderBy('date', 'desc')
                     ->get();
 
-                $total = max(1, $studentRecords->count());
-                $present = $studentRecords->where('status', 'present')->count();
-                $absent  = $studentRecords->where('status', 'absent')->count();
-                $late    = $studentRecords->where('status', 'late')->count();
-                $studentStats = [
-                    'present' => $present,
-                    'absent'  => $absent,
-                    'late'    => $late,
-                    'percent' => round(($present / $total) * 100, 1),
-                ];
+                $studentStats = $this->reportService->studentStats($student, $startDate, $endDate);
             } else {
                 $student = null;
             }

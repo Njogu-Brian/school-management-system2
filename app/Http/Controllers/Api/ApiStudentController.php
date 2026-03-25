@@ -109,13 +109,17 @@ class ApiStudentController extends Controller
         }
 
         $from = Carbon::now()->subDays(90)->startOfDay();
+        $to = Carbon::now()->endOfDay();
+        $calendar = app(\App\Services\StudentAttendanceCalendarService::class);
+        $expectedSchoolDays = $calendar->expectedSchoolDaysBetween($student, $from, $to, null);
+
         $records = Attendance::where('student_id', $student->id)
             ->where('date', '>=', $from->toDateString())
             ->get();
-        $den = $records->count();
         $num = $records->where('status', Attendance::STATUS_PRESENT)->count();
         $late = $records->where('status', Attendance::STATUS_LATE)->count();
-        $attendancePct = $den > 0 ? round(100 * ($num + $late) / $den, 1) : null;
+        $attending = $num + $late;
+        $attendancePct = $expectedSchoolDays > 0 ? round(100 * $attending / $expectedSchoolDays, 1) : null;
 
         $feesBalance = (float) StudentBalanceService::getTotalOutstandingBalance($student);
 
@@ -123,7 +127,9 @@ class ApiStudentController extends Controller
             'success' => true,
             'data' => [
                 'attendance_percentage' => $attendancePct,
-                'attendance_days_marked' => $den,
+                'expected_school_days' => $expectedSchoolDays,
+                'attendance_records_count' => $records->count(),
+                'attendance_days_marked' => $records->count(),
                 'fees_balance' => round($feesBalance, 2),
                 'exam_average' => null,
             ],

@@ -241,6 +241,11 @@
                     <small class="text-muted">Select when the student will join. If Term 2 or later, they won't appear in attendance/communications until that term.</small>
                   </div>
                   <div class="mb-3">
+                    <label class="form-label">Enrolment date</label>
+                    <input type="date" name="admission_date" class="form-control" value="{{ old('admission_date', today()->toDateString()) }}">
+                    <small class="text-muted">Date the student is enrolled; defaults to today.</small>
+                  </div>
+                  <div class="mb-3">
                     <label class="form-label">Classroom</label>
                     <select name="classroom_id" class="form-select" required id="approveClassroomId">
                       <option value="">Select Classroom</option>

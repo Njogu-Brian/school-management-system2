@@ -11,6 +11,11 @@ use Carbon\Carbon;
 
 class AttendanceReportService
 {
+    public function __construct(
+        protected StudentAttendanceCalendarService $attendanceCalendar
+    ) {
+    }
+
     /**
      * All records grouped by date for class/stream in range.
      */
@@ -110,20 +115,28 @@ class AttendanceReportService
      */
     public function studentStats(?Student $student, $startDate, $endDate): array
     {
-        if (!$student) {
-            return ['present'=>0,'absent'=>0,'late'=>0,'total'=>0,'percent'=>0];
+        if (! $student) {
+            return ['present' => 0, 'absent' => 0, 'late' => 0, 'total' => 0, 'percent' => 0, 'expected_school_days' => 0];
         }
-        $recs = Attendance::where('student_id',$student->id)
-            ->whereBetween('date', [$startDate,$endDate])
+        $recs = Attendance::where('student_id', $student->id)
+            ->whereBetween('date', [$startDate, $endDate])
             ->get();
 
-        $present = $recs->where('status','present')->count();
-        $absent  = $recs->where('status','absent')->count();
-        $late    = $recs->where('status','late')->count();
-        $total   = $recs->count();
-        $percent = $total ? round(($present / $total) * 100, 1) : 0;
+        $present = $recs->where('status', 'present')->count();
+        $absent = $recs->where('status', 'absent')->count();
+        $late = $recs->where('status', 'late')->count();
+        $expectedSchoolDays = $this->attendanceCalendar->expectedSchoolDaysBetween($student, $startDate, $endDate, null);
+        $attending = $present + $late;
+        $percent = $expectedSchoolDays > 0 ? round(($attending / $expectedSchoolDays) * 100, 1) : 0;
 
-        return compact('present','absent','late','total','percent');
+        return [
+            'present' => $present,
+            'absent' => $absent,
+            'late' => $late,
+            'total' => $expectedSchoolDays,
+            'percent' => $percent,
+            'expected_school_days' => $expectedSchoolDays,
+        ];
     }
 
     /**

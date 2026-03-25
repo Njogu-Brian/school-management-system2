@@ -34,8 +34,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/students/{id}/mpesa/payment-link', [\App\Http\Controllers\Api\ApiMpesaPaymentController::class, 'paymentLinkUrl']);
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
+    Route::get('/invoices/{id}', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'show']);
     Route::get('/payments', [\App\Http\Controllers\Api\ApiPaymentController::class, 'index']);
+    Route::get('/payments/{id}', [\App\Http\Controllers\Api\ApiPaymentController::class, 'show']);
     Route::post('/payments', [\App\Http\Controllers\Api\ApiPaymentController::class, 'store']);
+
+    Route::get('/finance/transactions', [\App\Http\Controllers\Api\ApiFinanceTransactionsController::class, 'index']);
+    Route::post('/finance/transactions/mark-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkMarkAsSwimming']);
+    Route::post('/finance/transactions/{id}/share', [\App\Http\Controllers\Finance\BankStatementController::class, 'share']);
+    Route::get('/finance/transactions/{id}', [\App\Http\Controllers\Api\ApiFinanceTransactionsController::class, 'show']);
+
     Route::get('/classes', [\App\Http\Controllers\Api\ApiClassroomController::class, 'index']);
     Route::get('/classes/{classId}/streams', [\App\Http\Controllers\Api\ApiClassroomController::class, 'streams']);
     Route::get('/staff', [\App\Http\Controllers\Api\ApiStaffController::class, 'index']);

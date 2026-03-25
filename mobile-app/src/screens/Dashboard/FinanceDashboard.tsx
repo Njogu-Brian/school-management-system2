@@ -45,11 +45,11 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ navigation }
 
     const quickActions = [
         { id: 1, title: 'Record Payment', icon: 'payment', screen: 'RecordPayment', color: '#3b82f6' },
-        { id: 2, title: 'Generate Invoice', icon: 'receipt', screen: 'CreateInvoice', color: '#10b981' },
-        { id: 3, title: 'Defaulters', icon: 'warning', screen: 'Defaulters', color: '#f59e0b' },
-        { id: 4, title: 'Fee Structures', icon: 'account-balance', screen: 'FeeStructures', color: '#8b5cf6' },
-        { id: 5, title: 'Reports', icon: 'assessment', screen: 'FinanceReports', color: '#ec4899' },
-        { id: 6, title: 'Receipts', icon: 'print', screen: 'Receipts', color: '#14b8a6' },
+        { id: 2, title: 'Active invoices', icon: 'receipt-long', screen: 'InvoicesList', color: '#10b981' },
+        { id: 3, title: 'Payments', icon: 'payments', screen: 'PaymentsList', color: '#0d9488' },
+        { id: 4, title: 'Defaulters', icon: 'warning', screen: 'Defaulters', color: '#f59e0b' },
+        { id: 5, title: 'Fee Structures', icon: 'account-balance', screen: 'FeeStructures', color: '#8b5cf6' },
+        { id: 6, title: 'Reports', icon: 'assessment', screen: 'FinanceReports', color: '#ec4899' },
     ];
 
     const renderStatCard = (title: string, value: any, icon: string, color: string, isAmount = false) => (
@@ -70,7 +70,11 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ navigation }
         <TouchableOpacity
             key={action.id}
             style={[styles.actionCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}
-            onPress={() => navigation.navigate(action.screen)}
+            onPress={() =>
+                navigation.navigate('Finance', {
+                    screen: action.screen,
+                })
+            }
         >
             <View style={[styles.actionIcon, { backgroundColor: action.color + '20' }]}>
                 <Icon name={action.icon} size={24} color={action.color} />
@@ -152,7 +156,9 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ navigation }
                         <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                             Recent Payments
                         </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Payments')}>
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('Finance', { screen: 'PaymentsList' })}
+                        >
                             <Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text>
                         </TouchableOpacity>
                     </View>

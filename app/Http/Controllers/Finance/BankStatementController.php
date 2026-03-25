@@ -3641,10 +3641,24 @@ class BankStatementController extends Controller
             }
             
             $siblingCount = count($activeAllocations);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Transaction shared among {$siblingCount} sibling(s).",
+                ]);
+            }
+
             return redirect()
                 ->route('finance.bank-statements.show', $id)
                 ->with('success', "Transaction shared among {$siblingCount} sibling(s).");
         } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
             return redirect()->back()
                 ->withErrors(['error' => $e->getMessage()]);
         }
@@ -5405,6 +5419,17 @@ class BankStatementController extends Controller
             if (count($errors) > 5) {
                 $message .= " (and " . (count($errors) - 5) . " more)";
             }
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => empty($errors) || $marked > 0 || $processed > 0,
+                'message' => $message,
+                'errors' => $errors,
+                'marked' => $marked,
+                'processed' => $processed,
+                'skipped' => $skipped,
+            ]);
         }
 
         return redirect()

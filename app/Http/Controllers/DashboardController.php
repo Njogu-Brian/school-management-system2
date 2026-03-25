@@ -9,6 +9,7 @@ use Carbon\Carbon;
 
 use App\Models\Student;
 use App\Models\Attendance;
+use App\Models\SchoolDay;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Models\Academics\Classroom;
@@ -188,8 +189,13 @@ class DashboardController extends Controller
                            ->when($filters['stream_id'], fn($q) => $q->whereHas('student', fn($s) => $s->where('stream_id', $filters['stream_id'])));
         }
         
-        $presentToday = (clone $attendanceQuery)->where('status', 'present')->count();
-        $absentToday = (clone $attendanceQuery)->where('status', 'absent')->count();
+        if (SchoolDay::isSchoolDay($today)) {
+            $presentToday = (clone $attendanceQuery)->where('status', 'present')->count();
+            $absentToday = (clone $attendanceQuery)->where('status', 'absent')->count();
+        } else {
+            $presentToday = 0;
+            $absentToday = 0;
+        }
 
         // ---- Finance KPIs (exclude swimming - managed separately in Swimming module)
         $excludeSwimmingPayments = function ($query) {
@@ -392,9 +398,14 @@ class DashboardController extends Controller
                     $dayQuery->whereHas('student', fn($q) => $q->whereIn('classroom_id', $assignedClassroomIds));
                 }
             }
-            
-            $attendancePresent[] = (clone $dayQuery)->where('status', 'present')->count();
-            $attendanceAbsent[] = (clone $dayQuery)->where('status', 'absent')->count();
+
+            if (! SchoolDay::isSchoolDay($day->toDateString())) {
+                $attendancePresent[] = 0;
+                $attendanceAbsent[] = 0;
+            } else {
+                $attendancePresent[] = (clone $dayQuery)->where('status', 'present')->count();
+                $attendanceAbsent[] = (clone $dayQuery)->where('status', 'absent')->count();
+            }
         }
         
         $attendance = [

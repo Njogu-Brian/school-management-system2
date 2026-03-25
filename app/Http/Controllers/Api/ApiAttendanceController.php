@@ -8,14 +8,17 @@ use App\Models\CommunicationLog;
 use App\Models\CommunicationTemplate;
 use App\Models\Student;
 use App\Services\SMSService;
+use App\Services\StudentAttendanceCalendarService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ApiAttendanceController extends Controller
 {
-    public function __construct(protected SMSService $smsService)
-    {
+    public function __construct(
+        protected SMSService $smsService,
+        protected StudentAttendanceCalendarService $attendanceCalendar
+    ) {
     }
 
     /**
@@ -75,6 +78,24 @@ class ApiAttendanceController extends Controller
         $user = $request->user();
         $isToday = Carbon::parse($date)->isToday();
 
+        if (Carbon::parse($date)->isFuture()) {
+            return response()->json(['success' => false, 'message' => 'Cannot mark attendance for a future date.'], 422);
+        }
+
+        $hasNonUnmark = false;
+        foreach ($request->input('records', []) as $rec) {
+            if (($rec['status'] ?? '') !== 'unmarked') {
+                $hasNonUnmark = true;
+                break;
+            }
+        }
+        if ($hasNonUnmark && ! $this->attendanceCalendar->isValidSchoolDay($date)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Attendance cannot be recorded on this date (weekend, holiday, or other non-school day).',
+            ], 422);
+        }
+
         // Teacher access
         if ($user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
             $hasAccess = in_array($classId, $user->getAssignedClassroomIds(), true);
@@ -103,6 +124,13 @@ class ApiAttendanceController extends Controller
 
                 if (!$student) {
                     continue;
+                }
+
+                if ($status !== 'unmarked' && ! $this->attendanceCalendar->canMarkAttendanceForDate($student, $date)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'One or more students cannot be marked for this date (not enrolled on this date).',
+                    ], 422);
                 }
 
                 if ($status === 'unmarked') {

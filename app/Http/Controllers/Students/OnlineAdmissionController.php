@@ -359,9 +359,14 @@ class OnlineAdmissionController extends Controller
             'marital_status' => 'nullable|in:married,single_parent,co_parenting',
             'enrollment_year' => 'nullable|integer|min:2020|max:2030',
             'enrollment_term' => 'nullable|integer|in:1,2,3',
+            'admission_date' => 'nullable|date',
         ]);
 
-        DB::transaction(function () use ($admission, $validated) {
+        $admissionDate = ! empty($validated['admission_date'])
+            ? \Carbon\Carbon::parse($validated['admission_date'])->toDateString()
+            : now()->toDateString();
+
+        DB::transaction(function () use ($admission, $validated, $admissionDate) {
             // Require stream if classroom has streams (primary + pivot)
             $classroom = Classroom::withCount(['streams', 'primaryStreams'])->find($validated['classroom_id']);
             $classroomHasStreams = $classroom && (($classroom->streams_count ?? 0) + ($classroom->primary_streams_count ?? 0)) > 0;
@@ -452,7 +457,7 @@ class OnlineAdmissionController extends Controller
                 'preferred_hospital' => $validated['preferred_hospital'] ?? $admission->preferred_hospital,
                 'residential_area' => $validated['residential_area'] ?? $admission->residential_area,
                 'status' => 'active',
-                'admission_date' => now(),
+                'admission_date' => $admissionDate,
                 'enrollment_year' => $enrollmentYear,
                 'enrollment_term' => $enrollmentTerm,
             ]);

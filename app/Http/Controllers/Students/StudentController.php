@@ -31,6 +31,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StudentTemplateExport;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Storage;
+use App\Models\ActivityLog;
 
 class StudentController extends Controller
 {
@@ -539,6 +540,12 @@ class StudentController extends Controller
                 $studentData['stream_id'] = null;
             }
 
+            if (empty($studentData['admission_date'])) {
+                $studentData['admission_date'] = now()->toDateString();
+            } else {
+                $studentData['admission_date'] = \Carbon\Carbon::parse($studentData['admission_date'])->toDateString();
+            }
+
             $emergencyPhone = $this->formatPhoneWithCode(
                 $request->emergency_contact_phone,
                 $request->input('emergency_contact_country_code', '+254')
@@ -737,7 +744,7 @@ class StudentController extends Controller
             'special_needs_description' => 'nullable|string',
             'learning_disabilities' => 'nullable|string',
             'status' => 'nullable|in:active,inactive,graduated,transferred,expelled,suspended',
-            'admission_date' => 'nullable|date',
+            'admission_date' => 'required|date',
             'graduation_date' => 'nullable|date',
             'transfer_date' => 'nullable|date',
             'transfer_to_school' => 'nullable|string|max:255',
@@ -909,8 +916,20 @@ class StudentController extends Controller
             'student_id' => $student->id,
             'update_data' => $updateData,
         ]);
-        
+
+        $previousAdmissionDate = $student->admission_date?->toDateString();
+
         $student->update($updateData);
+
+        if (array_key_exists('admission_date', $updateData) && $previousAdmissionDate !== $student->admission_date?->toDateString()) {
+            ActivityLog::log(
+                'update',
+                $student,
+                "Enrolment date changed for {$student->full_name} ({$student->admission_number}): {$previousAdmissionDate} → {$student->admission_date->toDateString()}",
+                ['admission_date' => $previousAdmissionDate],
+                ['admission_date' => $student->admission_date->toDateString()]
+            );
+        }
         \Log::info('Student Update: Student record updated', ['student_id' => $student->id]);
 
         // When transport is removed from the student (no drop-off, no trip), remove transport from their fee invoice

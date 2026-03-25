@@ -15,7 +15,7 @@ import { StatusBadge } from '@components/common/StatusBadge';
 import { Input } from '@components/common/Input';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { financeApi } from '@api/finance.api';
-import { Invoice, FinanceFilters } from '../types/finance.types';
+import { Invoice, FinanceFilters } from '@types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -46,6 +46,7 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
                     search: search || searchQuery,
                     page: pageNum,
                     per_page: 20,
+                    include_reversed: false,
                 });
 
                 if (response.success && response.data) {
@@ -69,17 +70,11 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
     );
 
     useEffect(() => {
-        fetchInvoices(1);
-    }, []);
-
-    useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            if (searchQuery !== undefined) {
-                fetchInvoices(1, searchQuery);
-            }
-        }, 500);
-
-        return () => clearTimeout(timeoutId);
+        const delay = searchQuery.length === 0 ? 0 : 400;
+        const t = setTimeout(() => {
+            fetchInvoices(1, searchQuery);
+        }, delay);
+        return () => clearTimeout(t);
     }, [searchQuery]);
 
     const handleRefresh = () => {
@@ -194,16 +189,22 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
         >
             {/* Header */}
             <View style={styles.header}>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    Invoices
-                </Text>
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => navigation.navigate('CreateInvoice')}
-                >
-                    <Icon name="add" size={24} color={colors.primary} />
+                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={12}>
+                    <Icon name="arrow-back" size={24} color={colors.primary} />
                 </TouchableOpacity>
+                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                    Active invoices
+                </Text>
+                <View style={{ width: 40 }} />
             </View>
+            <Text
+                style={[
+                    styles.portalHint,
+                    { color: isDark ? colors.textSubDark : colors.textSubLight, paddingHorizontal: SPACING.xl, marginBottom: SPACING.sm },
+                ]}
+            >
+                Create invoices in the web portal.
+            </Text>
 
             {/* Search Bar */}
             <View style={styles.searchContainer}>
@@ -252,15 +253,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: SPACING.xl,
-        paddingVertical: SPACING.md,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+    },
+    backBtn: {
+        padding: SPACING.sm,
     },
     title: {
-        fontSize: FONT_SIZES.xxl,
+        fontSize: FONT_SIZES.xl,
         fontWeight: 'bold',
+        flex: 1,
+        textAlign: 'center',
     },
-    addButton: {
-        padding: SPACING.sm,
+    portalHint: {
+        fontSize: FONT_SIZES.xs,
     },
     searchContainer: {
         paddingHorizontal: SPACING.xl,

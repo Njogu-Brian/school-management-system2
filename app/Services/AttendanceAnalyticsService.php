@@ -4,34 +4,44 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\Student;
-use App\Models\SchoolDay;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
 
 class AttendanceAnalyticsService
 {
+    public function __construct(
+        protected StudentAttendanceCalendarService $attendanceCalendar
+    ) {
+    }
+
     /**
      * Calculate attendance percentage for a student
-     * Uses actual school days (excluding weekends, holidays, etc.)
+     * Denominator: expected school days in range after enrolment; numerator: present + late (attending days).
      */
     public function calculateAttendancePercentage(Student $student, $startDate = null, $endDate = null): float
     {
         $startDate = $startDate ? Carbon::parse($startDate) : Carbon::now()->startOfMonth();
         $endDate = $endDate ? Carbon::parse($endDate) : Carbon::now()->endOfMonth();
 
-        // Count actual school days (excluding weekends, holidays, etc.)
-        $totalSchoolDays = SchoolDay::countSchoolDays($startDate->toDateString(), $endDate->toDateString());
-        
+        $totalSchoolDays = $this->attendanceCalendar->expectedSchoolDaysBetween($student, $startDate, $endDate, null);
+
         $presentDays = Attendance::where('student_id', $student->id)
             ->whereBetween('date', [$startDate, $endDate])
             ->where('status', 'present')
             ->count();
 
+        $lateDays = Attendance::where('student_id', $student->id)
+            ->whereBetween('date', [$startDate, $endDate])
+            ->where('status', 'late')
+            ->count();
+
+        $attendingDays = $presentDays + $lateDays;
+
         if ($totalSchoolDays === 0) {
             return 0;
         }
 
-        return round(($presentDays / $totalSchoolDays) * 100, 2);
+        return round(($attendingDays / $totalSchoolDays) * 100, 2);
     }
 
     /**
@@ -61,7 +71,7 @@ class AttendanceAnalyticsService
                         ->whereBetween('date', [$startDate, $endDate])
                         ->where('status', 'present')
                         ->count(),
-                    'total_days' => $startDate->diffInDays($endDate) + 1,
+                    'total_days' => $this->attendanceCalendar->expectedSchoolDaysBetween($student, $startDate, $endDate, null),
                 ]);
             }
         }
@@ -74,32 +84,32 @@ class AttendanceAnalyticsService
      */
     public function getConsecutiveAbsences(Student $student, $asOfDate = null): int
     {
-        $asOfDate = $asOfDate ? Carbon::parse($asOfDate) : Carbon::today();
-        
+        $asOfDate = $asOfDate ? Carbon::parse($asOfDate)->startOfDay() : Carbon::today();
+        $floor = $this->attendanceCalendar->effectiveEnrolmentDate($student);
+
         $consecutive = 0;
         $currentDate = $asOfDate->copy();
 
-        // Count backwards from the date
-        while (true) {
+        while ($currentDate->gte($floor) && $consecutive < 365) {
+            if (! $this->attendanceCalendar->isAttendanceSessionDayForStudent($student, $currentDate)) {
+                $currentDate->subDay();
+
+                continue;
+            }
+
             $attendance = Attendance::where('student_id', $student->id)
                 ->whereDate('date', $currentDate)
                 ->first();
 
-            // If no record, assume absent (count it)
-            if (!$attendance) {
+            if (! $attendance) {
                 $consecutive++;
             } elseif ($attendance->status === 'present') {
-                // If present, stop counting
                 break;
-            } elseif (in_array($attendance->status, ['absent', 'late'])) {
-                // If absent or late, increment
+            } elseif (in_array($attendance->status, ['absent', 'late'], true)) {
                 $consecutive++;
             }
 
             $currentDate->subDay();
-            
-            // Safety limit to prevent infinite loops
-            if ($consecutive > 365) break;
         }
 
         return $consecutive;
