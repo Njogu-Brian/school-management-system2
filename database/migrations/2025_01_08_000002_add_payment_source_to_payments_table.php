@@ -11,6 +11,24 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // `payments` is created in a later migration; `payment_transactions` even later.
+        // Skip here so migrate can proceed; see 2026_03_26_100000_add_payment_source_columns_to_payments_table.
+        if (! Schema::hasTable('payments')) {
+            return;
+        }
+        if (! Schema::hasColumn('payments', 'payment_method_id')) {
+            return;
+        }
+        if (! Schema::hasTable('payment_links')) {
+            return;
+        }
+        if (! Schema::hasTable('payment_transactions')) {
+            return;
+        }
+        if (Schema::hasColumn('payments', 'payment_channel')) {
+            return;
+        }
+
         Schema::table('payments', function (Blueprint $table) {
             // Payment channel tracking
             $table->string('payment_channel')->nullable()->after('payment_method_id')
@@ -21,8 +39,7 @@ return new class extends Migration
                 ->constrained('payment_links')->onDelete('set null');
             $table->foreignId('payment_transaction_id')->nullable()->after('payment_link_id')
                 ->constrained('payment_transactions')->onDelete('set null');
-            
-            // Add indexes
+
             $table->index('payment_channel');
             $table->index('mpesa_receipt_number');
         });

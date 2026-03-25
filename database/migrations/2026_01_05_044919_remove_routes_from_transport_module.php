@@ -18,27 +18,22 @@ return new class extends Migration
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
         try {
-            // Helper function to drop foreign key safely
-            $dropForeignKey = function($tableName, $columnName) {
-                // Query for foreign keys using REFERENTIAL_CONSTRAINTS for more reliable results
+            // Drop any FK on this column (not only refs to `routes` — legacy DBs may differ).
+            $dropForeignKey = function (string $tableName, string $columnName): void {
                 $foreignKeys = DB::select(
-                    "SELECT rc.CONSTRAINT_NAME 
-                     FROM information_schema.REFERENTIAL_CONSTRAINTS rc
-                     JOIN information_schema.KEY_COLUMN_USAGE kcu 
-                         ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME 
-                         AND rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
-                     WHERE rc.CONSTRAINT_SCHEMA = DATABASE() 
-                     AND kcu.TABLE_NAME = ? 
-                     AND kcu.COLUMN_NAME = ?
-                     AND rc.REFERENCED_TABLE_NAME = 'routes'",
+                    'SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+                     WHERE TABLE_SCHEMA = DATABASE()
+                     AND TABLE_NAME = ?
+                     AND COLUMN_NAME = ?
+                     AND REFERENCED_TABLE_NAME IS NOT NULL',
                     [$tableName, $columnName]
                 );
-                
+
                 foreach ($foreignKeys as $fk) {
                     try {
                         DB::statement("ALTER TABLE `{$tableName}` DROP FOREIGN KEY `{$fk->CONSTRAINT_NAME}`");
-                    } catch (\Exception $e) {
-                        // Foreign key might not exist, continue
+                    } catch (\Exception) {
+                        //
                     }
                 }
             };

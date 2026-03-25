@@ -11,6 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('payment_transactions')) {
+            return;
+        }
+        if (Schema::hasColumn('payment_transactions', 'mpesa_receipt_number')) {
+            return;
+        }
+
         Schema::table('payment_transactions', function (Blueprint $table) {
             // M-PESA specific fields
             $table->string('mpesa_receipt_number')->nullable()->after('transaction_id');

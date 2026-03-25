@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('payment_links')) {
+            return;
+        }
+
         Schema::create('payment_links', function (Blueprint $table) {
             $table->id();
             $table->string('token', 20)->unique()->index();
