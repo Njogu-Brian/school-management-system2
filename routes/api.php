@@ -20,6 +20,8 @@ Route::post('/login', [AuthApiController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthApiController::class, 'user']);
     Route::post('/logout', [AuthApiController::class, 'logout']);
+    Route::post('/device-tokens', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'store']);
+    Route::post('/device-tokens/revoke', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'destroy']);
 
     Route::get('/dashboard/stats', [\App\Http\Controllers\Api\ApiDashboardController::class, 'stats']);
     Route::get('/student-categories', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'categories']);

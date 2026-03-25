@@ -4,10 +4,25 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuth } from '@contexts/AuthContext';
 import { useTheme } from '@contexts/ThemeContext';
+import { User } from '../types/auth.types';
 import { AuthNavigator } from './AuthNavigator';
 import { RoleBasedNavigator } from './RoleBasedNavigator';
+import { OfflineBanner } from '@components/common/OfflineBanner';
+import { useNetworkStatus } from '@hooks/useNetworkStatus';
+import { usePushNotifications } from '@hooks/usePushNotifications';
 
 const Stack = createStackNavigator();
+
+const AuthenticatedShell: React.FC<{ user: User }> = ({ user }) => {
+    const online = useNetworkStatus();
+    usePushNotifications(true);
+    return (
+        <>
+            <OfflineBanner visible={!online} />
+            <RoleBasedNavigator user={user} />
+        </>
+    );
+};
 
 const DarkTheme = {
     dark: true,
@@ -53,7 +68,7 @@ export const AppNavigator = () => {
     return (
         <NavigationContainer theme={isDark ? DarkTheme : LightTheme}>
             {isAuthenticated && user ? (
-                <RoleBasedNavigator user={user} />
+                <AuthenticatedShell user={user} />
             ) : (
                 <AuthNavigator />
             )}

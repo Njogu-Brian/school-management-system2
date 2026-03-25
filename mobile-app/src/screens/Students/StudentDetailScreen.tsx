@@ -43,6 +43,9 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
     const { studentId } = route.params;
     const canManageStudents = !!(user && MANAGER_ROLES.includes(user.role));
     const canFinanceMpesa = canUseMpesaFinanceTools(user);
+    const isParentUser = !!(
+        user && (user.role === UserRole.PARENT || user.role === UserRole.GUARDIAN)
+    );
     const [mpesaOpen, setMpesaOpen] = useState(false);
 
     const [student, setStudent] = useState<Student | null>(null);
@@ -441,12 +444,14 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
                                 }
                                 style={styles.actionButton}
                             />
-                            <Button
-                                title="Record payment"
-                                onPress={() => navigation.navigate('RecordPayment', { studentId: student.id })}
-                                variant="outline"
-                                style={styles.actionButton}
-                            />
+                            {!isParentUser && (
+                                <Button
+                                    title="Record payment"
+                                    onPress={() => navigation.navigate('RecordPayment', { studentId: student.id })}
+                                    variant="outline"
+                                    style={styles.actionButton}
+                                />
+                            )}
                             {canFinanceMpesa && (
                                 <>
                                     <Button
@@ -461,6 +466,13 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
                                         style={styles.actionButton}
                                     />
                                 </>
+                            )}
+                            {isParentUser && !canFinanceMpesa && (
+                                <Button
+                                    title="Open payment page"
+                                    onPress={openPaymentLinkForParent}
+                                    style={styles.actionButton}
+                                />
                             )}
                         </Card>
                     )}

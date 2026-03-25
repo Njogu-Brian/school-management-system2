@@ -140,9 +140,16 @@ class ApiMpesaPaymentController extends Controller
      */
     public function paymentLinkUrl(Request $request, int $id)
     {
-        $this->assertFinanceStaff($request);
-
+        $user = $request->user();
         $student = Student::findOrFail($id);
+
+        if ($user->hasAnyRole(['Parent', 'Guardian'])) {
+            if (! $user->canAccessStudent($student->id)) {
+                abort(403, 'You do not have access to this student.');
+            }
+        } elseif (! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+            abort(403, 'You do not have permission to load payment links.');
+        }
 
         if ($student->family_id) {
             $link = ensure_family_payment_link($student->family_id);

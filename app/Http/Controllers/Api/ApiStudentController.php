@@ -28,6 +28,15 @@ class ApiStudentController extends Controller
             $user->applyTeacherStudentFilter($query);
         }
 
+        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+            $ids = $user->accessibleStudentIds();
+            if ($ids === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('id', $ids);
+            }
+        }
+
         if ($request->filled('search')) {
             $search = '%' . addcslashes($request->search, '%_\\') . '%';
             $query->where(function ($q) use ($search) {
@@ -82,6 +91,12 @@ class ApiStudentController extends Controller
             }
         }
 
+        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+            if (! $user->canAccessStudent((int) $id)) {
+                abort(403, 'You do not have access to this student.');
+            }
+        }
+
         return response()->json(['success' => true, 'data' => $this->formatStudent($student)]);
     }
 
@@ -104,6 +119,12 @@ class ApiStudentController extends Controller
             $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {
+                abort(403, 'You do not have access to this student.');
+            }
+        }
+
+        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+            if (! $user->canAccessStudent($id)) {
                 abort(403, 'You do not have access to this student.');
             }
         }
@@ -152,6 +173,12 @@ class ApiStudentController extends Controller
             $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {
+                abort(403, 'You do not have access to this student.');
+            }
+        }
+
+        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+            if (! $user->canAccessStudent($id)) {
                 abort(403, 'You do not have access to this student.');
             }
         }

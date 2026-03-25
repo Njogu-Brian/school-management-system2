@@ -32,6 +32,7 @@ export default {
     },
     plugins: [
       ['expo-build-properties', { android: { usesCleartextTraffic: true } }],
+      'expo-notifications',
     ],
     extra: {
       API_BASE_URL: apiBase,

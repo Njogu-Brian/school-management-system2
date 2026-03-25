@@ -327,4 +327,32 @@ class User extends Authenticatable
 
         return $relation;
     }
+
+    /**
+     * Student IDs a parent/guardian user may access (direct + siblings via family_id).
+     *
+     * @return list<int>
+     */
+    public function accessibleStudentIds(): array
+    {
+        if (! $this->parent_id) {
+            return [];
+        }
+
+        $directIds = Student::where('parent_id', $this->parent_id)->pluck('id');
+        $familyIds = Student::where('parent_id', $this->parent_id)->whereNotNull('family_id')->pluck('family_id')->unique()->filter();
+
+        if ($familyIds->isEmpty()) {
+            return $directIds->unique()->values()->all();
+        }
+
+        $siblingIds = Student::whereIn('family_id', $familyIds)->pluck('id');
+
+        return $directIds->merge($siblingIds)->unique()->values()->all();
+    }
+
+    public function canAccessStudent(int $studentId): bool
+    {
+        return in_array($studentId, $this->accessibleStudentIds(), true);
+    }
 }

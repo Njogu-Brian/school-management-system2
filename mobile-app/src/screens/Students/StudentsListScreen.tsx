@@ -23,9 +23,11 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface StudentsListScreenProps {
     navigation: any;
+    route?: { params?: { title?: string } };
 }
 
-export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigation }) => {
+export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigation, route }) => {
+    const listTitle = route?.params?.title ?? 'Students';
     const { isDark, colors } = useTheme();
 
     const [students, setStudents] = useState<Student[]>([]);
@@ -161,7 +163,7 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
             {/* Header */}
             <View style={[styles.header, { paddingHorizontal: SCREEN.paddingHorizontal }]}>
                 <Text style={[styles.title, { color: isDark ? colors.textMainDark : BRAND.text }]}>
-                    Students
+                    {listTitle}
                 </Text>
                 <TouchableOpacity
                     style={styles.addButton}

@@ -7,6 +7,8 @@ import { AdminDashboard } from '@screens/Dashboard/AdminDashboard';
 import { StudentsNavigator, AttendanceNavigator, FinanceNavigator, PaymentsNavigator } from './ModuleNavigators';
 import { MoreNavigator } from './MoreNavigator';
 import { TeacherNavigator } from './TeacherNavigator';
+import { ParentTabNavigator } from './ParentTabNavigator';
+import { StudentTabNavigator } from './StudentTabNavigator';
 import { useTheme } from '@contexts/ThemeContext';
 
 const Tab = createBottomTabNavigator();
@@ -14,9 +16,6 @@ const Tab = createBottomTabNavigator();
 interface RoleBasedNavigatorProps {
     user: User;
 }
-
-// Placeholder screens (will be created in later phases)
-const PlaceholderScreen = () => null;
 
 export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) => {
     const { isDark, colors } = useTheme();
@@ -94,96 +93,14 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
         return <TeacherNavigator />;
     }
 
-    // Parent Navigation
+    // Parent / guardian
     if (user.role === UserRole.PARENT || user.role === UserRole.GUARDIAN) {
-        return (
-            <Tab.Navigator
-                screenOptions={{
-                    headerShown: false,
-                    tabBarActiveTintColor: colors.primary,
-                    tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                    tabBarStyle: {
-                        backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                        borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                    },
-                }}
-            >
-                <Tab.Screen
-                    name="Dashboard"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="dashboard" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="Children"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="child-care" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="Payments"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="payment" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="More"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="menu" size={size} color={color} />,
-                    }}
-                />
-            </Tab.Navigator>
-        );
+        return <ParentTabNavigator />;
     }
 
-    // Student Navigation
+    // Student
     if (user.role === UserRole.STUDENT) {
-        return (
-            <Tab.Navigator
-                screenOptions={{
-                    headerShown: false,
-                    tabBarActiveTintColor: colors.primary,
-                    tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                    tabBarStyle: {
-                        backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                        borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                    },
-                }}
-            >
-                <Tab.Screen
-                    name="Dashboard"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="dashboard" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="Homework"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="assignment" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="Results"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="grade" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="More"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="menu" size={size} color={color} />,
-                    }}
-                />
-            </Tab.Navigator>
-        );
+        return <StudentTabNavigator />;
     }
 
     // Default fallback
