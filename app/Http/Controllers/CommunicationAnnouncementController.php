@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Services\ExpoPushService;
 use Illuminate\Http\Request;
 
 class CommunicationAnnouncementController extends Controller
@@ -43,7 +44,12 @@ class CommunicationAnnouncementController extends Controller
             'expires_at' => 'nullable|date',
         ]);
 
-        Announcement::create($request->only(['title','content','active','expires_at']));
+        $announcement = Announcement::create($request->only(['title', 'content', 'active', 'expires_at']));
+
+        if ($announcement->active) {
+            app(ExpoPushService::class)->sendAnnouncementNotification($announcement);
+        }
+
         return redirect()->route('announcements.index')->with('success', 'Announcement created successfully.');
     }
 
@@ -61,7 +67,14 @@ class CommunicationAnnouncementController extends Controller
             'expires_at' => 'nullable|date',
         ]);
 
-        $announcement->update($request->only(['title','content','active','expires_at']));
+        $wasInactive = ! $announcement->active;
+
+        $announcement->update($request->only(['title', 'content', 'active', 'expires_at']));
+
+        if ($request->boolean('active') && $wasInactive) {
+            app(ExpoPushService::class)->sendAnnouncementNotification($announcement->fresh());
+        }
+
         return redirect()->route('announcements.index')->with('success', 'Announcement updated successfully.');
     }
 

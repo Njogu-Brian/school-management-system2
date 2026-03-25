@@ -75,4 +75,12 @@ return [
         'webhook_token' => env('WASENDER_WEBHOOK_TOKEN'),
     ],
 
+    /*
+    | Optional Expo access token for higher push throughput (expo.dev account).
+    | See https://docs.expo.dev/push-notifications/sending-notifications/
+    */
+    'expo' => [
+        'access_token' => env('EXPO_ACCESS_TOKEN'),
+    ],
+
 ];
