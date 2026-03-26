@@ -222,7 +222,7 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
                 ) : (
                     <View style={styles.backBtnPlaceholder} />
                 )}
-                <Text style={[styles.title, { color: mainText, flex: 1 }]}>Leave</Text>
+                <Text style={[styles.title, { color: mainText, flex: 1 }]}>Leave & apply</Text>
                 {showApply ? (
                     <TouchableOpacity onPress={() => navigation.navigate('ApplyLeave')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Icon name="add" size={26} color={colors.primary} />

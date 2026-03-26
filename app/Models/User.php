@@ -28,6 +28,63 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
+    /**
+     * Spatie role names may differ in casing across seeders and guards.
+     */
+    public static function teacherLikeRoleNames(): array
+    {
+        return ['Teacher', 'Senior Teacher', 'Supervisor', 'teacher', 'senior teacher', 'supervisor'];
+    }
+
+    public function hasTeacherLikeRole(): bool
+    {
+        return $this->hasAnyRole(self::teacherLikeRoleNames());
+    }
+
+    public function isSeniorTeacherUser(): bool
+    {
+        return $this->hasAnyRole(['Senior Teacher', 'senior teacher', 'Senior teacher']);
+    }
+
+    /**
+     * Classrooms for dashboards, KPIs, and exam scope (assigned + supervised campus for senior teachers).
+     *
+     * @return int[]
+     */
+    public function getDashboardClassroomIds(): array
+    {
+        $ids = array_map('intval', $this->getAssignedClassroomIds());
+        if ($this->isSeniorTeacherUser()) {
+            $ids = array_values(array_unique(array_merge(
+                $ids,
+                array_map('intval', $this->getSupervisedClassroomIds())
+            )));
+        }
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
+     * Whether this user may view or mark data for a classroom (API parity with web attendance).
+     */
+    public function canTeacherAccessClassroom(int $classroomId): bool
+    {
+        if (! $this->hasTeacherLikeRole()) {
+            return false;
+        }
+        $cid = (int) $classroomId;
+        $assigned = array_map('intval', $this->getAssignedClassroomIds());
+        if (in_array($cid, $assigned, true)) {
+            return true;
+        }
+        if ($this->isSeniorTeacherUser()) {
+            return in_array($cid, array_map('intval', $this->getSupervisedClassroomIds()), true);
+        }
+
+        return false;
+    }
+
     public function subjects()
     {
         return $this->belongsToMany(\App\Models\Academics\Subject::class, 'subject_teacher', 'teacher_id', 'subject_id');
@@ -78,7 +135,7 @@ class User extends Authenticatable
     public function getSupervisedClassroomIds(): array
     {
         $assignment = $this->campusAssignment;
-        if (!$assignment || !$this->hasRole('Senior Teacher')) {
+        if (!$assignment || ! $this->isSeniorTeacherUser()) {
             return [];
         }
         return \App\Models\Academics\Classroom::forCampus($assignment->campus)->pluck('id')->toArray();
@@ -174,9 +231,27 @@ class User extends Authenticatable
             ->distinct()
             ->pluck('classroom_id')
             ->toArray();
-        
+
+        $pivotNullStreamIds = \Illuminate\Support\Facades\DB::table('stream_teacher')
+            ->where('teacher_id', $this->id)
+            ->whereNull('classroom_id')
+            ->pluck('stream_id')
+            ->toArray();
+        $streamFallbackClassroomIds = [];
+        if (! empty($pivotNullStreamIds)) {
+            $streamFallbackClassroomIds = \App\Models\Academics\Stream::whereIn('id', $pivotNullStreamIds)
+                ->whereNotNull('classroom_id')
+                ->pluck('classroom_id')
+                ->toArray();
+        }
+
         // Merge and return unique IDs
-        return array_unique(array_merge($directClassroomIds, $subjectClassroomIds, $streamClassroomIds));
+        return array_values(array_unique(array_merge(
+            $directClassroomIds,
+            $subjectClassroomIds,
+            $streamClassroomIds,
+            $streamFallbackClassroomIds
+        )));
     }
 
     /**
@@ -209,7 +284,7 @@ class User extends Authenticatable
     public function getEffectiveStreamIds(): array
     {
         $assigned = $this->getAssignedStreamIds();
-        if ($this->hasRole('Senior Teacher')) {
+        if ($this->isSeniorTeacherUser()) {
             $supervised = $this->getSupervisedStreamIds();
             return array_values(array_unique(array_merge($assigned, $supervised)));
         }
@@ -231,23 +306,41 @@ class User extends Authenticatable
      */
     public function getStreamAssignments(): array
     {
-        return \Illuminate\Support\Facades\DB::table('stream_teacher')
+        $rows = \Illuminate\Support\Facades\DB::table('stream_teacher')
             ->where('teacher_id', $this->id)
-            ->whereNotNull('classroom_id')
-            ->select('classroom_id', 'stream_id')
-            ->get()
-            ->map(function($item) {
-                return (object)[
-                    'classroom_id' => $item->classroom_id,
-                    'stream_id' => $item->stream_id,
+            ->get(['classroom_id', 'stream_id']);
+
+        $out = [];
+        $needClassroomByStream = [];
+        foreach ($rows as $item) {
+            if ($item->classroom_id !== null) {
+                $out[] = (object) [
+                    'classroom_id' => (int) $item->classroom_id,
+                    'stream_id' => (int) $item->stream_id,
                 ];
-            })
-            ->toArray();
+            } else {
+                $needClassroomByStream[] = (int) $item->stream_id;
+            }
+        }
+        if (! empty($needClassroomByStream)) {
+            $resolved = \App\Models\Academics\Stream::whereIn('id', $needClassroomByStream)
+                ->whereNotNull('classroom_id')
+                ->get(['id', 'classroom_id']);
+            foreach ($resolved as $s) {
+                $out[] = (object) [
+                    'classroom_id' => (int) $s->classroom_id,
+                    'stream_id' => (int) $s->id,
+                ];
+            }
+        }
+
+        return $out;
     }
 
     /**
      * Apply teacher-specific student filtering to a query
-     * This ensures teachers only see students from their assigned streams/classrooms
+     * This ensures teachers only see students from their assigned streams/classrooms.
+     * Senior teachers additionally see all students in classrooms on their supervised campus (portal parity).
      */
     public function applyTeacherStudentFilter($query, $streamAssignments = null, $assignedClassroomIds = null)
     {
@@ -258,50 +351,59 @@ class User extends Authenticatable
             $assignedClassroomIds = $this->getAssignedClassroomIds();
         }
 
-        // If teacher has stream assignments, filter by those specific streams
-        if (!empty($streamAssignments)) {
-            $query->where(function($q) use ($streamAssignments, $assignedClassroomIds) {
-                // Students from assigned streams
-                foreach ($streamAssignments as $assignment) {
-                    $q->orWhere(function($subQ) use ($assignment) {
-                        $subQ->where('classroom_id', $assignment->classroom_id)
-                             ->where('stream_id', $assignment->stream_id);
-                    });
-                }
-                
-                // Also include students from direct classroom assignments (not via streams)
-                $directClassroomIds = \DB::table('classroom_teacher')
-                    ->where('teacher_id', $this->id)
-                    ->pluck('classroom_id')
-                    ->toArray();
-                
-                $subjectClassroomIds = [];
-                if ($this->staff) {
-                    $subjectClassroomIds = \DB::table('classroom_subjects')
-                        ->where('staff_id', $this->staff->id)
-                        ->distinct()
+        $supervisedClassroomIds = $this->isSeniorTeacherUser() ? $this->getSupervisedClassroomIds() : [];
+
+        $query->where(function ($outer) use ($streamAssignments, $assignedClassroomIds, $supervisedClassroomIds) {
+            $matchedAny = false;
+
+            if (! empty($streamAssignments)) {
+                $outer->where(function ($q) use ($streamAssignments) {
+                    foreach ($streamAssignments as $assignment) {
+                        $q->orWhere(function ($subQ) use ($assignment) {
+                            $subQ->where('classroom_id', $assignment->classroom_id)
+                                ->where('stream_id', $assignment->stream_id);
+                        });
+                    }
+
+                    $directClassroomIds = \DB::table('classroom_teacher')
+                        ->where('teacher_id', $this->id)
                         ->pluck('classroom_id')
                         ->toArray();
-                }
-                
-                $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
-                $nonStreamClassroomIds = array_diff(
-                    array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
-                    $streamClassroomIds
-                );
-                
-                if (!empty($nonStreamClassroomIds)) {
-                    $q->orWhereIn('classroom_id', $nonStreamClassroomIds);
-                }
-            });
-        } else {
-            // No stream assignments, show all students from assigned classrooms
-            if (!empty($assignedClassroomIds)) {
-                $query->whereIn('classroom_id', $assignedClassroomIds);
-            } else {
-                $query->whereRaw('1 = 0'); // No access
+
+                    $subjectClassroomIds = [];
+                    if ($this->staff) {
+                        $subjectClassroomIds = \DB::table('classroom_subjects')
+                            ->where('staff_id', $this->staff->id)
+                            ->distinct()
+                            ->pluck('classroom_id')
+                            ->toArray();
+                    }
+
+                    $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
+                    $nonStreamClassroomIds = array_diff(
+                        array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                        $streamClassroomIds
+                    );
+
+                    if (! empty($nonStreamClassroomIds)) {
+                        $q->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                    }
+                });
+                $matchedAny = true;
+            } elseif (! empty($assignedClassroomIds)) {
+                $outer->whereIn('classroom_id', $assignedClassroomIds);
+                $matchedAny = true;
             }
-        }
+
+            if (! empty($supervisedClassroomIds)) {
+                $outer->orWhereIn('classroom_id', $supervisedClassroomIds);
+                $matchedAny = true;
+            }
+
+            if (! $matchedAny) {
+                $outer->whereRaw('1 = 0');
+            }
+        });
     }
 
     /**

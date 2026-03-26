@@ -37,7 +37,7 @@ class ApiDashboardController extends Controller
             ]);
         }
 
-        if ($user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+        if ($user->hasTeacherLikeRole()) {
             return response()->json([
                 'success' => true,
                 'data' => $this->teacherDashboard($user),
@@ -225,7 +225,7 @@ class ApiDashboardController extends Controller
      */
     protected function teacherClassesBar($user): array
     {
-        $classroomIds = array_slice($user->getAssignedClassroomIds(), 0, 6);
+        $classroomIds = array_slice($user->getDashboardClassroomIds(), 0, 6);
         if (empty($classroomIds)) {
             return ['labels' => [], 'values' => []];
         }
@@ -236,11 +236,12 @@ class ApiDashboardController extends Controller
             $c = \App\Models\Academics\Classroom::find($cid);
             $name = $c ? ($c->name ?? 'Class '.$cid) : (string) $cid;
             $labels[] = \Illuminate\Support\Str::limit($name, 8);
-            $values[] = (int) Student::query()
+            $sq = Student::query()
                 ->where('classroom_id', $cid)
                 ->where('archive', 0)
-                ->where('is_alumni', false)
-                ->count();
+                ->where('is_alumni', false);
+            $user->applyTeacherStudentFilter($sq);
+            $values[] = (int) $sq->count();
         }
 
         return ['labels' => $labels, 'values' => $values];

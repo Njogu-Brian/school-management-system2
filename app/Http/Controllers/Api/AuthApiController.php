@@ -111,9 +111,7 @@ class AuthApiController extends Controller
             if (in_array(strtolower($roleName), ['teacher', 'senior teacher', 'supervisor'])) {
                 $data['teacher_id'] = $staff->id;
             }
-            if (method_exists($staff, 'getPhotoUrlAttribute')) {
-                $data['avatar'] = $staff->photo_url;
-            }
+            $data['avatar'] = $staff->photo_url ?: null;
         }
 
         // Parent: User has parent_id -> parent_info

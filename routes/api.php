@@ -75,6 +75,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/attendance/class', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'classAttendance']);
     Route::post('/attendance/mark', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'mark']);
 
+    Route::get('/timetables/teacher/{staffId}', [\App\Http\Controllers\Api\ApiTimetableController::class, 'teacher']);
+
+    Route::get('/assignments', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'index']);
+    Route::get('/lesson-plans', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'index']);
+
     Route::get('/exams', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'exams']);
     Route::get('/exams/{id}/marking-options', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examMarkingOptions']);
     Route::get('/exams/{id}', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'showExam']);

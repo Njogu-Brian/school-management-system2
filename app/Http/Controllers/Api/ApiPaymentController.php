@@ -290,7 +290,7 @@ class ApiPaymentController extends Controller
             return;
         }
         $student = Student::findOrFail($studentId);
-        if ($user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+        if ($user->hasTeacherLikeRole()) {
             $query = Student::where('id', $student->id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {

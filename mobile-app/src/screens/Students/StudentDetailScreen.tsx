@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -27,6 +27,7 @@ import { BRAND, RADIUS } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
 import { MpesaPromptModal } from '@components/MpesaPromptModal';
 import { canUseMpesaFinanceTools } from '@utils/financeRoles';
+import { normalizeRole } from '@utils/roleUtils';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface StudentDetailScreenProps {
@@ -44,6 +45,9 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
     const { studentId } = route.params;
     const canManageStudents = !!(user && MANAGER_ROLES.includes(user.role));
     const canFinanceMpesa = canUseMpesaFinanceTools(user);
+    const userRoleNorm = user?.role ? normalizeRole(user.role) : '';
+    /** Class teachers only — hide student finance tab; senior teachers, admins, finance, parents keep it. */
+    const showFinanceTabOnStudent = userRoleNorm !== UserRole.TEACHER;
     const isParentUser = !!(
         user && (user.role === UserRole.PARENT || user.role === UserRole.GUARDIAN)
     );
@@ -125,12 +129,28 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
         }
     }, [activeTab, student, loadCalendar]);
 
-    const tabs = [
-        { key: 'overview', label: 'Info', icon: 'info' },
-        { key: 'attendance', label: 'Attendance', icon: 'event' },
-        { key: 'academics', label: 'Academics', icon: 'school' },
-        { key: 'finance', label: 'Finance', icon: 'payments' },
-    ];
+    const tabs = useMemo(
+        () =>
+            showFinanceTabOnStudent
+                ? [
+                      { key: 'overview', label: 'Info', icon: 'info' },
+                      { key: 'attendance', label: 'Attendance', icon: 'event' },
+                      { key: 'academics', label: 'Academics', icon: 'school' },
+                      { key: 'finance', label: 'Finance', icon: 'payments' },
+                  ]
+                : [
+                      { key: 'overview', label: 'Info', icon: 'info' },
+                      { key: 'attendance', label: 'Attendance', icon: 'event' },
+                      { key: 'academics', label: 'Academics', icon: 'school' },
+                  ],
+        [showFinanceTabOnStudent]
+    );
+
+    useEffect(() => {
+        if (!showFinanceTabOnStudent && activeTab === 'finance') {
+            setActiveTab('overview');
+        }
+    }, [showFinanceTabOnStudent, activeTab]);
 
     const openPaymentLinkForParent = async () => {
         try {

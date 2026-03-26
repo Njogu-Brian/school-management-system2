@@ -35,12 +35,22 @@ class ApiAttendanceController extends Controller
         $date = Carbon::parse($request->date)->toDateString();
         $classId = (int) $request->class_id;
         $streamId = $request->stream_id ? (int) $request->stream_id : null;
+        $user = $request->user();
+
+        if ($user && $user->hasTeacherLikeRole()) {
+            if (! $user->canTeacherAccessClassroom($classId)) {
+                return response()->json(['success' => false, 'message' => 'You are not assigned to this class.'], 403);
+            }
+        }
 
         $studentQuery = Student::where('classroom_id', $classId)
             ->where('archive', 0)
             ->where('is_alumni', false);
         if ($streamId !== null) {
             $studentQuery->where('stream_id', $streamId);
+        }
+        if ($user && $user->hasTeacherLikeRole()) {
+            $user->applyTeacherStudentFilter($studentQuery);
         }
         $studentIds = $studentQuery->pluck('id');
 
@@ -96,15 +106,8 @@ class ApiAttendanceController extends Controller
             ], 422);
         }
 
-        // Teacher access
-        if ($user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
-            $hasAccess = in_array($classId, $user->getAssignedClassroomIds(), true);
-            if (!$hasAccess && $user->hasRole('Senior Teacher')) {
-                $hasAccess = in_array($classId, $user->getSupervisedClassroomIds(), true);
-            }
-            if (!$hasAccess) {
-                return response()->json(['success' => false, 'message' => 'You are not assigned to this class.'], 403);
-            }
+        if ($user->hasTeacherLikeRole() && ! $user->canTeacherAccessClassroom($classId)) {
+            return response()->json(['success' => false, 'message' => 'You are not assigned to this class.'], 403);
         }
 
         $count = 0;
@@ -114,13 +117,15 @@ class ApiAttendanceController extends Controller
                 $studentId = (int) $rec['student_id'];
                 $status = $rec['status'];
 
-                $student = Student::where('id', $studentId)
+                $studentQ = Student::where('id', $studentId)
                     ->where('classroom_id', $classId)
                     ->when($streamId !== null, fn ($q) => $q->where('stream_id', $streamId))
                     ->where('archive', 0)
-                    ->where('is_alumni', false)
-                    ->with('parent')
-                    ->first();
+                    ->where('is_alumni', false);
+                if ($user && $user->hasTeacherLikeRole()) {
+                    $user->applyTeacherStudentFilter($studentQ);
+                }
+                $student = $studentQ->with('parent')->first();
 
                 if (!$student) {
                     continue;

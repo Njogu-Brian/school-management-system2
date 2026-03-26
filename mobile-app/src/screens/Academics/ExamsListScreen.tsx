@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
+import { isTeacherRole } from '@utils/roleUtils';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
@@ -61,7 +62,7 @@ export const ExamsListScreen: React.FC<ExamsListScreenProps> = ({ navigation }) 
     };
 
     const handleExamPress = (exam: Exam) => {
-        if (user?.role === 'teacher' || user?.role === 'senior_teacher' || user?.role === 'supervisor' || user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'secretary') {
+        if ((user?.role && isTeacherRole(user.role)) || user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'secretary') {
             navigation.navigate('ExamMarksSetup', { examId: exam.id });
         } else {
             navigation.navigate('ViewMarks', { examId: exam.id });

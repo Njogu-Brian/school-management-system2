@@ -74,7 +74,7 @@ class ApiInvoiceController extends Controller
             return;
         }
         Student::findOrFail($studentId);
-        if ($user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+        if ($user->hasTeacherLikeRole()) {
             $query = Student::where('id', $studentId)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {

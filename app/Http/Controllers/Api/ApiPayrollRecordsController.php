@@ -9,16 +9,23 @@ use Illuminate\Http\Request;
 class ApiPayrollRecordsController extends Controller
 {
     /**
-     * Same broad HR access as web `hr` routes (payroll lives under /hr/payroll).
+     * Staff may view their own payslips; HR/finance/senior roles may list broadly.
      */
     protected function assertPayrollApiAccess(Request $request): void
     {
         $user = $request->user();
-        if (! $user || ! $user->hasAnyRole([
-            'Super Admin', 'Admin', 'Secretary', 'Senior Teacher', 'Finance Officer', 'Accountant', 'Teacher',
-        ])) {
-            abort(403, 'You do not have permission to view payroll records.');
+        if (! $user) {
+            abort(401);
         }
+        if (
+            $user->hasTeacherLikeRole()
+            || $user->hasAnyRole([
+                'Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant',
+            ])
+        ) {
+            return;
+        }
+        abort(403, 'You do not have permission to view payroll records.');
     }
 
     public function index(Request $request)
@@ -29,12 +36,6 @@ class ApiPayrollRecordsController extends Controller
         $privileged = $user->hasAnyRole([
             'Super Admin', 'Admin', 'Secretary', 'Senior Teacher', 'Finance Officer', 'Accountant',
         ]);
-        if ($user->hasRole('Teacher') && ! $privileged) {
-            $ownStaffId = $user->staff?->id;
-            if ($ownStaffId) {
-                $request->merge(['staff_id' => $ownStaffId]);
-            }
-        }
 
         $request->validate([
             'staff_id' => 'nullable|integer|exists:staff,id',
@@ -46,7 +47,24 @@ class ApiPayrollRecordsController extends Controller
 
         $query = PayrollRecord::with(['staff', 'payrollPeriod']);
 
-        if ($request->filled('staff_id')) {
+        if ($user->hasTeacherLikeRole() && ! $privileged) {
+            $ownStaffId = $user->staff?->id;
+            if (! $ownStaffId) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'data' => [],
+                        'current_page' => 1,
+                        'last_page' => 1,
+                        'per_page' => $perPage,
+                        'total' => 0,
+                        'from' => null,
+                        'to' => null,
+                    ],
+                ]);
+            }
+            $query->where('staff_id', $ownStaffId);
+        } elseif ($request->filled('staff_id')) {
             $query->where('staff_id', $request->staff_id);
         }
         if ($request->filled('status')) {

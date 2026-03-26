@@ -13,6 +13,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { Avatar } from '@components/common/Avatar';
+import { Button } from '@components/common/Button';
 import { LoadingState } from '@components/common/EmptyState';
 import { authApi } from '@api/auth.api';
 import { hrApi } from '@api/hr.api';
@@ -26,6 +27,32 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 interface MyProfileScreenProps {
     navigation: any;
 }
+
+function DetailLine({
+    label,
+    value,
+    isDark,
+    colors,
+}: {
+    label: string;
+    value?: string | number | null;
+    isDark: boolean;
+    colors: { textMainDark: string; textMainLight: string; textSubDark: string; textSubLight: string };
+}) {
+    if (value === undefined || value === null || String(value).trim() === '') return null;
+    return (
+        <View style={detailStyles.row}>
+            <Text style={[detailStyles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>{label}</Text>
+            <Text style={[detailStyles.value, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{value}</Text>
+        </View>
+    );
+}
+
+const detailStyles = StyleSheet.create({
+    row: { marginBottom: SPACING.sm },
+    label: { fontSize: FONT_SIZES.xs, marginBottom: 2 },
+    value: { fontSize: FONT_SIZES.md },
+});
 
 export const MyProfileScreen: React.FC<MyProfileScreenProps> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
@@ -42,16 +69,19 @@ export const MyProfileScreen: React.FC<MyProfileScreenProps> = ({ navigation }) 
             const profileRes = await authApi.getProfile();
             if (profileRes.success && profileRes.data) {
                 setUser(profileRes.data);
-                const u = profileRes.data as User & { staff_id?: number };
-                if (u.staff_id) {
+                const u = profileRes.data as User;
+                const sid = u.staff_id ?? u.teacher_id;
+                if (sid) {
                     try {
-                        const staffRes = await hrApi.getStaffMember(u.staff_id);
+                        const staffRes = await hrApi.getStaffMember(sid);
                         if (staffRes.success && staffRes.data) {
                             setStaff(staffRes.data);
                         }
                     } catch {
-                        // Staff endpoint may not be available for teacher
+                        Alert.alert('Profile', 'Could not load full staff record. Try again or contact ICT.');
                     }
+                } else {
+                    setStaff(null);
                 }
             }
         } catch (error: any) {
@@ -79,18 +109,19 @@ export const MyProfileScreen: React.FC<MyProfileScreenProps> = ({ navigation }) 
     }
 
     const displayName = staff?.full_name || user?.name || 'Staff';
-    const email = staff?.email || user?.email || '';
-    const phone = staff?.phone || user?.phone || '';
+    const workEmail = staff?.work_email || user?.email || '';
+    const phone = staff?.phone_number || staff?.phone || user?.phone || '';
+    const sid = user?.staff_id ?? user?.teacher_id;
 
     return (
-        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+        <SafeAreaView
+            style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+        >
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
                 </TouchableOpacity>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    My Profile
-                </Text>
+                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>My profile</Text>
             </View>
             <ScrollView
                 contentContainerStyle={styles.content}
@@ -100,83 +131,112 @@ export const MyProfileScreen: React.FC<MyProfileScreenProps> = ({ navigation }) 
             >
                 <Card style={styles.avatarCard}>
                     <View style={styles.avatarRow}>
-                        <Avatar name={displayName} size={80} source={staff?.avatar ? { uri: staff.avatar } : undefined} />
+                        <Avatar
+                            name={displayName}
+                            size={80}
+                            source={staff?.avatar ? { uri: staff.avatar } : user?.avatar ? { uri: user.avatar } : undefined}
+                        />
                         <View style={styles.avatarInfo}>
-                            <Text style={[styles.name, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                                {displayName}
-                            </Text>
-                            {staff?.designation && (
+                            <Text style={[styles.name, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{displayName}</Text>
+                            {staff?.designation || staff?.job_title ? (
                                 <Text style={[styles.role, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                                    {staff.designation}
+                                    {staff?.designation || staff?.job_title}
                                 </Text>
-                            )}
-                            {staff?.employee_number && (
+                            ) : null}
+                            {staff?.employee_number ? (
                                 <Text style={[styles.empNo, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                                     #{staff.employee_number}
                                 </Text>
-                            )}
+                            ) : null}
                         </View>
                     </View>
+                    {sid ? (
+                        <Button
+                            title="Edit profile"
+                            onPress={() => navigation.navigate('StaffEdit', { staffId: sid })}
+                            style={{ marginTop: SPACING.md }}
+                        />
+                    ) : null}
                 </Card>
 
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Contact
-                    </Text>
+                    <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Contact</Text>
                     <Card>
-                        {email ? (
-                            <View style={styles.row}>
-                                <Icon name="email" size={20} color={colors.primary} />
-                                <Text style={[styles.rowText, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{email}</Text>
-                            </View>
-                        ) : null}
-                        {phone ? (
-                            <View style={styles.row}>
-                                <Icon name="phone" size={20} color={colors.primary} />
-                                <Text style={[styles.rowText, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                                    {formatters.formatPhoneNumber(phone)}
-                                </Text>
-                            </View>
-                        ) : null}
+                        <DetailLine label="Work email" value={workEmail} isDark={isDark} colors={colors} />
+                        <DetailLine label="Personal email" value={staff?.personal_email} isDark={isDark} colors={colors} />
+                        <DetailLine label="Phone" value={phone ? formatters.formatPhoneNumber(phone) : ''} isDark={isDark} colors={colors} />
                     </Card>
                 </View>
 
                 {staff && (
-                    <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                            Employment
-                        </Text>
-                        <Card>
-                            {staff.department ? (
-                                <View style={styles.row}>
-                                    <Text style={[styles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Department</Text>
-                                    <Text style={[styles.value, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{staff.department}</Text>
-                                </View>
-                            ) : null}
-                            {staff.employment_type ? (
-                                <View style={styles.row}>
-                                    <Text style={[styles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Type</Text>
-                                    <Text style={[styles.value, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                                        {formatters.capitalizeWords(staff.employment_type.replace('_', ' '))}
-                                    </Text>
-                                </View>
-                            ) : null}
-                            {staff.employment_date ? (
-                                <View style={styles.row}>
-                                    <Text style={[styles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Joined</Text>
-                                    <Text style={[styles.value, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                                        {formatters.formatDate(staff.employment_date)}
-                                    </Text>
-                                </View>
-                            ) : null}
-                            {staff.status ? (
-                                <View style={styles.row}>
-                                    <Text style={[styles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Status</Text>
-                                    <Text style={[styles.value, { color: colors.success }]}>{formatters.capitalize(staff.status)}</Text>
-                                </View>
-                            ) : null}
-                        </Card>
-                    </View>
+                    <>
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                Identity & personal
+                            </Text>
+                            <Card>
+                                <DetailLine label="ID / NID" value={staff.id_number} isDark={isDark} colors={colors} />
+                                <DetailLine label="Gender" value={staff.gender} isDark={isDark} colors={colors} />
+                                <DetailLine label="Date of birth" value={staff.date_of_birth} isDark={isDark} colors={colors} />
+                                <DetailLine label="Marital status" value={staff.marital_status} isDark={isDark} colors={colors} />
+                            </Card>
+                        </View>
+
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Employment</Text>
+                            <Card>
+                                <DetailLine label="Department" value={staff.department} isDark={isDark} colors={colors} />
+                                <DetailLine label="Staff category" value={staff.staff_category} isDark={isDark} colors={colors} />
+                                <DetailLine label="Employment type" value={staff.employment_type} isDark={isDark} colors={colors} />
+                                <DetailLine label="Status" value={staff.status} isDark={isDark} colors={colors} />
+                                <DetailLine label="Hire date" value={staff.hire_date} isDark={isDark} colors={colors} />
+                                <DetailLine label="Max lessons / week" value={staff.max_lessons_per_week} isDark={isDark} colors={colors} />
+                                <DetailLine label="Supervisor" value={staff.supervisor_name} isDark={isDark} colors={colors} />
+                            </Card>
+                        </View>
+
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Address</Text>
+                            <Card>
+                                <DetailLine label="Residential" value={staff.residential_address} isDark={isDark} colors={colors} />
+                            </Card>
+                        </View>
+
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                Emergency contact
+                            </Text>
+                            <Card>
+                                <DetailLine label="Name" value={staff.emergency_contact_name} isDark={isDark} colors={colors} />
+                                <DetailLine
+                                    label="Relationship"
+                                    value={staff.emergency_contact_relationship}
+                                    isDark={isDark}
+                                    colors={colors}
+                                />
+                                <DetailLine label="Phone" value={staff.emergency_contact_phone} isDark={isDark} colors={colors} />
+                            </Card>
+                        </View>
+
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Tax & statutory</Text>
+                            <Card>
+                                <DetailLine label="KRA PIN" value={staff.kra_pin} isDark={isDark} colors={colors} />
+                                <DetailLine label="NSSF" value={staff.nssf} isDark={isDark} colors={colors} />
+                                <DetailLine label="NHIF" value={staff.nhif} isDark={isDark} colors={colors} />
+                            </Card>
+                        </View>
+
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Banking</Text>
+                            <Card>
+                                <DetailLine label="Bank" value={staff.bank_name} isDark={isDark} colors={colors} />
+                                <DetailLine label="Branch" value={staff.bank_branch} isDark={isDark} colors={colors} />
+                                <DetailLine label="Account" value={staff.bank_account} isDark={isDark} colors={colors} />
+                            </Card>
+                        </View>
+
+                    </>
                 )}
             </ScrollView>
         </SafeAreaView>
@@ -197,8 +257,4 @@ const styles = StyleSheet.create({
     empNo: { fontSize: FONT_SIZES.sm },
     section: { marginBottom: SPACING.lg },
     sectionTitle: { fontSize: FONT_SIZES.lg, fontWeight: '600', marginBottom: SPACING.sm },
-    row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm },
-    rowText: { fontSize: FONT_SIZES.md, flex: 1 },
-    label: { fontSize: FONT_SIZES.sm, width: 100 },
-    value: { fontSize: FONT_SIZES.md, flex: 1 },
 });

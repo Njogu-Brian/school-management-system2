@@ -1,6 +1,9 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { TeacherDashboard } from '@screens/Dashboard/TeacherDashboard';
+import { TeacherMoreHubScreen } from '@screens/Dashboard/TeacherMoreHubScreen';
 import { StudentsListScreen } from '@screens/Students/StudentsListScreen';
 import { StudentDetailScreen } from '@screens/Students/StudentDetailScreen';
 import { MarkAttendanceScreen } from '@screens/Attendance/MarkAttendanceScreen';
@@ -21,34 +24,82 @@ import { MyProfileScreen } from '@screens/HR/MyProfileScreen';
 import { MySalaryScreen } from '@screens/HR/MySalaryScreen';
 import { LeaveManagementScreen } from '@screens/HR/LeaveManagementScreen';
 import { ApplyLeaveScreen } from '@screens/HR/ApplyLeaveScreen';
+import { StaffEditScreen } from '@screens/HR/StaffEditScreen';
 import { SupervisedClassroomsScreen } from '@screens/SeniorTeacher/SupervisedClassroomsScreen';
 import { SupervisedStaffScreen } from '@screens/SeniorTeacher/SupervisedStaffScreen';
 import { FeeBalancesScreen } from '@screens/SeniorTeacher/FeeBalancesScreen';
 import { RecordPaymentScreen } from '@screens/Finance/RecordPaymentScreen';
 import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
+import { useTheme } from '@contexts/ThemeContext';
 
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
 
-// Lightweight placeholder for screens we might add later (e.g. assignment detail)
 const PlaceholderScreen = () => null;
 
+function TeacherTabs() {
+    const { isDark, colors } = useTheme();
+    return (
+        <Tab.Navigator
+            screenOptions={{
+                headerShown: false,
+                tabBarActiveTintColor: colors.primary,
+                tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
+                tabBarStyle: {
+                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                    borderTopColor: isDark ? colors.borderDark : colors.borderLight,
+                },
+            }}
+        >
+            <Tab.Screen
+                name="Home"
+                component={TeacherDashboard}
+                options={{
+                    tabBarLabel: 'Home',
+                    tabBarIcon: ({ color, size }) => <Icon name="home" size={size} color={color} />,
+                }}
+            />
+            <Tab.Screen
+                name="Classes"
+                component={StudentsListScreen}
+                initialParams={{ title: 'My classes', hint: 'Students in your assigned classes' }}
+                options={{
+                    tabBarLabel: 'Classes',
+                    tabBarIcon: ({ color, size }) => <Icon name="school" size={size} color={color} />,
+                }}
+            />
+            <Tab.Screen
+                name="Attendance"
+                component={MarkAttendanceScreen}
+                options={{
+                    tabBarLabel: 'Attendance',
+                    tabBarIcon: ({ color, size }) => <Icon name="fact-check" size={size} color={color} />,
+                }}
+            />
+            <Tab.Screen
+                name="More"
+                component={TeacherMoreHubScreen}
+                options={{
+                    tabBarLabel: 'More',
+                    tabBarIcon: ({ color, size }) => <Icon name="menu" size={size} color={color} />,
+                }}
+            />
+        </Tab.Navigator>
+    );
+}
+
+/** Teacher / senior teacher: bottom tabs + stack for detail flows (aligned with portal class scope). */
 export const TeacherNavigator = () => {
     return (
-        <Stack.Navigator
-            initialRouteName="TeacherDashboard"
-            screenOptions={{ headerShown: false }}
-        >
-            <Stack.Screen name="TeacherDashboard" component={TeacherDashboard} />
-            {/* My Classes / Students */}
+        <Stack.Navigator initialRouteName="Main" screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Main" component={TeacherTabs} />
             <Stack.Screen name="MyClasses" component={StudentsListScreen} />
             <Stack.Screen name="StudentsList" component={StudentsListScreen} />
             <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
             <Stack.Screen name="RecordPayment" component={RecordPaymentScreen} />
             <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
-            {/* Attendance */}
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
             <Stack.Screen name="AttendanceRecords" component={AttendanceRecordsScreen} />
-            {/* Academics */}
             <Stack.Screen name="Timetable" component={TimetableScreen} />
             <Stack.Screen name="Assignments" component={AssignmentsScreen} />
             <Stack.Screen name="LessonPlans" component={LessonPlansScreen} />
@@ -57,22 +108,19 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="ExamMarksSetup" component={ExamMarksSetupScreen} />
             <Stack.Screen name="ExamDetail" component={PlaceholderScreen} />
             <Stack.Screen name="ReportCard" component={ReportCardScreen} />
-            {/* Transport, Diary, Profile, Salary */}
             <Stack.Screen name="Transport" component={RoutesListScreen} />
             <Stack.Screen name="RouteDetail" component={RouteDetailScreen} />
             <Stack.Screen name="Diary" component={DiaryScreen} />
             <Stack.Screen name="MyProfile" component={MyProfileScreen} />
+            <Stack.Screen name="StaffEdit" component={StaffEditScreen} />
             <Stack.Screen name="MySalary" component={MySalaryScreen} />
             <Stack.Screen name="Leave" component={LeaveManagementScreen} />
             <Stack.Screen name="ApplyLeave" component={ApplyLeaveScreen} />
-            {/* Senior Teacher only */}
             <Stack.Screen name="SupervisedClassrooms" component={SupervisedClassroomsScreen} />
             <Stack.Screen name="SupervisedStaff" component={SupervisedStaffScreen} />
             <Stack.Screen name="FeeBalances" component={FeeBalancesScreen} />
-            {/* Settings & Notifications */}
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
-            {/* Placeholders for nested flows */}
             <Stack.Screen name="AssignmentDetail" component={PlaceholderScreen} />
             <Stack.Screen name="CreateAssignment" component={PlaceholderScreen} />
             <Stack.Screen name="LessonPlanDetail" component={PlaceholderScreen} />

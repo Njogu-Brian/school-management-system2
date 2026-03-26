@@ -125,7 +125,7 @@ class ApiStudentStatementController extends Controller
     protected function authorizeStudentAccess(Request $request, Student $student): void
     {
         $user = $request->user();
-        if ($user && $user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+        if ($user && $user->hasTeacherLikeRole()) {
             $query = Student::where('id', $student->id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {
@@ -142,8 +142,7 @@ class ApiStudentStatementController extends Controller
 
         if ($user && ! $user->hasAnyRole([
             'Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant',
-            'Teacher', 'Senior Teacher', 'Supervisor',
-        ])) {
+        ]) && ! $user->hasTeacherLikeRole()) {
             abort(403);
         }
     }

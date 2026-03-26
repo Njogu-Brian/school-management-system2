@@ -42,9 +42,13 @@ export const TimetableScreen: React.FC<TimetableScreenProps> = ({ navigation: _n
 
             let response;
             if (user?.role === 'teacher' || user?.role === 'senior_teacher' || user?.role === 'supervisor' || user?.role === 'super_admin') {
-                // Load teacher timetable (use staff_id for backend if available)
-                const teacherId = (user as any).staff_id ?? (user as any).teacher_id ?? user.id;
-                response = await academicsApi.getTeacherTimetable(teacherId, currentTerm);
+                const staffPk = user?.staff_id ?? user?.teacher_id;
+                if (!staffPk) {
+                    Alert.alert('Timetable', 'Your account is not linked to a staff profile yet.');
+                    setLoading(false);
+                    return;
+                }
+                response = await academicsApi.getTeacherTimetable(staffPk, currentTerm);
             } else if (user?.role === 'student') {
                 // Load student timetable
                 response = await academicsApi.getStudentTimetable(user.id, currentTerm);

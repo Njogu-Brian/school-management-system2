@@ -19,6 +19,24 @@ class ApiAcademicsController extends Controller
             ->orderByDesc('starts_on')
             ->orderByDesc('id');
 
+        $user = $request->user();
+        if ($user && $user->hasTeacherLikeRole()
+            && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            $allowed = $this->teacherAllowedClassroomIds($user);
+            if (empty($allowed)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($allowed) {
+                    $q->whereIn('classroom_id', $allowed)
+                        ->orWhereIn('id', function ($sub) use ($allowed) {
+                            $sub->select('exam_id')
+                                ->from('exam_class_subject')
+                                ->whereIn('classroom_id', $allowed);
+                        });
+                });
+            }
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -38,18 +56,33 @@ class ApiAcademicsController extends Controller
         ]);
     }
 
-    public function showExam($id)
+    public function showExam(Request $request, $id)
     {
         $exam = Exam::with(['classroom', 'subject', 'term', 'academicYear'])->findOrFail($id);
+        $user = $request->user();
+        if ($user && $user->hasTeacherLikeRole()
+            && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            if (! $this->teacherCanAccessExam($user, $exam)) {
+                abort(403, 'You do not have access to this exam.');
+            }
+        }
+
         return response()->json(['success' => true, 'data' => $this->formatExam($exam, true)]);
     }
 
     /**
      * Class/subject combinations available for marking (from exam pivot or single exam row).
      */
-    public function examMarkingOptions($id)
+    public function examMarkingOptions(Request $request, $id)
     {
-        $exam = Exam::findOrFail($id);
+        $exam = Exam::with(['classroom', 'subject'])->findOrFail($id);
+        $user = $request->user();
+        if ($user && $user->hasTeacherLikeRole()
+            && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            if (! $this->teacherCanAccessExam($user, $exam)) {
+                abort(403, 'You do not have access to this exam.');
+            }
+        }
         $options = [];
 
         if ($exam->classroom_id && $exam->subject_id) {
@@ -78,6 +111,12 @@ class ApiAcademicsController extends Controller
 
         $options = collect($options)->unique(fn ($o) => $o['classroom_id'] . '-' . $o['subject_id'])->values()->all();
 
+        if ($user && $user->hasTeacherLikeRole()
+            && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            $allowed = $this->teacherAllowedClassroomIds($user);
+            $options = array_values(array_filter($options, fn ($o) => in_array((int) $o['classroom_id'], $allowed, true)));
+        }
+
         return response()->json(['success' => true, 'data' => $options]);
     }
 
@@ -90,10 +129,21 @@ class ApiAcademicsController extends Controller
         ]);
 
         $exam = Exam::findOrFail($request->exam_id);
-        $studentIds = Student::where('classroom_id', $request->classroom_id)
+        $user = $request->user();
+
+        $studentQuery = Student::where('classroom_id', $request->classroom_id)
             ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->pluck('id');
+            ->where('is_alumni', false);
+        if ($user && $user->hasTeacherLikeRole()
+            && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            if (! $user->canTeacherAccessClassroom((int) $request->classroom_id)) {
+                abort(403, 'You do not have access to marks for this classroom.');
+            }
+        }
+        if ($user && $user->hasTeacherLikeRole()) {
+            $user->applyTeacherStudentFilter($studentQuery);
+        }
+        $studentIds = $studentQuery->pluck('id');
 
         $marks = ExamMark::where('exam_id', $exam->id)
             ->where('subject_id', $request->subject_id)
@@ -147,11 +197,9 @@ class ApiAcademicsController extends Controller
         $exam = Exam::findOrFail($data['exam_id']);
         $user = $request->user();
 
-        if ($user->hasAnyRole(['Teacher', 'Senior Teacher', 'teacher']) && !$user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
-            $assignedClassroomIds = $user->hasRole('Senior Teacher')
-                ? array_unique(array_merge($user->getAssignedClassroomIds(), $user->getSupervisedClassroomIds()))
-                : $user->getAssignedClassroomIds();
-            if (!in_array((int) $data['classroom_id'], $assignedClassroomIds, true)) {
+        if ($user->hasTeacherLikeRole() && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            $allowedClassrooms = $user->getDashboardClassroomIds();
+            if (! in_array((int) $data['classroom_id'], $allowedClassrooms, true)) {
                 return response()->json(['success' => false, 'message' => 'You do not have access to enter marks for this classroom.'], 403);
             }
             $staff = $user->staff;
@@ -162,8 +210,8 @@ class ApiAcademicsController extends Controller
                     ->where('subject_id', $data['subject_id'])
                     ->exists();
                 $isDirectOrSupervised = $user->isAssignedToClassroom($data['classroom_id'])
-                    || ($user->hasRole('Senior Teacher') && in_array($data['classroom_id'], $user->getSupervisedClassroomIds(), true));
-                if (!$hasSubjectAccess && !$isDirectOrSupervised) {
+                    || ($user->isSeniorTeacherUser() && in_array((int) $data['classroom_id'], array_map('intval', $user->getSupervisedClassroomIds()), true));
+                if (! $hasSubjectAccess && ! $isDirectOrSupervised) {
                     return response()->json(['success' => false, 'message' => 'You do not have access to enter marks for this subject.'], 403);
                 }
             }
@@ -188,11 +236,18 @@ class ApiAcademicsController extends Controller
             }
 
             $student = Student::find($row['student_id']);
-            if (!$student || $student->archive || $student->is_alumni) {
+            if (! $student || $student->archive || $student->is_alumni) {
                 continue;
             }
             if ((int) $student->classroom_id !== (int) $data['classroom_id']) {
                 continue;
+            }
+            if ($user && $user->hasTeacherLikeRole()) {
+                $scope = Student::where('id', $student->id)->where('archive', 0)->where('is_alumni', false);
+                $user->applyTeacherStudentFilter($scope);
+                if (! $scope->exists()) {
+                    continue;
+                }
             }
 
             $mark = ExamMark::firstOrNew([
@@ -226,6 +281,34 @@ class ApiAcademicsController extends Controller
                 'count' => $count,
             ],
         ]);
+    }
+
+    /**
+     * @param  \App\Models\User|\Illuminate\Contracts\Auth\Authenticatable|null  $user
+     */
+    protected function teacherAllowedClassroomIds($user): array
+    {
+        if (! $user) {
+            return [];
+        }
+
+        return array_values(array_map('intval', $user->getDashboardClassroomIds()));
+    }
+
+    protected function teacherCanAccessExam($user, Exam $exam): bool
+    {
+        $allowed = $this->teacherAllowedClassroomIds($user);
+        if ($allowed === []) {
+            return false;
+        }
+        if ($exam->classroom_id && in_array((int) $exam->classroom_id, $allowed, true)) {
+            return true;
+        }
+
+        return DB::table('exam_class_subject')
+            ->where('exam_id', $exam->id)
+            ->whereIn('classroom_id', $allowed)
+            ->exists();
     }
 
     protected function formatExam(Exam $e, bool $detail = false): array

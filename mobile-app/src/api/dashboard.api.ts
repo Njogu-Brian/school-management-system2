@@ -25,6 +25,10 @@ export interface DashboardStats {
     present_today?: number;
     fees_collected?: number;
     role?: string;
+    /** Teacher / senior teacher (from /dashboard/stats) */
+    my_classes?: number;
+    pending_marks?: number;
+    classes_today?: number;
     /** Parent / guardian */
     children_count?: number;
     total_fee_balance?: number;

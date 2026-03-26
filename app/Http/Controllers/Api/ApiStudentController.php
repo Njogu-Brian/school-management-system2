@@ -24,7 +24,7 @@ class ApiStudentController extends Controller
             ->where('is_alumni', false);
 
         // Teachers and Senior Teachers only see students from their assigned classes/streams
-        if ($user && $user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+        if ($user && $user->hasTeacherLikeRole()) {
             $user->applyTeacherStudentFilter($query);
         }
 
@@ -83,7 +83,7 @@ class ApiStudentController extends Controller
         $user = $request->user();
 
         // Teachers can only view students from their assigned classes
-        if ($user && $user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+        if ($user && $user->hasTeacherLikeRole()) {
             $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (!$query->exists()) {
@@ -115,7 +115,7 @@ class ApiStudentController extends Controller
     {
         $student = Student::findOrFail($id);
         $user = $request->user();
-        if ($user && $user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+        if ($user && $user->hasTeacherLikeRole()) {
             $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {
@@ -169,7 +169,7 @@ class ApiStudentController extends Controller
 
         $student = Student::findOrFail($id);
         $user = $request->user();
-        if ($user && $user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
+        if ($user && $user->hasTeacherLikeRole()) {
             $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
     View,
     Text,
@@ -7,6 +7,7 @@ import {
     SafeAreaView,
     TouchableOpacity,
     RefreshControl,
+    Alert,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
@@ -18,6 +19,7 @@ import type { DashboardMenuItem } from '@components/dashboard';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { tileColorForIndex, DASHBOARD_STAT_COLORS } from '@styles/sections/dashboard';
 import { BRAND } from '@constants/designTokens';
+import { dashboardApi, DashboardStats } from '@api/dashboard.api';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface TeacherDashboardProps {
@@ -28,40 +30,54 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
     const { isDark, colors } = useTheme();
     const { user } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
 
-    const [stats] = useState({
-        myClasses: 5,
-        totalStudents: 150,
-        pendingMarks: 12,
-        todayLessons: 4,
-    });
+    const loadStats = useCallback(async () => {
+        try {
+            const res = await dashboardApi.getStats();
+            if (res.success && res.data) {
+                setStats(res.data);
+            }
+        } catch (e: any) {
+            Alert.alert('Dashboard', e?.message || 'Could not load dashboard data.');
+        }
+    }, []);
 
-    const handleRefresh = () => {
+    useEffect(() => {
+        loadStats();
+    }, [loadStats]);
+
+    const handleRefresh = async () => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 1000);
+        await loadStats();
+        setRefreshing(false);
     };
 
     const isSeniorTeacher = user?.role ? isSeniorTeacherRole(user.role) : false;
     const roleLabel = getDashboardRoleLabel(user?.role);
 
+    const goTab = (tab: 'Home' | 'Classes' | 'Attendance' | 'More') => {
+        navigation.navigate('Main', { screen: tab });
+    };
+
     const baseActions = [
-        { id: '1', title: 'Mark Attendance', icon: 'event', screen: 'MarkAttendance' },
-        { id: '2', title: 'Exams & Marks', icon: 'edit', screen: 'ExamsList' },
-        { id: '3', title: 'Timetable', icon: 'schedule', screen: 'Timetable' },
-        { id: '4', title: 'Assignments', icon: 'assignment', screen: 'Assignments' },
-        { id: '5', title: 'Lesson Plans', icon: 'menu-book', screen: 'LessonPlans' },
-        { id: '6', title: 'My Classes', icon: 'class', screen: 'MyClasses' },
-        { id: '7', title: 'Transport', icon: 'directions-bus', screen: 'Transport' },
-        { id: '8', title: 'Diary', icon: 'book', screen: 'Diary' },
-        { id: '9', title: 'My Profile', icon: 'person', screen: 'MyProfile' },
-        { id: '10', title: 'My Salary', icon: 'payments', screen: 'MySalary' },
-        { id: '11', title: 'Leave', icon: 'event-busy', screen: 'Leave' },
+        { id: '1', title: 'Mark attendance', icon: 'event', onPress: () => goTab('Attendance') },
+        { id: '2', title: 'Exams & marks', icon: 'edit', screen: 'ExamsList' as const },
+        { id: '3', title: 'Timetable', icon: 'schedule', screen: 'Timetable' as const },
+        { id: '4', title: 'Assignments', icon: 'assignment', screen: 'Assignments' as const },
+        { id: '5', title: 'Lesson plans', icon: 'menu-book', screen: 'LessonPlans' as const },
+        { id: '6', title: 'My classes', icon: 'class', onPress: () => goTab('Classes') },
+        { id: '7', title: 'Transport', icon: 'directions-bus', screen: 'Transport' as const },
+        { id: '8', title: 'Diary', icon: 'book', screen: 'Diary' as const },
+        { id: '9', title: 'My profile', icon: 'person', screen: 'MyProfile' as const },
+        { id: '10', title: 'My salary', icon: 'payments', screen: 'MySalary' as const },
+        { id: '11', title: 'Leave', icon: 'event-busy', screen: 'Leave' as const },
     ];
     const seniorOnly = isSeniorTeacher
         ? [
-              { id: '12', title: 'Supervised Classes', icon: 'groups', screen: 'SupervisedClassrooms' },
-              { id: '13', title: 'Supervised Staff', icon: 'badge', screen: 'SupervisedStaff' },
-              { id: '14', title: 'Fee Balances', icon: 'account-balance-wallet', screen: 'FeeBalances' },
+              { id: '12', title: 'Supervised classes', icon: 'groups', screen: 'SupervisedClassrooms' as const },
+              { id: '13', title: 'Supervised staff', icon: 'badge', screen: 'SupervisedStaff' as const },
+              { id: '14', title: 'Fee balances', icon: 'account-balance-wallet', screen: 'FeeBalances' as const },
           ]
         : [];
 
@@ -72,7 +88,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
                 title: a.title,
                 icon: a.icon,
                 color: tileColorForIndex(i),
-                onPress: () => navigation.navigate(a.screen),
+                onPress:
+                    'onPress' in a && a.onPress
+                        ? a.onPress
+                        : () => navigation.navigate((a as { screen: string }).screen),
             })),
         [isSeniorTeacher, navigation]
     );
@@ -85,6 +104,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
     }, []);
 
     const bg = isDark ? colors.backgroundDark : BRAND.bg;
+
+    const lineChart = stats?.charts?.line ?? stats?.charts?.enrollment;
+    const barChart = stats?.charts?.bar ?? stats?.charts?.payments;
+
+    const myClasses = stats?.my_classes ?? 0;
+    const totalStudents = stats?.total_students ?? 0;
+    const pendingMarks = stats?.pending_marks ?? 0;
+    const todayLessons = stats?.classes_today ?? 0;
+
+    const firstSchedule = lineChart?.labels?.[0];
 
     return (
         <SafeAreaView style={[styles.root, { backgroundColor: bg }]}>
@@ -111,27 +140,23 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
 
                 <View style={styles.body}>
                     <View style={styles.kpiRow}>
-                        <KpiChip label="Classes" value={stats.myClasses} icon="class" color={DASHBOARD_STAT_COLORS[0]} />
-                        <KpiChip label="Students" value={stats.totalStudents} icon="people" color={DASHBOARD_STAT_COLORS[1]} />
-                        <KpiChip label="Pending marks" value={stats.pendingMarks} icon="edit" color={DASHBOARD_STAT_COLORS[2]} />
-                        <KpiChip label="Today" value={stats.todayLessons} icon="schedule" color={DASHBOARD_STAT_COLORS[3]} />
+                        <KpiChip label="Classes" value={myClasses} icon="class" color={DASHBOARD_STAT_COLORS[0]} />
+                        <KpiChip label="Students" value={totalStudents} icon="people" color={DASHBOARD_STAT_COLORS[1]} />
+                        <KpiChip label="Pending marks" value={pendingMarks} icon="edit" color={DASHBOARD_STAT_COLORS[2]} />
+                        <KpiChip label="Today" value={todayLessons} icon="schedule" color={DASHBOARD_STAT_COLORS[3]} />
                     </View>
 
-                    <DashboardLineChart
-                        title="Teaching load (hours, this week)"
-                        labels={['Mon', 'Tue', 'Wed', 'Thu', 'Fri']}
-                        data={[4, 5, 3, 6, 4]}
-                    />
-                    <DashboardBarChart
-                        title="Classes per subject"
-                        labels={['Math', 'Eng', 'Sci', 'Art']}
-                        data={[2, 1, 2, 1]}
-                    />
+                    {lineChart && lineChart.labels.length > 0 && (
+                        <DashboardLineChart title="Recent activity" labels={lineChart.labels} data={lineChart.values} />
+                    )}
+                    {barChart && barChart.labels.length > 0 && (
+                        <DashboardBarChart title="Students by class" labels={barChart.labels} data={barChart.values} />
+                    )}
 
                     <DashboardMenuGrid title="Navigate" items={menuItems} />
 
                     <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Today&apos;s schedule
+                        Quick tab shortcuts
                     </Text>
                     <Card
                         style={{
@@ -140,46 +165,75 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
                             borderColor: isDark ? colors.borderDark : BRAND.border,
                         }}
                     >
-                        <View style={styles.scheduleItem}>
-                            <View style={styles.timeBlock}>
-                                <Text style={[styles.time, { color: colors.primary }]}>08:00</Text>
-                                <Text style={[styles.timeAmpm, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                                    AM
-                                </Text>
-                            </View>
+                        <TouchableOpacity style={styles.scheduleItem} onPress={() => goTab('Classes')}>
+                            <Icon name="school" size={22} color={colors.primary} />
                             <View style={styles.scheduleInfo}>
                                 <Text
                                     style={[styles.scheduleSubject, { color: isDark ? colors.textMainDark : colors.textMainLight }]}
                                 >
-                                    Mathematics
+                                    Class register
                                 </Text>
                                 <Text style={[styles.scheduleMeta, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                                    Form 3A · Room 12
+                                    Open the Classes tab for your assigned streams
                                 </Text>
                             </View>
                             <Icon name="chevron-right" size={22} color={isDark ? colors.textSubDark : colors.textSubLight} />
-                        </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.scheduleItem} onPress={() => goTab('Attendance')}>
+                            <Icon name="fact-check" size={22} color={colors.primary} />
+                            <View style={styles.scheduleInfo}>
+                                <Text
+                                    style={[styles.scheduleSubject, { color: isDark ? colors.textMainDark : colors.textMainLight }]}
+                                >
+                                    Mark attendance
+                                </Text>
+                                <Text style={[styles.scheduleMeta, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                    Use the Attendance tab — only your classes are listed
+                                </Text>
+                            </View>
+                            <Icon name="chevron-right" size={22} color={isDark ? colors.textSubDark : colors.textSubLight} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.scheduleItem} onPress={() => goTab('More')}>
+                            <Icon name="payments" size={22} color={colors.primary} />
+                            <View style={styles.scheduleInfo}>
+                                <Text
+                                    style={[styles.scheduleSubject, { color: isDark ? colors.textMainDark : colors.textMainLight }]}
+                                >
+                                    Pay, profile, leave
+                                </Text>
+                                <Text style={[styles.scheduleMeta, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                    My salary and full profile are under More
+                                </Text>
+                            </View>
+                            <Icon name="chevron-right" size={22} color={isDark ? colors.textSubDark : colors.textSubLight} />
+                        </TouchableOpacity>
                     </Card>
 
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Recent activity
-                    </Text>
-                    <Card
-                        style={{
-                            ...styles.activityCard,
-                            backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
-                            borderColor: isDark ? colors.borderDark : BRAND.border,
-                        }}
-                    >
-                        <View style={styles.activityRow}>
-                            <View style={[styles.activityDot, { backgroundColor: colors.success + '33' }]}>
-                                <Icon name="assignment-turned-in" size={18} color={colors.success} />
-                            </View>
-                            <Text style={[styles.activityText, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                                Marks submitted for Mathematics — syncs when the API is connected.
+                    {firstSchedule && (
+                        <>
+                            <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                Teaching snapshot
                             </Text>
-                        </View>
-                    </Card>
+                            <Card
+                                style={{
+                                    ...styles.activityCard,
+                                    backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                                    borderColor: isDark ? colors.borderDark : BRAND.border,
+                                }}
+                            >
+                                <View style={styles.activityRow}>
+                                    <View style={[styles.activityDot, { backgroundColor: colors.success + '33' }]}>
+                                        <Icon name="insights" size={18} color={colors.success} />
+                                    </View>
+                                    <Text
+                                        style={[styles.activityText, { color: isDark ? colors.textSubDark : colors.textSubLight }]}
+                                    >
+                                        Charts reflect your assigned classes (and supervised campus if you are a senior teacher).
+                                    </Text>
+                                </View>
+                            </Card>
+                        </>
+                    )}
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -263,10 +317,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: SPACING.md,
+        paddingVertical: SPACING.sm,
     },
-    timeBlock: { alignItems: 'flex-start', minWidth: 56 },
-    time: { fontSize: FONT_SIZES.md, fontWeight: '800' },
-    timeAmpm: { fontSize: FONT_SIZES.xs, marginTop: -2 },
     scheduleInfo: { flex: 1 },
     scheduleSubject: { fontSize: FONT_SIZES.md, fontWeight: '700' },
     scheduleMeta: { fontSize: FONT_SIZES.sm, marginTop: 2 },

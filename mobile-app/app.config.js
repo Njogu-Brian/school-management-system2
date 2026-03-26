@@ -32,6 +32,7 @@ export default {
     },
     plugins: [
       ['expo-build-properties', { android: { usesCleartextTraffic: true } }],
+      'expo-font',
       [
         'expo-image-picker',
         {

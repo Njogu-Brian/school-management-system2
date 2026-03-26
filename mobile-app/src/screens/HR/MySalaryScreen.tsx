@@ -32,7 +32,7 @@ export const MySalaryScreen: React.FC<MySalaryScreenProps> = ({ navigation }) =>
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const staffId = (user as any)?.staff_id ?? user?.teacher_id;
+    const staffId = user?.staff_id ?? user?.teacher_id;
 
     const fetchPayrolls = useCallback(async () => {
         if (!staffId) {

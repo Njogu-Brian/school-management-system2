@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     View,
     Text,
@@ -10,6 +11,8 @@ import {
     Alert,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
+import { isTeacherRole } from '@utils/roleUtils';
 import { Card } from '@components/common/Card';
 import { Avatar } from '@components/common/Avatar';
 import { StatusBadge } from '@components/common/StatusBadge';
@@ -24,12 +27,15 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface StudentsListScreenProps {
     navigation: any;
-    route?: { params?: { title?: string } };
+    route?: { params?: { title?: string; hint?: string } };
 }
 
 export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigation, route }) => {
     const listTitle = route?.params?.title ?? 'Students';
+    const listHint = route?.params?.hint;
     const { isDark, colors } = useTheme();
+    const { user } = useAuth();
+    const hideAdminActions = user?.role ? isTeacherRole(user.role) : false;
 
     const [students, setStudents] = useState<Student[]>([]);
     const [loading, setLoading] = useState(true);
@@ -74,10 +80,11 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
         [filters, searchQuery]
     );
 
-    // Initial load
-    useEffect(() => {
-        fetchStudents(1);
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            fetchStudents(1);
+        }, [fetchStudents])
+    );
 
     // Search with debounce
     useEffect(() => {
@@ -164,15 +171,27 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
         >
             {/* Header */}
             <View style={[styles.header, { paddingHorizontal: SCREEN.paddingHorizontal }]}>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : BRAND.text }]}>
-                    {listTitle}
-                </Text>
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => navigation.navigate('AddStudent')}
-                >
-                    <Icon name="add" size={24} color={BRAND.primary} />
-                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : BRAND.text }]}>{listTitle}</Text>
+                    {listHint ? (
+                        <Text
+                            style={{
+                                fontSize: FONT_SIZES.sm,
+                                color: isDark ? colors.textSubDark : colors.textSubLight,
+                                marginTop: 4,
+                            }}
+                        >
+                            {listHint}
+                        </Text>
+                    ) : null}
+                </View>
+                {!hideAdminActions ? (
+                    <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('AddStudent')}>
+                        <Icon name="add" size={24} color={BRAND.primary} />
+                    </TouchableOpacity>
+                ) : (
+                    <View style={{ width: 40 }} />
+                )}
             </View>
 
             {/* Search Bar */}

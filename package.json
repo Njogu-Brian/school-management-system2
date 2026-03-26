@@ -3,7 +3,11 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "mobile": "npm --prefix mobile-app run start",
+        "mobile:lan": "npm --prefix mobile-app run start -- --lan",
+        "mobile:ios": "npm --prefix mobile-app run start -- --ios",
+        "mobile:android": "npm --prefix mobile-app run start -- --android"
     },
     "devDependencies": {
         "@popperjs/core": "^2.11.6",

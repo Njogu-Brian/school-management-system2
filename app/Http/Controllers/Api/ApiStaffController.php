@@ -21,6 +21,27 @@ class ApiStaffController extends Controller
         }
     }
 
+    /**
+     * View own HR profile, admin/secretary, or supervised staff (senior teacher).
+     */
+    protected function assertCanViewStaffRecord(Request $request, int $staffId): void
+    {
+        $user = $request->user();
+        if (! $user) {
+            abort(403);
+        }
+        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            return;
+        }
+        if ($user->staff && (int) $user->staff->id === $staffId) {
+            return;
+        }
+        if ($user->hasRole('Senior Teacher') && $user->isSupervisingStaff($staffId)) {
+            return;
+        }
+        abort(403, 'You do not have permission to view this staff profile.');
+    }
+
     protected function assertStaffManageAccess(Request $request): void
     {
         $user = $request->user();
@@ -73,7 +94,7 @@ class ApiStaffController extends Controller
 
     public function show(Request $request, $id)
     {
-        $this->assertStaffReadAccess($request);
+        $this->assertCanViewStaffRecord($request, (int) $id);
 
         $staff = Staff::with(['supervisor', 'category', 'department', 'jobTitle', 'statutoryExemptions'])
             ->findOrFail($id);
@@ -83,9 +104,15 @@ class ApiStaffController extends Controller
 
     public function update(Request $request, $id)
     {
-        $this->assertStaffManageAccess($request);
-
         $staff = Staff::with('user')->findOrFail($id);
+        $actor = $request->user();
+        $isAdmin = $actor && $actor->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        $isSelf = $actor && $actor->staff && (int) $actor->staff->id === (int) $id;
+
+        if (! $isAdmin && ! $isSelf) {
+            abort(403, 'You do not have permission to update this staff profile.');
+        }
+
         $user = $staff->user;
 
         if (! $user) {
@@ -95,37 +122,64 @@ class ApiStaffController extends Controller
             ], 422);
         }
 
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'work_email' => [
-                'required', 'email',
-                Rule::unique('users', 'email')->ignore($user->id),
-                Rule::unique('staff', 'work_email')->ignore($staff->id),
-            ],
-            'personal_email' => 'nullable|email',
-            'id_number' => ['required', 'string', 'max:255', Rule::unique('staff', 'id_number')->ignore($staff->id)],
-            'phone_number' => 'required|string|max:50',
-            'department_id' => 'nullable|exists:departments,id',
-            'job_title_id' => 'nullable|exists:job_titles,id',
-            'staff_category_id' => 'nullable|exists:staff_categories,id',
-            'supervisor_id' => 'nullable|exists:staff,id',
-            'residential_address' => 'nullable|string|max:500',
-            'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_relationship' => 'nullable|string|max:100',
-            'emergency_contact_phone' => 'nullable|string|max:50',
-            'bank_name' => 'nullable|string|max:255',
-            'bank_branch' => 'nullable|string|max:255',
-            'bank_account' => 'nullable|string|max:255',
-            'kra_pin' => 'nullable|string|max:50',
-            'nssf' => 'nullable|string|max:50',
-            'nhif' => 'nullable|string|max:50',
-            'basic_salary' => 'nullable|numeric|min:0',
-            'date_of_birth' => 'nullable|date',
-            'gender' => 'nullable|string|max:20',
-        ]);
+        if ($isSelf && ! $isAdmin) {
+            $request->validate([
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'work_email' => [
+                    'required', 'email',
+                    Rule::unique('users', 'email')->ignore($user->id),
+                    Rule::unique('staff', 'work_email')->ignore($staff->id),
+                ],
+                'personal_email' => 'nullable|email',
+                'id_number' => ['required', 'string', 'max:255', Rule::unique('staff', 'id_number')->ignore($staff->id)],
+                'phone_number' => 'required|string|max:50',
+                'residential_address' => 'nullable|string|max:500',
+                'emergency_contact_name' => 'nullable|string|max:255',
+                'emergency_contact_relationship' => 'nullable|string|max:100',
+                'emergency_contact_phone' => 'nullable|string|max:50',
+                'bank_name' => 'nullable|string|max:255',
+                'bank_branch' => 'nullable|string|max:255',
+                'bank_account' => 'nullable|string|max:255',
+                'kra_pin' => 'nullable|string|max:50',
+                'nssf' => 'nullable|string|max:50',
+                'nhif' => 'nullable|string|max:50',
+                'date_of_birth' => 'nullable|date',
+                'gender' => 'nullable|string|max:20',
+            ]);
+        } else {
+            $request->validate([
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'work_email' => [
+                    'required', 'email',
+                    Rule::unique('users', 'email')->ignore($user->id),
+                    Rule::unique('staff', 'work_email')->ignore($staff->id),
+                ],
+                'personal_email' => 'nullable|email',
+                'id_number' => ['required', 'string', 'max:255', Rule::unique('staff', 'id_number')->ignore($staff->id)],
+                'phone_number' => 'required|string|max:50',
+                'department_id' => 'nullable|exists:departments,id',
+                'job_title_id' => 'nullable|exists:job_titles,id',
+                'staff_category_id' => 'nullable|exists:staff_categories,id',
+                'supervisor_id' => 'nullable|exists:staff,id',
+                'residential_address' => 'nullable|string|max:500',
+                'emergency_contact_name' => 'nullable|string|max:255',
+                'emergency_contact_relationship' => 'nullable|string|max:100',
+                'emergency_contact_phone' => 'nullable|string|max:50',
+                'bank_name' => 'nullable|string|max:255',
+                'bank_branch' => 'nullable|string|max:255',
+                'bank_account' => 'nullable|string|max:255',
+                'kra_pin' => 'nullable|string|max:50',
+                'nssf' => 'nullable|string|max:50',
+                'nhif' => 'nullable|string|max:50',
+                'basic_salary' => 'nullable|numeric|min:0',
+                'date_of_birth' => 'nullable|date',
+                'gender' => 'nullable|string|max:20',
+            ]);
+        }
 
-        if ($request->filled('supervisor_id') && (int) $request->supervisor_id === (int) $staff->id) {
+        if ($isAdmin && $request->filled('supervisor_id') && (int) $request->supervisor_id === (int) $staff->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'A staff member cannot be their own supervisor.',
@@ -137,28 +191,39 @@ class ApiStaffController extends Controller
             $user->update(['email' => $request->work_email]);
 
             $phoneService = app(PhoneNumberService::class);
-            $staffData = $request->only([
-                'first_name', 'middle_name', 'last_name',
-                'work_email', 'personal_email', 'id_number',
-                'department_id', 'job_title_id', 'supervisor_id', 'staff_category_id',
-                'residential_address',
-                'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone',
-                'kra_pin', 'nssf', 'nhif', 'bank_name', 'bank_branch', 'bank_account',
-                'date_of_birth', 'gender',
-            ]);
+            if ($isSelf && ! $isAdmin) {
+                $staffData = $request->only([
+                    'first_name', 'middle_name', 'last_name',
+                    'work_email', 'personal_email', 'id_number',
+                    'residential_address',
+                    'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone',
+                    'kra_pin', 'nssf', 'nhif', 'bank_name', 'bank_branch', 'bank_account',
+                    'date_of_birth', 'gender',
+                ]);
+            } else {
+                $staffData = $request->only([
+                    'first_name', 'middle_name', 'last_name',
+                    'work_email', 'personal_email', 'id_number',
+                    'department_id', 'job_title_id', 'supervisor_id', 'staff_category_id',
+                    'residential_address',
+                    'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone',
+                    'kra_pin', 'nssf', 'nhif', 'bank_name', 'bank_branch', 'bank_account',
+                    'date_of_birth', 'gender',
+                ]);
+            }
             $staffData['phone_number'] = $phoneService->formatWithCountryCode($request->phone_number, '+254');
             $staffData['emergency_contact_phone'] = $phoneService->formatWithCountryCode(
                 $request->input('emergency_contact_phone'),
                 '+254'
             );
 
-            if ($request->filled('basic_salary')) {
+            if ($isAdmin && $request->filled('basic_salary')) {
                 $staffData['basic_salary'] = $request->basic_salary;
             }
 
             $staff->update($staffData);
 
-            if ($request->filled('basic_salary')) {
+            if ($isAdmin && $request->filled('basic_salary')) {
                 SalaryStructure::updateOrCreate(
                     [
                         'staff_id' => $staff->id,
@@ -202,7 +267,12 @@ class ApiStaffController extends Controller
 
     public function uploadPhoto(Request $request, $id)
     {
-        $this->assertStaffManageAccess($request);
+        $actor = $request->user();
+        $isAdmin = $actor && $actor->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        $isSelf = $actor && $actor->staff && (int) $actor->staff->id === (int) $id;
+        if (! $isAdmin && ! $isSelf) {
+            abort(403, 'You do not have permission to update this photo.');
+        }
 
         $staff = Staff::findOrFail($id);
 

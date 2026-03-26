@@ -14,13 +14,10 @@ class ApiClassroomController extends Controller
         $user = $request->user();
         $query = Classroom::query()->orderBy('name');
 
-        // Teachers only see their assigned classes
-        if ($user && $user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
-            $classIds = $user->getAssignedClassroomIds();
-            if ($user->hasRole('Senior Teacher')) {
-                $classIds = array_unique(array_merge($classIds, $user->getSupervisedClassroomIds()));
-            }
-            if (!empty($classIds)) {
+        // Teachers only see their assigned classes (+ senior teacher campus scope)
+        if ($user && $user->hasTeacherLikeRole()) {
+            $classIds = $user->getDashboardClassroomIds();
+            if (! empty($classIds)) {
                 $query->whereIn('id', $classIds);
             } else {
                 $query->whereRaw('1 = 0'); // No access
@@ -43,12 +40,8 @@ class ApiClassroomController extends Controller
         $query = Stream::where('classroom_id', $classId)->orderBy('name');
 
         // Teachers: verify access to this class and filter streams if needed
-        if ($user && $user->hasAnyRole(['Teacher', 'Senior Teacher', 'Supervisor'])) {
-            $hasAccess = in_array((int) $classId, $user->getAssignedClassroomIds(), true);
-            if (!$hasAccess && $user->hasRole('Senior Teacher')) {
-                $hasAccess = in_array((int) $classId, $user->getSupervisedClassroomIds(), true);
-            }
-            if (!$hasAccess) {
+        if ($user && $user->hasTeacherLikeRole()) {
+            if (! $user->canTeacherAccessClassroom((int) $classId)) {
                 return response()->json(['success' => true, 'data' => []]);
             }
             $streamIds = $user->getEffectiveStreamIds();

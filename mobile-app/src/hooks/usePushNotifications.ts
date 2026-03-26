@@ -1,32 +1,37 @@
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { deviceApi } from '@api/device.api';
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-    }),
-});
+/** Remote push is not supported in Expo Go (SDK 53+). Use a dev build / production app for push tokens. */
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
 /**
  * Registers for push notifications and saves the Expo push token to the API (for future server-side sends).
+ * Skips all expo-notifications native work in Expo Go to avoid SDK 53+ errors and log noise.
  */
 export function usePushNotifications(enabled: boolean): void {
     const registered = useRef(false);
 
     useEffect(() => {
-        if (!enabled || registered.current) {
+        if (!enabled || registered.current || isExpoGo) {
             return;
         }
 
         let cancelled = false;
 
         (async () => {
+            const Notifications = await import('expo-notifications');
+            const Device = await import('expo-device');
+
+            Notifications.setNotificationHandler({
+                handleNotification: async () => ({
+                    shouldShowAlert: true,
+                    shouldPlaySound: false,
+                    shouldSetBadge: false,
+                }),
+            });
+
             if (!Device.isDevice) {
                 return;
             }
@@ -58,7 +63,7 @@ export function usePushNotifications(enabled: boolean): void {
                 await deviceApi.registerPushToken(token, Platform.OS);
                 registered.current = true;
             } catch {
-                /* Expo project not configured for push — ignore */
+                /* EAS project / FCM not configured — ignore */
             }
         })();
 
