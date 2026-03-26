@@ -3,7 +3,7 @@
     <div class="col-6 col-md-3">
       <label class="form-label">Academic Year</label>
       <select name="year_id" class="form-select">@foreach($years as $y)
-        <option value="{{ $y->id }}" @selected(($filters['year_id'] ?? $currentYearId ?? null)==$y->id)>{{ $y->name }}</option>
+        <option value="{{ $y->id }}" @selected(($filters['year_id'] ?? $currentYearId ?? null)==$y->id)>{{ $y->name ?? $y->year }}</option>
       @endforeach</select>
     </div>
     <div class="col-6 col-md-3">

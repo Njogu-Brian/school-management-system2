@@ -76,15 +76,37 @@ class DashboardController extends Controller
 
     private function buildDashboardData(Request $request, string $role = 'admin', array $assignedClassroomIds = null, array $streamAssignments = null): array
     {
-        // ---- Filters
-        $defaultYearId = AcademicYear::latest('id')->value('id') ?? AcademicYear::orderBy('id', 'desc')->value('id') ?? null;
-        $defaultTermId = Term::latest('id')->value('id') ?? Term::orderBy('id', 'desc')->value('id') ?? null;
-        
+        // ---- Filters (year-scoped terms; defaults = active year + current term + term date range)
+        $defaultYearId = $this->resolveDefaultAcademicYearId();
+        $yearId = (int) ($request->get('year_id') ?: $defaultYearId ?: 0);
+
+        $termsForYear = $yearId > 0
+            ? Term::where('academic_year_id', $yearId)->orderBy('opening_date')->orderBy('id')->get()
+            : collect();
+
+        $defaultTerm = $yearId > 0 ? $this->resolveDefaultTermForYear($yearId) : null;
+        $defaultTermId = $defaultTerm?->id ?? 0;
+
+        $requestedTermId = (int) ($request->get('term_id') ?: 0);
+        $termId = $requestedTermId;
+        if ($termId && ! $termsForYear->contains('id', $termId)) {
+            $termId = 0;
+        }
+        if (! $termId) {
+            $termId = $defaultTermId;
+        }
+
+        $selectedTerm = $termId ? Term::find($termId) : null;
+        $hasExplicitDates = $request->filled('from') && $request->filled('to');
+        [$fromDate, $toDate] = $hasExplicitDates
+            ? [$request->get('from'), $request->get('to')]
+            : $this->defaultDateRangeForTerm($selectedTerm);
+
         $filters = [
-            'year_id'      => (int)($request->get('year_id') ?? $defaultYearId ?? 0),
-            'term_id'      => (int)($request->get('term_id') ?? $defaultTermId ?? 0),
-            'from'         => $request->get('from') ?? now()->subDays(30)->toDateString(),
-            'to'           => $request->get('to') ?? now()->toDateString(),
+            'year_id'      => $yearId,
+            'term_id'      => $termId,
+            'from'         => $fromDate,
+            'to'           => $toDate,
             'classroom_id' => $request->get('classroom_id'),
             'stream_id'    => $request->get('stream_id'),
         ];
@@ -664,8 +686,8 @@ class DashboardController extends Controller
 
         return [
             // filter lists
-            'years'      => AcademicYear::all(),
-            'terms'      => Term::all(),
+            'years'      => AcademicYear::orderByDesc('id')->get(),
+            'terms'      => $termsForYear,
             'classrooms' => Classroom::all(),
             'streams'    => Stream::all(),
 
@@ -731,8 +753,9 @@ class DashboardController extends Controller
             ];
         }
 
-        $currentYear = AcademicYear::latest('id')->first() ?? AcademicYear::orderBy('id', 'desc')->first();
-        $currentTerm = Term::latest('id')->first() ?? Term::orderBy('id', 'desc')->first();
+        $yearId = $this->resolveDefaultAcademicYearId();
+        $currentYear = $yearId ? AcademicYear::find($yearId) : null;
+        $currentTerm = $currentYear ? $this->resolveDefaultTermForYear($currentYear->id) : null;
         
         // Get assigned classes and subjects from classroom_subjects
         $assignments = \App\Models\Academics\ClassroomSubject::where('staff_id', $staff->id)
@@ -985,5 +1008,69 @@ class DashboardController extends Controller
             'recentExams' => $recentExams,
             'staff' => $staff,
         ];
+    }
+
+    private function resolveDefaultAcademicYearId(): ?int
+    {
+        $active = AcademicYear::where('is_active', true)->orderByDesc('id')->first();
+        if ($active) {
+            return $active->id;
+        }
+
+        return AcademicYear::latest('id')->value('id');
+    }
+
+    /**
+     * Prefer flagged current term, else the term whose dates contain today, else first/last term of the year.
+     */
+    private function resolveDefaultTermForYear(int $yearId): ?Term
+    {
+        $terms = Term::where('academic_year_id', $yearId)->orderBy('opening_date')->orderBy('id')->get();
+        if ($terms->isEmpty()) {
+            return null;
+        }
+
+        $byFlag = $terms->firstWhere('is_current', true);
+        if ($byFlag) {
+            return $byFlag;
+        }
+
+        $today = now()->toDateString();
+        foreach ($terms as $t) {
+            if ($t->opening_date && $t->closing_date) {
+                $open = $t->opening_date->toDateString();
+                $close = $t->closing_date->toDateString();
+                if ($today >= $open && $today <= $close) {
+                    return $t;
+                }
+            }
+        }
+
+        $first = $terms->first();
+        $last = $terms->last();
+        if ($first?->opening_date && $today < $first->opening_date->toDateString()) {
+            return $first;
+        }
+        if ($last?->closing_date && $today > $last->closing_date->toDateString()) {
+            return $last;
+        }
+
+        return $last;
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function defaultDateRangeForTerm(?Term $term): array
+    {
+        if ($term && $term->opening_date && $term->closing_date) {
+            $from = $term->opening_date->toDateString();
+            $close = $term->closing_date->toDateString();
+            $to = min($close, now()->toDateString());
+
+            return [$from, $to];
+        }
+
+        return [now()->subDays(30)->toDateString(), now()->toDateString()];
     }
 }
