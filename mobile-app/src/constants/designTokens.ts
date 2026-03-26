@@ -1,26 +1,26 @@
 /**
- * Aligns mobile UI with root `styles.md` (finance branding + layout tokens).
+ * ScholarCore brand tokens — align with `theme.ts` and docs/SCHOLARCORE_UI_UX.md.
  */
 export const BRAND = {
-    primary: '#0f766e',
-    primaryDark: '#0b5c54',
-    accent: '#14b8a6',
-    bg: '#f5f7fb',
+    primary: '#004A99',
+    primaryDark: '#003d7a',
+    accent: '#1a6bc4',
+    bg: '#f0f5fa',
     surface: '#ffffff',
-    border: '#e5e7eb',
+    border: '#E5E7EB',
     text: '#0f172a',
-    muted: '#6b7280',
-    success: '#10b981',
-    danger: '#ef4444',
-    warning: '#f59e00',
-    navy: '#2d3e50',
+    muted: '#64748b',
+    success: '#059669',
+    danger: '#dc2626',
+    warning: '#d97706',
+    navy: '#002a5c',
 };
 
-export const RADIUS = { card: 15, button: 12, pill: 999 };
+/** ScholarCore: 4px cards/buttons; pill for chips. */
+export const RADIUS = { card: 4, button: 4, pill: 999 };
 
-/** Screen chrome: headers, list rows, login shell */
 export const SCREEN = {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     headerGap: 12,
 };
@@ -31,12 +31,11 @@ export const HEADER = {
     iconSize: 24,
 };
 
-/** Card shadow (iOS); Android uses elevation on Card */
 export const CARD_STYLE = {
     radius: RADIUS.card,
     borderWidth: 1,
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
 };

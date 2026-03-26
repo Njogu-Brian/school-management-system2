@@ -4,7 +4,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 
 export const OfflineBanner: React.FC<{ visible: boolean }> = ({ visible }) => {
-    const { isDark, colors } = useTheme();
+    const { isDark } = useTheme();
     if (!visible) {
         return null;
     }

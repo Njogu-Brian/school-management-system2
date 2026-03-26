@@ -9,6 +9,7 @@ import {
 import { useTheme } from '@contexts/ThemeContext';
 import { SPACING } from '@constants/theme';
 import { BRAND, RADIUS, CARD_STYLE } from '@constants/designTokens';
+import { Palette } from '@styles/palette';
 
 interface CardProps {
     children: React.ReactNode;
@@ -32,7 +33,7 @@ export const Card: React.FC<CardProps> = ({ children, onPress, style, elevated =
                 elevated &&
                     (Platform.OS === 'ios'
                         ? {
-                              shadowColor: '#000',
+                              shadowColor: Palette.shadowIOS,
                               shadowOffset: CARD_STYLE.shadowOffset,
                               shadowOpacity: CARD_STYLE.shadowOpacity,
                               shadowRadius: CARD_STYLE.shadowRadius,

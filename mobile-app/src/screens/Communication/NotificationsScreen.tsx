@@ -16,13 +16,14 @@ import { communicationApi } from '@api/communication.api';
 import { Notification } from '../types/communication.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface NotificationsScreenProps {
     navigation: any;
 }
 
-export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ navigation }) => {
+export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ navigation: _navigation }) => {
     const { isDark, colors } = useTheme();
 
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -97,7 +98,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({ naviga
             case 'error':
                 return colors.error;
             case 'warning':
-                return '#ff9800';
+                return Palette.notificationOrange;
             case 'success':
                 return colors.success;
             default:
@@ -225,7 +226,7 @@ const styles = StyleSheet.create({
     },
     unreadCard: {
         borderLeftWidth: 3,
-        borderLeftColor: '#2196F3',
+        borderLeftColor: Palette.notificationAccent,
     },
     notificationContent: {
         flexDirection: 'row',
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#2196F3',
+        backgroundColor: Palette.notificationAccent,
         marginLeft: SPACING.xs,
     },
     notificationBody: {

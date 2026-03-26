@@ -32,6 +32,9 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             BackupRestoreController::runScheduledIfDue();
         })->hourly();
+
+        // Remove local DB dumps older than BACKUP_RETENTION_DAYS (default 5)
+        $schedule->command('backup:prune')->dailyAt('03:15');
     }
 
     protected function commands()

@@ -13,6 +13,7 @@ import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { tileColorForIndex, FINANCE_STAT_COLORS } from '@styles/sections/dashboard';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface FinanceDashboardProps {
@@ -44,13 +45,13 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ navigation }
     };
 
     const quickActions = [
-        { id: 1, title: 'Record Payment', icon: 'payment', screen: 'RecordPayment', color: '#3b82f6' },
-        { id: 2, title: 'Active invoices', icon: 'receipt-long', screen: 'InvoicesList', color: '#10b981' },
-        { id: 3, title: 'Payments', icon: 'payments', screen: 'PaymentsList', color: '#0d9488' },
-        { id: 4, title: 'Defaulters', icon: 'warning', screen: 'Defaulters', color: '#f59e0b' },
-        { id: 5, title: 'Fee Structures', icon: 'account-balance', screen: 'FeeStructures', color: '#8b5cf6' },
-        { id: 6, title: 'Reports', icon: 'assessment', screen: 'FinanceReports', color: '#ec4899' },
-    ];
+        { id: 1, title: 'Record Payment', icon: 'payment', screen: 'RecordPayment' },
+        { id: 2, title: 'Active invoices', icon: 'receipt-long', screen: 'InvoicesList' },
+        { id: 3, title: 'Payments', icon: 'payments', screen: 'PaymentsList' },
+        { id: 4, title: 'Defaulters', icon: 'warning', screen: 'Defaulters' },
+        { id: 5, title: 'Fee Structures', icon: 'account-balance', screen: 'FeeStructures' },
+        { id: 6, title: 'Reports', icon: 'assessment', screen: 'FinanceReports' },
+    ].map((a, i) => ({ ...a, color: tileColorForIndex(i) }));
 
     const renderStatCard = (title: string, value: any, icon: string, color: string, isAmount = false) => (
         <Card style={styles.statCard}>
@@ -121,11 +122,11 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ navigation }
                         Collections
                     </Text>
                     <View style={styles.statsRow}>
-                        {renderStatCard('Today', stats.todayCollection, 'today', '#3b82f6', true)}
-                        {renderStatCard('This Week', stats.weekCollection, 'date-range', '#10b981', true)}
+                        {renderStatCard('Today', stats.todayCollection, 'today', FINANCE_STAT_COLORS.today, true)}
+                        {renderStatCard('This Week', stats.weekCollection, 'date-range', FINANCE_STAT_COLORS.week, true)}
                     </View>
                     <View style={styles.statsRow}>
-                        {renderStatCard('This Month', stats.monthCollection, 'calendar-month', '#8b5cf6', true)}
+                        {renderStatCard('This Month', stats.monthCollection, 'calendar-month', FINANCE_STAT_COLORS.month, true)}
                     </View>
                 </View>
 
@@ -135,8 +136,8 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ navigation }
                         Pending Items
                     </Text>
                     <View style={styles.statsRow}>
-                        {renderStatCard('Pending Invoices', stats.pendingInvoices, 'receipt-long', '#f59e0b', false)}
-                        {renderStatCard('Overdue', stats.overduePayments, 'warning', '#ef4444', false)}
+                        {renderStatCard('Pending Invoices', stats.pendingInvoices, 'receipt-long', FINANCE_STAT_COLORS.pending, false)}
+                        {renderStatCard('Overdue', stats.overduePayments, 'warning', FINANCE_STAT_COLORS.overdue, false)}
                     </View>
                 </View>
 

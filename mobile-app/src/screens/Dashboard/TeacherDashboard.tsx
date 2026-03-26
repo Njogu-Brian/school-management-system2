@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -7,13 +7,17 @@ import {
     SafeAreaView,
     TouchableOpacity,
     RefreshControl,
-    Alert,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { isSeniorTeacherRole } from '@utils/roleUtils';
+import { getDashboardRoleLabel } from '@utils/dashboardRoleLabel';
 import { Card } from '@components/common/Card';
-import { SPACING, FONT_SIZES } from '@constants/theme';
+import { DashboardHero, DashboardLineChart, DashboardBarChart, DashboardMenuGrid } from '@components/dashboard';
+import type { DashboardMenuItem } from '@components/dashboard';
+import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { tileColorForIndex, DASHBOARD_STAT_COLORS } from '@styles/sections/dashboard';
+import { BRAND } from '@constants/designTokens';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface TeacherDashboardProps {
@@ -25,98 +29,68 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
     const { user } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
 
-    const [stats, setStats] = useState({
+    const [stats] = useState({
         myClasses: 5,
         totalStudents: 150,
         pendingMarks: 12,
         todayLessons: 4,
-        pendingAssignments: 8,
     });
 
     const handleRefresh = () => {
         setRefreshing(true);
-        // Load dashboard data
         setTimeout(() => setRefreshing(false), 1000);
     };
 
     const isSeniorTeacher = user?.role ? isSeniorTeacherRole(user.role) : false;
+    const roleLabel = getDashboardRoleLabel(user?.role);
+
     const baseActions = [
-        { id: 1, title: 'Mark Attendance', icon: 'event', screen: 'MarkAttendance', color: '#3b82f6' },
-        { id: 2, title: 'Exams & Marks', icon: 'edit', screen: 'ExamsList', color: '#10b981' },
-        { id: 3, title: 'My Timetable', icon: 'schedule', screen: 'Timetable', color: '#f59e0b' },
-        { id: 4, title: 'Assignments', icon: 'assignment', screen: 'Assignments', color: '#8b5cf6' },
-        { id: 5, title: 'Lesson Plans', icon: 'menu-book', screen: 'LessonPlans', color: '#ec4899' },
-        { id: 6, title: 'My Classes', icon: 'class', screen: 'MyClasses', color: '#14b8a6' },
-        { id: 7, title: 'Transport', icon: 'directions-bus', screen: 'Transport', color: '#06b6d4' },
-        { id: 8, title: 'Diary', icon: 'book', screen: 'Diary', color: '#84cc16' },
-        { id: 9, title: 'My Profile', icon: 'person', screen: 'MyProfile', color: '#6366f1' },
-        { id: 10, title: 'My Salary', icon: 'payments', screen: 'MySalary', color: '#22c55e' },
-        { id: 11, title: 'Leave', icon: 'event-busy', screen: 'Leave', color: '#a855f7' },
+        { id: '1', title: 'Mark Attendance', icon: 'event', screen: 'MarkAttendance' },
+        { id: '2', title: 'Exams & Marks', icon: 'edit', screen: 'ExamsList' },
+        { id: '3', title: 'Timetable', icon: 'schedule', screen: 'Timetable' },
+        { id: '4', title: 'Assignments', icon: 'assignment', screen: 'Assignments' },
+        { id: '5', title: 'Lesson Plans', icon: 'menu-book', screen: 'LessonPlans' },
+        { id: '6', title: 'My Classes', icon: 'class', screen: 'MyClasses' },
+        { id: '7', title: 'Transport', icon: 'directions-bus', screen: 'Transport' },
+        { id: '8', title: 'Diary', icon: 'book', screen: 'Diary' },
+        { id: '9', title: 'My Profile', icon: 'person', screen: 'MyProfile' },
+        { id: '10', title: 'My Salary', icon: 'payments', screen: 'MySalary' },
+        { id: '11', title: 'Leave', icon: 'event-busy', screen: 'Leave' },
     ];
-    const seniorOnlyActions = isSeniorTeacher
+    const seniorOnly = isSeniorTeacher
         ? [
-            { id: 12, title: 'Supervised Classes', icon: 'groups', screen: 'SupervisedClassrooms', color: '#0ea5e9' },
-            { id: 13, title: 'Supervised Staff', icon: 'badge', screen: 'SupervisedStaff', color: '#64748b' },
-            { id: 14, title: 'Fee Balances', icon: 'account-balance-wallet', screen: 'FeeBalances', color: '#eab308' },
+              { id: '12', title: 'Supervised Classes', icon: 'groups', screen: 'SupervisedClassrooms' },
+              { id: '13', title: 'Supervised Staff', icon: 'badge', screen: 'SupervisedStaff' },
+              { id: '14', title: 'Fee Balances', icon: 'account-balance-wallet', screen: 'FeeBalances' },
           ]
         : [];
-    const quickActions = [...baseActions, ...seniorOnlyActions];
 
-    const renderStatCard = (title: string, value: number, icon: string, color: string) => (
-        <Card style={[styles.statCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}>
-            <View style={[styles.iconContainer, { backgroundColor: color + '20' }]}>
-                <Icon name={icon} size={28} color={color} />
-            </View>
-            <Text style={[styles.statValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                {value}
-            </Text>
-            <Text style={[styles.statLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                {title}
-            </Text>
-        </Card>
+    const menuItems: DashboardMenuItem[] = useMemo(
+        () =>
+            [...baseActions, ...seniorOnly].map((a, i) => ({
+                id: a.id,
+                title: a.title,
+                icon: a.icon,
+                color: tileColorForIndex(i),
+                onPress: () => navigation.navigate(a.screen),
+            })),
+        [isSeniorTeacher, navigation]
     );
 
-    const renderQuickAction = (action: any) => (
-        <TouchableOpacity
-            key={action.id}
-            style={[styles.actionCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}
-            onPress={() => navigation.navigate(action.screen)}
-        >
-            <View style={[styles.actionIcon, { backgroundColor: action.color + '20' }]}>
-                <Icon name={action.icon} size={24} color={action.color} />
-            </View>
-            <Text style={[styles.actionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                {action.title}
-            </Text>
-        </TouchableOpacity>
-    );
+    const greeting = useMemo(() => {
+        const h = new Date().getHours();
+        if (h < 12) return 'Good morning';
+        if (h < 17) return 'Good afternoon';
+        return 'Good evening';
+    }, []);
+
+    const bg = isDark ? colors.backgroundDark : BRAND.bg;
 
     return (
-        <SafeAreaView
-            style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
-        >
-            {/* Header */}
-            <View style={styles.header}>
-                <View>
-                    <Text style={[styles.greeting, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        Welcome back,
-                    </Text>
-                    <Text style={[styles.name, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        {user?.name || 'Teacher'}
-                    </Text>
-                </View>
-                <View style={styles.headerIcons}>
-                    <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIconBtn}>
-                        <Icon name="notifications" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerIconBtn}>
-                        <Icon name="settings" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
+        <SafeAreaView style={[styles.root, { backgroundColor: bg }]}>
             <ScrollView
-                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scroll}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -126,56 +100,83 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
                     />
                 }
             >
-                {/* Stats */}
-                <View style={styles.statsGrid}>
-                    {renderStatCard('My Classes', stats.myClasses, 'class', '#3b82f6')}
-                    {renderStatCard('Students', stats.totalStudents, 'people', '#10b981')}
-                    {renderStatCard('Pending Marks', stats.pendingMarks, 'edit', '#f59e0b')}
-                    {renderStatCard('Today\'s Lessons', stats.todayLessons, 'schedule', '#8b5cf6')}
-                </View>
+                <DashboardHero
+                    greeting={greeting}
+                    userName={user?.name || 'Teacher'}
+                    roleLabel={roleLabel}
+                    avatarUrl={user?.avatar}
+                    onPressNotifications={() => navigation.navigate('Notifications')}
+                    onPressSettings={() => navigation.navigate('Settings')}
+                />
 
-                {/* Quick Actions */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Quick Actions
-                    </Text>
-                    <View style={styles.actionsGrid}>
-                        {quickActions.map(renderQuickAction)}
+                <View style={styles.body}>
+                    <View style={styles.kpiRow}>
+                        <KpiChip label="Classes" value={stats.myClasses} icon="class" color={DASHBOARD_STAT_COLORS[0]} />
+                        <KpiChip label="Students" value={stats.totalStudents} icon="people" color={DASHBOARD_STAT_COLORS[1]} />
+                        <KpiChip label="Pending marks" value={stats.pendingMarks} icon="edit" color={DASHBOARD_STAT_COLORS[2]} />
+                        <KpiChip label="Today" value={stats.todayLessons} icon="schedule" color={DASHBOARD_STAT_COLORS[3]} />
                     </View>
-                </View>
 
-                {/* Today's Schedule */}
-                <View style={styles.section}>
+                    <DashboardLineChart
+                        title="Teaching load (hours, this week)"
+                        labels={['Mon', 'Tue', 'Wed', 'Thu', 'Fri']}
+                        data={[4, 5, 3, 6, 4]}
+                    />
+                    <DashboardBarChart
+                        title="Classes per subject"
+                        labels={['Math', 'Eng', 'Sci', 'Art']}
+                        data={[2, 1, 2, 1]}
+                    />
+
+                    <DashboardMenuGrid title="Navigate" items={menuItems} />
+
                     <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Today's Schedule
+                        Today&apos;s schedule
                     </Text>
-                    <Card>
+                    <Card
+                        style={{
+                            ...styles.scheduleCard,
+                            backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                            borderColor: isDark ? colors.borderDark : BRAND.border,
+                        }}
+                    >
                         <View style={styles.scheduleItem}>
                             <View style={styles.timeBlock}>
-                                <Text style={[styles.time, { color: colors.primary }]}>08:00 AM</Text>
+                                <Text style={[styles.time, { color: colors.primary }]}>08:00</Text>
+                                <Text style={[styles.timeAmpm, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                    AM
+                                </Text>
                             </View>
                             <View style={styles.scheduleInfo}>
-                                <Text style={[styles.scheduleSubject, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                <Text
+                                    style={[styles.scheduleSubject, { color: isDark ? colors.textMainDark : colors.textMainLight }]}
+                                >
                                     Mathematics
                                 </Text>
-                                <Text style={[styles.scheduleClass, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                                    Form 3A • Room 12
+                                <Text style={[styles.scheduleMeta, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                    Form 3A · Room 12
                                 </Text>
                             </View>
+                            <Icon name="chevron-right" size={22} color={isDark ? colors.textSubDark : colors.textSubLight} />
                         </View>
                     </Card>
-                </View>
 
-                {/* Recent Activity */}
-                <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Recent Activity
+                        Recent activity
                     </Text>
-                    <Card>
-                        <View style={styles.activityItem}>
-                            <Icon name="assignment-turned-in" size={20} color={colors.success} />
+                    <Card
+                        style={{
+                            ...styles.activityCard,
+                            backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                            borderColor: isDark ? colors.borderDark : BRAND.border,
+                        }}
+                    >
+                        <View style={styles.activityRow}>
+                            <View style={[styles.activityDot, { backgroundColor: colors.success + '33' }]}>
+                                <Icon name="assignment-turned-in" size={18} color={colors.success} />
+                            </View>
                             <Text style={[styles.activityText, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                                You submitted marks for Mathematics exam
+                                Marks submitted for Mathematics — syncs when the API is connected.
                             </Text>
                         </View>
                     </Card>
@@ -185,121 +186,103 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
     );
 };
 
+const KpiChip: React.FC<{ label: string; value: number; icon: string; color: string }> = ({ label, value, icon, color }) => {
+    const { isDark, colors } = useTheme();
+    return (
+        <View
+            style={[
+                styles.kpiChip,
+                {
+                    backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                    borderColor: isDark ? colors.borderDark : BRAND.border,
+                },
+            ]}
+        >
+            <View style={[styles.kpiIcon, { backgroundColor: color + '22' }]}>
+                <Icon name={icon} size={20} color={color} />
+            </View>
+            <Text style={[styles.kpiValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{value}</Text>
+            <Text style={[styles.kpiLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]} numberOfLines={1}>
+                {label}
+            </Text>
+        </View>
+    );
+};
+
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+    root: { flex: 1 },
+    scroll: { paddingBottom: SPACING.xxl },
+    body: {
         paddingHorizontal: SPACING.xl,
-        paddingVertical: SPACING.md,
+        paddingTop: SPACING.lg,
     },
-    headerIcons: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-    headerIconBtn: { padding: SPACING.xs },
-    greeting: {
-        fontSize: FONT_SIZES.sm,
-    },
-    name: {
-        fontSize: FONT_SIZES.xxl,
-        fontWeight: 'bold',
-    },
-    content: {
-        padding: SPACING.xl,
-    },
-    statsGrid: {
+    kpiRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: SPACING.md,
+        gap: SPACING.sm,
+        marginBottom: SPACING.lg,
     },
-    statCard: {
-        flex: 1,
-        minWidth: '45%',
+    kpiChip: {
+        width: '47%',
+        flexGrow: 1,
         padding: SPACING.md,
-        borderRadius: 12,
+        borderRadius: BORDER_RADIUS.xl,
+        borderWidth: 1,
         alignItems: 'center',
-        gap: SPACING.xs,
     },
-    iconContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+    kpiIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: BORDER_RADIUS.lg,
         alignItems: 'center',
         justifyContent: 'center',
+        marginBottom: SPACING.xs,
     },
-    statValue: {
-        fontSize: FONT_SIZES.xxl,
-        fontWeight: 'bold',
+    kpiValue: {
+        fontSize: FONT_SIZES.xl,
+        fontWeight: '800',
     },
-    statLabel: {
+    kpiLabel: {
         fontSize: FONT_SIZES.xs,
+        marginTop: 2,
         textAlign: 'center',
-    },
-    section: {
-        marginTop: SPACING.xl,
     },
     sectionTitle: {
-        fontSize: FONT_SIZES.lg,
-        fontWeight: 'bold',
-        marginBottom: SPACING.md,
+        fontSize: FONT_SIZES.md,
+        fontWeight: '800',
+        marginBottom: SPACING.sm,
+        marginTop: SPACING.sm,
     },
-    actionsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: SPACING.md,
-    },
-    actionCard: {
-        flex: 1,
-        minWidth: '30%',
+    scheduleCard: {
+        borderRadius: BORDER_RADIUS.xl,
+        borderWidth: 1,
         padding: SPACING.md,
-        borderRadius: 12,
-        alignItems: 'center',
-        gap: SPACING.xs,
-    },
-    actionIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    actionTitle: {
-        fontSize: FONT_SIZES.xs,
-        textAlign: 'center',
-        fontWeight: '600',
+        marginBottom: SPACING.md,
     },
     scheduleItem: {
         flexDirection: 'row',
+        alignItems: 'center',
         gap: SPACING.md,
-        paddingVertical: SPACING.sm,
     },
-    timeBlock: {
-        width: 80,
+    timeBlock: { alignItems: 'flex-start', minWidth: 56 },
+    time: { fontSize: FONT_SIZES.md, fontWeight: '800' },
+    timeAmpm: { fontSize: FONT_SIZES.xs, marginTop: -2 },
+    scheduleInfo: { flex: 1 },
+    scheduleSubject: { fontSize: FONT_SIZES.md, fontWeight: '700' },
+    scheduleMeta: { fontSize: FONT_SIZES.sm, marginTop: 2 },
+    activityCard: {
+        borderRadius: BORDER_RADIUS.xl,
+        borderWidth: 1,
+        padding: SPACING.md,
+        marginBottom: SPACING.xl,
+    },
+    activityRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md },
+    activityDot: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
         justifyContent: 'center',
     },
-    time: {
-        fontSize: FONT_SIZES.sm,
-        fontWeight: '600',
-    },
-    scheduleInfo: {
-        flex: 1,
-    },
-    scheduleSubject: {
-        fontSize: FONT_SIZES.md,
-        fontWeight: '600',
-    },
-    scheduleClass: {
-        fontSize: FONT_SIZES.sm,
-    },
-    activityItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: SPACING.sm,
-        paddingVertical: SPACING.sm,
-    },
-    activityText: {
-        flex: 1,
-        fontSize: FONT_SIZES.sm,
-    },
+    activityText: { flex: 1, fontSize: FONT_SIZES.sm, lineHeight: 20 },
 });

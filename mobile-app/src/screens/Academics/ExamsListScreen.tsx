@@ -12,12 +12,12 @@ import {
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
-import { StatusBadge } from '@components/common/StatusBadge';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
 import { Exam } from '../types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface ExamsListScreenProps {
@@ -75,7 +75,7 @@ export const ExamsListScreen: React.FC<ExamsListScreenProps> = ({ navigation }) 
             case 'ongoing':
                 return colors.primary;
             case 'published':
-                return '#10b981';
+                return colors.success;
             default:
                 return isDark ? colors.textSubDark : colors.textSubLight;
         }
@@ -123,7 +123,7 @@ export const ExamsListScreen: React.FC<ExamsListScreenProps> = ({ navigation }) 
     if (loading) {
         return (
             <SafeAreaView
-                style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+                style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
             >
                 <LoadingState message="Loading exams..." />
             </SafeAreaView>
@@ -132,7 +132,7 @@ export const ExamsListScreen: React.FC<ExamsListScreenProps> = ({ navigation }) 
 
     return (
         <SafeAreaView
-            style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+            style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
             {/* Header */}
             <View style={styles.header}>

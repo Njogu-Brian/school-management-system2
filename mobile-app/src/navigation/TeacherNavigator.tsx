@@ -12,6 +12,7 @@ import { ExamsListScreen } from '@screens/Academics/ExamsListScreen';
 import { ExamMarksSetupScreen } from '@screens/Academics/ExamMarksSetupScreen';
 import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
 import { RoutesListScreen } from '@screens/Transport/RoutesListScreen';
+import { RouteDetailScreen } from '@screens/Transport/RouteDetailScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
 import { SettingsScreen } from '@screens/Settings/SettingsScreen';
 import { LessonPlansScreen } from '@screens/Academics/LessonPlansScreen';
@@ -19,6 +20,7 @@ import { DiaryScreen } from '@screens/Academics/DiaryScreen';
 import { MyProfileScreen } from '@screens/HR/MyProfileScreen';
 import { MySalaryScreen } from '@screens/HR/MySalaryScreen';
 import { LeaveManagementScreen } from '@screens/HR/LeaveManagementScreen';
+import { ApplyLeaveScreen } from '@screens/HR/ApplyLeaveScreen';
 import { SupervisedClassroomsScreen } from '@screens/SeniorTeacher/SupervisedClassroomsScreen';
 import { SupervisedStaffScreen } from '@screens/SeniorTeacher/SupervisedStaffScreen';
 import { FeeBalancesScreen } from '@screens/SeniorTeacher/FeeBalancesScreen';
@@ -57,10 +59,12 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="ReportCard" component={ReportCardScreen} />
             {/* Transport, Diary, Profile, Salary */}
             <Stack.Screen name="Transport" component={RoutesListScreen} />
+            <Stack.Screen name="RouteDetail" component={RouteDetailScreen} />
             <Stack.Screen name="Diary" component={DiaryScreen} />
             <Stack.Screen name="MyProfile" component={MyProfileScreen} />
             <Stack.Screen name="MySalary" component={MySalaryScreen} />
             <Stack.Screen name="Leave" component={LeaveManagementScreen} />
+            <Stack.Screen name="ApplyLeave" component={ApplyLeaveScreen} />
             {/* Senior Teacher only */}
             <Stack.Screen name="SupervisedClassrooms" component={SupervisedClassroomsScreen} />
             <Stack.Screen name="SupervisedStaff" component={SupervisedStaffScreen} />

@@ -13,12 +13,12 @@ import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { isTeacherRole } from '@utils/roleUtils';
 import { Card } from '@components/common/Card';
-import { StatusBadge } from '@components/common/StatusBadge';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
 import { LessonPlan } from '@types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface LessonPlansScreenProps {
@@ -72,7 +72,7 @@ export const LessonPlansScreen: React.FC<LessonPlansScreenProps> = ({ navigation
             case 'completed':
                 return colors.success;
             case 'draft':
-                return colors.warning || '#f59e0b';
+                return colors.warning;
             default:
                 return isDark ? colors.textSubDark : colors.textSubLight;
         }
@@ -124,7 +124,7 @@ export const LessonPlansScreen: React.FC<LessonPlansScreenProps> = ({ navigation
                         style={[styles.filterChip, filter === f && { backgroundColor: colors.primary }]}
                         onPress={() => setFilter(f)}
                     >
-                        <Text style={[styles.filterText, { color: filter === f ? '#fff' : (isDark ? colors.textSubDark : colors.textSubLight) }]}>
+                        <Text style={[styles.filterText, { color: filter === f ? Palette.onPrimary : (isDark ? colors.textSubDark : colors.textSubLight) }]}>
                             {formatters.capitalize(f)}
                         </Text>
                     </TouchableOpacity>

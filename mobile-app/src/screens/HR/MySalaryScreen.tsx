@@ -17,6 +17,7 @@ import { hrApi } from '@api/hr.api';
 import { Payroll } from '@types/hr.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface MySalaryScreenProps {
@@ -70,7 +71,7 @@ export const MySalaryScreen: React.FC<MySalaryScreenProps> = ({ navigation }) =>
             case 'processed':
                 return colors.primary;
             case 'draft':
-                return colors.warning || '#f59e0b';
+                return colors.warning;
             default:
                 return isDark ? colors.textSubDark : colors.textSubLight;
         }
@@ -104,7 +105,7 @@ export const MySalaryScreen: React.FC<MySalaryScreenProps> = ({ navigation }) =>
 
     if (!staffId) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+            <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                         <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
@@ -129,7 +130,7 @@ export const MySalaryScreen: React.FC<MySalaryScreenProps> = ({ navigation }) =>
     const list = Array.isArray(payrolls) ? payrolls : [];
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />

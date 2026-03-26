@@ -17,6 +17,7 @@ import { Invoice } from '@types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface Props {
@@ -76,7 +77,7 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
     if (loading) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+            <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
                 <View style={[styles.header, { borderBottomColor: isDark ? colors.borderDark : BRAND.border }]}>
                     <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
                         <Icon name="arrow-back" size={24} color={textMain} />
@@ -91,7 +92,7 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
     if (!invoice) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+            <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
                 <View style={[styles.header, { borderBottomColor: isDark ? colors.borderDark : BRAND.border }]}>
                     <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
                         <Icon name="arrow-back" size={24} color={textMain} />
@@ -113,7 +114,7 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
             <View style={[styles.header, { borderBottomColor: isDark ? colors.borderDark : BRAND.border }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
                     <Icon name="arrow-back" size={24} color={textMain} />

@@ -13,7 +13,7 @@ interface StatusBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, variant }) => {
-    const { isDark, colors } = useTheme();
+    const { colors } = useTheme();
 
     const getVariantColor = () => {
         if (variant) {

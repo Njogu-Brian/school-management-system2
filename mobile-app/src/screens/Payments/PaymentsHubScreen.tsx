@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-na
 import { useTheme } from '@contexts/ThemeContext';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import { PaymentsListScreen } from '@screens/Finance/PaymentsListScreen';
 import { TransactionsListScreen } from './TransactionsListScreen';
 
@@ -21,7 +22,7 @@ export const PaymentsHubScreen: React.FC<Props> = ({ navigation }) => {
     const textSub = isDark ? colors.textSubDark : BRAND.muted;
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
             <View style={styles.header}>
                 <Text style={[styles.title, { color: textMain }]}>Payments</Text>
                 <Text style={[styles.sub, { color: textSub }]}>

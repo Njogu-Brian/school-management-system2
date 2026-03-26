@@ -12,6 +12,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Button } from '@components/common/Button';
 import { authApi } from '@api/auth.api';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 
 interface OTPVerificationScreenProps {
     navigation: any;
@@ -100,6 +101,7 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
     return (
         <SafeAreaView
             style={[
+                layoutStyles.flex1,
                 styles.container,
                 { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
             ]}

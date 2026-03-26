@@ -13,6 +13,7 @@ import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { tileColorForIndex } from '@styles/sections/dashboard';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface StudentDashboardProps {
@@ -50,11 +51,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigation }
     };
 
     const quickActions = [
-        { id: 1, title: 'Timetable', icon: 'schedule', screen: 'Timetable', color: '#3b82f6' },
-        { id: 2, title: 'Assignments', icon: 'assignment', screen: 'Assignments', color: '#10b981' },
-        { id: 3, title: 'Results', icon: 'assessment', screen: 'Results', color: '#f59e0b' },
-        { id: 4, title: 'Attendance', icon: 'event-available', screen: 'MyAttendance', color: '#8b5cf6' },
-    ];
+        { id: 1, title: 'Timetable', icon: 'schedule', screen: 'Timetable' },
+        { id: 2, title: 'Assignments', icon: 'assignment', screen: 'Assignments' },
+        { id: 3, title: 'Results', icon: 'assessment', screen: 'Results' },
+        { id: 4, title: 'Attendance', icon: 'event-available', screen: 'MyAttendance' },
+    ].map((a, i) => ({ ...a, color: tileColorForIndex(i) }));
 
     const renderQuickAction = (action: any) => (
         <TouchableOpacity
@@ -123,7 +124,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigation }
             >
                 {/* Important Info */}
                 <View style={styles.infoCardsRow}>
-                    <Card style={[styles.infoCard, styles.attendanceCard]}>
+                    <Card style={{ ...styles.infoCard, ...styles.attendanceCard }}>
                         <Icon name="event-available" size={32} color={colors.success} />
                         <Text style={[styles.infoValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                             {studentInfo.attendance}%
@@ -133,7 +134,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ navigation }
                         </Text>
                     </Card>
 
-                    <Card style={[styles.infoCard, styles.feeCard]}>
+                    <Card style={{ ...styles.infoCard, ...styles.feeCard }}>
                         <Icon name="payment" size={32} color={studentInfo.feeBalance > 0 ? colors.error : colors.success} />
                         <Text style={[styles.infoValue, { color: studentInfo.feeBalance > 0 ? colors.error : colors.success }]}>
                             {formatters.formatCurrency(studentInfo.feeBalance)}

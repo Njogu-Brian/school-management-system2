@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import { Card } from '@components/common/Card';
 import { Input } from '@components/common/Input';
 import { communicationApi } from '@api/communication.api';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 
 interface SendSMSScreenProps {
     navigation: any;
@@ -61,7 +62,7 @@ export const SendSMSScreen: React.FC<SendSMSScreenProps> = ({ navigation }) => {
         try {
             const response = await communicationApi.sendSMS({
                 ...formData,
-                class_id: formData.class_id ? parseInt(formData.class_id) : undefined,
+                class_id: formData.class_id ? parseInt(formData.class_id, 10) : undefined,
             });
 
             if (response.success) {
@@ -78,7 +79,7 @@ export const SendSMSScreen: React.FC<SendSMSScreenProps> = ({ navigation }) => {
 
     return (
         <SafeAreaView
-            style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+            style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
             <ScrollView style={styles.content}>
                 <Card style={styles.section}>

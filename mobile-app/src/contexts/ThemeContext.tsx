@@ -1,6 +1,8 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import { COLORS } from '@constants/theme';
+import { brandingApi } from '@api/branding.api';
+import { mergePortalColors } from '@utils/mergePortalColors';
 
 type ThemeMode = 'light' | 'dark' | 'auto';
 
@@ -21,8 +23,33 @@ interface ThemeProviderProps {
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     const systemColorScheme = useColorScheme();
     const [mode, setMode] = useState<ThemeMode>('light');
+    const [portalColors, setPortalColors] = useState<typeof COLORS | null>(null);
 
     const isDark = mode === 'dark' || (mode === 'auto' && systemColorScheme === 'dark');
+
+    useEffect(() => {
+        let cancelled = false;
+        brandingApi
+            .getBranding()
+            .then((b) => {
+                if (!cancelled && b.colors) {
+                    setPortalColors(mergePortalColors(b.colors));
+                }
+            })
+            .catch(() => {
+                /* keep defaults */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const mergedColors = useMemo(() => {
+        if (!portalColors) {
+            return COLORS;
+        }
+        return { ...COLORS, ...portalColors };
+    }, [portalColors]);
 
     const setThemeMode = (newMode: ThemeMode) => {
         setMode(newMode);
@@ -35,7 +62,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     const value: ThemeContextType = {
         mode,
         isDark,
-        colors: COLORS,
+        colors: mergedColors,
         setThemeMode,
         toggleTheme,
     };

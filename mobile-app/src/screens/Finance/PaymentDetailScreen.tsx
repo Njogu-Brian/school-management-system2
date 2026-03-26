@@ -17,8 +17,9 @@ import { Card } from '@components/common/Card';
 import { financeApi } from '@api/finance.api';
 import { Payment } from '@types/finance.types';
 import { formatters } from '@utils/formatters';
-import { SPACING, FONT_SIZES } from '@constants/theme';
+import { SPACING, FONT_SIZES, COLORS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface Props {
@@ -139,7 +140,7 @@ export const PaymentDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                         <Text style={[styles.lineSm, { color: textSub }]}>Ref: {payment.reference_number}</Text>
                     ) : null}
                     {payment.unallocated_amount != null && payment.unallocated_amount > 0.009 ? (
-                        <Text style={[styles.lineSm, { color: '#f59e0b' }]}>
+                        <Text style={[styles.lineSm, { color: COLORS.warning }]}>
                             Unallocated: {formatters.formatCurrency(payment.unallocated_amount)}
                         </Text>
                     ) : null}
@@ -168,7 +169,7 @@ export const PaymentDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                                 style={[styles.btn, { backgroundColor: colors.primary }]}
                                 onPress={() => setShowReceipt(true)}
                             >
-                                <Icon name="receipt" size={20} color="#fff" />
+                                <Icon name="receipt" size={20} color={Palette.onPrimary} />
                                 <Text style={styles.btnText}>View receipt</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
@@ -243,11 +244,11 @@ const styles = StyleSheet.create({
         paddingVertical: SPACING.md,
         borderRadius: RADIUS.md,
     },
-    btnText: { color: '#fff', fontWeight: '600', fontSize: FONT_SIZES.md },
+    btnText: { color: Palette.onPrimary, fontWeight: '600', fontSize: FONT_SIZES.md },
     btnTextOutline: { fontWeight: '600', fontSize: FONT_SIZES.md },
     webWrap: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#fff',
+        backgroundColor: Palette.modalSurfaceLight,
         zIndex: 10,
     },
     webHeader: {

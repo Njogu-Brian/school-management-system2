@@ -13,6 +13,7 @@ import { Card } from '@components/common/Card';
 import { LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface ExamMarksSetupScreenProps {
@@ -75,14 +76,14 @@ export const ExamMarksSetupScreen: React.FC<ExamMarksSetupScreenProps> = ({ navi
 
     if (loading) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+            <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
                 <LoadingState message="Loading exam..." />
             </SafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />

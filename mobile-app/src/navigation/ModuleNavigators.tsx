@@ -14,13 +14,19 @@ import { RecordPaymentScreen } from '@screens/Finance/RecordPaymentScreen';
 import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
 import { MpesaWaitingWebViewScreen } from '@screens/Finance/MpesaWaitingWebViewScreen';
 import { StaffDirectoryScreen } from '@screens/HR/StaffDirectoryScreen';
+import { StaffDetailScreen } from '@screens/HR/StaffDetailScreen';
+import { StaffEditScreen } from '@screens/HR/StaffEditScreen';
+import { PayrollRecordsScreen } from '@screens/HR/PayrollRecordsScreen';
 import { RoutesListScreen } from '@screens/Transport/RoutesListScreen';
+import { RouteDetailScreen } from '@screens/Transport/RouteDetailScreen';
 import { LibraryBooksScreen } from '@screens/Library/LibraryBooksScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
 import { ExamsListScreen } from '@screens/Academics/ExamsListScreen';
 import { ExamMarksSetupScreen } from '@screens/Academics/ExamMarksSetupScreen';
 import { MarksEntryScreen } from '@screens/Academics/MarksEntryScreen';
+import { LeaveManagementScreen } from '@screens/HR/LeaveManagementScreen';
+import { ApplyLeaveScreen } from '@screens/HR/ApplyLeaveScreen';
 import { TimetableScreen } from '@screens/Academics/TimetableScreen';
 import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
 import { AssignmentsScreen } from '@screens/Academics/AssignmentsScreen';
@@ -28,7 +34,7 @@ import { AssignmentsScreen } from '@screens/Academics/AssignmentsScreen';
 const Stack = createStackNavigator();
 
 // Placeholder screens
-const PlaceholderScreen = ({ route }: any) => {
+const PlaceholderScreen = ({ route: _route }: any) => {
     return null;
 };
 
@@ -96,10 +102,13 @@ export const HRNavigator = () => {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="StaffDirectory" component={StaffDirectoryScreen} />
-            <Stack.Screen name="StaffDetail" component={PlaceholderScreen} />
+            <Stack.Screen name="StaffDetail" component={StaffDetailScreen} />
+            <Stack.Screen name="StaffEdit" component={StaffEditScreen} />
+            <Stack.Screen name="PayrollRecords" component={PayrollRecordsScreen} />
             <Stack.Screen name="AddStaff" component={PlaceholderScreen} />
-            <Stack.Screen name="LeaveManagement" component={PlaceholderScreen} />
-            <Stack.Screen name="Payroll" component={PlaceholderScreen} />
+            <Stack.Screen name="LeaveManagement" component={LeaveManagementScreen} />
+            <Stack.Screen name="ApplyLeave" component={ApplyLeaveScreen} />
+            <Stack.Screen name="Payroll" component={PayrollRecordsScreen} />
         </Stack.Navigator>
     );
 };
@@ -108,7 +117,7 @@ export const TransportNavigator = () => {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="RoutesList" component={RoutesListScreen} />
-            <Stack.Screen name="RouteDetail" component={PlaceholderScreen} />
+            <Stack.Screen name="RouteDetail" component={RouteDetailScreen} />
             <Stack.Screen name="AddRoute" component={PlaceholderScreen} />
             <Stack.Screen name="Vehicles" component={PlaceholderScreen} />
             <Stack.Screen name="Trips" component={PlaceholderScreen} />

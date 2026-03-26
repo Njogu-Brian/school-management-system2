@@ -6,6 +6,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@contexts/ThemeContext';
 import { StudentHomeScreen } from '@screens/Student/StudentHomeScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
+import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
 import { MoreScreen } from '@screens/More/MoreScreen';
 
 const Tab = createBottomTabNavigator();
@@ -31,6 +32,7 @@ const StudentMoreStack = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MoreMenu" component={MoreScreen} />
         <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
 );
 

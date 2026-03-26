@@ -10,7 +10,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '@contexts/AuthContext';
 import { useTheme } from '@contexts/ThemeContext';
+import { canViewPayrollRecords, canAccessLeaveManagement } from '@utils/staffHrAccess';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface MoreItemProps {
@@ -46,6 +48,8 @@ export const MoreScreen = () => {
     const { user, logout } = useAuth();
     const { isDark, colors } = useTheme();
     const navigation = useNavigation<any>();
+    const showPayroll = canViewPayrollRecords(user);
+    const showLeave = canAccessLeaveManagement(user);
 
     const handleLogout = async () => {
         await logout();
@@ -53,7 +57,7 @@ export const MoreScreen = () => {
 
     return (
         <SafeAreaView
-            style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+            style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.header}>
@@ -82,6 +86,30 @@ export const MoreScreen = () => {
                             parent ? parent.navigate('More', { screen: 'StaffDirectory' }) : navigation.navigate('StaffDirectory');
                         }}
                     />
+                    {showPayroll ? (
+                        <MoreItem
+                            icon="payments"
+                            title="Payroll records"
+                            onPress={() => {
+                                const parent = navigation.getParent();
+                                parent
+                                    ? parent.navigate('More', { screen: 'PayrollRecords' })
+                                    : navigation.navigate('PayrollRecords');
+                            }}
+                        />
+                    ) : null}
+                    {showLeave ? (
+                        <MoreItem
+                            icon="event-available"
+                            title="Leave"
+                            onPress={() => {
+                                const parent = navigation.getParent();
+                                parent
+                                    ? parent.navigate('More', { screen: 'LeaveManagement' })
+                                    : navigation.navigate('LeaveManagement');
+                            }}
+                        />
+                    ) : null}
                     <MoreItem
                         icon="directions-bus"
                         title="Transport & Routes"

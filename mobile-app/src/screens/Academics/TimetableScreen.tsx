@@ -14,7 +14,8 @@ import { Card } from '@components/common/Card';
 import { LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
 import { Timetable, TimetableSlot } from '../types/academics.types';
-import { SPACING, FONT_SIZES } from '@constants/theme';
+import { SPACING, FONT_SIZES, COLORS } from '@constants/theme';
+import { Palette } from '@styles/palette';
 
 interface TimetableScreenProps {
     navigation: any;
@@ -22,14 +23,14 @@ interface TimetableScreenProps {
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-export const TimetableScreen: React.FC<TimetableScreenProps> = ({ navigation }) => {
+export const TimetableScreen: React.FC<TimetableScreenProps> = ({ navigation: _navigation }) => {
     const { isDark, colors } = useTheme();
     const { user } = useAuth();
 
     const [timetable, setTimetable] = useState<Timetable | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [currentTerm, setCurrentTerm] = useState(1); // Should come from settings/context
+    const [currentTerm, _setCurrentTerm] = useState(1); // Should come from settings/context
 
     useEffect(() => {
         loadTimetable();
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: SPACING.xl,
         paddingVertical: SPACING.md,
         borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
+        borderBottomColor: Palette.borderSlate,
     },
     title: {
         fontSize: FONT_SIZES.xxl,
@@ -198,7 +199,7 @@ const styles = StyleSheet.create({
         marginBottom: SPACING.sm,
         paddingBottom: SPACING.xs,
         borderBottomWidth: 2,
-        borderBottomColor: '#3b82f6',
+        borderBottomColor: COLORS.primary,
     },
     slotsContainer: {
         gap: SPACING.sm,
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
         padding: SPACING.sm,
         borderRadius: 8,
         borderLeftWidth: 4,
-        borderLeftColor: '#3b82f6',
+        borderLeftColor: COLORS.primary,
     },
     timeContainer: {
         width: 80,

@@ -12,9 +12,9 @@ import {
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { Avatar } from '@components/common/Avatar';
-import { Button } from '@components/common/Button';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface Guardian {
@@ -164,7 +164,7 @@ export const FamilyManagementScreen: React.FC<FamilyManagementScreenProps> = ({ 
     if (loading) {
         return (
             <SafeAreaView
-                style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+                style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
             >
                 <LoadingState message="Loading guardians..." />
             </SafeAreaView>
@@ -173,7 +173,7 @@ export const FamilyManagementScreen: React.FC<FamilyManagementScreenProps> = ({ 
 
     return (
         <SafeAreaView
-            style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+            style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
             <View style={styles.header}>
                 <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>

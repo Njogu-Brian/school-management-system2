@@ -13,10 +13,10 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { StatusBadge } from '@components/common/StatusBadge';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
-import { financeApi } from '@api/finance.api';
 import { FeeStructure } from '../types/finance-enhanced.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface FeeStructuresScreenProps {
@@ -93,14 +93,14 @@ export const FeeStructuresScreen: React.FC<FeeStructuresScreenProps> = ({ naviga
 
     if (loading) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+            <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
                 <LoadingState message="Loading fee structures..." />
             </SafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
             <View style={styles.header}>
                 <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                     Fee Structures

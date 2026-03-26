@@ -15,7 +15,9 @@ import { LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
 import { ReportCard } from '../types/academics.types';
 import { formatters } from '@utils/formatters';
-import { SPACING, FONT_SIZES } from '@constants/theme';
+import { SPACING, FONT_SIZES, COLORS } from '@constants/theme';
+import { Palette } from '@styles/palette';
+import { StatusColors } from '@styles/sections/status';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface ReportCardScreenProps {
@@ -65,11 +67,11 @@ export const ReportCardScreen: React.FC<ReportCardScreenProps> = ({ navigation, 
             case 'A':
                 return colors.success;
             case 'B':
-                return '#10b981';
+                return colors.success;
             case 'C':
-                return '#f59e0b';
+                return colors.warning;
             case 'D':
-                return '#f97316';
+                return StatusColors.reportWeak;
             case 'E':
                 return colors.error;
             default:
@@ -226,8 +228,8 @@ export const ReportCardScreen: React.FC<ReportCardScreenProps> = ({ navigation, 
                                         {
                                             color:
                                                 skill.rating === 'excellent' ? colors.success :
-                                                    skill.rating === 'good' ? '#10b981' :
-                                                        skill.rating === 'average' ? '#f59e0b' :
+                                                    skill.rating === 'good' ? StatusColors.skillGood :
+                                                        skill.rating === 'average' ? StatusColors.skillAverage :
                                                             colors.error,
                                         },
                                     ]}
@@ -331,7 +333,7 @@ const styles = StyleSheet.create({
         minWidth: '45%',
         alignItems: 'center',
         padding: SPACING.md,
-        backgroundColor: '#f8fafc',
+        backgroundColor: Palette.surfaceMuted,
         borderRadius: 8,
     },
     statLabel: {
@@ -350,7 +352,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         paddingBottom: SPACING.xs,
         borderBottomWidth: 2,
-        borderBottomColor: '#3b82f6',
+        borderBottomColor: COLORS.primary,
         marginBottom: SPACING.sm,
     },
     columnHeader: {

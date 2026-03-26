@@ -17,6 +17,7 @@ import { studentsApi } from '@api/students.api';
 import { Exam, Mark } from '../types/academics.types';
 import { Student } from '../types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface MarksEntryScreenProps {
@@ -31,7 +32,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
     const [exam, setExam] = useState<Exam | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
     const [marks, setMarks] = useState<{ [key: number]: { marks: string; remarks: string } }>({});
-    const [existingMarks, setExistingMarks] = useState<Mark[]>([]);
+    const [_existingMarks, setExistingMarks] = useState<Mark[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -312,7 +313,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: SPACING.xl,
         paddingVertical: SPACING.sm,
         borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
+        borderBottomColor: Palette.borderSlate,
     },
     columnHeader: {
         fontSize: FONT_SIZES.sm,

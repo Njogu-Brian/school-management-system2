@@ -14,6 +14,7 @@ import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { seniorTeacherApi, SupervisedStaffMember } from '@api/seniorTeacher.api';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface SupervisedStaffScreenProps {
@@ -58,7 +59,7 @@ export const SupervisedStaffScreen: React.FC<SupervisedStaffScreenProps> = ({ na
     const list = Array.isArray(staff) ? staff : [];
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />

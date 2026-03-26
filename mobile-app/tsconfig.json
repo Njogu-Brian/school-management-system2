@@ -2,7 +2,7 @@
     "extends": "@react-native/typescript-config/tsconfig.json",
     "compilerOptions": {
         "target": "esnext",
-        "module": "commonjs",
+        "module": "esnext",
         "lib": [
             "es2017"
         ],
@@ -11,7 +11,7 @@
         "noEmit": true,
         "isolatedModules": true,
         "strict": true,
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
@@ -47,6 +47,12 @@
             ],
             "@constants/*": [
                 "constants/*"
+            ],
+            "@styles": [
+                "styles/index"
+            ],
+            "@styles/*": [
+                "styles/*"
             ],
             "@theme/*": [
                 "theme/*"

@@ -5,18 +5,17 @@ import {
     StyleSheet,
     FlatList,
     SafeAreaView,
-    TouchableOpacity,
     RefreshControl,
     Alert,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
-import { StatusBadge } from '@components/common/StatusBadge';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { communicationApi } from '@api/communication.api';
 import { Announcement } from '../types/communication.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface AnnouncementsScreenProps {
@@ -239,14 +238,14 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     priorityBadge: {
-        backgroundColor: '#ff4444',
+        backgroundColor: Palette.badgeUrgent,
         paddingHorizontal: SPACING.xs,
         paddingVertical: 2,
         borderRadius: 4,
         alignSelf: 'flex-start',
     },
     priorityText: {
-        color: '#fff',
+        color: Palette.onPrimary,
         fontSize: 10,
         fontWeight: 'bold',
     },

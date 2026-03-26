@@ -8,16 +8,21 @@ import {
     TouchableOpacity,
     RefreshControl,
     Alert,
+    Linking,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { Avatar } from '@components/common/Avatar';
 import { StatusBadge } from '@components/common/StatusBadge';
 import { Input } from '@components/common/Input';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { hrApi } from '@api/hr.api';
-import { Staff, StaffFilters } from '../types/hr.types';
+import { Staff } from '@types/hr.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { WEB_BASE_URL } from '@utils/env';
+import { canManageStaff, canViewPayrollRecords } from '@utils/staffHrAccess';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface StaffDirectoryScreenProps {
@@ -26,6 +31,10 @@ interface StaffDirectoryScreenProps {
 
 export const StaffDirectoryScreen: React.FC<StaffDirectoryScreenProps> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
+    const { user } = useAuth();
+    const manage = canManageStaff(user);
+    const showPayroll = canViewPayrollRecords(user);
+    const portal = (WEB_BASE_URL || '').replace(/\/$/, '');
 
     const [staff, setStaff] = useState<Staff[]>([]);
     const [loading, setLoading] = useState(true);
@@ -139,6 +148,7 @@ export const StaffDirectoryScreen: React.FC<StaffDirectoryScreenProps> = ({ navi
         return (
             <SafeAreaView
                 style={[
+                    layoutStyles.flex1,
                     styles.container,
                     { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
                 ]}
@@ -151,6 +161,7 @@ export const StaffDirectoryScreen: React.FC<StaffDirectoryScreenProps> = ({ navi
     return (
         <SafeAreaView
             style={[
+                layoutStyles.flex1,
                 styles.container,
                 { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
             ]}
@@ -160,12 +171,35 @@ export const StaffDirectoryScreen: React.FC<StaffDirectoryScreenProps> = ({ navi
                 <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                     Staff Directory
                 </Text>
-                <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => navigation.navigate('AddStaff')}
-                >
-                    <Icon name="add" size={24} color={colors.primary} />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    {showPayroll ? (
+                        <TouchableOpacity
+                            style={styles.addButton}
+                            onPress={() => navigation.navigate('PayrollRecords')}
+                            accessibilityLabel="Payroll records"
+                        >
+                            <Icon name="payments" size={24} color={colors.primary} />
+                        </TouchableOpacity>
+                    ) : null}
+                    {manage && portal ? (
+                        <>
+                            <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={() => Linking.openURL(`${portal}/staff/create`)}
+                                accessibilityLabel="Add staff in portal"
+                            >
+                                <Icon name="person-add" size={24} color={colors.primary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={() => Linking.openURL(`${portal}/staff/upload`)}
+                                accessibilityLabel="Bulk upload staff"
+                            >
+                                <Icon name="upload-file" size={24} color={colors.primary} />
+                            </TouchableOpacity>
+                        </>
+                    ) : null}
+                </View>
             </View>
 
             {/* Search Bar */}

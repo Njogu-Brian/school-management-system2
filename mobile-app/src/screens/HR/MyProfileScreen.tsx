@@ -20,6 +20,7 @@ import { User } from '@types/auth.types';
 import { Staff } from '@types/hr.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface MyProfileScreenProps {
@@ -82,7 +83,7 @@ export const MyProfileScreen: React.FC<MyProfileScreenProps> = ({ navigation }) 
     const phone = staff?.phone || user?.phone || '';
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />

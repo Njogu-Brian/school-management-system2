@@ -1677,6 +1677,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('/download/{filename}', [BackupRestoreController::class, 'download'])->name('download');
         Route::post('/restore', [BackupRestoreController::class, 'restore'])->name('restore');
         Route::post('/schedule', [BackupRestoreController::class, 'updateSchedule'])->name('schedule');
+        Route::post('/purge-all', [BackupRestoreController::class, 'purgeAll'])->name('purge-all');
     });
 
     /*

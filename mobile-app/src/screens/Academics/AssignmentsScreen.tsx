@@ -12,12 +12,12 @@ import {
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
-import { StatusBadge } from '@components/common/StatusBadge';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
 import { Assignment } from '../types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface AssignmentsScreenProps {
@@ -327,13 +327,13 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     overdueBadge: {
-        backgroundColor: '#ff4444',
+        backgroundColor: Palette.badgeUrgent,
         paddingHorizontal: SPACING.xs,
         paddingVertical: 2,
         borderRadius: 4,
     },
     overdueText: {
-        color: '#fff',
+        color: Palette.onPrimary,
         fontSize: 10,
         fontWeight: 'bold',
     },

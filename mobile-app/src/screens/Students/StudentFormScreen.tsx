@@ -10,10 +10,9 @@ import {
     Modal,
     FlatList,
     ActivityIndicator,
-    Platform,
 } from 'react-native';
-import { launchImageLibrary, ImagePickerResponse } from 'react-native-image-picker';
-import { pickSingle, types, isCancel } from 'react-native-document-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { pickImageFromLibrary } from '@utils/pickMedia';
 import { useTheme } from '@contexts/ThemeContext';
 import { Button } from '@components/common/Button';
 import { Card } from '@components/common/Card';
@@ -22,6 +21,7 @@ import { studentsApi } from '@api/students.api';
 import { Student, Class, Stream } from '@types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const DEFAULT_CC = '+254';
@@ -200,35 +200,31 @@ export const StudentFormScreen: React.FC<StudentFormScreenProps> = ({ navigation
         };
     }, [isEdit, studentId, fillFromStudent]);
 
-    const pickPhoto = () => {
-        launchImageLibrary({ mediaType: 'photo', quality: 0.85 }, (res: ImagePickerResponse) => {
-            const a = res.assets?.[0];
-            if (a?.uri) {
-                setPhoto({
-                    uri: a.uri,
-                    name: a.fileName || 'photo.jpg',
-                    type: a.type || 'image/jpeg',
-                });
-            }
+    const pickPhoto = async () => {
+        const picked = await pickImageFromLibrary({
+            quality: 0.85,
+            permissionDeniedMessage:
+                'Allow photo library access to upload the student photo.',
         });
+        if (picked) setPhoto(picked);
     };
 
     const pickDoc = async (which: 'father' | 'mother') => {
         try {
-            const f = await pickSingle({
-                type: [types.pdf, types.images],
-                copyTo: 'cachesDirectory',
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['application/pdf', 'image/*'],
+                copyToCacheDirectory: true,
             });
-            const uri = Platform.OS === 'ios' ? f.uri : f.fileCopyUri || f.uri;
+            if (result.canceled || !result.assets?.[0]) return;
+            const f = result.assets[0];
             const picked: PickedFile = {
-                uri: uri || f.uri,
+                uri: f.uri,
                 name: f.name || 'document.pdf',
-                type: f.type || 'application/pdf',
+                type: f.mimeType || 'application/pdf',
             };
             if (which === 'father') setFatherIdDoc(picked);
             else setMotherIdDoc(picked);
         } catch (err: unknown) {
-            if (isCancel(err)) return;
             Alert.alert('Error', err instanceof Error ? err.message : 'Could not pick file');
         }
     };
@@ -385,7 +381,7 @@ export const StudentFormScreen: React.FC<StudentFormScreenProps> = ({ navigation
 
     if (loadingData) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+            <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
                 <ActivityIndicator size="large" color={BRAND.primary} style={{ marginTop: SPACING.xxl }} />
                 <Text style={{ textAlign: 'center', marginTop: SPACING.md, color: textSub }}>Loading student…</Text>
             </SafeAreaView>
@@ -393,7 +389,7 @@ export const StudentFormScreen: React.FC<StudentFormScreenProps> = ({ navigation
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
                     <Icon name="arrow-back" size={24} color={textMain} />
@@ -665,5 +661,5 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalBox: { padding: SPACING.lg, maxHeight: '70%', borderTopLeftRadius: 16, borderTopRightRadius: 16 },
-    modalItem: { paddingVertical: SPACING.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#ccc' },
+    modalItem: { paddingVertical: SPACING.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BRAND.border },
 });

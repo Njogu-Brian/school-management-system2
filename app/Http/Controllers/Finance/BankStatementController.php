@@ -32,6 +32,20 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Mobile / JSON API clients (Sanctum) must be finance staff.
+     */
+    protected function assertFinanceApiAccess(Request $request): void
+    {
+        if (! $request->expectsJson()) {
+            return;
+        }
+        $user = $request->user();
+        if (! $user || ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
+    }
+
+    /**
      * Display list of imported statement files with summaries
      */
     public function statements(Request $request)
@@ -1863,16 +1877,25 @@ class BankStatementController extends Controller
     /**
      * Confirm transaction - unified for both types
      */
-    public function confirm(Request $request, $id)
+    public function confirm(Request $request, $bankStatement)
     {
-        $transaction = $this->resolveTransaction($id);
+        $this->assertFinanceApiAccess($request);
+        $resolvedId = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+        $transaction = $this->resolveTransaction($resolvedId, $request->input('type'));
         $isC2B = $transaction instanceof MpesaC2BTransaction;
         
         // Normalize for checks
         $normalized = $this->normalizeTransaction($transaction);
-        $bankStatement = (object) $normalized;
+        $txnView = (object) $normalized;
         
-        if (!$bankStatement->student_id && !($bankStatement->is_shared ?? false)) {
+        if (!$txnView->student_id && !($txnView->is_shared ?? false)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction must be matched to a student or shared before confirming',
+                ], 422);
+            }
+
             return redirect()->back()
                 ->withErrors(['error' => 'Transaction must be matched to a student or shared before confirming']);
         }
@@ -1883,8 +1906,8 @@ class BankStatementController extends Controller
         $nonReversedPayments = collect();
         
         // Check by payment_id first (most direct)
-        if ($bankStatement->payment_id) {
-            $payment = \App\Models\Payment::find($bankStatement->payment_id);
+        if ($txnView->payment_id) {
+            $payment = \App\Models\Payment::find($txnView->payment_id);
             if ($payment && !$payment->reversed) {
                 $nonReversedPayments->push($payment);
             }
@@ -1892,8 +1915,8 @@ class BankStatementController extends Controller
         
         // Also check by reference number (for shared payments or multiple payments with same ref)
         // This catches cases where payment exists but payment_id wasn't linked
-        if ($bankStatement->reference_number) {
-            $ref = $bankStatement->reference_number;
+        if ($txnView->reference_number) {
+            $ref = $txnView->reference_number;
             $refPayments = \App\Models\Payment::where('reversed', false)
                 ->where(function ($q) use ($ref) {
                     $q->where('transaction_code', $ref)
@@ -1961,8 +1984,15 @@ class BankStatementController extends Controller
             } catch (\Throwable $e) {
                 Log::warning('Send notification after link-existing-payment failed', ['message' => $e->getMessage()]);
             }
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Transaction already had payment(s) and has been marked as collected.',
+                    'receipt_ids' => $receiptIds,
+                ]);
+            }
             $redirect = redirect()
-                ->route('finance.bank-statements.show', $id)
+                ->route('finance.bank-statements.show', $resolvedId)
                 ->with('success', 'Transaction already had payment(s) and has been marked as collected.');
             if (!empty($receiptIds)) {
                 $redirect->with('receipt_ids', $receiptIds);
@@ -1972,12 +2002,12 @@ class BankStatementController extends Controller
 
         // Check if this is a swimming transaction
         $transaction->refresh();
-        $isSwimming = $bankStatement->is_swimming_transaction ?? false;
+        $isSwimming = $txnView->is_swimming_transaction ?? false;
 
         try {
-            DB::transaction(function () use ($transaction, $isSwimming, $isC2B, $bankStatement) {
+            DB::transaction(function () use ($transaction, $isSwimming, $isC2B, $txnView) {
                 // Clear MANUALLY_REJECTED marker when confirming (manual assignment)
-                $matchNotes = $bankStatement->match_notes ?? '';
+                $matchNotes = $txnView->match_notes ?? '';
                 if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
                     $matchNotes = $matchNotes ? str_replace('MANUALLY_REJECTED - ', '', $matchNotes) : 'Manually confirmed';
                 }
@@ -2007,13 +2037,13 @@ class BankStatementController extends Controller
                     }
                 } else {
                     // Create payment for fee allocation if not already created
-                    if (!$bankStatement->payment_created) {
+                    if (!$txnView->payment_created) {
                         if ($isC2B) {
                             // For C2B, create payment using C2B logic
                             $payment = $this->createPaymentForC2B($transaction);
                         } else {
                             // For bank statements, use existing logic
-                            $payment = $this->createPaymentForBankStatement($transaction, $bankStatement);
+                            $payment = $this->createPaymentForBankStatement($transaction, $txnView);
                         }
                         
                         // Queue receipt generation and notifications
@@ -2026,13 +2056,32 @@ class BankStatementController extends Controller
         } catch (\App\Exceptions\PaymentConflictException $e) {
             $linkedPayment = $this->autoLinkConflictingPayment($transaction, $e);
             if ($linkedPayment) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Existing payment linked to this transaction automatically.',
+                    ]);
+                }
+
                 return redirect()
-                    ->route('finance.bank-statements.show', $id)
+                    ->route('finance.bank-statements.show', $resolvedId)
                     ->with('success', 'Existing payment linked to this transaction automatically.');
             }
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'payment_conflict' => [
+                        'conflicting_payments' => $e->conflictingPayments,
+                        'student_id' => $e->studentId,
+                        'transaction_code' => $e->transactionCode,
+                    ],
+                ], 422);
+            }
+
             return redirect()
-                ->route('finance.bank-statements.show', $id)
+                ->route('finance.bank-statements.show', $resolvedId)
                 ->with('payment_conflict', [
                     'conflicting_payments' => $e->conflictingPayments,
                     'student_id' => $e->studentId,
@@ -2045,6 +2094,12 @@ class BankStatementController extends Controller
                 'transaction_id' => $transaction->id,
                 'error' => $e->getMessage(),
             ]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
             throw $e;
         }
 
@@ -2058,7 +2113,7 @@ class BankStatementController extends Controller
             if ($transaction->payment_id) {
                 $receiptIds[] = $transaction->payment_id;
             }
-            $reference = $bankStatement->reference_number ?? null;
+            $reference = $txnView->reference_number ?? null;
             if ($reference) {
                 $refPayments = \App\Models\Payment::where('reversed', false)
                     ->where(function ($q) use ($reference) {
@@ -2072,8 +2127,16 @@ class BankStatementController extends Controller
             $receiptIds = array_values(array_unique($receiptIds));
         }
         
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'receipt_ids' => $receiptIds,
+            ]);
+        }
+
         $redirect = redirect()
-            ->route('finance.bank-statements.show', $id)
+            ->route('finance.bank-statements.show', $resolvedId)
             ->with('success', $message);
         if (!empty($receiptIds)) {
             $redirect->with('receipt_ids', $receiptIds);
@@ -3019,19 +3082,21 @@ class BankStatementController extends Controller
      * sibling sharing and swimming). Transaction moves to unassigned; user must manually
      * match, allocate, confirm, then create payment.
      */
-    public function reject($id)
+    public function reject(Request $request, $bankStatement)
     {
-        $transaction = $this->resolveTransaction($id);
+        $this->assertFinanceApiAccess($request);
+        $resolvedId = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+        $transaction = $this->resolveTransaction($resolvedId, $request->input('type'));
         $isC2B = $transaction instanceof MpesaC2BTransaction;
         
         // Normalize for checks
         $normalized = $this->normalizeTransaction($transaction);
-        $bankStatement = (object) $normalized;
+        $txnView = (object) $normalized;
 
-        DB::transaction(function () use ($transaction, $bankStatement, $isC2B) {
+        DB::transaction(function () use ($transaction, $txnView, $isC2B) {
             // 1. Find and reverse ALL related payments (exact ref + ref-*; all sibling receipts share same source)
             $relatedPayments = collect();
-            $ref = $bankStatement->reference_number;
+            $ref = $txnView->reference_number;
             if ($ref) {
                 $relatedPayments = Payment::where('reversed', false)
                     ->where(function ($q) use ($ref) {
@@ -3040,14 +3105,14 @@ class BankStatementController extends Controller
                     })
                     ->get();
             }
-            if ($relatedPayments->isEmpty() && $bankStatement->payment_id) {
-                $p = Payment::find($bankStatement->payment_id);
+            if ($relatedPayments->isEmpty() && $txnView->payment_id) {
+                $p = Payment::find($txnView->payment_id);
                 if ($p && !$p->reversed) {
                     $relatedPayments = collect([$p]);
                 }
             }
             // Shared transactions: include all sibling payments by shared receipt number (only for bank statements)
-            if (!$isC2B && ($bankStatement->is_shared ?? false) && $relatedPayments->isNotEmpty()) {
+            if (!$isC2B && ($txnView->is_shared ?? false) && $relatedPayments->isNotEmpty()) {
                 $sharedReceipts = $relatedPayments->pluck('shared_receipt_number')->unique()->filter()->values();
                 if ($sharedReceipts->isNotEmpty()) {
                     $sharedNumber = $sharedReceipts->first();
@@ -3098,13 +3163,13 @@ class BankStatementController extends Controller
                 $paymentId = $payment->id;
                 $payment->delete();
                 Log::info('Payment reversed and deleted due to transaction rejection', [
-                    'transaction_id' => $bankStatement->id,
+                    'transaction_id' => $txnView->id,
                     'payment_id' => $paymentId,
                 ]);
             }
 
             // 2. Reverse swimming allocations if this is a swimming transaction
-            if ($bankStatement->is_swimming_transaction ?? false) {
+            if ($txnView->is_swimming_transaction ?? false) {
                 // For C2B, check swimming wallet directly; for bank statements, use allocations table
                 if ($isC2B) {
                     // Reverse C2B swimming wallet credits (ledger entries with source = this C2B transaction)
@@ -3161,7 +3226,7 @@ class BankStatementController extends Controller
                                         'amount' => $allocation->amount,
                                         'balance_after' => $newBalance,
                                         'source' => \App\Models\SwimmingLedger::SOURCE_ADJUSTMENT,
-                                        'description' => 'Transaction rejected – allocation reversed: ' . ($bankStatement->reference_number ?? 'N/A'),
+                                        'description' => 'Transaction rejected – allocation reversed: ' . ($txnView->reference_number ?? 'N/A'),
                                         'created_by' => auth()->id(),
                                     ]);
                                 }
@@ -3229,9 +3294,17 @@ class BankStatementController extends Controller
             }
         });
 
+        $msg = 'Transaction rejected and reset to unassigned. You can now manually match, allocate, confirm, and create payment.';
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+            ]);
+        }
+
         return redirect()
-            ->route('finance.bank-statements.show', $id)
-            ->with('success', 'Transaction rejected and reset to unassigned. You can now manually match, allocate, confirm, and create payment.');
+            ->route('finance.bank-statements.show', $resolvedId)
+            ->with('success', $msg);
     }
 
     /**
@@ -3593,9 +3666,11 @@ class BankStatementController extends Controller
     /**
      * Share transaction among siblings
      */
-    public function share(Request $request, $id)
+    public function share(Request $request, $bankStatement)
     {
-        $transaction = $this->resolveTransaction($id);
+        $this->assertFinanceApiAccess($request);
+        $resolvedId = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+        $transaction = $this->resolveTransaction($resolvedId, $request->input('type'));
         $isC2B = $transaction instanceof MpesaC2BTransaction;
         
         $validated = $request->validate([
@@ -3611,6 +3686,13 @@ class BankStatementController extends Controller
         });
 
         if (empty($activeAllocations)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'At least one sibling must have an amount greater than 0',
+                ], 422);
+            }
+
             return redirect()->back()
                 ->withErrors(['allocations' => 'At least one sibling must have an amount greater than 0']);
         }
@@ -3622,8 +3704,16 @@ class BankStatementController extends Controller
         $totalAmount = array_sum(array_column($activeAllocations, 'amount'));
         
         if ($totalAmount - $normalized['amount'] > 0.01) {
+            $msg = 'Total allocation amount cannot exceed transaction amount. Current total: Ksh '.number_format($totalAmount, 2);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $msg,
+                ], 422);
+            }
+
             return redirect()->back()
-                ->withErrors(['allocations' => 'Total allocation amount cannot exceed transaction amount. Current total: Ksh ' . number_format($totalAmount, 2)]);
+                ->withErrors(['allocations' => $msg]);
         }
 
         try {
@@ -3649,7 +3739,7 @@ class BankStatementController extends Controller
             }
 
             return redirect()
-                ->route('finance.bank-statements.show', $id)
+                ->route('finance.bank-statements.show', $resolvedId)
                 ->with('success', "Transaction shared among {$siblingCount} sibling(s).");
         } catch (\Exception $e) {
             if ($request->expectsJson()) {

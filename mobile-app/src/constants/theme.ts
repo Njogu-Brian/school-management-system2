@@ -1,66 +1,65 @@
+/**
+ * ScholarCore brand (docs/SCHOLARCORE_UI_UX.md).
+ * Primary #004A99 — keep in sync with `designTokens.BRAND` and `app.config.js` splash.
+ */
 export const COLORS = {
-    // Primary - richer teal/blue
-    primary: '#0d9488',
-    primaryDark: '#0f766e',
-    primaryLight: '#2dd4bf',
+    primary: '#004A99',
+    primaryDark: '#003d7a',
+    primaryLight: '#1a6bc4',
 
-    // Background - warm off-white / deep navy
-    backgroundLight: '#f1f5f9',
-    backgroundDark: '#0f172a',
+    backgroundLight: '#f0f5fa',
+    backgroundDark: '#0a1628',
 
-    // Surface - subtle warmth in light, slate in dark
     surfaceLight: '#ffffff',
-    surfaceDark: '#1e293b',
+    surfaceDark: '#111c2e',
 
-    // Text
     textMainLight: '#0f172a',
     textMainDark: '#f8fafc',
     textSubLight: '#64748b',
     textSubDark: '#94a3b8',
 
-    // Border
-    borderLight: '#e2e8f0',
+    borderLight: '#E5E7EB',
     borderDark: '#334155',
 
-    // Status colors
-    success: '#10b981',
-    warning: '#f59e0b',
-    error: '#ef4444',
-    info: '#3b82f6',
+    success: '#059669',
+    warning: '#d97706',
+    error: '#dc2626',
+    info: '#2563eb',
 
-    // Semantic colors
-    present: '#10b981',
-    absent: '#ef4444',
-    late: '#f59e0b',
-    excused: '#6366f1',
+    present: '#059669',
+    absent: '#dc2626',
+    late: '#d97706',
+    excused: '#7c3aed',
 
-    // Accent for cards/sections
-    accentLight: '#e0f2fe',
-    accentDark: '#0c4a6e',
+    accentLight: '#e6f0fa',
+    accentDark: '#002a5c',
 };
 
-// Shadow/elevation for Android
+/** Login hero: top → bottom (ScholarCore blue ramp). */
+export const LOGIN_GRADIENT_LIGHT = ['#002a5c', '#003d7a', '#004A99', '#1a6bc4'] as const;
+export const LOGIN_GRADIENT_DARK = ['#001a33', '#002a5c', '#003d7a', '#004A99'] as const;
+
 export const SHADOWS = {
     sm: {
-        shadowColor: '#000',
+        shadowColor: '#004A99',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 2,
+        shadowOpacity: 0.08,
+        shadowRadius: 3,
         elevation: 2,
     },
     md: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
-        elevation: 4,
-    },
-    lg: {
-        shadowColor: '#000',
+        shadowColor: '#003d7a',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.12,
-        shadowRadius: 8,
-        elevation: 8,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    lg: {
+        shadowColor: '#001a33',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.18,
+        shadowRadius: 20,
+        elevation: 12,
     },
 };
 

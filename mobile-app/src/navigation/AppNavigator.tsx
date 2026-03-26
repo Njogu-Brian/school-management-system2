@@ -1,6 +1,5 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuth } from '@contexts/AuthContext';
 import { useTheme } from '@contexts/ThemeContext';
@@ -10,8 +9,7 @@ import { RoleBasedNavigator } from './RoleBasedNavigator';
 import { OfflineBanner } from '@components/common/OfflineBanner';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { usePushNotifications } from '@hooks/usePushNotifications';
-
-const Stack = createStackNavigator();
+import { COLORS } from '@constants/theme';
 
 const AuthenticatedShell: React.FC<{ user: User }> = ({ user }) => {
     const online = useNetworkStatus();
@@ -27,24 +25,24 @@ const AuthenticatedShell: React.FC<{ user: User }> = ({ user }) => {
 const DarkTheme = {
     dark: true,
     colors: {
-        primary: '#6366f1',
-        background: '#0f172a',
-        card: '#1e293b',
-        text: '#f8fafc',
-        border: '#334155',
-        notification: '#6366f1',
+        primary: COLORS.primary,
+        background: COLORS.backgroundDark,
+        card: COLORS.surfaceDark,
+        text: COLORS.textMainDark,
+        border: COLORS.borderDark,
+        notification: COLORS.primaryLight,
     },
 };
 
 const LightTheme = {
     dark: false,
     colors: {
-        primary: '#6366f1',
-        background: '#f8fafc',
-        card: '#ffffff',
-        text: '#0f172a',
-        border: '#e2e8f0',
-        notification: '#6366f1',
+        primary: COLORS.primary,
+        background: COLORS.backgroundLight,
+        card: COLORS.surfaceLight,
+        text: COLORS.textMainLight,
+        border: COLORS.borderLight,
+        notification: COLORS.primaryLight,
     },
 };
 

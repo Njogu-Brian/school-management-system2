@@ -15,9 +15,10 @@ import { StatusBadge } from '@components/common/StatusBadge';
 import { Input } from '@components/common/Input';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { financeApi } from '@api/finance.api';
-import { Invoice, FinanceFilters } from '@types/finance.types';
+import { Invoice } from '@types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface InvoicesListScreenProps {
@@ -304,7 +305,7 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: '#e2e8f0',
+        backgroundColor: Palette.borderSlate,
         marginVertical: SPACING.xs,
     },
     amounts: {

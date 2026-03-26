@@ -14,6 +14,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { fetchMpesaTransactionStatus } from '@utils/mpesaStatus';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 export type MpesaWaitingParams = {
@@ -83,7 +84,7 @@ export const MpesaWaitingWebViewScreen: React.FC<Props> = ({ navigation, route }
     }, [statusPollUrl, navigation]);
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
             <View style={[styles.toolbar, { borderBottomColor: isDark ? colors.borderDark : BRAND.border }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12} accessibilityLabel="Back">
                     <Icon name="arrow-back" size={24} color={textMain} />

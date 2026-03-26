@@ -11,7 +11,6 @@ import {
     saveToken,
     getToken,
     saveUser,
-    getUser,
     clearAuthData,
     saveRememberMe,
 } from '@utils/storage';

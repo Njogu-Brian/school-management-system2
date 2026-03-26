@@ -17,6 +17,7 @@ import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { libraryApi } from '@api/library.api';
 import { Book } from '../types/library.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface LibraryBooksScreenProps {
@@ -236,7 +237,7 @@ const styles = StyleSheet.create({
     bookIconContainer: {
         width: 60,
         height: 80,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: Palette.neutralTrack,
         borderRadius: 4,
         alignItems: 'center',
         justifyContent: 'center',

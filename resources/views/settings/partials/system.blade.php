@@ -79,6 +79,7 @@
                 @csrf
             </form>
             <div class="form-note mt-2">Scheduled backups run based on the server timezone.</div>
+            <div class="form-note mt-2">Local backups older than {{ config('backup.retention_days', 5) }} days are deleted automatically (daily job and after each new backup). Override with <code>BACKUP_RETENTION_DAYS</code> in <code>.env</code>.</div>
         </div>
     </div>
 

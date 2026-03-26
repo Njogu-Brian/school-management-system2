@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthApiController::class, 'login']);
 
+/** School name + logo from portal Settings (General); no auth — for mobile sign-in screen. */
+Route::get('/app-branding', [\App\Http\Controllers\Api\ApiAppBrandingController::class, 'show']);
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthApiController::class, 'user']);
     Route::post('/logout', [AuthApiController::class, 'logout']);
@@ -43,16 +46,32 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/finance/transactions', [\App\Http\Controllers\Api\ApiFinanceTransactionsController::class, 'index']);
     Route::post('/finance/transactions/mark-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkMarkAsSwimming']);
-    Route::post('/finance/transactions/{id}/share', [\App\Http\Controllers\Finance\BankStatementController::class, 'share']);
+    Route::post('/finance/transactions/{bankStatement}/confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'confirm']);
+    Route::post('/finance/transactions/{bankStatement}/reject', [\App\Http\Controllers\Finance\BankStatementController::class, 'reject']);
+    Route::post('/finance/transactions/{bankStatement}/share', [\App\Http\Controllers\Finance\BankStatementController::class, 'share']);
     Route::get('/finance/transactions/{id}', [\App\Http\Controllers\Api\ApiFinanceTransactionsController::class, 'show']);
 
     Route::get('/classes', [\App\Http\Controllers\Api\ApiClassroomController::class, 'index']);
     Route::get('/classes/{classId}/streams', [\App\Http\Controllers\Api\ApiClassroomController::class, 'streams']);
     Route::get('/staff', [\App\Http\Controllers\Api\ApiStaffController::class, 'index']);
     Route::get('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'show']);
+    Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);
+    Route::post('/staff/{id}/photo', [\App\Http\Controllers\Api\ApiStaffController::class, 'uploadPhoto']);
+    Route::get('/payroll-records', [\App\Http\Controllers\Api\ApiPayrollRecordsController::class, 'index']);
     Route::get('/routes', [\App\Http\Controllers\Api\ApiRouteController::class, 'index']);
+    Route::get('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'show']);
+    Route::get('/leave-types', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'leaveTypes']);
+    Route::get('/leave-requests', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'index']);
+    Route::post('/leave-requests', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'store']);
+    Route::post('/leave-requests/{id}/approve', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'approve']);
+    Route::post('/leave-requests/{id}/reject', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'reject']);
     Route::get('/library/books', [\App\Http\Controllers\Api\ApiLibraryController::class, 'index']);
     Route::get('/announcements', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'index']);
+
+    Route::post('/notifications/mark-all-read', [\App\Http\Controllers\Api\ApiNotificationController::class, 'markAllRead']);
+    Route::get('/notifications', [\App\Http\Controllers\Api\ApiNotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [\App\Http\Controllers\Api\ApiNotificationController::class, 'markRead']);
+    Route::delete('/notifications/{id}', [\App\Http\Controllers\Api\ApiNotificationController::class, 'destroy']);
     Route::get('/attendance/class', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'classAttendance']);
     Route::post('/attendance/mark', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'mark']);
 

@@ -8,17 +8,22 @@ import {
     TouchableOpacity,
     RefreshControl,
     Alert,
+    Modal,
+    TextInput,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { Button } from '@components/common/Button';
-import { StatusBadge } from '@components/common/StatusBadge';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { hrApi } from '@api/hr.api';
-import { LeaveApplication } from '../types/hr.types';
+import type { LeaveApplication } from '@types/hr.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { canAccessLeaveManagement, canApproveLeaveRequests } from '@utils/staffHrAccess';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface LeaveManagementScreenProps {
@@ -33,8 +38,12 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+    const [rejectVisible, setRejectVisible] = useState(false);
+    const [rejectTargetId, setRejectTargetId] = useState<number | null>(null);
+    const [rejectReason, setRejectReason] = useState('');
 
-    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+    const canApprove = canApproveLeaveRequests(user);
+    const showApply = canAccessLeaveManagement(user);
 
     useEffect(() => {
         loadLeaveApplications();
@@ -43,21 +52,17 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
     const loadLeaveApplications = async () => {
         try {
             setLoading(true);
-            const filters: any = { per_page: 50 };
-
+            const filters: Record<string, string | number> = { per_page: 50 };
             if (filter !== 'all') {
                 filters.status = filter;
             }
-
-            if (!isAdmin) {
-                filters.staff_id = (user as any)?.staff_id ?? user?.id;
-            }
+            // Scoping is enforced server-side; do not send user.id as staff_id (breaks HR views).
 
             const response = await hrApi.getLeaveApplications(filters);
             if (response.success && response.data) {
                 setLeaveApplications(response.data.data);
             }
-        } catch (error: any) {
+        } catch {
             Alert.alert('Error', 'Failed to load leave applications');
         } finally {
             setLoading(false);
@@ -72,32 +77,63 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
 
     const handleApprove = async (id: number) => {
         try {
-            await hrApi.approveLeave(id);
-            Alert.alert('Success', 'Leave approved');
-            loadLeaveApplications();
-        } catch (error: any) {
-            Alert.alert('Error', 'Failed to approve leave');
+            const res = await hrApi.approveLeave(id);
+            if (res.success) {
+                Alert.alert('Success', 'Leave approved');
+                loadLeaveApplications();
+            } else {
+                Alert.alert('Error', (res as { message?: string }).message || 'Failed to approve');
+            }
+        } catch (e: any) {
+            const msg = e?.response?.data?.message || e?.message || 'Failed to approve leave';
+            Alert.alert('Error', typeof msg === 'string' ? msg : 'Failed to approve leave');
         }
     };
 
-    const handleReject = async (id: number) => {
+    const openReject = (id: number) => {
+        setRejectTargetId(id);
+        setRejectReason('');
+        setRejectVisible(true);
+    };
+
+    const confirmReject = async () => {
+        if (rejectTargetId == null) return;
+        const trimmed = rejectReason.trim();
+        if (!trimmed) {
+            Alert.alert('Validation', 'Enter a rejection reason.');
+            return;
+        }
         try {
-            await hrApi.rejectLeave(id);
-            Alert.alert('Success', 'Leave rejected');
-            loadLeaveApplications();
-        } catch (error: any) {
-            Alert.alert('Error', 'Failed to reject leave');
+            const res = await hrApi.rejectLeave(rejectTargetId, trimmed);
+            if (res.success) {
+                setRejectVisible(false);
+                setRejectTargetId(null);
+                Alert.alert('Success', 'Leave rejected');
+                loadLeaveApplications();
+            } else {
+                Alert.alert('Error', (res as { message?: string }).message || 'Failed to reject');
+            }
+        } catch (e: any) {
+            const msg = e?.response?.data?.message || e?.message || 'Failed to reject leave';
+            Alert.alert('Error', typeof msg === 'string' ? msg : 'Failed to reject leave');
         }
     };
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'approved': return colors.success;
-            case 'rejected': return colors.error;
-            case 'pending': return '#f59e0b';
-            default: return isDark ? colors.textSubDark : colors.textSubLight;
+            case 'approved':
+                return colors.success;
+            case 'rejected':
+                return colors.error;
+            case 'pending':
+                return colors.warning;
+            default:
+                return isDark ? colors.textSubDark : colors.textSubLight;
         }
     };
+
+    const days = (item: LeaveApplication) => item.days_count ?? item.days;
+    const leaveLabel = (item: LeaveApplication) => item.leave_type_name ?? item.leave_type ?? 'Leave';
 
     const renderLeaveApplication = ({ item }: { item: LeaveApplication }) => (
         <Card>
@@ -105,7 +141,7 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
                 <View style={styles.leaveInfo}>
                     <View style={styles.headerRow}>
                         <Text style={[styles.staffName, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                            {item.staff_name}
+                            {item.staff_name ?? '—'}
                         </Text>
                         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
                             <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
@@ -115,7 +151,7 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
                     </View>
 
                     <Text style={[styles.leaveType, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        {item.leave_type_name}
+                        {leaveLabel(item)}
                     </Text>
 
                     <View style={styles.dateRow}>
@@ -126,16 +162,19 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
                     </View>
 
                     <Text style={[styles.duration, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        {item.days_count} day{item.days_count !== 1 ? 's' : ''}
+                        {days(item)} day{days(item) !== 1 ? 's' : ''}
                     </Text>
 
-                    {item.reason && (
-                        <Text style={[styles.reason, { color: isDark ? colors.textSubDark : colors.textSubLight }]} numberOfLines={2}>
+                    {item.reason ? (
+                        <Text
+                            style={[styles.reason, { color: isDark ? colors.textSubDark : colors.textSubLight }]}
+                            numberOfLines={2}
+                        >
                             {item.reason}
                         </Text>
-                    )}
+                    ) : null}
 
-                    {isAdmin && item.status === 'pending' && (
+                    {canApprove && item.status === 'pending' && (
                         <View style={styles.actionsRow}>
                             <Button
                                 title="Approve"
@@ -146,7 +185,7 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
                             />
                             <Button
                                 title="Reject"
-                                onPress={() => handleReject(item.id)}
+                                onPress={() => openReject(item.id)}
                                 variant="outline"
                                 size="small"
                                 style={styles.actionButton}
@@ -160,33 +199,52 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
 
     if (loading) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+            <SafeAreaView
+                style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+            >
                 <LoadingState message="Loading leave applications..." />
             </SafeAreaView>
         );
     }
 
+    const mainText = isDark ? colors.textMainDark : colors.textMainLight;
+    const subText = isDark ? colors.textSubDark : colors.textSubLight;
+    const border = isDark ? colors.borderDark : colors.borderLight;
+    const showBack = navigation.canGoBack?.() ?? false;
+
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
             <View style={styles.header}>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    Leave Management
-                </Text>
-                {!isAdmin && (
-                    <TouchableOpacity onPress={() => navigation.navigate('ApplyLeave')}>
-                        <Icon name="add" size={24} color={colors.primary} />
+                {showBack ? (
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                        <Icon name="arrow-back" size={24} color={mainText} />
                     </TouchableOpacity>
+                ) : (
+                    <View style={styles.backBtnPlaceholder} />
+                )}
+                <Text style={[styles.title, { color: mainText, flex: 1 }]}>Leave</Text>
+                {showApply ? (
+                    <TouchableOpacity onPress={() => navigation.navigate('ApplyLeave')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Icon name="add" size={26} color={colors.primary} />
+                    </TouchableOpacity>
+                ) : (
+                    <View style={{ width: 26 }} />
                 )}
             </View>
 
             <View style={styles.filterTabs}>
-                {['all', 'pending', 'approved', 'rejected'].map((tab) => (
+                {(['all', 'pending', 'approved', 'rejected'] as const).map((tab) => (
                     <TouchableOpacity
                         key={tab}
                         style={[styles.filterTab, filter === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
-                        onPress={() => setFilter(tab as any)}
+                        onPress={() => setFilter(tab)}
                     >
-                        <Text style={[styles.filterText, { color: filter === tab ? colors.primary : isDark ? colors.textSubDark : colors.textSubLight }]}>
+                        <Text
+                            style={[
+                                styles.filterText,
+                                { color: filter === tab ? colors.primary : subText },
+                            ]}
+                        >
                             {formatters.capitalize(tab)}
                         </Text>
                     </TouchableOpacity>
@@ -198,16 +256,50 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
                 renderItem={renderLeaveApplication}
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={styles.listContent}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
-                ListEmptyComponent={<EmptyState icon="event-busy" title="No Leave Applications" message="No leave applications found" />}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[colors.primary]} tintColor={colors.primary} />
+                }
+                ListEmptyComponent={<EmptyState icon="event-busy" title="No leave requests" message="Nothing to show for this filter." />}
             />
+
+            <Modal visible={rejectVisible} transparent animationType="fade" onRequestClose={() => setRejectVisible(false)}>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+                >
+                    <View style={[styles.modalCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight, borderColor: border }]}>
+                        <Text style={[styles.modalTitle, { color: mainText }]}>Reject leave</Text>
+                        <Text style={[styles.modalHint, { color: subText }]}>Reason is required and visible on the record.</Text>
+                        <TextInput
+                            style={[styles.rejectInput, { color: mainText, borderColor: border }]}
+                            value={rejectReason}
+                            onChangeText={setRejectReason}
+                            placeholder="Reason for rejection"
+                            placeholderTextColor={subText}
+                            multiline
+                        />
+                        <View style={styles.modalActions}>
+                            <Button title="Cancel" variant="outline" onPress={() => setRejectVisible(false)} style={{ flex: 1 }} />
+                            <Button title="Reject" variant="primary" onPress={confirmReject} style={{ flex: 1 }} />
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.md,
+    },
+    backBtn: { marginRight: SPACING.sm },
+    backBtnPlaceholder: { width: 24, marginRight: SPACING.sm },
     title: { fontSize: FONT_SIZES.xxl, fontWeight: 'bold' },
     filterTabs: { flexDirection: 'row', paddingHorizontal: SPACING.xl, marginBottom: SPACING.md },
     filterTab: { flex: 1, paddingVertical: SPACING.sm, alignItems: 'center' },
@@ -226,4 +318,23 @@ const styles = StyleSheet.create({
     reason: { fontSize: FONT_SIZES.sm, lineHeight: 18, marginTop: 4 },
     actionsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
     actionButton: { flex: 1 },
+    modalOverlay: { flex: 1, justifyContent: 'center', padding: SPACING.xl },
+    modalCard: {
+        borderRadius: 12,
+        borderWidth: 1,
+        padding: SPACING.lg,
+        marginTop: 'auto',
+        marginBottom: 'auto',
+    },
+    modalTitle: { fontSize: FONT_SIZES.lg, fontWeight: '700', marginBottom: SPACING.xs },
+    modalHint: { fontSize: FONT_SIZES.xs, marginBottom: SPACING.md },
+    rejectInput: {
+        borderWidth: 1,
+        borderRadius: 8,
+        minHeight: 88,
+        padding: SPACING.md,
+        textAlignVertical: 'top',
+        marginBottom: SPACING.md,
+    },
+    modalActions: { flexDirection: 'row', gap: SPACING.sm },
 });

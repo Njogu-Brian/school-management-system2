@@ -12,6 +12,7 @@
                 <div class="crumb">Settings / Backup</div>
                 <h1>Backup & Restore</h1>
                 <p>Safeguard data with on-demand and scheduled backups.</p>
+                <p class="small text-muted mb-0">Local files in <code>{{ config('backup.storage_path') }}</code> older than <strong>{{ $retentionDays ?? config('backup.retention_days', 5) }} days</strong> are removed automatically (daily at 03:15 server time and after each new backup). Set <code>BACKUP_RETENTION_DAYS</code> in <code>.env</code> to change retention.</p>
                 <div class="d-flex gap-2 mt-2">
                     <span class="settings-chip"><i class="bi bi-shield-check"></i> Admin only</span>
                 </div>
@@ -112,6 +113,27 @@
                 @endif
             </div>
         </div>
+
+        @role('Super Admin')
+        <div class="settings-card border border-danger border-opacity-50">
+            <div class="card-header">
+                <h5 class="mb-0 text-danger">Danger zone</h5>
+                <div class="section-note">Permanently delete every <code>.sql</code> / <code>.zip</code> file in the backup folder (not copies on S3).</div>
+            </div>
+            <div class="card-body">
+                <form action="{{ route('backup-restore.purge-all') }}" method="POST" class="row g-3 align-items-end" onsubmit="return confirm('Delete ALL local backup files now? This cannot be undone.');">
+                    @csrf
+                    <div class="col-md-8">
+                        <label class="form-label">Type exactly: <code>DELETE ALL BACKUPS</code></label>
+                        <input type="text" name="confirm_purge" class="form-control" autocomplete="off" required placeholder="DELETE ALL BACKUPS">
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-danger w-100"><i class="bi bi-trash"></i> Delete all backups</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        @endrole
 
         <div class="settings-card">
             <div class="card-header d-flex justify-content-between align-items-center">

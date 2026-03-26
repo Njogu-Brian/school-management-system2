@@ -14,12 +14,12 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Button } from '@components/common/Button';
 import { Avatar } from '@components/common/Avatar';
 import { Card } from '@components/common/Card';
-import { LoadingState } from '@components/common/EmptyState';
 import { studentsApi } from '@api/students.api';
 import { attendanceApi } from '@api/attendance.api';
 import { Student, Class, Stream } from '@types/student.types';
 import { SPACING, FONT_SIZES, BORDER_RADIUS, COLORS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type AttendanceStatus = 'unmarked' | 'present' | 'absent' | 'late';
@@ -269,7 +269,7 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                                     ]}
                                     onPress={() => handleSelectStream(null)}
                                 >
-                                    <Text style={[styles.streamChipText, { color: !selectedStream ? '#fff' : (isDark ? colors.textMainDark : colors.textMainLight) }]}>
+                                    <Text style={[styles.streamChipText, { color: !selectedStream ? Palette.onPrimary : (isDark ? colors.textMainDark : colors.textMainLight) }]}>
                                         All
                                     </Text>
                                 </TouchableOpacity>
@@ -285,7 +285,7 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                                         ]}
                                         onPress={() => handleSelectStream(s)}
                                     >
-                                        <Text style={[styles.streamChipText, { color: selectedStream?.id === s.id ? '#fff' : (isDark ? colors.textMainDark : colors.textMainLight) }]}>
+                                        <Text style={[styles.streamChipText, { color: selectedStream?.id === s.id ? Palette.onPrimary : (isDark ? colors.textMainDark : colors.textMainLight) }]}>
                                             {s.name}
                                         </Text>
                                     </TouchableOpacity>
@@ -336,7 +336,7 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                             ]}
                             onPress={() => updateAttendance(item.id, status === s ? 'unmarked' : s)}
                         >
-                            <Text style={[styles.statusBtnText, { color: status === s ? '#fff' : getStatusColor(s) }]}>
+                            <Text style={[styles.statusBtnText, { color: status === s ? Palette.onPrimary : getStatusColor(s) }]}>
                                 {s === 'present' ? 'P' : s === 'absent' ? 'A' : 'L'}
                             </Text>
                         </TouchableOpacity>

@@ -19,6 +19,7 @@ import { studentsApi } from '@api/students.api';
 import { Student, StudentFilters } from '@types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, SCREEN } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface StudentsListScreenProps {
@@ -34,7 +35,7 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filters, setFilters] = useState<StudentFilters>({});
+    const [filters, _setFilters] = useState<StudentFilters>({});
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
 
@@ -156,6 +157,7 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
     return (
         <SafeAreaView
             style={[
+                layoutStyles.flex1,
                 styles.container,
                 { backgroundColor: isDark ? colors.backgroundDark : BRAND.bg },
             ]}

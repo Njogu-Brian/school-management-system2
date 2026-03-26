@@ -5,7 +5,6 @@ import {
     StyleSheet,
     ScrollView,
     SafeAreaView,
-    TouchableOpacity,
     RefreshControl,
     Alert,
 } from 'react-native';
@@ -14,7 +13,8 @@ import { Card } from '@components/common/Card';
 import { LoadingState } from '@components/common/EmptyState';
 import { attendanceApi } from '@api/attendance.api';
 import { formatters } from '@utils/formatters';
-import { SPACING, FONT_SIZES } from '@constants/theme';
+import { SPACING, FONT_SIZES, COLORS } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface AttendanceRecordsScreenProps {
@@ -22,7 +22,7 @@ interface AttendanceRecordsScreenProps {
     route: any;
 }
 
-export const AttendanceRecordsScreen: React.FC<AttendanceRecordsScreenProps> = ({ navigation, route }) => {
+export const AttendanceRecordsScreen: React.FC<AttendanceRecordsScreenProps> = ({ navigation: _navigation, route }) => {
     const { isDark, colors } = useTheme();
     const { studentId, classId } = route.params || {};
 
@@ -30,8 +30,8 @@ export const AttendanceRecordsScreen: React.FC<AttendanceRecordsScreenProps> = (
     const [summary, setSummary] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [selectedMonth, _setSelectedMonth] = useState(new Date().getMonth());
+    const [selectedYear, _setSelectedYear] = useState(new Date().getFullYear());
 
     useEffect(() => {
         loadRecords();
@@ -93,8 +93,8 @@ export const AttendanceRecordsScreen: React.FC<AttendanceRecordsScreenProps> = (
         switch (status) {
             case 'present': return colors.success;
             case 'absent': return colors.error;
-            case 'late': return '#f59e0b';
-            case 'excused': return '#3b82f6';
+            case 'late': return colors.warning;
+            case 'excused': return COLORS.info;
             default: return isDark ? colors.textSubDark : colors.textSubLight;
         }
     };
@@ -148,7 +148,7 @@ export const AttendanceRecordsScreen: React.FC<AttendanceRecordsScreenProps> = (
                             </View>
 
                             <View style={styles.summaryItem}>
-                                <Text style={[styles.summaryValue, { color: '#f59e0b' }]}>{summary.late}</Text>
+                                <Text style={[styles.summaryValue, { color: colors.warning }]}>{summary.late}</Text>
                                 <Text style={[styles.summaryLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Late</Text>
                             </View>
 
@@ -170,7 +170,7 @@ export const AttendanceRecordsScreen: React.FC<AttendanceRecordsScreenProps> = (
                         <Card key={record.id} style={styles.recordCard}>
                             <View style={styles.recordRow}>
                                 <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(record.status) }]}>
-                                    <Icon name={getStatusIcon(record.status)} size={20} color="#fff" />
+                                    <Icon name={getStatusIcon(record.status)} size={20} color={Palette.onPrimary} />
                                 </View>
 
                                 <View style={styles.recordInfo}>
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     summaryCard: { marginBottom: SPACING.lg },
     sectionTitle: { fontSize: FONT_SIZES.lg, fontWeight: 'bold', marginBottom: SPACING.md },
     summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md },
-    summaryItem: { flex: 1, minWidth: '45%', alignItems: 'center', padding: SPACING.md, backgroundColor: '#f8fafc', borderRadius: 8 },
+    summaryItem: { flex: 1, minWidth: '45%', alignItems: 'center', padding: SPACING.md, backgroundColor: Palette.surfaceMuted, borderRadius: 8 },
     summaryValue: { fontSize: FONT_SIZES.xxl, fontWeight: 'bold' },
     summaryLabel: { fontSize: FONT_SIZES.xs, marginTop: 4 },
     section: { marginTop: SPACING.md },

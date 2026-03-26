@@ -11,8 +11,8 @@ import {
 import { useTheme } from '@contexts/ThemeContext';
 import { Button } from '@components/common/Button';
 import { Card } from '@components/common/Card';
-import { studentsApi } from '@api/students.api';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface BulkUploadScreenProps {
@@ -65,7 +65,7 @@ export const BulkUploadScreen: React.FC<BulkUploadScreenProps> = ({ navigation }
 
     return (
         <SafeAreaView
-            style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
+            style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
             <ScrollView style={styles.content}>
                 <Card style={styles.section}>

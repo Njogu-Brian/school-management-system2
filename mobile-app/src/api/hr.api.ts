@@ -30,43 +30,45 @@ export const hrApi = {
         return apiClient.put<Staff>(`/staff/${id}`, data);
     },
 
+    async uploadStaffPhoto(id: number, formData: FormData): Promise<ApiResponse<{ avatar?: string }>> {
+        return apiClient.upload<{ avatar?: string }>(`/staff/${id}/photo`, formData);
+    },
+
     async deleteStaff(id: number): Promise<ApiResponse<void>> {
         return apiClient.delete<void>(`/staff/${id}`);
     },
 
     // ========== Leave Management ==========
-    async getLeaves(filters?: LeaveFilters): Promise<ApiResponse<PaginatedResponse<Leave>>> {
-        return apiClient.get<PaginatedResponse<Leave>>('/leaves', filters);
+    async getLeaveTypes(): Promise<
+        ApiResponse<{ id: number; name: string; code?: string; max_days?: number; is_paid?: boolean }[]>
+    > {
+        return apiClient.get('/leave-types');
     },
 
     async getLeaveApplications(filters?: LeaveFilters): Promise<ApiResponse<PaginatedResponse<Leave>>> {
-        return apiClient.get<PaginatedResponse<Leave>>('/leaves', filters);
+        return apiClient.get<PaginatedResponse<Leave>>('/leave-requests', filters);
     },
 
     async getLeave(id: number): Promise<ApiResponse<Leave>> {
-        return apiClient.get<Leave>(`/leaves/${id}`);
+        return apiClient.get<Leave>(`/leave-requests/${id}`);
     },
 
     async applyLeave(data: {
-        staff_id: number;
-        leave_type: string;
+        leave_type_id: number;
         start_date: string;
         end_date: string;
-        reason: string;
+        reason?: string;
+        staff_id?: number;
     }): Promise<ApiResponse<Leave>> {
-        return apiClient.post<Leave>('/leaves', data);
+        return apiClient.post<Leave>('/leave-requests', data);
     },
 
-    async approveLeave(id: number): Promise<ApiResponse<Leave>> {
-        return apiClient.post<Leave>(`/leaves/${id}/approve`);
+    async approveLeave(id: number, adminNotes?: string): Promise<ApiResponse<Leave>> {
+        return apiClient.post<Leave>(`/leave-requests/${id}/approve`, { admin_notes: adminNotes });
     },
 
-    async rejectLeave(id: number, reason: string): Promise<ApiResponse<Leave>> {
-        return apiClient.post<Leave>(`/leaves/${id}/reject`, { reason });
-    },
-
-    async cancelLeave(id: number): Promise<ApiResponse<Leave>> {
-        return apiClient.post<Leave>(`/leaves/${id}/cancel`);
+    async rejectLeave(id: number, rejectionReason: string): Promise<ApiResponse<Leave>> {
+        return apiClient.post<Leave>(`/leave-requests/${id}/reject`, { rejection_reason: rejectionReason });
     },
 
     // ========== Staff Attendance ==========
@@ -94,8 +96,10 @@ export const hrApi = {
         staff_id?: number;
         month?: string;
         status?: string;
+        per_page?: number;
+        page?: number;
     }): Promise<ApiResponse<PaginatedResponse<Payroll>>> {
-        return apiClient.get<PaginatedResponse<Payroll>>('/payrolls', filters);
+        return apiClient.get<PaginatedResponse<Payroll>>('/payroll-records', filters);
     },
 
     async getPayroll(id: number): Promise<ApiResponse<Payroll>> {

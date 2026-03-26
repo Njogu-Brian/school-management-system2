@@ -13,7 +13,7 @@ export default {
     orientation: 'portrait',
     userInterfaceStyle: 'automatic',
     splash: {
-      backgroundColor: '#6366f1',
+      backgroundColor: '#004A99',
       resizeMode: 'contain',
     },
     assetBundlePatterns: ['**/*'],
@@ -26,12 +26,19 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        backgroundColor: '#6366f1',
+        backgroundColor: '#004A99',
       },
       package: 'com.schoolerp',
     },
     plugins: [
       ['expo-build-properties', { android: { usesCleartextTraffic: true } }],
+      [
+        'expo-image-picker',
+        {
+          photosPermission:
+            'Allow access to your photo library to upload student and staff photos.',
+        },
+      ],
       'expo-notifications',
     ],
     extra: {

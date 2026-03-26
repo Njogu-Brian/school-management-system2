@@ -5,26 +5,52 @@ export interface Staff {
     last_name: string;
     middle_name?: string;
     full_name: string;
-    email: string;
-    phone: string;
-    gender: 'male' | 'female' | 'other';
-    date_of_birth: string;
+    /** Legacy / optional; API uses work_email */
+    email?: string;
+    work_email?: string;
+    phone?: string;
+    phone_number?: string;
+    gender?: string;
+    date_of_birth?: string;
     id_number?: string;
-    role: string;
+    marital_status?: string;
+    role?: string;
     department?: string;
     designation?: string;
-    employment_type: 'full_time' | 'part_time' | 'contract' | 'intern';
-    employment_date: string;
-    status: 'active' | 'on_leave' | 'suspended' | 'terminated';
+    job_title?: string;
+    employment_type?: string;
+    employment_status?: string;
+    employment_date?: string;
+    hire_date?: string;
+    termination_date?: string;
+    contract_start_date?: string;
+    contract_end_date?: string;
+    max_lessons_per_week?: number | null;
+    staff_category?: string;
+    staff_category_id?: number | null;
+    supervisor_id?: number | null;
+    supervisor_name?: string | null;
+    status?: 'active' | 'on_leave' | 'suspended' | 'terminated' | 'archived';
     avatar?: string;
     address?: string;
     emergency_contact_name?: string;
+    emergency_contact_relationship?: string;
     emergency_contact_phone?: string;
+    kra_pin?: string;
+    nssf?: string;
+    nhif?: string;
+    /** Codes exempted from statutory deductions (e.g. PAYE, NSSF). */
+    statutory_exemptions?: string[];
 
     // Payroll info (optional)
     basic_salary?: number;
     bank_name?: string;
+    bank_branch?: string;
     bank_account?: string;
+    residential_address?: string;
+    personal_email?: string;
+    department_id?: number | null;
+    job_title_id?: number | null;
 
     created_at: string;
     updated_at: string;
@@ -34,11 +60,14 @@ export interface Leave {
     id: number;
     staff_id: number;
     staff_name?: string;
-    leave_type: 'annual' | 'sick' | 'maternity' | 'paternity' | 'unpaid' | 'other';
+    leave_type?: string;
+    leave_type_name?: string;
+    leave_type_id?: number;
     start_date: string;
     end_date: string;
     days: number;
-    reason: string;
+    days_count?: number;
+    reason?: string | null;
     status: 'pending' | 'approved' | 'rejected' | 'cancelled';
     approved_by?: number;
     approved_at?: string;
@@ -135,6 +164,28 @@ export interface CreateStaffData {
 
 export interface UpdateStaffData extends Partial<CreateStaffData> {
     status?: string;
+    /** API uses work_email */
+    work_email?: string;
+    phone_number?: string;
+    id_number?: string;
+    personal_email?: string;
+    residential_address?: string;
+    emergency_contact_name?: string;
+    emergency_contact_relationship?: string;
+    emergency_contact_phone?: string;
+    bank_name?: string;
+    bank_branch?: string;
+    bank_account?: string;
+    kra_pin?: string;
+    nssf?: string;
+    nhif?: string;
+    basic_salary?: number;
+    department_id?: number | null;
+    job_title_id?: number | null;
+    staff_category_id?: number | null;
+    supervisor_id?: number | null;
+    date_of_birth?: string;
+    gender?: string;
 }
 
 export interface LeaveFilters {

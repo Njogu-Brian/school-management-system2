@@ -10,6 +10,7 @@ import { StudentDetailScreen } from '@screens/Students/StudentDetailScreen';
 import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
 import { MoreScreen } from '@screens/More/MoreScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
+import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -44,6 +45,7 @@ const ParentMoreStack = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MoreMenu" component={MoreScreen} />
         <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
 );
 

@@ -8,7 +8,6 @@ import {
     Platform,
     ScrollView,
     Alert,
-    TouchableOpacity,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { Button } from '@components/common/Button';
@@ -16,6 +15,7 @@ import { Input } from '@components/common/Input';
 import { authApi } from '@api/auth.api';
 import { validators } from '@utils/validators';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { layoutStyles } from '@styles/common';
 
 interface ResetPasswordScreenProps {
     navigation: any;
@@ -72,6 +72,7 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
     return (
         <SafeAreaView
             style={[
+                layoutStyles.flex1,
                 styles.container,
                 { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight },
             ]}

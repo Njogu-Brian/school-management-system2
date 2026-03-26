@@ -18,6 +18,7 @@ import { Payment } from '@types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface Props {
@@ -150,7 +151,7 @@ export const PaymentsListScreen: React.FC<Props> = ({ navigation, embedded = fal
                 <View style={[styles.container, styles.embedded, { backgroundColor: bg }]}>{loader}</View>
             );
         }
-        return <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>{loader}</SafeAreaView>;
+        return <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>{loader}</SafeAreaView>;
     }
 
     if (embedded) {
@@ -159,7 +160,7 @@ export const PaymentsListScreen: React.FC<Props> = ({ navigation, embedded = fal
         );
     }
 
-    return <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>{inner}</SafeAreaView>;
+    return <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>{inner}</SafeAreaView>;
 };
 
 const styles = StyleSheet.create({

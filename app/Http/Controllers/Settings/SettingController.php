@@ -6,11 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Setting;
 use App\Models\GalleryImage;
-use Carbon\Carbon;
 use App\Models\StaffCategory;
 use App\Models\Department;
 use App\Models\JobTitle;
 use App\Models\CustomField;
+use App\Services\DatabaseBackupService;
 use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
@@ -51,7 +51,7 @@ class SettingController extends Controller
                 'time'      => '02:00',
                 'last_run'  => null,
             ]),
-            'backups'         => $this->getBackupList(),
+            'backups'         => app(DatabaseBackupService::class)->listBackups(),
         ]);
     }
 
@@ -302,32 +302,6 @@ class SettingController extends Controller
 
         \App\Models\CustomPlaceholder::create($data);
         return back()->with('success', 'Placeholder added successfully.');
-    }
-
-    /**
-     * Lightweight backup listing for settings tab
-     */
-    protected function getBackupList(): array
-    {
-        $backupDir = storage_path('app/backups');
-        if (!is_dir($backupDir)) {
-            return [];
-        }
-
-        $files = glob($backupDir . '/*.{sql,zip}', GLOB_BRACE);
-        $backups = [];
-
-        foreach ($files as $file) {
-            $backups[] = [
-                'name'       => basename($file),
-                'size'       => filesize($file),
-                'created_at' => Carbon::createFromTimestamp(filemtime($file)),
-            ];
-        }
-
-        usort($backups, fn ($a, $b) => $b['created_at'] <=> $a['created_at']);
-
-        return $backups;
     }
 
 }

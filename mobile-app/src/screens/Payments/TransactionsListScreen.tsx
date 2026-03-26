@@ -17,7 +17,7 @@ import { FinanceTransaction } from '@types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Palette, withAlpha } from '@styles/palette';
 
 const VIEW_FILTERS: { key: string; label: string }[] = [
     { key: 'all', label: 'All' },
@@ -42,6 +42,8 @@ export const TransactionsListScreen: React.FC<Props> = ({ navigation, embedded =
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [view, setView] = useState('all');
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
@@ -121,14 +123,14 @@ export const TransactionsListScreen: React.FC<Props> = ({ navigation, embedded =
                                 styles.badge,
                                 {
                                     backgroundColor:
-                                        item.transaction_type === 'bank' ? '#3b82f622' : '#0d948822',
+                                        item.transaction_type === 'bank' ? withAlpha(Palette.bank, '22') : `${colors.primary}22`,
                                 },
                             ]}
                         >
                             <Text
                                 style={[
                                     styles.badgeText,
-                                    { color: item.transaction_type === 'bank' ? '#3b82f6' : '#0d9488' },
+                                    { color: item.transaction_type === 'bank' ? Palette.bank : colors.primary },
                                 ]}
                             >
                                 {item.transaction_type === 'bank' ? 'Bank' : 'M-Pesa'}
@@ -258,7 +260,7 @@ const styles = StyleSheet.create({
     chip: {
         paddingHorizontal: SPACING.sm,
         paddingVertical: 6,
-        borderRadius: RADIUS.md,
+        borderRadius: RADIUS.button,
         borderWidth: 1,
     },
     searchWrap: { paddingHorizontal: SPACING.xl, marginBottom: SPACING.sm },

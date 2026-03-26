@@ -11,7 +11,6 @@ import {
     Share,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
-import { useAuth } from '@contexts/AuthContext';
 import { Button } from '@components/common/Button';
 import { Input } from '@components/common/Input';
 import { Card } from '@components/common/Card';
@@ -21,11 +20,10 @@ import { studentsApi } from '@api/students.api';
 import { Student } from '@types/student.types';
 import { Invoice } from '@types/finance.types';
 import { formatters } from '@utils/formatters';
-import { validators } from '@utils/validators';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import { MpesaPromptModal } from '@components/MpesaPromptModal';
-import { canUseMpesaFinanceTools } from '@utils/financeRoles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface RecordPaymentScreenProps {
@@ -41,7 +39,7 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [amount, setAmount] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('cash');
-    const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+    const [paymentDate, _setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
     const [referenceNumber, setReferenceNumber] = useState('');
     const [notes, setNotes] = useState('');
     const [allocations, setAllocations] = useState<{ invoice_id: number; amount: number }[]>([]);
@@ -163,6 +161,7 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
     return (
         <SafeAreaView
             style={[
+                layoutStyles.flex1,
                 styles.container,
                 { backgroundColor: isDark ? colors.backgroundDark : BRAND.bg },
             ]}

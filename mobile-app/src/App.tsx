@@ -7,11 +7,11 @@ import { AppNavigator } from '@navigation/AppNavigator';
 
 const App = () => {
     return (
-        <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+        <View style={{ flex: 1, backgroundColor: '#f5f3ff' }}>
             <SafeAreaProvider>
                 <ThemeProvider>
                     <AuthProvider>
-                        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+                        <StatusBar barStyle="dark-content" backgroundColor="#f5f3ff" />
                         <AppNavigator />
                     </AuthProvider>
                 </ThemeProvider>

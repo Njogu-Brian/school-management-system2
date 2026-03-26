@@ -12,6 +12,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { Button } from '@components/common/Button';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SettingsScreenProps {
@@ -82,8 +83,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             <Switch
                 value={value}
                 onValueChange={onToggle}
-                trackColor={{ false: '#767577', true: colors.primary + '80' }}
-                thumbColor={value ? colors.primary : '#f4f3f4'}
+                trackColor={{ false: Palette.switchTrackOff, true: colors.primary + '80' }}
+                thumbColor={value ? colors.primary : Palette.switchThumbOff}
             />
         </View>
     );
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: SPACING.sm,
         borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
+        borderBottomColor: Palette.borderSlate,
     },
     settingInfo: { flex: 1, marginRight: SPACING.md },
     settingTitle: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
@@ -225,7 +226,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: SPACING.sm,
         borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
+        borderBottomColor: Palette.borderSlate,
     },
     infoLabel: { fontSize: FONT_SIZES.sm },
     infoValue: { fontSize: FONT_SIZES.sm, fontWeight: '600' },

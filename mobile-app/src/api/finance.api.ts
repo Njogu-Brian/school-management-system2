@@ -120,9 +120,24 @@ export const financeApi = {
 
     async shareFinanceTransaction(
         id: number,
-        allocations: { student_id: number; amount: number }[]
+        allocations: { student_id: number; amount: number }[],
+        type: 'bank' | 'c2b'
     ): Promise<ApiResponse<{ message?: string }>> {
-        return apiClient.post(`/finance/transactions/${id}/share`, { allocations });
+        return apiClient.post(`/finance/transactions/${id}/share`, { type, allocations });
+    },
+
+    async confirmFinanceTransaction(
+        id: number,
+        type: 'bank' | 'c2b'
+    ): Promise<ApiResponse<{ message?: string; receipt_ids?: number[]; payment_conflict?: unknown }>> {
+        return apiClient.post(`/finance/transactions/${id}/confirm`, { type });
+    },
+
+    async rejectFinanceTransaction(
+        id: number,
+        type: 'bank' | 'c2b'
+    ): Promise<ApiResponse<{ message?: string }>> {
+        return apiClient.post(`/finance/transactions/${id}/reject`, { type });
     },
 
     // ========== Student Statements ==========

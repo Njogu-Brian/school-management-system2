@@ -17,6 +17,7 @@ import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { transportApi } from '@api/transport.api';
 import { Route } from '../types/transport.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface RoutesListScreenProps {
@@ -245,7 +246,7 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: Palette.neutralTrack,
         alignItems: 'center',
         justifyContent: 'center',
     },

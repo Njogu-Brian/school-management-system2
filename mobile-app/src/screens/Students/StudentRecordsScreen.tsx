@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -7,13 +7,13 @@ import {
     SafeAreaView,
     TouchableOpacity,
     RefreshControl,
-    Alert,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { Button } from '@components/common/Button';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface StudentRecordsScreenProps {
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     academicRecord: { gap: SPACING.md },
     termTitle: { fontSize: FONT_SIZES.lg, fontWeight: 'bold' },
     academicStats: { flexDirection: 'row', gap: SPACING.md },
-    statBox: { flex: 1, alignItems: 'center', padding: SPACING.md, backgroundColor: '#f8fafc', borderRadius: 8 },
+    statBox: { flex: 1, alignItems: 'center', padding: SPACING.md, backgroundColor: Palette.surfaceMuted, borderRadius: 8 },
     statValue: { fontSize: FONT_SIZES.xl, fontWeight: 'bold' },
     statLabel: { fontSize: FONT_SIZES.xs, marginTop: 4 },
 });

@@ -24,6 +24,7 @@ import { Student } from '@types/student.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import { MpesaPromptModal } from '@components/MpesaPromptModal';
 import { canUseMpesaFinanceTools } from '@utils/financeRoles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -190,7 +191,7 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
 
     if (loading || !student) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+            <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
                 <Text style={[styles.loading, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                     Loading...
                 </Text>
@@ -199,7 +200,7 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />

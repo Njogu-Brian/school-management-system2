@@ -1,15 +1,44 @@
 import { apiClient } from './client';
 import { ApiResponse } from '@types/api.types';
 
+export interface DashboardChartSeries {
+    labels: string[];
+    values: number[];
+}
+
+export interface BirthdayItem {
+    name: string;
+    date: string;
+    type: 'student' | 'staff';
+}
+
+export interface TeacherOnLeaveItem {
+    name: string;
+    start_date: string;
+    end_date: string;
+    leave_type: string | null;
+}
+
 export interface DashboardStats {
     total_students?: number;
     total_staff?: number;
     present_today?: number;
     fees_collected?: number;
-    /** Parent / guardian dashboard */
-    role?: 'parent';
+    role?: string;
+    /** Parent / guardian */
     children_count?: number;
     total_fee_balance?: number;
+    /** Admin dashboard */
+    charts?: {
+        enrollment?: DashboardChartSeries;
+        payments?: DashboardChartSeries;
+        invoices?: DashboardChartSeries;
+        /** Legacy keys (older clients) */
+        line?: DashboardChartSeries;
+        bar?: DashboardChartSeries;
+    };
+    birthdays?: BirthdayItem[];
+    teachers_on_leave?: TeacherOnLeaveItem[];
 }
 
 export const dashboardApi = {

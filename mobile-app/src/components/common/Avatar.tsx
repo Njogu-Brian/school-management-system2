@@ -1,14 +1,6 @@
 import React from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    Image,
-} from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
-import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface AvatarProps {
     name: string;
@@ -17,7 +9,7 @@ interface AvatarProps {
 }
 
 export const Avatar: React.FC<AvatarProps> = ({ name, imageUrl, size = 40 }) => {
-    const { isDark, colors } = useTheme();
+    const { colors } = useTheme();
 
     const getInitials = (fullName: string) => {
         return fullName

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -7,7 +7,6 @@ import {
     SafeAreaView,
     TouchableOpacity,
     RefreshControl,
-    Alert,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
@@ -15,6 +14,7 @@ import { Card } from '@components/common/Card';
 import { Avatar } from '@components/common/Avatar';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { tileColorForIndex } from '@styles/sections/dashboard';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface ParentDashboardProps {
@@ -59,11 +59,11 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ navigation }) 
     };
 
     const quickActions = [
-        { id: 1, title: 'Pay Fees', icon: 'payment', screen: 'PayFees', color: '#3b82f6' },
-        { id: 2, title: 'View Results', icon: 'assessment', screen: 'Results', color: '#10b981' },
-        { id: 3, title: 'Attendance', icon: 'event-available', screen: 'Attendance', color: '#f59e0b' },
-        { id: 4, title: 'Fee Statement', icon: 'receipt', screen: 'FeeStatement', color: '#8b5cf6' },
-    ];
+        { id: 1, title: 'Pay Fees', icon: 'payment', screen: 'PayFees' },
+        { id: 2, title: 'View Results', icon: 'assessment', screen: 'Results' },
+        { id: 3, title: 'Attendance', icon: 'event-available', screen: 'Attendance' },
+        { id: 4, title: 'Fee Statement', icon: 'receipt', screen: 'FeeStatement' },
+    ].map((a, i) => ({ ...a, color: tileColorForIndex(i) }));
 
     const renderChild = (child: any) => (
         <Card key={child.id} onPress={() => navigation.navigate('ChildDetail', { childId: child.id })}>

@@ -16,6 +16,7 @@ import { Input } from '@components/common/Input';
 import { authApi } from '@api/auth.api';
 import { validators } from '@utils/validators';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { Palette } from '@styles/palette';
 
 interface ForgotPasswordScreenProps {
     navigation: any;
@@ -109,7 +110,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navi
                                     style={[
                                         styles.tabText,
                                         {
-                                            color: activeTab === 'email' ? '#ffffff' : isDark ? colors.textSubDark : colors.textSubLight,
+                                            color: activeTab === 'email' ? Palette.onPrimary : isDark ? colors.textSubDark : colors.textSubLight,
                                         },
                                     ]}
                                 >
@@ -127,7 +128,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navi
                                     style={[
                                         styles.tabText,
                                         {
-                                            color: activeTab === 'otp' ? '#ffffff' : isDark ? colors.textSubDark : colors.textSubLight,
+                                            color: activeTab === 'otp' ? Palette.onPrimary : isDark ? colors.textSubDark : colors.textSubLight,
                                         },
                                     ]}
                                 >

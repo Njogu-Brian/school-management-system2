@@ -19,6 +19,7 @@ import { Student } from '@types/student.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
+import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface Props {
@@ -83,14 +84,14 @@ export const ParentPaymentsScreen: React.FC<Props> = ({ navigation }) => {
 
     if (loading) {
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+            <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
                 <LoadingState message="Loading balances..." />
             </SafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+        <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
             <Text style={[styles.title, { color: textMain }]}>Fees & pay</Text>
             <Text style={[styles.sub, { color: textSub }]}>
                 Outstanding per child. Tap Pay to open the school payment page in the browser.
@@ -122,10 +123,10 @@ export const ParentPaymentsScreen: React.FC<Props> = ({ navigation }) => {
                                     <Icon name="person" color={colors.primary} size={22} />
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[styles.iconBtn, { backgroundColor: '#0d948822' }]}
+                                    style={[styles.iconBtn, { backgroundColor: `${colors.primary}22` }]}
                                     onPress={() => openPay(item.student.id)}
                                 >
-                                    <Icon name="open-in-browser" color="#0d9488" size={22} />
+                                    <Icon name="open-in-browser" color={colors.primary} size={22} />
                                 </TouchableOpacity>
                             </View>
                         </View>
