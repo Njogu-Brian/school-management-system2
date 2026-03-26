@@ -43,6 +43,9 @@ export default {
       'expo-notifications',
     ],
     extra: {
+      eas: {
+        projectId: 'd8b53a3a-3093-407c-b552-de66fc1cc8bb',
+      },
       API_BASE_URL: apiBase,
       API_TIMEOUT: process.env.API_TIMEOUT || process.env.EXPO_PUBLIC_API_TIMEOUT || '30000',
       /** Public web origin (no /api). Override when API is on a different host than the portal. */
