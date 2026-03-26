@@ -94,7 +94,7 @@ use App\Http\Controllers\Swimming\SwimmingSettingsController;
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
 use App\Http\Controllers\Academics\StreamController;
-use App\Http\Controllers\Academics\SubjectGroupController;
+use App\Http\Controllers\Academics\AssignTeachersController;
 use App\Http\Controllers\Academics\SubjectController;
 use App\Http\Controllers\Academics\ExamController;
 use App\Http\Controllers\Academics\ExamGradeController;
@@ -400,16 +400,16 @@ Route::middleware('auth')->group(function () {
         Route::resource('classrooms',      ClassroomController::class)->except(['show']);
         Route::resource('streams',         StreamController::class)->except(['show']);
         Route::post('streams/{id}/assign-teachers', [StreamController::class, 'assignTeachers'])->name('streams.assign-teachers');
-        Route::resource('subject_groups',  SubjectGroupController::class)->except(['show']);
         Route::get('subjects/teacher-assignments', [SubjectController::class, 'teacherAssignments'])->name('subjects.teacher-assignments');
         Route::post('subjects/teacher-assignments', [SubjectController::class, 'saveTeacherAssignments'])->name('subjects.teacher-assignments.save');
         Route::resource('subjects',        SubjectController::class);
         Route::post('subjects/generate-cbc', [SubjectController::class, 'generateCBCSubjects'])->name('subjects.generate-cbc');
         Route::post('subjects/assign-classrooms', [SubjectController::class, 'assignToClassrooms'])->name('subjects.assign-classrooms');
         
-        // Teacher Assignments
-        Route::get('assign-teachers', [\App\Http\Controllers\Academics\AssignTeachersController::class, 'index'])->name('assign-teachers');
-        Route::post('classrooms/{id}/assign-teachers', [\App\Http\Controllers\Academics\AssignTeachersController::class, 'assignToClassroom'])->name('classrooms.assign-teachers');
+        // Teacher Assignments (classroom + stream pivots)
+        Route::get('assign-teachers', [AssignTeachersController::class, 'index'])->name('assign-teachers');
+        Route::post('assign-teachers/clear', [AssignTeachersController::class, 'clearAllAssignments'])->name('assign-teachers.clear');
+        Route::post('classrooms/{id}/assign-teachers', [AssignTeachersController::class, 'assignToClassroom'])->name('classrooms.assign-teachers');
         
         // Student Promotions
         Route::get('promotions', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'index'])->name('promotions.index');
@@ -423,6 +423,8 @@ Route::middleware('auth')->group(function () {
         Route::get('exams/results',      [ExamResultController::class, 'index'])->name('exams.results.index');
         Route::post('exams/publish/{exam}', [ExamPublishingController::class, 'publish'])->name('exams.publish');
         Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
+        Route::get('exams/bulk-create', [ExamController::class, 'createBulk'])->name('exams.bulk-create');
+        Route::post('exams/bulk-store', [ExamController::class, 'storeBulk'])->name('exams.bulk-store');
         Route::resource('exam-grades', ExamGradeController::class);
         Route::resource('exams', ExamController::class);
 

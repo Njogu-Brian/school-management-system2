@@ -9,9 +9,12 @@ import {
     Alert,
     ActivityIndicator,
     Image,
+    Platform,
 } from 'react-native';
 import { pickImageFromLibrary, PickedImageFile } from '@utils/pickMedia';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
+import { UserRole } from '@constants/roles';
 import { Card } from '@components/common/Card';
 import { Input } from '@components/common/Input';
 import { hrApi } from '@api/hr.api';
@@ -28,6 +31,9 @@ interface Props {
 
 export const StaffEditScreen: React.FC<Props> = ({ navigation, route }) => {
     const staffId = route.params.staffId;
+    const { user } = useAuth();
+    const canEditSalary =
+        !!user && [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SECRETARY].includes(user.role);
     const { isDark, colors } = useTheme();
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
@@ -108,14 +114,17 @@ export const StaffEditScreen: React.FC<Props> = ({ navigation, route }) => {
     const save = async () => {
         try {
             setSaving(true);
-            const basic =
-                form.basic_salary.trim() === '' ? undefined : parseFloat(form.basic_salary.replace(/,/g, ''));
-            if (form.basic_salary.trim() !== '' && (basic === undefined || Number.isNaN(basic))) {
-                Alert.alert('Validation', 'Basic salary must be a number.');
-                setSaving(false);
-                return;
+            let basic: number | undefined;
+            if (canEditSalary && form.basic_salary.trim() !== '') {
+                const parsed = parseFloat(form.basic_salary.replace(/,/g, ''));
+                if (Number.isNaN(parsed)) {
+                    Alert.alert('Validation', 'Basic salary must be a number.');
+                    setSaving(false);
+                    return;
+                }
+                basic = parsed;
             }
-            const payload = {
+            const payload: Parameters<typeof hrApi.updateStaff>[1] = {
                 first_name: form.first_name.trim(),
                 last_name: form.last_name.trim(),
                 middle_name: form.middle_name.trim() || undefined,
@@ -129,8 +138,10 @@ export const StaffEditScreen: React.FC<Props> = ({ navigation, route }) => {
                 bank_name: form.bank_name.trim() || undefined,
                 bank_branch: form.bank_branch.trim() || undefined,
                 bank_account: form.bank_account.trim() || undefined,
-                basic_salary: basic,
             };
+            if (canEditSalary && basic !== undefined) {
+                payload.basic_salary = basic;
+            }
             const res = await hrApi.updateStaff(staffId, payload);
             if (!res.success) {
                 Alert.alert('Save', (res as any).message || 'Failed');
@@ -138,12 +149,18 @@ export const StaffEditScreen: React.FC<Props> = ({ navigation, route }) => {
             }
             if (pickedAsset?.uri) {
                 const fd = new FormData();
-                fd.append('photo', {
-                    uri: pickedAsset.uri,
-                    name: pickedAsset.name,
-                    type: pickedAsset.type,
-                } as unknown as Blob);
-                const up = await hrApi.uploadStaffPhoto(staffId, fd as unknown as FormData);
+                const rawName = pickedAsset.name?.trim() || 'photo.jpg';
+                const fileName = rawName.includes('.') ? rawName : `${rawName}.jpg`;
+                const mime = pickedAsset.type || 'image/jpeg';
+                fd.append(
+                    'photo',
+                    {
+                        uri: Platform.OS === 'android' ? pickedAsset.uri : pickedAsset.uri,
+                        name: fileName,
+                        type: mime,
+                    } as unknown as Blob
+                );
+                const up = await hrApi.uploadStaffPhoto(staffId, fd);
                 if (!up.success) {
                     Alert.alert('Photo', (up as any).message || 'Profile saved but photo upload failed.');
                     navigation.goBack();
@@ -306,12 +323,14 @@ export const StaffEditScreen: React.FC<Props> = ({ navigation, route }) => {
                         value={form.bank_account}
                         onChangeText={(t) => setForm((f) => ({ ...f, bank_account: t }))}
                     />
-                    <Input
-                        label="Basic salary (optional)"
-                        value={form.basic_salary}
-                        onChangeText={(t) => setForm((f) => ({ ...f, basic_salary: t }))}
-                        keyboardType="decimal-pad"
-                    />
+                    {canEditSalary ? (
+                        <Input
+                            label="Basic salary (optional)"
+                            value={form.basic_salary}
+                            onChangeText={(t) => setForm((f) => ({ ...f, basic_salary: t }))}
+                            keyboardType="decimal-pad"
+                        />
+                    ) : null}
                 </Card>
 
                 <TouchableOpacity

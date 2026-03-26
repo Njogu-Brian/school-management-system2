@@ -12,6 +12,7 @@
         <div class="crumb">Academics</div>
         <h1 class="mb-1">Stream Management</h1>
         <p class="text-muted mb-0">Manage streams and map them across classrooms and teachers.</p>
+        <p class="text-muted small mb-0 mt-1">A stream has one <strong>primary</strong> class; it may also be <strong>linked</strong> to other classes (same as on Assign Teachers). Use the filter to list streams for a specific class.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         @if(Route::has('students.bulk.assign-streams'))
@@ -38,7 +39,18 @@
           <h5 class="mb-0"><i class="bi bi-diagram-3"></i> All Streams</h5>
           <p class="text-muted small mb-0">Classroom mapping, teachers, and student counts.</p>
         </div>
-        <span class="input-chip">{{ $streams->count() }} total</span>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <form method="get" action="{{ route('academics.streams.index') }}" class="d-flex align-items-center gap-2">
+            <label for="stream-classroom-filter" class="small text-muted mb-0 text-nowrap">Show for class</label>
+            <select id="stream-classroom-filter" name="classroom_id" class="form-select form-select-sm" style="min-width: 12rem;" onchange="this.form.submit()">
+              <option value="">All classes</option>
+              @foreach($filterClassrooms as $c)
+                <option value="{{ $c->id }}" @selected((string) request('classroom_id') === (string) $c->id)>{{ $c->name }}</option>
+              @endforeach
+            </select>
+          </form>
+          <span class="input-chip">{{ $streams->count() }} total</span>
+        </div>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -46,8 +58,7 @@
             <thead class="table-light">
               <tr>
                 <th>Stream Name</th>
-                <th>Primary Classroom</th>
-                <th>Additional Classrooms</th>
+                <th>Linked classrooms</th>
                 <th>Teachers</th>
                 <th>Students</th>
                 <th class="text-end">Actions</th>
@@ -58,21 +69,21 @@
                 <tr>
                   <td class="fw-semibold"><span class="pill-badge pill-info">{{ $stream->name }}</span></td>
                   <td>
-                    @if($stream->classroom)
-                      <span class="pill-badge pill-primary">{{ $stream->classroom->name }}</span>
+                    @php
+                      $linked = $stream->allClassrooms();
+                    @endphp
+                    @if($linked->isEmpty())
+                      <span class="text-muted">Not linked</span>
                     @else
-                      <span class="text-muted">Not set</span>
-                    @endif
-                  </td>
-                  <td>
-                    @if($stream->classrooms->count() > 0)
-                      <div class="d-flex flex-wrap gap-1">
-                        @foreach($stream->classrooms as $classroom)
-                          <span class="pill-badge pill-secondary">{{ $classroom->name }}</span>
+                      <div class="d-flex flex-wrap gap-1 align-items-center">
+                        @foreach($linked as $classroom)
+                          @if((int) $stream->classroom_id === (int) $classroom->id)
+                            <span class="pill-badge pill-primary" title="Primary classroom">{{ $classroom->name }}</span>
+                          @else
+                            <span class="pill-badge pill-secondary" title="Linked via additional classrooms">{{ $classroom->name }}</span>
+                          @endif
                         @endforeach
                       </div>
-                    @else
-                      <span class="text-muted">None</span>
                     @endif
                   </td>
                   <td>
@@ -102,8 +113,8 @@
                   </td>
                   <td class="text-end">
                     <div class="d-flex justify-content-end gap-1 flex-wrap">
-                      @if(Route::has('students.bulk.assign-streams') && $stream->classroom)
-                        <a href="{{ route('students.bulk.assign-streams', ['classroom_id' => $stream->classroom->id]) }}" class="btn btn-sm btn-ghost-strong text-success" title="Assign Students">
+                      @if(Route::has('students.bulk.assign-streams') && $linked->isNotEmpty())
+                        <a href="{{ route('students.bulk.assign-streams', ['classroom_id' => ($stream->classroom_id ?? $linked->first()->id)]) }}" class="btn btn-sm btn-ghost-strong text-success" title="Assign Students">
                           <i class="bi bi-people"></i>
                         </a>
                       @endif
@@ -122,7 +133,7 @@
                 </tr>
               @empty
                 <tr>
-                  <td colspan="6" class="text-center text-muted py-4">No streams found.</td>
+                  <td colspan="5" class="text-center text-muted py-4">No streams found.</td>
                 </tr>
               @endforelse
             </tbody>

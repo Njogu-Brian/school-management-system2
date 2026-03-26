@@ -48,15 +48,6 @@
 
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
-                  <label class="form-label">Subject Group</label>
-                  <select name="subject_group_id" class="form-select">
-                    <option value="">-- None --</option>
-                    @foreach($groups as $group)
-                      <option value="{{ $group->id }}" {{ old('subject_group_id', $subject->subject_group_id) == $group->id ? 'selected' : '' }}>{{ $group->name }}</option>
-                    @endforeach
-                  </select>
-                </div>
-                <div class="col-md-6">
                   <label class="form-label">Level</label>
                   <select name="level" class="form-select">
                     <option value="">-- Select Level --</option>

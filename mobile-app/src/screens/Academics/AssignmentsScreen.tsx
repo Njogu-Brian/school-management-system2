@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     View,
     Text,
@@ -14,7 +15,7 @@ import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
-import { Assignment } from '../types/academics.types';
+import { Assignment } from '@types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
@@ -55,10 +56,9 @@ export const AssignmentsScreen: React.FC<AssignmentsScreenProps> = ({ navigation
             }
 
             const response = await academicsApi.getAssignments(filters);
-
-            if (response.success && response.data) {
-                setAssignments(response.data.data);
-            }
+            const raw = response.success && response.data ? (response.data as any) : null;
+            const list = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+            setAssignments(list);
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to load assignments');
         } finally {
@@ -67,9 +67,11 @@ export const AssignmentsScreen: React.FC<AssignmentsScreenProps> = ({ navigation
         }
     }, [filter, user, isTeacher]);
 
-    useEffect(() => {
-        fetchAssignments();
-    }, [filter]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchAssignments();
+        }, [fetchAssignments])
+    );
 
     const handleRefresh = () => {
         setRefreshing(true);

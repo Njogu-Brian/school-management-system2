@@ -44,16 +44,6 @@
 
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
-                  <label class="form-label">Subject Group</label>
-                  <select name="subject_group_id" class="form-select @error('subject_group_id') is-invalid @enderror">
-                    <option value="">-- None --</option>
-                    @foreach($groups as $group)
-                      <option value="{{ $group->id }}" {{ old('subject_group_id') == $group->id ? 'selected' : '' }}>{{ $group->name }}</option>
-                    @endforeach
-                  </select>
-                  @error('subject_group_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-6">
                   <label class="form-label">Level</label>
                   <select name="level" class="form-select">
                     <option value="">-- Select Level --</option>

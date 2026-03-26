@@ -7,13 +7,41 @@
 @section('content')
 <div class="settings-page">
   <div class="settings-shell">
-    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+    <div class="page-header">
       <div>
         <div class="crumb">Academics</div>
         <h1 class="mb-1">Assign Teachers to Class Streams</h1>
         <p class="text-muted mb-0">Assign teachers to specific streams or directly to classes without streams.</p>
       </div>
     </div>
+
+    <div class="settings-card mb-3 border-danger border-opacity-25">
+      <div class="card-body d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3">
+        <div>
+          <h6 class="mb-1 text-danger"><i class="bi bi-exclamation-triangle"></i> Remove all assignments listed below</h6>
+          <p class="text-muted small mb-0">
+            This clears <strong>every</strong> teacher shown on this page: whole-class assignments (e.g. Creche) and per-stream rows (e.g. Love / Peace).
+            It does <strong>not</strong> change Subject Teacher Map (subject–class slots).
+          </p>
+        </div>
+        <form method="POST" action="{{ route('academics.assign-teachers.clear') }}" class="flex-shrink-0" onsubmit="return confirm('Remove ALL teachers assigned to classrooms and streams? You can assign again afterwards.');">
+          @csrf
+          <input type="hidden" name="confirm_clear" value="CLEARALL">
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash"></i> Clear all classroom &amp; stream assignments
+          </button>
+        </form>
+      </div>
+    </div>
+
+    @if($errors->any())
+      <div class="alert alert-danger alert-dismissible fade show">
+        @foreach($errors->all() as $err)
+          <div>{{ $err }}</div>
+        @endforeach
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    @endif
 
     @if(session('success'))
       <div class="alert alert-success alert-dismissible fade show">

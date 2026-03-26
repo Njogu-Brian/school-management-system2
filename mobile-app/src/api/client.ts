@@ -71,9 +71,34 @@ class ApiClient {
                     this.onUnauthorized?.();
                 }
 
+                const data = error.response?.data as Record<string, unknown> | undefined;
+                let message =
+                    (typeof data?.message === 'string' ? data.message : null) ||
+                    error.message ||
+                    'An error occurred';
+                const errs = data?.errors as Record<string, string[] | string> | undefined;
+                if (
+                    error.response?.status === 422 &&
+                    errs &&
+                    typeof errs === 'object' &&
+                    !Array.isArray(errs)
+                ) {
+                    const parts: string[] = [];
+                    for (const v of Object.values(errs)) {
+                        if (Array.isArray(v)) {
+                            parts.push(...v.map(String));
+                        } else if (v != null) {
+                            parts.push(String(v));
+                        }
+                    }
+                    if (parts.length) {
+                        message = parts.join('\n');
+                    }
+                }
+
                 const apiError: ApiError = {
-                    message: error.response?.data?.message || error.message || 'An error occurred',
-                    errors: error.response?.data?.errors,
+                    message,
+                    errors: data?.errors as ApiError['errors'],
                     status: error.response?.status,
                 };
 

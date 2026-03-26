@@ -11,7 +11,7 @@
       <div>
         <div class="crumb">Academics</div>
         <h1 class="mb-1">Subject Teacher Assignments</h1>
-        <p class="text-muted mb-0">Assign multiple classroom subjects to teachers in one action.</p>
+        <p class="text-muted mb-0">Each row is one subject slot for a class (and <strong>stream</strong>, if the class has streams). Assign a different teacher per stream for the same subject—no duplicate subjects. Classes without streams use a single row with stream “—”.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a href="{{ route('academics.subjects.index') }}" class="btn btn-ghost-strong">
@@ -33,6 +33,18 @@
     @if(session('error'))
       <div class="alert alert-danger alert-dismissible fade show">
         {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    @endif
+
+    @if($errors->any())
+      <div class="alert alert-danger alert-dismissible fade show">
+        <strong>Could not save.</strong>
+        <ul class="mb-0 mt-1">
+          @foreach($errors->all() as $err)
+            <li>{{ $err }}</li>
+          @endforeach
+        </ul>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
     @endif
@@ -113,9 +125,12 @@
       </div>
     </div>
 
+    {{-- Save form uses HTML5 `form` attribute on selects so the table stays outside the form element. --}}
+    <form id="teacher-assignments-save" method="POST" action="{{ route('academics.subjects.teacher-assignments.save') }}" class="d-none" aria-hidden="true">
+      @csrf
+    </form>
+
     <div class="settings-card">
-      <form method="POST" action="{{ route('academics.subjects.teacher-assignments.save') }}">
-        @csrf
         <div class="card-body">
           @if($teachers->isEmpty())
             <div class="alert alert-warning alert-soft border-0">
@@ -173,14 +188,19 @@
                         @endif
                       </td>
                       <td>
-                        <select name="assignments[{{ $assignment->id }}]" id="assignment-{{ $assignment->id }}" class="form-select form-select-sm @error('assignments.' . $assignment->id) is-invalid @enderror">
+                        <select
+                          name="assignments[{{ $assignment->id }}]"
+                          id="assignment-{{ $assignment->id }}"
+                          form="teacher-assignments-save"
+                          class="form-select form-select-sm @error('assignments.' . $assignment->id) is-invalid @enderror"
+                        >
                           <option value="">— Unassigned —</option>
                           @foreach($teachers as $teacher)
                             <option value="{{ $teacher->id }}" {{ (string) old('assignments.' . $assignment->id, $assignment->staff_id) === (string) $teacher->id ? 'selected' : '' }}>{{ $teacher->full_name }}</option>
                           @endforeach
                         </select>
                         @error('assignments.' . $assignment->id)
-                          <div class="invalid-feedback">{{ $message }}</div>
+                          <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                       </td>
                     </tr>
@@ -195,7 +215,7 @@
             </div>
 
             <div class="mt-4 d-flex gap-2">
-              <button type="submit" class="btn btn-settings-primary">
+              <button type="submit" form="teacher-assignments-save" class="btn btn-settings-primary">
                 <i class="bi bi-check-circle"></i> Save Teacher Assignments
               </button>
             </div>
@@ -205,7 +225,6 @@
             </div>
           @endif
         </div>
-      </form>
     </div>
   </div>
 </div>

@@ -9,9 +9,15 @@ use Illuminate\Validation\Rule;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Classroom;
 use App\Models\Student;
+use App\Services\StreamLifecycleService;
 
 class StreamController extends Controller
 {
+    public function __construct(
+        protected StreamLifecycleService $streamLifecycle
+    ) {
+    }
+
     /**
      * Get supervised classroom IDs for senior teachers (empty for non–senior teachers).
      */
@@ -24,7 +30,7 @@ class StreamController extends Controller
         return $user->getSupervisedClassroomIds();
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $query = Stream::with(['classroom', 'classrooms', 'teachers'])->orderBy('classroom_id')->orderBy('name');
         $supervisedIds = $this->supervisedClassroomIds();
@@ -34,8 +40,27 @@ class StreamController extends Controller
                     ->orWhereHas('classrooms', fn ($c) => $c->whereIn('classrooms.id', $supervisedIds));
             });
         }
+
+        // Show streams whose primary OR additional (pivot) classroom matches — matches Assign Teachers logic
+        if ($request->filled('classroom_id')) {
+            $cid = (int) $request->classroom_id;
+            if (!empty($supervisedIds) && !in_array($cid, $supervisedIds, true)) {
+                abort(403, 'You can only filter by classes you supervise.');
+            }
+            $query->where(function ($q) use ($cid) {
+                $q->where('classroom_id', $cid)
+                    ->orWhereHas('classrooms', fn ($c) => $c->where('classrooms.id', $cid));
+            });
+        }
+
         $streams = $query->get();
-        return view('academics.streams.index', compact('streams'));
+
+        $filterClassrooms = Classroom::orderBy('name')->get();
+        if (!empty($supervisedIds)) {
+            $filterClassrooms = $filterClassrooms->whereIn('id', $supervisedIds)->values();
+        }
+
+        return view('academics.streams.index', compact('streams', 'filterClassrooms'));
     }
 
     public function create()
@@ -117,7 +142,8 @@ class StreamController extends Controller
 
     public function update(Request $request, $id)
     {
-        $stream = Stream::findOrFail($id);
+        $stream = Stream::with('classrooms')->findOrFail($id);
+        $previousClassroomIds = $this->streamLifecycle->collectLinkedClassroomIds($stream);
         $supervisedIds = $this->supervisedClassroomIds();
         if (!empty($supervisedIds)) {
             $allowed = in_array((int) $stream->classroom_id, $supervisedIds, true) ||
@@ -166,8 +192,16 @@ class StreamController extends Controller
             $stream->classrooms()->detach();
         }
 
+        $stream->refresh();
+        $stream->load(['classrooms', 'classroom']);
+        $currentClassroomIds = $this->streamLifecycle->collectLinkedClassroomIds($stream);
+        $removedClassroomIds = array_values(array_diff($previousClassroomIds, $currentClassroomIds));
+        if ($removedClassroomIds !== []) {
+            $this->streamLifecycle->propagateWhenClassroomsRemoved($stream, $removedClassroomIds);
+        }
+
         return redirect()->route('academics.streams.index')
-            ->with('success', 'Stream updated successfully.');
+            ->with('success', 'Stream updated successfully. Related teacher, subject, fee, and student links for removed classes were updated.');
     }
 
     public function assignTeachers(Request $request, $id)
@@ -255,7 +289,7 @@ class StreamController extends Controller
 
     public function destroy($id)
     {
-        $stream = Stream::findOrFail($id);
+        $stream = Stream::with('classrooms')->findOrFail($id);
         $supervisedIds = $this->supervisedClassroomIds();
         if (!empty($supervisedIds)) {
             $allowed = in_array((int) $stream->classroom_id, $supervisedIds, true) ||
@@ -265,24 +299,15 @@ class StreamController extends Controller
             }
         }
 
-        // Move any students in this stream to "no stream" but keep their classroom
         $studentsUpdated = Student::withArchived()
             ->where('stream_id', $stream->id)
-            ->update(['stream_id' => null]);
+            ->count();
 
-        // Delete teacher assignments first
-        DB::table('stream_teacher')
-            ->where('stream_id', $stream->id)
-            ->delete();
-
-        // Detach from additional classrooms
-        $stream->classrooms()->detach();
-
-        $stream->delete();
+        $this->streamLifecycle->deleteStreamWithCascade($stream);
 
         $message = $studentsUpdated > 0
-            ? "Stream deleted successfully. {$studentsUpdated} student(s) moved to no stream (class unchanged)."
-            : 'Stream deleted successfully.';
+            ? "Stream deleted successfully. {$studentsUpdated} student(s) moved to no stream (class unchanged). Subject, fee, and teacher rows for this stream were removed where applicable."
+            : 'Stream deleted successfully. Related subject, fee, and teacher data for this stream were removed where applicable.';
 
         return redirect()->route('academics.streams.index')
             ->with('success', $message);

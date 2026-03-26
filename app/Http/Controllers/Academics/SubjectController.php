@@ -4,16 +4,15 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Subject;
-use App\Models\Academics\SubjectGroup;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\ClassroomSubject;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Models\Staff;
+use App\Services\ClassroomSubjectSlotService;
+use App\Services\CbcRationalizedSubjectSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Schema;
 
 class SubjectController extends Controller
 {
@@ -34,7 +33,6 @@ class SubjectController extends Controller
     public function index(Request $request)
     {
         $query = Subject::with([
-                'group',
                 'classroomSubjects.classroom',
                 'classroomSubjects.stream',
                 'teachers'
@@ -47,18 +45,11 @@ class SubjectController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('code', 'like', "%{$search}%")
-                  ->orWhere('learning_area', 'like', "%{$search}%")
-                  ->orWhereHas('group', function($subQ) use ($search) {
-                      $subQ->where('name', 'like', "%{$search}%");
-                  });
+                  ->orWhere('learning_area', 'like', "%{$search}%");
             });
         }
 
         // Filters
-        if ($request->filled('group_id')) {
-            $query->where('subject_group_id', $request->group_id);
-        }
-
         if ($request->filled('level')) {
             $query->where('level', $request->level);
         }
@@ -73,21 +64,19 @@ class SubjectController extends Controller
 
         $subjects = $query->orderBy('name')->paginate(20)->withQueryString();
 
-        $groups = SubjectGroup::active()->ordered()->get();
         $levels = Subject::distinct()->whereNotNull('level')->pluck('level')->sort();
 
-        return view('academics.subjects.index', compact('subjects', 'groups', 'levels'));
+        return view('academics.subjects.index', compact('subjects', 'levels'));
     }
 
     public function create()
     {
-        $groups = SubjectGroup::active()->ordered()->get();
         $classrooms = Classroom::orderBy('name')->get();
         $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
         $years = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
 
-        return view('academics.subjects.create', compact('groups', 'classrooms', 'teachers', 'years', 'terms'));
+        return view('academics.subjects.create', compact('classrooms', 'teachers', 'years', 'terms'));
     }
 
     public function store(Request $request)
@@ -95,7 +84,6 @@ class SubjectController extends Controller
         $validated = $request->validate([
             'code' => 'required|string|max:20|unique:subjects,code',
             'name' => 'required|string|max:255',
-            'subject_group_id' => 'nullable|exists:subject_groups,id',
             'learning_area' => 'nullable|string|max:255',
             'level' => 'nullable|string|max:50',
             'is_active' => 'boolean',
@@ -132,7 +120,6 @@ class SubjectController extends Controller
     public function show(Subject $subject)
     {
         $subject->load([
-            'group',
             'classrooms',
             'teachers',
             'classroomSubjects.classroom',
@@ -144,7 +131,6 @@ class SubjectController extends Controller
 
     public function edit(Subject $subject)
     {
-        $groups = SubjectGroup::active()->ordered()->get();
         $classrooms = Classroom::orderBy('name')->get();
         $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
         $years = AcademicYear::orderByDesc('year')->get();
@@ -156,7 +142,6 @@ class SubjectController extends Controller
 
         return view('academics.subjects.edit', compact(
             'subject',
-            'groups',
             'classrooms',
             'teachers',
             'years',
@@ -170,7 +155,6 @@ class SubjectController extends Controller
         $validated = $request->validate([
             'code' => 'required|string|max:20|unique:subjects,code,' . $subject->id,
             'name' => 'required|string|max:255',
-            'subject_group_id' => 'nullable|exists:subject_groups,id',
             'learning_area' => 'nullable|string|max:255',
             'level' => 'nullable|string|max:50',
             'is_active' => 'boolean',
@@ -226,17 +210,23 @@ class SubjectController extends Controller
 
     public function destroy(Subject $subject)
     {
-        // Check if subject has marks or exams
-        if ($subject->classroomSubjects()->exists()) {
-            return back()
-                ->with('error', 'Cannot delete subject with existing classroom assignments. Remove assignments first.');
-        }
+        $assignmentCount = 0;
 
-        $subject->delete();
+        DB::transaction(function () use ($subject, &$assignmentCount) {
+            $assignmentCount = $subject->classroomSubjects()->count();
+            $subject->classroomSubjects()->delete();
+            $subject->teachers()->detach();
+            $subject->delete();
+        });
+
+        $msg = 'Subject deleted successfully.';
+        if ($assignmentCount > 0) {
+            $msg .= sprintf(' Removed %d classroom assignment(s).', $assignmentCount);
+        }
 
         return redirect()
             ->route('academics.subjects.index')
-            ->with('success', 'Subject deleted successfully.');
+            ->with('success', $msg);
     }
 
     /**
@@ -245,86 +235,88 @@ class SubjectController extends Controller
     public function generateCBCSubjects(Request $request)
     {
         $validated = $request->validate([
-            'level' => 'required|in:PP1,PP2,Grade 1,Grade 2,Grade 3,Grade 4,Grade 5,Grade 6,Grade 7,Grade 8,Grade 9',
+            'level' => 'required|in:all,Foundation,PP1,PP2,Grade 1,Grade 2,Grade 3,Grade 4,Grade 5,Grade 6,Grade 7,Grade 8,Grade 9',
             'assign_to_classrooms' => 'nullable|boolean',
             'classroom_ids' => 'nullable|array',
             'classroom_ids.*' => 'exists:classrooms,id',
+            'wipe_all' => 'nullable|boolean',
+            'wipe_confirm' => 'nullable|string|max:32',
         ]);
 
-        $selectedLevel = $validated['level']; // This is the grade (PP1, Grade 1, etc.)
-        $levelType = $this->mapGradeToLevelType($selectedLevel); // Map to level type (preschool, lower_primary, etc.)
-        
         $assignToClassrooms = $request->boolean('assign_to_classrooms', false);
-        $subjects = $this->getCBCSubjectsForLevel($selectedLevel);
         $classroomIds = collect($validated['classroom_ids'] ?? [])
             ->filter()
-            ->map(fn($id) => (int) $id)
+            ->map(fn ($id) => (int) $id)
             ->unique()
             ->values()
             ->all();
 
-        if ($assignToClassrooms && empty($classroomIds)) {
-            $classroomIds = $this->resolveClassroomIdsForLevel($selectedLevel);
+        if ($request->boolean('wipe_all')) {
+            if (($validated['wipe_confirm'] ?? '') !== 'WIPESUBJECTS') {
+                return back()
+                    ->withInput()
+                    ->withErrors(['wipe_confirm' => 'Type WIPESUBJECTS (exactly) to confirm wiping all subject-linked data.']);
+            }
         }
 
-        DB::beginTransaction();
         try {
-            $createdSubjects = [];
-            $subjectGroup = SubjectGroup::firstOrCreate(
-                ['code' => 'CBC'],
-                ['name' => 'CBC Subjects', 'display_order' => 1, 'is_active' => true]
-            );
+            /** @var CbcRationalizedSubjectSyncService $sync */
+            $sync = app(CbcRationalizedSubjectSyncService::class);
 
-            foreach ($subjects as $subjectData) {
-                $subject = Subject::firstOrCreate(
-                    [
-                        'code' => $subjectData['code'],
-                    ],
-                    [
-                        'name' => $subjectData['name'],
-                        'subject_group_id' => $subjectGroup->id,
-                        'learning_area' => $subjectData['learning_area'] ?? null,
-                        'level' => $levelType, // Store level type instead of grade
-                        'is_active' => true,
-                        'is_optional' => $subjectData['is_optional'] ?? false,
-                    ]
-                );
-
-                $createdSubjects[] = $subject;
-
-                // Assign to classrooms if requested
-                if ($assignToClassrooms && !empty($classroomIds)) {
-                    foreach ($classroomIds as $classroomId) {
-                        ClassroomSubject::firstOrCreate(
-                            [
-                                'classroom_id' => $classroomId,
-                                'subject_id' => $subject->id,
-                            ],
-                            [
-                                'is_compulsory' => !$subject->is_optional,
-                            ]
-                        );
-                    }
+            if ($request->boolean('wipe_all')) {
+                $result = $sync->wipeAllSubjectsAndReseed($assignToClassrooms);
+                $msg = 'All subject-linked academic data was cleared and the canonical CBC catalogue was recreated ('.$result['created'].' codes).';
+                if ($assignToClassrooms) {
+                    $msg .= ' '.$result['migrated_assignments'].' classroom assignment row(s) created across '.$result['levels_processed'].' level bands.';
+                } else {
+                    $msg .= ' Use “Assign to classrooms” or run sync again to link classes.';
                 }
+
+                return redirect()
+                    ->route('academics.subjects.index')
+                    ->with('success', $msg);
             }
 
-            DB::commit();
+            if ($validated['level'] === 'all') {
+                $result = $sync->syncAllLevels(
+                    $assignToClassrooms,
+                    $classroomIds,
+                );
+                $msg = 'All '.$result['levels_processed'].' level bands processed: '.$result['created'].' subject code(s) in catalogue.';
+                if ($result['migrated_assignments'] > 0) {
+                    $msg .= ' '.$result['migrated_assignments'].' classroom assignment row(s) created for core subjects.';
+                }
+                if ($assignToClassrooms) {
+                    $msg .= ' Optional JHS electives are in the catalogue; add per class if you offer them.';
+                }
+            } else {
+                $result = $sync->syncLevel(
+                    $validated['level'],
+                    $assignToClassrooms,
+                    $classroomIds,
+                );
 
-            $levelDisplayName = ucwords(str_replace('_', ' ', $levelType));
-            $message = count($createdSubjects) . ' CBC subjects generated successfully for ' . $levelDisplayName . ' (' . $selectedLevel . ').';
-            if ($assignToClassrooms) {
-                if (!empty($classroomIds)) {
-                    $message .= ' Assigned to ' . count($classroomIds) . ' classroom(s).';
-                } else {
-                    $message .= ' No classrooms matching this level were found, so subjects remain unassigned.';
+                $levelDisplayName = ucwords(str_replace('_', ' ', $result['level_type']));
+                $msg = 'Catalogue: '.$result['created'].' subject code(s). Band '.$levelDisplayName.' ('.$validated['level'].'): '.$result['codes_for_level'].' code(s) apply.';
+                if ($result['migrated_assignments'] > 0) {
+                    $msg .= ' '.$result['migrated_assignments'].' classroom assignment row(s) for core subjects.';
+                }
+                if ($assignToClassrooms) {
+                    if (($result['assign_classroom_count'] ?? 0) > 0) {
+                        $msg .= ' Matched '.(int) $result['assign_classroom_count'].' classroom(s).';
+                    } else {
+                        $msg .= ' No classrooms matched (set classroom level_type or pick classes).';
+                    }
+                }
+                if (in_array($validated['level'], ['Grade 7', 'Grade 8', 'Grade 9'], true)) {
+                    $msg .= ' Optional languages / IRE / HRE exist in the catalogue; assign per class if needed.';
                 }
             }
 
             return redirect()
                 ->route('academics.subjects.index')
-                ->with('success', $message);
+                ->with('success', $msg);
         } catch (\Exception $e) {
-            DB::rollBack();
             return back()
                 ->withInput()
                 ->with('error', 'Failed to generate subjects: ' . $e->getMessage());
@@ -384,7 +376,9 @@ class SubjectController extends Controller
         $assignments = $query
             ->orderBy('classroom_id')
             ->orderBy('subject_id')
-            ->orderBy('staff_id') // Order by staff_id to show all teachers for same subject-classroom
+            ->orderByRaw('stream_id IS NULL')
+            ->orderBy('stream_id')
+            ->orderBy('staff_id')
             ->paginate($perPage)
             ->withQueryString();
 
@@ -425,13 +419,25 @@ class SubjectController extends Controller
 
     public function saveTeacherAssignments(Request $request)
     {
+        $normalized = collect($request->input('assignments', []))
+            ->map(function ($v) {
+                if ($v === null || $v === '') {
+                    return null;
+                }
+
+                return (int) $v;
+            })
+            ->all();
+
+        $request->merge(['assignments' => $normalized]);
+
         $data = $request->validate([
             'assignments' => 'required|array|min:1',
             'assignments.*' => 'nullable|exists:staff,id',
         ]);
 
         $ids = collect(array_keys($data['assignments']))
-            ->map(fn($id) => (int) $id)
+            ->map(fn ($id) => (int) $id)
             ->filter()
             ->values();
 
@@ -441,271 +447,42 @@ class SubjectController extends Controller
 
         $assignmentModels = ClassroomSubject::whereIn('id', $ids)->get()->keyBy('id');
 
-        DB::transaction(function () use ($assignmentModels, $data) {
-            foreach ($data['assignments'] as $id => $staffId) {
-                $id = (int) $id;
-                if (!$assignmentModels->has($id)) {
-                    continue;
-                }
-
-                $assignment = $assignmentModels->get($id);
-                $staffId = $staffId ? (int) $staffId : null;
-
-                // If assigning a different teacher to the same subject-classroom combination
-                // and there's already a teacher assigned, create a new record instead of updating
-                if ($staffId && $assignment->staff_id && $assignment->staff_id != $staffId) {
-                    // Check if this teacher is already assigned to this subject-classroom combination
-                    $existingAssignment = ClassroomSubject::where('classroom_id', $assignment->classroom_id)
-                        ->where('subject_id', $assignment->subject_id)
-                        ->where('stream_id', $assignment->stream_id)
-                        ->where('staff_id', $staffId)
-                        ->where('academic_year_id', $assignment->academic_year_id)
-                        ->where('term_id', $assignment->term_id)
-                        ->first();
-
-                    if (!$existingAssignment) {
-                        // Create a new assignment for this teacher
-                        ClassroomSubject::create([
-                            'classroom_id' => $assignment->classroom_id,
-                            'subject_id' => $assignment->subject_id,
-                            'stream_id' => $assignment->stream_id,
-                            'staff_id' => $staffId,
-                            'academic_year_id' => $assignment->academic_year_id,
-                            'term_id' => $assignment->term_id,
-                            'is_compulsory' => $assignment->is_compulsory,
-                        ]);
+        try {
+            DB::transaction(function () use ($assignmentModels, $data) {
+                foreach ($data['assignments'] as $id => $staffId) {
+                    $id = (int) $id;
+                    if (! $assignmentModels->has($id)) {
+                        continue;
                     }
-                    // Keep the original assignment unchanged
-                } else {
-                    // Update the existing assignment
-                    $assignment->staff_id = $staffId;
-                    $assignment->save();
+
+                    $assignment = $assignmentModels->get($id);
+                    $assignment->update([
+                        'staff_id' => $staffId ?: null,
+                    ]);
                 }
-            }
-        });
+            });
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()
+                ->withInput()
+                ->with('error', 'Could not save teacher assignments: '.$e->getMessage());
+        }
 
         return back()->with('success', 'Subject teacher assignments updated successfully.');
     }
 
-    protected function resolveClassroomIdsForLevel(string $level): array
-    {
-        $normalized = Str::lower(trim($level));
-        if ($normalized === '') {
-            return [];
-        }
-
-        $query = Classroom::query();
-
-        // Map level values to level_type
-        $levelTypeMap = [
-            'preschool' => 'preschool',
-            'pre-primary' => 'preschool',
-            'pp1' => 'preschool',
-            'pp2' => 'preschool',
-            'lower primary' => 'lower_primary',
-            'lower_primary' => 'lower_primary',
-            'grade 1' => 'lower_primary',
-            'grade 2' => 'lower_primary',
-            'grade 3' => 'lower_primary',
-            'upper primary' => 'upper_primary',
-            'upper_primary' => 'upper_primary',
-            'grade 4' => 'upper_primary',
-            'grade 5' => 'upper_primary',
-            'grade 6' => 'upper_primary',
-            'junior high' => 'junior_high',
-            'junior_high' => 'junior_high',
-            'grade 7' => 'junior_high',
-            'grade 8' => 'junior_high',
-            'grade 9' => 'junior_high',
-        ];
-
-        // Check if it's a level type
-        if (isset($levelTypeMap[$normalized])) {
-            $levelType = $levelTypeMap[$normalized];
-            if (Schema::hasColumn('classrooms', 'level_type')) {
-                $query->where('level_type', $levelType);
-            }
-        } elseif (Schema::hasColumn('classrooms', 'level')) {
-            $query->whereRaw('LOWER(level) = ?', [$normalized]);
-        } elseif (Schema::hasColumn('classrooms', 'level_key')) {
-            $query->whereRaw('LOWER(level_key) = ?', [$normalized]);
-        } else {
-            // Fallback to name matching
-            $query->where(function ($q) use ($normalized) {
-                $like = $normalized . '%';
-                $q->whereRaw('LOWER(name) = ?', [$normalized])
-                  ->orWhereRaw('LOWER(name) LIKE ?', [$like])
-                  ->orWhereRaw('LOWER(name) LIKE ?', [$normalized . ' %'])
-                  ->orWhereRaw('LOWER(name) LIKE ?', ['% ' . $normalized])
-                  ->orWhereRaw('LOWER(name) LIKE ?', ['% ' . $normalized . ' %']);
-            });
-        }
-
-        return $query->pluck('id')->unique()->all();
-    }
-
     /**
-     * Get CBC subjects for a specific level
+     * Assign subjects to classrooms (one slot per stream when the class has streams).
      */
-    private function getCBCSubjectsForLevel($level)
-    {
-        $allSubjects = [
-            // Pre-Primary (PP1, PP2)
-            'PP1' => [
-                ['code' => 'LANG', 'name' => 'Language Activities', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematical Activities', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'ENV', 'name' => 'Environmental Activities', 'learning_area' => 'Environmental', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE Activities', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Psychomotor and Creative Activities', 'learning_area' => 'Physical', 'is_optional' => false],
-            ],
-            'PP2' => [
-                ['code' => 'LANG', 'name' => 'Language Activities', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematical Activities', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'ENV', 'name' => 'Environmental Activities', 'learning_area' => 'Environmental', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE Activities', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Psychomotor and Creative Activities', 'learning_area' => 'Physical', 'is_optional' => false],
-            ],
-            // Lower Primary (Grade 1-3)
-            'Grade 1' => [
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'ENV', 'name' => 'Environmental Activities', 'learning_area' => 'Environmental', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'ART', 'name' => 'Art and Craft', 'learning_area' => 'Creative', 'is_optional' => false],
-            ],
-            'Grade 2' => [
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'ENV', 'name' => 'Environmental Activities', 'learning_area' => 'Environmental', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'ART', 'name' => 'Art and Craft', 'learning_area' => 'Creative', 'is_optional' => false],
-            ],
-            'Grade 3' => [
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'ENV', 'name' => 'Environmental Activities', 'learning_area' => 'Environmental', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'ART', 'name' => 'Art and Craft', 'learning_area' => 'Creative', 'is_optional' => false],
-            ],
-            // Upper Primary (Grade 4-6)
-            'Grade 4' => [
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'SCI', 'name' => 'Science and Technology', 'learning_area' => 'Science', 'is_optional' => false],
-                ['code' => 'SS', 'name' => 'Social Studies', 'learning_area' => 'Social', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'ART', 'name' => 'Art and Craft', 'learning_area' => 'Creative', 'is_optional' => false],
-            ],
-            'Grade 5' => [
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'SCI', 'name' => 'Science and Technology', 'learning_area' => 'Science', 'is_optional' => false],
-                ['code' => 'SS', 'name' => 'Social Studies', 'learning_area' => 'Social', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'ART', 'name' => 'Art and Craft', 'learning_area' => 'Creative', 'is_optional' => false],
-            ],
-            'Grade 6' => [
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'SCI', 'name' => 'Science and Technology', 'learning_area' => 'Science', 'is_optional' => false],
-                ['code' => 'SS', 'name' => 'Social Studies', 'learning_area' => 'Social', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'ART', 'name' => 'Art and Craft', 'learning_area' => 'Creative', 'is_optional' => false],
-            ],
-            // Junior Secondary (Grade 7-9)
-            'Grade 7' => [
-                // Core (Mandatory)
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'INTSCI', 'name' => 'Integrated Science', 'learning_area' => 'Science', 'is_optional' => false],
-                ['code' => 'SS', 'name' => 'Social Studies', 'learning_area' => 'Social', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'LIFE', 'name' => 'Life Skills', 'learning_area' => 'Life Skills', 'is_optional' => false],
-                // Optional
-                ['code' => 'AGR', 'name' => 'Agriculture', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'HOME', 'name' => 'Home Science', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'COMP', 'name' => 'Computer Studies', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'BS', 'name' => 'Business Studies', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'VIS', 'name' => 'Visual Arts', 'learning_area' => 'Creative', 'is_optional' => true],
-                ['code' => 'PERF', 'name' => 'Performing Arts', 'learning_area' => 'Creative', 'is_optional' => true],
-                ['code' => 'FRE', 'name' => 'French', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'GER', 'name' => 'German', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'ARAB', 'name' => 'Arabic', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'MAND', 'name' => 'Mandarin', 'learning_area' => 'Language', 'is_optional' => true],
-            ],
-            'Grade 8' => [
-                // Core (Mandatory)
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'INTSCI', 'name' => 'Integrated Science', 'learning_area' => 'Science', 'is_optional' => false],
-                ['code' => 'SS', 'name' => 'Social Studies', 'learning_area' => 'Social', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'LIFE', 'name' => 'Life Skills', 'learning_area' => 'Life Skills', 'is_optional' => false],
-                // Optional
-                ['code' => 'AGR', 'name' => 'Agriculture', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'HOME', 'name' => 'Home Science', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'COMP', 'name' => 'Computer Studies', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'BS', 'name' => 'Business Studies', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'VIS', 'name' => 'Visual Arts', 'learning_area' => 'Creative', 'is_optional' => true],
-                ['code' => 'PERF', 'name' => 'Performing Arts', 'learning_area' => 'Creative', 'is_optional' => true],
-                ['code' => 'FRE', 'name' => 'French', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'GER', 'name' => 'German', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'ARAB', 'name' => 'Arabic', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'MAND', 'name' => 'Mandarin', 'learning_area' => 'Language', 'is_optional' => true],
-            ],
-            'Grade 9' => [
-                // Core (Mandatory)
-                ['code' => 'ENG', 'name' => 'English', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'KIS', 'name' => 'Kiswahili', 'learning_area' => 'Language', 'is_optional' => false],
-                ['code' => 'MATH', 'name' => 'Mathematics', 'learning_area' => 'Mathematics', 'is_optional' => false],
-                ['code' => 'INTSCI', 'name' => 'Integrated Science', 'learning_area' => 'Science', 'is_optional' => false],
-                ['code' => 'SS', 'name' => 'Social Studies', 'learning_area' => 'Social', 'is_optional' => false],
-                ['code' => 'CRE', 'name' => 'CRE', 'learning_area' => 'Religious', 'is_optional' => false],
-                ['code' => 'PE', 'name' => 'Physical Education', 'learning_area' => 'Physical', 'is_optional' => false],
-                ['code' => 'LIFE', 'name' => 'Life Skills', 'learning_area' => 'Life Skills', 'is_optional' => false],
-                // Optional
-                ['code' => 'AGR', 'name' => 'Agriculture', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'HOME', 'name' => 'Home Science', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'COMP', 'name' => 'Computer Studies', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'BS', 'name' => 'Business Studies', 'learning_area' => 'Applied', 'is_optional' => true],
-                ['code' => 'VIS', 'name' => 'Visual Arts', 'learning_area' => 'Creative', 'is_optional' => true],
-                ['code' => 'PERF', 'name' => 'Performing Arts', 'learning_area' => 'Creative', 'is_optional' => true],
-                ['code' => 'FRE', 'name' => 'French', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'GER', 'name' => 'German', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'ARAB', 'name' => 'Arabic', 'learning_area' => 'Language', 'is_optional' => true],
-                ['code' => 'MAND', 'name' => 'Mandarin', 'learning_area' => 'Language', 'is_optional' => true],
-            ],
-        ];
-
-        return $allSubjects[$level] ?? [];
-    }
-
-    /**
-     * Assign subjects to classrooms
-     */
-    public function assignToClassrooms(Request $request)
+    public function assignToClassrooms(Request $request, ClassroomSubjectSlotService $slots)
     {
         $validated = $request->validate([
             'subject_ids' => 'required|array',
             'subject_ids.*' => 'exists:subjects,id',
             'classroom_ids' => 'required|array',
             'classroom_ids.*' => 'exists:classrooms,id',
+            'staff_id' => 'nullable|exists:staff,id',
             'academic_year_id' => 'nullable|exists:academic_years,id',
             'term_id' => 'nullable|exists:terms,id',
             'is_compulsory' => 'nullable|boolean',
@@ -714,49 +491,28 @@ class SubjectController extends Controller
         DB::beginTransaction();
         try {
             $count = 0;
+            $staffId = isset($validated['staff_id']) ? (int) $validated['staff_id'] : null;
+            if ($staffId === 0) {
+                $staffId = null;
+            }
+            $yearId = $validated['academic_year_id'] ?? null;
+            $termId = $validated['term_id'] ?? null;
+
             foreach ($validated['subject_ids'] as $subjectId) {
-                $subject = Subject::find($subjectId);
+                $subject = Subject::findOrFail($subjectId);
+                $baseAttrs = [
+                    'is_compulsory' => $validated['is_compulsory'] ?? ! $subject->is_optional,
+                ];
+
                 foreach ($validated['classroom_ids'] as $classroomId) {
-                    // Check if staff_id is provided for this assignment
-                    $staffId = $validated['staff_id'] ?? null;
-                    
-                    // If staff_id is provided, create/update with that teacher
-                    // If not, create a record without a teacher (can be assigned later)
-                    if ($staffId) {
-                        ClassroomSubject::updateOrCreate(
-                            [
-                                'classroom_id' => $classroomId,
-                                'subject_id' => $subjectId,
-                                'staff_id' => $staffId,
-                                'academic_year_id' => $validated['academic_year_id'] ?? null,
-                                'term_id' => $validated['term_id'] ?? null,
-                            ],
-                            [
-                                'is_compulsory' => $validated['is_compulsory'] ?? !$subject->is_optional,
-                            ]
-                        );
-                    } else {
-                        // If no staff_id, check if a record already exists without a teacher
-                        // If it exists, don't create duplicate. If not, create one.
-                        $existing = ClassroomSubject::where('classroom_id', $classroomId)
-                            ->where('subject_id', $subjectId)
-                            ->whereNull('staff_id')
-                            ->where('academic_year_id', $validated['academic_year_id'] ?? null)
-                            ->where('term_id', $validated['term_id'] ?? null)
-                            ->first();
-                        
-                        if (!$existing) {
-                            ClassroomSubject::create([
-                                'classroom_id' => $classroomId,
-                                'subject_id' => $subjectId,
-                                'staff_id' => null,
-                                'academic_year_id' => $validated['academic_year_id'] ?? null,
-                                'term_id' => $validated['term_id'] ?? null,
-                                'is_compulsory' => $validated['is_compulsory'] ?? !$subject->is_optional,
-                            ]);
-                        }
-                    }
-                    $count++;
+                    $count += $slots->ensureSlotsWithStaff(
+                        (int) $classroomId,
+                        (int) $subjectId,
+                        $staffId ?: null,
+                        $yearId ? (int) $yearId : null,
+                        $termId ? (int) $termId : null,
+                        $baseAttrs
+                    );
                 }
             }
 
@@ -764,7 +520,7 @@ class SubjectController extends Controller
 
             return redirect()
                 ->route('academics.subjects.index')
-                ->with('success', "Successfully assigned {$count} subject(s) to classroom(s).");
+                ->with('success', "Successfully created or updated {$count} class/subject slot(s). Classes with streams get one slot per stream.");
         } catch (\Exception $e) {
             DB::rollBack();
             return back()

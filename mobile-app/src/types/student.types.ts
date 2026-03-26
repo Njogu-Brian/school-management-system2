@@ -141,3 +141,10 @@ export interface Stream {
     name: string;
     class_id: number;
 }
+
+/** Subject rows returned by GET /classes/{id}/subjects */
+export interface ClassSubject {
+    id: number;
+    name: string;
+    code?: string | null;
+}

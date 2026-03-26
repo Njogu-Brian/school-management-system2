@@ -6,6 +6,7 @@ import {
     UpdateStudentData,
     Class,
     Stream,
+    ClassSubject,
 } from '@types/student.types';
 import { ApiResponse, PaginatedResponse } from '@types/api.types';
 
@@ -68,6 +69,10 @@ export const studentsApi = {
     // Get streams for a class
     async getStreams(classId: number): Promise<ApiResponse<Stream[]>> {
         return apiClient.get<Stream[]>(`/classes/${classId}/streams`);
+    },
+
+    async getClassSubjects(classId: number): Promise<ApiResponse<ClassSubject[]>> {
+        return apiClient.get<ClassSubject[]>(`/classes/${classId}/subjects`);
     },
 
     // Bulk upload students

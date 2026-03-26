@@ -138,6 +138,18 @@ export const academicsApi = {
         return apiClient.get<PaginatedResponse<Assignment>>('/assignments', filters);
     },
 
+    async createAssignment(data: {
+        title: string;
+        instructions?: string;
+        due_date: string;
+        classroom_id: number;
+        subject_id: number;
+        stream_id?: number | null;
+        max_score?: number | null;
+    }): Promise<ApiResponse<Assignment>> {
+        return apiClient.post<Assignment>('/assignments', data);
+    },
+
     async getAssignment(id: number): Promise<ApiResponse<Assignment>> {
         return apiClient.get<Assignment>(`/assignments/${id}`);
     },

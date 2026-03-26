@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, Text } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -20,6 +21,8 @@ import { NotificationsScreen } from '@screens/Communication/NotificationsScreen'
 import { SettingsScreen } from '@screens/Settings/SettingsScreen';
 import { LessonPlansScreen } from '@screens/Academics/LessonPlansScreen';
 import { DiaryScreen } from '@screens/Academics/DiaryScreen';
+import { CreateAssignmentScreen } from '@screens/Academics/CreateAssignmentScreen';
+import { AssignmentDetailScreen } from '@screens/Academics/AssignmentDetailScreen';
 import { MyProfileScreen } from '@screens/HR/MyProfileScreen';
 import { MySalaryScreen } from '@screens/HR/MySalaryScreen';
 import { LeaveManagementScreen } from '@screens/HR/LeaveManagementScreen';
@@ -35,7 +38,11 @@ import { useTheme } from '@contexts/ThemeContext';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const PlaceholderScreen = () => null;
+const ComingSoonScreen = () => (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        <Text style={{ textAlign: 'center' }}>This screen is not available in the app yet.</Text>
+    </View>
+);
 
 function TeacherTabs() {
     const { isDark, colors } = useTheme();
@@ -106,7 +113,7 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />
             <Stack.Screen name="ExamsList" component={ExamsListScreen} />
             <Stack.Screen name="ExamMarksSetup" component={ExamMarksSetupScreen} />
-            <Stack.Screen name="ExamDetail" component={PlaceholderScreen} />
+            <Stack.Screen name="ExamDetail" component={ComingSoonScreen} />
             <Stack.Screen name="ReportCard" component={ReportCardScreen} />
             <Stack.Screen name="Transport" component={RoutesListScreen} />
             <Stack.Screen name="RouteDetail" component={RouteDetailScreen} />
@@ -121,9 +128,9 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="FeeBalances" component={FeeBalancesScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="AssignmentDetail" component={PlaceholderScreen} />
-            <Stack.Screen name="CreateAssignment" component={PlaceholderScreen} />
-            <Stack.Screen name="LessonPlanDetail" component={PlaceholderScreen} />
+            <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
+            <Stack.Screen name="CreateAssignment" component={CreateAssignmentScreen} />
+            <Stack.Screen name="LessonPlanDetail" component={ComingSoonScreen} />
         </Stack.Navigator>
     );
 };

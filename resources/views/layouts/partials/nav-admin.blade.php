@@ -158,7 +158,6 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     $academicsActive = Request::is('academics/classrooms*')
         || Request::is('academics/streams*')
         || Request::is('academics/subjects*')
-        || Request::is('academics/subject_groups*')
         || Request::is('academics/assign-teachers*')
         || Request::is('academics/promotions*');
 @endphp
@@ -172,7 +171,6 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     <a href="{{ route('academics.subjects.teacher-assignments') }}" class="sublink {{ Request::is('academics/subjects/teacher-assignments*') ? 'active' : '' }}">
         <i class="bi bi-person-lines-fill"></i> Subject Teacher Map
     </a>
-    <a href="{{ route('academics.subject_groups.index') }}" class="{{ Request::is('academics/subject_groups*') ? 'active' : '' }}">Subject Groups</a>
     <a href="{{ route('academics.assign-teachers') }}" class="{{ Request::is('academics/assign-teachers*') ? 'active' : '' }}">
         <i class="bi bi-person-check"></i> Assign Teachers
     </a>

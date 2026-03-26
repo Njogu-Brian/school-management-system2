@@ -36,7 +36,7 @@ class ApiStaffController extends Controller
         if ($user->staff && (int) $user->staff->id === $staffId) {
             return;
         }
-        if ($user->hasRole('Senior Teacher') && $user->isSupervisingStaff($staffId)) {
+        if ($user->isSeniorTeacherUser() && $user->isSupervisingStaff($staffId)) {
             return;
         }
         abort(403, 'You do not have permission to view this staff profile.');
@@ -277,7 +277,7 @@ class ApiStaffController extends Controller
         $staff = Staff::findOrFail($id);
 
         $request->validate([
-            'photo' => 'required|image|mimes:jpeg,jpg,png|max:2048',
+            'photo' => 'required|image|max:5120',
         ]);
 
         if ($staff->photo && storage_public()->exists($staff->photo)) {

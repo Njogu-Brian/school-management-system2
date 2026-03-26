@@ -7,6 +7,7 @@ use App\Models\Academics\Exam;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Subject;
+use App\Models\Academics\Stream;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ class ExamController extends Controller
     public function __construct()
     {
         $this->middleware('permission:exams.view')->only(['index', 'show', 'timetable']);
-        $this->middleware('permission:exams.create')->only(['create', 'store']);
+        $this->middleware('permission:exams.create')->only(['create', 'store', 'createBulk', 'storeBulk']);
         $this->middleware('permission:exams.edit')->only(['edit', 'update']);
         $this->middleware('permission:exams.delete')->only(['destroy']);
         $this->middleware('permission:exams.publish')->only(['publish']);
@@ -187,6 +188,10 @@ class ExamController extends Controller
 
     public function store(Request $request)
     {
+        $request->merge([
+            'exam_type_id' => $request->filled('exam_type_id') ? $request->exam_type_id : null,
+        ]);
+
         $v = $request->validate([
             'name'             => 'required|string|max:255',
             'type'             => 'required|in:cat,midterm,endterm,sba,mock,quiz',
@@ -202,6 +207,7 @@ class ExamController extends Controller
             'weight'           => 'required|numeric|min:0|max:100',
             'publish_exam'     => 'boolean',
             'publish_result'   => 'boolean',
+            'exam_type_id'     => 'nullable|exists:exam_types,id',
         ]);
 
         // Check if teacher or senior teacher has access to classroom
@@ -269,6 +275,10 @@ class ExamController extends Controller
 
     public function update(Request $request, Exam $exam)
     {
+        $request->merge([
+            'exam_type_id' => $request->filled('exam_type_id') ? $request->exam_type_id : null,
+        ]);
+
         // Check if teacher has access to this exam's classroom
         if (Auth::user()->hasRole('Teacher')) {
             $staff = Auth::user()->staff;
@@ -304,6 +314,7 @@ class ExamController extends Controller
             'status'           => 'required|in:draft,open,marking,moderation,approved,published,locked',
             'publish_exam'     => 'boolean',
             'publish_result'   => 'boolean',
+            'exam_type_id'     => 'nullable|exists:exam_types,id',
         ]);
 
         // Validate status transition
@@ -404,5 +415,153 @@ class ExamController extends Controller
         ];
 
         return view('academics.exams.show', compact('exam', 'stats'));
+    }
+
+    /**
+     * Create the same exam definition for many class + subject pairs at once.
+     */
+    public function createBulk()
+    {
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+            }
+        } else {
+            $classrooms = Classroom::orderBy('name')->get();
+        }
+
+        return view('academics.exams.bulk_create', [
+            'years'      => AcademicYear::orderByDesc('year')->get(),
+            'terms'      => Term::orderBy('name')->get(),
+            'classrooms' => $classrooms,
+            'subjects'   => Subject::active()->orderBy('name')->get(),
+            'types'      => ExamType::orderBy('name')->get(),
+            'streams'    => Stream::orderBy('name')->get(),
+        ]);
+    }
+
+    public function storeBulk(Request $request)
+    {
+        $request->merge([
+            'exam_type_id' => $request->filled('exam_type_id') ? $request->exam_type_id : null,
+            'stream_id'    => $request->filled('stream_id') ? $request->stream_id : null,
+        ]);
+
+        $v = $request->validate([
+            'name_template'      => 'required|string|max:240',
+            'type'               => 'required|in:cat,midterm,endterm,sba,mock,quiz',
+            'modality'           => 'required|in:physical,online',
+            'academic_year_id'   => 'required|exists:academic_years,id',
+            'term_id'            => 'required|exists:terms,id',
+            'classroom_ids'      => 'required|array|min:1',
+            'classroom_ids.*'    => 'exists:classrooms,id',
+            'use_all_subjects'   => 'boolean',
+            'subject_ids'        => 'nullable|array',
+            'subject_ids.*'      => 'exists:subjects,id',
+            'stream_id'          => 'nullable|exists:streams,id',
+            'starts_on'          => 'nullable|date',
+            'ends_on'            => 'nullable|date|after_or_equal:starts_on',
+            'max_marks'          => 'required|numeric|min:1',
+            'weight'             => 'required|numeric|min:0|max:100',
+            'publish_exam'       => 'boolean',
+            'publish_result'     => 'boolean',
+            'exam_type_id'       => 'nullable|exists:exam_types,id',
+        ]);
+
+        $useAllSubjects = $request->boolean('use_all_subjects');
+
+        if (!$useAllSubjects && empty($v['subject_ids'])) {
+            return back()
+                ->withInput()
+                ->with('error', 'Select at least one subject, or turn on “Use each class’s assigned subjects”.');
+        }
+
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $assignedClassroomIds = $isTeacher ? $user->getAssignedClassroomIds() : null;
+
+        foreach ($v['classroom_ids'] as $cid) {
+            if ($isTeacher && $assignedClassroomIds !== null && !in_array((int) $cid, array_map('intval', $assignedClassroomIds), true)) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'You do not have access to one of the selected classrooms.');
+            }
+        }
+
+        $pairs = [];
+        foreach ($v['classroom_ids'] as $classroomId) {
+            if ($useAllSubjects) {
+                $subIds = DB::table('classroom_subjects')
+                    ->where('classroom_id', $classroomId)
+                    ->pluck('subject_id')
+                    ->unique()
+                    ->filter()
+                    ->values()
+                    ->all();
+                if ($subIds === []) {
+                    continue;
+                }
+                foreach ($subIds as $sid) {
+                    $pairs[] = ['classroom_id' => (int) $classroomId, 'subject_id' => (int) $sid];
+                }
+            } else {
+                foreach ($v['subject_ids'] ?? [] as $sid) {
+                    $pairs[] = ['classroom_id' => (int) $classroomId, 'subject_id' => (int) $sid];
+                }
+            }
+        }
+
+        if ($pairs === []) {
+            return back()
+                ->withInput()
+                ->with('error', 'No class/subject combinations to create. Check subject assignments for the selected classes.');
+        }
+
+        $classNames = Classroom::whereIn('id', $v['classroom_ids'])->pluck('name', 'id');
+        $subjectNames = Subject::whereIn('id', array_unique(array_column($pairs, 'subject_id')))->pluck('name', 'id');
+
+        $created = 0;
+        $publishExam   = $request->boolean('publish_exam');
+        $publishResult = $request->boolean('publish_result');
+
+        DB::transaction(function () use ($v, $pairs, $classNames, $subjectNames, $publishExam, $publishResult, &$created) {
+            foreach ($pairs as $pair) {
+                $cid = $pair['classroom_id'];
+                $sid = $pair['subject_id'];
+                $classLabel = $classNames[$cid] ?? (string) $cid;
+                $subLabel = $subjectNames[$sid] ?? (string) $sid;
+                $name = $v['name_template'].' — '.$classLabel.' — '.$subLabel;
+
+                Exam::create([
+                    'name'             => $name,
+                    'type'             => $v['type'],
+                    'modality'         => $v['modality'],
+                    'academic_year_id' => $v['academic_year_id'],
+                    'term_id'          => $v['term_id'],
+                    'classroom_id'     => $cid,
+                    'stream_id'        => ! empty($v['stream_id']) ? $v['stream_id'] : null,
+                    'subject_id'       => $sid,
+                    'starts_on'        => $v['starts_on'] ?? null,
+                    'ends_on'          => $v['ends_on'] ?? null,
+                    'max_marks'        => $v['max_marks'],
+                    'weight'           => $v['weight'],
+                    'publish_exam'     => $publishExam,
+                    'publish_result'   => $publishResult,
+                    'exam_type_id'     => ! empty($v['exam_type_id']) ? $v['exam_type_id'] : null,
+                    'created_by'       => Auth::id(),
+                    'status'           => 'draft',
+                ]);
+                $created++;
+            }
+        });
+
+        return redirect()
+            ->route('academics.exams.index')
+            ->with('success', $created.' exam(s) created. Each is draft — open scheduling and marking when ready.');
     }
 }

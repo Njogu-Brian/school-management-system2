@@ -13,7 +13,10 @@
         <h1 class="mb-1">Exams Management</h1>
         <p class="text-muted mb-0">Create, schedule, enter marks, and publish exams.</p>
       </div>
-      <a href="{{ route('academics.exams.create') }}" class="btn btn-settings-primary"><i class="bi bi-plus-circle"></i> New Exam</a>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ route('academics.exams.bulk-create') }}" class="btn btn-ghost-strong"><i class="bi bi-layers"></i> Bulk create</a>
+        <a href="{{ route('academics.exams.create') }}" class="btn btn-settings-primary"><i class="bi bi-plus-circle"></i> New Exam</a>
+      </div>
     </div>
 
     @if(session('success'))

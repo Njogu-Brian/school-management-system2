@@ -37,14 +37,6 @@
             </div>
             <div class="row mb-3">
               <div class="col-md-6">
-                <strong>Group:</strong>
-                @if($subject->group)
-                  <span class="pill-badge pill-info">{{ $subject->group->name }}</span>
-                @else
-                  <span class="text-muted">—</span>
-                @endif
-              </div>
-              <div class="col-md-6">
                 <strong>Level:</strong>
                 @if($subject->level)
                   <span class="pill-badge pill-secondary">{{ $subject->level }}</span>
@@ -52,9 +44,9 @@
                   <span class="text-muted">—</span>
                 @endif
               </div>
+              <div class="col-md-6"><strong>Learning Area:</strong> {{ $subject->learning_area ?? '—' }}</div>
             </div>
             <div class="row mb-3">
-              <div class="col-md-6"><strong>Learning Area:</strong> {{ $subject->learning_area ?? '—' }}</div>
               <div class="col-md-6">
                 <strong>Type:</strong>
                 @if($subject->is_optional)
@@ -63,8 +55,6 @@
                   <span class="pill-badge pill-success">Mandatory</span>
                 @endif
               </div>
-            </div>
-            <div class="row">
               <div class="col-md-6">
                 <strong>Status:</strong>
                 @if($subject->is_active)

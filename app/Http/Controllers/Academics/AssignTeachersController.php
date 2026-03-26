@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
-use App\Models\Academics\Stream;
 use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AssignTeachersController extends Controller
 {
@@ -28,7 +30,7 @@ class AssignTeachersController extends Controller
     /**
      * Assign teachers directly to a classroom (for classes without streams)
      */
-    public function assignToClassroom(\Illuminate\Http\Request $request, $id)
+    public function assignToClassroom(Request $request, $id)
     {
         $classroom = Classroom::findOrFail($id);
         
@@ -41,5 +43,32 @@ class AssignTeachersController extends Controller
 
         return redirect()->route('academics.assign-teachers')
             ->with('success', 'Teachers assigned to ' . $classroom->name . ' successfully.');
+    }
+
+    /**
+     * Remove all teachers assigned to classrooms (classroom_teacher) and streams (stream_teacher).
+     */
+    public function clearAllAssignments(Request $request)
+    {
+        $request->validate([
+            'confirm_clear' => 'required|in:CLEARALL',
+        ]);
+
+        Schema::disableForeignKeyConstraints();
+
+        try {
+            if (Schema::hasTable('classroom_teacher')) {
+                DB::table('classroom_teacher')->delete();
+            }
+            if (Schema::hasTable('stream_teacher')) {
+                DB::table('stream_teacher')->delete();
+            }
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
+
+        return redirect()
+            ->route('academics.assign-teachers')
+            ->with('success', 'All classroom and stream teacher assignments have been cleared. You can assign teachers again.');
     }
 }

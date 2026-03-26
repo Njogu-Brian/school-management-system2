@@ -53,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/classes', [\App\Http\Controllers\Api\ApiClassroomController::class, 'index']);
     Route::get('/classes/{classId}/streams', [\App\Http\Controllers\Api\ApiClassroomController::class, 'streams']);
+    Route::get('/classes/{classId}/subjects', [\App\Http\Controllers\Api\ApiClassroomController::class, 'subjects']);
     Route::get('/staff', [\App\Http\Controllers\Api\ApiStaffController::class, 'index']);
     Route::get('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'show']);
     Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);
@@ -78,6 +79,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/timetables/teacher/{staffId}', [\App\Http\Controllers\Api\ApiTimetableController::class, 'teacher']);
 
     Route::get('/assignments', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'index']);
+    Route::post('/assignments', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'store']);
+    Route::get('/assignments/{id}', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'show']);
     Route::get('/lesson-plans', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'index']);
 
     Route::get('/exams', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'exams']);

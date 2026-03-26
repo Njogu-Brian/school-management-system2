@@ -30,6 +30,8 @@ import { ApplyLeaveScreen } from '@screens/HR/ApplyLeaveScreen';
 import { TimetableScreen } from '@screens/Academics/TimetableScreen';
 import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
 import { AssignmentsScreen } from '@screens/Academics/AssignmentsScreen';
+import { CreateAssignmentScreen } from '@screens/Academics/CreateAssignmentScreen';
+import { AssignmentDetailScreen } from '@screens/Academics/AssignmentDetailScreen';
 
 const Stack = createStackNavigator();
 
@@ -73,9 +75,9 @@ export const AcademicsNavigator = () => {
             <Stack.Screen name="ExamDetail" component={PlaceholderScreen} />
             <Stack.Screen name="CreateExam" component={PlaceholderScreen} />
             <Stack.Screen name="ViewMarks" component={PlaceholderScreen} />
-            <Stack.Screen name="CreateAssignment" component={PlaceholderScreen} />
-            <Stack.Screen name="AssignmentDetail" component={PlaceholderScreen} />
-            <Stack.Screen name="ViewAssignment" component={PlaceholderScreen} />
+            <Stack.Screen name="CreateAssignment" component={CreateAssignmentScreen} />
+            <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
+            <Stack.Screen name="ViewAssignment" component={AssignmentDetailScreen} />
         </Stack.Navigator>
     );
 };

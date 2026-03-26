@@ -11,7 +11,6 @@ class Subject extends Model
     protected $fillable = [
         'code',
         'name',
-        'subject_group_id',
         'learning_area',
         'level',
         'is_active',
@@ -24,11 +23,6 @@ class Subject extends Model
         'is_optional' => 'boolean',
         'meta' => 'array',
     ];
-    
-    public function group()
-    {
-        return $this->belongsTo(SubjectGroup::class, 'subject_group_id');
-    }
 
     public function classrooms()
     {
@@ -66,10 +60,5 @@ class Subject extends Model
     public function scopeForLevel(Builder $query, $level)
     {
         return $query->where('level', $level);
-    }
-
-    public function scopeInGroup(Builder $query, $groupId)
-    {
-        return $query->where('subject_group_id', $groupId);
     }
 }

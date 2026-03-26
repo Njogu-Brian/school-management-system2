@@ -11,7 +11,7 @@
       <div>
         <div class="crumb">Academics</div>
         <h1 class="mb-1">Subjects Management</h1>
-        <p class="text-muted mb-0">Create, group, and assign subjects to classrooms and teachers.</p>
+        <p class="text-muted mb-0">Create and assign subjects to classrooms and teachers.</p>
       </div>
       <div class="d-flex flex-wrap gap-2">
         <a href="{{ route('academics.subjects.teacher-assignments') }}" class="btn btn-ghost-strong">
@@ -43,18 +43,9 @@
     <div class="settings-card mb-3">
       <div class="card-body">
         <form method="GET" action="{{ route('academics.subjects.index') }}" class="row g-3 align-items-end">
-          <div class="col-md-3">
+          <div class="col-md-4">
             <label class="form-label">Search</label>
             <input type="text" name="search" class="form-control" value="{{ request('search') }}" placeholder="Name, Code, Learning Area...">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Group</label>
-            <select name="group_id" class="form-select">
-              <option value="">All Groups</option>
-              @foreach($groups as $group)
-                <option value="{{ $group->id }}" {{ request('group_id') == $group->id ? 'selected' : '' }}>{{ $group->name }}</option>
-              @endforeach
-            </select>
           </div>
           <div class="col-md-2">
             <label class="form-label">Level</label>
@@ -94,7 +85,7 @@
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
           <h5 class="mb-0">Subjects</h5>
-          <p class="text-muted small mb-0">Group, level, and classroom coverage.</p>
+          <p class="text-muted small mb-0">Level and classroom coverage.</p>
         </div>
         <span class="input-chip">{{ $subjects->total() ?? $subjects->count() }} total</span>
       </div>
@@ -105,7 +96,6 @@
               <tr>
                 <th>Code</th>
                 <th>Name</th>
-                <th>Group</th>
                 <th>Level</th>
                 <th>Learning Area</th>
                 <th>Type</th>
@@ -119,13 +109,6 @@
               <tr>
                 <td class="fw-semibold">{{ $subject->code }}</td>
                 <td>{{ $subject->name }}</td>
-                <td>
-                  @if($subject->group)
-                    <span class="pill-badge pill-info">{{ $subject->group->name }}</span>
-                  @else
-                    <span class="text-muted">—</span>
-                  @endif
-                </td>
                 <td>
                   @if($subject->level)
                     <span class="pill-badge pill-secondary">{{ $subject->level }}</span>
@@ -189,7 +172,7 @@
               </tr>
               @empty
               <tr>
-                <td colspan="9" class="text-center py-4 text-muted">
+                <td colspan="8" class="text-center py-4 text-muted">
                   <i class="bi bi-inbox"></i> No subjects found
                 </td>
               </tr>
@@ -219,7 +202,9 @@
             <label class="form-label">Level <span class="text-danger">*</span></label>
             <select name="level" class="form-select" required>
               <option value="">Select Level</option>
+              <option value="all">All levels (Foundation → Grade 9)</option>
               <optgroup label="Pre-Primary">
+                <option value="Foundation">Foundation</option>
                 <option value="PP1">PP1</option>
                 <option value="PP2">PP2</option>
               </optgroup>
@@ -239,7 +224,7 @@
                 <option value="Grade 9">Grade 9</option>
               </optgroup>
             </select>
-            <small class="text-muted">Select the grade level to generate subjects for</small>
+            <small class="text-muted">Choose one grade or <strong>All levels</strong> to run every band in one go (same as <code>php artisan cbc:sync-rationalized-subjects all</code>).</small>
           </div>
 
           <div class="mb-3">
@@ -260,8 +245,23 @@
             <small class="text-muted">Hold Ctrl/Cmd to select multiple classrooms</small>
           </div>
 
+          <div class="mb-3 border-top pt-3">
+            <div class="form-check">
+              <input type="checkbox" name="wipe_all" id="wipe_all" value="1" class="form-check-input">
+              <label class="form-check-label text-danger fw-semibold" for="wipe_all">Wipe all subject data and rebuild catalogue</label>
+            </div>
+            <small class="text-muted d-block mb-2">Removes every subject and related records (exams, marks, homework, timetables, schemes, lesson plans, class assignments, etc.), then seeds one row per code (ENG, MATH, …). Use only when you accept losing that data.</small>
+            <div id="wipe-confirm-block" style="display: none;">
+              <label class="form-label">Type <code>WIPESUBJECTS</code> to confirm</label>
+              <input type="text" name="wipe_confirm" id="wipe_confirm" class="form-control" placeholder="WIPESUBJECTS" autocomplete="off">
+              @error('wipe_confirm')
+                <div class="text-danger small mt-1">{{ $message }}</div>
+              @enderror
+            </div>
+          </div>
+
           <div class="alert alert-soft border-0 alert-info">
-            <i class="bi bi-info-circle"></i> This will create all CBC/CBE subjects for the selected level. Optional subjects for Junior High will be marked as optional automatically.
+            <i class="bi bi-info-circle"></i> Subjects use <strong>one code for all levels</strong> (e.g. ENG). “Assign” links <strong>core</strong> subjects per band from classroom <code>level_type</code>. JHS optional languages / IRE / HRE are in the catalogue—add per class if needed.
           </div>
         </div>
         <div class="modal-footer border-0 pt-0">
@@ -278,6 +278,13 @@
 @push('scripts')
 <script>
   document.addEventListener('DOMContentLoaded', () => {
+    const wipeCb = document.getElementById('wipe_all');
+    const wipeBlock = document.getElementById('wipe-confirm-block');
+    if (wipeCb && wipeBlock) {
+      wipeCb.addEventListener('change', () => {
+        wipeBlock.style.display = wipeCb.checked ? 'block' : 'none';
+      });
+    }
     const checkbox = document.getElementById('assign_to_classrooms');
     const selectBlock = document.getElementById('classrooms-select');
     if (checkbox && selectBlock) {

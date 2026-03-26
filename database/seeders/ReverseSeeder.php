@@ -74,7 +74,6 @@ class ReverseSeeder extends Seeder
             'learning_areas',
             'exam_grades',
             'subjects',
-            'subject_groups',
             'grading_schemes',
             'grading_scheme_mappings',
             'grading_bands',
