@@ -39,7 +39,8 @@ class ClassroomSubjectSlotService
     }
 
     /**
-     * Upsert a single slot matching the unique key (classroom, stream, subject, staff, year, term).
+     * Upsert a single slot: unique key is (classroom, stream, subject, year, term) — not staff_id.
+     * Staff is updated when $staffId is non-null; passing null preserves an existing teacher on update.
      *
      * @param  array{is_compulsory?: bool, lessons_per_week?: int|null}  $attrs
      */
@@ -62,12 +63,6 @@ class ClassroomSubjectSlotService
             $q->where('stream_id', $streamId);
         }
 
-        if ($staffId === null) {
-            $q->whereNull('staff_id');
-        } else {
-            $q->where('staff_id', $staffId);
-        }
-
         if ($academicYearId === null) {
             $q->whereNull('academic_year_id');
         } else {
@@ -83,7 +78,11 @@ class ClassroomSubjectSlotService
         $row = $q->first();
 
         if ($row) {
-            $row->update($attrs);
+            $payload = $attrs;
+            if ($staffId !== null) {
+                $payload['staff_id'] = $staffId;
+            }
+            $row->update($payload);
         } else {
             ClassroomSubject::create(array_merge([
                 'classroom_id' => $classroomId,
