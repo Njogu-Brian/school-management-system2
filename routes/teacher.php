@@ -19,7 +19,7 @@ use App\Http\Controllers\CommunicationAnnouncementController;
 use App\Http\Controllers\EventCalendarController;
 use App\Http\Controllers\Teacher\AdvanceRequestController;
 
-Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher'])->group(function () {
+Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor'])->group(function () {
 
     // Dashboard
     Route::get('/teacher/home', [DashboardController::class, 'teacherDashboard'])

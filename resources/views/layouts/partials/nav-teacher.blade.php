@@ -72,14 +72,6 @@
      class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}">
     <i class="bi bi-calendar-check"></i> Mark Attendance
   </a>
-  <a href="{{ route('swimming.attendance.index') }}"
-     class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}">
-    <i class="bi bi-journal-text"></i> View Records
-  </a>
-  <a href="{{ route('swimming.wallets.index') }}"
-     class="sublink {{ Request::is('swimming/wallets*') ? 'active' : '' }}">
-    <i class="bi bi-wallet2"></i> Wallets
-  </a>
 </div>
 
 {{-- Exam Marks --}}

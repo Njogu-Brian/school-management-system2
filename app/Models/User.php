@@ -41,6 +41,21 @@ class User extends Authenticatable
         return $this->hasAnyRole(self::teacherLikeRoleNames());
     }
 
+    /**
+     * HR may assign teaching duties via classroom/subject/stream pivots while Spatie role names differ.
+     */
+    public function hasTeachingAssignments(): bool
+    {
+        if (! $this->staff) {
+            return false;
+        }
+
+        return \Illuminate\Support\Facades\DB::table('classroom_teacher')->where('teacher_id', $this->id)->exists()
+            || \Illuminate\Support\Facades\DB::table('classroom_subjects')->where('staff_id', $this->staff->id)->exists()
+            || \Illuminate\Support\Facades\DB::table('stream_teacher')->where('teacher_id', $this->id)->exists()
+            || \Illuminate\Support\Facades\DB::table('subject_teacher')->where('teacher_id', $this->id)->exists();
+    }
+
     public function isSeniorTeacherUser(): bool
     {
         return $this->hasAnyRole(['Senior Teacher', 'senior teacher', 'Senior teacher']);

@@ -15,6 +15,24 @@ class DirectorRoleMiddleware
             return $next($request);
         }
 
+        $rolesString = implode('|', $roles);
+        if ($user && $this->routeAllowsTeachingStaff($rolesString)
+            && ($user->hasTeacherLikeRole() || $user->hasTeachingAssignments())) {
+            return $next($request);
+        }
+
         return app(RoleMiddleware::class)->handle($request, $next, ...$roles);
+    }
+
+    /**
+     * When a route lists Teacher/Senior Teacher etc., allow users with teaching assignments
+     * even if Spatie role names from HR do not match exactly.
+     */
+    private function routeAllowsTeachingStaff(string $rolesString): bool
+    {
+        return str_contains($rolesString, 'Teacher')
+            || str_contains($rolesString, 'teacher')
+            || str_contains($rolesString, 'Senior Teacher')
+            || str_contains($rolesString, 'Supervisor');
     }
 }

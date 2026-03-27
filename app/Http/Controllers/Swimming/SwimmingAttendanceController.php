@@ -51,9 +51,8 @@ class SwimmingAttendanceController extends Controller
             abort(403, 'You do not have access to this classroom.');
         }
         
-        // Get students in class
-        $students = Student::where('classroom_id', $classroom->id)
-            ->where('archive', 0)
+        // Students in this class, scoped to teacher streams/assignments (not whole grade when only one stream)
+        $students = $this->studentsQueryForSwimming($user, $classroom)
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();
@@ -102,6 +101,9 @@ class SwimmingAttendanceController extends Controller
         
         // Convert student IDs to integers for proper comparison
         $studentIds = array_map('intval', $studentIds);
+
+        $allowedIds = $this->studentsQueryForSwimming($user, $classroom)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $studentIds = array_values(array_intersect($studentIds, $allowedIds));
         
         try {
             // Use sync method to handle both marking new and unmarking removed students
@@ -398,6 +400,24 @@ class SwimmingAttendanceController extends Controller
             return redirect()->back()
                 ->with('error', 'Failed to send payment reminders: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Students this user may mark swimming for in the given classroom (stream-aware for teachers).
+     */
+    protected function studentsQueryForSwimming($user, Classroom $classroom)
+    {
+        $q = Student::query()
+            ->where('classroom_id', $classroom->id)
+            ->where('archive', 0);
+
+        if ($user->hasAnyRole(['Super Admin', 'Admin'])) {
+            return $q;
+        }
+
+        $user->applyTeacherStudentFilter($q);
+
+        return $q;
     }
 
     /**

@@ -44,7 +44,7 @@ class LessonPlanController extends Controller
         $query = LessonPlan::with(['subject', 'classroom', 'academicYear', 'term', 'substrand', 'creator']);
 
         // Teachers can only see their assigned classes
-        if (Auth::user()->hasRole('Teacher') && !is_supervisor()) {
+        if (Auth::user()->hasTeacherLikeRole() && !is_supervisor()) {
             $staff = Auth::user()->staff;
             if ($staff) {
                 $assignedClassroomIds = DB::table('classroom_subjects')

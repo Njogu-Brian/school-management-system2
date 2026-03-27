@@ -212,8 +212,9 @@ class DashboardController extends Controller
         }
         
         if (SchoolDay::isSchoolDay($today)) {
-            $presentToday = (clone $attendanceQuery)->where('status', 'present')->count();
-            $absentToday = (clone $attendanceQuery)->where('status', 'absent')->count();
+            // Count distinct students (attendance can have multiple rows per student per day, e.g. per period/subject)
+            $presentToday = $this->countDistinctAttendanceStudents($attendanceQuery, 'present');
+            $absentToday = $this->countDistinctAttendanceStudents($attendanceQuery, 'absent');
         } else {
             $presentToday = 0;
             $absentToday = 0;
@@ -425,8 +426,8 @@ class DashboardController extends Controller
                 $attendancePresent[] = 0;
                 $attendanceAbsent[] = 0;
             } else {
-                $attendancePresent[] = (clone $dayQuery)->where('status', 'present')->count();
-                $attendanceAbsent[] = (clone $dayQuery)->where('status', 'absent')->count();
+                $attendancePresent[] = $this->countDistinctAttendanceStudents($dayQuery, 'present');
+                $attendanceAbsent[] = $this->countDistinctAttendanceStudents($dayQuery, 'absent');
             }
         }
         
@@ -619,6 +620,11 @@ class DashboardController extends Controller
             ->get();
 
         // Upcoming: Exams (starts_on) + Birthdays (no Event model)
+        // Teachers: birthdays only for students in assigned classrooms/streams (same scope as KPIs)
+        $birthdayStudentQuery = ($role === 'teacher' && $assignedClassroomIds !== null)
+            ? (clone $studentBase)->whereNotNull('dob')
+            : Student::query()->whereNotNull('dob');
+
         $upcoming = collect()
             ->merge(
                 Exam::select('name as title', 'starts_on as date')
@@ -629,7 +635,7 @@ class DashboardController extends Controller
                     ->map(fn($e) => ['title' => 'Exam: ' . $e->title, 'date' => $e->date, 'meta' => 'Exam'])
             )
             ->merge(
-                Student::whereNotNull('dob')->get()
+                $birthdayStudentQuery->get()
                     ->filter(function ($s) {
                         $d = Carbon::parse($s->dob)->setYear(now()->year);
                         return $d->between(now(), now()->addDays(14));
@@ -734,6 +740,19 @@ class DashboardController extends Controller
     }
 
     /**
+     * Count distinct students for an attendance query (avoids per-period rows inflating totals).
+     */
+    private function countDistinctAttendanceStudents($query, string $status): int
+    {
+        $value = (clone $query)
+            ->where('status', $status)
+            ->selectRaw('COUNT(DISTINCT student_id) as aggregate')
+            ->value('aggregate');
+
+        return (int) ($value ?? 0);
+    }
+
+    /**
      * Build teacher-specific dashboard data
      */
     private function buildTeacherSpecificData(Request $request): array
@@ -758,11 +777,30 @@ class DashboardController extends Controller
         $currentTerm = $currentYear ? $this->resolveDefaultTermForYear($currentYear->id) : null;
         
         // Get assigned classes and subjects from classroom_subjects
-        $assignments = \App\Models\Academics\ClassroomSubject::where('staff_id', $staff->id)
-            ->when($currentYear, fn($q) => $q->where('academic_year_id', $currentYear->id))
-            ->when($currentTerm, fn($q) => $q->where('term_id', $currentTerm->id))
-            ->with(['classroom', 'subject', 'stream'])
-            ->get();
+        // Include rows scoped to current year/term OR legacy rows with NULL year/term, or year without term
+        // (strict year+term filter alone often hides all rows when academic_year_id/term_id were not set)
+        $assignmentsQuery = \App\Models\Academics\ClassroomSubject::query()
+            ->where('staff_id', $staff->id)
+            ->with(['classroom', 'subject', 'stream']);
+
+        if ($currentYear && $currentTerm) {
+            $assignmentsQuery->where(function ($q) use ($currentYear, $currentTerm) {
+                $q->where(function ($q2) use ($currentYear, $currentTerm) {
+                    $q2->where('academic_year_id', $currentYear->id)
+                        ->where('term_id', $currentTerm->id);
+                })->orWhere(function ($q2) {
+                    $q2->whereNull('academic_year_id')->whereNull('term_id');
+                })->orWhere(function ($q2) use ($currentYear) {
+                    $q2->where('academic_year_id', $currentYear->id)->whereNull('term_id');
+                });
+            });
+        } elseif ($currentYear) {
+            $assignmentsQuery->where(function ($q) use ($currentYear) {
+                $q->where('academic_year_id', $currentYear->id)->orWhereNull('academic_year_id');
+            });
+        }
+
+        $assignments = $assignmentsQuery->get();
 
         // Also get classes directly assigned via classroom_teacher table
         $directClassrooms = \App\Models\Academics\Classroom::whereHas('teachers', function($q) use ($user) {

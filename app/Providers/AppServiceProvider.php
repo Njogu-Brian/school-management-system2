@@ -5,11 +5,14 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Spatie\Permission\Models\Permission;
 use App\Models\OptionalFee;
+use App\Models\User;
 use App\Observers\OptionalFeeObserver;
+use App\Support\TeacherAcademicPermissions;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -31,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->ensureCriticalPermissions();
+        $this->registerTeacherAcademicPermissionGate();
 
         // Global activity logging for web routes (accountability & auditing)
         $this->app['router']->pushMiddlewareToGroup('web', \App\Http\Middleware\ActivityLogger::class);
@@ -72,5 +76,26 @@ class AppServiceProvider extends ServiceProvider
             // Silently fail if permissions can't be created yet
             // This can happen during migrations or if tables aren't ready
         }
+    }
+
+    /**
+     * When Spatie permissions are missing on the user but they are a teacher (by role or HR assignments),
+     * still authorize the academic actions we grant to the Teacher role in seeders.
+     */
+    protected function registerTeacherAcademicPermissionGate(): void
+    {
+        Gate::before(function ($user, $ability) {
+            if (! $user instanceof User || ! is_string($ability)) {
+                return null;
+            }
+            if (! TeacherAcademicPermissions::allows($ability)) {
+                return null;
+            }
+            if ($user->hasTeacherLikeRole() || $user->hasTeachingAssignments()) {
+                return true;
+            }
+
+            return null;
+        });
     }
 }

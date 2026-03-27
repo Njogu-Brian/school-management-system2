@@ -295,7 +295,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('attendance')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor')
         ->group(function () {
             Route::get('/mark',          [AttendanceController::class, 'markForm'])->name('attendance.mark.form');
             Route::post('/mark',         [AttendanceController::class, 'mark'])->name('attendance.mark');
@@ -339,21 +339,23 @@ Route::middleware('auth')->group(function () {
 
     /*
     |----------------------------------------------------------------------
-    | Swimming Management (teachers, senior teachers, admin)
+    | Swimming Management
+    | Mark attendance: class teachers + senior teachers + admin.
+    | Records, wallets, payments, reports: staff who are not plain class teachers only.
     |----------------------------------------------------------------------
     */
-    Route::prefix('swimming')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')
-        ->group(function () {
-            // Attendance
+    Route::prefix('swimming')->group(function () {
+        Route::middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor')->group(function () {
             Route::get('/attendance', [SwimmingAttendanceController::class, 'create'])->name('swimming.attendance.create');
             Route::post('/attendance', [SwimmingAttendanceController::class, 'store'])->name('swimming.attendance.store');
+        });
+
+        Route::middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->group(function () {
             Route::get('/attendance/records', [SwimmingAttendanceController::class, 'index'])->name('swimming.attendance.index');
             Route::post('/attendance/{attendance}/retry-payment', [SwimmingAttendanceController::class, 'retryPayment'])->name('swimming.attendance.retry-payment');
             Route::post('/attendance/bulk-retry-payments', [SwimmingAttendanceController::class, 'bulkRetryPayments'])->name('swimming.attendance.bulk-retry-payments');
             Route::post('/attendance/send-payment-reminders', [SwimmingAttendanceController::class, 'sendPaymentReminders'])->name('swimming.attendance.send-payment-reminders');
-            
-            // Wallets
+
             Route::get('/wallets', [SwimmingWalletController::class, 'index'])->name('swimming.wallets.index');
             Route::get('/wallets/student/{student}', [SwimmingWalletController::class, 'show'])->name('swimming.wallets.show');
             Route::post('/wallets/student/{student}/adjust', [SwimmingWalletController::class, 'adjust'])->name('swimming.wallets.adjust');
@@ -361,31 +363,27 @@ Route::middleware('auth')->group(function () {
             Route::post('/wallets/credit-from-optional-fees', [SwimmingWalletController::class, 'creditFromOptionalFees'])->name('swimming.wallets.credit-from-optional-fees');
             Route::post('/wallets/process-unpaid-attendance', [SwimmingWalletController::class, 'processUnpaidAttendance'])->name('swimming.wallets.process-unpaid-attendance');
             Route::post('/wallets/unallocate-swimming-payments', [SwimmingWalletController::class, 'unallocateSwimmingPayments'])->name('swimming.wallets.unallocate-payments');
-            
-            // Payments
+
             Route::get('/payments/create', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'create'])->name('swimming.payments.create');
             Route::post('/payments', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'store'])->name('swimming.payments.store');
             Route::get('/payments/student/{student}/siblings', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'getSiblings'])->name('swimming.payments.siblings');
-            
-            // Balance Communications
+
             Route::post('/payments/student/{student}/send-balance', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'sendBalanceCommunication'])->name('swimming.payments.send-balance');
             Route::post('/payments/bulk-send-balance', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'bulkSendBalanceCommunications'])->name('swimming.payments.bulk-send-balance');
             Route::get('/payments/bulk-send-progress', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'getBulkSendProgress'])->name('swimming.payments.bulk-send-progress');
-            
-            // Reports (merged into attendance index)
-            // Route removed - use swimming.attendance.index with date parameter for daily view
+
             Route::get('/reports/unpaid-sessions', [SwimmingReportController::class, 'unpaidSessions'])->name('swimming.reports.unpaid-sessions');
             Route::get('/reports/wallet-balances', [SwimmingReportController::class, 'walletBalances'])->name('swimming.reports.wallet-balances');
             Route::get('/reports/revenue-vs-sessions', [SwimmingReportController::class, 'revenueVsSessions'])->name('swimming.reports.revenue-vs-sessions');
-            
-            // Settings (admin only)
-            Route::prefix('settings')
-                ->middleware('role:Super Admin|Admin')
-                ->group(function () {
-                    Route::get('/', [SwimmingSettingsController::class, 'index'])->name('swimming.settings.index');
-                    Route::post('/', [SwimmingSettingsController::class, 'update'])->name('swimming.settings.update');
-                });
         });
+
+        Route::prefix('settings')
+            ->middleware('role:Super Admin|Admin')
+            ->group(function () {
+                Route::get('/', [SwimmingSettingsController::class, 'index'])->name('swimming.settings.index');
+                Route::post('/', [SwimmingSettingsController::class, 'update'])->name('swimming.settings.update');
+            });
+    });
 
     /*
     |----------------------------------------------------------------------
@@ -393,7 +391,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('academics')->as('academics.')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor')
         ->group(function () {
 
         // Core setup

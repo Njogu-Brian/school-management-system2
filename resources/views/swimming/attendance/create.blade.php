@@ -6,8 +6,10 @@
     @include('finance.partials.header', [
         'title' => 'Mark Swimming Attendance',
         'icon' => 'bi bi-water',
-        'subtitle' => 'Record swimming attendance and charge student wallets',
-        'actions' => '<a href="' . route('swimming.attendance.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-list"></i> View Records</a>'
+        'subtitle' => 'Record swimming attendance for your class.',
+        'actions' => auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Senior Teacher'])
+            ? '<a href="' . route('swimming.attendance.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-list"></i> View Records</a>'
+            : '',
     ])
 
     @include('finance.invoices.partials.alerts')
@@ -70,7 +72,6 @@
                                 <th>#</th>
                                 <th>Admission #</th>
                                 <th>Student Name</th>
-                                <th class="text-end">Wallet Balance</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -78,7 +79,6 @@
                             @foreach($students as $index => $student)
                                 @php
                                     $existing = $attendance_records->get($student->id);
-                                    $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($student->id);
                                 @endphp
                                 <tr>
                                     <td>
@@ -91,11 +91,6 @@
                                     <td>{{ $index + 1 }}</td>
                                     <td><strong>{{ $student->admission_number }}</strong></td>
                                     <td>{{ $student->full_name }}</td>
-                                    <td class="text-end">
-                                        <span class="fw-bold {{ $wallet->balance >= $per_visit_cost ? 'text-success' : 'text-danger' }}">
-                                            Ksh {{ number_format($wallet->balance, 2) }}
-                                        </span>
-                                    </td>
                                     <td>
                                         @if($existing)
                                             <span class="badge bg-success">Already Marked</span>
