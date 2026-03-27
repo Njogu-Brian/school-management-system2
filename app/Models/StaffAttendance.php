@@ -16,7 +16,15 @@ class StaffAttendance extends Model
         'date',
         'status',
         'check_in_time',
+        'check_in_latitude',
+        'check_in_longitude',
+        'check_in_distance_meters',
+        'check_in_accuracy_meters',
         'check_out_time',
+        'check_out_latitude',
+        'check_out_longitude',
+        'check_out_distance_meters',
+        'check_out_accuracy_meters',
         'notes',
         'marked_by',
     ];
@@ -25,6 +33,14 @@ class StaffAttendance extends Model
         'date' => 'date',
         'check_in_time' => 'datetime',
         'check_out_time' => 'datetime',
+        'check_in_latitude' => 'float',
+        'check_in_longitude' => 'float',
+        'check_in_distance_meters' => 'float',
+        'check_in_accuracy_meters' => 'float',
+        'check_out_latitude' => 'float',
+        'check_out_longitude' => 'float',
+        'check_out_distance_meters' => 'float',
+        'check_out_accuracy_meters' => 'float',
     ];
 
     public function staff()

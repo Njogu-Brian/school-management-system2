@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
+    Alert,
     View,
     Text,
     StyleSheet,
@@ -20,6 +21,8 @@ import { getDashboardRoleLabel } from '@utils/dashboardRoleLabel';
 import { DashboardHero, DashboardLineChart, DashboardBarChart, DashboardMenuGrid } from '@components/dashboard';
 import type { DashboardMenuItem } from '@components/dashboard';
 import { tileColorForIndex, FINANCE_STAT_COLORS } from '@styles/sections/dashboard';
+import { financeApi } from '@api/finance.api';
+import { Payment } from '@types/finance.types';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface Props {
@@ -31,24 +34,71 @@ export const FinanceHomeScreen: React.FC<Props> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
     const { user } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
 
-    const [stats] = useState({
-        todayCollection: 125000,
-        weekCollection: 580000,
-        monthCollection: 2340000,
-        pendingInvoices: 45,
-        overduePayments: 12,
+    const [stats, setStats] = useState({
+        todayCollection: 0,
+        weekCollection: 0,
+        monthCollection: 0,
+        pendingInvoices: 0,
+        overduePayments: 0,
     });
 
-    const [recentPayments] = useState([
-        { id: 1, student: 'John Doe', amount: 15000, method: 'M-Pesa', time: '10:30 AM' },
-        { id: 2, student: 'Jane Smith', amount: 25000, method: 'Bank', time: '09:15 AM' },
-    ]);
+    const [recentPayments, setRecentPayments] = useState<
+        { id: number; student: string; amount: number; method: string; time: string }[]
+    >([]);
+
+    const loadDashboardData = useCallback(
+        async (isRefresh: boolean = false) => {
+            try {
+                if (!isRefresh) {
+                    setLoading(true);
+                }
+
+                const [summaryRes, pendingRes, overdueRes, recentPaymentsRes] = await Promise.all([
+                    financeApi.getFinanceSummary(),
+                    financeApi.getInvoices({ status: 'issued', page: 1, per_page: 1 }),
+                    financeApi.getInvoices({ status: 'overdue', page: 1, per_page: 1 }),
+                    financeApi.getPayments({ page: 1, per_page: 5, active_only: true }),
+                ]);
+
+                const summary = summaryRes.data;
+                setStats({
+                    todayCollection: Number(summary?.payments_today ?? 0),
+                    weekCollection: Number(summary?.payments_this_week ?? 0),
+                    monthCollection: Number(summary?.payments_this_month ?? 0),
+                    pendingInvoices: Number(pendingRes.data?.total ?? 0),
+                    overduePayments: Number(overdueRes.data?.total ?? 0),
+                });
+
+                const payments = recentPaymentsRes.data?.data ?? [];
+                setRecentPayments(
+                    payments.map((payment: Payment) => ({
+                        id: payment.id,
+                        student: payment.student_name || 'Student',
+                        amount: Number(payment.amount ?? 0),
+                        method: formatters.capitalizeWords(String(payment.payment_method || '').replace(/_/g, ' ')),
+                        time: formatters.getRelativeTime(payment.payment_date || payment.created_at),
+                    }))
+                );
+            } catch (error: any) {
+                Alert.alert('Error', error.message || 'Failed to load finance dashboard data');
+            } finally {
+                setLoading(false);
+                setRefreshing(false);
+            }
+        },
+        []
+    );
 
     const handleRefresh = () => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 1000);
+        loadDashboardData(true);
     };
+
+    useEffect(() => {
+        loadDashboardData();
+    }, [loadDashboardData]);
 
     const bg = isDark ? colors.backgroundDark : BRAND.bg;
     const textMain = isDark ? colors.textMainDark : BRAND.text;
@@ -81,6 +131,32 @@ export const FinanceHomeScreen: React.FC<Props> = ({ navigation }) => {
     }, []);
 
     const roleLabel = getDashboardRoleLabel(user?.role);
+
+    const collectionsTrend = useMemo(() => {
+        if (!recentPayments.length) {
+            return { labels: ['No data'], data: [0] };
+        }
+        const ordered = [...recentPayments].slice().reverse();
+        return {
+            labels: ordered.map((p) => p.time),
+            data: ordered.map((p) => p.amount),
+        };
+    }, [recentPayments]);
+
+    const channelTotals = useMemo(() => {
+        if (!recentPayments.length) {
+            return { labels: ['No data'], data: [0] };
+        }
+        const totals = new Map<string, number>();
+        for (const p of recentPayments) {
+            totals.set(p.method, (totals.get(p.method) || 0) + p.amount);
+        }
+        const entries = Array.from(totals.entries());
+        return {
+            labels: entries.map(([label]) => label),
+            data: entries.map(([, amount]) => amount),
+        };
+    }, [recentPayments]);
 
     const renderStat = (title: string, value: number | string, icon: string, color: string, isAmount = false) => (
         <Card
@@ -138,11 +214,11 @@ export const FinanceHomeScreen: React.FC<Props> = ({ navigation }) => {
                     </View>
 
                     <DashboardLineChart
-                        title="Collections trend (sample)"
-                        labels={['Mon', 'Tue', 'Wed', 'Thu', 'Fri']}
-                        data={[45, 52, 38, 61, 55]}
+                        title="Collections trend"
+                        labels={collectionsTrend.labels}
+                        data={collectionsTrend.data}
                     />
-                    <DashboardBarChart title="By channel (sample)" labels={['M-Pesa', 'Bank', 'Cash']} data={[120, 80, 40]} />
+                    <DashboardBarChart title="By channel" labels={channelTotals.labels} data={channelTotals.data} />
 
                     <DashboardMenuGrid title="Finance workspace" items={menuItems} />
 
@@ -153,31 +229,53 @@ export const FinanceHomeScreen: React.FC<Props> = ({ navigation }) => {
                         </TouchableOpacity>
                     </View>
 
-                    {recentPayments.map((p) => (
+                    {loading ? (
                         <Card
-                            key={p.id}
                             style={{
                                 ...styles.payCard,
                                 backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
                                 borderColor: isDark ? colors.borderDark : BRAND.border,
                             }}
                         >
-                            <View style={styles.payRow}>
-                                <View style={[styles.payIcon, { backgroundColor: colors.success + '22' }]}>
-                                    <Icon name="check-circle" size={20} color={colors.success} />
-                                </View>
-                                <View style={styles.payInfo}>
-                                    <Text style={[styles.payName, { color: textMain }]}>{p.student}</Text>
-                                    <Text style={[styles.payMeta, { color: textSub }]}>
-                                        {p.method} · {p.time}
+                            <Text style={[styles.payMeta, { color: textSub }]}>Loading recent payments...</Text>
+                        </Card>
+                    ) : recentPayments.length === 0 ? (
+                        <Card
+                            style={{
+                                ...styles.payCard,
+                                backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                                borderColor: isDark ? colors.borderDark : BRAND.border,
+                            }}
+                        >
+                            <Text style={[styles.payMeta, { color: textSub }]}>No recent payments available.</Text>
+                        </Card>
+                    ) : (
+                        recentPayments.map((p) => (
+                            <Card
+                                key={p.id}
+                                style={{
+                                    ...styles.payCard,
+                                    backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                                    borderColor: isDark ? colors.borderDark : BRAND.border,
+                                }}
+                            >
+                                <View style={styles.payRow}>
+                                    <View style={[styles.payIcon, { backgroundColor: colors.success + '22' }]}>
+                                        <Icon name="check-circle" size={20} color={colors.success} />
+                                    </View>
+                                    <View style={styles.payInfo}>
+                                        <Text style={[styles.payName, { color: textMain }]}>{p.student}</Text>
+                                        <Text style={[styles.payMeta, { color: textSub }]}>
+                                            {p.method} · {p.time}
+                                        </Text>
+                                    </View>
+                                    <Text style={[styles.payAmt, { color: colors.success }]}>
+                                        {formatters.formatCurrency(p.amount)}
                                     </Text>
                                 </View>
-                                <Text style={[styles.payAmt, { color: colors.success }]}>
-                                    {formatters.formatCurrency(p.amount)}
-                                </Text>
-                            </View>
-                        </Card>
-                    ))}
+                            </Card>
+                        ))
+                    )}
 
                     <Card
                         style={{

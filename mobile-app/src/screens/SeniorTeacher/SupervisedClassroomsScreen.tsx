@@ -12,7 +12,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { seniorTeacherApi, SupervisedClassroom } from '@api/seniorTeacher.api';
-import { SPACING } from '@constants/theme';
+import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
 
 interface SupervisedClassroomsScreenProps {

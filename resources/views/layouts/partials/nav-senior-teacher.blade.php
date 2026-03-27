@@ -80,6 +80,12 @@
      class="{{ Request::is('supervisor/leave-requests*') ? 'active' : '' }}">
     <i class="bi bi-check-circle"></i> Leave Approval
   </a>
+
+  {{-- Staff Attendance (supervised) --}}
+  <a href="{{ route('supervisor.attendance.report') }}"
+     class="{{ Request::is('supervisor/attendance*') ? 'active' : '' }}">
+    <i class="bi bi-clock-history"></i> Staff Attendance Report
+  </a>
 </div>
 
 {{-- Teaching Section --}}
@@ -111,6 +117,11 @@
           <i class="bi bi-journal-text"></i> View Records
         </a>
       @endif
+      @php $seniorAttendanceReportUrl = Route::has('senior_teacher.attendance.report') ? route('senior_teacher.attendance.report') : url('/senior-teacher/my-attendance/report'); @endphp
+      <a href="{{ $seniorAttendanceReportUrl }}"
+         class="sublink {{ Request::is('senior-teacher/my-attendance/report*') ? 'active' : '' }}">
+        <i class="bi bi-person-check"></i> My Attendance Report
+      </a>
     </div>
   @endif
 

@@ -13,6 +13,7 @@ import { usePushNotifications } from '@hooks/usePushNotifications';
 import { checkForAppUpdate } from '@services/update.service';
 import { COLORS } from '@constants/theme';
 import { UserRole } from '@constants/roles';
+import { useNotificationPreferences } from '@contexts/NotificationPreferencesContext';
 
 type RootState = NavigationState | PartialState<NavigationState>;
 
@@ -31,47 +32,73 @@ const HIDE_GLOBAL_HEADER_ROUTES = new Set([
 ]);
 
 const ROUTE_TITLES: Record<string, string> = {
+    Students: 'Students',
     StudentsList: 'Students',
     StudentDetail: 'Student details',
     AddStudent: 'Add student',
     EditStudent: 'Edit student',
-    MarkAttendance: 'Attendance',
+    Attendance: 'Attendance',
+    MarkAttendance: 'Mark attendance',
+    TeacherClock: 'Teacher clock',
     AttendanceRecords: 'Attendance records',
+    AttendanceAnalytics: 'Attendance analytics',
+    Finance: 'Finance',
     FinanceHome: 'Finance',
     InvoicesList: 'Invoices',
     InvoiceDetail: 'Invoice details',
+    Payments: 'Payments',
     PaymentsList: 'Payments',
     PaymentDetail: 'Payment details',
     RecordPayment: 'Record payment',
     StudentStatement: 'Student statement',
+    More: 'More',
+    MoreMenu: 'More',
     Settings: 'Settings',
+    StaffDirectory: 'Staff directory',
+    StaffDetail: 'Staff details',
+    StaffEdit: 'Edit staff',
+    PayrollRecords: 'Payroll records',
     MyProfile: 'My profile',
     MySalary: 'My salary',
     Leave: 'Leave management',
+    LeaveManagement: 'Leave management',
     ApplyLeave: 'Apply for leave',
+    Classes: 'My classes',
+    MyClasses: 'My classes',
     ExamsList: 'Exams',
+    ExamDetail: 'Exam details',
     ExamMarksSetup: 'Exam marks setup',
+    MarksMatrixSetup: 'Marks matrix setup',
+    MarksMatrixEntry: 'Marks matrix entry',
     MarksEntry: 'Marks entry',
     Assignments: 'Assignments',
     CreateAssignment: 'Create assignment',
     AssignmentDetail: 'Assignment details',
+    ViewAssignment: 'Assignment details',
+    LessonPlans: 'Lesson plans',
+    LessonPlanDetail: 'Lesson plan details',
+    Diary: 'Diary',
     Timetable: 'Timetable',
     ReportCard: 'Report card',
     Notifications: 'Notifications',
     Announcements: 'Announcements',
+    AnnouncementDetail: 'Announcement details',
     RoutesList: 'Transport routes',
     RouteDetail: 'Route details',
+    Transport: 'Transport routes',
     LibraryBooks: 'Library',
-    MoreMenu: 'More',
     SupervisedClassrooms: 'Supervised classrooms',
     SupervisedStaff: 'Supervised staff',
     FeeBalances: 'Fee balances',
     PaymentsHub: 'Payments',
+    ParentHomeTab: 'Home',
+    ParentChildrenTab: 'My children',
+    ParentPaymentsTab: 'Fees',
+    ParentMoreTab: 'More',
+    StudentMoreTab: 'More',
+    StudentHomeworkTab: 'Homework',
+    StudentResultsTab: 'Results',
     TransactionDetail: 'Transaction details',
-    Classes: 'My classes',
-    Attendance: 'Attendance',
-    Finance: 'Finance',
-    Payments: 'Payments',
 };
 
 function toTitleCaseFromRoute(routeName: string): string {
@@ -119,7 +146,8 @@ function getDashboardFallback(user: User) {
 
 const AuthenticatedShell: React.FC<{ user: User; currentRouteName: string | null }> = ({ user, currentRouteName }) => {
     const online = useNetworkStatus();
-    usePushNotifications(true);
+    const { preferences } = useNotificationPreferences();
+    usePushNotifications(preferences.push_enabled);
     const checkedOnce = useRef(false);
     const shouldShowGlobalHeader = currentRouteName ? !HIDE_GLOBAL_HEADER_ROUTES.has(currentRouteName) : false;
 

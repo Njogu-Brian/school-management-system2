@@ -11,6 +11,7 @@ import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen'
 import { MoreScreen } from '@screens/More/MoreScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -51,6 +52,7 @@ const ParentMoreStack = () => (
 
 export const ParentTabNavigator: React.FC = () => {
     const { isDark, colors } = useTheme();
+    const insets = useSafeAreaInsets();
 
     return (
         <Tab.Navigator
@@ -61,7 +63,11 @@ export const ParentTabNavigator: React.FC = () => {
                 tabBarStyle: {
                     backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
                     borderTopColor: isDark ? colors.borderDark : colors.borderLight,
+                    height: 56 + insets.bottom,
+                    paddingTop: 6,
+                    paddingBottom: Math.max(insets.bottom, 6),
                 },
+                tabBarItemStyle: { paddingVertical: 0 },
             }}
         >
             <Tab.Screen

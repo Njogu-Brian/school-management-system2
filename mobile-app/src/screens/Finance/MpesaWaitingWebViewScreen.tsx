@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '@contexts/ThemeContext';
-import { fetchMpesaTransactionStatus } from '@utils/mpesaStatus';
+import { fetchMpesaTransactionStatus, isTrustedMpesaUrl } from '@utils/mpesaStatus';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
@@ -37,9 +37,17 @@ export const MpesaWaitingWebViewScreen: React.FC<Props> = ({ navigation, route }
 
     const bg = isDark ? colors.backgroundDark : BRAND.bg;
     const textMain = isDark ? colors.textMainDark : BRAND.text;
+    const trustedWaitingUrl = isTrustedMpesaUrl(waitingUrl) ? waitingUrl : null;
 
     useEffect(() => {
-        if (!statusPollUrl) {
+        if (!trustedWaitingUrl) {
+            Alert.alert('Invalid link', 'The payment status page URL is not trusted.');
+            navigation.goBack();
+        }
+    }, [trustedWaitingUrl, navigation]);
+
+    useEffect(() => {
+        if (!statusPollUrl || !isTrustedMpesaUrl(statusPollUrl)) {
             return;
         }
         const maxTries = 90;
@@ -93,7 +101,10 @@ export const MpesaWaitingWebViewScreen: React.FC<Props> = ({ navigation, route }
                     M-Pesa status
                 </Text>
                 <TouchableOpacity
-                    onPress={() => Linking.openURL(waitingUrl)}
+                    onPress={() => {
+                        if (!trustedWaitingUrl) return;
+                        Linking.openURL(trustedWaitingUrl);
+                    }}
                     hitSlop={12}
                     accessibilityLabel="Open in browser"
                 >
@@ -107,15 +118,18 @@ export const MpesaWaitingWebViewScreen: React.FC<Props> = ({ navigation, route }
                 </View>
             )}
 
-            <WebView
-                source={{ uri: waitingUrl }}
-                style={styles.webview}
-                onLoadEnd={() => setLoading(false)}
-                onError={() => setLoading(false)}
-                startInLoadingState
-                originWhitelist={['*']}
-                setSupportMultipleWindows={false}
-            />
+            {trustedWaitingUrl ? (
+                <WebView
+                    source={{ uri: trustedWaitingUrl }}
+                    style={styles.webview}
+                    onLoadEnd={() => setLoading(false)}
+                    onError={() => setLoading(false)}
+                    onShouldStartLoadWithRequest={(request) => isTrustedMpesaUrl(request.url)}
+                    startInLoadingState
+                    originWhitelist={['https://*', ...(__DEV__ ? ['http://*'] : [])]}
+                    setSupportMultipleWindows={false}
+                />
+            ) : null}
         </SafeAreaView>
     );
 };

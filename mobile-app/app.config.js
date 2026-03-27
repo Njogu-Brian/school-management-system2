@@ -1,8 +1,9 @@
 const apiBase =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   process.env.API_BASE_URL ||
-  'http://localhost:8000/api';
-const webBaseDefault = apiBase.replace(/\/api\/?$/i, '').replace(/\/$/, '') || 'http://localhost:8000';
+  'https://erp.royalkingsschools.sc.ke/api';
+const webBaseDefault =
+  apiBase.replace(/\/api\/?$/i, '').replace(/\/$/, '') || 'https://erp.royalkingsschools.sc.ke';
 
 export default {
   expo: {
@@ -17,7 +18,7 @@ export default {
       backgroundColor: '#004A99',
       resizeMode: 'contain',
     },
-    assetBundlePatterns: ['**/*'],
+    assetBundlePatterns: ['assets/**/*'],
     updates: {
       enabled: true,
       checkAutomatically: 'ON_LOAD',
@@ -36,7 +37,16 @@ export default {
       package: 'com.schoolerp',
     },
     plugins: [
-      ['expo-build-properties', { android: { usesCleartextTraffic: true } }],
+      [
+        'expo-build-properties',
+        {
+          android: {
+            usesCleartextTraffic: false,
+            enableMinifyInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+          },
+        },
+      ],
       'expo-font',
       [
         'expo-image-picker',
@@ -57,6 +67,7 @@ export default {
       API_TIMEOUT: process.env.API_TIMEOUT || process.env.EXPO_PUBLIC_API_TIMEOUT || '30000',
       /** Public web origin (no /api). Override when API is on a different host than the portal. */
       WEB_BASE_URL: process.env.EXPO_PUBLIC_WEB_BASE_URL || webBaseDefault,
+      IOS_APP_STORE_ID: process.env.EXPO_PUBLIC_IOS_APP_STORE_ID || '',
     },
   },
 };

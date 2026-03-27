@@ -14,7 +14,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Input } from '@components/common/Input';
 import { Button } from '@components/common/Button';
 import { financeApi } from '@api/finance.api';
-import { fetchMpesaTransactionStatus } from '@utils/mpesaStatus';
+import { fetchMpesaTransactionStatus, isTrustedMpesaUrl } from '@utils/mpesaStatus';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -42,12 +42,32 @@ export const MpesaPromptModal: React.FC<MpesaPromptModalProps> = ({
     const [amount, setAmount] = useState(defaultAmount);
     const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(false);
+    const pollTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pollActiveRef = React.useRef(false);
 
     useEffect(() => {
         if (visible && defaultAmount !== undefined) {
             setAmount(defaultAmount);
         }
     }, [visible, defaultAmount]);
+
+    useEffect(() => {
+        if (!visible && pollTimerRef.current) {
+            clearTimeout(pollTimerRef.current);
+            pollTimerRef.current = null;
+            pollActiveRef.current = false;
+        }
+    }, [visible]);
+
+    useEffect(() => {
+        return () => {
+            if (pollTimerRef.current) {
+                clearTimeout(pollTimerRef.current);
+                pollTimerRef.current = null;
+            }
+            pollActiveRef.current = false;
+        };
+    }, []);
 
     const textMain = isDark ? colors.textMainDark : colors.textMainLight;
     const textSub = isDark ? colors.textSubDark : colors.textSubLight;
@@ -81,10 +101,10 @@ export const MpesaPromptModal: React.FC<MpesaPromptModalProps> = ({
             setNotes('');
             onClose();
 
-            if (navigation && waiting_url) {
+            if (navigation && waiting_url && isTrustedMpesaUrl(waiting_url)) {
                 navigation.navigate('MpesaWaitingWeb', {
                     waitingUrl: waiting_url,
-                    statusPollUrl: pollUrl || undefined,
+                    statusPollUrl: pollUrl && isTrustedMpesaUrl(pollUrl) ? pollUrl : undefined,
                 });
                 return;
             }
@@ -94,10 +114,10 @@ export const MpesaPromptModal: React.FC<MpesaPromptModalProps> = ({
                 'Ask the parent to enter their M-Pesa PIN. You can open the status page or wait here for completion.',
                 [
                     { text: 'OK', style: 'cancel' },
-                    ...(waiting_url
+                    ...(waiting_url && isTrustedMpesaUrl(waiting_url)
                         ? [{ text: 'Open status page', onPress: () => Linking.openURL(waiting_url) }]
                         : []),
-                    ...(pollUrl
+                    ...(pollUrl && isTrustedMpesaUrl(pollUrl)
                         ? [
                               {
                                   text: 'Wait for result',
@@ -115,9 +135,21 @@ export const MpesaPromptModal: React.FC<MpesaPromptModalProps> = ({
     };
 
     const runPoll = (pollUrl: string) => {
+        if (!isTrustedMpesaUrl(pollUrl)) {
+            Alert.alert('M-Pesa', 'Received an untrusted status URL. Please retry from the dashboard.');
+            return;
+        }
+
+        if (pollTimerRef.current) {
+            clearTimeout(pollTimerRef.current);
+            pollTimerRef.current = null;
+        }
+
+        pollActiveRef.current = true;
         let tries = 0;
         const maxTries = 45;
         const tick = async () => {
+            if (!pollActiveRef.current) return;
             tries += 1;
             try {
                 const s = await fetchMpesaTransactionStatus(pollUrl);
@@ -132,9 +164,11 @@ export const MpesaPromptModal: React.FC<MpesaPromptModalProps> = ({
             } catch {
                 /* keep polling */
             }
+            if (!pollActiveRef.current) return;
             if (tries < maxTries) {
-                setTimeout(tick, 2000);
+                pollTimerRef.current = setTimeout(tick, 2000);
             } else {
+                pollActiveRef.current = false;
                 Alert.alert('Timeout', 'Still waiting on M-Pesa. Check the finance dashboard or open the status page.');
             }
         };

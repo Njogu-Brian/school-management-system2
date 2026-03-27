@@ -188,7 +188,26 @@ export const financeApi = {
         payments_this_week: number;
         payments_this_month: number;
     }>> {
-        return apiClient.get('/finance/summary', filters);
+        try {
+            return await apiClient.get('/finance/summary', filters);
+        } catch (error: any) {
+            // Some deployments may not expose /finance/summary yet; keep mobile dashboards functional.
+            if (error?.status === 404) {
+                return {
+                    success: true,
+                    data: {
+                        total_invoiced: 0,
+                        total_paid: 0,
+                        total_outstanding: 0,
+                        payments_today: 0,
+                        payments_this_week: 0,
+                        payments_this_month: 0,
+                    },
+                    message: 'Finance summary endpoint unavailable; using fallback values.',
+                };
+            }
+            throw error;
+        }
     },
 
     /** Admin STK push (same as web Prompt parent to pay). */

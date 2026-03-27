@@ -128,7 +128,9 @@
                                     <th>Staff</th>
                                     <th>Status</th>
                                     <th>Check In</th>
+                                    <th>In Dist.</th>
                                     <th>Check Out</th>
+                                    <th>Out Dist.</th>
                                     <th>Notes</th>
                                 </tr>
                             </thead>
@@ -157,8 +159,14 @@
                                         <td>
                                             <input type="time" name="attendance[{{ $loop->index }}][check_in_time]" class="form-control form-control-sm" value="{{ $attendanceRecord?->check_in_time?->format('H:i') }}">
                                         </td>
+                                        <td class="small text-muted">
+                                            {{ $attendanceRecord?->check_in_distance_meters !== null ? number_format($attendanceRecord->check_in_distance_meters, 1).' m' : '—' }}
+                                        </td>
                                         <td>
                                             <input type="time" name="attendance[{{ $loop->index }}][check_out_time]" class="form-control form-control-sm" value="{{ $attendanceRecord?->check_out_time?->format('H:i') }}">
+                                        </td>
+                                        <td class="small text-muted">
+                                            {{ $attendanceRecord?->check_out_distance_meters !== null ? number_format($attendanceRecord->check_out_distance_meters, 1).' m' : '—' }}
                                         </td>
                                         <td>
                                             <input type="text" name="attendance[{{ $loop->index }}][notes]" class="form-control form-control-sm" value="{{ $attendanceRecord?->notes }}" placeholder="Optional notes">

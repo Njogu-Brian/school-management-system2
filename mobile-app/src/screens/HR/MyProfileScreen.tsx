@@ -5,7 +5,6 @@ import {
     StyleSheet,
     ScrollView,
     SafeAreaView,
-    TouchableOpacity,
     RefreshControl,
     Alert,
 } from 'react-native';
@@ -22,7 +21,6 @@ import { Staff } from '@types/hr.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface MyProfileScreenProps {
     navigation: any;
@@ -117,12 +115,6 @@ export const MyProfileScreen: React.FC<MyProfileScreenProps> = ({ navigation }) 
         <SafeAreaView
             style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                </TouchableOpacity>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>My profile</Text>
-            </View>
             <ScrollView
                 contentContainerStyle={styles.content}
                 refreshControl={
@@ -245,9 +237,6 @@ export const MyProfileScreen: React.FC<MyProfileScreenProps> = ({ navigation }) 
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
-    backBtn: { marginRight: SPACING.sm },
-    title: { fontSize: FONT_SIZES.xl, fontWeight: 'bold' },
     content: { padding: SPACING.md, paddingBottom: SPACING.xxl },
     avatarCard: { marginBottom: SPACING.lg },
     avatarRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },

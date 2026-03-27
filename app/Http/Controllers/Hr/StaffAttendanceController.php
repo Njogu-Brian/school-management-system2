@@ -10,6 +10,17 @@ use Carbon\Carbon;
 
 class StaffAttendanceController extends Controller
 {
+    private function statusSummary($records): array
+    {
+        return [
+            'total' => $records->count(),
+            'present' => $records->where('status', 'present')->count(),
+            'absent' => $records->where('status', 'absent')->count(),
+            'late' => $records->where('status', 'late')->count(),
+            'half_day' => $records->where('status', 'half_day')->count(),
+        ];
+    }
+
     public function index(Request $request)
     {
         $date = $request->get('date', date('Y-m-d'));
@@ -47,14 +58,7 @@ class StaffAttendanceController extends Controller
             $allStaff = Staff::where('status', 'active')->orderBy('first_name')->get();
         }
 
-        // Get attendance summary
-        $summary = [
-            'total' => $attendanceRecords->count(),
-            'present' => $attendanceRecords->where('status', 'present')->count(),
-            'absent' => $attendanceRecords->where('status', 'absent')->count(),
-            'late' => $attendanceRecords->where('status', 'late')->count(),
-            'half_day' => $attendanceRecords->where('status', 'half_day')->count(),
-        ];
+        $summary = $this->statusSummary($attendanceRecords);
 
         return view('staff.attendance.index', compact('attendanceRecords', 'staff', 'allStaff', 'date', 'summary'));
     }
@@ -138,6 +142,64 @@ class StaffAttendanceController extends Controller
             $query->where('staff_id', $staffId);
         }
 
+        $summaryBase = clone $query;
+        $summary = [
+            'total' => (clone $summaryBase)->count(),
+            'present' => (clone $summaryBase)->where('status', 'present')->count(),
+            'absent' => (clone $summaryBase)->where('status', 'absent')->count(),
+            'late' => (clone $summaryBase)->where('status', 'late')->count(),
+            'half_day' => (clone $summaryBase)->where('status', 'half_day')->count(),
+        ];
+
+        $mapRows = (clone $query)
+            ->where(function ($q) {
+                $q->whereNotNull('check_in_latitude')
+                    ->whereNotNull('check_in_longitude')
+                    ->orWhere(function ($sq) {
+                        $sq->whereNotNull('check_out_latitude')
+                            ->whereNotNull('check_out_longitude');
+                    });
+            })
+            ->orderBy('date', 'desc')
+            ->limit(400)
+            ->get();
+
+        $mapPoints = [];
+        foreach ($mapRows as $row) {
+            $staffName = $row->staff?->full_name ?? 'Staff';
+            $dateLabel = $row->date ? Carbon::parse($row->date)->format('Y-m-d') : null;
+
+            if ($row->check_in_latitude !== null && $row->check_in_longitude !== null) {
+                $mapPoints[] = [
+                    'type' => 'check_in',
+                    'staff_name' => $staffName,
+                    'date' => $dateLabel,
+                    'time' => $row->check_in_time ? Carbon::parse($row->check_in_time)->format('H:i') : null,
+                    'distance_meters' => $row->check_in_distance_meters !== null ? (float) $row->check_in_distance_meters : null,
+                    'lat' => (float) $row->check_in_latitude,
+                    'lng' => (float) $row->check_in_longitude,
+                ];
+            }
+
+            if ($row->check_out_latitude !== null && $row->check_out_longitude !== null) {
+                $mapPoints[] = [
+                    'type' => 'check_out',
+                    'staff_name' => $staffName,
+                    'date' => $dateLabel,
+                    'time' => $row->check_out_time ? Carbon::parse($row->check_out_time)->format('H:i') : null,
+                    'distance_meters' => $row->check_out_distance_meters !== null ? (float) $row->check_out_distance_meters : null,
+                    'lat' => (float) $row->check_out_latitude,
+                    'lng' => (float) $row->check_out_longitude,
+                ];
+            }
+        }
+
+        $schoolGeofence = [
+            'latitude' => setting('school_geofence_latitude') !== null ? (float) setting('school_geofence_latitude') : null,
+            'longitude' => setting('school_geofence_longitude') !== null ? (float) setting('school_geofence_longitude') : null,
+            'radius_meters' => (float) setting('school_geofence_radius_meters', '100'),
+        ];
+
         $attendance = $query->orderBy('date', 'desc')->paginate(50)->withQueryString();
         
         // Supervisors see only their subordinates
@@ -151,6 +213,42 @@ class StaffAttendanceController extends Controller
             $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
         }
 
-        return view('staff.attendance.report', compact('attendance', 'staff', 'startDate', 'endDate'));
+        return view('staff.attendance.report', compact(
+            'attendance',
+            'staff',
+            'startDate',
+            'endDate',
+            'summary',
+            'mapPoints',
+            'schoolGeofence'
+        ));
+    }
+
+    public function myReport(Request $request)
+    {
+        $user = auth()->user();
+        if (! $user || ! $user->staff) {
+            abort(403, 'No staff profile is linked to this account.');
+        }
+
+        $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->toDateString());
+        $endDate = $request->get('end_date', Carbon::now()->endOfMonth()->toDateString());
+
+        $attendance = StaffAttendance::with('staff')
+            ->where('staff_id', $user->staff->id)
+            ->whereBetween('date', [$startDate, $endDate])
+            ->orderBy('date', 'desc')
+            ->paginate(50)
+            ->withQueryString();
+
+        $summary = $this->statusSummary(collect($attendance->items()));
+
+        return view('staff.attendance.my-report', [
+            'attendance' => $attendance,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'summary' => $summary,
+            'staffName' => $user->staff->full_name,
+        ]);
     }
 }

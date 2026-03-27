@@ -58,6 +58,11 @@
         <i class="bi bi-journal-text"></i> View Records
       </a>
     @endif
+    @php $teacherAttendanceReportUrl = Route::has('teacher.attendance.report') ? route('teacher.attendance.report') : url('/teacher/my-attendance/report'); @endphp
+    <a href="{{ $teacherAttendanceReportUrl }}"
+       class="sublink {{ Request::is('teacher/my-attendance/report*') ? 'active' : '' }}">
+      <i class="bi bi-clock-history"></i> My Attendance Report
+    </a>
   </div>
 @endif
 

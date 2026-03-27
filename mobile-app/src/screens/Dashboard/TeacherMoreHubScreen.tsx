@@ -28,6 +28,7 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
         ...(user?.staff_id ? [{ title: 'Edit profile', icon: 'edit', screen: 'StaffEdit' } as Item] : []),
         { title: 'My salary / payslips', icon: 'payments', screen: 'MySalary' },
         { title: 'Leave & apply', icon: 'event-busy', screen: 'Leave' },
+        { title: 'Clock in / out', icon: 'access-time', screen: 'TeacherClock' },
         { title: 'Transport routes', icon: 'directions-bus', screen: 'Transport' },
         { title: 'Diary', icon: 'book', screen: 'Diary' },
         { title: 'Notifications', icon: 'notifications', screen: 'Notifications' },

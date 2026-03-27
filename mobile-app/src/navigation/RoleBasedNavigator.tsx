@@ -10,6 +10,7 @@ import { TeacherNavigator } from './TeacherNavigator';
 import { ParentTabNavigator } from './ParentTabNavigator';
 import { StudentTabNavigator } from './StudentTabNavigator';
 import { useTheme } from '@contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
 
@@ -19,6 +20,7 @@ interface RoleBasedNavigatorProps {
 
 export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) => {
     const { isDark, colors } = useTheme();
+    const insets = useSafeAreaInsets();
 
     // Admin/Super Admin Navigation
     if (
@@ -37,7 +39,11 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
                     tabBarStyle: {
                         backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
                         borderTopColor: isDark ? colors.borderDark : colors.borderLight,
+                        height: 56 + insets.bottom,
+                        paddingTop: 6,
+                        paddingBottom: Math.max(insets.bottom, 6),
                     },
+                    tabBarItemStyle: { paddingVertical: 0 },
                 }}
             >
                 <Tab.Screen

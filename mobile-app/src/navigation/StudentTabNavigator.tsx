@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StudentHomeScreen } from '@screens/Student/StudentHomeScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
@@ -38,6 +39,7 @@ const StudentMoreStack = () => (
 
 export const StudentTabNavigator: React.FC = () => {
     const { isDark, colors } = useTheme();
+    const insets = useSafeAreaInsets();
 
     return (
         <Tab.Navigator
@@ -48,7 +50,11 @@ export const StudentTabNavigator: React.FC = () => {
                 tabBarStyle: {
                     backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
                     borderTopColor: isDark ? colors.borderDark : colors.borderLight,
+                    height: 56 + insets.bottom,
+                    paddingTop: 6,
+                    paddingBottom: Math.max(insets.bottom, 6),
                 },
+                tabBarItemStyle: { paddingVertical: 0 },
             }}
         >
             <Tab.Screen

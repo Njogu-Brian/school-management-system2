@@ -219,16 +219,6 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
     if (step === 'select') {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
-                <View style={[styles.header, { borderBottomColor: isDark ? colors.borderDark : colors.borderLight }]}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                    </TouchableOpacity>
-                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Mark Attendance
-                    </Text>
-                    <View style={{ width: 24 }} />
-                </View>
-
                 <ScrollView contentContainerStyle={styles.selectContent}>
                     <Text style={[styles.sectionLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                         Select Class
@@ -348,19 +338,6 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
-            {/* Header with back to classes */}
-            <View style={[styles.header, { borderBottomColor: isDark ? colors.borderDark : colors.borderLight }]}>
-                <TouchableOpacity onPress={handleBackToClasses}>
-                    <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                </TouchableOpacity>
-                <View style={styles.headerCenter}>
-                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Marking: {selectedClass?.name}{selectedStream ? ` - ${selectedStream.name}` : ''}
-                    </Text>
-                </View>
-                <View style={{ width: 24 }} />
-            </View>
-
             <View
                 style={[
                     styles.dateCard,
@@ -406,6 +383,7 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
 
             {/* Action bar */}
             <View style={styles.actionBar}>
+                <Button title="Change Class" onPress={handleBackToClasses} variant="outline" size="small" />
                 <Button title="Mark All Present" onPress={markAllPresent} variant="outline" size="small" />
                 <Text style={[styles.countText, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                     {markedCount} marked / {students.length} total
@@ -428,16 +406,6 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.md,
-        borderBottomWidth: 1,
-    },
-    headerCenter: { flex: 1, alignItems: 'center' },
-    title: { fontSize: FONT_SIZES.lg, fontWeight: 'bold' },
-    subtitle: { fontSize: FONT_SIZES.xs, marginTop: 2 },
     selectContent: { padding: SPACING.xl },
     dateCard: { padding: SPACING.lg, borderWidth: 1, marginBottom: SPACING.md },
     dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.md },

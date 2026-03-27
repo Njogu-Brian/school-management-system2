@@ -8,6 +8,7 @@ import { TeacherMoreHubScreen } from '@screens/Dashboard/TeacherMoreHubScreen';
 import { StudentsListScreen } from '@screens/Students/StudentsListScreen';
 import { StudentDetailScreen } from '@screens/Students/StudentDetailScreen';
 import { MarkAttendanceScreen } from '@screens/Attendance/MarkAttendanceScreen';
+import { TeacherClockScreen } from '@screens/Attendance/TeacherClockScreen';
 import { AttendanceRecordsScreen } from '@screens/Attendance/AttendanceRecordsScreen';
 import { TimetableScreen } from '@screens/Academics/TimetableScreen';
 import { AssignmentsScreen } from '@screens/Academics/AssignmentsScreen';
@@ -36,6 +37,7 @@ import { FeeBalancesScreen } from '@screens/SeniorTeacher/FeeBalancesScreen';
 import { RecordPaymentScreen } from '@screens/Finance/RecordPaymentScreen';
 import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
 import { useTheme } from '@contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -48,6 +50,7 @@ const ComingSoonScreen = () => (
 
 function TeacherTabs() {
     const { isDark, colors } = useTheme();
+    const insets = useSafeAreaInsets();
     return (
         <Tab.Navigator
             screenOptions={{
@@ -57,7 +60,11 @@ function TeacherTabs() {
                 tabBarStyle: {
                     backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
                     borderTopColor: isDark ? colors.borderDark : colors.borderLight,
+                    height: 56 + insets.bottom,
+                    paddingTop: 6,
+                    paddingBottom: Math.max(insets.bottom, 6),
                 },
+                tabBarItemStyle: { paddingVertical: 0 },
             }}
         >
             <Tab.Screen
@@ -108,6 +115,7 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="RecordPayment" component={RecordPaymentScreen} />
             <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
+            <Stack.Screen name="TeacherClock" component={TeacherClockScreen} />
             <Stack.Screen name="AttendanceRecords" component={AttendanceRecordsScreen} />
             <Stack.Screen name="Timetable" component={TimetableScreen} />
             <Stack.Screen name="Assignments" component={AssignmentsScreen} />

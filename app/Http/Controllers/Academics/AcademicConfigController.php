@@ -545,7 +545,8 @@ class AcademicConfigController extends Controller
         ]);
 
         $term = Term::findOrFail($request->term_id);
-        $this->ensureDateWithinTerm($term, Carbon::parse($request->date));
+        $date = Carbon::parse($request->date);
+        $this->ensureDateWithinTerm($term, $date);
 
         SchoolDay::updateOrCreate(
             ['date' => $date->toDateString()],

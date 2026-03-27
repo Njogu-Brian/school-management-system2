@@ -14,8 +14,8 @@ class ApiClient {
     }
 
     constructor() {
-        const baseURL = API_BASE_URL || 'http://localhost:8000/api';
-        const isNgrok = baseURL.includes('ngrok');
+        const baseURL = API_BASE_URL;
+        const isNgrok = __DEV__ && baseURL.includes('ngrok');
         this.client = axios.create({
             baseURL,
             timeout: parseInt(API_TIMEOUT || '30000', 10),

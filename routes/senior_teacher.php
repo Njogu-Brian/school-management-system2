@@ -18,6 +18,7 @@ use App\Http\Controllers\EventCalendarController;
 use App\Http\Controllers\Teacher\SalaryController;
 use App\Http\Controllers\Teacher\LeaveController;
 use App\Http\Controllers\Teacher\AdvanceRequestController;
+use App\Http\Controllers\Hr\StaffAttendanceController;
 
 Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(function () {
 
@@ -64,6 +65,10 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
 
         Route::get('/records', [AttendanceController::class, 'records'])
             ->name('attendance.records');
+    });
+
+    Route::prefix('senior-teacher/my-attendance')->name('senior_teacher.attendance.')->group(function () {
+        Route::get('/report', [StaffAttendanceController::class, 'myReport'])->name('report');
     });
 
     /*

@@ -1,5 +1,6 @@
 import { Alert, Linking, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
+import Constants from 'expo-constants';
 
 interface CheckForUpdatesOptions {
     silent?: boolean;
@@ -14,13 +15,19 @@ function isExpoGoEnvironment(): boolean {
 async function openStorePage(): Promise<void> {
     const androidStoreUrl = 'market://details?id=com.schoolerp';
     const androidFallbackUrl = 'https://play.google.com/store/apps/details?id=com.schoolerp';
-    const iosStoreUrl = 'itms-apps://itunes.apple.com/app/id0000000000';
-    const iosFallbackUrl = 'https://apps.apple.com/app/id0000000000';
+    const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
+    const iosAppId = extra?.IOS_APP_STORE_ID?.trim();
+    const iosStoreUrl = iosAppId ? `itms-apps://itunes.apple.com/app/id${iosAppId}` : '';
+    const iosFallbackUrl = iosAppId ? `https://apps.apple.com/app/id${iosAppId}` : '';
 
     try {
         if (Platform.OS === 'android') {
             const canOpenMarket = await Linking.canOpenURL(androidStoreUrl);
             await Linking.openURL(canOpenMarket ? androidStoreUrl : androidFallbackUrl);
+            return;
+        }
+
+        if (!iosStoreUrl || !iosFallbackUrl) {
             return;
         }
 

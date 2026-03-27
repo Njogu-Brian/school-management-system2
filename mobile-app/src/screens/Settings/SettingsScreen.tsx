@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
-    SafeAreaView,
+    TextInput,
     Switch,
     Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
+import { useNotificationPreferences } from '@contexts/NotificationPreferencesContext';
 import { Card } from '@components/common/Card';
 import { Button } from '@components/common/Button';
 import { SPACING, FONT_SIZES } from '@constants/theme';
@@ -20,6 +22,9 @@ import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { checkForAppUpdate } from '@services/update.service';
 import { canUseBiometrics, getBiometricEnabled, setBiometricEnabled } from '@utils/biometrics';
+import { authApi } from '@api/auth.api';
+import { staffClockApi } from '@api/staffClock.api';
+import * as Location from 'expo-location';
 
 interface SettingsScreenProps {
     navigation: any;
@@ -28,6 +33,7 @@ interface SettingsScreenProps {
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
     const { isDark, colors, toggleTheme } = useTheme();
     const { user } = useAuth();
+    const { preferences, updatePreferences } = useNotificationPreferences();
     const appVersion = Constants.expoConfig?.version ?? '1.0.0';
     const buildNumber = String(
         Constants.expoConfig?.android?.versionCode ?? Constants.expoConfig?.ios?.buildNumber ?? '100'
@@ -37,14 +43,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
     const runtimeVersion = Updates.runtimeVersion ?? 'N/A';
     const updateId = Updates.updateId ?? 'N/A';
 
-    const [notifications, setNotifications] = useState({
-        pushEnabled: true,
-        emailEnabled: true,
-        smsEnabled: false,
-        attendanceAlerts: true,
-        feeReminders: true,
-        announcements: true,
-    });
+    const [notifBusy, setNotifBusy] = useState(false);
 
     const [biometrics, setBiometrics] = useState({
         enabled: false,
@@ -52,6 +51,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         faceId: false,
     });
     const [deviceSupportsBiometrics, setDeviceSupportsBiometrics] = useState(false);
+    const [changingPassword, setChangingPassword] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+    });
+    const [geoLoading, setGeoLoading] = useState(false);
+    const [schoolLatitude, setSchoolLatitude] = useState('');
+    const [schoolLongitude, setSchoolLongitude] = useState('');
+    const [radiusMeters, setRadiusMeters] = useState('100');
 
     React.useEffect(() => {
         (async () => {
@@ -61,10 +70,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         })();
     }, []);
 
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const geo = await staffClockApi.getGeofenceConfig();
+                if (geo.success && geo.data) {
+                    setSchoolLatitude(geo.data.latitude?.toString() ?? '');
+                    setSchoolLongitude(geo.data.longitude?.toString() ?? '');
+                    setRadiusMeters(String(Math.round(geo.data.radius_meters || 100)));
+                }
+            } catch {
+                // ignore geofence loading errors for non-admin users
+            }
+        })();
+    }, []);
+
     const handleToggle = (category: string, setting: string) => {
-        if (category === 'notifications') {
-            setNotifications((prev) => ({ ...prev, [setting]: !prev[setting as keyof typeof prev] }));
-        } else if (category === 'biometrics') {
+        if (category === 'biometrics') {
             setBiometrics((prev) => {
                 const nextValue = !prev[setting as keyof typeof prev];
                 if (setting === 'enabled') {
@@ -72,6 +94,36 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                 }
                 return { ...prev, [setting]: nextValue };
             });
+        }
+    };
+
+    const mapPreference = useMemo(
+        () => ({
+            pushEnabled: preferences.push_enabled,
+            emailEnabled: preferences.email_enabled,
+            smsEnabled: preferences.sms_enabled,
+            attendanceAlerts: preferences.attendance_alerts,
+            feeReminders: preferences.fee_reminders,
+            announcements: preferences.announcements,
+        }),
+        [preferences]
+    );
+
+    const handleNotificationToggle = async (
+        key:
+            | 'push_enabled'
+            | 'email_enabled'
+            | 'sms_enabled'
+            | 'attendance_alerts'
+            | 'fee_reminders'
+            | 'announcements'
+    ) => {
+        const next = { ...preferences, [key]: !preferences[key] };
+        setNotifBusy(true);
+        try {
+            await updatePreferences(next);
+        } finally {
+            setNotifBusy(false);
         }
     };
 
@@ -123,8 +175,98 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         await checkForAppUpdate({ silent: false, showNoUpdateMessage: true });
     };
 
+    const isStrongPassword = (value: string): boolean => {
+        return /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value);
+    };
+
+    const handleChangePassword = async () => {
+        if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+            Alert.alert('Missing fields', 'Enter your current password, new password, and confirmation.');
+            return;
+        }
+        if (passwordForm.newPassword.length < 8 || !isStrongPassword(passwordForm.newPassword)) {
+            Alert.alert(
+                'Weak password',
+                'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.'
+            );
+            return;
+        }
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            Alert.alert('Mismatch', 'New password and confirmation do not match.');
+            return;
+        }
+
+        setChangingPassword(true);
+        try {
+            const response = await authApi.changePassword({
+                current_password: passwordForm.currentPassword,
+                new_password: passwordForm.newPassword,
+                new_password_confirmation: passwordForm.confirmPassword,
+            });
+            if (response.success) {
+                setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                Alert.alert('Success', response.message || 'Password changed successfully.');
+            } else {
+                Alert.alert('Could not change password', response.message || 'Please try again.');
+            }
+        } catch (error: any) {
+            Alert.alert('Could not change password', error?.message || 'Please check your current password and try again.');
+        } finally {
+            setChangingPassword(false);
+        }
+    };
+
+    const setSchoolLocationFromDevice = async () => {
+        setGeoLoading(true);
+        try {
+            const permission = await Location.requestForegroundPermissionsAsync();
+            if (permission.status !== 'granted') {
+                Alert.alert('Location required', 'Allow location permission to set school coordinates from this device.');
+                return;
+            }
+            const current = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+            });
+            setSchoolLatitude(String(current.coords.latitude));
+            setSchoolLongitude(String(current.coords.longitude));
+        } catch {
+            Alert.alert('Location error', 'Failed to read current location.');
+        } finally {
+            setGeoLoading(false);
+        }
+    };
+
+    const saveSchoolGeofence = async () => {
+        const lat = Number(schoolLatitude);
+        const lng = Number(schoolLongitude);
+        const radius = Number(radiusMeters);
+        if (Number.isNaN(lat) || Number.isNaN(lng) || Number.isNaN(radius)) {
+            Alert.alert('Invalid values', 'Provide valid latitude, longitude, and radius.');
+            return;
+        }
+
+        setGeoLoading(true);
+        try {
+            const response = await staffClockApi.updateGeofenceConfig({
+                latitude: lat,
+                longitude: lng,
+                radius_meters: radius,
+            });
+            if (response.success) {
+                Alert.alert('Saved', 'School geofence updated.');
+            } else {
+                Alert.alert('Error', response.message || 'Could not save geofence.');
+            }
+        } catch (error: any) {
+            Alert.alert('Error', error?.message || 'Could not save geofence.');
+        } finally {
+            setGeoLoading(false);
+        }
+    };
+
     return (
         <SafeAreaView
+            edges={['bottom']}
             style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
             <ScrollView style={styles.content}>
@@ -143,30 +285,40 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                     </Text>
                     {renderSettingRow(
                         'Push Notifications',
-                        notifications.pushEnabled,
-                        () => handleToggle('notifications', 'pushEnabled'),
+                        mapPreference.pushEnabled,
+                        () => handleNotificationToggle('push_enabled'),
                         'Receive push notifications'
                     )}
                     {renderSettingRow(
                         'Email Notifications',
-                        notifications.emailEnabled,
-                        () => handleToggle('notifications', 'emailEnabled')
+                        mapPreference.emailEnabled,
+                        () => handleNotificationToggle('email_enabled')
+                    )}
+                    {renderSettingRow(
+                        'SMS Notifications',
+                        mapPreference.smsEnabled,
+                        () => handleNotificationToggle('sms_enabled')
                     )}
                     {renderSettingRow(
                         'Attendance Alerts',
-                        notifications.attendanceAlerts,
-                        () => handleToggle('notifications', 'attendanceAlerts')
+                        mapPreference.attendanceAlerts,
+                        () => handleNotificationToggle('attendance_alerts')
                     )}
                     {renderSettingRow(
                         'Fee Reminders',
-                        notifications.feeReminders,
-                        () => handleToggle('notifications', 'feeReminders')
+                        mapPreference.feeReminders,
+                        () => handleNotificationToggle('fee_reminders')
                     )}
                     {renderSettingRow(
                         'Announcements',
-                        notifications.announcements,
-                        () => handleToggle('notifications', 'announcements')
+                        mapPreference.announcements,
+                        () => handleNotificationToggle('announcements')
                     )}
+                    {notifBusy ? (
+                        <Text style={[styles.settingDescription, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                            Saving preferences...
+                        </Text>
+                    ) : null}
                 </Card>
 
                 {/* Security */}
@@ -182,14 +334,149 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                             ? 'Use fingerprint or face recognition'
                             : 'Biometric login not available on this device'
                     )}
+                    <Text style={[styles.settingDescription, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                        Use your current password, then set a strong new password (8+ chars, upper/lowercase, number, symbol).
+                    </Text>
+                    <TextInput
+                        secureTextEntry
+                        autoCapitalize="none"
+                        placeholder="Current password"
+                        placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
+                        style={[
+                            styles.input,
+                            {
+                                color: isDark ? colors.textMainDark : colors.textMainLight,
+                                backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                                borderColor: isDark ? colors.borderDark : colors.borderLight,
+                            },
+                        ]}
+                        value={passwordForm.currentPassword}
+                        onChangeText={(value) => setPasswordForm((prev) => ({ ...prev, currentPassword: value }))}
+                    />
+                    <TextInput
+                        secureTextEntry
+                        autoCapitalize="none"
+                        placeholder="New password"
+                        placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
+                        style={[
+                            styles.input,
+                            {
+                                color: isDark ? colors.textMainDark : colors.textMainLight,
+                                backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                                borderColor: isDark ? colors.borderDark : colors.borderLight,
+                            },
+                        ]}
+                        value={passwordForm.newPassword}
+                        onChangeText={(value) => setPasswordForm((prev) => ({ ...prev, newPassword: value }))}
+                    />
+                    <TextInput
+                        secureTextEntry
+                        autoCapitalize="none"
+                        placeholder="Confirm new password"
+                        placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
+                        style={[
+                            styles.input,
+                            {
+                                color: isDark ? colors.textMainDark : colors.textMainLight,
+                                backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                                borderColor: isDark ? colors.borderDark : colors.borderLight,
+                            },
+                        ]}
+                        value={passwordForm.confirmPassword}
+                        onChangeText={(value) => setPasswordForm((prev) => ({ ...prev, confirmPassword: value }))}
+                    />
                     <Button
-                        title="Change Password"
-                        onPress={() => navigation.navigate('ChangePassword')}
-                        variant="outline"
+                        title="Update Password"
+                        onPress={handleChangePassword}
+                        loading={changingPassword}
                         fullWidth
                         style={styles.actionButton}
                     />
                 </Card>
+
+                <Card style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                        Teacher Attendance Clock
+                    </Text>
+                    <Button
+                        title="Open Clock In / Out"
+                        onPress={() => navigation.navigate('TeacherClock')}
+                        variant="outline"
+                        fullWidth
+                        style={styles.actionButton}
+                    />
+                    <Text style={[styles.settingDescription, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                        Teachers can clock in/out only within the school geofence.
+                    </Text>
+                </Card>
+
+                {isAdminUser ? (
+                    <Card style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                            School Geofence (Admin)
+                        </Text>
+                        <TextInput
+                            keyboardType="decimal-pad"
+                            placeholder="Latitude"
+                            placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
+                            style={[
+                                styles.input,
+                                {
+                                    color: isDark ? colors.textMainDark : colors.textMainLight,
+                                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                                    borderColor: isDark ? colors.borderDark : colors.borderLight,
+                                },
+                            ]}
+                            value={schoolLatitude}
+                            onChangeText={setSchoolLatitude}
+                        />
+                        <TextInput
+                            keyboardType="decimal-pad"
+                            placeholder="Longitude"
+                            placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
+                            style={[
+                                styles.input,
+                                {
+                                    color: isDark ? colors.textMainDark : colors.textMainLight,
+                                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                                    borderColor: isDark ? colors.borderDark : colors.borderLight,
+                                },
+                            ]}
+                            value={schoolLongitude}
+                            onChangeText={setSchoolLongitude}
+                        />
+                        <TextInput
+                            keyboardType="numeric"
+                            placeholder="Radius in meters (e.g. 100)"
+                            placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
+                            style={[
+                                styles.input,
+                                {
+                                    color: isDark ? colors.textMainDark : colors.textMainLight,
+                                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                                    borderColor: isDark ? colors.borderDark : colors.borderLight,
+                                },
+                            ]}
+                            value={radiusMeters}
+                            onChangeText={setRadiusMeters}
+                        />
+                        <Button
+                            title="Use Current Device Location"
+                            onPress={setSchoolLocationFromDevice}
+                            variant="outline"
+                            fullWidth
+                            style={styles.actionButton}
+                            loading={geoLoading}
+                        />
+                        <Button
+                            title="Save Geofence"
+                            onPress={saveSchoolGeofence}
+                            fullWidth
+                            style={styles.actionButton}
+                            loading={geoLoading}
+                        />
+                    </Card>
+                ) : null}
 
                 {/* Data & Storage */}
                 <Card style={styles.section}>
@@ -287,6 +574,13 @@ const styles = StyleSheet.create({
     settingInfo: { flex: 1, marginRight: SPACING.md },
     settingTitle: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
     settingDescription: { fontSize: FONT_SIZES.xs, marginTop: 2 },
+    input: {
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+        marginTop: SPACING.sm,
+    },
     actionButton: { marginTop: SPACING.sm },
     infoRow: {
         flexDirection: 'row',

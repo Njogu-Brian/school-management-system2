@@ -13,6 +13,7 @@ ios/Pods/
 
 # Expo local
 .expo/
+dist/
 
 # IDE
 .vscode/
