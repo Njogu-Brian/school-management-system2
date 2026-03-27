@@ -10,6 +10,9 @@
 .env.backup
 .env.prod
 .env.production
+mobile-app/android/build/
+mobile-app/android/app/.cxx/
+mobile-app/android/app/build/
 erp-key.pem
 school_backup.sql
 *.sql

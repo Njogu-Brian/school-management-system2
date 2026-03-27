@@ -1,0 +1,61 @@
+# EAS Build upload filter (repo root). When this file exists, EAS does not use .gitignore —
+# so we repeat sensitive patterns from .gitignore and exclude paths not needed for mobile-app builds.
+# See: https://expo.fyi/eas-build-archive
+
+# --- Secrets (mirror root .gitignore) ---
+.env
+.env.*
+**/.env
+**/.env.*
+erp-key.pem
+/auth.json
+*.sql
+school_backup.sql
+
+# --- Dependencies & native caches (EAS runs npm install; exclude local installs) ---
+**/node_modules
+vendor
+**/android/.gradle
+**/android/**/build
+.expo
+
+# --- Monorepo: Laravel + web frontend (not used to compile the Android app) ---
+/app/
+/bootstrap/
+/config/
+/database/
+/lang/
+/public/
+/resources/
+/routes/
+/tests/
+/docs/
+/deploy/
+/scripts/
+/frontend/
+/storage/
+/dlr_sample/
+/testsprite_tests/
+
+*.php
+artisan
+composer.json
+composer.lock
+phpunit.xml
+Homestead.json
+Homestead.yaml
+.phpunit.cache
+.phpactor.json
+.phpunit.result.cache
+
+# Root tooling / misc
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+.qodo
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+*.log
