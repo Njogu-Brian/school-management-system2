@@ -36,19 +36,38 @@ class ReceiptService
 
         $student = $payment->student;
 
-        // Get ALL unpaid invoice items for the student (not just allocated ones)
-        $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
-            $q->where('student_id', $student->id);
-        })
-        ->where('status', 'active')
-        ->with(['invoice', 'votehead', 'allocations'])
-        ->get()
-        ->filter(function($item) {
-            return $item->getBalance() > 0; // Only unpaid items
-        });
-
         // Get payment allocations for this specific payment
         $paymentAllocations = $payment->allocations;
+
+        // Keep receipt context scoped to the payment's term(s) to avoid mixing charges
+        // from different terms in a single receipt.
+        $contextTermIds = $paymentAllocations
+            ->map(function ($allocation) {
+                return optional(optional($allocation->invoiceItem)->invoice)->term_id;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($contextTermIds->isEmpty() && optional($payment->invoice)->term_id) {
+            $contextTermIds = collect([$payment->invoice->term_id]);
+        }
+
+        // Get unpaid invoice items for the student, scoped to receipt context term(s) where possible.
+        $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($student, $contextTermIds) {
+            $q->where('student_id', $student->id)
+                ->where('status', '!=', 'reversed');
+
+            if ($contextTermIds->isNotEmpty()) {
+                $q->whereIn('term_id', $contextTermIds->all());
+            }
+        })
+            ->where('status', 'active')
+            ->with(['invoice', 'votehead', 'allocations'])
+            ->get()
+            ->filter(function ($item) {
+                return $item->getBalance() > 0; // Only unpaid items
+            });
 
         // Build comprehensive receipt items showing:
         // 1. Items that received payment (with allocation details)
@@ -109,8 +128,16 @@ class ReceiptService
         // Calculate TOTAL outstanding balance including balance brought forward
         $totalOutstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
 
-        // Calculate total invoices for receipt display
+        // Calculate total invoices for receipt display in the same term context
         $invoices = \App\Models\Invoice::where('student_id', $student->id)
+            ->where('status', '!=', 'reversed')
+            ->when($contextTermIds->isNotEmpty(), function ($q) use ($contextTermIds) {
+                $q->whereIn('term_id', $contextTermIds->all());
+            }, function ($q) use ($payment) {
+                if ($payment->invoice_id) {
+                    $q->where('id', $payment->invoice_id);
+                }
+            })
             ->with('items') // Eager load items to avoid N+1
             ->get();
 

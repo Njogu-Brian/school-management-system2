@@ -191,8 +191,23 @@ class CommunicationHelperService
 
         // Only recipients with fee balance (students/parents who have at least one invoice with balance > 0)
         if (!empty($data['fee_balance_only'])) {
+            $today = now()->toDateString();
             $studentIdsWithBalance = Invoice::where('balance', '>', 0)
                 ->where('status', '!=', 'reversed')
+                ->where(function ($q) use ($today) {
+                    // Communicate only due/current-or-past term balances.
+                    $q->whereDate('due_date', '<=', $today)
+                        ->orWhere(function ($sub) use ($today) {
+                            $sub->whereNull('due_date')
+                                ->where(function ($termFilter) use ($today) {
+                                    $termFilter->whereNull('term_id')
+                                        ->orWhereHas('term', function ($termQuery) use ($today) {
+                                            $termQuery->whereNull('opening_date')
+                                                ->orWhereDate('opening_date', '<=', $today);
+                                        });
+                                });
+                        });
+                })
                 ->distinct()
                 ->pluck('student_id')
                 ->flip()
@@ -263,7 +278,7 @@ class CommunicationHelperService
                     $list = is_array($entities) ? $entities : [$entities];
                     $filtered = array_filter($list, function ($e) use ($percentMin, $currentTermId) {
                         if (!($e instanceof Student)) return true;
-                        $outstanding = StudentBalanceService::getTotalOutstandingBalance($e, false);
+                        $outstanding = StudentBalanceService::getTotalOutstandingBalance($e, true);
                         if ($outstanding <= 0) return false;
                         $termTotal = Invoice::where('student_id', $e->id)
                             ->where('status', '!=', 'reversed')

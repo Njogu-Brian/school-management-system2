@@ -420,11 +420,27 @@ if (!function_exists('replace_placeholders')) {
             // Invoice placeholders for student (if not already in $extra)
             if (! isset($extra['outstanding_amount']) && $entity->id && class_exists(\App\Models\Invoice::class)) {
                 try {
-                    $invoices = \App\Models\Invoice::where('student_id', $entity->id)->get();
-                    $totalOutstanding = $invoices->sum(fn ($inv) => max(0, (float) $inv->balance));
-                    $latestInvoice = \App\Models\Invoice::where('student_id', $entity->id)
-                        ->orderBy('year', 'desc')
-                        ->orderBy('term', 'desc')
+                    $today = now()->toDateString();
+                    $dueInvoiceQuery = \App\Models\Invoice::where('student_id', $entity->id)
+                        ->where('status', '!=', 'reversed')
+                        ->where(function ($q) use ($today) {
+                            $q->whereDate('due_date', '<=', $today)
+                                ->orWhere(function ($sub) use ($today) {
+                                    $sub->whereNull('due_date')
+                                        ->where(function ($termFilter) use ($today) {
+                                            $termFilter->whereNull('term_id')
+                                                ->orWhereHas('term', function ($termQuery) use ($today) {
+                                                    $termQuery->whereNull('opening_date')
+                                                        ->orWhereDate('opening_date', '<=', $today);
+                                                });
+                                        });
+                                });
+                        });
+
+                    $totalOutstanding = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($entity, true);
+                    $latestInvoice = (clone $dueInvoiceQuery)
+                        ->orderBy('due_date', 'desc')
+                        ->orderBy('id', 'desc')
                         ->first();
                     $replacements['{{outstanding_amount}}'] = number_format(round($totalOutstanding, 2), 2);
                     $replacements['{outstanding_amount}'] = $replacements['{{outstanding_amount}}'];

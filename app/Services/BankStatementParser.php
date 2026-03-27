@@ -1847,7 +1847,7 @@ class BankStatementParser
             $maxAttempts = 10;
             $attempt = 0;
             do {
-                $finalReceiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+                $finalReceiptNumber = \App\Services\ReceiptNumberService::generateForPayment();
                 $exists = \App\Models\Payment::where('receipt_number', $finalReceiptNumber)->exists();
                 $attempt++;
                 
@@ -1859,10 +1859,10 @@ class BankStatementParser
             
             if ($exists) {
                 // If still exists after max attempts, append transaction ID to make it unique
-                $finalReceiptNumber = $finalReceiptNumber . '-' . $transaction->id;
+                $finalReceiptNumber = preg_replace('/\D+/', '', (string) $finalReceiptNumber) . (string) $transaction->id;
                 
                 \Log::warning('Receipt number collision after max attempts, using modified number', [
-                    'original_receipt' => \App\Services\DocumentNumberService::generateReceipt(),
+                    'original_receipt' => \App\Services\ReceiptNumberService::generateForPayment(),
                     'modified_receipt' => $finalReceiptNumber,
                     'transaction_id' => $transaction->id,
                 ]);
@@ -1872,7 +1872,7 @@ class BankStatementParser
             $exists = \App\Models\Payment::where('receipt_number', $finalReceiptNumber)->exists();
             if ($exists) {
                 // Append transaction ID to make it unique
-                $finalReceiptNumber = $finalReceiptNumber . '-' . $transaction->id;
+                $finalReceiptNumber = preg_replace('/\D+/', '', (string) $finalReceiptNumber) . (string) $transaction->id;
                 
                 \Log::warning('Provided receipt number already exists, using modified number', [
                     'original_receipt' => $receiptNumber,

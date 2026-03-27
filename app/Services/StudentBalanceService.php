@@ -27,9 +27,22 @@ class StudentBalanceService
         $query = Invoice::where('student_id', $studentModel->id)
             ->where('status', '!=', 'reversed');
         if ($dueOnly) {
-            $query->where(function ($q) {
-                $q->whereNull('due_date')
-                  ->orWhereDate('due_date', '<=', now()->toDateString());
+            $today = now()->toDateString();
+            $query->where(function ($q) use ($today) {
+                // Explicit due date in past/today is always due.
+                $q->whereDate('due_date', '<=', $today)
+                    // If due date is missing, treat it as due only when term has started
+                    // (or when no term is attached / opening date missing for legacy invoices).
+                    ->orWhere(function ($sub) use ($today) {
+                        $sub->whereNull('due_date')
+                            ->where(function ($termFilter) use ($today) {
+                                $termFilter->whereNull('term_id')
+                                    ->orWhereHas('term', function ($termQuery) use ($today) {
+                                        $termQuery->whereNull('opening_date')
+                                            ->orWhereDate('opening_date', '<=', $today);
+                                    });
+                            });
+                    });
             });
         }
         $invoiceBalance = $query->sum('balance');
