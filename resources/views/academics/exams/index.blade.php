@@ -84,11 +84,62 @@
         </div>
         @if(isset($exams))<span class="input-chip">{{ $exams->total() ?? $exams->count() }} total</span>@endif
       </div>
+      <div class="card-body border-bottom">
+        <form method="POST" action="{{ route('academics.exams.bulk-update') }}" id="bulkExamUpdateForm" class="row g-2 align-items-end">
+          @csrf
+          <div class="col-md-2">
+            <label class="form-label">Status (bulk)</label>
+            <select name="bulk_status" class="form-select">
+              <option value="">No change</option>
+              @foreach(['draft','open','marking','moderation','approved','published','locked'] as $st)
+                <option value="{{ $st }}">{{ ucfirst($st) }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Publish Exam (bulk)</label>
+            <select name="bulk_publish_exam" class="form-select">
+              <option value="">No change</option>
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Publish Result (bulk)</label>
+            <select name="bulk_publish_result" class="form-select">
+              <option value="">No change</option>
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Starts On (bulk)</label>
+            <input type="date" name="bulk_starts_on" class="form-control">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Ends On (bulk)</label>
+            <input type="date" name="bulk_ends_on" class="form-control">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Weight (bulk)</label>
+            <input type="number" name="bulk_weight" class="form-control" min="0" max="100" step="0.01" placeholder="e.g. 1">
+          </div>
+          <div class="col-md-12 d-grid">
+            <button type="submit" id="bulkUpdateBtn" class="btn btn-settings-primary" disabled>
+              <i class="bi bi-check2-square me-1"></i>Apply to Selected
+            </button>
+          </div>
+          <div id="bulkExamIds"></div>
+        </form>
+      </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-modern table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
+                <th style="width:36px;">
+                  <input type="checkbox" class="form-check-input" id="selectAllExams" title="Select all on page">
+                </th>
                 <th>Exam Name</th>
                 <th>Type</th>
                 <th>Academic Year / Term</th>
@@ -102,6 +153,9 @@
             <tbody>
               @forelse($exams ?? [] as $exam)
                 <tr>
+                  <td>
+                    <input type="checkbox" class="form-check-input exam-row-select" value="{{ $exam->id }}" aria-label="Select exam {{ $exam->name }}">
+                  </td>
                   <td>
                     <div class="fw-semibold">{{ $exam->name }}</div>
                     <div class="small text-muted"><i class="bi bi-{{ $exam->modality === 'online' ? 'laptop' : 'file-earmark' }}"></i> {{ ucfirst($exam->modality) }}</div>
@@ -172,7 +226,7 @@
                   </td>
                 </tr>
               @empty
-                <tr><td colspan="9" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-4 d-block mb-2"></i>No exams found. Create your first exam.</td></tr>
+                <tr><td colspan="10" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-4 d-block mb-2"></i>No exams found. Create your first exam.</td></tr>
               @endforelse
             </tbody>
           </table>
@@ -188,3 +242,47 @@
   </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(() => {
+  const form = document.getElementById('bulkExamUpdateForm');
+  const selectAll = document.getElementById('selectAllExams');
+  const rowChecks = Array.from(document.querySelectorAll('.exam-row-select'));
+  const idsWrap = document.getElementById('bulkExamIds');
+  const submitBtn = document.getElementById('bulkUpdateBtn');
+  if (!form || !idsWrap || !submitBtn) return;
+
+  const sync = () => {
+    const selected = rowChecks.filter((cb) => cb.checked);
+    submitBtn.disabled = selected.length === 0;
+    if (selectAll) {
+      selectAll.checked = rowChecks.length > 0 && selected.length === rowChecks.length;
+      selectAll.indeterminate = selected.length > 0 && selected.length < rowChecks.length;
+    }
+  };
+
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      rowChecks.forEach((cb) => { cb.checked = selectAll.checked; });
+      sync();
+    });
+  }
+
+  rowChecks.forEach((cb) => cb.addEventListener('change', sync));
+
+  form.addEventListener('submit', (e) => {
+    const selected = rowChecks.filter((cb) => cb.checked).map((cb) => cb.value);
+    if (selected.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    idsWrap.innerHTML = selected
+      .map((id) => `<input type="hidden" name="exam_ids[]" value="${id}">`)
+      .join('');
+  });
+
+  sync();
+})();
+</script>
+@endpush

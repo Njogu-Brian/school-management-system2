@@ -585,6 +585,115 @@ class ExamController extends Controller
             ->with('success', $message);
     }
 
+    public function bulkUpdate(Request $request)
+    {
+        $v = $request->validate([
+            'exam_ids' => 'required|array|min:1',
+            'exam_ids.*' => 'integer|exists:exams,id',
+            'bulk_status' => 'nullable|in:draft,open,marking,moderation,approved,published,locked',
+            'bulk_publish_exam' => 'nullable|in:0,1',
+            'bulk_publish_result' => 'nullable|in:0,1',
+            'bulk_starts_on' => 'nullable|date',
+            'bulk_ends_on' => 'nullable|date',
+            'bulk_weight' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        $hasStatus = $request->filled('bulk_status');
+        $hasPublishExam = $request->filled('bulk_publish_exam');
+        $hasPublishResult = $request->filled('bulk_publish_result');
+        $hasStartsOn = $request->filled('bulk_starts_on');
+        $hasEndsOn = $request->filled('bulk_ends_on');
+        $hasWeight = $request->filled('bulk_weight');
+
+        if ($hasStartsOn && $hasEndsOn && $v['bulk_ends_on'] < $v['bulk_starts_on']) {
+            return back()->with('error', 'Bulk end date must be after or equal to bulk start date.');
+        }
+
+        if (! $hasStatus && ! $hasPublishExam && ! $hasPublishResult && ! $hasStartsOn && ! $hasEndsOn && ! $hasWeight) {
+            return back()->with('error', 'Select at least one field to bulk update.');
+        }
+
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $allowedClassroomIds = $isTeacher ? array_map('intval', $user->getAssignedClassroomIds()) : [];
+
+        $updated = 0;
+        $skipped = 0;
+
+        $exams = Exam::whereIn('id', $v['exam_ids'])->get();
+        foreach ($exams as $exam) {
+            if ($isTeacher && $exam->classroom_id && !in_array((int) $exam->classroom_id, $allowedClassroomIds, true)) {
+                $skipped++;
+                continue;
+            }
+
+            $payload = [];
+
+            if ($hasStatus) {
+                $newStatus = $v['bulk_status'];
+
+                if (in_array($newStatus, ['published', 'locked'], true) && !$user->hasPermissionTo('exams.publish')) {
+                    $skipped++;
+                    continue;
+                }
+
+                if ($newStatus !== $exam->status) {
+                    if (method_exists($exam, 'canTransitionTo') && !$exam->canTransitionTo($newStatus)) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $payload['status'] = $newStatus;
+
+                    if ($newStatus === 'published' && !$exam->published_at) {
+                        $payload['published_at'] = now();
+                        $payload['published_by'] = Auth::id();
+                    }
+
+                    if ($newStatus === 'locked' && !$exam->locked_at) {
+                        $payload['locked_at'] = now();
+                        $payload['locked_by'] = Auth::id();
+                    }
+                }
+            }
+
+            if ($hasPublishExam) {
+                $payload['publish_exam'] = (bool) ((int) $v['bulk_publish_exam']);
+            }
+
+            if ($hasPublishResult) {
+                $payload['publish_result'] = (bool) ((int) $v['bulk_publish_result']);
+            }
+
+            if ($hasStartsOn) {
+                $payload['starts_on'] = $v['bulk_starts_on'];
+            }
+
+            if ($hasEndsOn) {
+                $payload['ends_on'] = $v['bulk_ends_on'];
+            }
+
+            if ($hasWeight) {
+                $payload['weight'] = (float) $v['bulk_weight'];
+            }
+
+            if ($payload === []) {
+                $skipped++;
+                continue;
+            }
+
+            $exam->update($payload);
+            $updated++;
+        }
+
+        $message = $updated.' exam(s) updated.';
+        if ($skipped > 0) {
+            $message .= ' '.$skipped.' skipped (permission or invalid transition).';
+        }
+
+        return back()->with($updated > 0 ? 'success' : 'error', $message);
+    }
+
     private function getMappedActiveSubjects(?array $classroomIds = null)
     {
         return Subject::query()
