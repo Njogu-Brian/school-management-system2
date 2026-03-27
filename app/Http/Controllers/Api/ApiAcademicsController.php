@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use App\Models\Academics\Classroom;
 use App\Models\Academics\Exam;
+use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamMark;
 use App\Models\Academics\ExamGrade;
+use App\Models\Academics\Stream;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -283,6 +286,255 @@ class ApiAcademicsController extends Controller
         ]);
     }
 
+    public function marksMatrixContext(Request $request)
+    {
+        $user = $request->user();
+        $classroomId = $request->filled('classroom_id') ? (int) $request->input('classroom_id') : null;
+
+        $classrooms = Classroom::query()
+            ->when($user && $user->hasTeacherLikeRole(), function ($q) use ($user) {
+                $ids = $user->getDashboardClassroomIds();
+                if (empty($ids)) {
+                    $q->whereRaw('1 = 0');
+                } else {
+                    $q->whereIn('id', $ids);
+                }
+            })
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $examTypes = ExamType::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+
+        $streams = collect();
+        if ($classroomId) {
+            $streams = Stream::query()
+                ->where('classroom_id', $classroomId)
+                ->when($user && $user->hasTeacherLikeRole(), function ($q) use ($user) {
+                    $streamIds = $user->getEffectiveStreamIds();
+                    if (!empty($streamIds)) {
+                        $q->whereIn('id', $streamIds);
+                    }
+                })
+                ->orderBy('name')
+                ->get(['id', 'name', 'classroom_id']);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'exam_types' => $examTypes,
+                'classrooms' => $classrooms,
+                'streams' => $streams,
+            ],
+        ]);
+    }
+
+    public function marksMatrix(Request $request)
+    {
+        $v = $request->validate([
+            'exam_type_id' => 'required|exists:exam_types,id',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+        ]);
+
+        $examTypeId = (int) $v['exam_type_id'];
+        $classroomId = (int) $v['classroom_id'];
+        $streamId = $request->filled('stream_id') ? (int) $request->input('stream_id') : null;
+        $user = $request->user();
+
+        if (!$this->canAccessClassroom($user, $classroomId)) {
+            return response()->json(['success' => false, 'message' => 'You do not have access to this classroom.'], 403);
+        }
+
+        $studentsQuery = Student::query()
+            ->where('classroom_id', $classroomId)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
+        if ($user && $user->hasTeacherLikeRole() && !$user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            $user->applyTeacherStudentFilter($studentsQuery);
+        }
+        $students = $studentsQuery->orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'last_name', 'admission_number', 'classroom_id', 'stream_id']);
+
+        $examCandidates = Exam::query()
+            ->with(['subject', 'examType'])
+            ->where('exam_type_id', $examTypeId)
+            ->where('classroom_id', $classroomId)
+            ->whereIn('status', ['open', 'marking'])
+            ->whereNotNull('subject_id')
+            ->when($streamId, function ($q) use ($streamId) {
+                $q->where(function ($subQ) use ($streamId) {
+                    $subQ->whereNull('stream_id')->orWhere('stream_id', $streamId);
+                });
+            })
+            ->orderBy('starts_on')
+            ->orderBy('id')
+            ->get();
+
+        $exams = $examCandidates->filter(function (Exam $exam) use ($user, $classroomId, $streamId) {
+            return $this->canAccessClassSubject($user, $classroomId, (int) $exam->subject_id, $streamId);
+        })->values();
+
+        $existing = collect();
+        if ($students->isNotEmpty() && $exams->isNotEmpty()) {
+            $existing = ExamMark::query()
+                ->whereIn('student_id', $students->pluck('id'))
+                ->whereIn('exam_id', $exams->pluck('id'))
+                ->get()
+                ->map(fn ($m) => [
+                    'student_id' => (int) $m->student_id,
+                    'exam_id' => (int) $m->exam_id,
+                    'marks' => is_null($m->score_raw) ? null : (float) $m->score_raw,
+                    'remarks' => $m->subject_remark,
+                ])
+                ->values();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'students' => $students->map(fn ($s) => [
+                    'id' => (int) $s->id,
+                    'full_name' => trim(($s->first_name ?? '').' '.($s->last_name ?? '')),
+                    'admission_number' => $s->admission_number,
+                    'classroom_id' => (int) $s->classroom_id,
+                    'stream_id' => $s->stream_id ? (int) $s->stream_id : null,
+                ])->values(),
+                'exams' => $exams->map(fn ($e) => [
+                    'id' => (int) $e->id,
+                    'name' => $e->name,
+                    'subject_id' => (int) $e->subject_id,
+                    'subject_name' => $e->subject->name ?? null,
+                    'max_marks' => (float) ($e->examType?->default_max_mark ?? $e->max_marks ?? 100),
+                    'min_marks' => (float) ($e->examType?->default_min_mark ?? 0),
+                ])->values(),
+                'existing_marks' => $existing,
+            ],
+        ]);
+    }
+
+    public function batchMarksMatrix(Request $request)
+    {
+        $v = $request->validate([
+            'exam_type_id' => 'required|exists:exam_types,id',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'entries' => 'required|array',
+            'entries.*.student_id' => 'required|exists:students,id',
+            'entries.*.exam_id' => 'required|exists:exams,id',
+            'entries.*.marks' => 'nullable|numeric',
+            'entries.*.remarks' => 'nullable|string|max:500',
+        ]);
+
+        $examTypeId = (int) $v['exam_type_id'];
+        $classroomId = (int) $v['classroom_id'];
+        $streamId = $request->filled('stream_id') ? (int) $request->input('stream_id') : null;
+        $entries = $v['entries'] ?? [];
+        $user = $request->user();
+
+        if (!$this->canAccessClassroom($user, $classroomId)) {
+            return response()->json(['success' => false, 'message' => 'You do not have access to this classroom.'], 403);
+        }
+
+        $studentsQuery = Student::query()
+            ->where('classroom_id', $classroomId)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
+        if ($user && $user->hasTeacherLikeRole() && !$user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            $user->applyTeacherStudentFilter($studentsQuery);
+        }
+        $allowedStudents = $studentsQuery->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $allowedStudentSet = array_flip($allowedStudents);
+
+        $examCandidates = Exam::query()
+            ->with(['examType'])
+            ->where('exam_type_id', $examTypeId)
+            ->where('classroom_id', $classroomId)
+            ->whereIn('status', ['open', 'marking'])
+            ->whereNotNull('subject_id')
+            ->when($streamId, function ($q) use ($streamId) {
+                $q->where(function ($subQ) use ($streamId) {
+                    $subQ->whereNull('stream_id')->orWhere('stream_id', $streamId);
+                });
+            })
+            ->get();
+
+        $allowedExams = $examCandidates->filter(function (Exam $exam) use ($user, $classroomId, $streamId) {
+            return $this->canAccessClassSubject($user, $classroomId, (int) $exam->subject_id, $streamId);
+        })->keyBy('id');
+        $allowedExamSet = array_flip($allowedExams->keys()->map(fn ($id) => (int) $id)->all());
+
+        $saved = 0;
+        $skipped = 0;
+        foreach ($entries as $entry) {
+            $studentId = (int) $entry['student_id'];
+            $examId = (int) $entry['exam_id'];
+            $scoreInput = $entry['marks'] ?? null;
+            $remarks = $entry['remarks'] ?? null;
+
+            if (!isset($allowedStudentSet[$studentId]) || !isset($allowedExamSet[$examId])) {
+                $skipped++;
+                continue;
+            }
+
+            $hasScore = !is_null($scoreInput) && $scoreInput !== '';
+            $hasRemark = !is_null($remarks) && trim((string) $remarks) !== '';
+            if (!$hasScore && !$hasRemark) {
+                continue;
+            }
+
+            $exam = $allowedExams[$examId];
+            $maxMarks = (float) ($exam->examType?->default_max_mark ?? $exam->max_marks ?? 100);
+            $minMarks = (float) ($exam->examType?->default_min_mark ?? 0);
+
+            $score = null;
+            if ($hasScore) {
+                $score = (float) $scoreInput;
+                if ($score < $minMarks || $score > $maxMarks) {
+                    $skipped++;
+                    continue;
+                }
+            }
+
+            $mark = ExamMark::firstOrNew([
+                'exam_id' => $examId,
+                'student_id' => $studentId,
+                'subject_id' => (int) $exam->subject_id,
+            ]);
+
+            $g = null;
+            if (!is_null($score)) {
+                $g = ExamGrade::where('exam_type', $exam->type)
+                    ->where('percent_from', '<=', $score)
+                    ->where('percent_upto', '>=', $score)
+                    ->first();
+            }
+
+            $mark->fill([
+                'score_raw' => $score,
+                'final_score' => $score,
+                'grade_label' => $g?->grade_name ?? ($mark->grade_label ?? 'BE'),
+                'pl_level' => $g?->grade_point ?? ($mark->pl_level ?? 1.0),
+                'subject_remark' => $hasRemark ? trim((string) $remarks) : $mark->subject_remark,
+                'status' => 'submitted',
+                'teacher_id' => optional($user->staff)->id,
+            ])->save();
+            $saved++;
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'message' => "Saved {$saved} mark entries.".($skipped > 0 ? " Skipped {$skipped} invalid or unauthorized entries." : ''),
+                'count' => $saved,
+                'skipped' => $skipped,
+            ],
+        ]);
+    }
+
     /**
      * @param  \App\Models\User|\Illuminate\Contracts\Auth\Authenticatable|null  $user
      */
@@ -308,6 +560,43 @@ class ApiAcademicsController extends Controller
         return DB::table('exam_class_subject')
             ->where('exam_id', $exam->id)
             ->whereIn('classroom_id', $allowed)
+            ->exists();
+    }
+
+    protected function canAccessClassroom($user, int $classroomId): bool
+    {
+        if (!$user || !$user->hasTeacherLikeRole()) {
+            return true;
+        }
+
+        $allowedClassrooms = array_map('intval', $user->getDashboardClassroomIds());
+        return in_array($classroomId, $allowedClassrooms, true);
+    }
+
+    protected function canAccessClassSubject($user, int $classroomId, int $subjectId, ?int $streamId): bool
+    {
+        if (!$user || !$user->hasTeacherLikeRole()) {
+            return true;
+        }
+
+        if ($user->isSeniorTeacherUser() && in_array($classroomId, array_map('intval', $user->getSupervisedClassroomIds()), true)) {
+            return true;
+        }
+
+        $staffId = optional($user->staff)->id;
+        if (!$staffId) {
+            return false;
+        }
+
+        return DB::table('classroom_subjects')
+            ->where('classroom_id', $classroomId)
+            ->where('subject_id', $subjectId)
+            ->where('staff_id', $staffId)
+            ->when($streamId, function ($q) use ($streamId) {
+                $q->where(function ($subQ) use ($streamId) {
+                    $subQ->whereNull('stream_id')->orWhere('stream_id', $streamId);
+                });
+            })
             ->exists();
     }
 

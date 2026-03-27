@@ -6,6 +6,9 @@
   $types  = $types  ?? ExamType::orderBy('name')->get();
   $years  = $years  ?? AcademicYear::orderByDesc('year')->get();
   $terms  = $terms  ?? Term::orderBy('name')->get();
+  $classrooms = $classrooms ?? collect();
+  $subjects = $subjects ?? collect();
+  $streams = $streams ?? collect();
 
   $v = [
     'name' => old('name', $exam->name ?? ''),
@@ -13,6 +16,9 @@
     'modality' => old('modality', $exam->modality ?? 'physical'),
     'academic_year_id' => old('academic_year_id', $exam->academic_year_id ?? ($years->first()->id ?? null)),
     'term_id' => old('term_id', $exam->term_id ?? ($terms->first()->id ?? null)),
+    'classroom_id' => old('classroom_id', $exam->classroom_id ?? null),
+    'stream_id' => old('stream_id', $exam->stream_id ?? null),
+    'subject_id' => old('subject_id', $exam->subject_id ?? null),
     'starts_on' => old('starts_on', optional($exam->starts_on ?? null)?->format('Y-m-d')),
     'ends_on'   => old('ends_on',   optional($exam->ends_on ?? null)?->format('Y-m-d')),
     'max_marks' => old('max_marks', $exam->max_marks ?? 100),
@@ -65,6 +71,33 @@
         <select name="term_id" class="form-select" required>
           @foreach($terms as $t)
             <option value="{{ $t->id }}" @selected($v['term_id']==$t->id)>{{ $t->name }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Classroom</label>
+        <select name="classroom_id" class="form-select">
+          <option value="">— None —</option>
+          @foreach($classrooms as $c)
+            <option value="{{ $c->id }}" @selected($v['classroom_id']==$c->id)>{{ $c->name }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Stream (optional)</label>
+        <select name="stream_id" class="form-select">
+          <option value="">— None —</option>
+          @foreach($streams as $s)
+            <option value="{{ $s->id }}" @selected($v['stream_id']==$s->id)>{{ $s->name }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Subject</label>
+        <select name="subject_id" class="form-select">
+          <option value="">— None —</option>
+          @foreach($subjects as $s)
+            <option value="{{ $s->id }}" @selected($v['subject_id']==$s->id)>{{ $s->name }}</option>
           @endforeach
         </select>
       </div>

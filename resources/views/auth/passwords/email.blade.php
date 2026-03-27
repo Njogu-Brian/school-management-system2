@@ -14,16 +14,16 @@
                         </div>
                     @endif
 
-                    <form method="POST" action="{{ route('password.email') }}" id="emailResetForm">
+                    <form method="POST" action="{{ route('password.email') }}" id="resetRequestForm">
                         @csrf
 
                         <div class="row mb-3">
-                            <label for="email" class="col-md-4 col-form-label text-md-end">{{ __('Email Address') }}</label>
+                            <label for="identifier" class="col-md-4 col-form-label text-md-end">{{ __('Work Email or Phone') }}</label>
 
                             <div class="col-md-6">
-                                <input id="email" type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" required autocomplete="email" autofocus>
+                                <input id="identifier" type="text" class="form-control @error('identifier') is-invalid @enderror" name="identifier" value="{{ old('identifier') }}" required autofocus>
 
-                                @error('email')
+                                @error('identifier')
                                     <span class="invalid-feedback" role="alert">
                                         <strong>{{ $message }}</strong>
                                     </span>
@@ -34,10 +34,13 @@
                         <div class="row mb-0">
                             <div class="col-md-6 offset-md-4">
                                 <button type="submit" class="btn btn-primary mb-2 w-100">
-                                    {{ __('Send Password Reset Link') }}
+                                    {{ __('Send Email Reset Link') }}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary mb-2 w-100" onclick="sendSmsLink()">
+                                    {{ __('Send SMS Reset Link') }}
                                 </button>
                                 <button type="button" class="btn btn-outline-info w-100" onclick="requestOTPReset()">
-                                    {{ __('Reset with OTP (SMS)') }}
+                                    {{ __('Reset with OTP') }}
                                 </button>
                             </div>
                         </div>
@@ -45,19 +48,35 @@
 
                     <form method="POST" action="{{ route('password.email') }}" class="d-none" id="otpResetForm">
                         @csrf
-                        <input type="hidden" name="use_otp" value="1">
-                        <input type="hidden" name="email" id="otpResetEmail">
+                        <input type="hidden" name="method" value="otp">
+                        <input type="hidden" name="identifier" id="otpResetIdentifier">
+                    </form>
+
+                    <form method="POST" action="{{ route('password.email') }}" class="d-none" id="smsLinkForm">
+                        @csrf
+                        <input type="hidden" name="method" value="sms_link">
+                        <input type="hidden" name="identifier" id="smsLinkIdentifier">
                     </form>
 
                     <script>
                         function requestOTPReset() {
-                            const email = document.getElementById('email').value;
-                            if (!email) {
-                                alert('Please enter your email address first.');
+                            const identifier = document.getElementById('identifier').value;
+                            if (!identifier) {
+                                alert('Please enter your work email or phone first.');
                                 return;
                             }
-                            document.getElementById('otpResetEmail').value = email;
+                            document.getElementById('otpResetIdentifier').value = identifier;
                             document.getElementById('otpResetForm').submit();
+                        }
+
+                        function sendSmsLink() {
+                            const identifier = document.getElementById('identifier').value;
+                            if (!identifier) {
+                                alert('Please enter your work email or phone first.');
+                                return;
+                            }
+                            document.getElementById('smsLinkIdentifier').value = identifier;
+                            document.getElementById('smsLinkForm').submit();
                         }
                     </script>
                 </div>

@@ -5,6 +5,8 @@ import {
     StyleSheet,
     ScrollView,
     SafeAreaView,
+    KeyboardAvoidingView,
+    Platform,
     Alert,
     TouchableOpacity,
     Modal,
@@ -390,14 +392,11 @@ export const StudentFormScreen: React.FC<StudentFormScreenProps> = ({ navigation
 
     return (
         <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
-                    <Icon name="arrow-back" size={24} color={textMain} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: textMain }]}>{isEdit ? 'Edit student' : 'Add student'}</Text>
-                <View style={{ width: 24 }} />
-            </View>
-
+            <KeyboardAvoidingView
+                style={layoutStyles.flex1}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 <Card style={[styles.card, { backgroundColor: surface, borderRadius: RADIUS.card }]}>
                     <Text style={[styles.sectionTitle, { color: textMain }]}>Student</Text>
@@ -614,6 +613,7 @@ export const StudentFormScreen: React.FC<StudentFormScreenProps> = ({ navigation
                     </View>
                 </View>
             </Modal>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 };
@@ -622,16 +622,8 @@ export const EditStudentScreen = StudentFormScreen;
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.md,
-    },
-    headerTitle: { fontSize: FONT_SIZES.lg, fontWeight: '700' },
     scroll: { flex: 1 },
-    scrollContent: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
+    scrollContent: { padding: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.xxl },
     card: { marginBottom: SPACING.lg, padding: SPACING.md },
     sectionTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', marginBottom: SPACING.md },
     label: { fontSize: FONT_SIZES.sm, marginBottom: SPACING.xs },

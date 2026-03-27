@@ -11,6 +11,10 @@ import {
     AssignmentSubmission,
     LessonPlan,
     AcademicsFilters,
+    MarksMatrixContext,
+    MarksMatrixExam,
+    MarksMatrixStudent,
+    MarksMatrixExistingMark,
 } from '../types/academics.types';
 import { ApiResponse, PaginatedResponse } from '../types/api.types';
 
@@ -68,6 +72,27 @@ export const academicsApi = {
         marks: { student_id: number; marks: number; remarks?: string }[];
     }): Promise<ApiResponse<{ count: number; message: string }>> {
         return apiClient.post('/exam-marks/batch', data);
+    },
+
+    async getMarksMatrixContext(classroomId?: number): Promise<ApiResponse<MarksMatrixContext>> {
+        return apiClient.get<MarksMatrixContext>('/marks/matrix/context', classroomId ? { classroom_id: classroomId } : undefined);
+    },
+
+    async getMarksMatrix(filters: {
+        exam_type_id: number;
+        classroom_id: number;
+        stream_id?: number;
+    }): Promise<ApiResponse<{ students: MarksMatrixStudent[]; exams: MarksMatrixExam[]; existing_marks: MarksMatrixExistingMark[] }>> {
+        return apiClient.get('/marks/matrix', filters);
+    },
+
+    async enterMarksMatrix(data: {
+        exam_type_id: number;
+        classroom_id: number;
+        stream_id?: number;
+        entries: { student_id: number; exam_id: number; marks?: number; remarks?: string }[];
+    }): Promise<ApiResponse<{ count: number; skipped: number; message: string }>> {
+        return apiClient.post('/exam-marks/matrix/batch', data);
     },
 
     async updateMark(id: number, data: { marks: number; remarks?: string }): Promise<ApiResponse<Mark>> {

@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User; // ✅ Ensure this is included
+use App\Models\Staff;
 use App\Models\Setting;
 use App\Models\Announcement;
 use App\Services\OtpService;
+use App\Services\SMSService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class AuthController extends Controller
 {
@@ -42,43 +45,14 @@ class AuthController extends Controller
 
         // Standard password login
         $credentials = $request->validate([
-            'email' => 'required|email',
+            'identifier' => 'required|string',
             'password' => 'required'
         ]);
 
-        // Normalize email - trim whitespace and convert to lowercase
-        $email = strtolower(trim($credentials['email']));
-        
-        // Check if user exists - case-insensitive email matching with trimmed comparison
-        // Use LIKE to find potential matches (handles whitespace), then verify
-        $potentialUsers = User::where('email', 'like', '%' . $email . '%')
-            ->orWhere('email', 'like', '%' . trim($credentials['email']) . '%')
-            ->get();
-        
-        $user = $potentialUsers->first(function($u) use ($email) {
-            return $u->email && strtolower(trim($u->email)) === $email;
-        });
-        
-        // If not found in users table, check if staff exists with this work_email
-        if (!$user) {
-            $potentialStaff = \App\Models\Staff::whereNotNull('work_email')
-                ->where(function($q) use ($email, $credentials) {
-                    $q->where('work_email', 'like', '%' . $email . '%')
-                      ->orWhere('work_email', 'like', '%' . trim($credentials['email']) . '%');
-                })
-                ->get();
-            
-            $staff = $potentialStaff->first(function($s) use ($email) {
-                return $s->work_email && strtolower(trim($s->work_email)) === $email;
-            });
-            
-            if ($staff && $staff->user_id) {
-                $user = User::find($staff->user_id);
-            }
-        }
+        [$user] = $this->resolveUserAndStaffByIdentifier($credentials['identifier']);
         
         if (!$user) {
-            return back()->withErrors(['email' => 'No account found with this email address.']);
+            return back()->withErrors(['identifier' => 'No account found with this email or phone number.']);
         }
 
         // Use the actual email from the user record for authentication
@@ -110,7 +84,7 @@ class AuthController extends Controller
             return redirect()->route('home'); // fallback
         }
 
-        return back()->withErrors(['email' => 'Invalid password. Please check your password and try again.']);
+        return back()->withErrors(['identifier' => 'Invalid password. Please check your password and try again.']);
     }
 
     /**
@@ -119,47 +93,19 @@ class AuthController extends Controller
     protected function requestOTP(Request $request)
     {
         $request->validate([
-            'email' => 'required|email'
+            'identifier' => 'required|string'
         ]);
 
-        $email = strtolower(trim($request->email));
-        
-        // Find user
-        $user = User::where('email', 'like', '%' . $email . '%')
-            ->get()
-            ->first(function($u) use ($email) {
-                return $u->email && strtolower(trim($u->email)) === $email;
-            });
-
-        $staff = null;
-        if (!$user) {
-            // Check staff
-            $staff = \App\Models\Staff::whereNotNull('work_email')
-                ->get()
-                ->first(function($s) use ($email) {
-                    return $s->work_email && strtolower(trim($s->work_email)) === $email;
-                });
-            
-            if ($staff && $staff->user_id) {
-                $user = User::find($staff->user_id);
-            }
-        } else {
-            // User found directly, but check if they have associated staff record
-            $staff = \App\Models\Staff::where('user_id', $user->id)->first();
-        }
+        [$user, $staff, $normalizedIdentifier] = $this->resolveUserAndStaffByIdentifier($request->identifier);
 
         if (!$user) {
-            return back()->withErrors(['email' => 'No account found with this email address.']);
+            return back()->withErrors(['identifier' => 'No account found with this email or phone number.']);
         }
 
-        // Get phone number from staff (User model doesn't have phone_number)
-        $phone = null;
-        if ($staff && $staff->phone_number) {
-            $phone = $staff->phone_number;
-        }
+        $phone = $this->resolvePhoneFromStaffOrUser($staff, $user);
 
         if (!$phone) {
-            return back()->withErrors(['email' => 'No phone number found for this account. Please use password login.']);
+            return back()->withErrors(['identifier' => 'No phone number found for this account. Please use password login.']);
         }
 
         // Generate and send OTP
@@ -167,13 +113,13 @@ class AuthController extends Controller
         $result = $otpService->generateAndSend($phone, 'login', $request->ip());
 
         if (!$result['success']) {
-            return back()->withErrors(['email' => $result['message'] . ' Please use password login instead.']);
+            return back()->withErrors(['identifier' => $result['message'] . ' Please use password login instead.']);
         }
 
         return back()->with([
             'otp_sent' => true,
             'otp_phone' => substr($phone, -4), // Show last 4 digits
-            'otp_email' => $email
+            'otp_identifier' => $normalizedIdentifier
         ]);
     }
 
@@ -183,58 +129,22 @@ class AuthController extends Controller
     protected function loginWithOTP(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'identifier' => 'required|string',
             'otp_code' => 'required|digits:6'
         ]);
 
-        $email = strtolower(trim($request->email));
-        
-        // Find user
-        $user = User::where('email', 'like', '%' . $email . '%')
-            ->get()
-            ->first(function($u) use ($email) {
-                return $u->email && strtolower(trim($u->email)) === $email;
-            });
-
-        $staff = null;
-        if (!$user) {
-            // Check staff
-            $staff = \App\Models\Staff::whereNotNull('work_email')
-                ->get()
-                ->first(function($s) use ($email) {
-                    return $s->work_email && strtolower(trim($s->work_email)) === $email;
-                });
-            
-            if ($staff && $staff->user_id) {
-                $user = User::find($staff->user_id);
-            }
-        } else {
-            // User found directly, but check if they have associated staff record
-            $staff = \App\Models\Staff::where('user_id', $user->id)->first();
-        }
+        [$user, $staff, $normalizedIdentifier] = $this->resolveUserAndStaffByIdentifier($request->identifier);
 
         if (!$user) {
-            return back()->withErrors(['email' => 'No account found with this email address.']);
+            return back()->withErrors(['identifier' => 'No account found with this email or phone number.']);
         }
 
-        // Get phone number from staff (User model doesn't have phone_number)
-        $phone = null;
-        if ($staff && $staff->phone_number) {
-            $phone = $staff->phone_number;
-        } else {
-            // If staff not found yet, try to find it by user_id
-            if ($user && !$staff) {
-                $staff = \App\Models\Staff::where('user_id', $user->id)->first();
-                if ($staff && $staff->phone_number) {
-                    $phone = $staff->phone_number;
-                }
-            }
-        }
+        $phone = $this->resolvePhoneFromStaffOrUser($staff, $user);
 
         if (!$phone) {
             Log::warning('OTP verification: No phone number found', [
                 'user_id' => $user->id ?? null,
-                'email' => $email,
+                'identifier' => $normalizedIdentifier,
                 'staff_id' => $staff->id ?? null,
                 'staff_phone' => $staff->phone_number ?? null
             ]);
@@ -249,7 +159,7 @@ class AuthController extends Controller
         }
 
         Log::info('OTP verification attempt', [
-            'email' => $email,
+            'identifier' => $normalizedIdentifier,
             'phone_original' => $phone,
             'phone_normalized' => $normalizedPhone,
             'otp_code_length' => strlen($request->otp_code)
@@ -269,7 +179,7 @@ class AuthController extends Controller
 
         if (!$result['valid']) {
             return back()->withErrors(['otp_code' => $result['message']])
-                ->withInput(['email' => $email, 'otp_sent' => true]);
+                ->withInput(['identifier' => $normalizedIdentifier, 'otp_sent' => true]);
         }
 
         // Login user
@@ -285,6 +195,84 @@ class AuthController extends Controller
         }
 
         return redirect()->route('home');
+    }
+
+    protected function resolveUserAndStaffByIdentifier(string $identifier): array
+    {
+        $raw = trim($identifier);
+        $normalized = strtolower($raw);
+        $user = null;
+        $staff = null;
+
+        if (filter_var($raw, FILTER_VALIDATE_EMAIL)) {
+            $user = User::whereRaw('LOWER(TRIM(email)) = ?', [$normalized])->first();
+            if (!$user) {
+                $staff = Staff::whereNotNull('work_email')
+                    ->whereRaw('LOWER(TRIM(work_email)) = ?', [$normalized])
+                    ->first();
+                if ($staff && $staff->user_id) {
+                    $user = User::find($staff->user_id);
+                }
+            }
+        } else {
+            $phone = $this->normalizePhone($raw);
+            $digits = ltrim($phone, '+');
+            $variants = array_unique(array_filter([
+                $raw,
+                $phone,
+                $digits,
+                str_starts_with($digits, '254') ? '0' . substr($digits, 3) : null,
+            ]));
+
+            $staff = Staff::whereNotNull('phone_number')
+                ->whereIn('phone_number', $variants)
+                ->first();
+
+            if (!$staff) {
+                $staff = Staff::whereNotNull('phone_number')
+                    ->where(function ($q) use ($digits, $phone) {
+                        $q->where('phone_number', 'like', '%' . $digits . '%')
+                            ->orWhere('phone_number', 'like', '%' . $phone . '%');
+                    })
+                    ->first();
+            }
+
+            if ($staff && $staff->user_id) {
+                $user = User::find($staff->user_id);
+            }
+            $normalized = $phone;
+        }
+
+        if ($user && !$staff) {
+            $staff = Staff::where('user_id', $user->id)->first();
+        }
+
+        return [$user, $staff, $normalized];
+    }
+
+    protected function resolvePhoneFromStaffOrUser(?Staff $staff, User $user): ?string
+    {
+        if ($staff && !empty($staff->phone_number)) {
+            return $staff->phone_number;
+        }
+
+        if (Schema::hasColumn('users', 'phone_number') && !empty($user->phone_number)) {
+            return (string) $user->phone_number;
+        }
+
+        return null;
+    }
+
+    protected function normalizePhone(string $phone): string
+    {
+        $phone = preg_replace('/[^0-9+]/', '', $phone);
+        if (!str_starts_with($phone, '+')) {
+            if (str_starts_with($phone, '0')) {
+                return '+254' . substr($phone, 1);
+            }
+            return '+' . $phone;
+        }
+        return $phone;
     }
 
     public function logout()
@@ -306,21 +294,56 @@ class AuthController extends Controller
      */
     public function sendResetLinkEmail(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
+        $request->validate([
+            'identifier' => 'required|string',
+            'method' => 'nullable|in:email_link,sms_link,otp',
+            'use_otp' => 'nullable',
+        ]);
 
-        // Check if OTP reset is requested
-        if ($request->has('use_otp')) {
+        $method = $request->input('method');
+        if (!$method) {
+            $method = $request->has('use_otp') ? 'otp' : 'email_link';
+        }
+
+        if ($method === 'otp') {
             return $this->requestPasswordResetOTP($request);
         }
 
-        // Standard email reset link
-        $status = \Illuminate\Support\Facades\Password::sendResetLink(
-            $request->only('email')
-        );
+        [$user, $staff, $normalizedIdentifier] = $this->resolveUserAndStaffByIdentifier($request->identifier);
+        if (!$user) {
+            return back()->withErrors(['identifier' => 'No account found with this email or phone number.']);
+        }
 
-        return $status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT
-            ? back()->with(['status' => __($status)])
-            : back()->withErrors(['email' => __($status)]);
+        $email = strtolower(trim((string) ($user->email ?: ($staff->work_email ?? ''))));
+        if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return back()->withErrors(['identifier' => 'No valid email found for this account.']);
+        }
+
+        if ($method === 'email_link') {
+            $status = \Illuminate\Support\Facades\Password::sendResetLink(['email' => $email]);
+            return $status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT
+                ? back()->with(['status' => __($status)])
+                : back()->withErrors(['identifier' => __($status)]);
+        }
+
+        $phone = $this->resolvePhoneFromStaffOrUser($staff, $user);
+        if (!$phone) {
+            return back()->withErrors(['identifier' => 'No phone number found for this account.']);
+        }
+
+        $token = \Illuminate\Support\Facades\Password::broker()->createToken($user);
+        $resetUrl = route('password.reset', ['token' => $token, 'email' => $email], true);
+        $message = "Password reset link: {$resetUrl} (expires soon). If you did not request this, ignore.";
+
+        $smsResult = app(SMSService::class)->sendSMS($phone, $message);
+        if (($smsResult['status'] ?? null) === 'error') {
+            return back()->withErrors(['identifier' => $smsResult['message'] ?? 'Failed to send SMS reset link.']);
+        }
+
+        return back()->with([
+            'status' => 'Password reset link sent via SMS to phone ending in ' . substr((string) $phone, -4),
+            'last_reset_identifier' => $normalizedIdentifier,
+        ]);
     }
 
     /**
@@ -328,57 +351,38 @@ class AuthController extends Controller
      */
     protected function requestPasswordResetOTP(Request $request)
     {
-        $email = strtolower(trim($request->email));
-        
-        // Find user
-        $user = User::where('email', 'like', '%' . $email . '%')
-            ->get()
-            ->first(function($u) use ($email) {
-                return $u->email && strtolower(trim($u->email)) === $email;
-            });
+        $request->validate([
+            'identifier' => 'required|string',
+        ]);
 
+        $identifierInput = trim((string) $request->input('identifier', ''));
+        [$user, $staff, $normalizedIdentifier] = $this->resolveUserAndStaffByIdentifier($identifierInput);
         if (!$user) {
-            // Check staff
-            $staff = \App\Models\Staff::whereNotNull('work_email')
-                ->get()
-                ->first(function($s) use ($email) {
-                    return $s->work_email && strtolower(trim($s->work_email)) === $email;
-                });
-            
-            if ($staff && $staff->user_id) {
-                $user = User::find($staff->user_id);
-            }
+            return back()->withErrors(['identifier' => 'No account found with this email or phone number.']);
         }
 
-        if (!$user) {
-            return back()->withErrors(['email' => 'No account found with this email address.']);
+        $otpRecipient = filter_var($normalizedIdentifier, FILTER_VALIDATE_EMAIL)
+            ? $normalizedIdentifier
+            : ($this->resolvePhoneFromStaffOrUser($staff, $user) ?? null);
+
+        if (!$otpRecipient) {
+            return back()->withErrors(['identifier' => 'No phone/email target found for OTP. Use reset link instead.']);
         }
 
-        // Get phone number
-        $phone = null;
-        if ($user->phone_number) {
-            $phone = $user->phone_number;
-        } elseif (isset($staff) && $staff->phone_number) {
-            $phone = $staff->phone_number;
-        }
-
-        if (!$phone) {
-            return back()->withErrors(['email' => 'No phone number found. Please use email reset link instead.']);
-        }
-
-        // Generate and send OTP
         $otpService = app(OtpService::class);
-        $result = $otpService->generateAndSend($phone, 'password_reset', $request->ip());
+        $result = $otpService->generateAndSend($otpRecipient, 'password_reset', $request->ip());
 
         if (!$result['success']) {
-            return back()->withErrors(['email' => $result['message'] . ' Please use email reset link instead.']);
+            return back()->withErrors(['identifier' => $result['message'] . ' Please use reset link instead.']);
         }
 
-        // Store email in session for OTP verification
-        session(['password_reset_email' => $email, 'password_reset_otp_sent' => true]);
+        session([
+            'password_reset_identifier' => $normalizedIdentifier,
+            'password_reset_otp_sent' => true,
+        ]);
 
         return redirect()->route('password.reset.otp')
-            ->with('status', 'OTP sent to your phone number ending in ' . substr($phone, -4));
+            ->with('status', 'OTP sent successfully to your registered contact.');
     }
 
     /**
@@ -402,7 +406,7 @@ class AuthController extends Controller
         }
 
         return view('auth.passwords.reset-otp', [
-            'email' => session('password_reset_email')
+            'identifier' => session('password_reset_identifier')
         ]);
     }
 
@@ -412,56 +416,32 @@ class AuthController extends Controller
     public function resetWithOTP(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'identifier' => 'required|string',
             'otp_code' => 'required|digits:6',
             'password' => 'required|min:8|confirmed',
         ]);
 
-        $email = strtolower(trim($request->email));
-        
-        // Find user
-        $user = User::where('email', 'like', '%' . $email . '%')
-            ->get()
-            ->first(function($u) use ($email) {
-                return $u->email && strtolower(trim($u->email)) === $email;
-            });
+        [$user, $staff, $normalizedIdentifier] = $this->resolveUserAndStaffByIdentifier($request->identifier);
 
         if (!$user) {
-            // Check staff
-            $staff = \App\Models\Staff::whereNotNull('work_email')
-                ->get()
-                ->first(function($s) use ($email) {
-                    return $s->work_email && strtolower(trim($s->work_email)) === $email;
-                });
-            
-            if ($staff && $staff->user_id) {
-                $user = User::find($staff->user_id);
-            }
+            return back()->withErrors(['identifier' => 'No account found.']);
         }
 
-        if (!$user) {
-            return back()->withErrors(['email' => 'No account found.']);
-        }
+        $otpRecipient = filter_var($normalizedIdentifier, FILTER_VALIDATE_EMAIL)
+            ? $normalizedIdentifier
+            : ($this->resolvePhoneFromStaffOrUser($staff, $user) ?? null);
 
-        // Get phone number
-        $phone = null;
-        if ($user->phone_number) {
-            $phone = $user->phone_number;
-        } elseif (isset($staff) && $staff->phone_number) {
-            $phone = $staff->phone_number;
-        }
-
-        if (!$phone) {
-            return back()->withErrors(['otp_code' => 'No phone number found.']);
+        if (!$otpRecipient) {
+            return back()->withErrors(['otp_code' => 'No OTP destination found for this account.']);
         }
 
         // Verify OTP
         $otpService = app(OtpService::class);
-        $result = $otpService->verify($phone, $request->otp_code, 'password_reset');
+        $result = $otpService->verify($otpRecipient, $request->otp_code, 'password_reset');
 
         if (!$result['valid']) {
             return back()->withErrors(['otp_code' => $result['message']])
-                ->withInput(['email' => $email]);
+                ->withInput(['identifier' => $normalizedIdentifier]);
         }
 
         // Reset password
@@ -470,9 +450,9 @@ class AuthController extends Controller
         ])->save();
 
         // Clear session
-        session()->forget(['password_reset_email', 'password_reset_otp_sent']);
+        session()->forget(['password_reset_identifier', 'password_reset_otp_sent']);
 
-        Log::info('Password reset via OTP', ['user_id' => $user->id, 'email' => $email]);
+        Log::info('Password reset via OTP', ['user_id' => $user->id, 'identifier' => $normalizedIdentifier]);
 
         return redirect()->route('login')
             ->with('status', 'Password reset successfully. Please login with your new password.');

@@ -20,7 +20,7 @@ interface Props {
 
 export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const isSenior = user?.role ? isSeniorTeacherRole(user.role) : false;
 
     const items: Item[] = [
@@ -35,6 +35,7 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
         { title: 'Supervised classes', icon: 'groups', screen: 'SupervisedClassrooms', seniorOnly: true },
         { title: 'Supervised staff', icon: 'badge', screen: 'SupervisedStaff', seniorOnly: true },
         { title: 'Fee balances', icon: 'account-balance-wallet', screen: 'FeeBalances', seniorOnly: true },
+        { title: 'Logout', icon: 'logout', screen: '__logout__' },
     ];
 
     const bg = isDark ? colors.backgroundDark : BRAND.bg;
@@ -44,12 +45,6 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <SafeAreaView style={[styles.root, { backgroundColor: bg }]}>
-            <View style={styles.header}>
-                <Text style={[styles.headerTitle, { color: textMain }]}>More</Text>
-                <Text style={[styles.headerSub, { color: textSub }]}>
-                    Profile, pay, leave, and other tools
-                </Text>
-            </View>
             <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
                 {items
                     .filter((i) => !i.seniorOnly || isSenior)
@@ -64,12 +59,14 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
                                 },
                             ]}
                             onPress={() =>
-                                navigation.navigate(
-                                    i.screen,
-                                    i.screen === 'StaffEdit' && user?.staff_id
-                                        ? { staffId: user.staff_id }
-                                        : undefined
-                                )
+                                i.screen === '__logout__'
+                                    ? logout()
+                                    : navigation.navigate(
+                                          i.screen,
+                                          i.screen === 'StaffEdit' && user?.staff_id
+                                              ? { staffId: user.staff_id }
+                                              : undefined
+                                      )
                             }
                             activeOpacity={0.7}
                         >
@@ -87,10 +84,7 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
     root: { flex: 1 },
-    header: { paddingHorizontal: SPACING.xl, paddingTop: SPACING.md, paddingBottom: SPACING.sm },
-    headerTitle: { fontSize: FONT_SIZES.xl, fontWeight: '800' },
-    headerSub: { fontSize: FONT_SIZES.sm, marginTop: 4 },
-    list: { padding: SPACING.lg, paddingBottom: SPACING.xxl, gap: SPACING.sm },
+    list: { padding: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.xxl, gap: SPACING.sm },
     row: {
         flexDirection: 'row',
         alignItems: 'center',

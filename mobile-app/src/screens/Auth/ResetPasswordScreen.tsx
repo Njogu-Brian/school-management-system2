@@ -27,7 +27,7 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
     route,
 }) => {
     const { isDark, colors } = useTheme();
-    const { token } = route.params;
+    const { token, identifier } = route.params;
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,6 +55,7 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
         setLoading(true);
         try {
             const response = await authApi.resetPassword({
+                identifier,
                 token,
                 password,
                 password_confirmation: confirmPassword,

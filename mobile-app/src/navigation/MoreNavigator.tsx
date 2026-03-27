@@ -15,6 +15,7 @@ import { ExamMarksSetupScreen } from '@screens/Academics/ExamMarksSetupScreen';
 import { MarksEntryScreen } from '@screens/Academics/MarksEntryScreen';
 import { LeaveManagementScreen } from '@screens/HR/LeaveManagementScreen';
 import { ApplyLeaveScreen } from '@screens/HR/ApplyLeaveScreen';
+import { SettingsScreen } from '@screens/Settings/SettingsScreen';
 
 const Stack = createStackNavigator();
 
@@ -32,6 +33,7 @@ export const MoreNavigator = () => (
         <Stack.Screen name="LibraryBooks" component={LibraryBooksScreen} />
         <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="ExamsList" component={ExamsListScreen} />
         <Stack.Screen name="ExamMarksSetup" component={ExamMarksSetupScreen} />
         <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />

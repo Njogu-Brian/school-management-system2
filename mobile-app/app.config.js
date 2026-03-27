@@ -8,7 +8,7 @@ export default {
   expo: {
     newArchEnabled: true,
     name: 'Royal Kings ERP',
-    icon: './assets/royal-kings-icon.png',
+    icon: './assets/royal-kings-icon-filled.png',
     slug: 'school-erp-mobile',
     version: '1.0.0',
     orientation: 'portrait',
@@ -19,15 +19,18 @@ export default {
     },
     assetBundlePatterns: ['**/*'],
     updates: {
-      enabled: false,
+      enabled: true,
+      checkAutomatically: 'ON_LOAD',
+      fallbackToCacheTimeout: 0,
     },
+    runtimeVersion: process.env.EXPO_RUNTIME_VERSION || '1.0.0',
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.schoolerp',
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/royal-kings-icon.png',
+        foregroundImage: './assets/royal-kings-icon-foreground.png',
         backgroundColor: '#004A99',
       },
       package: 'com.schoolerp',
@@ -43,6 +46,8 @@ export default {
         },
       ],
       'expo-notifications',
+      'expo-secure-store',
+      'expo-updates',
     ],
     extra: {
       eas: {

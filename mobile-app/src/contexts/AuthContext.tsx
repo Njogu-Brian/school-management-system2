@@ -23,6 +23,7 @@ function normalizeUserRole(u: any): User {
 
 interface AuthContextType extends AuthState {
     login: (credentials: LoginCredentials) => Promise<void>;
+    completeLogin: (payload: { token: string; user: User }) => Promise<void>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
 }
@@ -132,6 +133,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
+    const completeLogin = async (payload: { token: string; user: User }) => {
+        const user = normalizeUserRole(payload.user);
+        await saveToken(payload.token);
+        await saveUser(user);
+        await saveRememberMe(true);
+
+        setState({
+            isAuthenticated: true,
+            user,
+            token: payload.token,
+            loading: false,
+            error: null,
+        });
+    };
+
     const logoutRef = useRef<() => Promise<void>>();
 
     const logout = async () => {
@@ -174,6 +190,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const value: AuthContextType = {
         ...state,
         login,
+        completeLogin,
         logout,
         checkAuth,
     };

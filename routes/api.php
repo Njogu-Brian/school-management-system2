@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ApiSeniorTeacherController;
 use App\Http\Controllers\Api\AuthApiController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +17,13 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('/login', [AuthApiController::class, 'login']);
+Route::post('/login/otp/request', [AuthApiController::class, 'requestLoginOtp']);
+Route::post('/login/otp/verify', [AuthApiController::class, 'verifyLoginOtp']);
+Route::post('/password/email', [AuthApiController::class, 'requestPasswordResetEmailLink']);
+Route::post('/password/sms-link', [AuthApiController::class, 'requestPasswordResetSmsLink']);
+Route::post('/password/otp', [AuthApiController::class, 'requestPasswordResetOtp']);
+Route::post('/password/verify-otp', [AuthApiController::class, 'verifyPasswordResetOtp']);
+Route::post('/password/reset', [AuthApiController::class, 'resetPassword']);
 
 /** School name + logo from portal Settings (General); no auth — for mobile sign-in screen. */
 Route::get('/app-branding', [\App\Http\Controllers\Api\ApiAppBrandingController::class, 'show']);
@@ -88,4 +96,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/exams/{id}', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'showExam']);
     Route::get('/marks', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marks']);
     Route::post('/exam-marks/batch', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'batchMarks']);
+    Route::get('/marks/matrix/context', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marksMatrixContext']);
+    Route::get('/marks/matrix', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marksMatrix']);
+    Route::post('/exam-marks/matrix/batch', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'batchMarksMatrix']);
+
+    Route::prefix('senior-teacher')->group(function () {
+        Route::get('/supervised-classrooms', [ApiSeniorTeacherController::class, 'supervisedClassrooms']);
+        Route::get('/supervised-staff', [ApiSeniorTeacherController::class, 'supervisedStaff']);
+        Route::get('/fee-balances', [ApiSeniorTeacherController::class, 'feeBalances']);
+        Route::get('/students', [ApiSeniorTeacherController::class, 'supervisedStudents']);
+    });
 });

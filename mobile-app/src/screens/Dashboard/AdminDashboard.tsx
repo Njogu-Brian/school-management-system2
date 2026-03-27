@@ -128,12 +128,23 @@ export const AdminDashboard = () => {
                                 <Text style={[s.greeting, { color: 'rgba(255,255,255,0.9)' }]}>Welcome back,</Text>
                                 <Text style={[s.name, { color: '#fff' }]}>{user?.name}</Text>
                             </View>
-                            <TouchableOpacity
-                                onPress={logout}
-                                style={[s.logoutButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
-                            >
-                                <Icon name="logout" size={HEADER.iconSize} color="#fff" />
-                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const nav = navigation.getParent() ?? navigation;
+                                        nav.navigate('More', { screen: 'Settings' });
+                                    }}
+                                    style={[s.logoutButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
+                                >
+                                    <Icon name="settings" size={HEADER.iconSize} color="#fff" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={logout}
+                                    style={[s.logoutButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
+                                >
+                                    <Icon name="logout" size={HEADER.iconSize} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </LinearGradient>
 

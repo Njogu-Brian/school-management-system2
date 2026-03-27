@@ -62,7 +62,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
 
     const baseActions = [
         { id: '1', title: 'Mark attendance', icon: 'event', onPress: () => goTab('Attendance') },
-        { id: '2', title: 'Exams & marks', icon: 'edit', screen: 'ExamsList' as const },
+        { id: '2', title: 'Exams & marks', icon: 'edit', screen: 'MarksMatrixSetup' as const },
         { id: '3', title: 'Timetable', icon: 'schedule', screen: 'Timetable' as const },
         { id: '4', title: 'Assignments', icon: 'assignment', screen: 'Assignments' as const },
         { id: '5', title: 'Lesson plans', icon: 'menu-book', screen: 'LessonPlans' as const },

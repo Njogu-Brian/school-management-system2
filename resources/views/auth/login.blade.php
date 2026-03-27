@@ -161,7 +161,7 @@
     @if(session('otp_sent'))
         <form method="POST" action="{{ route('login') }}" class="text-start" id="otpLoginForm">
             @csrf
-            <input type="hidden" name="email" value="{{ session('otp_email') }}">
+            <input type="hidden" name="identifier" value="{{ session('otp_identifier') }}">
             
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i> OTP sent to phone ending in <strong>{{ session('otp_phone') }}</strong>
@@ -190,8 +190,8 @@
         <form method="POST" action="{{ route('login') }}" class="text-start" id="passwordLoginForm">
             @csrf
             <div class="mb-3">
-                <label>Email Address</label>
-                <input type="email" class="form-control" name="email" value="{{ old('email') }}" required autofocus>
+                <label>Work Email or Phone Number</label>
+                <input type="text" class="form-control" name="identifier" value="{{ old('identifier', old('email')) }}" required autofocus>
             </div>
 
             <div class="mb-3">
@@ -215,18 +215,18 @@
         <form method="POST" action="{{ route('login') }}" class="d-none" id="otpRequestForm">
             @csrf
             <input type="hidden" name="request_otp" value="1">
-            <input type="hidden" name="email" id="otpRequestEmail">
+            <input type="hidden" name="identifier" id="otpRequestIdentifier">
         </form>
     @endif
 
     <script>
         function requestOTP() {
-            const email = document.querySelector('#passwordLoginForm input[name="email"]').value;
-            if (!email) {
-                alert('Please enter your email address first.');
+            const identifier = document.querySelector('#passwordLoginForm input[name="identifier"]').value;
+            if (!identifier) {
+                alert('Please enter your work email or phone number first.');
                 return;
             }
-            document.getElementById('otpRequestEmail').value = email;
+            document.getElementById('otpRequestIdentifier').value = identifier;
             document.getElementById('otpRequestForm').submit();
         }
 

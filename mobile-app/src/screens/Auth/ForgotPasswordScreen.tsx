@@ -22,26 +22,28 @@ interface ForgotPasswordScreenProps {
     navigation: any;
 }
 
-type TabType = 'email' | 'otp';
+type TabType = 'email' | 'sms' | 'otp';
 
 export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
 
     const [activeTab, setActiveTab] = useState<TabType>('email');
-    const [email, setEmail] = useState('');
-    const [phone, setPhone] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [loading, setLoading] = useState(false);
-    const [errors, setErrors] = useState<{ email?: string; phone?: string }>({});
+    const [errors, setErrors] = useState<{ identifier?: string }>({});
 
     const validate = (): boolean => {
-        const newErrors: { email?: string; phone?: string } = {};
+        const newErrors: { identifier?: string } = {};
+        const value = identifier.trim();
 
-        if (activeTab === 'email') {
-            const emailError = validators.email(email);
-            if (emailError) newErrors.email = emailError;
+        if (!value) {
+            newErrors.identifier = 'Work email or phone is required';
+        } else if (value.includes('@')) {
+            const emailError = validators.email(value);
+            if (emailError) newErrors.identifier = emailError;
         } else {
-            const phoneError = validators.phone(phone);
-            if (phoneError) newErrors.phone = phoneError;
+            const phoneError = validators.phone(value);
+            if (phoneError) newErrors.identifier = phoneError;
         }
 
         setErrors(newErrors);
@@ -54,13 +56,17 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navi
         setLoading(true);
         try {
             if (activeTab === 'email') {
-                const response = await authApi.resetPasswordEmail({ email: email.trim() });
+                const response = await authApi.resetPasswordEmail({ identifier: identifier.trim() });
                 Alert.alert('Success', response.message || 'Reset link sent to your email');
                 navigation.goBack();
+            } else if (activeTab === 'sms') {
+                const response = await authApi.resetPasswordSmsLink({ identifier: identifier.trim() });
+                Alert.alert('Success', response.message || 'Reset link sent by SMS');
+                navigation.goBack();
             } else {
-                const response = await authApi.resetPasswordOTP({ phone: phone.trim() });
-                Alert.alert('Success', response.message || 'OTP sent to your phone');
-                navigation.navigate('OTPVerification', { phone: phone.trim() });
+                const response = await authApi.resetPasswordOTP({ identifier: identifier.trim() });
+                Alert.alert('Success', response.message || 'OTP sent successfully');
+                navigation.navigate('OTPVerification', { flow: 'password_reset', identifier: identifier.trim() });
             }
         } catch (err: any) {
             Alert.alert('Error', err.message || 'Failed to send reset instructions');
@@ -84,7 +90,6 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navi
                     contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Header */}
                     <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
                         <Text style={[styles.backText, { color: colors.primary }]}>← Back</Text>
                     </TouchableOpacity>
@@ -94,42 +99,44 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navi
                             Reset Password
                         </Text>
                         <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                            Choose how you want to reset your password
+                            Send a reset link by email/SMS, or verify by OTP
                         </Text>
 
-                        {/* Tab Selector */}
                         <View style={[styles.tabContainer, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}>
                             <TouchableOpacity
-                                style={[
-                                    styles.tab,
-                                    activeTab === 'email' && { backgroundColor: colors.primary },
-                                ]}
+                                style={[styles.tab, activeTab === 'email' && { backgroundColor: colors.primary }]}
                                 onPress={() => setActiveTab('email')}
                             >
                                 <Text
                                     style={[
                                         styles.tabText,
-                                        {
-                                            color: activeTab === 'email' ? Palette.onPrimary : isDark ? colors.textSubDark : colors.textSubLight,
-                                        },
+                                        { color: activeTab === 'email' ? Palette.onPrimary : isDark ? colors.textSubDark : colors.textSubLight },
                                     ]}
                                 >
-                                    Email
+                                    Email Link
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[
-                                    styles.tab,
-                                    activeTab === 'otp' && { backgroundColor: colors.primary },
-                                ]}
+                                style={[styles.tab, activeTab === 'sms' && { backgroundColor: colors.primary }]}
+                                onPress={() => setActiveTab('sms')}
+                            >
+                                <Text
+                                    style={[
+                                        styles.tabText,
+                                        { color: activeTab === 'sms' ? Palette.onPrimary : isDark ? colors.textSubDark : colors.textSubLight },
+                                    ]}
+                                >
+                                    SMS Link
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.tab, activeTab === 'otp' && { backgroundColor: colors.primary }]}
                                 onPress={() => setActiveTab('otp')}
                             >
                                 <Text
                                     style={[
                                         styles.tabText,
-                                        {
-                                            color: activeTab === 'otp' ? Palette.onPrimary : isDark ? colors.textSubDark : colors.textSubLight,
-                                        },
+                                        { color: activeTab === 'otp' ? Palette.onPrimary : isDark ? colors.textSubDark : colors.textSubLight },
                                     ]}
                                 >
                                     OTP
@@ -137,39 +144,23 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ navi
                             </TouchableOpacity>
                         </View>
 
-                        {/* Form */}
                         <View style={styles.form}>
-                            {activeTab === 'email' ? (
-                                <Input
-                                    label="Email Address"
-                                    placeholder="Enter your email"
-                                    value={email}
-                                    onChangeText={(text) => {
-                                        setEmail(text);
-                                        if (errors.email) setErrors({ ...errors, email: undefined });
-                                    }}
-                                    error={errors.email}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    icon="email"
-                                />
-                            ) : (
-                                <Input
-                                    label="Phone Number"
-                                    placeholder="Enter your phone number"
-                                    value={phone}
-                                    onChangeText={(text) => {
-                                        setPhone(text);
-                                        if (errors.phone) setErrors({ ...errors, phone: undefined });
-                                    }}
-                                    error={errors.phone}
-                                    keyboardType="phone-pad"
-                                    icon="phone"
-                                />
-                            )}
+                            <Input
+                                label="Work email or phone"
+                                placeholder="you@school.edu or +2547..."
+                                value={identifier}
+                                onChangeText={(text) => {
+                                    setIdentifier(text);
+                                    if (errors.identifier) setErrors({ ...errors, identifier: undefined });
+                                }}
+                                error={errors.identifier}
+                                keyboardType="default"
+                                autoCapitalize="none"
+                                icon="person"
+                            />
 
                             <Button
-                                title={activeTab === 'email' ? 'Send Reset Link' : 'Send OTP'}
+                                title={activeTab === 'email' ? 'Send Email Link' : activeTab === 'sms' ? 'Send SMS Link' : 'Send OTP'}
                                 onPress={handleSubmit}
                                 loading={loading}
                                 fullWidth
@@ -226,7 +217,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     tabText: {
-        fontSize: FONT_SIZES.sm,
+        fontSize: FONT_SIZES.xs,
         fontWeight: '600',
     },
     form: {

@@ -9,6 +9,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
 import { Button } from '@components/common/Button';
 import { authApi } from '@api/auth.api';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
@@ -24,7 +25,9 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
     route,
 }) => {
     const { isDark, colors } = useTheme();
-    const { phone } = route.params;
+    const { completeLogin } = useAuth();
+    const flow: 'password_reset' | 'login' = route.params?.flow || 'password_reset';
+    const identifier = route.params?.identifier;
 
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
@@ -74,9 +77,16 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
         setLoading(true);
         try {
-            const response = await authApi.verifyOTP({ phone, code });
-            if (response.success && response.data) {
-                navigation.navigate('ResetPassword', { token: response.data.token });
+            if (flow === 'login') {
+                const response = await authApi.verifyLoginOTP({ identifier, code });
+                if (response.success && response.data) {
+                    await completeLogin(response.data);
+                }
+            } else {
+                const response = await authApi.verifyOTP({ identifier, code });
+                if (response.success && response.data) {
+                    navigation.navigate('ResetPassword', { token: response.data.token, identifier });
+                }
             }
         } catch (err: any) {
             Alert.alert('Error', err.message || 'Invalid OTP');
@@ -88,7 +98,11 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
     const handleResend = async () => {
         setResending(true);
         try {
-            await authApi.resetPasswordOTP({ phone });
+            if (flow === 'login') {
+                await authApi.requestLoginOTP({ identifier });
+            } else {
+                await authApi.resetPasswordOTP({ identifier });
+            }
             Alert.alert('Success', 'OTP sent successfully');
             setTimer(60);
         } catch (err: any) {
@@ -116,7 +130,7 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
                     Enter OTP
                 </Text>
                 <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                    We sent a 6-digit code to {phone}
+                    We sent a 6-digit code to {identifier}
                 </Text>
 
                 {/* OTP Input */}

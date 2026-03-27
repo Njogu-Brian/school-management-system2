@@ -14,6 +14,8 @@ import { AssignmentsScreen } from '@screens/Academics/AssignmentsScreen';
 import { MarksEntryScreen } from '@screens/Academics/MarksEntryScreen';
 import { ExamsListScreen } from '@screens/Academics/ExamsListScreen';
 import { ExamMarksSetupScreen } from '@screens/Academics/ExamMarksSetupScreen';
+import { MarksMatrixSetupScreen } from '@screens/Academics/MarksMatrixSetupScreen';
+import { MarksMatrixEntryScreen } from '@screens/Academics/MarksMatrixEntryScreen';
 import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
 import { RoutesListScreen } from '@screens/Transport/RoutesListScreen';
 import { RouteDetailScreen } from '@screens/Transport/RouteDetailScreen';
@@ -111,6 +113,8 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="Assignments" component={AssignmentsScreen} />
             <Stack.Screen name="LessonPlans" component={LessonPlansScreen} />
             <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />
+            <Stack.Screen name="MarksMatrixSetup" component={MarksMatrixSetupScreen} />
+            <Stack.Screen name="MarksMatrixEntry" component={MarksMatrixEntryScreen} />
             <Stack.Screen name="ExamsList" component={ExamsListScreen} />
             <Stack.Screen name="ExamMarksSetup" component={ExamMarksSetupScreen} />
             <Stack.Screen name="ExamDetail" component={ComingSoonScreen} />

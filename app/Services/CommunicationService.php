@@ -21,7 +21,7 @@ class CommunicationService
         $this->whatsAppService = $whatsAppService;
     }
 
-    public function sendSMS($recipientType, $recipientId, $phone, $message, $title = null, $senderId = null, $paymentId = null)
+    public function sendSMS($recipientType, $recipientId, $phone, $message, $title = null, $senderId = null, $paymentId = null): array
     {
         try {
             $result = $this->smsService->sendSMS($phone, $message, $senderId);
@@ -151,6 +151,17 @@ class CommunicationService
                 'statusCode' => $statusCode,
                 'result'  => $result,
             ]);
+
+            return [
+                'success' => $finalStatus === 'sent',
+                'status' => $finalStatus,
+                'provider_status' => $providerStatus,
+                'status_code' => $statusCode,
+                'result' => $result,
+                'error' => $finalStatus === 'sent'
+                    ? null
+                    : (data_get($result, 'reason') ?? data_get($result, 'message') ?? 'SMS send failed'),
+            ];
         } catch (\Throwable $e) {
             Log::error("SMS sending threw exception: " . $e->getMessage(), [
                 'phone' => $phone,
@@ -171,6 +182,15 @@ class CommunicationService
                 'sent_at'        => now(),
                 'payment_id'     => $paymentId ?? null,
             ]);
+
+            return [
+                'success' => false,
+                'status' => 'failed',
+                'provider_status' => 'exception',
+                'status_code' => null,
+                'result' => null,
+                'error' => $e->getMessage(),
+            ];
         }
     }
 

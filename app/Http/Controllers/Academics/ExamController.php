@@ -182,6 +182,7 @@ class ExamController extends Controller
             'terms'      => Term::orderBy('name')->get(),
             'classrooms' => $classrooms,
             'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
+            'streams'    => Stream::orderBy('name')->get(),
             'types'      => ExamType::orderBy('name')->get(),
         ]);
     }
@@ -272,6 +273,7 @@ class ExamController extends Controller
             'terms'      => Term::orderBy('name')->get(),
             'classrooms' => $classrooms,
             'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
+            'streams'    => Stream::orderBy('name')->get(),
             'types'      => ExamType::orderBy('name')->get(),
         ]);
     }
@@ -310,6 +312,9 @@ class ExamController extends Controller
             'name'             => 'required|string|max:255',
             'type'             => 'required|in:cat,midterm,endterm,sba,mock,quiz',
             'modality'         => 'required|in:physical,online',
+            'classroom_id'     => 'nullable|exists:classrooms,id',
+            'stream_id'        => 'nullable|exists:streams,id',
+            'subject_id'       => 'nullable|exists:subjects,id',
             'starts_on'        => 'nullable|date',
             'ends_on'          => 'nullable|date|after_or_equal:starts_on',
             'weight'           => 'required|numeric|min:0|max:100',
@@ -318,6 +323,15 @@ class ExamController extends Controller
             'publish_result'   => 'boolean',
             'exam_type_id'     => 'required|exists:exam_types,id',
         ]);
+
+        if (Auth::user()->hasRole('Teacher') && !empty($v['classroom_id'])) {
+            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+            if (!in_array((int) $v['classroom_id'], array_map('intval', $assignedClassroomIds), true)) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'You do not have access to this classroom.');
+            }
+        }
 
         $examType = ExamType::findOrFail((int) $v['exam_type_id']);
         $v['max_marks'] = (float) ($examType->default_max_mark ?? 100);

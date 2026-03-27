@@ -87,6 +87,15 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
         Route::post('/bulk/store', [ExamMarkController::class, 'bulkStore'])
             ->name('academics.exam-marks.bulk.store');
 
+        Route::post('/matrix', [ExamMarkController::class, 'matrixEdit'])
+            ->name('academics.exam-marks.matrix.edit');
+
+        Route::get('/matrix/view', [ExamMarkController::class, 'matrixView'])
+            ->name('academics.exam-marks.matrix.view');
+
+        Route::post('/matrix/store', [ExamMarkController::class, 'matrixStore'])
+            ->name('academics.exam-marks.matrix.store');
+
         Route::get('/{exam_mark}/edit', [ExamMarkController::class, 'edit'])
             ->name('academics.exam-marks.edit');
 

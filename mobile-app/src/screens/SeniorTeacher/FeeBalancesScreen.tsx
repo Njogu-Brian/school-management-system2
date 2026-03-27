@@ -5,7 +5,6 @@ import {
     StyleSheet,
     FlatList,
     SafeAreaView,
-    TouchableOpacity,
     RefreshControl,
     Alert,
 } from 'react-native';
@@ -16,13 +15,12 @@ import { seniorTeacherApi, FeeBalanceItem } from '@api/seniorTeacher.api';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface FeeBalancesScreenProps {
     navigation: any;
 }
 
-export const FeeBalancesScreen: React.FC<FeeBalancesScreenProps> = ({ navigation }) => {
+export const FeeBalancesScreen: React.FC<FeeBalancesScreenProps> = () => {
     const { isDark, colors } = useTheme();
     const [items, setItems] = useState<FeeBalanceItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -61,14 +59,6 @@ export const FeeBalancesScreen: React.FC<FeeBalancesScreenProps> = ({ navigation
 
     return (
         <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                </TouchableOpacity>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    Fee Balances
-                </Text>
-            </View>
             {list.length === 0 ? (
                 <EmptyState
                     icon="account-balance-wallet"
@@ -110,9 +100,6 @@ export const FeeBalancesScreen: React.FC<FeeBalancesScreenProps> = ({ navigation
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
-    backBtn: { marginRight: SPACING.sm },
-    title: { fontSize: FONT_SIZES.xl, fontWeight: 'bold' },
     list: { padding: SPACING.md, paddingBottom: SPACING.xxl },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     info: { flex: 1 },

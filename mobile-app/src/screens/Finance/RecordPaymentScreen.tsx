@@ -5,12 +5,15 @@ import {
     StyleSheet,
     SafeAreaView,
     ScrollView,
+    KeyboardAvoidingView,
+    Platform,
     TouchableOpacity,
     Alert,
     Linking,
     Share,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
 import { Button } from '@components/common/Button';
 import { Input } from '@components/common/Input';
 import { Card } from '@components/common/Card';
@@ -24,6 +27,7 @@ import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
 import { MpesaPromptModal } from '@components/MpesaPromptModal';
+import { canUseMpesaFinanceTools } from '@utils/financeRoles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface RecordPaymentScreenProps {
@@ -33,7 +37,9 @@ interface RecordPaymentScreenProps {
 
 export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ navigation, route }) => {
     const { isDark, colors } = useTheme();
+    const { user } = useAuth();
     const { studentId } = route.params || {};
+    const canFinanceMpesa = canUseMpesaFinanceTools(user);
 
     const [student, setStudent] = useState<Student | null>(null);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -45,6 +51,7 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
     const [allocations, setAllocations] = useState<{ invoice_id: number; amount: number }[]>([]);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<any>({});
+    const [mpesaOpen, setMpesaOpen] = useState(false);
 
     const paymentMethods = [
         { value: 'cash', label: 'Cash', icon: 'money' },
@@ -166,18 +173,12 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
                 { backgroundColor: isDark ? colors.backgroundDark : BRAND.bg },
             ]}
         >
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                </TouchableOpacity>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    Record Payment
-                </Text>
-                <View style={{ width: 24 }} />
-            </View>
-
-            <ScrollView contentContainerStyle={styles.content}>
+            <KeyboardAvoidingView
+                style={layoutStyles.flex1}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
+                <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                 {/* Student Info */}
                 {student && (
                     <Card style={styles.studentCard}>
@@ -343,7 +344,8 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
                     fullWidth
                     style={styles.submitButton}
                 />
-            </ScrollView>
+                </ScrollView>
+            </KeyboardAvoidingView>
             {studentId && (
                 <MpesaPromptModal
                     visible={mpesaOpen}
@@ -365,19 +367,9 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: SPACING.xl,
-        paddingVertical: SPACING.md,
-    },
-    title: {
-        fontSize: FONT_SIZES.xl,
-        fontWeight: 'bold',
-    },
     content: {
         padding: SPACING.xl,
+        paddingTop: SPACING.md,
     },
     studentCard: {
         marginBottom: SPACING.lg,

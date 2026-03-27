@@ -274,7 +274,15 @@ class StaffImport implements ToCollection
                 try {
                     $smsBody = $this->fillTemplate($smsTpl->content, $vars);
                     $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
-                    $comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                    $smsResult = $comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                    if (!($smsResult['success'] ?? false)) {
+                        Log::warning('Failed to send welcome SMS to staff during import', [
+                            'staff_id' => $staff->id,
+                            'phone' => $staff->phone_number,
+                            'error' => $smsResult['error'] ?? 'Unknown SMS error',
+                            'result' => $smsResult['result'] ?? null,
+                        ]);
+                    }
                 } catch (\Exception $e) {
                     Log::warning('Failed to send welcome SMS to staff during import', [
                         'staff_id' => $staff->id,
@@ -297,8 +305,10 @@ class StaffImport implements ToCollection
      */
     private function fillTemplate(string $content, array $vars): string
     {
-        $search  = array_map(fn($k) => '{' . $k . '}', array_keys($vars));
-        $replace = array_values($vars);
-        return str_replace($search, $replace, $content);
+        foreach ($vars as $key => $value) {
+            $content = str_replace('{{' . $key . '}}', $value, $content);
+            $content = str_replace('{' . $key . '}', $value, $content);
+        }
+        return $content;
     }
 }

@@ -60,15 +60,6 @@ export const MoreScreen = () => {
             style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
             <ScrollView contentContainerStyle={styles.content}>
-                <View style={styles.header}>
-                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        More
-                    </Text>
-                    <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        {user?.name}
-                    </Text>
-                </View>
-
                 <View style={styles.section}>
                     <MoreItem
                         icon="assignment-turned-in"
@@ -142,6 +133,14 @@ export const MoreScreen = () => {
                             parent ? parent.navigate('More', { screen: 'Notifications' }) : navigation.navigate('Notifications');
                         }}
                     />
+                    <MoreItem
+                        icon="settings"
+                        title="Settings"
+                        onPress={() => {
+                            const parent = navigation.getParent();
+                            parent ? parent.navigate('More', { screen: 'Settings' }) : navigation.navigate('Settings');
+                        }}
+                    />
                 </View>
 
                 <View style={styles.section}>
@@ -163,10 +162,7 @@ export const MoreScreen = () => {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    content: { padding: SPACING.xl },
-    header: { marginBottom: SPACING.xl },
-    title: { fontSize: FONT_SIZES.xxl, fontWeight: 'bold' },
-    subtitle: { fontSize: FONT_SIZES.sm, marginTop: SPACING.xs },
+    content: { padding: SPACING.xl, paddingTop: SPACING.md },
     section: { marginBottom: SPACING.xl },
     moreItem: {
         flexDirection: 'row',

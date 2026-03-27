@@ -16,6 +16,14 @@ export const authApi = {
         return apiClient.post<LoginResponse>('/login', credentials);
     },
 
+    async requestLoginOTP(data: { identifier: string }): Promise<ApiResponse<{ message: string }>> {
+        return apiClient.post('/login/otp/request', data);
+    },
+
+    async verifyLoginOTP(data: { identifier: string; code: string }): Promise<ApiResponse<LoginResponse>> {
+        return apiClient.post<LoginResponse>('/login/otp/verify', data);
+    },
+
     // Logout
     async logout(): Promise<ApiResponse<void>> {
         return apiClient.post<void>('/logout');
@@ -29,6 +37,11 @@ export const authApi = {
     // Reset password by email
     async resetPasswordEmail(data: ResetPasswordByEmailRequest): Promise<ApiResponse<{ message: string }>> {
         return apiClient.post('/password/email', data);
+    },
+
+    // Reset password by SMS link
+    async resetPasswordSmsLink(data: { identifier: string }): Promise<ApiResponse<{ message: string }>> {
+        return apiClient.post('/password/sms-link', data);
     },
 
     // Reset password by OTP

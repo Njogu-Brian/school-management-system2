@@ -5,6 +5,8 @@ import {
     StyleSheet,
     SafeAreaView,
     ScrollView,
+    KeyboardAvoidingView,
+    Platform,
     TouchableOpacity,
     TextInput,
     Alert,
@@ -18,7 +20,6 @@ import { hrApi } from '@api/hr.api';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
 import { canManageStaff } from '@utils/staffHrAccess';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type LeaveTypeOption = { id: number; name: string; code?: string; max_days?: number };
 
@@ -123,111 +124,101 @@ export const ApplyLeaveScreen: React.FC<ApplyLeaveScreenProps> = ({ navigation, 
 
     return (
         <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                    <Icon name="arrow-back" size={24} color={mainText} />
-                </TouchableOpacity>
-                <Text style={[styles.title, { color: mainText }]}>Apply for leave</Text>
-                <View style={{ width: 24 }} />
-            </View>
-
-            {loadingTypes ? (
-                <View style={styles.centered}>
-                    <ActivityIndicator color={colors.primary} />
-                </View>
-            ) : types.length === 0 ? (
-                <Text style={[styles.hint, { color: subText, paddingHorizontal: SPACING.xl }]}>
-                    No active leave types are configured. Ask an administrator to set up leave types in the portal.
-                </Text>
-            ) : (
-                <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-                    <Card style={styles.card}>
-                        <Text style={[styles.label, { color: mainText }]}>Leave type</Text>
-                        {types.map((t) => (
-                            <TouchableOpacity
-                                key={t.id}
-                                style={[
-                                    styles.typeRow,
-                                    { borderColor: border },
-                                    selectedTypeId === t.id && { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
-                                ]}
-                                onPress={() => setSelectedTypeId(t.id)}
-                            >
-                                <Text style={[styles.typeName, { color: mainText }]}>{t.name}</Text>
-                                {t.max_days != null ? (
-                                    <Text style={[styles.typeMeta, { color: subText }]}>Max {t.max_days} days</Text>
-                                ) : null}
-                            </TouchableOpacity>
-                        ))}
-                    </Card>
-
-                    {manageStaff ? (
+            <KeyboardAvoidingView
+                style={layoutStyles.flex1}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
+                {loadingTypes ? (
+                    <View style={styles.centered}>
+                        <ActivityIndicator color={colors.primary} />
+                    </View>
+                ) : types.length === 0 ? (
+                    <Text style={[styles.hint, { color: subText, paddingHorizontal: SPACING.xl }]}>
+                        No active leave types are configured. Ask an administrator to set up leave types in the portal.
+                    </Text>
+                ) : (
+                    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
                         <Card style={styles.card}>
-                            <Text style={[styles.label, { color: mainText }]}>Staff ID</Text>
-                            <Text style={[styles.hint, { color: subText }]}>
-                                Required for HR: the staff record ID (same as in the directory / URL).
-                            </Text>
+                            <Text style={[styles.label, { color: mainText }]}>Leave type</Text>
+                            {types.map((t) => (
+                                <TouchableOpacity
+                                    key={t.id}
+                                    style={[
+                                        styles.typeRow,
+                                        { borderColor: border },
+                                        selectedTypeId === t.id && { borderColor: colors.primary, backgroundColor: colors.primary + '12' },
+                                    ]}
+                                    onPress={() => setSelectedTypeId(t.id)}
+                                >
+                                    <Text style={[styles.typeName, { color: mainText }]}>{t.name}</Text>
+                                    {t.max_days != null ? (
+                                        <Text style={[styles.typeMeta, { color: subText }]}>Max {t.max_days} days</Text>
+                                    ) : null}
+                                </TouchableOpacity>
+                            ))}
+                        </Card>
+
+                        {manageStaff ? (
+                            <Card style={styles.card}>
+                                <Text style={[styles.label, { color: mainText }]}>Staff ID</Text>
+                                <Text style={[styles.hint, { color: subText }]}>
+                                    Required for HR: the staff record ID (same as in the directory / URL).
+                                </Text>
+                                <TextInput
+                                    style={[styles.input, { color: mainText, borderColor: border }]}
+                                    value={staffIdInput}
+                                    onChangeText={setStaffIdInput}
+                                    placeholder="e.g. 42"
+                                    placeholderTextColor={subText}
+                                    keyboardType="number-pad"
+                                />
+                            </Card>
+                        ) : null}
+
+                        <Card style={styles.card}>
+                            <Text style={[styles.label, { color: mainText }]}>Start date</Text>
                             <TextInput
                                 style={[styles.input, { color: mainText, borderColor: border }]}
-                                value={staffIdInput}
-                                onChangeText={setStaffIdInput}
-                                placeholder="e.g. 42"
+                                value={startDate}
+                                onChangeText={setStartDate}
+                                placeholder="YYYY-MM-DD"
                                 placeholderTextColor={subText}
-                                keyboardType="number-pad"
+                            />
+                            <Text style={[styles.label, { color: mainText, marginTop: SPACING.md }]}>End date</Text>
+                            <TextInput
+                                style={[styles.input, { color: mainText, borderColor: border }]}
+                                value={endDate}
+                                onChangeText={setEndDate}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor={subText}
                             />
                         </Card>
-                    ) : null}
 
-                    <Card style={styles.card}>
-                        <Text style={[styles.label, { color: mainText }]}>Start date</Text>
-                        <TextInput
-                            style={[styles.input, { color: mainText, borderColor: border }]}
-                            value={startDate}
-                            onChangeText={setStartDate}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor={subText}
-                        />
-                        <Text style={[styles.label, { color: mainText, marginTop: SPACING.md }]}>End date</Text>
-                        <TextInput
-                            style={[styles.input, { color: mainText, borderColor: border }]}
-                            value={endDate}
-                            onChangeText={setEndDate}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor={subText}
-                        />
-                    </Card>
+                        <Card style={styles.card}>
+                            <Text style={[styles.label, { color: mainText }]}>Reason (optional)</Text>
+                            <TextInput
+                                style={[styles.textArea, { color: mainText, borderColor: border }]}
+                                value={reason}
+                                onChangeText={setReason}
+                                placeholder="Brief reason"
+                                placeholderTextColor={subText}
+                                multiline
+                                numberOfLines={4}
+                            />
+                        </Card>
 
-                    <Card style={styles.card}>
-                        <Text style={[styles.label, { color: mainText }]}>Reason (optional)</Text>
-                        <TextInput
-                            style={[styles.textArea, { color: mainText, borderColor: border }]}
-                            value={reason}
-                            onChangeText={setReason}
-                            placeholder="Brief reason"
-                            placeholderTextColor={subText}
-                            multiline
-                            numberOfLines={4}
-                        />
-                    </Card>
-
-                    <Button title={submitting ? 'Submitting…' : 'Submit request'} onPress={onSubmit} disabled={submitting} />
-                </ScrollView>
-            )}
+                        <Button title={submitting ? 'Submitting…' : 'Submit request'} onPress={onSubmit} disabled={submitting} />
+                    </ScrollView>
+                )}
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: SPACING.xl,
-        paddingVertical: SPACING.md,
-    },
-    title: { fontSize: FONT_SIZES.xl, fontWeight: 'bold' },
-    content: { padding: SPACING.xl, paddingBottom: SPACING.xxl },
+    content: { padding: SPACING.xl, paddingTop: SPACING.md, paddingBottom: SPACING.xxl },
     card: { marginBottom: SPACING.md },
     label: { fontSize: FONT_SIZES.sm, fontWeight: '700', marginBottom: SPACING.sm },
     hint: { fontSize: FONT_SIZES.xs, marginBottom: SPACING.sm, lineHeight: 18 },

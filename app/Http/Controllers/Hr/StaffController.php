@@ -308,7 +308,15 @@ class StaffController extends Controller
             try {
                 $smsBody = $this->fillTemplate($smsTpl->content, $vars);
                 $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
-                $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                $smsResult = $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                if (!($smsResult['success'] ?? false)) {
+                    Log::warning('Welcome SMS send returned failed status for staff', [
+                        'staff_id' => $staff->id,
+                        'phone' => $staff->phone_number,
+                        'error' => $smsResult['error'] ?? 'Unknown SMS error',
+                        'result' => $smsResult['result'] ?? null,
+                    ]);
+                }
             } catch (\Exception $e) {
                 Log::warning('Failed to send welcome SMS to staff', [
                     'staff_id' => $staff->id,
@@ -800,7 +808,7 @@ class StaffController extends Controller
 
             // Check if templates exist
             if (!$emailTpl && !$smsTpl) {
-                return back()->with('error', 'Welcome staff templates not found. Please create "welcome_staff" email and/or SMS templates first.');
+                return back()->with('error', 'Welcome staff templates not found. Please create "staff_welcome_email" and/or "staff_welcome_sms" templates first.');
             }
 
             // Send email notification
@@ -843,8 +851,18 @@ class StaffController extends Controller
                     try {
                         $smsBody = $this->fillTemplate($smsTpl->content, $vars);
                         $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
-                        $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
-                        $sent = true;
+                        $smsResult = $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                        if ($smsResult['success'] ?? false) {
+                            $sent = true;
+                        } else {
+                            $errors[] = 'SMS: ' . ($smsResult['error'] ?? 'Failed to send SMS');
+                            Log::warning('Failed to resend welcome SMS to staff', [
+                                'staff_id' => $staff->id,
+                                'phone' => $staff->phone_number,
+                                'error' => $smsResult['error'] ?? 'Unknown SMS error',
+                                'result' => $smsResult['result'] ?? null,
+                            ]);
+                        }
                     } catch (\Exception $e) {
                         $errors[] = 'SMS: ' . $e->getMessage();
                         Log::warning('Failed to resend welcome SMS to staff', [
@@ -988,8 +1006,18 @@ class StaffController extends Controller
                 try {
                     $smsBody = $this->fillTemplate($smsTpl->content, $vars);
                     $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Password Reset - ' . config('app.name');
-                    $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
-                    $sent = true;
+                    $smsResult = $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                    if ($smsResult['success'] ?? false) {
+                        $sent = true;
+                    } else {
+                        $errors[] = 'SMS: ' . ($smsResult['error'] ?? 'Failed to send SMS');
+                        Log::warning('Failed to send password reset SMS to staff', [
+                            'staff_id' => $staff->id,
+                            'phone' => $staff->phone_number,
+                            'error' => $smsResult['error'] ?? 'Unknown SMS error',
+                            'result' => $smsResult['result'] ?? null,
+                        ]);
+                    }
                 } catch (\Exception $e) {
                     $errors[] = 'SMS: ' . $e->getMessage();
                     Log::warning('Failed to send password reset SMS to staff', [

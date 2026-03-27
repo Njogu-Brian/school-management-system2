@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Exam;
+use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamMark;
 use App\Models\Academics\ExamGrade;
 use App\Models\Academics\Subject;
 use App\Models\Academics\Classroom;
+use App\Models\Academics\Stream;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +29,7 @@ class ExamMarkController extends Controller
                 return $next($request);
             }
             abort(403, 'You do not have permission to enter exam marks.');
-        })->only(['bulkForm', 'bulkEdit', 'bulkEditView', 'bulkStore', 'edit', 'update']);
+        })->only(['bulkForm', 'bulkEdit', 'bulkEditView', 'bulkStore', 'matrixEdit', 'matrixView', 'matrixStore', 'edit', 'update']);
         
         $this->middleware(function ($request, $next) {
             $user = auth()->user();
@@ -163,7 +165,262 @@ class ExamMarkController extends Controller
             'exams'      => $exams,
             'classrooms' => $classrooms,
             'subjects'   => $subjects,
+            'types'      => ExamType::orderBy('name')->get(),
+            'streams'    => Stream::orderBy('name')->get(),
         ]);
+    }
+
+    /**
+     * New matrix flow: choose exam type + class + optional stream.
+     */
+    public function matrixEdit(Request $request)
+    {
+        $v = $request->validate([
+            'exam_type_id' => 'required|exists:exam_types,id',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+        ]);
+
+        return $this->renderMatrixEditor((int) $v['exam_type_id'], (int) $v['classroom_id'], isset($v['stream_id']) ? (int) $v['stream_id'] : null);
+    }
+
+    public function matrixView(Request $request)
+    {
+        $examTypeId = (int) $request->query('exam_type_id');
+        $classroomId = (int) $request->query('classroom_id');
+        $streamId = $request->query('stream_id');
+
+        abort_unless($examTypeId > 0 && $classroomId > 0, 404);
+
+        return $this->renderMatrixEditor($examTypeId, $classroomId, is_null($streamId) || $streamId === '' ? null : (int) $streamId);
+    }
+
+    public function matrixStore(Request $request)
+    {
+        $v = $request->validate([
+            'exam_type_id' => 'required|exists:exam_types,id',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'rows' => 'required|array',
+        ]);
+
+        $examTypeId = (int) $v['exam_type_id'];
+        $classroomId = (int) $v['classroom_id'];
+        $streamId = isset($v['stream_id']) ? (int) $v['stream_id'] : null;
+        $rows = $request->input('rows', []);
+
+        $authUser = Auth::user();
+        if (! $this->userCanAccessClassroomForMarks($authUser, $classroomId)) {
+            return back()->withInput()->with('error', 'You do not have access to this classroom.');
+        }
+
+        $studentsQuery = Student::query()
+            ->where('classroom_id', $classroomId)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
+        if ($authUser->hasTeacherLikeRole() && ! $authUser->hasAnyRole(['Super Admin', 'Admin'])) {
+            $authUser->applyTeacherStudentFilter($studentsQuery);
+        }
+        $allowedStudentIds = $studentsQuery->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $allowedStudentIdSet = array_flip($allowedStudentIds);
+
+        $examCandidates = Exam::query()
+            ->with(['examType'])
+            ->where('exam_type_id', $examTypeId)
+            ->where('classroom_id', $classroomId)
+            ->whereIn('status', ['open', 'marking'])
+            ->whereNotNull('subject_id')
+            ->when($streamId, function ($q) use ($streamId) {
+                $q->where(function ($subQ) use ($streamId) {
+                    $subQ->whereNull('stream_id')->orWhere('stream_id', $streamId);
+                });
+            })
+            ->get();
+
+        $allowedExams = $examCandidates->filter(function (Exam $exam) use ($authUser, $classroomId, $streamId) {
+            return $this->userCanAccessClassSubjectForMarks($authUser, $classroomId, (int) $exam->subject_id, $streamId);
+        })->keyBy('id');
+        $allowedExamIdSet = array_flip($allowedExams->keys()->map(fn ($id) => (int) $id)->all());
+
+        $saved = 0;
+        $skipped = 0;
+
+        foreach ($rows as $studentId => $examRows) {
+            $studentId = (int) $studentId;
+            if (!isset($allowedStudentIdSet[$studentId]) || !is_array($examRows)) {
+                $skipped++;
+                continue;
+            }
+
+            foreach ($examRows as $examId => $payload) {
+                $examId = (int) $examId;
+                if (!isset($allowedExamIdSet[$examId])) {
+                    $skipped++;
+                    continue;
+                }
+
+                $scoreInput = data_get($payload, 'score');
+                $remarkInput = data_get($payload, 'subject_remark');
+
+                $hasScore = !is_null($scoreInput) && $scoreInput !== '';
+                $hasRemark = !is_null($remarkInput) && trim((string) $remarkInput) !== '';
+                if (!$hasScore && !$hasRemark) {
+                    continue;
+                }
+
+                $exam = $allowedExams[$examId];
+                $examType = $exam->examType;
+                $maxMarks = (float) ($examType?->default_max_mark ?? $exam->max_marks ?? 100);
+                $minMarks = (float) ($examType?->default_min_mark ?? 0);
+
+                $score = null;
+                if ($hasScore) {
+                    if (!is_numeric($scoreInput)) {
+                        $skipped++;
+                        continue;
+                    }
+                    $score = (float) $scoreInput;
+                    if ($score < $minMarks || $score > $maxMarks) {
+                        $skipped++;
+                        continue;
+                    }
+                }
+
+                $mark = ExamMark::firstOrNew([
+                    'exam_id' => $examId,
+                    'student_id' => $studentId,
+                    'subject_id' => (int) $exam->subject_id,
+                ]);
+
+                $g = null;
+                if (!is_null($score)) {
+                    $g = ExamGrade::where('exam_type', $exam->type)
+                        ->where('percent_from', '<=', $score)
+                        ->where('percent_upto', '>=', $score)
+                        ->first();
+                }
+
+                $mark->fill([
+                    'score_raw' => $score,
+                    'grade_label' => $g?->grade_name ?? ($mark->grade_label ?? 'BE'),
+                    'pl_level' => $g?->grade_point ?? ($mark->pl_level ?? 1.0),
+                    'subject_remark' => $hasRemark ? trim((string) $remarkInput) : $mark->subject_remark,
+                    'status' => 'submitted',
+                    'teacher_id' => optional($authUser->staff)->id,
+                ])->save();
+                $saved++;
+            }
+        }
+
+        $message = "Saved {$saved} mark entries.";
+        if ($skipped > 0) {
+            $message .= " Skipped {$skipped} invalid or unauthorized entries.";
+        }
+
+        return redirect()->route('academics.exam-marks.matrix.view', [
+            'exam_type_id' => $examTypeId,
+            'classroom_id' => $classroomId,
+            'stream_id' => $streamId,
+        ])->with('success', $message);
+    }
+
+    private function renderMatrixEditor(int $examTypeId, int $classroomId, ?int $streamId)
+    {
+        $authUser = Auth::user();
+        if (! $this->userCanAccessClassroomForMarks($authUser, $classroomId)) {
+            abort(403, 'You do not have access to this classroom.');
+        }
+
+        $examType = ExamType::findOrFail($examTypeId);
+        $classroom = Classroom::findOrFail($classroomId);
+        $stream = $streamId ? Stream::find($streamId) : null;
+
+        $studentsQuery = Student::query()
+            ->where('classroom_id', $classroomId)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
+        if ($authUser->hasTeacherLikeRole() && ! $authUser->hasAnyRole(['Super Admin', 'Admin'])) {
+            $authUser->applyTeacherStudentFilter($studentsQuery);
+        }
+        $students = $studentsQuery->orderBy('last_name')->orderBy('first_name')->get();
+
+        $examCandidates = Exam::query()
+            ->with(['subject', 'examType'])
+            ->where('exam_type_id', $examTypeId)
+            ->where('classroom_id', $classroomId)
+            ->whereIn('status', ['open', 'marking'])
+            ->whereNotNull('subject_id')
+            ->when($streamId, function ($q) use ($streamId) {
+                $q->where(function ($subQ) use ($streamId) {
+                    $subQ->whereNull('stream_id')->orWhere('stream_id', $streamId);
+                });
+            })
+            ->orderBy('starts_on')
+            ->orderBy('id')
+            ->get();
+
+        $exams = $examCandidates->filter(function (Exam $exam) use ($authUser, $classroomId, $streamId) {
+            return $this->userCanAccessClassSubjectForMarks($authUser, $classroomId, (int) $exam->subject_id, $streamId);
+        })->values();
+
+        $existing = collect();
+        if ($students->isNotEmpty() && $exams->isNotEmpty()) {
+            $existing = ExamMark::query()
+                ->whereIn('student_id', $students->pluck('id'))
+                ->whereIn('exam_id', $exams->pluck('id'))
+                ->get()
+                ->keyBy(fn ($m) => $m->student_id.'-'.$m->exam_id);
+        }
+
+        return view('academics.exam_marks.matrix_edit', [
+            'examType' => $examType,
+            'classroom' => $classroom,
+            'stream' => $stream,
+            'students' => $students,
+            'exams' => $exams,
+            'existing' => $existing,
+        ]);
+    }
+
+    private function userCanAccessClassroomForMarks($user, int $classroomId): bool
+    {
+        if (!$user->hasTeacherLikeRole()) {
+            return true;
+        }
+        $allowedClassroomIds = $user->isSeniorTeacherUser()
+            ? array_unique(array_merge($user->getAssignedClassroomIds(), $user->getSupervisedClassroomIds()))
+            : $user->getAssignedClassroomIds();
+
+        return in_array($classroomId, array_map('intval', $allowedClassroomIds), true);
+    }
+
+    private function userCanAccessClassSubjectForMarks($user, int $classroomId, int $subjectId, ?int $streamId): bool
+    {
+        if (!$user->hasTeacherLikeRole()) {
+            return true;
+        }
+
+        if ($user->isSeniorTeacherUser() && in_array($classroomId, array_map('intval', $user->getSupervisedClassroomIds()), true)) {
+            return true;
+        }
+
+        $staffId = optional($user->staff)->id;
+        if (!$staffId) {
+            return false;
+        }
+
+        return DB::table('classroom_subjects')
+            ->where('classroom_id', $classroomId)
+            ->where('subject_id', $subjectId)
+            ->where('staff_id', $staffId)
+            ->when($streamId, function ($q) use ($streamId) {
+                $q->where(function ($subQ) use ($streamId) {
+                    $subQ->whereNull('stream_id')->orWhere('stream_id', $streamId);
+                });
+            })
+            ->exists();
     }
 
     /** STEP 2 (POST): Build editor with validation */

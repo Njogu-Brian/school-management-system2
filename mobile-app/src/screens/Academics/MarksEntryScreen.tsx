@@ -5,7 +5,8 @@ import {
     StyleSheet,
     ScrollView,
     SafeAreaView,
-    TouchableOpacity,
+    KeyboardAvoidingView,
+    Platform,
     Alert,
     TextInput,
 } from 'react-native';
@@ -18,7 +19,6 @@ import { Exam, Mark } from '../types/academics.types';
 import { Student } from '../types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface MarksEntryScreenProps {
     navigation: any;
@@ -184,96 +184,89 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
         <SafeAreaView
             style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                </TouchableOpacity>
-                <View style={styles.headerInfo}>
-                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Enter Marks
-                    </Text>
+            <KeyboardAvoidingView
+                style={styles.container}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
+                {/* Students List */}
+                <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
                     <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                         {exam?.name} - Total: {exam?.total_marks ?? 100} marks
                     </Text>
-                </View>
-                <View style={{ width: 24 }} />
-            </View>
+                    <View style={styles.tableHeader}>
+                        <Text style={[styles.columnHeader, styles.studentColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                            Student
+                        </Text>
+                        <Text style={[styles.columnHeader, styles.marksColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                            Marks
+                        </Text>
+                        <Text style={[styles.columnHeader, styles.remarksColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                            Remarks
+                        </Text>
+                    </View>
 
-            {/* Students List */}
-            <ScrollView style={styles.content}>
-                <View style={styles.tableHeader}>
-                    <Text style={[styles.columnHeader, styles.studentColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Student
-                    </Text>
-                    <Text style={[styles.columnHeader, styles.marksColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Marks
-                    </Text>
-                    <Text style={[styles.columnHeader, styles.remarksColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        Remarks
-                    </Text>
-                </View>
+                    {students.map((student, index) => (
+                        <Card key={student.id} style={styles.studentCard}>
+                            <View style={styles.studentRow}>
+                                <View style={[styles.studentColumn, styles.studentInfo]}>
+                                    <Text style={[styles.studentName, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                        {index + 1}. {student.full_name}
+                                    </Text>
+                                    <Text style={[styles.admissionNumber, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                        {student.admission_number}
+                                    </Text>
+                                </View>
 
-                {students.map((student, index) => (
-                    <Card key={student.id} style={styles.studentCard}>
-                        <View style={styles.studentRow}>
-                            <View style={[styles.studentColumn, styles.studentInfo]}>
-                                <Text style={[styles.studentName, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                                    {index + 1}. {student.full_name}
-                                </Text>
-                                <Text style={[styles.admissionNumber, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                                    {student.admission_number}
-                                </Text>
+                                <View style={styles.marksColumn}>
+                                    <TextInput
+                                        style={[
+                                            styles.input,
+                                            {
+                                                backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                                                color: isDark ? colors.textMainDark : colors.textMainLight,
+                                                borderColor: isDark ? colors.borderDark : colors.borderLight,
+                                            },
+                                        ]}
+                                        value={marks[student.id]?.marks || ''}
+                                        onChangeText={(value) => handleMarksChange(student.id, value)}
+                                        keyboardType="numeric"
+                                        placeholder="0"
+                                        placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
+                                        maxLength={5}
+                                    />
+                                </View>
+
+                                <View style={styles.remarksColumn}>
+                                    <TextInput
+                                        style={[
+                                            styles.input,
+                                            {
+                                                backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                                                color: isDark ? colors.textMainDark : colors.textMainLight,
+                                                borderColor: isDark ? colors.borderDark : colors.borderLight,
+                                            },
+                                        ]}
+                                        value={marks[student.id]?.remarks || ''}
+                                        onChangeText={(value) => handleRemarksChange(student.id, value)}
+                                        placeholder="Optional"
+                                        placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
+                                        maxLength={100}
+                                    />
+                                </View>
                             </View>
+                        </Card>
+                    ))}
 
-                            <View style={styles.marksColumn}>
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        {
-                                            backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                                            color: isDark ? colors.textMainDark : colors.textMainLight,
-                                            borderColor: isDark ? colors.borderDark : colors.borderLight,
-                                        },
-                                    ]}
-                                    value={marks[student.id]?.marks || ''}
-                                    onChangeText={(value) => handleMarksChange(student.id, value)}
-                                    keyboardType="numeric"
-                                    placeholder="0"
-                                    placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
-                                    maxLength={5}
-                                />
-                            </View>
-
-                            <View style={styles.remarksColumn}>
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        {
-                                            backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                                            color: isDark ? colors.textMainDark : colors.textMainLight,
-                                            borderColor: isDark ? colors.borderDark : colors.borderLight,
-                                        },
-                                    ]}
-                                    value={marks[student.id]?.remarks || ''}
-                                    onChangeText={(value) => handleRemarksChange(student.id, value)}
-                                    placeholder="Optional"
-                                    placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
-                                    maxLength={100}
-                                />
-                            </View>
-                        </View>
-                    </Card>
-                ))}
-
-                <Button
-                    title="Save Marks"
-                    onPress={handleSave}
-                    loading={saving}
-                    fullWidth
-                    style={styles.saveButton}
-                />
-            </ScrollView>
+                    <Button
+                        title="Save Marks"
+                        onPress={handleSave}
+                        loading={saving}
+                        fullWidth
+                        style={styles.saveButton}
+                    />
+                </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 };
@@ -282,24 +275,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: SPACING.xl,
-        paddingVertical: SPACING.md,
-    },
-    headerInfo: {
-        flex: 1,
-        marginLeft: SPACING.md,
-    },
-    title: {
-        fontSize: FONT_SIZES.xl,
-        fontWeight: 'bold',
-    },
     subtitle: {
         fontSize: FONT_SIZES.sm,
-        marginTop: 2,
+        marginTop: SPACING.sm,
+        marginBottom: SPACING.sm,
+        paddingHorizontal: SPACING.xl,
     },
     loading: {
         textAlign: 'center',

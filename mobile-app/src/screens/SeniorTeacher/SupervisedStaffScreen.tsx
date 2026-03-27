@@ -5,7 +5,6 @@ import {
     StyleSheet,
     FlatList,
     SafeAreaView,
-    TouchableOpacity,
     RefreshControl,
     Alert,
 } from 'react-native';
@@ -13,15 +12,14 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { seniorTeacherApi, SupervisedStaffMember } from '@api/seniorTeacher.api';
-import { SPACING, FONT_SIZES } from '@constants/theme';
+import { SPACING } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface SupervisedStaffScreenProps {
     navigation: any;
 }
 
-export const SupervisedStaffScreen: React.FC<SupervisedStaffScreenProps> = ({ navigation }) => {
+export const SupervisedStaffScreen: React.FC<SupervisedStaffScreenProps> = () => {
     const { isDark, colors } = useTheme();
     const [staff, setStaff] = useState<SupervisedStaffMember[]>([]);
     const [loading, setLoading] = useState(true);
@@ -60,14 +58,6 @@ export const SupervisedStaffScreen: React.FC<SupervisedStaffScreenProps> = ({ na
 
     return (
         <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Icon name="arrow-back" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                </TouchableOpacity>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    Supervised Staff
-                </Text>
-            </View>
             {list.length === 0 ? (
                 <EmptyState
                     icon="people"
@@ -100,7 +90,6 @@ export const SupervisedStaffScreen: React.FC<SupervisedStaffScreenProps> = ({ na
                                         </Text>
                                     )}
                                 </View>
-                                <Icon name="chevron-right" size={24} color={isDark ? colors.textSubDark : colors.textSubLight} />
                             </View>
                         </Card>
                     )}
@@ -112,9 +101,6 @@ export const SupervisedStaffScreen: React.FC<SupervisedStaffScreenProps> = ({ na
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
-    backBtn: { marginRight: SPACING.sm },
-    title: { fontSize: FONT_SIZES.xl, fontWeight: 'bold' },
     list: { padding: SPACING.md, paddingBottom: SPACING.xxl },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     info: { flex: 1 },

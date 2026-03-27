@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\OtpVerification;
 use App\Services\SMSService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 
 class OtpService
@@ -92,20 +93,23 @@ class OtpService
                     'purpose' => $purpose
                 ]);
             } else {
-                // Send OTP via Email (implement email sending here)
-                // For now, log it
-                Log::info('OTP generated for email (email sending not implemented)', [
+                // Send OTP via email for identifier-based login/reset flows.
+                Mail::raw(
+                    "Your verification code is {$otpCode}. It expires in 10 minutes.",
+                    function ($message) use ($identifier, $purpose) {
+                        $message->to($identifier)
+                            ->subject(match ($purpose) {
+                                'password_reset' => 'Password Reset OTP',
+                                'login' => 'Login OTP',
+                                default => 'Verification OTP',
+                            });
+                    }
+                );
+
+                Log::info('OTP sent via Email', [
                     'identifier' => $identifier,
-                    'otp' => $otpCode,
                     'purpose' => $purpose
                 ]);
-                
-                // TODO: Implement email OTP sending
-                return [
-                    'success' => false,
-                    'otp' => null,
-                    'message' => 'Email OTP not yet implemented. Please use phone number.'
-                ];
             }
 
             return [

@@ -30,9 +30,7 @@ interface StudentsListScreenProps {
     route?: { params?: { title?: string; hint?: string } };
 }
 
-export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigation, route }) => {
-    const listTitle = route?.params?.title ?? 'Students';
-    const listHint = route?.params?.hint;
+export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
     const { user } = useAuth();
     const hideAdminActions = user?.role ? isTeacherRole(user.role) : false;
@@ -169,31 +167,6 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
                 { backgroundColor: isDark ? colors.backgroundDark : BRAND.bg },
             ]}
         >
-            {/* Header */}
-            <View style={[styles.header, { paddingHorizontal: SCREEN.paddingHorizontal }]}>
-                <View style={{ flex: 1 }}>
-                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : BRAND.text }]}>{listTitle}</Text>
-                    {listHint ? (
-                        <Text
-                            style={{
-                                fontSize: FONT_SIZES.sm,
-                                color: isDark ? colors.textSubDark : colors.textSubLight,
-                                marginTop: 4,
-                            }}
-                        >
-                            {listHint}
-                        </Text>
-                    ) : null}
-                </View>
-                {!hideAdminActions ? (
-                    <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('AddStudent')}>
-                        <Icon name="add" size={24} color={BRAND.primary} />
-                    </TouchableOpacity>
-                ) : (
-                    <View style={{ width: 40 }} />
-                )}
-            </View>
-
             {/* Search Bar */}
             <View style={[styles.searchContainer, { paddingHorizontal: SCREEN.paddingHorizontal }]}>
                 <Input
@@ -215,6 +188,17 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
                 >
                     <Icon name="filter-list" size={24} color={BRAND.primary} />
                 </TouchableOpacity>
+                {!hideAdminActions ? (
+                    <TouchableOpacity
+                        style={[
+                            styles.filterButton,
+                            { backgroundColor: isDark ? colors.surfaceDark : BRAND.surface, borderColor: BRAND.border },
+                        ]}
+                        onPress={() => navigation.navigate('AddStudent')}
+                    >
+                        <Icon name="add" size={24} color={BRAND.primary} />
+                    </TouchableOpacity>
+                ) : null}
             </View>
 
             {/* Students List */}
@@ -256,23 +240,10 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: SPACING.xl,
-        paddingVertical: SPACING.md,
-    },
-    title: {
-        fontSize: FONT_SIZES.xxl,
-        fontWeight: 'bold',
-    },
-    addButton: {
-        padding: SPACING.sm,
-    },
     searchContainer: {
         flexDirection: 'row',
         paddingHorizontal: SPACING.xl,
+        marginTop: SPACING.md,
         marginBottom: SPACING.md,
         gap: SPACING.sm,
     },

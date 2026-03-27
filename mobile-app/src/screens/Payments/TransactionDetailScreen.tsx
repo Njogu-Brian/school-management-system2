@@ -238,13 +238,6 @@ export const TransactionDetailScreen: React.FC<Props> = ({ navigation, route }) 
     if (loading) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
-                <View style={styles.headerRow}>
-                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                        <Icon name="arrow-back" size={24} color={colors.primary} />
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: textMain }]}>Transaction</Text>
-                    <View style={{ width: 40 }} />
-                </View>
                 <ActivityIndicator style={{ marginTop: SPACING.xl }} color={colors.primary} />
             </SafeAreaView>
         );
@@ -259,16 +252,6 @@ export const TransactionDetailScreen: React.FC<Props> = ({ navigation, route }) 
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
-            <View style={styles.headerRow}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-                    <Icon name="arrow-back" size={24} color={colors.primary} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: textMain }]} numberOfLines={1}>
-                    {transactionType === 'bank' ? 'Bank line' : 'M-Pesa C2B'}
-                </Text>
-                <View style={{ width: 40 }} />
-            </View>
-
             <ScrollView contentContainerStyle={styles.scroll}>
                 <Card>
                     <Text style={[styles.amount, { color: colors.success }]}>
@@ -456,16 +439,7 @@ export const TransactionDetailScreen: React.FC<Props> = ({ navigation, route }) 
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: SPACING.md,
-        paddingVertical: SPACING.sm,
-    },
-    backBtn: { padding: SPACING.sm },
-    headerTitle: { flex: 1, fontSize: FONT_SIZES.lg, fontWeight: '700', textAlign: 'center' },
-    scroll: { padding: SPACING.xl, paddingBottom: SPACING.xxl },
+    scroll: { padding: SPACING.xl, paddingTop: SPACING.md, paddingBottom: SPACING.xxl },
     amount: { fontSize: FONT_SIZES.xxl, fontWeight: '700' },
     line: { fontSize: FONT_SIZES.md, marginTop: SPACING.sm },
     lineSm: { fontSize: FONT_SIZES.sm, marginTop: 4 },

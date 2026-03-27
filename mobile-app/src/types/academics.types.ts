@@ -192,3 +192,33 @@ export interface AcademicsFilters {
     page?: number;
     per_page?: number;
 }
+
+export interface MarksMatrixContext {
+    exam_types: { id: number; name: string; code?: string | null }[];
+    classrooms: { id: number; name: string }[];
+    streams: { id: number; name: string; classroom_id: number }[];
+}
+
+export interface MarksMatrixExam {
+    id: number;
+    name: string;
+    subject_id: number;
+    subject_name?: string | null;
+    min_marks: number;
+    max_marks: number;
+}
+
+export interface MarksMatrixStudent {
+    id: number;
+    full_name: string;
+    admission_number?: string | null;
+    classroom_id: number;
+    stream_id?: number | null;
+}
+
+export interface MarksMatrixExistingMark {
+    student_id: number;
+    exam_id: number;
+    marks?: number | null;
+    remarks?: string | null;
+}

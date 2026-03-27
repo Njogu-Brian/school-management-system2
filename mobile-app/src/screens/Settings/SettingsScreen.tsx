@@ -9,11 +9,17 @@ import {
     Alert,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { Button } from '@components/common/Button';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
+import { UserRole } from '@constants/roles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
+import { checkForAppUpdate } from '@services/update.service';
+import { canUseBiometrics, getBiometricEnabled, setBiometricEnabled } from '@utils/biometrics';
 
 interface SettingsScreenProps {
     navigation: any;
@@ -21,6 +27,15 @@ interface SettingsScreenProps {
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
     const { isDark, colors, toggleTheme } = useTheme();
+    const { user } = useAuth();
+    const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+    const buildNumber = String(
+        Constants.expoConfig?.android?.versionCode ?? Constants.expoConfig?.ios?.buildNumber ?? '100'
+    );
+    const isAdminUser = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN;
+    const updateChannel = Updates.channel ?? 'N/A';
+    const runtimeVersion = Updates.runtimeVersion ?? 'N/A';
+    const updateId = Updates.updateId ?? 'N/A';
 
     const [notifications, setNotifications] = useState({
         pushEnabled: true,
@@ -36,12 +51,27 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         touchId: false,
         faceId: false,
     });
+    const [deviceSupportsBiometrics, setDeviceSupportsBiometrics] = useState(false);
+
+    React.useEffect(() => {
+        (async () => {
+            const [supported, enabled] = await Promise.all([canUseBiometrics(), getBiometricEnabled()]);
+            setDeviceSupportsBiometrics(supported);
+            setBiometrics((prev) => ({ ...prev, enabled: supported ? enabled : false }));
+        })();
+    }, []);
 
     const handleToggle = (category: string, setting: string) => {
         if (category === 'notifications') {
             setNotifications((prev) => ({ ...prev, [setting]: !prev[setting as keyof typeof prev] }));
         } else if (category === 'biometrics') {
-            setBiometrics((prev) => ({ ...prev, [setting]: !prev[setting as keyof typeof prev] }));
+            setBiometrics((prev) => {
+                const nextValue = !prev[setting as keyof typeof prev];
+                if (setting === 'enabled') {
+                    setBiometricEnabled(nextValue).catch(() => undefined);
+                }
+                return { ...prev, [setting]: nextValue };
+            });
         }
     };
 
@@ -89,16 +119,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         </View>
     );
 
+    const handleCheckUpdates = async () => {
+        await checkForAppUpdate({ silent: false, showNoUpdateMessage: true });
+    };
+
     return (
         <SafeAreaView
             style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
         >
-            <View style={styles.header}>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    Settings
-                </Text>
-            </View>
-
             <ScrollView style={styles.content}>
                 {/* Appearance */}
                 <Card style={styles.section}>
@@ -148,9 +176,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                     </Text>
                     {renderSettingRow(
                         'Biometric Login',
-                        biometrics.enabled,
+                        biometrics.enabled && deviceSupportsBiometrics,
                         () => handleToggle('biometrics', 'enabled'),
-                        'Use fingerprint or face recognition'
+                        deviceSupportsBiometrics
+                            ? 'Use fingerprint or face recognition'
+                            : 'Biometric login not available on this device'
                     )}
                     <Button
                         title="Change Password"
@@ -166,6 +196,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                     <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                         Data & Storage
                     </Text>
+                    <Button
+                        title="Check for Updates"
+                        onPress={handleCheckUpdates}
+                        variant="outline"
+                        fullWidth
+                        style={styles.actionButton}
+                    />
                     <Button
                         title="Clear Cache"
                         onPress={handleClearCache}
@@ -185,7 +222,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                             Version
                         </Text>
                         <Text style={[styles.infoValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                            1.0.0
+                            {appVersion}
                         </Text>
                     </View>
                     <View style={styles.infoRow}>
@@ -193,10 +230,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                             Build
                         </Text>
                         <Text style={[styles.infoValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                            100
+                            {buildNumber}
                         </Text>
                     </View>
                 </Card>
+
+                {isAdminUser ? (
+                    <Card style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                            Update Diagnostics (Admin)
+                        </Text>
+                        <View style={styles.infoRow}>
+                            <Text style={[styles.infoLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                Channel
+                            </Text>
+                            <Text style={[styles.infoValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                {updateChannel}
+                            </Text>
+                        </View>
+                        <View style={styles.infoRow}>
+                            <Text style={[styles.infoLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                Runtime Version
+                            </Text>
+                            <Text style={[styles.infoValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                {runtimeVersion}
+                            </Text>
+                        </View>
+                        <View style={styles.infoRow}>
+                            <Text style={[styles.infoLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                Update ID
+                            </Text>
+                            <Text style={[styles.infoValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                {updateId}
+                            </Text>
+                        </View>
+                    </Card>
+                ) : null}
             </ScrollView>
         </SafeAreaView>
     );
@@ -204,9 +273,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md },
-    title: { fontSize: FONT_SIZES.xxl, fontWeight: 'bold' },
-    content: { flex: 1, padding: SPACING.xl },
+    content: { flex: 1, padding: SPACING.xl, paddingTop: SPACING.md },
     section: { marginBottom: SPACING.lg },
     sectionTitle: { fontSize: FONT_SIZES.lg, fontWeight: 'bold', marginBottom: SPACING.md },
     settingRow: {

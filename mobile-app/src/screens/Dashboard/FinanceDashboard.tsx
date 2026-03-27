@@ -9,7 +9,6 @@ import {
     RefreshControl,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
-import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
@@ -22,7 +21,6 @@ interface FinanceDashboardProps {
 
 export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
-    const { user } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
 
     const [stats] = useState({
@@ -94,10 +92,10 @@ export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ navigation }
             <View style={styles.header}>
                 <View>
                     <Text style={[styles.greeting, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                        Finance Dashboard
+                        You are in
                     </Text>
                     <Text style={[styles.name, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                        {user?.name || 'Accountant'}
+                        Finance
                     </Text>
                 </View>
                 <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>

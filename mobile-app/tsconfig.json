@@ -48,6 +48,9 @@
             "@constants/*": [
                 "constants/*"
             ],
+            "@services/*": [
+                "services/*"
+            ],
             "@styles": [
                 "styles/index"
             ],

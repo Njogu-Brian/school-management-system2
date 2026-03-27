@@ -24,7 +24,16 @@ import { SPACING, FONT_SIZES, LOGIN_GRADIENT_LIGHT, LOGIN_GRADIENT_DARK, COLORS,
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { Palette } from '@styles/palette';
 import { brandingApi } from '@api/branding.api';
+import { authApi } from '@api/auth.api';
 import type { AppBranding } from '@types/branding.types';
+import {
+    authenticateWithBiometrics,
+    canUseBiometrics,
+    getBiometricCredentials,
+    getBiometricEnabled,
+    saveBiometricCredentials,
+    setBiometricEnabled,
+} from '@utils/biometrics';
 
 interface LoginScreenProps {
     navigation: any;
@@ -35,11 +44,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
     const insets = useSafeAreaInsets();
 
-    const [email, setEmail] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
+    const [otpLoading, setOtpLoading] = useState(false);
+    const [loginMode, setLoginMode] = useState<'password' | 'otp'>('password');
     const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
+    const [showBiometricButton, setShowBiometricButton] = useState(false);
     const [branding, setBranding] = useState<AppBranding | null>(null);
     const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 
@@ -84,11 +96,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const showRemoteLogo = Boolean(branding?.logo_url && !logoLoadFailed);
 
     const validate = (): boolean => {
-        const newErrors: { email?: string; password?: string } = {};
-        const emailError = validators.email(email);
-        if (emailError) newErrors.email = emailError;
-        const passwordError = validators.password(password);
-        if (passwordError) newErrors.password = passwordError;
+        const newErrors: { identifier?: string; password?: string } = {};
+        const id = identifier.trim();
+        if (!id) {
+            newErrors.identifier = 'Work email or phone number is required';
+        } else if (id.includes('@')) {
+            const emailError = validators.email(id);
+            if (emailError) newErrors.identifier = emailError;
+        } else {
+            const phoneError = validators.phone(id);
+            if (phoneError) newErrors.identifier = phoneError;
+        }
+        if (loginMode === 'password') {
+            const passwordError = validators.password(password);
+            if (passwordError) newErrors.password = passwordError;
+        }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -97,12 +119,55 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
         if (!validate()) return;
         try {
             await login({
-                email: email.trim(),
+                identifier: identifier.trim(),
                 password,
                 remember: rememberMe,
             });
+            const biometricEnabled = await getBiometricEnabled();
+            const deviceSupportsBiometrics = await canUseBiometrics();
+            if (biometricEnabled && deviceSupportsBiometrics) {
+                await saveBiometricCredentials(identifier.trim(), password);
+                setShowBiometricButton(true);
+            }
         } catch (err: any) {
             Alert.alert('Login Failed', err.message || 'Please check your credentials and try again.');
+        }
+    };
+
+    const handleRequestOtp = async () => {
+        if (!validate()) return;
+        setOtpLoading(true);
+        try {
+            await authApi.requestLoginOTP({ identifier: identifier.trim() });
+            navigation.navigate('OTPVerification', {
+                flow: 'login',
+                identifier: identifier.trim(),
+            });
+        } catch (err: any) {
+            Alert.alert('OTP failed', err.message || 'Could not send OTP.');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    const handleBiometricLogin = async () => {
+        const success = await authenticateWithBiometrics('Authenticate to sign in');
+        if (!success) return;
+        const creds = await getBiometricCredentials();
+        if (!creds) {
+            Alert.alert('Biometric login', 'No saved biometric credentials found. Login once with password.');
+            await setBiometricEnabled(false);
+            setShowBiometricButton(false);
+            return;
+        }
+        try {
+            await login({
+                identifier: creds.identifier,
+                password: creds.password,
+                remember: true,
+            });
+        } catch (err: any) {
+            Alert.alert('Biometric login failed', err.message || 'Please sign in with password.');
         }
     };
 
@@ -171,40 +236,71 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                     >
                         <Text style={[styles.cardTitle, { color: isDark ? colors.textMainDark : BRAND.text }]}>Welcome back</Text>
                         <Text style={[styles.cardSubtitle, { color: isDark ? colors.textSubDark : BRAND.muted }]}>
-                            Use your school email and password
+                            Use work email or phone number
                         </Text>
+
+                        <View style={styles.authTabs}>
+                            <TouchableOpacity
+                                style={[styles.authTab, loginMode === 'password' && { backgroundColor: colors.primary }]}
+                                onPress={() => setLoginMode('password')}
+                            >
+                                <Text
+                                    style={[
+                                        styles.authTabText,
+                                        { color: loginMode === 'password' ? Palette.onPrimary : colors.primary },
+                                    ]}
+                                >
+                                    Password
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.authTab, loginMode === 'otp' && { backgroundColor: colors.primary }]}
+                                onPress={() => setLoginMode('otp')}
+                            >
+                                <Text
+                                    style={[
+                                        styles.authTabText,
+                                        { color: loginMode === 'otp' ? Palette.onPrimary : colors.primary },
+                                    ]}
+                                >
+                                    OTP
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
 
                         <View style={styles.form}>
                             <Input
-                                label="Email"
-                                placeholder="you@school.edu"
-                                value={email}
+                                label="Work email or phone"
+                                placeholder="you@school.edu or +2547..."
+                                value={identifier}
                                 onChangeText={(text) => {
-                                    setEmail(text);
-                                    if (errors.email) setErrors({ ...errors, email: undefined });
+                                    setIdentifier(text);
+                                    if (errors.identifier) setErrors({ ...errors, identifier: undefined });
                                 }}
-                                error={errors.email}
-                                keyboardType="email-address"
+                                error={errors.identifier}
+                                keyboardType="default"
                                 autoCapitalize="none"
-                                autoComplete="email"
-                                icon="email"
+                                autoComplete="username"
+                                icon="person"
                             />
 
-                            <Input
-                                label="Password"
-                                placeholder="••••••••"
-                                value={password}
-                                onChangeText={(text) => {
-                                    setPassword(text);
-                                    if (errors.password) setErrors({ ...errors, password: undefined });
-                                }}
-                                error={errors.password}
-                                secureTextEntry={!showPassword}
-                                autoCapitalize="none"
-                                icon="lock"
-                                rightIcon={showPassword ? 'visibility-off' : 'visibility'}
-                                onRightIconPress={() => setShowPassword(!showPassword)}
-                            />
+                            {loginMode === 'password' ? (
+                                <Input
+                                    label="Password"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChangeText={(text) => {
+                                        setPassword(text);
+                                        if (errors.password) setErrors({ ...errors, password: undefined });
+                                    }}
+                                    error={errors.password}
+                                    secureTextEntry={!showPassword}
+                                    autoCapitalize="none"
+                                    icon="lock"
+                                    rightIcon={showPassword ? 'visibility-off' : 'visibility'}
+                                    onRightIconPress={() => setShowPassword(!showPassword)}
+                                />
+                            ) : null}
 
                             <View style={styles.row}>
                                 <TouchableOpacity style={styles.checkbox} onPress={() => setRememberMe(!rememberMe)}>
@@ -229,13 +325,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                 </TouchableOpacity>
                             </View>
 
-                            <Button title="Sign in" onPress={handleLogin} loading={loading} fullWidth style={styles.loginButton} />
+                            <Button
+                                title={loginMode === 'password' ? 'Sign in' : 'Send OTP'}
+                                onPress={loginMode === 'password' ? handleLogin : handleRequestOtp}
+                                loading={loginMode === 'password' ? loading : otpLoading}
+                                fullWidth
+                                style={styles.loginButton}
+                            />
+                            {showBiometricButton ? (
+                                <Button
+                                    title="Login with Biometrics"
+                                    onPress={handleBiometricLogin}
+                                    variant="outline"
+                                    fullWidth
+                                    style={styles.biometricButton}
+                                />
+                            ) : null}
                         </View>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </>
     );
+
+    useEffect(() => {
+        (async () => {
+            const [enabled, available, creds] = await Promise.all([
+                getBiometricEnabled(),
+                canUseBiometrics(),
+                getBiometricCredentials(),
+            ]);
+            setShowBiometricButton(enabled && available && !!creds);
+        })();
+    }, []);
 
     if (loginBackgroundUri) {
         return (
@@ -356,6 +478,23 @@ const styles = StyleSheet.create({
     form: {
         width: '100%',
     },
+    authTabs: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        marginBottom: SPACING.md,
+    },
+    authTab: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: COLORS.primary,
+        borderRadius: 8,
+        paddingVertical: SPACING.sm,
+        alignItems: 'center',
+    },
+    authTabText: {
+        fontSize: FONT_SIZES.sm,
+        fontWeight: '700',
+    },
     row: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -390,6 +529,9 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     loginButton: {
+        marginTop: SPACING.sm,
+    },
+    biometricButton: {
         marginTop: SPACING.sm,
     },
 });

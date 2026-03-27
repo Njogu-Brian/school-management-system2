@@ -18,6 +18,7 @@ module.exports = {
                     '@utils': './src/utils',
                     '@constants': './src/constants',
                     '@styles': './src/styles',
+                    '@services': './src/services',
                 },
             },
         ],

@@ -2,7 +2,7 @@ import { UserRole, Permission } from '@constants/roles';
 
 // Auth types
 export interface LoginCredentials {
-    email: string;
+    identifier: string;
     password: string;
     remember?: boolean;
 }
@@ -28,19 +28,20 @@ export interface User {
 }
 
 export interface ResetPasswordByEmailRequest {
-    email: string;
+    identifier: string;
 }
 
 export interface ResetPasswordByOTPRequest {
-    phone: string;
+    identifier: string;
 }
 
 export interface VerifyOTPRequest {
-    phone: string;
+    identifier: string;
     code: string;
 }
 
 export interface ResetPasswordRequest {
+    identifier: string;
     token: string;
     password: string;
     password_confirmation: string;
