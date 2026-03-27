@@ -7,7 +7,8 @@ const webBaseDefault = apiBase.replace(/\/api\/?$/i, '').replace(/\/$/, '') || '
 export default {
   expo: {
     newArchEnabled: true,
-    name: 'School ERP',
+    name: 'Royal Kings ERP',
+    icon: './assets/royal-kings-icon.png',
     slug: 'school-erp-mobile',
     version: '1.0.0',
     orientation: 'portrait',
@@ -26,6 +27,7 @@ export default {
     },
     android: {
       adaptiveIcon: {
+        foregroundImage: './assets/royal-kings-icon.png',
         backgroundColor: '#004A99',
       },
       package: 'com.schoolerp',
