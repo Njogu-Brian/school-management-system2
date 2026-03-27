@@ -97,15 +97,16 @@ class StudentsController extends Controller
             'stream',
             'parent',
             'category',
-            'attendances' => function($q) {
+            'attendances' => function ($q) {
                 $q->latest()->take(10);
             },
             'assignments.morningTrip',
             'assignments.eveningTrip',
             'assignments.morningDropOffPoint',
             'assignments.eveningDropOffPoint',
+            'trip',
+            'dropOffPoint',
             'vehicle',
-            'route'
         ]);
         
         // Get recent exam marks
