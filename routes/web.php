@@ -1550,10 +1550,14 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             ->name('invoices.items.update');
         Route::get('invoices/{invoice}/history', [InvoiceController::class, 'history'])
             ->name('invoices.history');
-        Route::post('invoices/{invoice}/uniform', [InvoiceController::class, 'storeUniform'])
+        Route::post('invoices/{invoice}/uniform', [InvoiceController::class, 'storeCustomItem'])
             ->name('invoices.uniform.store');
-        Route::delete('invoices/{invoice}/uniform', [InvoiceController::class, 'removeUniform'])
+        Route::delete('invoices/{invoice}/uniform', [InvoiceController::class, 'removeLegacyUniformItem'])
             ->name('invoices.uniform.remove');
+        Route::post('invoices/{invoice}/custom-items', [InvoiceController::class, 'storeCustomItem'])
+            ->name('invoices.custom-items.store');
+        Route::delete('invoices/{invoice}/items/{item}/custom', [InvoiceController::class, 'removeCustomItem'])
+            ->name('invoices.custom-items.remove');
             
         // Discounts (Fee Concessions)
         Route::get('discounts/replicate', [DiscountController::class, 'replicateForm'])->name('discounts.replicate.form');

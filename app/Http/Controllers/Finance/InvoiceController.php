@@ -255,10 +255,12 @@ class InvoiceController extends Controller
     {
         // Always treat as JSON if X-Requested-With header is present
         $isAjax = $request->expectsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest';
+        $isManagedCustomItem = UniformFeeService::isManagedCustomItem($item);
         
         $request->validate([
             'new_amount' => 'required|numeric|min:0',
-            'reason' => $item->source === UniformFeeService::SOURCE ? 'nullable|string|max:255' : 'required|string|max:255',
+            'votehead_name' => $isManagedCustomItem ? 'required|string|max:255' : 'nullable|string|max:255',
+            'reason' => $isManagedCustomItem ? 'nullable|string|max:255' : 'required|string|max:255',
             'notes' => 'nullable|string',
         ]);
 
@@ -272,17 +274,21 @@ class InvoiceController extends Controller
             return back()->with('success', 'No change.');
         }
 
-        // Uniform items: adjust amount directly, no credit/debit notes
-        if ($item->source === UniformFeeService::SOURCE) {
+        // Custom managed items: adjust amount + votehead directly, no credit/debit notes
+        if ($isManagedCustomItem) {
             try {
-                UniformFeeService::updateUniformAmount($item, $newAmount);
-                $message = 'Uniform amount updated.';
+                UniformFeeService::updateManagedItem(
+                    $item,
+                    (string) $request->input('votehead_name'),
+                    $newAmount
+                );
+                $message = 'Custom invoice item updated.';
                 if ($isAjax) {
                     return response()->json(['success' => true, 'message' => $message, 'item' => $item->fresh()]);
                 }
                 return back()->with('success', $message);
             } catch (\Exception $e) {
-                \Log::error('Uniform amount update failed: ' . $e->getMessage(), [
+                \Log::error('Custom invoice item update failed: ' . $e->getMessage(), [
                     'invoice_id' => $invoice->id,
                     'item_id' => $item->id,
                     'exception' => $e
@@ -338,34 +344,80 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Add or update uniform line on this invoice (shortcut; no credit/debit notes).
+     * Add or update custom line item on this invoice (shortcut; no credit/debit notes).
      */
-    public function storeUniform(Request $request, Invoice $invoice)
+    public function storeCustomItem(Request $request, Invoice $invoice)
     {
         $request->validate([
+            'votehead_name' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
         ]);
         try {
-            UniformFeeService::addOrUpdateUniform($invoice, (float) $request->amount);
-            return back()->with('success', 'Uniform amount added/updated. It will appear on the invoice, payments and statement.');
+            UniformFeeService::addCustomItem(
+                $invoice,
+                (string) $request->input('votehead_name'),
+                (float) $request->amount
+            );
+            return back()->with('success', 'Custom item added/updated. It will appear on the invoice, payments and statement.');
         } catch (\Exception $e) {
-            \Log::error('Uniform store failed: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
+            \Log::error('Custom invoice item store failed: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
             return back()->with('error', 'Failed: ' . $e->getMessage());
         }
     }
 
     /**
-     * Remove uniform line from this invoice.
+     * Remove legacy uniform line from this invoice.
      */
-    public function removeUniform(Invoice $invoice)
+    public function removeLegacyUniformItem(Invoice $invoice)
     {
         try {
-            UniformFeeService::removeUniform($invoice);
+            UniformFeeService::removeLegacyUniformItem($invoice);
             return back()->with('success', 'Uniform line removed from invoice.');
         } catch (\Exception $e) {
             \Log::error('Uniform remove failed: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
             return back()->with('error', 'Failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Remove a managed custom item from this invoice.
+     */
+    public function removeCustomItem(Invoice $invoice, InvoiceItem $item)
+    {
+        if ((int) $item->invoice_id !== (int) $invoice->id) {
+            return back()->with('error', 'Invalid invoice item for this invoice.');
+        }
+
+        if (!UniformFeeService::isManagedCustomItem($item)) {
+            return back()->with('error', 'Only custom invoice items can be removed here.');
+        }
+
+        try {
+            UniformFeeService::removeManagedItem($item);
+            return back()->with('success', 'Custom invoice item removed from invoice.');
+        } catch (\Exception $e) {
+            \Log::error('Custom item remove failed: ' . $e->getMessage(), [
+                'invoice_id' => $invoice->id,
+                'item_id' => $item->id,
+            ]);
+            return back()->with('error', 'Failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * @deprecated Backward-compatible alias for old method naming.
+     */
+    public function storeUniform(Request $request, Invoice $invoice)
+    {
+        return $this->storeCustomItem($request, $invoice);
+    }
+
+    /**
+     * @deprecated Backward-compatible alias for old method naming.
+     */
+    public function removeUniform(Invoice $invoice)
+    {
+        return $this->removeLegacyUniformItem($invoice);
     }
 
     /**

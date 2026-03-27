@@ -197,22 +197,17 @@
             </a>
             @endif
         </div>
-        @php
-            $uniformItem = \App\Services\UniformFeeService::getUniformItem($invoice);
-        @endphp
         <div class="finance-card-body border-bottom">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <span class="text-muted"><i class="bi bi-tshirt"></i> {{ $uniformItem ? 'Uniform line on this invoice. Change amount or remove in the table below.' : 'Add a uniform line for this student (optional). Amount will update fee balance and appear on invoice, payments and statement.' }}</span>
-                @if(!$uniformItem)
-                <form action="{{ route('finance.invoices.uniform.store', $invoice) }}" method="POST" class="d-flex align-items-center gap-2">
+                <span class="text-muted"><i class="bi bi-plus-circle"></i> Add a custom line item (for example Uniform, Activity Fee, etc). It updates invoice totals, allocations and student statements.</span>
+                <form action="{{ route('finance.invoices.custom-items.store', $invoice) }}" method="POST" class="d-flex align-items-center gap-2">
                     @csrf
+                    <label class="form-label mb-0">Votehead</label>
+                    <input type="text" name="votehead_name" class="form-control form-control-sm" style="width: 180px;" maxlength="255" required placeholder="e.g. Uniform">
                     <label class="form-label mb-0">Amount (Ksh)</label>
                     <input type="number" name="amount" class="form-control form-control-sm" style="width: 120px;" step="0.01" min="0" required placeholder="0.00">
-                    <button type="submit" class="btn btn-sm btn-finance btn-finance-primary"><i class="bi bi-plus-lg"></i> Add Uniform</button>
+                    <button type="submit" class="btn btn-sm btn-finance btn-finance-primary"><i class="bi bi-plus-lg"></i> Add Custom Item</button>
                 </form>
-                @else
-                <a href="#item-{{ $uniformItem->id }}" class="btn btn-sm btn-finance btn-finance-outline"><i class="bi bi-pencil"></i> Adjust / Remove in table below</a>
-                @endif
             </div>
         </div>
         <div class="finance-card-body p-0">
@@ -326,11 +321,22 @@
                             $afterDiscount = $item->amount - $discount;
                             $paid = $item->getAllocatedAmount() ?? 0;
                             $balance = $afterDiscount - $paid;
+                            $isManagedCustomItem = in_array(($item->source ?? ''), \App\Services\UniformFeeService::managedSources(), true);
                         @endphp
                         <tr id="item-{{ $item->id }}">
                             <td>{{ $lineNumber }}</td>
-                            <td>
-                                {{ $item->votehead->name ?? 'Unknown' }}
+                            <td id="voteheadCell{{ $item->id }}">
+                                <span class="votehead-display">{{ $item->votehead->name ?? 'Unknown' }}</span>
+                                @if($isManagedCustomItem)
+                                <div class="votehead-edit-form" style="display: none;">
+                                    <input type="text"
+                                           class="form-control form-control-sm"
+                                           id="newVotehead{{ $item->id }}"
+                                           value="{{ $item->votehead->name ?? '' }}"
+                                           maxlength="255"
+                                           style="width: 220px; display: inline-block;">
+                                </div>
+                                @endif
                                 @if($item->is_optional)
                                     <span class="badge bg-info ms-1">Optional</span>
                                 @endif
@@ -383,13 +389,13 @@
                             </td>
                             <td>
                                 <div class="edit-actions-view{{ $item->id }}">
-                                    @if(($item->source ?? '') === \App\Services\UniformFeeService::SOURCE)
+                                    @if($isManagedCustomItem)
                                     <button type="button" 
                                             class="btn btn-sm btn-finance btn-finance-outline"
                                             onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($item->votehead->name ?? 'Uniform') }}', true)">
-                                        <i class="bi bi-pencil"></i> Adjust
+                                        <i class="bi bi-pencil"></i> Edit
                                     </button>
-                                    <form action="{{ route('finance.invoices.uniform.remove', $invoice) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove uniform line from this invoice?');">
+                                    <form action="{{ route('finance.invoices.custom-items.remove', ['invoice' => $invoice, 'item' => $item]) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove this custom line from this invoice?');">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Remove</button>
@@ -405,7 +411,7 @@
                                 <div class="edit-actions-edit{{ $item->id }}" style="display: none;">
                                     <button type="button" 
                                             class="btn btn-sm btn-success"
-                                            onclick="saveInlineEdit({{ $item->id }}, {{ $invoice->id }}, {{ ($item->source ?? '') === \App\Services\UniformFeeService::SOURCE ? 'true' : 'false' }})">
+                                            onclick="saveInlineEdit({{ $item->id }}, {{ $invoice->id }}, {{ $isManagedCustomItem ? 'true' : 'false' }})">
                                         <i class="bi bi-check"></i> Save
                                     </button>
                                     <button type="button" 
@@ -418,16 +424,16 @@
                         </tr>
                         
                         <!-- Inline Edit Reason Row -->
-                        <tr id="reasonRow{{ $item->id }}" style="display: none;" class="table-warning" data-is-uniform="{{ ($item->source ?? '') === \App\Services\UniformFeeService::SOURCE ? '1' : '0' }}">
+                        <tr id="reasonRow{{ $item->id }}" style="display: none;" class="table-warning" data-is-managed="{{ $isManagedCustomItem ? '1' : '0' }}">
                             <td></td>
                             <td colspan="8">
                                 <div class="mb-2">
-                                    @if(($item->source ?? '') === \App\Services\UniformFeeService::SOURCE)
+                                    @if($isManagedCustomItem)
                                     <label class="form-label small mb-1"><strong>Optional note:</strong></label>
                                     <textarea class="form-control form-control-sm" 
                                               id="reason{{ $item->id }}" 
                                               rows="2" 
-                                              placeholder="Optional note (amount is updated directly; no credit/debit note)"></textarea>
+                                              placeholder="Optional note (name/amount is updated directly; no credit/debit note)"></textarea>
                                     @else
                                     <label class="form-label small mb-1"><strong>Reason for amount change:</strong> <span class="text-danger">*</span></label>
                                     <textarea class="form-control form-control-sm" 
@@ -742,19 +748,30 @@
 @push('scripts')
 <script>
 // Inline editing for invoice items - NO MODAL, NO FLICKERING
-function startInlineEdit(itemId, currentAmount, voteheadName, isUniform) {
+function startInlineEdit(itemId, currentAmount, voteheadName, isManaged) {
     console.log('[Invoice Edit] Starting inline edit for item:', itemId);
     
     // Hide display, show edit form
     document.querySelector('#amountCell' + itemId + ' .amount-display').style.display = 'none';
     document.querySelector('#amountCell' + itemId + ' .amount-edit-form').style.display = 'inline-block';
+    var voteheadDisplay = document.querySelector('#voteheadCell' + itemId + ' .votehead-display');
+    var voteheadEditForm = document.querySelector('#voteheadCell' + itemId + ' .votehead-edit-form');
+    if (voteheadDisplay && voteheadEditForm && isManaged) {
+        voteheadDisplay.style.display = 'none';
+        voteheadEditForm.style.display = 'inline-block';
+    }
     
     // Show reason row
     document.getElementById('reasonRow' + itemId).style.display = 'table-row';
     var reasonInput = document.getElementById('reason' + itemId);
     if (reasonInput) {
-        reasonInput.removeAttribute('required');
-        if (isUniform) reasonInput.placeholder = 'Optional note (no credit/debit note)';
+        if (isManaged) {
+            reasonInput.removeAttribute('required');
+            reasonInput.placeholder = 'Optional note (no credit/debit note)';
+        } else {
+            reasonInput.setAttribute('required', 'required');
+            reasonInput.placeholder = 'Enter reason for changing the amount...';
+        }
     }
     
     // Toggle action buttons
@@ -772,6 +789,12 @@ function cancelInlineEdit(itemId) {
     // Hide edit form, show display
     document.querySelector('#amountCell' + itemId + ' .amount-display').style.display = 'inline';
     document.querySelector('#amountCell' + itemId + ' .amount-edit-form').style.display = 'none';
+    var voteheadDisplay = document.querySelector('#voteheadCell' + itemId + ' .votehead-display');
+    var voteheadEditForm = document.querySelector('#voteheadCell' + itemId + ' .votehead-edit-form');
+    if (voteheadDisplay && voteheadEditForm) {
+        voteheadDisplay.style.display = 'inline';
+        voteheadEditForm.style.display = 'none';
+    }
     
     // Hide reason row
     document.getElementById('reasonRow' + itemId).style.display = 'none';
@@ -784,17 +807,19 @@ function cancelInlineEdit(itemId) {
     document.getElementById('reason' + itemId).value = '';
 }
 
-function saveInlineEdit(itemId, invoiceId, isUniform) {
+function saveInlineEdit(itemId, invoiceId, isManaged) {
     console.log('[Invoice Edit] Saving inline edit for item:', itemId);
     
-    if (typeof isUniform === 'undefined') {
+    if (typeof isManaged === 'undefined') {
         var reasonRow = document.getElementById('reasonRow' + itemId);
-        isUniform = reasonRow && reasonRow.getAttribute('data-is-uniform') === '1';
+        isManaged = reasonRow && reasonRow.getAttribute('data-is-managed') === '1';
     }
     
     // Get values
     var newAmount = document.getElementById('newAmount' + itemId).value;
     var reason = document.getElementById('reason' + itemId).value;
+    var voteheadInput = document.getElementById('newVotehead' + itemId);
+    var voteheadName = voteheadInput ? voteheadInput.value : '';
     
     // Validate
     if (!newAmount || parseFloat(newAmount) < 0) {
@@ -803,7 +828,13 @@ function saveInlineEdit(itemId, invoiceId, isUniform) {
         return;
     }
     
-    if (!isUniform && (!reason || reason.trim() === '')) {
+    if (isManaged && (!voteheadName || voteheadName.trim() === '')) {
+        alert('Please enter a votehead name');
+        if (voteheadInput) voteheadInput.focus();
+        return;
+    }
+
+    if (!isManaged && (!reason || reason.trim() === '')) {
         alert('Please enter a reason for the change');
         document.getElementById('reason' + itemId).focus();
         return;
@@ -821,7 +852,10 @@ function saveInlineEdit(itemId, invoiceId, isUniform) {
     // Prepare data
     var formData = new FormData();
     formData.append('new_amount', newAmount);
-    formData.append('reason', isUniform ? (reason || 'Uniform amount adjusted') : reason);
+    if (isManaged) {
+        formData.append('votehead_name', voteheadName.trim());
+    }
+    formData.append('reason', isManaged ? (reason || 'Custom invoice item adjusted') : reason);
     formData.append('_token', csrfToken);
     
     // Build URL
