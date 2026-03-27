@@ -197,8 +197,14 @@
     <i class="bi bi-calendar-week"></i> Timetable
   </a>
   <div class="collapse {{ $timetableActive ? 'show' : '' }}" id="timetableMenu">
-    <a href="{{ route('teacher.timetable.my-timetable') }}"
-       class="sublink {{ Request::is('academics/timetable') && request('teacher_id') ? 'active' : '' }}">
+    @php
+      $navStaff = auth()->user()?->staff;
+      $myTimetableUrl = $navStaff
+        ? route('academics.timetable.teacher', $navStaff)
+        : route('academics.timetable.index');
+    @endphp
+    <a href="{{ $myTimetableUrl }}"
+       class="sublink {{ Request::is('academics/timetable/teacher*') ? 'active' : '' }}">
       <i class="bi bi-person"></i> My Timetable
     </a>
     <a href="{{ route('academics.timetable.index') }}"
