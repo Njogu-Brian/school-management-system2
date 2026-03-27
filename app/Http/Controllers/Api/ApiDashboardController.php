@@ -208,7 +208,7 @@ class ApiDashboardController extends Controller
             $labels[] = $d->format('D');
             $count = Attendance::query()
                 ->whereDate('date', $d->toDateString())
-                ->whereIn('stream_id', $streamIds)
+                ->whereHas('student', fn ($q) => $q->whereIn('stream_id', $streamIds))
                 ->count();
             $values[] = $count;
         }

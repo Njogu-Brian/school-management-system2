@@ -27,7 +27,7 @@ class ExamTypeController extends Controller
             'default_max_mark' => 'nullable|numeric|min:1|gte:default_min_mark',
         ]);
 
-        ExamType::create($data + ['calculation_method' => 'average']);
+        ExamType::create($data);
         return back()->with('success','Exam type created.');
     }
 
@@ -51,7 +51,10 @@ class ExamTypeController extends Controller
                 // Free dependent records first to avoid FK errors.
                 $type->groups()->update(['exam_type_id' => null]);
                 Exam::where('exam_type_id', $type->id)->update(['exam_type_id' => null]);
-                $type->delete();
+                $deleted = ExamType::whereKey($type->id)->delete();
+                if ($deleted < 1) {
+                    throw new \RuntimeException('Exam type delete returned zero affected rows.');
+                }
             });
         } catch (Throwable $e) {
             return back()->with('error', 'Exam type could not be deleted right now. Please try again.');

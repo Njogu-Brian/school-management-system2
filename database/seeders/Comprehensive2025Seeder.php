@@ -599,7 +599,7 @@ class Comprehensive2025Seeder extends Seeder
                 ['code' => 'END', 'name' => 'End Term', 'calc' => 'average'],
             ])->map(fn($et) => ExamType::updateOrCreate(
                 ['code' => $et['code']],
-                ['name' => $et['name'], 'calculation_method' => $et['calc'], 'default_min_mark' => 0, 'default_max_mark' => 100]
+                ['name' => $et['name'], 'default_min_mark' => 0, 'default_max_mark' => 100]
             ));
 
             // Class timetables (week snapshot)
