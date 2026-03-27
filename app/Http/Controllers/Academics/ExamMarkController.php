@@ -394,9 +394,10 @@ class ExamMarkController extends Controller
                 ->with('error', 'Cannot enter marks for this exam. Exam status must be "Open" or "Marking".');
         }
 
-        // Get max marks from exam
-        $maxMarks = $exam->max_marks ?? 100;
-        $minMarks = 0;
+        // Marks boundaries come from exam type defaults when available.
+        $examType = $exam->examType;
+        $maxMarks = (float) ($examType?->default_max_mark ?? $exam->max_marks ?? 100);
+        $minMarks = (float) ($examType?->default_min_mark ?? 0);
 
         // Validate scores against max marks
         foreach ($data['rows'] as $i => $row) {
@@ -530,8 +531,9 @@ class ExamMarkController extends Controller
                 ->with('error', 'Cannot update marks for this exam. Exam status must be "Open" or "Marking".');
         }
 
-        $maxMarks = $exam->max_marks ?? 100;
-        $minMarks = 0;
+        $examType = $exam->examType;
+        $maxMarks = (float) ($examType?->default_max_mark ?? $exam->max_marks ?? 100);
+        $minMarks = (float) ($examType?->default_min_mark ?? 0);
 
         $v = $request->validate([
             'opener_score'  => "nullable|numeric|min:{$minMarks}|max:{$maxMarks}",

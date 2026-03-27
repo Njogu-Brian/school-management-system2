@@ -34,14 +34,6 @@
             <div class="form-text">Each exam is named: <em>{{ '{base}' }} — Class — Subject</em>.</div>
           </div>
           <div class="col-md-3">
-            <label class="form-label">Series</label>
-            <select name="type" class="form-select" required>
-              @foreach(['cat','midterm','endterm','sba','mock','quiz'] as $t)
-                <option value="{{ $t }}" @selected(old('type','cat')==$t)>{{ strtoupper($t) }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-3">
             <label class="form-label">Modality</label>
             <select name="modality" class="form-select" required>
               @foreach(['physical','online'] as $m)
@@ -50,21 +42,17 @@
             </select>
           </div>
           <div class="col-md-2">
-            <label class="form-label">Max marks</label>
-            <input type="number" step="1" min="1" name="max_marks" class="form-control" value="{{ old('max_marks', 100) }}" required>
-          </div>
-          <div class="col-md-2">
             <label class="form-label">Weight</label>
             <input type="number" step="0.01" min="0" name="weight" class="form-control" value="{{ old('weight', 1) }}" required>
           </div>
-          <div class="col-md-2">
-            <label class="form-label">Grading profile</label>
-            <select name="exam_type_id" class="form-select">
-              <option value="">— None —</option>
+          <div class="col-md-4">
+            <label class="form-label">Exam type <span class="text-danger">*</span></label>
+            <select name="exam_type_id" class="form-select" required>
               @foreach($types as $t)
                 <option value="{{ $t->id }}" @selected(old('exam_type_id')==$t->id)>{{ $t->name }}</option>
               @endforeach
             </select>
+            <div class="form-text">Max and min marks are inherited from this exam type.</div>
           </div>
           <div class="col-md-3">
             <label class="form-label">Academic year</label>
@@ -122,7 +110,7 @@
                 <option value="{{ $s->id }}" @selected(collect(old('subject_ids', []))->contains($s->id))>{{ $s->name }}</option>
               @endforeach
             </select>
-            <div class="form-text">Cartesian product: every selected class × every selected subject.</div>
+            <div class="form-text">Only active subjects with mapped teachers are used. Unmapped/inactive selections are skipped.</div>
           </div>
           <div class="col-md-12">
             <div class="form-check form-switch mb-2">

@@ -147,7 +147,7 @@ class ExamController extends Controller
             $classrooms = Classroom::orderBy('name')->get();
         }
 
-        $subjects = Subject::active()->orderBy('name')->get();
+        $subjects = $this->getMappedActiveSubjects();
 
         return view('academics.exams.index', compact(
             'exams',
@@ -181,7 +181,7 @@ class ExamController extends Controller
             'years'      => AcademicYear::orderByDesc('year')->get(),
             'terms'      => Term::orderBy('name')->get(),
             'classrooms' => $classrooms,
-            'subjects'   => Subject::active()->orderBy('name')->get(),
+            'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
             'types'      => ExamType::orderBy('name')->get(),
         ]);
     }
@@ -203,11 +203,10 @@ class ExamController extends Controller
             'subject_id'       => 'nullable|exists:subjects,id',
             'starts_on'        => 'nullable|date',
             'ends_on'          => 'nullable|date|after_or_equal:starts_on',
-            'max_marks'        => 'required|numeric|min:1',
             'weight'           => 'required|numeric|min:0|max:100',
             'publish_exam'     => 'boolean',
             'publish_result'   => 'boolean',
-            'exam_type_id'     => 'nullable|exists:exam_types,id',
+            'exam_type_id'     => 'required|exists:exam_types,id',
         ]);
 
         // Check if teacher or senior teacher has access to classroom
@@ -222,7 +221,11 @@ class ExamController extends Controller
             }
         }
 
+        $examType = ExamType::findOrFail((int) $v['exam_type_id']);
+        $maxMarks = (float) ($examType->default_max_mark ?? 100);
+
         $exam = Exam::create($v + [
+            'max_marks' => $maxMarks,
             'created_by' => Auth::id(),
             'status' => 'draft',
         ]);
@@ -268,7 +271,7 @@ class ExamController extends Controller
             'years'      => AcademicYear::orderByDesc('year')->get(),
             'terms'      => Term::orderBy('name')->get(),
             'classrooms' => $classrooms,
-            'subjects'   => Subject::active()->orderBy('name')->get(),
+            'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
             'types'      => ExamType::orderBy('name')->get(),
         ]);
     }
@@ -309,13 +312,15 @@ class ExamController extends Controller
             'modality'         => 'required|in:physical,online',
             'starts_on'        => 'nullable|date',
             'ends_on'          => 'nullable|date|after_or_equal:starts_on',
-            'max_marks'        => 'required|numeric|min:1',
             'weight'           => 'required|numeric|min:0|max:100',
             'status'           => 'required|in:draft,open,marking,moderation,approved,published,locked',
             'publish_exam'     => 'boolean',
             'publish_result'   => 'boolean',
-            'exam_type_id'     => 'nullable|exists:exam_types,id',
+            'exam_type_id'     => 'required|exists:exam_types,id',
         ]);
+
+        $examType = ExamType::findOrFail((int) $v['exam_type_id']);
+        $v['max_marks'] = (float) ($examType->default_max_mark ?? 100);
 
         // Validate status transition
         if (method_exists($exam, 'canTransitionTo') && $v['status'] !== $exam->status) {
@@ -439,7 +444,7 @@ class ExamController extends Controller
             'years'      => AcademicYear::orderByDesc('year')->get(),
             'terms'      => Term::orderBy('name')->get(),
             'classrooms' => $classrooms,
-            'subjects'   => Subject::active()->orderBy('name')->get(),
+            'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
             'types'      => ExamType::orderBy('name')->get(),
             'streams'    => Stream::orderBy('name')->get(),
         ]);
@@ -454,7 +459,6 @@ class ExamController extends Controller
 
         $v = $request->validate([
             'name_template'      => 'required|string|max:240',
-            'type'               => 'required|in:cat,midterm,endterm,sba,mock,quiz',
             'modality'           => 'required|in:physical,online',
             'academic_year_id'   => 'required|exists:academic_years,id',
             'term_id'            => 'required|exists:terms,id',
@@ -466,11 +470,10 @@ class ExamController extends Controller
             'stream_id'          => 'nullable|exists:streams,id',
             'starts_on'          => 'nullable|date',
             'ends_on'            => 'nullable|date|after_or_equal:starts_on',
-            'max_marks'          => 'required|numeric|min:1',
             'weight'             => 'required|numeric|min:0|max:100',
             'publish_exam'       => 'boolean',
             'publish_result'     => 'boolean',
-            'exam_type_id'       => 'nullable|exists:exam_types,id',
+            'exam_type_id'       => 'required|exists:exam_types,id',
         ]);
 
         $useAllSubjects = $request->boolean('use_all_subjects');
@@ -494,24 +497,34 @@ class ExamController extends Controller
         }
 
         $pairs = [];
+        $skippedPairs = 0;
         foreach ($v['classroom_ids'] as $classroomId) {
+            $eligibleSubjectIds = DB::table('classroom_subjects as cs')
+                ->join('subjects as s', 's.id', '=', 'cs.subject_id')
+                ->where('cs.classroom_id', $classroomId)
+                ->whereNotNull('cs.staff_id')
+                ->where('s.is_active', true)
+                ->pluck('cs.subject_id')
+                ->unique()
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
             if ($useAllSubjects) {
-                $subIds = DB::table('classroom_subjects')
-                    ->where('classroom_id', $classroomId)
-                    ->pluck('subject_id')
-                    ->unique()
-                    ->filter()
-                    ->values()
-                    ->all();
-                if ($subIds === []) {
+                if ($eligibleSubjectIds === []) {
                     continue;
                 }
-                foreach ($subIds as $sid) {
+                foreach ($eligibleSubjectIds as $sid) {
                     $pairs[] = ['classroom_id' => (int) $classroomId, 'subject_id' => (int) $sid];
                 }
             } else {
                 foreach ($v['subject_ids'] ?? [] as $sid) {
-                    $pairs[] = ['classroom_id' => (int) $classroomId, 'subject_id' => (int) $sid];
+                    $sid = (int) $sid;
+                    if (!in_array($sid, $eligibleSubjectIds, true)) {
+                        $skippedPairs++;
+                        continue;
+                    }
+                    $pairs[] = ['classroom_id' => (int) $classroomId, 'subject_id' => $sid];
                 }
             }
         }
@@ -528,8 +541,10 @@ class ExamController extends Controller
         $created = 0;
         $publishExam   = $request->boolean('publish_exam');
         $publishResult = $request->boolean('publish_result');
+        $examType = ExamType::findOrFail((int) $v['exam_type_id']);
+        $maxMarks = (float) ($examType->default_max_mark ?? 100);
 
-        DB::transaction(function () use ($v, $pairs, $classNames, $subjectNames, $publishExam, $publishResult, &$created) {
+        DB::transaction(function () use ($v, $pairs, $classNames, $subjectNames, $publishExam, $publishResult, $maxMarks, &$created) {
             foreach ($pairs as $pair) {
                 $cid = $pair['classroom_id'];
                 $sid = $pair['subject_id'];
@@ -539,7 +554,7 @@ class ExamController extends Controller
 
                 Exam::create([
                     'name'             => $name,
-                    'type'             => $v['type'],
+                    'type'             => 'cat',
                     'modality'         => $v['modality'],
                     'academic_year_id' => $v['academic_year_id'],
                     'term_id'          => $v['term_id'],
@@ -548,11 +563,11 @@ class ExamController extends Controller
                     'subject_id'       => $sid,
                     'starts_on'        => $v['starts_on'] ?? null,
                     'ends_on'          => $v['ends_on'] ?? null,
-                    'max_marks'        => $v['max_marks'],
+                    'max_marks'        => $maxMarks,
                     'weight'           => $v['weight'],
                     'publish_exam'     => $publishExam,
                     'publish_result'   => $publishResult,
-                    'exam_type_id'     => ! empty($v['exam_type_id']) ? $v['exam_type_id'] : null,
+                    'exam_type_id'     => (int) $v['exam_type_id'],
                     'created_by'       => Auth::id(),
                     'status'           => 'draft',
                 ]);
@@ -560,8 +575,26 @@ class ExamController extends Controller
             }
         });
 
+        $message = $created.' exam(s) created. Each is draft — open scheduling and marking when ready.';
+        if ($skippedPairs > 0) {
+            $message .= ' '.$skippedPairs.' class/subject pair(s) skipped (inactive subject or no teacher mapping).';
+        }
+
         return redirect()
             ->route('academics.exams.index')
-            ->with('success', $created.' exam(s) created. Each is draft — open scheduling and marking when ready.');
+            ->with('success', $message);
+    }
+
+    private function getMappedActiveSubjects(?array $classroomIds = null)
+    {
+        return Subject::query()
+            ->select('subjects.*')
+            ->join('classroom_subjects as cs', 'cs.subject_id', '=', 'subjects.id')
+            ->when(!empty($classroomIds), fn ($q) => $q->whereIn('cs.classroom_id', $classroomIds))
+            ->whereNotNull('cs.staff_id')
+            ->where('subjects.is_active', true)
+            ->distinct()
+            ->orderBy('subjects.name')
+            ->get();
     }
 }

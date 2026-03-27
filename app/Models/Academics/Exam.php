@@ -132,6 +132,11 @@ class Exam extends Model
         return $this->hasMany(ExamSchedule::class);
     }
 
+    public function examType()
+    {
+        return $this->belongsTo(ExamType::class, 'exam_type_id');
+    }
+
     // Scopes
     public function scopeActive(Builder $query)
     {

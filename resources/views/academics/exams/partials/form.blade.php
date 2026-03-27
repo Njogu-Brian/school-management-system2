@@ -32,15 +32,6 @@
         <input name="name" class="form-control" required value="{{ $v['name'] }}" placeholder="e.g. Monthly Exam (Nov-2025)">
       </div>
       <div class="col-md-4">
-        <label class="form-label">Series</label>
-        <select name="type" class="form-select" required>
-          @foreach(['cat','midterm','endterm','sba','mock','quiz'] as $t)
-            <option value="{{ $t }}" @selected($v['type']==$t)>{{ strtoupper($t) }}</option>
-          @endforeach
-        </select>
-        <div class="form-text">Reporting category (CAT, Midterm, …). Separate from <a href="{{ route('academics.exams.types.index') }}">Exam types</a> grading profiles.</div>
-      </div>
-      <div class="col-md-4">
         <label class="form-label">Modality</label>
         <select name="modality" class="form-select" required>
           @foreach(['physical','online'] as $m)
@@ -49,22 +40,17 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label">Max Marks</label>
-        <input type="number" step="1" min="1" name="max_marks" class="form-control" value="{{ $v['max_marks'] }}">
-      </div>
-      <div class="col-md-2">
         <label class="form-label">Weight</label>
         <input type="number" step="0.01" min="0" name="weight" class="form-control" value="{{ $v['weight'] }}">
       </div>
-      <div class="col-md-12">
-        <label class="form-label">Grading profile (optional)</label>
-        <select name="exam_type_id" class="form-select">
-          <option value="">— None —</option>
+      <div class="col-md-6">
+        <label class="form-label">Exam Type <span class="text-danger">*</span></label>
+        <select name="exam_type_id" class="form-select" required>
           @foreach($types as $et)
             <option value="{{ $et->id }}" @selected($v['exam_type_id']==$et->id)>{{ $et->name }} ({{ $et->code }})</option>
           @endforeach
         </select>
-        <div class="form-text">Links to an <a href="{{ route('academics.exams.types.index') }}">exam type</a> for defaults used with exam groups and schedules; optional on this exam record.</div>
+        <div class="form-text">Min and max marks are inherited from the selected exam type.</div>
       </div>
       <div class="col-md-3">
         <label class="form-label">Academic Year</label>
@@ -121,3 +107,4 @@
     </div>
   </div>
 </div>
+<input type="hidden" name="type" value="{{ $v['type'] }}">

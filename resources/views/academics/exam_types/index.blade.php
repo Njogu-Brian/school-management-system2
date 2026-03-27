@@ -11,7 +11,7 @@
       <div>
         <div class="crumb">Academics · Exams</div>
         <h1 class="mb-1">Exam Types</h1>
-        <p class="text-muted mb-0">Define calculation and grading defaults for exam groups and exams.</p>
+        <p class="text-muted mb-0">Define grading defaults for exam groups and exams.</p>
       </div>
     </div>
 
@@ -31,7 +31,6 @@
                     <th>#</th>
                     <th>Name</th>
                     <th>Code</th>
-                    <th>Method</th>
                     <th>Min / Max</th>
                     <th class="text-end">Actions</th>
                   </tr>
@@ -42,7 +41,6 @@
                       <td>{{ $t->id }}</td>
                       <td class="fw-semibold">{{ $t->name }}</td>
                       <td><code>{{ $t->code }}</code></td>
-                      <td>{{ ucfirst($t->calculation_method) }}</td>
                       <td>{{ is_null($t->default_min_mark) ? '—' : $t->default_min_mark }} / {{ is_null($t->default_max_mark) ? '—' : $t->default_max_mark }}</td>
                       <td class="text-end">
                         <div class="d-flex justify-content-end gap-1">
@@ -73,14 +71,6 @@
                                 <label class="form-label">Code</label>
                                 <input name="code" class="form-control" required value="{{ $t->code }}">
                               </div>
-                              <div class="mb-3">
-                                <label class="form-label">Calculation Method</label>
-                                <select name="calculation_method" class="form-select" required>
-                                  @foreach(['average','sum','weighted','best_of','pass_fail','cbc'] as $m)
-                                    <option value="{{ $m }}" @selected($t->calculation_method==$m)>{{ ucfirst($m) }}</option>
-                                  @endforeach
-                                </select>
-                              </div>
                               <div class="row">
                                 <div class="col-md-6 mb-3">
                                   <label class="form-label">Default Min Mark</label>
@@ -101,7 +91,7 @@
                       </div>
                     </div>
                   @empty
-                    <tr><td colspan="6" class="text-center text-muted py-4">No exam types yet. Create one →</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted py-4">No exam types yet. Create one →</td></tr>
                   @endforelse
                 </tbody>
               </table>
@@ -123,14 +113,6 @@
               <div class="mb-3">
                 <label class="form-label">Code</label>
                 <input name="code" class="form-control" required placeholder="e.g. avg_pass">
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Calculation Method</label>
-                <select name="calculation_method" class="form-select" required>
-                  @foreach(['average','sum','weighted','best_of','pass_fail','cbc'] as $m)
-                    <option value="{{ $m }}">{{ ucfirst($m) }}</option>
-                  @endforeach
-                </select>
               </div>
               <div class="row">
                 <div class="col-md-6 mb-3">
