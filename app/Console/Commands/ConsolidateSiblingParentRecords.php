@@ -20,6 +20,8 @@ class ConsolidateSiblingParentRecords extends Command
         }
 
         $familiesWithSiblings = DB::table('students')
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->whereNotNull('family_id')
             ->where('family_id', '>', 0)
             ->select('family_id')
@@ -29,11 +31,14 @@ class ConsolidateSiblingParentRecords extends Command
 
         $consolidated = 0;
         $skipped = 0;
+        $skippedFamilies = [];
         $deletedParents = 0;
 
         foreach ($familiesWithSiblings as $fid) {
             $siblings = DB::table('students')
                 ->leftJoin('parent_info', 'students.parent_id', '=', 'parent_info.id')
+                ->where('students.archive', 0)
+                ->where('students.is_alumni', false)
                 ->where('students.family_id', $fid)
                 ->select(
                     'students.id as student_id',
@@ -72,6 +77,10 @@ class ConsolidateSiblingParentRecords extends Command
             $uniqueSigs = $signatures->pluck('sig')->unique()->values();
             if ($uniqueSigs->count() > 1) {
                 $skipped++;
+                $skippedFamilies[] = [
+                    'family_id' => $fid,
+                    'siblings' => $siblings,
+                ];
                 continue; // Real differences - do not consolidate
             }
 
@@ -120,6 +129,28 @@ class ConsolidateSiblingParentRecords extends Command
         $this->info("Families skipped (different contact details): {$skipped}");
         if (!$dryRun) {
             $this->info("Duplicate parent_info records deleted: {$deletedParents}");
+        }
+
+        if (!empty($skippedFamilies)) {
+            $this->newLine();
+            $this->line('<comment>Skipped family details (conflicting parent contact signatures):</comment>');
+            foreach ($skippedFamilies as $sf) {
+                $this->newLine();
+                $this->line("--- Family ID: {$sf['family_id']} ---");
+                $this->table(
+                    ['Student ID', 'Admission #', 'parent_id', 'Father Phone', 'Mother Phone', 'Guardian Phone', 'Father Name', 'Mother Name'],
+                    collect($sf['siblings'])->map(fn ($s) => [
+                        $s->student_id,
+                        $s->admission_number ?? '-',
+                        $s->parent_id ?? 'null',
+                        $s->father_phone ?? '-',
+                        $s->mother_phone ?? '-',
+                        $s->guardian_phone ?? '-',
+                        $s->father_name ?? '-',
+                        $s->mother_name ?? '-',
+                    ])->toArray()
+                );
+            }
         }
 
         $this->newLine();

@@ -18,6 +18,8 @@ class CheckParentContact extends Command
 
         $noContact = DB::table('students')
             ->leftJoin('parent_info', 'students.parent_id', '=', 'parent_info.id')
+            ->where('students.archive', 0)
+            ->where('students.is_alumni', false)
             ->where(function ($q) {
                 $q->whereNull('students.parent_id')
                     ->orWhere(function ($q2) {
@@ -70,6 +72,8 @@ class CheckParentContact extends Command
         $this->newLine();
 
         $familiesWithSiblings = DB::table('students')
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->whereNotNull('family_id')
             ->where('family_id', '>', 0)
             ->select('family_id')
@@ -81,6 +85,8 @@ class CheckParentContact extends Command
         foreach ($familiesWithSiblings as $fid) {
             $siblings = DB::table('students')
                 ->leftJoin('parent_info', 'students.parent_id', '=', 'parent_info.id')
+                ->where('students.archive', 0)
+                ->where('students.is_alumni', false)
                 ->where('students.family_id', $fid)
                 ->select(
                     'students.id',
@@ -91,21 +97,23 @@ class CheckParentContact extends Command
                     'parent_info.father_name',
                     'parent_info.father_phone',
                     'parent_info.mother_name',
-                    'parent_info.mother_phone'
+                    'parent_info.mother_phone',
+                    'parent_info.guardian_phone'
                 )
                 ->get();
 
-            $parentIds = $siblings->pluck('parent_id')->unique()->filter()->values();
-            $fatherPhones = $siblings->pluck('father_phone')->map(fn ($p) => trim($p ?? ''))->unique()->filter()->values();
-            $motherPhones = $siblings->pluck('mother_phone')->map(fn ($p) => trim($p ?? ''))->unique()->filter()->values();
-            $fatherNames = $siblings->pluck('father_name')->map(fn ($n) => trim($n ?? ''))->unique()->filter()->values();
-            $motherNames = $siblings->pluck('mother_name')->map(fn ($n) => trim($n ?? ''))->unique()->filter()->values();
+            // Compare by parent contact "signature", not by parent_id.
+            // If siblings have identical phones/names but different parent_info IDs, they are considered consistent.
+            $normalize = fn ($v) => trim((string) ($v ?? ''));
+            $signatures = $siblings->map(fn ($s) => implode('|', [
+                $normalize($s->father_phone),
+                $normalize($s->mother_phone),
+                $normalize($s->guardian_phone),
+                $normalize($s->father_name),
+                $normalize($s->mother_name),
+            ]));
 
-            $hasMismatch = $parentIds->count() > 1
-                || $fatherPhones->count() > 1
-                || $motherPhones->count() > 1
-                || $fatherNames->count() > 1
-                || $motherNames->count() > 1;
+            $hasMismatch = $signatures->unique()->count() > 1;
 
             if ($hasMismatch) {
                 $siblingMismatches[] = [
@@ -123,7 +131,7 @@ class CheckParentContact extends Command
                 $this->newLine();
                 $this->line("--- Family ID: {$m['family_id']} ---");
                 $this->table(
-                    ['ID', 'Admission #', 'Name', 'parent_id', 'Father', 'Father Phone', 'Mother', 'Mother Phone'],
+                    ['ID', 'Admission #', 'Name', 'parent_id', 'Father', 'Father Phone', 'Mother', 'Mother Phone', 'Guardian Phone'],
                     collect($m['siblings'])->map(fn ($s) => [
                         $s->id,
                         $s->admission_number ?? '-',
@@ -133,6 +141,7 @@ class CheckParentContact extends Command
                         $s->father_phone ?? '-',
                         $s->mother_name ?? '-',
                         $s->mother_phone ?? '-',
+                        $s->guardian_phone ?? '-',
                     ])->toArray()
                 );
             }
