@@ -105,66 +105,19 @@ class ExamMarkController extends Controller
             $assignedClassroomIds = $user->isSeniorTeacherUser()
                 ? array_unique(array_merge($user->getAssignedClassroomIds(), $user->getSupervisedClassroomIds()))
                 : $user->getAssignedClassroomIds();
-            $staff = $user->staff;
             
             if (!empty($assignedClassroomIds)) {
-                // Filter exams to only assigned classrooms
-                $exams = Exam::whereIn('classroom_id', $assignedClassroomIds)->latest()->get();
-                
                 // Filter classrooms to only assigned ones
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
-                
-                // Get subjects that the teacher teaches in their assigned classrooms
-                $subjectIds = [];
-                if ($staff) {
-                    // Get subjects from classroom_subjects where this teacher is assigned
-                    $subjectIds = DB::table('classroom_subjects')
-                        ->where('staff_id', $staff->id)
-                        ->whereIn('classroom_id', $assignedClassroomIds)
-                        ->distinct()
-                        ->pluck('subject_id')
-                        ->toArray();
-                }
-                
-                // Also check if teacher is directly assigned to any classrooms (via classroom_teacher)
-                // If directly assigned, they can enter marks for all subjects in those classrooms
-                $directlyAssignedClassroomIds = DB::table('classroom_teacher')
-                    ->where('teacher_id', $user->id)
-                    ->pluck('classroom_id')
-                    ->toArray();
-                
-                if (!empty($directlyAssignedClassroomIds)) {
-                    // Get all subjects for directly assigned classrooms
-                    $directSubjectIds = DB::table('classroom_subjects')
-                        ->whereIn('classroom_id', $directlyAssignedClassroomIds)
-                        ->distinct()
-                        ->pluck('subject_id')
-                        ->toArray();
-                    
-                    $subjectIds = array_unique(array_merge($subjectIds, $directSubjectIds));
-                }
-                
-                // Filter subjects to only those the teacher can teach
-                if (!empty($subjectIds)) {
-                    $subjects = Subject::whereIn('id', $subjectIds)->active()->orderBy('name')->get();
-                } else {
-                    $subjects = collect();
-                }
             } else {
-                $exams = collect();
                 $classrooms = collect();
-                $subjects = collect();
             }
         } else {
-            $exams = Exam::with('classrooms')->latest()->get();
             $classrooms = Classroom::orderBy('name')->get();
-            $subjects = Subject::active()->orderBy('name')->get();
         }
 
         return view('academics.exam_marks.bulk_form', [
-            'exams'      => $exams,
             'classrooms' => $classrooms,
-            'subjects'   => $subjects,
             'types'      => ExamType::orderBy('name')->get(),
             'streams'    => Stream::orderBy('name')->get(),
         ]);
@@ -295,10 +248,13 @@ class ExamMarkController extends Controller
 
                 $g = null;
                 if (!is_null($score)) {
-                    $g = ExamGrade::where('exam_type', $exam->type)
-                        ->where('percent_from', '<=', $score)
-                        ->where('percent_upto', '>=', $score)
-                        ->first();
+                    $examTypeKey = strtoupper((string) ($exam->examType?->code ?? $exam->examType?->name ?? ''));
+                    if ($examTypeKey !== '') {
+                        $g = ExamGrade::where('exam_type', $examTypeKey)
+                            ->where('percent_from', '<=', $score)
+                            ->where('percent_upto', '>=', $score)
+                            ->first();
+                    }
                 }
 
                 $mark->fill([
@@ -701,10 +657,13 @@ class ExamMarkController extends Controller
                     continue; // Skip invalid scores
                 }
 
-                $g = ExamGrade::where('exam_type', $exam->type)
-                    ->where('percent_from','<=',$score)
-                    ->where('percent_upto','>=',$score)
-                    ->first();
+                $examTypeKey = strtoupper((string) ($exam->examType?->code ?? $exam->examType?->name ?? ''));
+                if ($examTypeKey !== '') {
+                    $g = ExamGrade::where('exam_type', $examTypeKey)
+                        ->where('percent_from','<=',$score)
+                        ->where('percent_upto','>=',$score)
+                        ->first();
+                }
             }
 
             $mark->fill([

@@ -27,6 +27,9 @@ class ExamController extends Controller
 
     public function index(Request $request)
     {
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = in_array($perPage, [20, 50, 100, 200], true) ? $perPage : 20;
+
         $query = Exam::with([
             'academicYear',
             'term',
@@ -38,7 +41,8 @@ class ExamController extends Controller
 
         // Teachers can only see exams for their assigned classes (unless they're supervisors)
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
         if ($isTeacher && !is_supervisor()) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
@@ -70,7 +74,6 @@ class ExamController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('type', 'like', "%{$search}%")
                   ->orWhereHas('subject', function($subQ) use ($search) {
                       $subQ->where('name', 'like', "%{$search}%");
                   })
@@ -81,10 +84,6 @@ class ExamController extends Controller
         }
 
         // Filters
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
-        }
-
         if ($request->filled('year_id')) {
             $query->where('academic_year_id', $request->year_id);
         }
@@ -107,7 +106,7 @@ class ExamController extends Controller
 
         // Statistics (filtered by teacher or senior teacher if applicable)
         $statsQuery = Exam::query();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
         if ($isTeacher) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
@@ -127,7 +126,7 @@ class ExamController extends Controller
             'locked' => (clone $statsQuery)->where('status', 'locked')->count(),
         ];
 
-        $exams = $query->latest('created_at')->paginate(20)->withQueryString();
+        $exams = $query->latest('created_at')->paginate($perPage)->withQueryString();
 
         $types = ExamType::orderBy('name')->get();
         $years = AcademicYear::orderByDesc('year')->get();
@@ -156,7 +155,8 @@ class ExamController extends Controller
             'years',
             'terms',
             'classrooms',
-            'subjects'
+            'subjects',
+            'perPage'
         ));
     }
 
@@ -195,7 +195,6 @@ class ExamController extends Controller
 
         $v = $request->validate([
             'name'             => 'required|string|max:255',
-            'type'             => 'required|in:cat,midterm,endterm,sba,mock,quiz',
             'modality'         => 'required|in:physical,online',
             'academic_year_id' => 'required|exists:academic_years,id',
             'term_id'          => 'required|exists:terms,id',
@@ -310,7 +309,6 @@ class ExamController extends Controller
 
         $v = $request->validate([
             'name'             => 'required|string|max:255',
-            'type'             => 'required|in:cat,midterm,endterm,sba,mock,quiz',
             'modality'         => 'required|in:physical,online',
             'classroom_id'     => 'nullable|exists:classrooms,id',
             'stream_id'        => 'nullable|exists:streams,id',
@@ -377,9 +375,79 @@ class ExamController extends Controller
                 ->with('error', 'Cannot delete exam with existing marks. Archive it instead.');
         }
 
-        $exam->delete();
+        try {
+            DB::transaction(function () use ($exam) {
+                // Extra safety: ensure there are no marks (avoid deleting data accidentally)
+                if ($exam->marks()->exists()) {
+                    throw new \RuntimeException('Exam has marks.');
+                }
+
+                // Clean dependent records in case cascades are missing in some environments
+                DB::table('exam_class_subject')->where('exam_id', $exam->id)->delete();
+                DB::table('exam_schedules')->where('exam_id', $exam->id)->delete();
+                DB::table('exam_items')->where('exam_id', $exam->id)->delete();
+
+                $exam->delete();
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Could not delete this exam right now. Remove schedules/links first or try again.');
+        }
 
         return back()->with('success', 'Exam deleted successfully.');
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $v = $request->validate([
+            'exam_ids' => 'required|array|min:1',
+            'exam_ids.*' => 'integer|exists:exams,id',
+        ]);
+
+        $user = Auth::user();
+        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
+        $allowedClassroomIds = $isTeacher ? array_map('intval', $user->getAssignedClassroomIds()) : [];
+
+        $deleted = 0;
+        $skippedMarks = 0;
+        $skippedLocked = 0;
+        $skippedScope = 0;
+
+        $exams = Exam::whereIn('id', $v['exam_ids'])->withCount('marks')->get();
+        foreach ($exams as $exam) {
+            if ($isTeacher && $exam->classroom_id && !in_array((int) $exam->classroom_id, $allowedClassroomIds, true)) {
+                $skippedScope++;
+                continue;
+            }
+            if ($exam->is_locked || $exam->status === 'published') {
+                $skippedLocked++;
+                continue;
+            }
+            if (($exam->marks_count ?? 0) > 0 || $exam->marks()->exists()) {
+                $skippedMarks++;
+                continue;
+            }
+
+            try {
+                DB::transaction(function () use ($exam) {
+                    DB::table('exam_class_subject')->where('exam_id', $exam->id)->delete();
+                    DB::table('exam_schedules')->where('exam_id', $exam->id)->delete();
+                    DB::table('exam_items')->where('exam_id', $exam->id)->delete();
+                    $exam->delete();
+                });
+                $deleted++;
+            } catch (\Throwable $e) {
+                // treat as locked-ish skip to avoid failing whole batch
+                $skippedLocked++;
+            }
+        }
+
+        $msg = "{$deleted} exam(s) deleted.";
+        if ($skippedMarks) $msg .= " {$skippedMarks} skipped (marks already entered).";
+        if ($skippedLocked) $msg .= " {$skippedLocked} skipped (locked/published or delete blocked).";
+        if ($skippedScope) $msg .= " {$skippedScope} skipped (out of your class scope).";
+
+        return back()->with($deleted > 0 ? 'success' : 'error', $msg);
     }
 
     public function timetable(Request $request)
@@ -442,7 +510,8 @@ class ExamController extends Controller
     public function createBulk()
     {
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
         if ($isTeacher) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
@@ -499,7 +568,8 @@ class ExamController extends Controller
         }
 
         $user = Auth::user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $privileged = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
         $assignedClassroomIds = $isTeacher ? $user->getAssignedClassroomIds() : null;
 
         foreach ($v['classroom_ids'] as $cid) {
@@ -512,6 +582,8 @@ class ExamController extends Controller
 
         $pairs = [];
         $skippedPairs = 0;
+        $skippedClassesNoMappedSubjects = 0;
+        $skippedClassIdsNoMappedSubjects = [];
         foreach ($v['classroom_ids'] as $classroomId) {
             $eligibleSubjectIds = DB::table('classroom_subjects as cs')
                 ->join('subjects as s', 's.id', '=', 'cs.subject_id')
@@ -526,6 +598,8 @@ class ExamController extends Controller
 
             if ($useAllSubjects) {
                 if ($eligibleSubjectIds === []) {
+                    $skippedClassesNoMappedSubjects++;
+                    $skippedClassIdsNoMappedSubjects[] = (int) $classroomId;
                     continue;
                 }
                 foreach ($eligibleSubjectIds as $sid) {
@@ -568,7 +642,6 @@ class ExamController extends Controller
 
                 Exam::create([
                     'name'             => $name,
-                    'type'             => 'cat',
                     'modality'         => $v['modality'],
                     'academic_year_id' => $v['academic_year_id'],
                     'term_id'          => $v['term_id'],
@@ -592,6 +665,17 @@ class ExamController extends Controller
         $message = $created.' exam(s) created. Each is draft — open scheduling and marking when ready.';
         if ($skippedPairs > 0) {
             $message .= ' '.$skippedPairs.' class/subject pair(s) skipped (inactive subject or no teacher mapping).';
+        }
+        if ($skippedClassesNoMappedSubjects > 0) {
+            $skippedNames = Classroom::whereIn('id', array_unique($skippedClassIdsNoMappedSubjects))
+                ->orderBy('name')
+                ->pluck('name')
+                ->values()
+                ->all();
+            $label = $skippedNames ? implode(', ', array_slice($skippedNames, 0, 12)) : null;
+            $more = $skippedNames && count($skippedNames) > 12 ? (' and '.(count($skippedNames) - 12).' more') : '';
+            $message .= ' '.$skippedClassesNoMappedSubjects.' class(es) skipped (no active subjects mapped to teachers)'
+                .($label ? (': '.$label.$more) : '.');
         }
 
         return redirect()

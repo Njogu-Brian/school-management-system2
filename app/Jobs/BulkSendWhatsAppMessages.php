@@ -125,6 +125,27 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         $delayBetweenMessages = 5; // Default 5 seconds for account protection
         $lastSentTime = 0;
 
+        // Idempotency: if this job is retried/restarted with the same tracking_id,
+        // avoid re-sending recipients that were already marked as sent.
+        $existingSentKeys = [];
+        try {
+            $existingLogs = CommunicationLog::where('channel', 'whatsapp')
+                ->where('tracking_id', $this->trackingId)
+                ->where('scope', 'whatsapp')
+                ->where('type', 'whatsapp')
+                ->where('status', 'sent')
+                ->get(['contact', 'recipient_id']);
+
+            foreach ($existingLogs as $log) {
+                $existingSentKeys[$log->contact . '|' . ($log->recipient_id ?? 'null')] = true;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Bulk WhatsApp idempotency pre-check failed; proceeding without it', [
+                'tracking_id' => $this->trackingId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         Log::info('Bulk WhatsApp send job started', [
             'tracking_id' => $this->trackingId,
             'total_recipients' => $totalRecipients,
@@ -149,6 +170,19 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             $processed++;
             
             try {
+                $recipientId = is_array($entityData) ? ($entityData['id'] ?? null) : ($entityData->id ?? null);
+                $idempotencyKey = $phone . '|' . ($recipientId ?? 'null');
+                if (isset($existingSentKeys[$idempotencyKey])) {
+                    $sentCount++;
+                    $reportRows[] = $this->buildReportRow(
+                        $phone,
+                        $entityData,
+                        'sent',
+                        'Skipped: already sent (idempotent retry)'
+                    );
+                    continue;
+                }
+
                 // Check if already sent (if skipSent is enabled)
                 if ($this->skipSent) {
                     $alreadySent = CommunicationLog::where('contact', $phone)

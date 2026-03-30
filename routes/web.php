@@ -424,6 +424,7 @@ Route::middleware('auth')->group(function () {
         Route::get('exams/bulk-create', [ExamController::class, 'createBulk'])->name('exams.bulk-create');
         Route::post('exams/bulk-store', [ExamController::class, 'storeBulk'])->name('exams.bulk-store');
         Route::post('exams/bulk-update', [ExamController::class, 'bulkUpdate'])->name('exams.bulk-update');
+        Route::post('exams/bulk-delete', [ExamController::class, 'bulkDestroy'])->name('exams.bulk-destroy');
         Route::resource('exam-grades', ExamGradeController::class);
         Route::resource('exams', ExamController::class);
 

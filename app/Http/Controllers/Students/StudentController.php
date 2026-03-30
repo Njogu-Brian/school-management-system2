@@ -152,7 +152,12 @@ class StudentController extends Controller
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('first_name', 'like', $searchTerm)
                     ->orWhere('middle_name', 'like', $searchTerm)
-                    ->orWhere('last_name', 'like', $searchTerm);
+                    ->orWhere('last_name', 'like', $searchTerm)
+                    ->orWhereHas('parent', function ($p) use ($searchTerm) {
+                        $p->where('father_name', 'like', $searchTerm)
+                            ->orWhere('mother_name', 'like', $searchTerm)
+                            ->orWhere('guardian_name', 'like', $searchTerm);
+                    });
             });
         }
         if ($request->filled('admission_number')) {

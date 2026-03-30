@@ -14,7 +14,6 @@ class Exam extends Model
 {
     protected $fillable = [
         'name',
-        'type',
         'modality',
         'academic_year_id',
         'term_id',
@@ -156,11 +155,6 @@ class Exam extends Model
     public function scopeForTerm(Builder $query, $termId)
     {
         return $query->where('term_id', $termId);
-    }
-
-    public function scopeByType(Builder $query, $type)
-    {
-        return $query->where('type', $type);
     }
 
     public function scopeByStatus(Builder $query, $status)

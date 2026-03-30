@@ -39,7 +39,6 @@
               <div class="col-md-6"><span class="text-muted small">Status</span><div><span class="pill-badge pill-{{ $exam->status_badge }} fs-6">{{ ucfirst($exam->status) }}</span></div></div>
             </div>
             <div class="row mb-3">
-              <div class="col-md-6"><span class="text-muted small">Type</span><div><span class="pill-badge pill-info">{{ strtoupper($exam->type) }}</span></div></div>
               <div class="col-md-6"><span class="text-muted small">Modality</span><div><span class="pill-badge pill-secondary">{{ ucfirst($exam->modality) }}</span></div></div>
             </div>
             <div class="row mb-3">

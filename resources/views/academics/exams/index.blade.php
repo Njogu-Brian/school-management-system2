@@ -2,6 +2,21 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    <style>
+      .exams-table .pill-badge { white-space: nowrap; }
+      .exams-table .exam-title { max-width: 520px; }
+      @media (max-width: 992px) {
+        .exams-table .exam-title { max-width: 320px; }
+        .exams-table th.col-class-subject,
+        .exams-table td.col-class-subject { display: none; }
+      }
+      @media (max-width: 768px) {
+        .exams-table th.col-year-term,
+        .exams-table td.col-year-term,
+        .exams-table th.col-dates,
+        .exams-table td.col-dates { display: none; }
+      }
+    </style>
 @endpush
 
 @section('content')
@@ -40,14 +55,13 @@
         <form method="GET" class="row g-3 align-items-end">
           <div class="col-md-3">
             <label class="form-label">Search</label>
-            <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="Exam name, type...">
+            <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="Exam name...">
           </div>
-          <div class="col-md-2">
-            <label class="form-label">Type</label>
-            <select name="type" class="form-select">
-              <option value="">All Types</option>
-              @foreach(['cat','midterm','endterm','sba','mock','quiz'] as $t)
-                <option value="{{ $t }}" @selected(request('type')==$t)>{{ strtoupper($t) }}</option>
+          <div class="col-md-2 col-lg-2">
+            <label class="form-label">Per Page</label>
+            <select name="per_page" class="form-select">
+              @foreach([20, 50, 100, 200] as $size)
+                <option value="{{ $size }}" @selected((int)request('per_page', $perPage ?? 20) === $size)>{{ $size }}</option>
               @endforeach
             </select>
           </div>
@@ -131,20 +145,27 @@
           </div>
           <div id="bulkExamIds"></div>
         </form>
+        <form method="POST" action="{{ route('academics.exams.bulk-destroy') }}" id="bulkExamDeleteForm" class="mt-2">
+          @csrf
+          <div id="bulkExamIdsDelete"></div>
+          <button type="submit" id="bulkDeleteBtn" class="btn btn-danger w-100" disabled
+                  onclick="return confirm('Bulk delete selected exams? Exams with marks will be skipped.');">
+            <i class="bi bi-trash me-1"></i>Bulk Delete Selected (skips exams with marks)
+          </button>
+        </form>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-modern table-hover align-middle mb-0">
+          <table class="table table-modern table-hover align-middle mb-0 exams-table">
             <thead class="table-light">
               <tr>
                 <th style="width:36px;">
                   <input type="checkbox" class="form-check-input" id="selectAllExams" title="Select all on page">
                 </th>
                 <th>Exam Name</th>
-                <th>Type</th>
-                <th>Academic Year / Term</th>
-                <th>Class/Subject</th>
-                <th>Dates</th>
+                <th class="col-year-term">Academic Year / Term</th>
+                <th class="col-class-subject">Class/Subject</th>
+                <th class="col-dates">Dates</th>
                 <th>Marks</th>
                 <th>Status</th>
                 <th class="text-end">Actions</th>
@@ -157,15 +178,23 @@
                     <input type="checkbox" class="form-check-input exam-row-select" value="{{ $exam->id }}" aria-label="Select exam {{ $exam->name }}">
                   </td>
                   <td>
-                    <div class="fw-semibold">{{ $exam->name }}</div>
+                    @php
+                      $parts = explode(' — ', (string) $exam->name);
+                      $baseName = count($parts) >= 1 ? trim($parts[0]) : (string) $exam->name;
+                      if ($baseName === '') $baseName = (string) $exam->name;
+                      $subName = $exam->subject?->name ?? 'Subject';
+                      $clsName = $exam->classroom?->name ?? 'Class';
+                    @endphp
+                    <div class="fw-semibold exam-title text-truncate" title="{{ $subName }} — {{ $clsName }} — {{ $baseName }}">
+                      {{ $subName }} — {{ $clsName }} — {{ $baseName }}
+                    </div>
                     <div class="small text-muted"><i class="bi bi-{{ $exam->modality === 'online' ? 'laptop' : 'file-earmark' }}"></i> {{ ucfirst($exam->modality) }}</div>
                   </td>
-                  <td><span class="pill-badge pill-info">{{ strtoupper($exam->type) }}</span></td>
-                  <td>
+                  <td class="col-year-term">
                     <div>{{ $exam->academicYear->year ?? '—' }}</div>
                     <div class="small text-muted">{{ $exam->term->name ?? '—' }}</div>
                   </td>
-                  <td>
+                  <td class="col-class-subject">
                     @if($exam->classroom)
                       <div>{{ $exam->classroom->name }}</div>
                     @endif
@@ -176,7 +205,7 @@
                       <span class="text-muted">—</span>
                     @endif
                   </td>
-                  <td>
+                  <td class="col-dates">
                     @if($exam->starts_on && $exam->ends_on)
                       <div class="small">{{ $exam->starts_on->format('M d') }} - {{ $exam->ends_on->format('M d, Y') }}</div>
                     @else
@@ -226,7 +255,7 @@
                   </td>
                 </tr>
               @empty
-                <tr><td colspan="10" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-4 d-block mb-2"></i>No exams found. Create your first exam.</td></tr>
+                <tr><td colspan="9" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-4 d-block mb-2"></i>No exams found. Create your first exam.</td></tr>
               @endforelse
             </tbody>
           </table>
@@ -247,15 +276,19 @@
 <script>
 (() => {
   const form = document.getElementById('bulkExamUpdateForm');
+  const deleteForm = document.getElementById('bulkExamDeleteForm');
   const selectAll = document.getElementById('selectAllExams');
   const rowChecks = Array.from(document.querySelectorAll('.exam-row-select'));
   const idsWrap = document.getElementById('bulkExamIds');
   const submitBtn = document.getElementById('bulkUpdateBtn');
+  const deleteIdsWrap = document.getElementById('bulkExamIdsDelete');
+  const deleteBtn = document.getElementById('bulkDeleteBtn');
   if (!form || !idsWrap || !submitBtn) return;
 
   const sync = () => {
     const selected = rowChecks.filter((cb) => cb.checked);
     submitBtn.disabled = selected.length === 0;
+    if (deleteBtn) deleteBtn.disabled = selected.length === 0;
     if (selectAll) {
       selectAll.checked = rowChecks.length > 0 && selected.length === rowChecks.length;
       selectAll.indeterminate = selected.length > 0 && selected.length < rowChecks.length;
@@ -281,6 +314,19 @@
       .map((id) => `<input type="hidden" name="exam_ids[]" value="${id}">`)
       .join('');
   });
+
+  if (deleteForm && deleteIdsWrap) {
+    deleteForm.addEventListener('submit', (e) => {
+      const selected = rowChecks.filter((cb) => cb.checked).map((cb) => cb.value);
+      if (selected.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      deleteIdsWrap.innerHTML = selected
+        .map((id) => `<input type="hidden" name="exam_ids[]" value="${id}">`)
+        .join('');
+    });
+  }
 
   sync();
 })();

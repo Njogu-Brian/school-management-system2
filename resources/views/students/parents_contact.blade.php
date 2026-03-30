@@ -24,7 +24,7 @@
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
           <h5 class="mb-0">Filters</h5>
-          <p class="text-muted small mb-0">Filter by class, name, or admission number.</p>
+          <p class="text-muted small mb-0">Filter by class, child/parent name, or admission number.</p>
         </div>
       </div>
       <div class="card-body">
@@ -39,8 +39,8 @@
             </select>
           </div>
           <div class="col-md-2">
-            <label class="form-label">Name</label>
-            <input type="text" name="name" value="{{ request('name') }}" class="form-control" placeholder="Student name">
+            <label class="form-label">Child/Parent Name</label>
+            <input type="text" name="name" value="{{ request('name') }}" class="form-control" placeholder="Student or parent name">
           </div>
           <div class="col-md-2">
             <label class="form-label">Admission #</label>

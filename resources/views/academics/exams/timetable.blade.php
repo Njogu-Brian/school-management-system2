@@ -37,7 +37,7 @@
                 @foreach($list as $schedule)
                   <tr>
                     <td><span class="pill-badge pill-info">{{ \Carbon\Carbon::parse($schedule->start_time)->format('H:i') }} – {{ $schedule->end_time ? \Carbon\Carbon::parse($schedule->end_time)->format('H:i') : '' }}</span></td>
-                    <td><strong>{{ $schedule->exam->name }}</strong> <span class="pill-badge pill-secondary ms-1">{{ strtoupper($schedule->exam->type) }}</span></td>
+                    <td><strong>{{ $schedule->exam->name }}</strong></td>
                     <td>{{ $schedule->subject->name ?? '-' }}</td>
                     <td><i class="bi bi-house"></i> {{ $schedule->classroom->name ?? '-' }}</td>
                     <td>{{ $schedule->exam->term->name ?? '-' }} / {{ $schedule->exam->academicYear->year ?? '-' }}</td>

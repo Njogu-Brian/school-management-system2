@@ -72,7 +72,7 @@ class SubjectController extends Controller
     public function create()
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
+        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))->get();
         $years = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
 
@@ -132,7 +132,7 @@ class SubjectController extends Controller
     public function edit(Subject $subject)
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
+        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))->get();
         $years = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
 
@@ -401,7 +401,7 @@ class SubjectController extends Controller
         // Also get subject levels as fallback
         $subjectLevels = Subject::select('level')->whereNotNull('level')->distinct()->orderBy('level')->pluck('level');
         
-        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))
+        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();

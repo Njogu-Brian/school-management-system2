@@ -259,10 +259,14 @@ class ApiAcademicsController extends Controller
                 'subject_id' => $data['subject_id'],
             ]);
 
-            $g = ExamGrade::where('exam_type', $exam->type)
-                ->where('percent_from', '<=', $score)
-                ->where('percent_upto', '>=', $score)
-                ->first();
+            $examTypeKey = strtoupper((string) ($exam->examType?->code ?? $exam->examType?->name ?? ''));
+            $g = null;
+            if ($examTypeKey !== '') {
+                $g = ExamGrade::where('exam_type', $examTypeKey)
+                    ->where('percent_from', '<=', $score)
+                    ->where('percent_upto', '>=', $score)
+                    ->first();
+            }
 
             $mark->fill([
                 'score_raw' => $score,
@@ -507,10 +511,13 @@ class ApiAcademicsController extends Controller
 
             $g = null;
             if (!is_null($score)) {
-                $g = ExamGrade::where('exam_type', $exam->type)
-                    ->where('percent_from', '<=', $score)
-                    ->where('percent_upto', '>=', $score)
-                    ->first();
+                $examTypeKey = strtoupper((string) ($exam->examType?->code ?? $exam->examType?->name ?? ''));
+                if ($examTypeKey !== '') {
+                    $g = ExamGrade::where('exam_type', $examTypeKey)
+                        ->where('percent_from', '<=', $score)
+                        ->where('percent_upto', '>=', $score)
+                        ->first();
+                }
             }
 
             $mark->fill([
@@ -611,7 +618,7 @@ class ApiAcademicsController extends Controller
             'id' => $e->id,
             'name' => $e->name,
             'exam_type_id' => $e->exam_type_id,
-            'exam_type_name' => $typeName ?? $e->type,
+            'exam_type_name' => $typeName,
             'academic_year_id' => $e->academic_year_id,
             'term_id' => $e->term_id,
             'classroom_id' => $e->classroom_id,

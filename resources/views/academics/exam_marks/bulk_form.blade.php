@@ -56,55 +56,6 @@
       </div>
     </div>
 
-    <div class="settings-card mt-3">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <div>
-            <h6 class="mb-1">Legacy single-exam mode</h6>
-            <div class="small text-muted">Use only if you want to enter marks exam by exam.</div>
-          </div>
-          <button class="btn btn-ghost-strong btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#legacySingleExamForm">
-            Show legacy form
-          </button>
-        </div>
-        <div class="collapse mt-3" id="legacySingleExamForm">
-          <form method="post" action="{{ route('academics.exam-marks.bulk.edit') }}" class="row g-3">
-            @csrf
-            <div class="col-md-4">
-              <label class="form-label">Exam</label>
-              <select name="exam_id" class="form-select" required>
-                <option value="">Select exam</option>
-                @foreach($exams as $e)
-                  <option value="{{ $e->id }}">{{ $e->name }} ({{ $e->term?->name }}/{{ $e->academicYear?->year }})</option>
-                @endforeach
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Classroom</label>
-              <select name="classroom_id" class="form-select" required>
-                <option value="">Select class</option>
-                @foreach($classrooms as $c)
-                  <option value="{{ $c->id }}">{{ $c->name }}</option>
-                @endforeach
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Subject</label>
-              <select name="subject_id" class="form-select" required>
-                <option value="">Select subject</option>
-                @foreach($subjects as $s)
-                  <option value="{{ $s->id }}">{{ $s->name }}</option>
-                @endforeach
-              </select>
-            </div>
-            <div class="col-12 text-end">
-              <button class="btn btn-settings-primary"><i class="bi bi-arrow-right-circle me-1"></i> Continue</button>
-            </div>
-          </form>
-        </form>
-      </div>
-    </div>
-
     <div class="small text-muted mt-2">Tip: Teachers see only subjects they are assigned in selected classes; senior teachers see all subjects in supervised classes plus assigned subjects outside supervision.</div>
   </div>
 </div>

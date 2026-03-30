@@ -12,7 +12,6 @@
 
   $v = [
     'name' => old('name', $exam->name ?? ''),
-    'type' => old('type', $exam->type ?? 'cat'),
     'modality' => old('modality', $exam->modality ?? 'physical'),
     'academic_year_id' => old('academic_year_id', $exam->academic_year_id ?? ($years->first()->id ?? null)),
     'term_id' => old('term_id', $exam->term_id ?? ($terms->first()->id ?? null)),
@@ -140,4 +139,3 @@
     </div>
   </div>
 </div>
-<input type="hidden" name="type" value="{{ $v['type'] }}">

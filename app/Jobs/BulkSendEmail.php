@@ -54,6 +54,27 @@ class BulkSendEmail implements ShouldQueue
         $processed = 0;
         $reportRows = [];
 
+        // Idempotency: if this job is retried/restarted with the same tracking_id,
+        // avoid re-sending recipients that were already marked as sent.
+        $existingSentKeys = [];
+        try {
+            $existingLogs = CommunicationLog::where('channel', 'email')
+                ->where('tracking_id', $this->trackingId)
+                ->where('scope', 'email')
+                ->where('type', 'email')
+                ->where('status', 'sent')
+                ->get(['contact', 'recipient_id']);
+
+            foreach ($existingLogs as $log) {
+                $existingSentKeys[$log->contact . '|' . ($log->recipient_id ?? 'null')] = true;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Bulk Email idempotency pre-check failed; proceeding without it', [
+                'tracking_id' => $this->trackingId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         Log::info('Bulk Email send job started', [
             'tracking_id' => $this->trackingId,
             'total_recipients' => $totalRecipients,
@@ -77,6 +98,18 @@ class BulkSendEmail implements ShouldQueue
 
             try {
                 $entity = $this->resolveEntity($entityData);
+                $recipientId = $entity->id ?? null;
+                $idempotencyKey = $email . '|' . ($recipientId ?? 'null');
+                if (isset($existingSentKeys[$idempotencyKey])) {
+                    $sentCount++;
+                    $reportRows[] = $this->buildReportRow(
+                        $email,
+                        $entityData,
+                        'sent',
+                        'Skipped: already sent (idempotent retry)'
+                    );
+                    continue;
+                }
                 $personalized = replace_placeholders($this->message, $entity);
                 Mail::to($email)->send(new GenericMail($this->subject, $personalized, $this->attachmentPath));
 
@@ -85,7 +118,7 @@ class BulkSendEmail implements ShouldQueue
 
                 CommunicationLog::create([
                     'recipient_type' => $this->target,
-                    'recipient_id' => $entity->id ?? null,
+                    'recipient_id' => $recipientId,
                     'contact' => $email,
                     'channel' => 'email',
                     'title' => $this->subject,
