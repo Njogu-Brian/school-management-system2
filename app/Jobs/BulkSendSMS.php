@@ -54,6 +54,27 @@ class BulkSendSMS implements ShouldQueue
         $reportRows = [];
         $chosenSender = $this->senderId === 'finance' ? $smsService->getFinanceSenderId() : null;
 
+        // Idempotency: if this job is retried/restarted with the same tracking_id,
+        // avoid re-sending recipients that were already marked as sent.
+        $existingSentKeys = [];
+        try {
+            $existingLogs = CommunicationLog::where('channel', 'sms')
+                ->where('tracking_id', $this->trackingId)
+                ->where('scope', 'sms')
+                ->where('type', 'sms')
+                ->where('status', 'sent')
+                ->get(['contact', 'recipient_id']);
+
+            foreach ($existingLogs as $log) {
+                $existingSentKeys[$log->contact . '|' . ($log->recipient_id ?? 'null')] = true;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Bulk SMS idempotency pre-check failed; proceeding without it', [
+                'tracking_id' => $this->trackingId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         Log::info('Bulk SMS send job started', [
             'tracking_id' => $this->trackingId,
             'total_recipients' => $totalRecipients,
@@ -77,6 +98,20 @@ class BulkSendSMS implements ShouldQueue
 
             try {
                 $entity = $this->resolveEntity($entityData);
+
+                $recipientId = $entity->id ?? null;
+                $idempotencyKey = $phone . '|' . ($recipientId ?? 'null');
+                if (isset($existingSentKeys[$idempotencyKey])) {
+                    $sentCount++;
+                    $reportRows[] = $this->buildReportRow(
+                        $phone,
+                        $entityData,
+                        'sent',
+                        'Skipped: already sent (idempotent retry)'
+                    );
+                    continue;
+                }
+
                 $personalized = replace_placeholders($this->message, $entity);
                 $response = $smsService->sendSMS($phone, $personalized, $chosenSender);
 
@@ -92,7 +127,7 @@ class BulkSendSMS implements ShouldQueue
 
                 CommunicationLog::create([
                     'recipient_type' => $this->target,
-                    'recipient_id' => $entity->id ?? null,
+                    'recipient_id' => $recipientId,
                     'contact' => $phone,
                     'channel' => 'sms',
                     'title' => $this->title,
@@ -110,6 +145,10 @@ class BulkSendSMS implements ShouldQueue
                         ?? data_get($response, 'MessageID'),
                     'provider_status' => strtolower(data_get($response, 'status', 'sent')),
                 ]);
+
+                if ($status === 'sent') {
+                    $existingSentKeys[$idempotencyKey] = true;
+                }
             } catch (\Throwable $e) {
                 $failedCount++;
                 $entity = $entity ?? (is_array($entityData) ? (object) $entityData : (object) []);

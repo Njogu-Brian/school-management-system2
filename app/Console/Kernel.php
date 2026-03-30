@@ -20,7 +20,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('fee-communications:process-scheduled')->everyMinute();
 
         // Process queued jobs (SMS, Email, WhatsApp bulk sends) — runs automatically every minute
-        $schedule->command('queue:work --stop-when-empty --max-time=300')->everyMinute();
+        // Bulk SMS jobs can run for a long time, so do not kill the worker early.
+        // Also prevent overlaps so only one worker runs at a time.
+        $schedule->command('queue:work --stop-when-empty --max-time=10800')
+            ->everyMinute()
+            ->withoutOverlapping();
         
         // Send fee reminders daily at 9 AM
         $schedule->job(new \App\Jobs\SendFeeRemindersJob)->dailyAt('09:00');
