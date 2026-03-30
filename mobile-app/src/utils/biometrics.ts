@@ -40,7 +40,7 @@ export async function getBiometricEnabled(): Promise<boolean> {
 export async function saveBiometricCredentials(identifier: string, password: string): Promise<void> {
     const payload: BiometricCredentials = { identifier, password };
     await SecureStore.setItemAsync(BIOMETRIC_CREDENTIALS_KEY, JSON.stringify(payload), {
-        requireAuthentication: false,
+        requireAuthentication: true,
     });
 }
 

@@ -21,7 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { checkForAppUpdate } from '@services/update.service';
-import { canUseBiometrics, getBiometricEnabled, setBiometricEnabled } from '@utils/biometrics';
+import { authenticateWithBiometrics, canUseBiometrics, getBiometricCredentials, getBiometricEnabled, setBiometricEnabled } from '@utils/biometrics';
 import { authApi } from '@api/auth.api';
 import { staffClockApi } from '@api/staffClock.api';
 import * as Location from 'expo-location';
@@ -87,13 +87,50 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
 
     const handleToggle = (category: string, setting: string) => {
         if (category === 'biometrics') {
-            setBiometrics((prev) => {
-                const nextValue = !prev[setting as keyof typeof prev];
-                if (setting === 'enabled') {
-                    setBiometricEnabled(nextValue).catch(() => undefined);
-                }
-                return { ...prev, [setting]: nextValue };
-            });
+            if (setting === 'enabled') {
+                (async () => {
+                    const currentlyEnabled = biometrics.enabled;
+                    const nextValue = !currentlyEnabled;
+
+                    if (nextValue) {
+                        const supported = await canUseBiometrics();
+                        if (!supported) {
+                            Alert.alert('Biometrics unavailable', 'Set up fingerprint/face ID on this device first.');
+                            setDeviceSupportsBiometrics(false);
+                            setBiometrics((prev) => ({ ...prev, enabled: false }));
+                            return;
+                        }
+
+                        const ok = await authenticateWithBiometrics('Enable biometric sign-in');
+                        if (!ok) {
+                            Alert.alert('Cancelled', 'Biometric verification was not completed.');
+                            setBiometrics((prev) => ({ ...prev, enabled: false }));
+                            return;
+                        }
+
+                        await setBiometricEnabled(true);
+                        setBiometrics((prev) => ({ ...prev, enabled: true }));
+
+                        const creds = await getBiometricCredentials();
+                        if (!creds) {
+                            Alert.alert(
+                                'Biometrics enabled',
+                                'Biometric sign-in is enabled. To use it on the login screen, sign out and sign in once with your password to securely save credentials.'
+                            );
+                        }
+                        return;
+                    }
+
+                    await setBiometricEnabled(false);
+                    setBiometrics((prev) => ({ ...prev, enabled: false }));
+                    Alert.alert('Biometrics disabled', 'Biometric sign-in has been disabled on this device.');
+                })().catch(() => {
+                    Alert.alert('Error', 'Could not update biometric settings.');
+                });
+                return;
+            }
+
+            setBiometrics((prev) => ({ ...prev, [setting]: !prev[setting as keyof typeof prev] }));
         }
     };
 
