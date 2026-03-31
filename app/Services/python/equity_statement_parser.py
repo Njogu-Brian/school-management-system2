@@ -553,6 +553,7 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
     credit_col = None
     instrument_id_col = None  # Track Instrument Id column - might contain part of particulars
     transaction_reference_col = None  # Equity: "Transaction Reference" column (reference not in narration for APP)
+    customer_reference_col = None  # Some Equity statements include a separate "Customer Reference" column (often phone/account-like)
     
     # First, look for header row in the first few rows
     header_row_found = None
@@ -571,34 +572,138 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
             if header_row_found:
                 break
     
+    # Process data rows - skip header row if found
+    start_idx = 1 if header_row_found else 0
+
     if header_row:
+        header_cells = [str(c).strip() if c is not None else "" for c in header_row]
+        header_upper = [c.upper() for c in header_cells]
+
+        def _hdr(i: int) -> str:
+            return header_upper[i] if 0 <= i < len(header_upper) else ""
+
+        def _joined(*parts: str) -> str:
+            return " ".join([p for p in parts if p]).strip()
+
         for i, cell in enumerate(header_row):
-            cell_str = str(cell).strip().upper() if cell else ""
+            cell_str = _hdr(i)
             if "TRAN DATE" in cell_str or ("DATE" in cell_str and "VALUE" not in cell_str):
                 date_col = i
             elif "PARTICULARS" in cell_str or "DETAILS" in cell_str or "DESCRIPTION" in cell_str or "NARRATIVE" in cell_str:
                 particulars_col = i
             elif "INSTRUMENT" in cell_str and "ID" in cell_str:
                 instrument_id_col = i  # Track this - might contain part of particulars
-            elif ("TRANSACTION REFERENCE" in cell_str or "TRANS REF" in cell_str or "TRAN REF" in cell_str or
-                  "TXN REF" in cell_str or "TRANS. REF" in cell_str or
-                  ("REFERENCE" in cell_str and "CUSTOMER" not in cell_str and "REMARKS" not in cell_str)):
-                transaction_reference_col = i  # Equity statement: reference column (e.g. 54118185 for APP)
-            elif "CUSTOMER REFERENCE" in cell_str or "CUSTOMER REF" in cell_str:
-                if transaction_reference_col is None:
-                    transaction_reference_col = i  # Fallback: some statements use Customer Reference as ref
-            elif "CREDIT" in cell_str:
+            if "CREDIT" in cell_str:
                 # CRITICAL: Verify this is the Credit column by checking it's not Balance or Debit
                 # Only set credit_col if we explicitly see "CREDIT" in the header and it's not part of another word
                 if "BALANCE" not in cell_str and "DEBIT" not in cell_str:
                     credit_col = i
-            elif "BALANCE" in cell_str:
+            if "BALANCE" in cell_str:
                 balance_col = i  # Track balance column to exclude it
-            elif "DEBIT" in cell_str:
+            if "DEBIT" in cell_str:
                 debit_col = i  # Track debit column to exclude it
-    
-    # Process data rows - skip header row if found
-    start_idx = 1 if header_row_found else 0
+
+            if (
+                date_col == i
+                or particulars_col == i
+                or instrument_id_col == i
+                or credit_col == i
+                or balance_col == i
+                or debit_col == i
+            ):
+                continue
+
+            else:
+                # Equity PDFs sometimes split multi-line headers across adjacent cells, e.g. "CUSTOMER" | "REFERENCE"
+                # or "TRANSACTION" | "REFERENCE". Handle that explicitly so we don't mis-label "REFERENCE" alone.
+                prev_str = _hdr(i - 1)
+                next_str = _hdr(i + 1)
+                combined_prev = _joined(prev_str, cell_str)
+                combined_next = _joined(cell_str, next_str)
+
+                # Detect "Customer Reference" (often numeric/phone-like; should NOT be used as primary ref)
+                if ("CUSTOMER REFERENCE" in cell_str) or ("CUSTOMER REF" in cell_str) or \
+                   ("CUSTOMER REFERENCE" in combined_prev) or ("CUSTOMER REFERENCE" in combined_next) or \
+                   (cell_str == "REFERENCE" and "CUSTOMER" in prev_str):
+                    customer_reference_col = i if "REFERENCE" in cell_str else i
+
+                # Detect "Transaction Reference" (the one we want)
+                if ("TRANSACTION REFERENCE" in cell_str) or ("TRANS REF" in cell_str) or ("TRAN REF" in cell_str) or \
+                   ("TXN REF" in cell_str) or ("TRANS. REF" in cell_str) or \
+                   ("TRANSACTION REFERENCE" in combined_prev) or ("TRANSACTION REFERENCE" in combined_next) or \
+                   (cell_str == "REFERENCE" and "TRANSACTION" in prev_str) or \
+                   (cell_str == "TRANSACTION" and "REFERENCE" in next_str):
+                    transaction_reference_col = i
+
+                # If we see a generic "REFERENCE" cell, only treat it as transaction ref if it is NOT tied to customer/remarks.
+                if transaction_reference_col is None and "REFERENCE" in cell_str:
+                    if "CUSTOMER" in cell_str or "REMARK" in cell_str or "REMARKS" in cell_str:
+                        pass
+                    elif cell_str == "REFERENCE" and ("CUSTOMER" in prev_str or "REMARK" in prev_str):
+                        pass
+                    else:
+                        transaction_reference_col = i  # fallback; will be validated against data below
+
+        # Validate / infer the Transaction Reference column from actual data values.
+        # Some PDFs produce header cells like "REFERENCE" without context; score columns by their cell contents.
+        def _is_phone_like(s: str) -> bool:
+            s = (s or "").strip()
+            if not re.fullmatch(r"\d{9,14}", s):
+                return False
+            return s.startswith("254") or s.startswith("0") or s.startswith("01")
+
+        def _is_amount_like(s: str) -> bool:
+            return parse_amount(s) is not None or parse_amount_allow_negative(s) is not None
+
+        def _is_date_like(s: str) -> bool:
+            return bool(re.search(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}", s or ""))
+
+        def _score_ref_col(col_idx: int) -> int:
+            score = 0
+            seen = 0
+            for r in rows[start_idx:start_idx + 30]:
+                if not r or col_idx >= len(r):
+                    continue
+                raw = r[col_idx]
+                if raw is None:
+                    continue
+                v = str(raw).strip()
+                if not v:
+                    continue
+                seen += 1
+                # Reference cells are usually short-ish and have no spaces (e.g. S9508456, UA6R..., 54118185)
+                if " " in v or len(v) > 25:
+                    score -= 1
+                    continue
+                if _is_date_like(v) or _is_amount_like(v):
+                    score -= 3
+                    continue
+                if _is_phone_like(v):
+                    score -= 4
+                    continue
+                if re.fullmatch(r"S\d{6,11}", v, re.IGNORECASE):
+                    score += 6
+                elif re.fullmatch(r"[A-Z0-9]{6,15}", v, re.IGNORECASE):
+                    score += 3
+                elif re.fullmatch(r"\d{6,15}", v) and not v.startswith("254"):
+                    score += 2
+                else:
+                    score -= 1
+                if seen >= 12:
+                    break
+            return score
+
+        # Choose the best candidate by scoring; only override if it improves confidence.
+        if rows:
+            col_count = max((len(r) for r in rows if r), default=0)
+            if col_count > 0:
+                scores = [(ci, _score_ref_col(ci)) for ci in range(col_count)]
+                best_col, best_score = max(scores, key=lambda t: t[1])
+
+                current_score = _score_ref_col(transaction_reference_col) if transaction_reference_col is not None else -999
+                if best_score > max(1, current_score):
+                    transaction_reference_col = best_col
+
     for row_offset, row in enumerate(rows[start_idx:], start=0):
         if not row or len(row) < 2:
             log_bank_skip(
