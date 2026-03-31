@@ -23,11 +23,15 @@ class ApiAppBrandingController extends Controller
 
         $colors = $this->portalColors();
 
+        $apkUrl = config('app.mobile_app_download_url');
+        $apkUrl = is_string($apkUrl) && $apkUrl !== '' ? $apkUrl : null;
+
         return response()->json([
             'school_name' => $schoolName,
             'logo_url' => $logoUrl,
             'login_background_url' => $loginBackgroundUrl,
             'colors' => $colors,
+            'android_apk_download_url' => $apkUrl,
         ]);
     }
 

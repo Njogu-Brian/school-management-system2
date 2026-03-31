@@ -4,7 +4,20 @@
     "appVersionSource": "local"
   },
   "build": {
+    "apk": {
+      "channel": "preview",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_WEB_BASE_URL": "https://erp.royalkingsschools.sc.ke",
+        "EXPO_PUBLIC_API_TIMEOUT": "30000"
+      }
+    },
     "preview": {
+      "channel": "preview",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -16,6 +29,7 @@
       }
     },
     "production": {
+      "channel": "production",
       "android": {
         "buildType": "app-bundle"
       },

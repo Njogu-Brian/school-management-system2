@@ -39,9 +39,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
         Constants.expoConfig?.android?.versionCode ?? Constants.expoConfig?.ios?.buildNumber ?? '100'
     );
     const isAdminUser = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN;
-    const updateChannel = Updates.channel ?? 'N/A';
-    const runtimeVersion = Updates.runtimeVersion ?? 'N/A';
-    const updateId = Updates.updateId ?? 'N/A';
+    const [updateChannel, setUpdateChannel] = useState('—');
+    const [runtimeVersion, setRuntimeVersion] = useState(
+        () => String(Constants.expoConfig?.runtimeVersion ?? 'N/A')
+    );
+    const [updateId, setUpdateId] = useState('—');
 
     const [notifBusy, setNotifBusy] = useState(false);
 
@@ -69,6 +71,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
             setBiometrics((prev) => ({ ...prev, enabled: supported ? enabled : false }));
         })();
     }, []);
+
+    React.useEffect(() => {
+        if (!isAdminUser) return;
+        let cancelled = false;
+        const t = setTimeout(() => {
+            try {
+                if (cancelled) return;
+                setUpdateChannel(Updates.channel ?? 'N/A');
+                setRuntimeVersion(String(Updates.runtimeVersion ?? Constants.expoConfig?.runtimeVersion ?? 'N/A'));
+                setUpdateId(Updates.updateId ?? 'N/A');
+            } catch {
+                // expo-updates not ready yet
+            }
+        }, 300);
+        return () => {
+            cancelled = true;
+            clearTimeout(t);
+        };
+    }, [isAdminUser]);
 
     React.useEffect(() => {
         (async () => {

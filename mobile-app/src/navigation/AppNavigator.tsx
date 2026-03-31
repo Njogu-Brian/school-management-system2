@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { NavigationContainer, NavigationState, PartialState, createNavigationContainerRef } from '@react-navigation/native';
-import { View, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, KeyboardAvoidingView, Platform, InteractionManager } from 'react-native';
 import { useAuth } from '@contexts/AuthContext';
 import { useTheme } from '@contexts/ThemeContext';
 import { User } from '../types/auth.types';
@@ -154,7 +154,10 @@ const AuthenticatedShell: React.FC<{ user: User; currentRouteName: string | null
     useEffect(() => {
         if (checkedOnce.current) return;
         checkedOnce.current = true;
-        checkForAppUpdate({ silent: false, showNoUpdateMessage: false });
+        const task = InteractionManager.runAfterInteractions(() => {
+            checkForAppUpdate({ silent: false, showNoUpdateMessage: false });
+        });
+        return () => task.cancel();
     }, []);
 
     const handleBack = () => {

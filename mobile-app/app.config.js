@@ -1,7 +1,7 @@
+// Embedded at native build time (EAS / gradlew). Use EXPO_PUBLIC_* only — do not use bare
+// API_BASE_URL from .env here; it is often a dev/ngrok URL and breaks release APKs.
 const apiBase =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  process.env.API_BASE_URL ||
-  'https://erp.royalkingsschools.sc.ke/api';
+  process.env.EXPO_PUBLIC_API_BASE_URL || 'https://erp.royalkingsschools.sc.ke/api';
 const webBaseDefault =
   apiBase.replace(/\/api\/?$/i, '').replace(/\/$/, '') || 'https://erp.royalkingsschools.sc.ke';
 

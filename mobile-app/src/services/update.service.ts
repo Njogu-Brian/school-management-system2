@@ -8,8 +8,9 @@ interface CheckForUpdatesOptions {
 }
 
 function isExpoGoEnvironment(): boolean {
-    // expo-updates is unavailable in Expo Go; avoid noisy errors.
-    return Updates.channel == null;
+    // Do not read Updates.* here — accessing expo-updates before native init crashes
+    // (IllegalStateException: UpdatesController.instance was called before the module was initialized).
+    return Constants.appOwnership === 'expo';
 }
 
 async function openStorePage(): Promise<void> {

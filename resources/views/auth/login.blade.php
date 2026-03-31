@@ -219,6 +219,15 @@
         </form>
     @endif
 
+    @if (config('app.mobile_app_download_url'))
+        <div class="mt-3 pt-3 border-top">
+            <a href="{{ config('app.mobile_app_download_url') }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small d-inline-flex align-items-center gap-1">
+                <span>📱</span>
+                <span>Download Android app (latest APK)</span>
+            </a>
+        </div>
+    @endif
+
     <script>
         function requestOTP() {
             const identifier = document.querySelector('#passwordLoginForm input[name="identifier"]').value;

@@ -21,4 +21,6 @@ export interface AppBranding {
     logo_url: string | null;
     login_background_url?: string | null;
     colors?: PortalBrandColors;
+    /** Same as portal MOBILE_APP_DOWNLOAD_URL — HTTPS link to latest APK (e.g. S3/CloudFront). */
+    android_apk_download_url?: string | null;
 }

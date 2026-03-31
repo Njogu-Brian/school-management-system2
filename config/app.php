@@ -81,6 +81,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mobile app — direct Android APK download URL
+    |--------------------------------------------------------------------------
+    |
+    | HTTPS URL to the latest APK (e.g. S3 object or CloudFront). Shown on the
+    | web login page and returned in GET /api/app-branding for the mobile app.
+    |
+    */
+    'mobile_app_download_url' => env('MOBILE_APP_DOWNLOAD_URL'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     Image,
     ImageBackground,
+    Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -341,6 +342,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                     style={styles.biometricButton}
                                 />
                             ) : null}
+                            {Platform.OS === 'android' && branding?.android_apk_download_url ? (
+                                <TouchableOpacity
+                                    style={styles.apkLink}
+                                    onPress={() => Linking.openURL(branding.android_apk_download_url!)}
+                                >
+                                    <Text style={[styles.apkLinkText, { color: colors.primary }]}>
+                                        Download Android app (APK)
+                                    </Text>
+                                </TouchableOpacity>
+                            ) : null}
                         </View>
                     </View>
                 </ScrollView>
@@ -533,5 +544,14 @@ const styles = StyleSheet.create({
     },
     biometricButton: {
         marginTop: SPACING.sm,
+    },
+    apkLink: {
+        marginTop: SPACING.md,
+        alignItems: 'center',
+    },
+    apkLinkText: {
+        fontSize: FONT_SIZES.sm,
+        fontWeight: '600',
+        textDecorationLine: 'underline',
     },
 });
