@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * Export classroom_subjects teacher assignments for GRADE 4–9 into JSON for the seeder.
+ *
+ * Usage (from project root): php database/scripts/export_grade4_9_assignments.php
+ */
+
 use App\Models\Academics\Classroom;
 use Illuminate\Support\Facades\DB;
 
@@ -21,8 +27,6 @@ $classroomIds = Classroom::query()
     })
     ->pluck('id');
 
-echo "classroom_ids count: ".$classroomIds->count()."\n";
-
 $rows = DB::table('classroom_subjects as cs')
     ->join('classrooms as c', 'c.id', '=', 'cs.classroom_id')
     ->join('subjects as s', 's.id', '=', 'cs.subject_id')
@@ -32,29 +36,33 @@ $rows = DB::table('classroom_subjects as cs')
     ->whereIn('cs.classroom_id', $classroomIds)
     ->orderBy('c.name')
     ->orderBy('s.code')
+    ->orderByRaw('cs.stream_id IS NULL')
+    ->orderBy('cs.stream_id')
     ->get([
-        'cs.id',
         'c.name as classroom_name',
-        'c.level as classroom_level',
         'st.name as stream_name',
         's.code as subject_code',
-        's.name as subject_name',
-        'sf.id as staff_id',
         'u.email as staff_email',
-        DB::raw("CONCAT(COALESCE(sf.first_name,''),' ',COALESCE(sf.last_name,'')) as staff_name"),
         'cs.academic_year_id',
         'cs.term_id',
         'cs.is_compulsory',
         'cs.lessons_per_week',
     ]);
 
-echo json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+$out = $rows->map(function ($r) {
+    return [
+        'classroom_name' => $r->classroom_name,
+        'subject_code' => $r->subject_code,
+        'stream_name' => $r->stream_name,
+        'staff_email' => $r->staff_email,
+        'academic_year_id' => $r->academic_year_id,
+        'term_id' => $r->term_id,
+        'is_compulsory' => (bool) $r->is_compulsory,
+        'lessons_per_week' => $r->lessons_per_week !== null ? (int) $r->lessons_per_week : null,
+    ];
+})->values()->all();
 
-$st = DB::table('subject_teacher as st')
-    ->join('subjects as s', 's.id', '=', 'st.subject_id')
-    ->join('users as u', 'u.id', '=', 'st.teacher_id')
-    ->whereIn('s.level', $grades)
-    ->get(['st.subject_id', 's.code as subject_code', 'st.teacher_id', 'u.email as teacher_email']);
+$path = __DIR__.'/../data/grade4_9_classroom_subject_assignments.json';
+file_put_contents($path, json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)."\n");
 
-echo "\n--- subject_teacher ---\n";
-echo json_encode($st, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+echo "Wrote ".count($out)." row(s) to {$path}\n";
