@@ -849,16 +849,19 @@ class StaffController extends Controller
                     $warnings[] = 'Phone number not available for this staff member.';
                 } else {
                     try {
+                        $phoneService = app(\App\Services\PhoneNumberService::class);
+                        $smsPhone = $phoneService->formatWithCountryCode($staff->phone_number, '+254');
+
                         $smsBody = $this->fillTemplate($smsTpl->content, $vars);
                         $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
-                        $smsResult = $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                        $smsResult = $this->comm->sendSMS('staff', $staff->id, $smsPhone, $smsBody, $smsTitle);
                         if ($smsResult['success'] ?? false) {
                             $sent = true;
                         } else {
                             $errors[] = 'SMS: ' . ($smsResult['error'] ?? 'Failed to send SMS');
                             Log::warning('Failed to resend welcome SMS to staff', [
                                 'staff_id' => $staff->id,
-                                'phone' => $staff->phone_number,
+                                'phone' => $smsPhone,
                                 'error' => $smsResult['error'] ?? 'Unknown SMS error',
                                 'result' => $smsResult['result'] ?? null,
                             ]);
@@ -955,15 +958,15 @@ class StaffController extends Controller
             // Get password reset templates (or use welcome_staff if reset template doesn't exist)
             $emailTpl = CommunicationTemplate::where('code', 'password_reset_staff')
                 ->where('type', 'email')
-                ->first() ?? CommunicationTemplate::where('code', 'welcome_staff')
-                ->where('type', 'email')
-                ->first();
+                ->first()
+                ?? CommunicationTemplate::where('code', 'staff_welcome_email')->where('type', 'email')->first()
+                ?? CommunicationTemplate::where('code', 'welcome_staff')->where('type', 'email')->first();
 
             $smsTpl = CommunicationTemplate::where('code', 'password_reset_staff')
                 ->where('type', 'sms')
-                ->first() ?? CommunicationTemplate::where('code', 'welcome_staff')
-                ->where('type', 'sms')
-                ->first();
+                ->first()
+                ?? CommunicationTemplate::where('code', 'staff_welcome_sms')->where('type', 'sms')->first()
+                ?? CommunicationTemplate::where('code', 'welcome_staff')->where('type', 'sms')->first();
 
             $sent = false;
             $errors = [];
@@ -1004,16 +1007,19 @@ class StaffController extends Controller
             // Send SMS notification
             if ($smsTpl && $staff->phone_number) {
                 try {
+                    $phoneService = app(\App\Services\PhoneNumberService::class);
+                    $smsPhone = $phoneService->formatWithCountryCode($staff->phone_number, '+254');
+
                     $smsBody = $this->fillTemplate($smsTpl->content, $vars);
                     $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Password Reset - ' . config('app.name');
-                    $smsResult = $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                    $smsResult = $this->comm->sendSMS('staff', $staff->id, $smsPhone, $smsBody, $smsTitle);
                     if ($smsResult['success'] ?? false) {
                         $sent = true;
                     } else {
                         $errors[] = 'SMS: ' . ($smsResult['error'] ?? 'Failed to send SMS');
                         Log::warning('Failed to send password reset SMS to staff', [
                             'staff_id' => $staff->id,
-                            'phone' => $staff->phone_number,
+                            'phone' => $smsPhone,
                             'error' => $smsResult['error'] ?? 'Unknown SMS error',
                             'result' => $smsResult['result'] ?? null,
                         ]);

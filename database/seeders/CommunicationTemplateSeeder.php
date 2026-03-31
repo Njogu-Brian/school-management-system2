@@ -47,6 +47,13 @@ class CommunicationTemplateSeeder extends Seeder
                 'content' => "Dear {{staff_name}},\n\nWelcome to {{school_name}}!\nYour staff account has been created successfully.\n\nLogin URL: {{app_url}}\nEmail: {{login_email}}\n\nWe are excited to have you join our team.\n\nRegards,\n{{school_name}}",
             ],
             [
+                'code'    => 'password_reset_staff',
+                'title'   => 'Password Reset (Staff) (SMS)',
+                'type'    => 'sms',
+                'subject' => null,
+                'content' => "Dear {{name}},\n\nYour password has been reset.\nLogin: {{login}}\nNew Password: {{password}}\n\nPlease change your password after logging in.\n\n{{school_name}}",
+            ],
+            [
                 'code'    => 'staff_welcome_whatsapp',
                 'title'   => 'Welcome Staff (WhatsApp)',
                 'type'    => 'whatsapp',
@@ -59,6 +66,13 @@ class CommunicationTemplateSeeder extends Seeder
                 'type'    => 'email',
                 'subject' => 'Welcome to {{school_name}} – Staff Account Details',
                 'content' => "Dear {{staff_name}},\n\nWelcome to the {{school_name}} team!\n\nYour staff account has been set up. Below are your login details:\nLogin URL: {{app_url}}\nEmail: {{login_email}}\nTemporary Password: {{temporary_password}}\n\nPlease log in and update your profile.\n\nWe wish you success as {{staff_role}}.\n\nWarm regards,\n{{school_name}} Management",
+            ],
+            [
+                'code'    => 'password_reset_staff',
+                'title'   => 'Password Reset (Staff) (Email)',
+                'type'    => 'email',
+                'subject' => 'Password Reset – {{school_name}} Staff Account',
+                'content' => "Dear {{name}},\n\nYour password has been reset.\n\nLogin: {{login}}\nNew Password: {{password}}\n\nFor security, please change your password immediately after logging in.\n\nRegards,\n{{school_name}}",
             ],
 
             // Finance: payment received
