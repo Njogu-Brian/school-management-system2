@@ -20,10 +20,16 @@ class ExamResultController extends Controller
         $examSessionId = $request->query('exam_session_id');
         $examId = $request->query('exam_id');
 
-        $marks = ExamMark::with(['student', 'subject', 'exam'])
+        $marks = ExamMark::with(['student', 'subject', 'exam.examSession'])
             ->when($examId, fn ($q) => $q->where('exam_id', $examId))
             ->when(! $examId && $examSessionId, fn ($q) => $q->whereHas('exam', fn ($eq) => $eq->where('exam_session_id', $examSessionId)))
-            ->when(! $examId && ! $examSessionId && $examTypeId, fn ($q) => $q->whereHas('exam', fn ($eq) => $eq->where('exam_type_id', $examTypeId)))
+            ->when(! $examId && ! $examSessionId && $examTypeId, function ($q) use ($examTypeId) {
+                $tid = (int) $examTypeId;
+                $q->whereHas('exam', function ($eq) use ($tid) {
+                    $eq->where('exam_type_id', $tid)
+                        ->orWhereHas('examSession', fn ($es) => $es->where('exam_type_id', $tid));
+                });
+            })
             ->latest()
             ->paginate(50)
             ->withQueryString();
@@ -33,16 +39,22 @@ class ExamResultController extends Controller
             ->with(['examType', 'classroom', 'academicYear', 'term'])
             ->when($examTypeId, fn ($q) => $q->where('exam_type_id', $examTypeId))
             ->orderByDesc('id')
-            ->limit(200)
+            ->limit(500)
             ->get();
-        $papers = Exam::query()
-            ->with(['academicYear', 'term', 'subject'])
+        $papersQuery = Exam::query()
+            ->with(['academicYear', 'term', 'subject', 'examSession'])
             ->whereNotNull('subject_id')
             ->when($examSessionId, fn ($q) => $q->where('exam_session_id', $examSessionId))
-            ->when(! $examSessionId && $examTypeId, fn ($q) => $q->where('exam_type_id', $examTypeId))
-            ->orderByDesc('id')
-            ->limit(200)
-            ->get();
+            ->when(! $examSessionId && $examTypeId, function ($q) use ($examTypeId) {
+                $tid = (int) $examTypeId;
+                $q->where(function ($qq) use ($tid) {
+                    $qq->where('exam_type_id', $tid)
+                        ->orWhereHas('examSession', fn ($es) => $es->where('exam_type_id', $tid));
+                });
+            });
+
+        $paperLimit = ($examSessionId || $examTypeId) ? 800 : 200;
+        $papers = $papersQuery->orderByDesc('id')->limit($paperLimit)->get();
 
         return view('academics.exam_results.index', compact(
             'marks',
