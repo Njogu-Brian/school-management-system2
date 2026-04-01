@@ -56,15 +56,28 @@
                                       class="finance-form-control" 
                                       rows="5"
                                       placeholder="Enter header text/HTML for invoices">{{ old('invoice_header', $settings['invoice_header']) }}</textarea>
-                            <small class="form-text text-muted">This will appear at the top of all invoices</small>
+                            <small class="form-text text-muted">Single-invoice PDF: same placeholders as footer work here (per student).</small>
                         </div>
                         <div class="mb-3">
                             <label class="finance-form-label">Invoice Footer</label>
                             <textarea name="invoice_footer" 
                                       class="finance-form-control" 
-                                      rows="5"
+                                      rows="6"
                                       placeholder="Enter footer text/HTML for invoices">{{ old('invoice_footer', $settings['invoice_footer']) }}</textarea>
-                            <small class="form-text text-muted">This will appear at the bottom of all invoices</small>
+                            <small class="form-text text-muted d-block mt-1">
+                                Shown on printed/PDF invoices (single invoice and each student in bulk PDF). Placeholders are replaced per student, e.g.
+                                <code>@{{student_name}}</code>,
+                                <code>@{{admission_number}}</code>,
+                                <code>@{{class}}</code>,
+                                <code>@{{stream}}</code>,
+                                <code>@{{parent_phone}}</code>,
+                                <code>@{{parent_email}}</code>,
+                                <code>@{{guardian_name}}</code>,
+                                <code>@{{invoice_number}}</code>,
+                                <code>@{{year}}</code>,
+                                <code>@{{term}}</code>,
+                                <code>@{{school_phone}}</code> — use for payment/bank lines mixed with HTML.
+                            </small>
                         </div>
                     </div>
                 </div>

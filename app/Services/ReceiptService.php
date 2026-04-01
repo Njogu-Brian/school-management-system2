@@ -22,10 +22,10 @@ class ReceiptService
         $payment->load([
             'student.classroom',
             'student.family.updateLink',
-            'invoice',
+            'invoice.term.academicYear',
             'paymentMethod',
             'allocations.invoiceItem.votehead',
-            'allocations.invoiceItem.invoice'
+            'allocations.invoiceItem.invoice.term.academicYear',
         ]);
 
         // Get school settings and document header/footer
@@ -63,7 +63,7 @@ class ReceiptService
             }
         })
             ->where('status', 'active')
-            ->with(['invoice', 'votehead', 'allocations'])
+            ->with(['invoice.term', 'votehead', 'allocations'])
             ->get()
             ->filter(function ($item) {
                 return $item->getBalance() > 0; // Only unpaid items
@@ -141,26 +141,45 @@ class ReceiptService
             ->with('items') // Eager load items to avoid N+1
             ->get();
 
+        $invoices->loadMissing('term.academicYear');
         $totalInvoices = $invoices->sum('total');
+
+        $termLabels = $invoices
+            ->pluck('term')
+            ->filter()
+            ->unique('id')
+            ->map(function ($term) {
+                $year = $term->academicYear?->year;
+                $name = $term->name ?? '';
+
+                return trim($name . ($year ? ' (' . $year . ')' : ''));
+            })
+            ->filter()
+            ->values();
+        $receiptTermLabel = $termLabels->isEmpty() ? null : $termLabels->implode(', ');
+        $invoiceNumbersSummary = $invoices->pluck('invoice_number')->filter()->unique()->sort()->implode(', ');
 
         // Use receiptItems instead of allocations for template
         $allocations = $receiptItems;
         // Show this payment's actual receipt number (systematic: base for first, base-01, base-02 for siblings)
         $displayReceiptNumber = $payment->receipt_number;
+        $receiptDate = $payment->receipt_date ?? $payment->payment_date;
 
         return [
             'payment' => $payment,
             'school' => $schoolSettings,
             'branding' => $branding,
             'receipt_number' => $displayReceiptNumber,
-            'date' => $payment->payment_date->format('d/m/Y'),
+            'date' => $receiptDate ? $receiptDate->format('d/m/Y') : now()->format('d/m/Y'),
             'student' => $student,
             'allocations' => $allocations,
             'total_amount' => $payment->amount,
             'total_balance_before' => $totalBalanceBefore,
             'total_balance_after' => $totalBalanceAfter,
-            'total_outstanding_balance' => $totalOutstandingBalance, // Total across all voteheads
-            'total_invoices' => $totalInvoices, // Total of all invoices
+            'total_outstanding_balance' => $totalOutstandingBalance, // Global (e.g. Pay Now); receipt Balance row uses total_balance_after
+            'total_invoices' => $totalInvoices, // Invoices in this receipt's term context only
+            'receipt_term_label' => $receiptTermLabel,
+            'invoice_numbers_summary' => $invoiceNumbersSummary ?: null,
             'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
             'transaction_code' => $payment->transaction_code,
             'narration' => $payment->narration,

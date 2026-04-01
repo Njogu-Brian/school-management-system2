@@ -1270,6 +1270,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/',               [InvoiceController::class, 'index'])->name('index');
             Route::get('/create',         fn () => redirect()->route('finance.invoices.index'))->name('create');
             Route::post('/generate',      [InvoiceController::class, 'generate'])->name('generate');
+            Route::get('/export-csv',     [InvoiceController::class, 'exportCsv'])->name('export_csv');
+            Route::post('/carry-forward-prior-term', [InvoiceController::class, 'carryForwardPriorTermBalances'])->name('carry_forward_prior_term');
             Route::get('/{invoice}',      [InvoiceController::class, 'show'])->name('show');
             Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
             Route::put('/{invoice}',      [InvoiceController::class, 'update'])->name('update');

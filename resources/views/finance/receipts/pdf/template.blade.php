@@ -142,27 +142,31 @@
         }
         .allocations-table th:nth-child(2),
         .allocations-table td:nth-child(2) {
-            width: 12%;
+            width: 11%;
         }
         .allocations-table th:nth-child(3),
         .allocations-table td:nth-child(3) {
-            width: 25%;
+            width: 8%;
         }
         .allocations-table th:nth-child(4),
         .allocations-table td:nth-child(4) {
-            width: 12%;
+            width: 22%;
         }
         .allocations-table th:nth-child(5),
         .allocations-table td:nth-child(5) {
-            width: 10%;
+            width: 11%;
         }
         .allocations-table th:nth-child(6),
         .allocations-table td:nth-child(6) {
-            width: 13%;
+            width: 9%;
         }
         .allocations-table th:nth-child(7),
         .allocations-table td:nth-child(7) {
-            width: 15%;
+            width: 12%;
+        }
+        .allocations-table th:nth-child(8),
+        .allocations-table td:nth-child(8) {
+            width: 14%;
         }
         
         .total-section {

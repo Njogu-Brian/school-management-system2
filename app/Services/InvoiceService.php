@@ -47,10 +47,7 @@ class InvoiceService
                 $updateData['due_date'] = $dueDate;
             }
             $invoice->update($updateData);
-            // Ensure BBF is materialized for Term 1 2026+ even if invoice existed before import
-            if ($year >= 2026 && $term == 1) {
-                self::addBalanceBroughtForward($invoice, $student);
-            }
+            self::finalizeInvoiceAfterEnsure($invoice, $student, $year, $term);
             return $invoice;
         }
         
@@ -70,10 +67,7 @@ class InvoiceService
             if (!empty($updateData)) {
                 $invoice->update($updateData);
             }
-            // Ensure BBF is materialized for Term 1 2026+ even if invoice existed before import
-            if ($year >= 2026 && $term == 1) {
-                self::addBalanceBroughtForward($invoice, $student);
-            }
+            self::finalizeInvoiceAfterEnsure($invoice, $student, $year, $term);
             return $invoice;
         }
         
@@ -94,12 +88,9 @@ class InvoiceService
                 'issued_date' => now(),
                 'due_date' => $dueDate,
             ]);
-            
-            // Add balance brought forward for first term of 2026 (only if invoice was just created)
-            if ($year >= 2026 && $term == 1) {
-                self::addBalanceBroughtForward($invoice, $student);
-            }
-            
+
+            self::finalizeInvoiceAfterEnsure($invoice, $student, $year, $term);
+
             return $invoice;
         } catch (\Illuminate\Database\QueryException $e) {
             // Handle unique constraint violation (race condition)
@@ -118,6 +109,7 @@ class InvoiceService
                     if (!$invoice->term_id && $termModel) {
                         $invoice->update(['term_id' => $termModel->id]);
                     }
+                    self::finalizeInvoiceAfterEnsure($invoice, $student, $year, $term);
                     return $invoice;
                 }
             }
@@ -125,6 +117,154 @@ class InvoiceService
             // Re-throw if it's not a unique constraint violation
             throw $e;
         }
+    }
+
+    /**
+     * After an invoice is resolved in ensure(): legacy BBF on Term 1; prior-term arrears on Term 2+ (2026+).
+     */
+    private static function finalizeInvoiceAfterEnsure(Invoice $invoice, Student $student, int $year, int $term): void
+    {
+        if ($year < 2026) {
+            return;
+        }
+        if ($term === 1) {
+            self::addBalanceBroughtForward($invoice, $student);
+        }
+        if ($term >= 2) {
+            self::carryForwardPriorTermBalancesIfNeeded($invoice, $student);
+        }
+    }
+
+    /**
+     * Move outstanding balance from earlier term invoices (same year) onto this invoice without double-counting.
+     * Uses an internal payment allocated to prior items, then adds a single line on the current invoice.
+     */
+    private static function carryForwardPriorTermBalancesIfNeeded(Invoice $invoice, Student $student): void
+    {
+        if (($invoice->term ?? 0) < 2) {
+            return;
+        }
+
+        if (InvoiceItem::where('invoice_id', $invoice->id)->where('source', 'prior_term_carryforward')->exists()) {
+            return;
+        }
+
+        $year = (int) $invoice->year;
+        $txCode = 'TERM-CF-' . $year . '-T' . (int) $invoice->term . '-S' . $student->id;
+        if (Payment::where('transaction_code', $txCode)->exists()) {
+            return;
+        }
+
+        $priorInvoices = Invoice::where('student_id', $student->id)
+            ->where('year', $year)
+            ->where('term', '<', $invoice->term)
+            ->where('status', '!=', 'reversed')
+            ->orderBy('term')
+            ->get();
+
+        foreach ($priorInvoices as $inv) {
+            $inv->recalculate();
+        }
+
+        $priorInvoices = $priorInvoices->filter(fn ($inv) => ($inv->balance ?? 0) > 0.01);
+        if ($priorInvoices->isEmpty()) {
+            return;
+        }
+
+        $total = round((float) $priorInvoices->sum(fn ($inv) => (float) $inv->balance), 2);
+        if ($total <= 0) {
+            return;
+        }
+
+        DB::transaction(function () use ($invoice, $student, $priorInvoices, $total, $txCode) {
+            $allocations = [];
+            $remaining = $total;
+            foreach ($priorInvoices as $inv) {
+                foreach ($inv->items()->where('status', 'active')->get() as $item) {
+                    $bal = round((float) $item->getBalance(), 2);
+                    if ($bal <= 0) {
+                        continue;
+                    }
+                    $amt = round(min($remaining, $bal), 2);
+                    if ($amt <= 0) {
+                        continue;
+                    }
+                    $allocations[] = ['invoice_item_id' => $item->id, 'amount' => $amt];
+                    $remaining -= $amt;
+                    if ($remaining <= 0.001) {
+                        break 2;
+                    }
+                }
+            }
+
+            $allocSum = round(array_sum(array_column($allocations, 'amount')), 2);
+            if ($allocations === [] || abs($allocSum - $total) > 0.05) {
+                Log::warning('Prior term carry-forward skipped: allocation mismatch', [
+                    'invoice_id' => $invoice->id,
+                    'student_id' => $student->id,
+                    'total' => $total,
+                    'alloc_sum' => $allocSum,
+                ]);
+
+                return;
+            }
+
+            $payment = Payment::create([
+                'transaction_code' => $txCode,
+                'student_id' => $student->id,
+                'family_id' => $student->family_id,
+                'invoice_id' => null,
+                'amount' => $total,
+                'allocated_amount' => 0,
+                'unallocated_amount' => $total,
+                'payment_method' => 'Internal transfer',
+                'payment_channel' => 'term_balance_transfer',
+                'narration' => 'Prior term balance(s) cleared and moved to invoice ' . ($invoice->invoice_number ?? '#' . $invoice->id),
+                'payment_date' => now(),
+            ]);
+
+            app(PaymentAllocationService::class)->allocatePayment($payment, $allocations);
+
+            $votehead = Votehead::firstOrCreate(
+                ['code' => 'PRIOR_TERM_ARREARS'],
+                ['name' => 'Balance from prior term(s)', 'is_active' => true]
+            );
+
+            InvoiceItem::create([
+                'invoice_id' => $invoice->id,
+                'votehead_id' => $votehead->id,
+                'amount' => $total,
+                'discount_amount' => 0,
+                'status' => 'active',
+                'source' => 'prior_term_carryforward',
+                'effective_date' => $invoice->issued_date ?? now(),
+            ]);
+
+            $invoice->refresh();
+            self::recalc($invoice);
+            self::allocateUnallocatedPaymentsForStudent($student->id);
+        });
+    }
+
+    /**
+     * Run prior-term carry-forward for an existing invoice (backfill / manual). Idempotent.
+     *
+     * @return bool True if a new prior-term line was added on this run
+     */
+    public static function applyPriorTermCarryForwardIfNeeded(Invoice $invoice): bool
+    {
+        $invoice->loadMissing('student');
+        if (!$invoice->student) {
+            return false;
+        }
+        if (($invoice->year ?? 0) < 2026 || ($invoice->term ?? 0) < 2) {
+            return false;
+        }
+        $hadLine = InvoiceItem::where('invoice_id', $invoice->id)->where('source', 'prior_term_carryforward')->exists();
+        self::carryForwardPriorTermBalancesIfNeeded($invoice, $invoice->student);
+        $invoice->refresh();
+
+        return InvoiceItem::where('invoice_id', $invoice->id)->where('source', 'prior_term_carryforward')->exists() && !$hadLine;
     }
     
     /**

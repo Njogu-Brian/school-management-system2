@@ -142,10 +142,16 @@
 {{-- ============ BODY ============ --}}
 <table class="kv">
   <tr>
-    <th>Student</th>
-    <td>{{ $s->full_name ?? 'Unknown' }} (Adm: {{ $s->admission_number ?? '-' }})</td>
-    <th>Class / Stream</th>
-    <td>{{ $s->classroom->name ?? '-' }} / {{ $s->stream->name ?? '-' }}</td>
+    <th>Student name</th>
+    <td>{{ $s->full_name ?? 'Unknown' }}</td>
+    <th>Admission #</th>
+    <td>{{ $s->admission_number ?? '-' }}</td>
+  </tr>
+  <tr>
+    <th>Class</th>
+    <td>{{ $s->classroom->name ?? '-' }}</td>
+    <th>Stream</th>
+    <td>{{ $s->stream->name ?? '-' }}</td>
   </tr>
   <tr>
     <th>Period</th>

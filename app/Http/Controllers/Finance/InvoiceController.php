@@ -11,11 +11,14 @@ use App\Models\Votehead;
 use App\Services\DocumentNumberService;
 use App\Services\InvoiceService;
 use App\Services\UniformFeeService;
+use App\Services\InvoiceFooterPlaceholderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class InvoiceController extends Controller
 {
@@ -457,20 +460,145 @@ class InvoiceController extends Controller
     private function filteredInvoicesQuery(Request $request): Builder
     {
         return Invoice::query()
-            ->with(['student.classroom','student.stream','items.votehead'])
-            ->when($request->filled('year'), fn($q) => $q->where('year', $request->year))
-            ->when($request->filled('term'), fn($q) => $q->where('term', $request->term))
-            ->when($request->filled('student_id'), fn($q) => $q->where('student_id', $request->student_id))
-            ->when($request->filled('votehead_id'), fn($q) =>
-                $q->whereHas('items', fn($i) => $i->where('votehead_id', request('votehead_id')))
+            ->with(['student.classroom', 'student.stream', 'student.family', 'items.votehead', 'term', 'academicYear'])
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '<>', 'reversed');
+            })
+            ->when($request->filled('year'), fn ($q) => $q->where('year', $request->year))
+            ->when($request->filled('term'), fn ($q) => $q->where('term', $request->term))
+            ->when($request->filled('student_id'), fn ($q) => $q->where('student_id', $request->student_id))
+            ->when($request->filled('votehead_id'), fn ($q) =>
+                $q->whereHas('items', fn ($i) => $i->where('votehead_id', request('votehead_id')))
             )
-            ->when($request->filled('class_id'), fn($q) =>
-                $q->whereHas('student', fn($s) => $s->where('classroom_id', request('class_id'))->where('archive', 0)->where('is_alumni', false))
+            ->when($request->filled('class_id'), fn ($q) =>
+                $q->whereHas('student', fn ($s) => $s->where('classroom_id', request('class_id'))->where('archive', 0)->where('is_alumni', false))
             )
-            ->when($request->filled('stream_id'), fn($q) =>
-                $q->whereHas('student', fn($s) => $s->where('stream_id', request('stream_id'))->where('archive', 0)->where('is_alumni', false))
+            ->when($request->filled('stream_id'), fn ($q) =>
+                $q->whereHas('student', fn ($s) => $s->where('stream_id', request('stream_id'))->where('archive', 0)->where('is_alumni', false))
             )
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->orderByDesc('year')->orderByDesc('term')->orderBy('student_id');
+    }
+
+    /**
+     * Class → stream → first name (for bulk PDF/CSV).
+     */
+    private function sortInvoicesForExport(Collection $invoices): Collection
+    {
+        return $invoices->sortBy(function (Invoice $invoice) {
+            $s = $invoice->student;
+            if (!$s) {
+                return '~~~|~~~|~~~';
+            }
+            $class = strtolower(trim(optional($s->classroom)->name ?? '~~~'));
+            $stream = strtolower(trim(optional($s->stream)->name ?? ''));
+            $first = strtolower(trim($s->first_name ?? ''));
+
+            return sprintf('%s|%s|%s', $class, $stream, $first);
+        })->values();
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $request->validate([
+            'year' => 'required|integer',
+            'term' => 'required|in:1,2,3',
+            'votehead_id' => 'nullable|integer',
+            'class_id' => 'nullable|integer',
+            'stream_id' => 'nullable|integer',
+            'student_id' => 'nullable|integer',
+            'status' => 'nullable|in:unpaid,partial,paid',
+        ]);
+
+        $invoices = $this->sortInvoicesForExport($this->filteredInvoicesQuery($request)->get());
+        if ($invoices->isEmpty()) {
+            return redirect()
+                ->route('finance.invoices.index', $request->only(['year', 'term', 'votehead_id', 'class_id', 'stream_id', 'student_id', 'status']))
+                ->with('error', 'No invoices match the selected criteria for export.');
+        }
+
+        $filename = 'invoices-' . $request->year . '-T' . $request->term;
+        if ($request->filled('class_id')) {
+            $filename .= '-class-' . $request->class_id;
+        }
+        $filename .= '.csv';
+
+        return response()->streamDownload(function () use ($invoices) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, [
+                'Invoice #',
+                'Student full name',
+                'First name',
+                'Admission #',
+                'Class',
+                'Stream',
+                'Year',
+                'Term',
+                'Total',
+                'Paid',
+                'Balance',
+                'Status',
+            ]);
+            foreach ($invoices as $invoice) {
+                $invoice->recalculate();
+                $s = $invoice->student;
+                fputcsv($out, [
+                    $invoice->invoice_number,
+                    $s->full_name ?? '',
+                    $s->first_name ?? '',
+                    $s->admission_number ?? '',
+                    optional($s->classroom)->name ?? '',
+                    optional($s->stream)->name ?? '',
+                    $invoice->year,
+                    $invoice->term,
+                    number_format((float) $invoice->total, 2, '.', ''),
+                    number_format((float) $invoice->paid_amount, 2, '.', ''),
+                    number_format((float) $invoice->balance, 2, '.', ''),
+                    $invoice->status ?? '',
+                ]);
+            }
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    /**
+     * Backfill prior-term balances onto existing Term 2/3 invoices (same as ensure() would do).
+     */
+    public function carryForwardPriorTermBalances(Request $request)
+    {
+        $request->validate([
+            'year' => 'required|integer|min:2026',
+            'term' => 'required|in:2,3',
+            'class_id' => 'nullable|integer',
+        ]);
+
+        $q = Invoice::query()
+            ->where('year', (int) $request->year)
+            ->where('term', (int) $request->term)
+            ->where(function ($q2) {
+                $q2->whereNull('status')->orWhere('status', '<>', 'reversed');
+            })
+            ->with('student');
+
+        if ($request->filled('class_id')) {
+            $q->whereHas('student', fn ($s) => $s->where('classroom_id', (int) $request->class_id));
+        }
+
+        $applied = 0;
+        foreach ($q->get() as $invoice) {
+            if (InvoiceService::applyPriorTermCarryForwardIfNeeded($invoice)) {
+                $applied++;
+            }
+        }
+
+        return back()->with(
+            'success',
+            "Prior-term carry-forward completed. New arrears lines added on {$applied} invoice(s). " .
+            'Invoices with nothing to move or already processed were skipped.'
+        );
     }
 
     private function branding(): array
@@ -529,38 +657,55 @@ class InvoiceController extends Controller
 
     public function printBulk(Request $request)
     {
-        $invoices = $this->filteredInvoicesQuery($request)->get();
+        $invoices = $this->sortInvoicesForExport($this->filteredInvoicesQuery($request)->get());
         if ($invoices->isEmpty()) {
             return back()->with('error', 'No invoices found for the selected criteria.');
         }
 
-        $filters   = $request->only(['year','term','votehead_id','class_id','stream_id','student_id']);
-        $branding  = $this->branding();
+        $filters = $request->only(['year', 'term', 'votehead_id', 'class_id', 'stream_id', 'student_id']);
+        $branding = $this->branding();
         $printedBy = optional(auth()->user())->name ?? 'System';
         $printedAt = now();
         $invoiceHeader = \App\Models\Setting::get('invoice_header', '');
-        $invoiceFooter = \App\Models\Setting::get('invoice_footer', '');
+        $invoiceFooterTemplate = \App\Models\Setting::get('invoice_footer', '');
 
         $pdf = Pdf::loadView('finance.invoices.pdf.bulk', compact(
-            'invoices','filters','branding','printedBy','printedAt','invoiceHeader','invoiceFooter'
-        ))->setPaper('A4','portrait');
+            'invoices',
+            'filters',
+            'branding',
+            'printedBy',
+            'printedAt',
+            'invoiceHeader',
+            'invoiceFooterTemplate'
+        ))->setPaper('A4', 'portrait');
 
         return $pdf->stream('invoices.pdf');
     }
 
     public function printSingle(Invoice $invoice)
     {
-        $invoice->load(['student.classroom','student.stream','items.votehead']);
+        $invoice->load(['student.classroom', 'student.stream', 'student.family', 'items.votehead', 'term', 'academicYear']);
 
         $branding  = $this->branding();
         $printedBy = optional(auth()->user())->name ?? 'System';
         $printedAt = now();
-        $invoiceHeader = \App\Models\Setting::get('invoice_header', '');
-        $invoiceFooter = \App\Models\Setting::get('invoice_footer', '');
+        $invoiceHeader = InvoiceFooterPlaceholderService::replace(
+            \App\Models\Setting::get('invoice_header', ''),
+            $invoice
+        );
+        $invoiceFooter = InvoiceFooterPlaceholderService::replace(
+            \App\Models\Setting::get('invoice_footer', ''),
+            $invoice
+        );
 
         $pdf = Pdf::loadView('finance.invoices.pdf.single', compact(
-            'invoice','branding','printedBy','printedAt','invoiceHeader','invoiceFooter'
-        ))->setPaper('A4','portrait');
+            'invoice',
+            'branding',
+            'printedBy',
+            'printedAt',
+            'invoiceHeader',
+            'invoiceFooter'
+        ))->setPaper('A4', 'portrait');
 
         $filename = 'invoice-' . str_replace(['/', '\\'], '-', $invoice->invoice_number) . '.pdf';
         return $pdf->stream($filename);

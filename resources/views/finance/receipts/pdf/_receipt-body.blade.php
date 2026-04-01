@@ -77,6 +77,18 @@
         <td colspan="2"></td>
     </tr>
     @endif
+    @if(!empty($receipt_term_label ?? null))
+    <tr>
+        <td class="detail-label">Term (invoice):</td>
+        <td class="detail-value" colspan="3">{{ $receipt_term_label }}</td>
+    </tr>
+    @endif
+    @if(!empty($invoice_numbers_summary ?? null))
+    <tr>
+        <td class="detail-label">Invoice number(s):</td>
+        <td class="detail-value" colspan="3"><strong>{{ $invoice_numbers_summary }}</strong></td>
+    </tr>
+    @endif
 </table>
 
 <!-- Payment Allocations and Unpaid Voteheads -->
@@ -86,6 +98,7 @@
         <tr>
             <th>#</th>
             <th>Invoice Number</th>
+            <th>Term</th>
             <th>Votehead</th>
             <th class="text-right">Item Amount</th>
             <th class="text-right">Discount</th>
@@ -108,6 +121,7 @@
         <tr style="{{ $isPaid ? '' : 'background-color: #fff3cd;' }}">
             <td>{{ $loop->iteration }}</td>
             <td>{{ $invoice->invoice_number ?? 'N/A' }}</td>
+            <td style="font-size: 8px;">{{ optional($invoice->term)->name ?? '—' }}</td>
             <td>
                 {{ $votehead->name ?? 'N/A' }}
                 @if(!$isPaid)
@@ -140,10 +154,12 @@
         $amountPaid = $total_amount ?? $payment->amount;
         $totalOutstandingBalance = $total_outstanding_balance ?? 0;
         $totalInvoices = $total_invoices ?? 0;
-        $hasTotalOutstanding = $totalOutstandingBalance > 0;
+        $balanceAfterReceiptLines = $total_balance_after ?? null;
+        $receiptBalance = $balanceAfterReceiptLines !== null ? (float) $balanceAfterReceiptLines : (float) $totalOutstandingBalance;
+        $hasTotalOutstanding = $receiptBalance > 0;
     @endphp
     <div class="total-row">
-        <span>Total Invoices:</span>
+        <span>Total Invoices (this receipt):</span>
         <span><strong>Ksh {{ number_format($totalInvoices, 2) }}</strong></span>
     </div>
     <div class="total-row">
@@ -162,8 +178,8 @@
     @endif
     @if($hasTotalOutstanding)
     <div class="total-row grand-total" style="border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; color: {{ $brandDanger }};">
-        <span style="font-size: 12px; font-weight: bold;">Balance:</span>
-        <span style="font-size: 12px; font-weight: bold;">Ksh {{ number_format($totalOutstandingBalance, 2) }}</span>
+        <span style="font-size: 12px; font-weight: bold;">Balance (shown above):</span>
+        <span style="font-size: 12px; font-weight: bold;">Ksh {{ number_format($receiptBalance, 2) }}</span>
     </div>
     @else
     <div class="total-row grand-total" style="border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; color: {{ $brandSuccess }};">

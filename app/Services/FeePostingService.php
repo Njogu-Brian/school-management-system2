@@ -469,7 +469,7 @@ class FeePostingService
                 }
 
                 $invoice = InvoiceService::ensure($diff['student_id'], $year, $term);
-                // Note: Balance brought forward is automatically added in InvoiceService::ensure() for first term of 2026
+                // Note: InvoiceService::ensure() adds legacy BBF on Term 1 (2026+) and prior-term arrears on Term 2+ when applicable
                 
                 // Check if item already exists (check ALL sources first to avoid unique constraint violation)
                 // The unique constraint is on invoice_id + votehead_id, so we need to check all items

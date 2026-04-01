@@ -1,0 +1,236 @@
+{
+  "exam_marks": {
+    "before_count": 2355,
+    "after_count": 4282,
+    "added_total": 1927,
+    "removed_total": 0,
+    "changed_total": 301,
+    "added_ids_sample": [
+      2388,
+      2389,
+      2390,
+      2391,
+      2392,
+      2393,
+      2394,
+      2396,
+      2397,
+      2398,
+      2399,
+      2400,
+      2401,
+      2402,
+      2403,
+      2404,
+      2405,
+      2406,
+      2407,
+      2408,
+      2409,
+      2410,
+      2411,
+      2412,
+      2413,
+      2414,
+      2415,
+      2417,
+      2418,
+      2419,
+      2420,
+      2421,
+      2422,
+      2423,
+      2424,
+      2425,
+      2426,
+      2427,
+      2428,
+      2429,
+      2430,
+      2431,
+      2432,
+      2433,
+      2434,
+      2435,
+      2436,
+      2437,
+      2438,
+      2439
+    ],
+    "removed_ids_sample": [],
+    "changed_ids_sample": [
+      375,
+      376,
+      377,
+      378,
+      379,
+      380,
+      381,
+      382,
+      383,
+      384,
+      385,
+      386,
+      387,
+      388,
+      389,
+      390,
+      391,
+      392,
+      393,
+      394,
+      395,
+      396,
+      397,
+      398,
+      399,
+      400,
+      401,
+      402,
+      403,
+      404,
+      405,
+      406,
+      407,
+      408,
+      441,
+      442,
+      443,
+      444,
+      445,
+      446,
+      447,
+      448,
+      449,
+      450,
+      451,
+      452,
+      453,
+      454,
+      455,
+      456
+    ],
+    "changed_sample": [
+      {
+        "id": 375,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 376,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 377,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 378,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 379,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 380,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 381,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 382,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 383,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 384,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 385,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 386,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 387,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 388,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 389,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 390,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 391,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 392,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 393,
+        "changed_value_indexes": [
+          26
+        ]
+      },
+      {
+        "id": 394,
+        "changed_value_indexes": [
+          26
+        ]
+      }
+    ]
+  }
+}

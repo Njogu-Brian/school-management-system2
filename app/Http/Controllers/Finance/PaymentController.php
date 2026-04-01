@@ -2223,106 +2223,15 @@ class PaymentController extends Controller
             $receiptHeader = \App\Models\Setting::get('receipt_header', '');
             $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
             
-            // Prepare receipt data for each payment using the same format as ReceiptService
+            // Same data path as single-receipt PDF (term-scoped totals and line items)
+            $receiptService = app(\App\Services\ReceiptService::class);
             $receiptsData = [];
             foreach ($payments as $payment) {
-                $student = $payment->student;
-                
-                // Get ALL unpaid invoice items for the student (same as ReceiptService)
-                $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
-                    $q->where('student_id', $student->id);
-                })
-                ->where('status', 'active')
-                ->with(['invoice', 'votehead', 'allocations'])
-                ->get()
-                ->filter(function($item) {
-                    return $item->getBalance() > 0;
-                });
-                
-                // Get payment allocations for this specific payment
-                $paymentAllocations = $payment->allocations;
-                
-                // Build comprehensive receipt items (same as ReceiptService)
-                $receiptItems = collect();
-                
-                // First, add items that received payment from this payment
-                foreach ($paymentAllocations as $allocation) {
-                    $item = $allocation->invoiceItem;
-                    $itemAmount = $item->amount ?? 0;
-                    $discountAmount = $item->discount_amount ?? 0;
-                    $allocatedAmount = $allocation->amount;
-                    $balanceBefore = $item->getBalance() + $allocatedAmount;
-                    $balanceAfter = $item->getBalance();
-                    
-                    $receiptItems->push([
-                        'type' => 'paid',
-                        'allocation' => $allocation,
-                        'invoice' => $item->invoice ?? null,
-                        'votehead' => $item->votehead ?? null,
-                        'item_amount' => $itemAmount,
-                        'discount_amount' => $discountAmount,
-                        'allocated_amount' => $allocatedAmount,
-                        'balance_before' => $balanceBefore,
-                        'balance_after' => $balanceAfter,
-                    ]);
-                }
-                
-                // Then, add all other unpaid items
-                $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
-                foreach ($allUnpaidItems as $item) {
-                    if (in_array($item->id, $paidItemIds)) {
-                        continue;
-                    }
-                    
-                    $itemAmount = $item->amount ?? 0;
-                    $discountAmount = $item->discount_amount ?? 0;
-                    $balance = $item->getBalance();
-                    
-                    $receiptItems->push([
-                        'type' => 'unpaid',
-                        'allocation' => null,
-                        'invoice' => $item->invoice ?? null,
-                        'votehead' => $item->votehead ?? null,
-                        'item_amount' => $itemAmount,
-                        'discount_amount' => $discountAmount,
-                        'allocated_amount' => 0,
-                        'balance_before' => $balance,
-                        'balance_after' => $balance,
-                    ]);
-                }
-                
-                // Calculate totals
-                $totalBalanceBefore = $receiptItems->sum('balance_before');
-                $totalBalanceAfter = $receiptItems->sum('balance_after');
-                
-                // Calculate TOTAL outstanding balance including balance brought forward
-                $totalOutstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
-                
-                // Calculate total invoices
-                $invoices = \App\Models\Invoice::where('student_id', $student->id)
-                    ->with('items')
-                    ->get();
-                $totalInvoices = $invoices->sum('total');
-                
-                $receiptsData[] = [
-                    'payment' => $payment,
-                    'school' => $schoolSettings,
-                    'branding' => $branding,
-                    'receipt_number' => $payment->shared_receipt_number ?? $payment->receipt_number,
-                    'date' => $payment->payment_date->format('d/m/Y'),
-                    'student' => $student,
-                    'allocations' => $receiptItems,
-                    'total_amount' => $payment->amount,
-                    'total_balance_before' => $totalBalanceBefore,
-                    'total_balance_after' => $totalBalanceAfter,
-                    'total_outstanding_balance' => $totalOutstandingBalance,
-                    'total_invoices' => $totalInvoices,
-                    'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
-                    'transaction_code' => $payment->transaction_code,
-                    'narration' => $payment->narration,
-                    'receipt_header' => $receiptHeader,
-                    'receipt_footer' => $receiptFooter,
-                ];
+                $row = $receiptService->buildReceiptData($payment);
+                $row['receipt_number'] = $payment->shared_receipt_number ?? $row['receipt_number'];
+                $row['receipt_header'] = $receiptHeader;
+                $row['receipt_footer'] = $receiptFooter;
+                $receiptsData[] = $row;
             }
             
             return view('finance.receipts.bulk-print-pdf', [
@@ -2373,12 +2282,12 @@ class PaymentController extends Controller
         $payment->load([
             'student.classroom',
             'student.family.updateLink',
-            'invoice',
-            'paymentMethod', 
+            'invoice.term.academicYear',
+            'paymentMethod',
             'allocations.invoiceItem.votehead',
-            'allocations.invoiceItem.invoice'
+            'allocations.invoiceItem.invoice.term.academicYear',
         ]);
-        
+
         $student = $payment->student;
 
         // Ensure student has a family and profile update link (so Update Profile button shows)
@@ -2401,107 +2310,24 @@ class PaymentController extends Controller
                 $student->family->load('updateLink');
             }
         }
-        
-        // Get ALL unpaid invoice items for the student
-        $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
-            $q->where('student_id', $student->id);
-        })
-        ->where('status', 'active')
-        ->with(['invoice', 'votehead', 'allocations'])
-        ->get()
-        ->filter(function($item) {
-            return $item->getBalance() > 0;
-        });
-        
-        // Get payment allocations for this specific payment
-        $paymentAllocations = $payment->allocations;
-        
-        // Build comprehensive receipt items
-        $receiptItems = collect();
-        
-        // First, add items that received payment
-        foreach ($paymentAllocations as $allocation) {
-            $item = $allocation->invoiceItem;
-            $itemAmount = $item->amount ?? 0;
-            $discountAmount = $item->discount_amount ?? 0;
-            $allocatedAmount = $allocation->amount;
-            $balanceBefore = $item->getBalance() + $allocatedAmount;
-            $balanceAfter = $item->getBalance();
-            
-            $receiptItems->push([
-                'type' => 'paid',
-                'allocation' => $allocation,
-                'invoice' => $item->invoice ?? null,
-                'votehead' => $item->votehead ?? null,
-                'item_amount' => $itemAmount,
-                'discount_amount' => $discountAmount,
-                'allocated_amount' => $allocatedAmount,
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter,
-            ]);
-        }
-        
-        // Then, add all other unpaid items
-        $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
-        foreach ($allUnpaidItems as $item) {
-            if (in_array($item->id, $paidItemIds)) {
-                continue;
-            }
-            
-            $itemAmount = $item->amount ?? 0;
-            $discountAmount = $item->discount_amount ?? 0;
-            $balance = $item->getBalance();
-            
-            $receiptItems->push([
-                'type' => 'unpaid',
-                'allocation' => null,
-                'invoice' => $item->invoice ?? null,
-                'votehead' => $item->votehead ?? null,
-                'item_amount' => $itemAmount,
-                'discount_amount' => $discountAmount,
-                'allocated_amount' => 0,
-                'balance_before' => $balance,
-                'balance_after' => $balance,
-            ]);
-        }
-        
-        // Calculate totals
-        $totalBalanceBefore = $receiptItems->sum('balance_before');
-        $totalBalanceAfter = $receiptItems->sum('balance_after');
-        
-        // Calculate total outstanding balance and total invoices
-        $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
-        $totalOutstandingBalance = 0;
-        $totalInvoices = 0;
-        foreach ($invoices as $invoice) {
-            $invoice->recalculate();
-            $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
-            $totalInvoices += $invoice->total ?? 0;
-        }
-        
-        // Ensure payment has public_token for Pay Now link
+
+        $receiptData = app(\App\Services\ReceiptService::class)->buildReceiptData($payment);
+        $receiptData['receipt_number'] = $payment->shared_receipt_number ?? $receiptData['receipt_number'];
+
         if (!$payment->public_token) {
             $payment->public_token = Payment::generatePublicToken();
             $payment->save();
         }
 
-        // Get school settings and branding (including logo)
-        $schoolSettings = $this->getSchoolSettings();
-        $branding = $this->branding();
-        
-        return view('finance.receipts.view', compact(
-            'payment',
-            'schoolSettings',
-            'branding',
-            'totalBalanceBefore',
-            'totalBalanceAfter',
-            'totalOutstandingBalance',
-            'totalInvoices'
-        ))->with([
-            'allocations' => $receiptItems,
-            'total_outstanding_balance' => $totalOutstandingBalance,
-            'total_invoices' => $totalInvoices
-        ]);
+        return view('finance.receipts.view', [
+            'payment' => $payment,
+            'schoolSettings' => $receiptData['school'],
+            'branding' => $receiptData['branding'],
+            'totalBalanceBefore' => $receiptData['total_balance_before'],
+            'totalBalanceAfter' => $receiptData['total_balance_after'],
+            'totalOutstandingBalance' => $receiptData['total_outstanding_balance'],
+            'totalInvoices' => $receiptData['total_invoices'],
+        ])->with($receiptData);
     }
 
     /**
@@ -2517,38 +2343,33 @@ class PaymentController extends Controller
         
         $payment->load([
             'student.classroom',
-            'student.family.updateLink', // Load family and updateLink for profile update button
-            'invoice', 
-            'paymentMethod', 
+            'student.family.updateLink',
+            'invoice.term.academicYear',
+            'paymentMethod',
             'allocations.invoiceItem.votehead',
-            'allocations.invoiceItem.invoice'
+            'allocations.invoiceItem.invoice.term.academicYear',
         ]);
-        
+
         $student = $payment->student;
-        
+
         // Ensure student has a family (create if doesn't exist)
         if (!$student->family_id) {
-            // Create a family for the student if they don't have one
             $family = \App\Models\Family::create([
                 'guardian_name' => $student->first_name . ' ' . $student->last_name,
             ]);
             $student->update(['family_id' => $family->id]);
-            // Refresh student to get the new family relationship
             $student->refresh();
             $payment->refresh();
         }
-        
-        // Reload student with family and updateLink
+
         $student->load('family.updateLink');
-        
-        // Ensure family has an update link (create if doesn't exist)
+
         if ($student->family) {
             if (!$student->family->updateLink) {
                 \App\Models\FamilyUpdateLink::create([
                     'family_id' => $student->family->id,
                     'is_active' => true,
                 ]);
-                // Reload the relationship to ensure updateLink is available
                 $student->family->refresh();
                 $student->family->load('updateLink');
             }
@@ -2577,87 +2398,9 @@ class PaymentController extends Controller
                 'receiptFooter' => $first['receipt_footer'] ?? \App\Models\Setting::get('receipt_footer', ''),
             ]);
         }
-        
-        // Get ALL unpaid invoice items for the student
-        $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
-            $q->where('student_id', $student->id);
-        })
-        ->where('status', 'active')
-        ->with(['invoice', 'votehead', 'allocations'])
-        ->get()
-        ->filter(function($item) {
-            return $item->getBalance() > 0;
-        });
-        
-        // Get payment allocations for this specific payment
-        $paymentAllocations = $payment->allocations;
-        
-        // Build comprehensive receipt items
-        $receiptItems = collect();
-        
-        // First, add items that received payment
-        foreach ($paymentAllocations as $allocation) {
-            $item = $allocation->invoiceItem;
-            $itemAmount = $item->amount ?? 0;
-            $discountAmount = $item->discount_amount ?? 0;
-            $allocatedAmount = $allocation->amount;
-            $balanceBefore = $item->getBalance() + $allocatedAmount;
-            $balanceAfter = $item->getBalance();
-            
-            $receiptItems->push([
-                'type' => 'paid',
-                'allocation' => $allocation,
-                'invoice' => $item->invoice ?? null,
-                'votehead' => $item->votehead ?? null,
-                'item_amount' => $itemAmount,
-                'discount_amount' => $discountAmount,
-                'allocated_amount' => $allocatedAmount,
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter,
-            ]);
-        }
-        
-        // Then, add all other unpaid items
-        $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
-        foreach ($allUnpaidItems as $item) {
-            if (in_array($item->id, $paidItemIds)) {
-                continue;
-            }
-            
-            $itemAmount = $item->amount ?? 0;
-            $discountAmount = $item->discount_amount ?? 0;
-            $balance = $item->getBalance();
-            
-            $receiptItems->push([
-                'type' => 'unpaid',
-                'allocation' => null,
-                'invoice' => $item->invoice ?? null,
-                'votehead' => $item->votehead ?? null,
-                'item_amount' => $itemAmount,
-                'discount_amount' => $discountAmount,
-                'allocated_amount' => 0,
-                'balance_before' => $balance,
-                'balance_after' => $balance,
-            ]);
-        }
-        
-        // Calculate totals
-        $totalBalanceBefore = $receiptItems->sum('balance_before');
-        $totalBalanceAfter = $receiptItems->sum('balance_after');
-        
-        // Calculate total outstanding balance and total invoices
-        $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
-        $totalOutstandingBalance = 0;
-        $totalInvoices = 0;
-        foreach ($invoices as $invoice) {
-            $invoice->recalculate();
-            $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
-            $totalInvoices += $invoice->total ?? 0;
-        }
-        
-        // Get school settings and branding for receipt
-        $schoolSettings = $this->getSchoolSettings();
-        $branding = $this->branding();
+
+        $receiptData = app(\App\Services\ReceiptService::class)->buildReceiptData($payment);
+        $receiptData['receipt_number'] = $payment->shared_receipt_number ?? $receiptData['receipt_number'];
 
         $myReceiptsUrl = null;
         if ($student->family_id && class_exists(\App\Models\FamilyReceiptLink::class) && \Illuminate\Support\Facades\Route::has('receipts.my-receipts')) {
@@ -2667,21 +2410,17 @@ class PaymentController extends Controller
             );
             $myReceiptsUrl = route('receipts.my-receipts', $receiptLink->token);
         }
-        
-        return view('finance.receipts.public', compact(
-            'payment', 
-            'schoolSettings',
-            'branding',
-            'totalBalanceBefore',
-            'totalBalanceAfter',
-            'totalOutstandingBalance',
-            'totalInvoices'
-        ))->with([
-            'allocations' => $receiptItems,
-            'total_outstanding_balance' => $totalOutstandingBalance,
-            'total_invoices' => $totalInvoices,
+
+        return view('finance.receipts.public', [
+            'payment' => $payment,
+            'schoolSettings' => $receiptData['school'],
+            'branding' => $receiptData['branding'],
+            'totalBalanceBefore' => $receiptData['total_balance_before'],
+            'totalBalanceAfter' => $receiptData['total_balance_after'],
+            'totalOutstandingBalance' => $receiptData['total_outstanding_balance'],
+            'totalInvoices' => $receiptData['total_invoices'],
             'myReceiptsUrl' => $myReceiptsUrl,
-        ]);
+        ])->with($receiptData);
     }
 
     /**
