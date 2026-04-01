@@ -5,7 +5,7 @@
         'title' => 'Invoices',
         'icon' => 'bi bi-file-text',
         'subtitle' => 'Manage and track all student invoices',
-        'actions' => '<a href="' . route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print Bulk PDF</a>'
+        'actions' => '<a href="' . route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF (bulk)</a>'
     ])
 
     @includeIf('finance.invoices.partials.alerts')
@@ -96,6 +96,7 @@
                     <p class="small text-muted mb-2">
                         <strong>CSV export</strong> requires year and term. Uses the filters above (class, stream, student, votehead, status).
                         Rows are sorted by class, then stream, then first name. Includes full name, admission number, class, stream, totals.
+                        <strong>PDF (bulk)</strong> uses the same filters and order: A4, one invoice per page, class headings, line-level paid/balance, payments list, and current balance due.
                     </p>
                     @if(request()->filled('term'))
                         <a href="{{ route('finance.invoices.export_csv', array_merge(request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status']), ['year' => request('year', now()->year)])) }}"
@@ -150,7 +151,7 @@
                 onclick="openSendDocument('invoice', collectCheckedIds('.invoice-checkbox'))">
                 <i class="bi bi-send"></i> Send Selected
             </button>
-            <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) }}" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print Bulk PDF</a>
+            <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) }}" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF (bulk)</a>
         </div>
     </div>
 

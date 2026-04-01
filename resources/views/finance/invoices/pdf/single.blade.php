@@ -2,6 +2,7 @@
   $school = $branding ?? [];
   $logo   = $school['logoBase64'] ?? null;
   $s      = $invoice->student;
+  $paymentRows = $paymentRows ?? [];
   // Ensure brand vars exist (DomPDF may not share scope with included partial)
   $brandPrimary   = $brandPrimary ?? setting('finance_primary_color', '#3a1a59');
   $brandMuted     = $brandMuted ?? setting('finance_muted_color', '#6b7280');
@@ -78,7 +79,17 @@
   .b-active{ background:#c8e6c9; }
   .b-pending{ background:#ffe082; }
 
+  .summary{ margin-top:10px; border:1px solid {{ $brandPrimary }}; padding:10px 12px; background:#fafafa; }
+  .summary td{ padding:4px 0; }
+  .summary .lbl{ font-weight:600; width:55%; }
+  .summary .val{ text-align:right; font-weight:700; }
+
+  .paytbl{ margin-top:10px; font-size: {{ max(9, (int)$brandSmallFont - 1) }}px; }
+  .paytbl th, .paytbl td{ border:1px solid #ddd; padding:6px 8px; }
+  .paytbl thead th{ background: {{ $brandPrimary }}; color:#fff; }
+
   .pagenum:before{ content: counter(page) " / " counter(pages); }
+  .note-internal{ font-size:9px; color:#555; font-style:italic; }
 </style>
 </head>
 <body>
@@ -156,51 +167,98 @@
   <tr>
     <th>Period</th>
     <td>{{ $invoice->year }} / Term {{ $invoice->term }}</td>
-    <th></th>
-    <td></td>
+    <th>Status</th>
+    <td>{{ strtoupper($invoice->status ?? '—') }}</td>
   </tr>
 </table>
 
 <table class="items">
   <thead>
     <tr>
-      <th style="width:6%">#</th>
+      <th style="width:5%">#</th>
       <th>Votehead</th>
-      <th style="width:16%">Status</th>
-      <th style="width:18%">Effective</th>
-      <th style="width:16%" class="right">Amount</th>
+      <th style="width:12%" class="right">Charged</th>
+      <th style="width:10%" class="right">Discount</th>
+      <th style="width:12%" class="right">Paid (allocated)</th>
+      <th style="width:12%" class="right">Balance (line)</th>
     </tr>
   </thead>
   <tbody>
-    @php 
-      // Only show active items (pending items are excluded)
-      $activeItems = $invoice->items->filter(function($item) {
-          return ($item->status ?? 'active') === 'active';
-      });
-      $total=0; 
+    @php
+      $activeItems = $invoice->items->filter(fn ($item) => ($item->status ?? 'active') === 'active');
+      $sumPaidLines = 0;
+      $sumDue = 0;
     @endphp
-    @foreach($activeItems as $i=>$item)
-      @php $total+=$item->amount; $ed=$item->effective_date; @endphp
+    @foreach($activeItems as $i => $item)
+      @php
+        $disc = (float) ($item->discount_amount ?? 0);
+        $paidLine = $item->allocations->filter(fn ($a) => $a->payment && !$a->payment->reversed)->sum('amount');
+        $net = (float) $item->amount - $disc;
+        $dueLine = max(0, round($net - (float) $paidLine, 2));
+        $sumPaidLines += (float) $paidLine;
+        $sumDue += $dueLine;
+      @endphp
       <tr>
-        <td class="center">{{ $i+1 }}</td>
+        <td class="center">{{ $i + 1 }}</td>
         <td>{{ $item->votehead->name ?? 'Unknown' }}</td>
-        <td>
-          @if(($item->status ?? 'active')==='active')
-            <span class="badge b-active">Active</span>
-          @else
-            <span class="badge b-pending">Pending</span>
-          @endif
-        </td>
-        <td>{{ $ed ? (method_exists($ed,'format') ? $ed->format('Y-m-d') : $ed) : '-' }}</td>
-        <td class="right">{{ number_format($item->amount,2) }}</td>
+        <td class="right">{{ number_format($item->amount, 2) }}</td>
+        <td class="right">{{ $disc > 0 ? number_format($disc, 2) : '—' }}</td>
+        <td class="right">{{ number_format($paidLine, 2) }}</td>
+        <td class="right">{{ number_format($dueLine, 2) }}</td>
       </tr>
     @endforeach
     <tr class="total-row">
-      <th colspan="4" class="right">Total</th>
-      <th class="right">{{ number_format($total,2) }}</th>
+      <th colspan="2" class="right">Line totals</th>
+      <th class="right">{{ number_format($activeItems->sum(fn ($it) => (float) $it->amount), 2) }}</th>
+      <th class="right">{{ number_format($activeItems->sum(fn ($it) => (float) ($it->discount_amount ?? 0)), 2) }}</th>
+      <th class="right">{{ number_format($sumPaidLines, 2) }}</th>
+      <th class="right">{{ number_format($sumDue, 2) }}</th>
     </tr>
   </tbody>
 </table>
+
+<table class="summary">
+  <tr>
+    <td class="lbl">Invoice total (after discounts)</td>
+    <td class="val">KES {{ number_format((float) $invoice->total, 2) }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Total payments allocated to this invoice</td>
+    <td class="val">KES {{ number_format((float) $invoice->paid_amount, 2) }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">Current balance due</td>
+    <td class="val" style="color:{{ ($invoice->balance ?? 0) > 0 ? '#b00020' : '#1b5e20' }};">KES {{ number_format((float) $invoice->balance, 2) }}</td>
+  </tr>
+</table>
+
+<div style="margin-top:12px;">
+  <strong style="font-size:{{ $brandSmallFont }}px;">Payments applied to this invoice</strong>
+  @if(count($paymentRows) > 0)
+    <table class="paytbl">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Receipt</th>
+          <th>Method</th>
+          <th class="right">Amount (this invoice)</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($paymentRows as $pr)
+          <tr>
+            <td>{{ $pr['date'] ? \Carbon\Carbon::parse($pr['date'])->format('Y-m-d') : '—' }}</td>
+            <td>{{ $pr['receipt'] }}</td>
+            <td>{{ $pr['method'] }}@if(!empty($pr['is_internal'])) <span class="note-internal">(balance transfer)</span>@endif</td>
+            <td class="right">{{ number_format($pr['amount'], 2) }}</td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table>
+  @else
+    <p class="small muted" style="margin:6px 0 0 0;">No payments have been allocated to this invoice yet.</p>
+  @endif
+</div>
 
 </body>
 </html>

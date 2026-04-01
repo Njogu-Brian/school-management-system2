@@ -15,6 +15,7 @@ use App\Services\InvoiceFooterPlaceholderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
+use App\Models\PaymentAllocation;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -655,9 +656,55 @@ class InvoiceController extends Controller
         return compact('name','email','phone','website','address','logoBase64');
     }
 
+    /**
+     * Payments allocated to this invoice (for PDF/print), with amounts applied to this invoice only.
+     *
+     * @return array<int, array{date: mixed, receipt: string, method: string, amount: float, is_internal: bool}>
+     */
+    private function invoicePaymentRowsForPdf(Invoice $invoice): array
+    {
+        $groups = PaymentAllocation::query()
+            ->whereHas('invoiceItem', fn ($q) => $q->where('invoice_id', $invoice->id))
+            ->with(['payment.paymentMethod'])
+            ->get()
+            ->filter(fn ($a) => $a->payment && !$a->payment->reversed)
+            ->groupBy('payment_id');
+
+        $rows = [];
+        foreach ($groups as $group) {
+            $payment = $group->first()->payment;
+            $rows[] = [
+                'date' => $payment->payment_date,
+                'receipt' => (string) ($payment->receipt_number ?? ''),
+                'method' => $payment->paymentMethod->name ?? $payment->payment_method ?? '-',
+                'amount' => round((float) $group->sum('amount'), 2),
+                'is_internal' => ($payment->payment_channel ?? '') === 'term_balance_transfer',
+            ];
+        }
+
+        usort($rows, function ($a, $b) {
+            $da = $a['date'] ? \Carbon\Carbon::parse($a['date'])->timestamp : 0;
+            $db = $b['date'] ? \Carbon\Carbon::parse($b['date'])->timestamp : 0;
+
+            return $da <=> $db;
+        });
+
+        return $rows;
+    }
+
     public function printBulk(Request $request)
     {
-        $invoices = $this->sortInvoicesForExport($this->filteredInvoicesQuery($request)->get());
+        $invoices = $this->sortInvoicesForExport(
+            $this->filteredInvoicesQuery($request)->with([
+                'student.classroom',
+                'student.stream',
+                'student.family',
+                'items.votehead',
+                'items.allocations.payment.paymentMethod',
+                'term',
+                'academicYear',
+            ])->get()
+        );
         if ($invoices->isEmpty()) {
             return back()->with('error', 'No invoices found for the selected criteria.');
         }
@@ -669,8 +716,17 @@ class InvoiceController extends Controller
         $invoiceHeader = \App\Models\Setting::get('invoice_header', '');
         $invoiceFooterTemplate = \App\Models\Setting::get('invoice_footer', '');
 
+        $invoiceBundles = $invoices->map(function (Invoice $invoice) {
+            $invoice->recalculate();
+
+            return [
+                'invoice' => $invoice,
+                'payment_rows' => $this->invoicePaymentRowsForPdf($invoice),
+            ];
+        });
+
         $pdf = Pdf::loadView('finance.invoices.pdf.bulk', compact(
-            'invoices',
+            'invoiceBundles',
             'filters',
             'branding',
             'printedBy',
@@ -684,7 +740,17 @@ class InvoiceController extends Controller
 
     public function printSingle(Invoice $invoice)
     {
-        $invoice->load(['student.classroom', 'student.stream', 'student.family', 'items.votehead', 'term', 'academicYear']);
+        $invoice->load([
+            'student.classroom',
+            'student.stream',
+            'student.family',
+            'items.votehead',
+            'items.allocations.payment.paymentMethod',
+            'term',
+            'academicYear',
+        ]);
+        $invoice->recalculate();
+        $paymentRows = $this->invoicePaymentRowsForPdf($invoice);
 
         $branding  = $this->branding();
         $printedBy = optional(auth()->user())->name ?? 'System';
@@ -700,6 +766,7 @@ class InvoiceController extends Controller
 
         $pdf = Pdf::loadView('finance.invoices.pdf.single', compact(
             'invoice',
+            'paymentRows',
             'branding',
             'printedBy',
             'printedAt',

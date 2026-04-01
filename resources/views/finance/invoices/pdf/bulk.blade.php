@@ -1,24 +1,25 @@
 @php
   $school = $branding ?? [];
   $logo   = $school['logoBase64'] ?? null;
+  $invoiceBundles = $invoiceBundles ?? [];
 @endphp
 <!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>Invoices (Bulk)</title>
+<title>Invoices (Bulk PDF)</title>
 <style>
   *{ font-family: DejaVu Sans, sans-serif; }
-  body{ 
-    font-size: 11.5px; 
+  body{
+    font-size: 10.5px;
     color:#111;
     position: relative;
   }
-  @page { 
-    size: A4;
-    margin: 135px 24px 80px 24px;
+  @page {
+    size: A4 portrait;
+    margin: 135px 22px 78px 22px;
   }
-  
+
   .watermark {
     position: fixed;
     top: 50%;
@@ -31,41 +32,69 @@
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center center;
-    opacity: 0.2;
+    opacity: 0.15;
     z-index: 0;
     pointer-events: none;
   }
 
   .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; }
-  .footer{ position: fixed; bottom: -62px; left: 0; right: 0; height: 62px; color:#666; font-size: 10px; }
+  .footer{ position: fixed; bottom: -60px; left: 0; right: 0; height: 58px; color:#666; font-size: 9.5px; }
 
-  .h1{ font-size: 20px; font-weight: 700; margin:0; line-height:1.2; }
-  .small{ font-size: 10.5px; }
+  .h1{ font-size: 18px; font-weight: 700; margin:0; line-height:1.2; }
+  .small{ font-size: 9.5px; }
   .muted{ color:#666; }
   .sep{ border:0; border-top:1px solid #ccc; margin:6px 0 0 0; }
 
   table{ border-collapse: collapse; width:100%; }
   .hdr td{ vertical-align: top; }
   .hdr .logo { width: 100px; }
-  .hdr img { height: 80px; display:block; }
+  .hdr img { height: 72px; display:block; }
 
-  .filters{ margin-top: 4px; }
   .kv{ margin-top: 6px; table-layout: fixed; }
-  .kv th, .kv td{ border:1px solid #bbb; padding:6px 8px; }
-  .kv th{ background:#f5f5f5; width:22%; text-align:left; white-space:nowrap; }
-  .kv td{ width:28%; word-wrap: break-word; }
+  .kv th, .kv td{ border:1px solid #bbb; padding:5px 7px; }
+  .kv th{ background:#f5f5f5; width:18%; text-align:left; }
+  .kv td{ width:32%; word-wrap: break-word; }
 
-  .items{ margin-top: 8px; }
-  .items th, .items td{ border:1px solid #999; padding:7px 8px; }
-  .items th{ background:#f2f2f2; }
+  .class-banner{
+    background:#eceaf4;
+    border:1px solid #c4bdd4;
+    padding:6px 10px;
+    font-weight:700;
+    font-size:11px;
+    margin: 0 0 8px 0;
+    color:#333;
+  }
+
+  .invoice-page{
+    page-break-inside: avoid;
+  }
+
+  .items{ margin-top: 6px; font-size: 9.5px; }
+  .items th, .items td{ border:1px solid #999; padding:5px 5px; }
+  .items th{ background:#f2f2f2; font-size:9px; }
   .right{ text-align:right; }
   .center{ text-align:center; }
-  .badge{ padding:2px 6px; border-radius:3px; font-size:10.5px; display:inline-block; }
-  .b-active{ background:#c8e6c9; }
-  .b-pending{ background:#ffe082; }
 
-  .section{ page-break-inside: avoid; margin-bottom: 16px; }
+  .summary{
+    margin-top:8px;
+    border:1px solid #333;
+    padding:8px 10px;
+    background:#fafafa;
+  }
+  .summary table{ width:100%; }
+  .summary td{ padding:3px 0; }
+  .summary .label{ font-weight:700; width:55%; }
+  .summary .amt{ text-align:right; font-weight:700; }
+
+  .paytbl{ margin-top:6px; font-size:9.5px; }
+  .paytbl th, .paytbl td{ border:1px solid #999; padding:5px 6px; }
+  .paytbl th{ background:#e8f4e8; }
+
+  .inv-title{ font-size:12px; font-weight:700; margin:4px 0 6px 0; color:#222; }
+
   .pagenum:before{ content: counter(page) " / " counter(pages); }
+
+  .note-internal{ font-size:8.5px; color:#555; font-style:italic; }
 </style>
 </head>
 <body>
@@ -77,7 +106,7 @@
 <div class="watermark" style="background-image: url('{!! $watermarkLogo !!}');"></div>
 @endif
 
-{{-- HEADER --}}
+{{-- Fixed header on every page --}}
 <div class="header">
   <table class="hdr">
     <tr>
@@ -100,38 +129,50 @@
         @if(!empty($invoiceHeader ?? ''))
           <div class="small muted">{!! $invoiceHeader !!}</div>
         @endif
-        <div class="small muted filters">
-          Filters:
-          @foreach(['year'=>'Year','term'=>'Term','votehead_id'=>'Votehead ID','class_id'=>'Class','stream_id'=>'Stream','student_id'=>'Student'] as $k=>$l)
+        <div class="small muted">
+          Export filters:
+          @foreach(['year'=>'Year','term'=>'Term','votehead_id'=>'Votehead','class_id'=>'Class','stream_id'=>'Stream','student_id'=>'Student','status'=>'Status'] as $k=>$l)
             @if(!empty($filters[$k])) {{ $l }}={{ $filters[$k] }}; @endif
           @endforeach
+          Sorted by class, stream, first name.
         </div>
         <hr class="sep">
       </td>
-      <td style="width:170px; text-align:right;">
-        <div class="small muted">Date: {{ ($printedAt ?? now())->format('Y-m-d') }}</div>
-        <div class="small muted">Time: {{ ($printedAt ?? now())->format('H:i') }}</div>
+      <td style="width:160px; text-align:right;">
+        <div class="small muted">Run: {{ ($printedAt ?? now())->format('Y-m-d H:i') }}</div>
       </td>
     </tr>
   </table>
 </div>
 
-{{-- FOOTER --}}
+{{-- Fixed footer on every page --}}
 <div class="footer">
   <hr class="sep">
   <table>
     <tr>
       <td>Generated by: <strong>{{ $printedBy ?? 'System' }}</strong></td>
-      <td class="center muted">Printed: {{ ($printedAt ?? now())->format('Y-m-d H:i') }}</td>
+      <td class="center muted">A4 · one invoice per page</td>
       <td class="right muted">Page <span class="pagenum"></span></td>
     </tr>
   </table>
 </div>
 
-{{-- BODY --}}
-@foreach($invoices as $invoice)
-  @php $s = $invoice->student; @endphp
-  <div class="section">
+@php $lastClassId = null; @endphp
+@foreach($invoiceBundles as $bundle)
+  @php
+    $invoice = $bundle['invoice'];
+    $payment_rows = $bundle['payment_rows'] ?? [];
+    $s = $invoice->student;
+    $classId = $s->classroom_id ?? null;
+  @endphp
+  <div class="invoice-page" @if(!$loop->last) style="page-break-after: always;" @endif>
+    @if($classId !== $lastClassId)
+      @php $lastClassId = $classId; @endphp
+      <div class="class-banner">Class: {{ $s->classroom->name ?? '—' }}</div>
+    @endif
+
+    <div class="inv-title">Fee invoice</div>
+
     <table class="kv">
       <tr>
         <th>Student name</th>
@@ -151,48 +192,105 @@
         <th>Period</th>
         <td>{{ $invoice->year }} / Term {{ $invoice->term }}</td>
       </tr>
+      <tr>
+        <th>Status</th>
+        <td colspan="3">{{ strtoupper($invoice->status ?? '—') }}</td>
+      </tr>
     </table>
 
     <table class="items">
       <thead>
         <tr>
-          <th style="width:6%">#</th>
+          <th style="width:4%">#</th>
           <th>Votehead</th>
-          <th style="width:16%">Status</th>
-          <th style="width:18%">Effective</th>
-          <th style="width:16%" class="right">Amount</th>
+          <th style="width:12%" class="right">Charged</th>
+          <th style="width:10%" class="right">Discount</th>
+          <th style="width:12%" class="right">Paid (allocated)</th>
+          <th style="width:12%" class="right">Balance (line)</th>
         </tr>
       </thead>
       <tbody>
-        @php 
-          // Only show active items (pending items are excluded)
-          $activeItems = $invoice->items->filter(function($item) {
-              return ($item->status ?? 'active') === 'active';
-          });
-          $total=0; 
+        @php
+          $activeItems = $invoice->items->filter(fn($item) => ($item->status ?? 'active') === 'active');
+          $sumPaidLines = 0; $sumDue = 0;
         @endphp
-        @foreach($activeItems as $i=>$item)
-          @php $total+=$item->amount; $ed=$item->effective_date; @endphp
+        @foreach($activeItems as $i => $item)
+          @php
+            $disc = (float) ($item->discount_amount ?? 0);
+            $net = (float) $item->amount - $disc;
+            $paidLine = $item->allocations->filter(fn($a) => $a->payment && !$a->payment->reversed)->sum('amount');
+            $dueLine = max(0, round($net - (float) $paidLine, 2));
+            $sumNet += $net;
+            $sumPaidLines += (float) $paidLine;
+            $sumDue += $dueLine;
+          @endphp
           <tr>
-            <td class="center">{{ $i+1 }}</td>
-            <td>{{ $item->votehead->name ?? 'Unknown' }}</td>
-            <td>
-              @if(($item->status ?? 'active')==='active')
-                <span class="badge b-active">Active</span>
-              @else
-                <span class="badge b-pending">Pending</span>
-              @endif
-            </td>
-            <td>{{ $ed ? (method_exists($ed,'format') ? $ed->format('Y-m-d') : $ed) : '-' }}</td>
-            <td class="right">{{ number_format($item->amount,2) }}</td>
+            <td class="center">{{ $i + 1 }}</td>
+            <td>{{ $item->votehead->name ?? '—' }}</td>
+            <td class="right">{{ number_format($item->amount, 2) }}</td>
+            <td class="right">{{ $disc > 0 ? number_format($disc, 2) : '—' }}</td>
+            <td class="right">{{ number_format($paidLine, 2) }}</td>
+            <td class="right">{{ number_format($dueLine, 2) }}</td>
           </tr>
         @endforeach
         <tr>
-          <th colspan="4" class="right">Total</th>
-          <th class="right">{{ number_format($total,2) }}</th>
+          <th colspan="2" class="right">Totals (lines)</th>
+          <th class="right">{{ number_format($activeItems->sum(fn($it) => (float)$it->amount), 2) }}</th>
+          <th class="right">{{ number_format($activeItems->sum(fn($it) => (float)($it->discount_amount ?? 0)), 2) }}</th>
+          <th class="right">{{ number_format($sumPaidLines, 2) }}</th>
+          <th class="right">{{ number_format($sumDue, 2) }}</th>
         </tr>
       </tbody>
     </table>
+
+    <div class="summary">
+      <table>
+        <tr>
+          <td class="label">Invoice total (after discounts)</td>
+          <td class="amt">KES {{ number_format((float) $invoice->total, 2) }}</td>
+        </tr>
+        <tr>
+          <td class="label">Total payments allocated to this invoice</td>
+          <td class="amt">KES {{ number_format((float) $invoice->paid_amount, 2) }}</td>
+        </tr>
+        <tr>
+          <td class="label">Current balance due</td>
+          <td class="amt" style="color:{{ ($invoice->balance ?? 0) > 0 ? '#b00020' : '#1b5e20' }};">KES {{ number_format((float) $invoice->balance, 2) }}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="margin-top:8px;">
+      <strong style="font-size:10px;">Payments applied to this invoice</strong>
+      @if(count($payment_rows) > 0)
+        <table class="paytbl">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Receipt</th>
+              <th>Method</th>
+              <th class="right">Amount (this invoice)</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($payment_rows as $pr)
+              <tr>
+                <td>{{ $pr['date'] ? \Carbon\Carbon::parse($pr['date'])->format('Y-m-d') : '—' }}</td>
+                <td>{{ $pr['receipt'] }}</td>
+                <td>{{ $pr['method'] }}@if(!empty($pr['is_internal'])) <span class="note-internal">(balance transfer)</span>@endif</td>
+                <td class="right">{{ number_format($pr['amount'], 2) }}</td>
+              </tr>
+            @endforeach
+          </tbody>
+        </table>
+      @else
+        <p class="small muted" style="margin:4px 0;">No payments have been allocated to this invoice yet.</p>
+      @endif
+    </div>
+
+    @if(!empty($invoiceFooterTemplate ?? ''))
+      <div class="muted" style="margin-top:10px; font-size:9px;">{!! \App\Services\InvoiceFooterPlaceholderService::replace($invoiceFooterTemplate, $invoice) !!}</div>
+    @endif
   </div>
 @endforeach
 
