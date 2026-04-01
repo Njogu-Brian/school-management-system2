@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'user-access' => \App\Http\Middleware\UserAccess::class,
             'log.activity' => \App\Http\Middleware\LogActivity::class,
+            'long_pdf_export' => \App\Http\Middleware\AllowLongRunningPdfExport::class,
 
             // Spatie Laravel-Permission middleware
             'role' => \App\Http\Middleware\DirectorRoleMiddleware::class,

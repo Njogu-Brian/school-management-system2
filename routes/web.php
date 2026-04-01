@@ -1274,7 +1274,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/carry-forward-prior-term', [InvoiceController::class, 'carryForwardPriorTermBalances'])->name('carry_forward_prior_term');
 
             // Literal paths must be registered BEFORE /{invoice} or "print", "import", etc. match as invoice IDs (404).
-            Route::get('/print',            [InvoiceController::class, 'printBulk'])->name('print');
+            Route::get('/print', [InvoiceController::class, 'printBulk'])
+                ->middleware('long_pdf_export')
+                ->name('print');
             Route::get('/import', [InvoiceController::class, 'importForm'])->name('import.form');
             Route::post('/import',[InvoiceController::class, 'import'])->name('import');
             Route::get('/adjustments/import', [InvoiceAdjustmentController::class, 'importForm'])->name('adjustments.import.form');

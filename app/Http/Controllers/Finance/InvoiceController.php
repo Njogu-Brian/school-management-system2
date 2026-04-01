@@ -511,7 +511,11 @@ class InvoiceController extends Controller
             'status' => 'nullable|in:unpaid,partial,paid',
         ]);
 
-        $invoices = $this->sortInvoicesForExport($this->filteredInvoicesQuery($request)->get());
+        $invoices = $this->sortInvoicesForExport(
+            $this->filteredInvoicesQuery($request)
+                ->with(['items.allocations.payment.paymentMethod'])
+                ->get()
+        );
         if ($invoices->isEmpty()) {
             return redirect()
                 ->route('finance.invoices.index', $request->only(['year', 'term', 'votehead_id', 'class_id', 'stream_id', 'student_id', 'status']))
@@ -542,7 +546,7 @@ class InvoiceController extends Controller
                 'Status',
             ]);
             foreach ($invoices as $invoice) {
-                $invoice->recalculate();
+                $invoice->fillTotalsFromLoadedRelations();
                 $s = $invoice->student;
                 fputcsv($out, [
                     $invoice->invoice_number,
@@ -692,6 +696,60 @@ class InvoiceController extends Controller
         return $rows;
     }
 
+    /**
+     * Same as invoicePaymentRowsForPdf(), but one query for many invoices (bulk PDF/CSV).
+     *
+     * @return array<int, array<int, array{date: mixed, receipt: string, method: string, amount: float, is_internal: bool}>>
+     */
+    private function invoicePaymentRowsForPdfBatch(Collection $invoices): array
+    {
+        $ids = $invoices->pluck('id')->filter()->values()->all();
+        if ($ids === []) {
+            return [];
+        }
+
+        $allocations = PaymentAllocation::query()
+            ->whereHas('invoiceItem', fn ($q) => $q->whereIn('invoice_id', $ids))
+            ->with(['invoiceItem:id,invoice_id', 'payment.paymentMethod'])
+            ->get()
+            ->filter(fn ($a) => $a->payment && !$a->payment->reversed);
+
+        $byInvoice = [];
+        foreach ($allocations as $a) {
+            $iid = (int) ($a->invoiceItem->invoice_id ?? 0);
+            if ($iid < 1) {
+                continue;
+            }
+            $byInvoice[$iid] ??= collect();
+            $byInvoice[$iid]->push($a);
+        }
+
+        $out = [];
+        foreach ($ids as $invoiceId) {
+            $groups = ($byInvoice[$invoiceId] ?? collect())->groupBy('payment_id');
+            $rows = [];
+            foreach ($groups as $group) {
+                $payment = $group->first()->payment;
+                $rows[] = [
+                    'date' => $payment->payment_date,
+                    'receipt' => (string) ($payment->receipt_number ?? ''),
+                    'method' => $payment->paymentMethod->name ?? $payment->payment_method ?? '-',
+                    'amount' => round((float) $group->sum('amount'), 2),
+                    'is_internal' => ($payment->payment_channel ?? '') === 'term_balance_transfer',
+                ];
+            }
+            usort($rows, function ($a, $b) {
+                $da = $a['date'] ? \Carbon\Carbon::parse($a['date'])->timestamp : 0;
+                $db = $b['date'] ? \Carbon\Carbon::parse($b['date'])->timestamp : 0;
+
+                return $da <=> $db;
+            });
+            $out[$invoiceId] = $rows;
+        }
+
+        return $out;
+    }
+
     public function printBulk(Request $request)
     {
         $invoices = $this->sortInvoicesForExport(
@@ -716,12 +774,14 @@ class InvoiceController extends Controller
         $invoiceHeader = \App\Models\Setting::get('invoice_header', '');
         $invoiceFooterTemplate = \App\Models\Setting::get('invoice_footer', '');
 
-        $invoiceBundles = $invoices->map(function (Invoice $invoice) {
-            $invoice->recalculate();
+        $paymentRowsByInvoice = $this->invoicePaymentRowsForPdfBatch($invoices);
+
+        $invoiceBundles = $invoices->map(function (Invoice $invoice) use ($paymentRowsByInvoice) {
+            $invoice->fillTotalsFromLoadedRelations();
 
             return [
                 'invoice' => $invoice,
-                'payment_rows' => $this->invoicePaymentRowsForPdf($invoice),
+                'payment_rows' => $paymentRowsByInvoice[$invoice->id] ?? [],
             ];
         });
 

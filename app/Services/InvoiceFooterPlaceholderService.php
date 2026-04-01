@@ -11,6 +11,18 @@ use App\Models\Student;
  */
 class InvoiceFooterPlaceholderService
 {
+    /** @var array<string, mixed> */
+    private static array $settingCache = [];
+
+    private static function setting(string $key, mixed $default = null): mixed
+    {
+        if (! array_key_exists($key, self::$settingCache)) {
+            self::$settingCache[$key] = Setting::get($key, $default);
+        }
+
+        return self::$settingCache[$key];
+    }
+
     /**
      * @param  string  $content  Raw HTML/text from settings
      */
@@ -54,10 +66,10 @@ class InvoiceFooterPlaceholderService
             'year' => (string) ($invoice->year ?? ''),
             'term' => (string) ($invoice->term ?? ''),
             'term_name' => optional($invoice->term)->name ?? '',
-            'school_name' => Setting::get('school_name', ''),
-            'school_phone' => Setting::get('school_phone', ''),
-            'school_email' => Setting::get('school_email', ''),
-            'school_address' => Setting::get('school_address', ''),
+            'school_name' => self::setting('school_name', ''),
+            'school_phone' => self::setting('school_phone', ''),
+            'school_email' => self::setting('school_email', ''),
+            'school_address' => self::setting('school_address', ''),
         ];
 
         $out = $content;

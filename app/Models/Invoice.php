@@ -152,6 +152,49 @@ class Invoice extends Model
         $this->updatePaymentStatuses();
         $this->autoAllocateUnallocatedPayments();
     }
+
+    /**
+     * Set total, paid_amount, balance, and status on this instance from eager-loaded items/allocations.
+     * Does not persist. Use for read-only bulk exports instead of recalculate() (which refreshes, saves, and updates related payments).
+     *
+     * @see self::recalculate() for persisted totals when data must be written.
+     */
+    public function fillTotalsFromLoadedRelations(): void
+    {
+        if (!$this->relationLoaded('items')) {
+            return;
+        }
+
+        $activeItems = $this->items->filter(fn ($item) => ($item->status ?? 'active') === 'active');
+        $total = (float) $activeItems->sum(fn ($item) => (float) $item->amount - (float) ($item->discount_amount ?? 0));
+        $total = max(0, $total - (float) ($this->discount_amount ?? 0));
+
+        $paid = 0.0;
+        foreach ($activeItems as $item) {
+            if (!$item->relationLoaded('allocations')) {
+                continue;
+            }
+            foreach ($item->allocations as $a) {
+                if ($a->payment && !$a->payment->reversed) {
+                    $paid += (float) $a->amount;
+                }
+            }
+        }
+
+        $balance = max(0, $total - $paid);
+
+        $this->setAttribute('total', $total);
+        $this->setAttribute('paid_amount', $paid);
+        $this->setAttribute('balance', $balance);
+
+        if ($balance <= 0 && $paid > 0) {
+            $this->setAttribute('status', 'paid');
+        } elseif ($paid > 0) {
+            $this->setAttribute('status', 'partial');
+        } else {
+            $this->setAttribute('status', 'unpaid');
+        }
+    }
     
     /**
      * Update payment statuses for all payments related to this invoice
