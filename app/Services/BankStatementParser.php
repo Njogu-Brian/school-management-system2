@@ -114,6 +114,40 @@ class BankStatementParser
             $payerName = $this->extractPayerName($particulars);
             $phoneNumber = $this->extractPhoneNumber($particulars);
             
+            // IMPORTANT: avoid creating duplicates when a Payment already exists and is already linked elsewhere.
+            // This happens frequently for Equity statements when older imports used phone-like refs and later re-imports use real Transaction Reference.
+            if ($transactionCode) {
+                // Equity transaction references are expected to be unique; prefer skipping on ref alone.
+                if ($bankType === 'equity') {
+                    $existingByRef = BankStatementTransaction::where('reference_number', $transactionCode)
+                        ->where('is_duplicate', false)
+                        ->first();
+                    if ($existingByRef) {
+                        $duplicates++;
+                        continue;
+                    }
+                }
+
+                $existingPayment = Payment::where('transaction_code', $transactionCode)
+                    ->where('reversed', false)
+                    ->whereNull('deleted_at')
+                    ->first();
+
+                if ($existingPayment) {
+                    $linked = BankStatementTransaction::where('payment_id', $existingPayment->id)->exists();
+                    if (! $linked && \Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids')) {
+                        // linked_payment_ids is cast to array on the model, but stored as JSON; use a simple LIKE match for safety (mariadb).
+                        $linked = BankStatementTransaction::whereNotNull('linked_payment_ids')
+                            ->where('linked_payment_ids', 'LIKE', '%"' . (int) $existingPayment->id . '"%')
+                            ->exists();
+                    }
+                    if ($linked) {
+                        $duplicates++;
+                        continue;
+                    }
+                }
+            }
+
             // STEP 1: Check for duplicates in BOTH transaction tables using reference_number
             // If found in either table, skip creating a new transaction
             $isDuplicate = false;
@@ -210,10 +244,12 @@ class BankStatementParser
             }
             
             // STEP 3: Check if a payment exists with this transaction reference number
+            // (Note: if a payment exists but is already linked, we already skipped above.)
             $existingPayment = null;
             if ($transactionCode) {
                 $existingPayment = Payment::where('transaction_code', $transactionCode)
                     ->where('reversed', false)
+                    ->whereNull('deleted_at')
                     ->first();
             }
             

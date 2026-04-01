@@ -6095,36 +6095,62 @@ class BankStatementController extends Controller
                 ->with('success', 'C2B transaction deleted successfully.');
         }
         
-        DB::transaction(function () use ($transaction) {
-            // Get all transactions from the same statement file
-            $statementTransactions = BankStatementTransaction::where('statement_file_path', $transaction->statement_file_path)
-                ->get();
+        $statementPath = $transaction->statement_file_path;
+        if (! $statementPath) {
+            // Fallback to legacy behavior (single record delete)
+            $transaction->delete();
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('success', 'Transaction deleted successfully.');
+        }
 
-            // Delete all related payments
-            foreach ($statementTransactions as $txn) {
+        $result = DB::transaction(function () use ($statementPath) {
+            // Delete ONLY transactions that do not have an active payment linked.
+            // "Active payment" means: payment_id exists AND payment is not reversed and not soft-deleted.
+            $all = BankStatementTransaction::where('statement_file_path', $statementPath)->get();
+
+            $deletedIds = [];
+            $preservedIds = [];
+
+            foreach ($all as $txn) {
+                $payment = null;
                 if ($txn->payment_id) {
-                    $payment = \App\Models\Payment::find($txn->payment_id);
-                    if ($payment) {
-                        // Delete payment allocations first
-                        \App\Models\PaymentAllocation::where('payment_id', $payment->id)->delete();
-                        // Delete the payment
-                        $payment->delete();
-                    }
+                    $payment = \App\Models\Payment::withTrashed()->find($txn->payment_id);
                 }
+
+                $hasActivePayment = (bool) ($payment && !$payment->reversed && $payment->deleted_at === null);
+
+                if ($hasActivePayment) {
+                    $preservedIds[] = $txn->id;
+                    continue;
+                }
+
+                // Safe to delete: unlinked, reversed, or deleted payment.
+                // Do NOT delete the payment record here; only the statement transaction.
+                $deletedIds[] = $txn->id;
+                $txn->delete();
             }
 
-            // Delete the PDF file
-            if ($transaction->statement_file_path && storage_private()->exists($transaction->statement_file_path)) {
-                storage_private()->delete($transaction->statement_file_path);
+            // Only delete the PDF if there are no preserved (linked) transactions remaining
+            if (empty($preservedIds) && storage_private()->exists($statementPath)) {
+                storage_private()->delete($statementPath);
             }
 
-            // Delete all transactions from this statement
-            BankStatementTransaction::where('statement_file_path', $transaction->statement_file_path)
-                ->delete();
+            return [
+                'deleted' => count($deletedIds),
+                'preserved' => count($preservedIds),
+            ];
         });
+
+        $msg = "Statement cleanup complete. Deleted {$result['deleted']} transaction(s).";
+        if ($result['preserved'] > 0) {
+            $msg .= " Preserved {$result['preserved']} linked transaction(s).";
+        } else {
+            $msg .= " PDF removed.";
+        }
 
         return redirect()
             ->route('finance.bank-statements.index')
-            ->with('success', 'Statement and all related records deleted successfully.');
+            ->with('success', $msg);
     }
 }

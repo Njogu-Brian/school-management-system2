@@ -239,6 +239,16 @@
                                    class="btn btn-finance btn-finance-primary btn-sm">
                                     <i class="bi bi-list-ul"></i> View Transactions
                                 </a>
+                                @if($firstTransaction)
+                                    <form action="{{ route('finance.bank-statements.destroy', $firstTransaction) }}" method="POST"
+                                          onsubmit="return confirm('Delete this statement file and remove all transactions that are not linked to an active payment? Linked/confirmed transactions will be preserved.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-finance btn-finance-danger btn-sm w-100">
+                                            <i class="bi bi-trash"></i> Delete Statement (Unlinked Only)
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </div>
                     </div>
