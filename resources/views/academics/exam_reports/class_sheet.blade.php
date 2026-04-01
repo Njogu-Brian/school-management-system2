@@ -2,14 +2,7 @@
 
 @push('styles')
     @include('settings.partials.styles')
-    <style>
-      @media print {
-        .no-print { display: none !important; }
-        .settings-page .settings-shell { max-width: 100% !important; padding: 0 !important; }
-        .settings-card { box-shadow: none !important; border: none !important; }
-        a[href]:after { content: none !important; }
-      }
-    </style>
+    @include('academics.exam_reports.partials.exam_report_print_css')
 @endpush
 
 @section('content')
@@ -157,11 +150,11 @@
       </div>
     @endif
 
-    <div id="class-sheet-print-area">
+    <div id="class-sheet-print-area" class="exam-report-print-root">
       @if(!empty($bundles))
         @foreach($bundles as $bundle)
           <div class="settings-card mb-3">
-            <div class="card-header d-flex flex-wrap align-items-center gap-2">
+            <div class="card-header d-flex flex-wrap align-items-center gap-2 d-print-none">
               <i class="bi bi-table"></i>
               <h5 class="mb-0">{{ $bundle['classroom']->name ?? 'Class' }}</h5>
               @if(!empty($bundle['payload']['meta']))
@@ -183,6 +176,26 @@
                   <div class="alert alert-warning mb-0">{{ $bundle['notice'] }}</div>
                 </div>
               @elseif(!empty($bundle['payload']))
+                @php
+                  $lhSub = null;
+                  if (!empty($bundle['payload']['meta'])) {
+                    $m = $bundle['payload']['meta'];
+                    if (($m['mode'] ?? '') === 'exam_session') {
+                        $lhSub = $m['exam_session']['name'] ?? null;
+                    } elseif (($m['mode'] ?? '') === 'subject_paper') {
+                        $lhSub = $m['subject']['name'] ?? null;
+                    } elseif (($m['mode'] ?? '') === 'term') {
+                        $lhSub = 'Term overview';
+                    }
+                  }
+                  $lhSubtitle = trim(($bundle['classroom']->name ?? '').($lhSub ? ' — '.$lhSub : ''));
+                @endphp
+                @include('academics.exam_reports.partials.report_letterhead', [
+                  'reportTitle' => 'Class Mark Sheet',
+                  'reportSubtitle' => $lhSubtitle !== '' ? $lhSubtitle : null,
+                  'generatedAt' => now(),
+                  'generatedBy' => auth()->user()?->name,
+                ])
                 @include('academics.exam_reports.partials.class_sheet_table', ['payload' => $bundle['payload']])
               @endif
             </div>

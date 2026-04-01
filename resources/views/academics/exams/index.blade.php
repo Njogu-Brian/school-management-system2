@@ -286,7 +286,7 @@
                           <li><a class="dropdown-item" href="{{ route('academics.exams.timetable', ['exam_id' => $exam->id]) }}"><i class="bi bi-printer"></i> Timetable</a></li>
                           @if($exam->can_publish)
                             <li>
-                              <form action="{{ route('exams.publish', $exam->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Publish results to report cards?')">
+                              <form action="{{ route('academics.exams.publish', $exam) }}" method="POST" class="d-inline" onsubmit="return confirm('Publish results to report cards?')">
                                 @csrf
                                 <button type="submit" class="dropdown-item text-success"><i class="bi bi-cloud-upload"></i> Publish Results</button>
                               </form>

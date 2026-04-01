@@ -2,6 +2,7 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('academics.exam_reports.partials.exam_report_print_css')
 @endpush
 
 @section('content')
@@ -94,13 +95,23 @@
     @endif
 
     @if($payload)
+      <div class="d-flex justify-content-end mb-2 no-print gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+      </div>
+      <div id="exam-report-print-area" class="exam-report-print-root">
+        @include('academics.exam_reports.partials.report_letterhead', [
+          'reportTitle' => 'Teacher Performance',
+          'reportSubtitle' => 'Exam analytics — teacher rankings',
+          'generatedAt' => now(),
+          'generatedBy' => auth()->user()?->name,
+        ])
       <div class="row g-3">
         <div class="col-lg-6">
           <div class="settings-card h-100">
-            <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-people"></i><h5 class="mb-0">Teacher Rankings</h5></div>
+            <div class="card-header d-flex align-items-center gap-2 d-print-none"><i class="bi bi-people"></i><h5 class="mb-0">Teacher Rankings</h5></div>
             <div class="card-body p-0">
               <div class="table-responsive">
-                <table class="table table-modern align-middle mb-0">
+                <table class="table table-modern align-middle mb-0 exam-report-marks-table">
                   <thead class="table-light"><tr><th>Rank</th><th>Teacher</th><th>Subjects</th><th>Mean</th></tr></thead>
                   <tbody>
                     @foreach(($payload['per_teacher'] ?? []) as $row)
@@ -123,10 +134,10 @@
 
         <div class="col-lg-6">
           <div class="settings-card h-100">
-            <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-bar-chart"></i><h5 class="mb-0">Subject-by-Subject</h5></div>
+            <div class="card-header d-flex align-items-center gap-2 d-print-none"><i class="bi bi-bar-chart"></i><h5 class="mb-0">Subject-by-Subject</h5></div>
             <div class="card-body p-0">
               <div class="table-responsive">
-                <table class="table table-modern align-middle mb-0">
+                <table class="table table-modern align-middle mb-0 exam-report-marks-table">
                   @php $isSchool = (($scope ?? 'class') === 'school'); @endphp
                   <thead class="table-light">
                     <tr>
@@ -158,6 +169,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     @endif
   </div>

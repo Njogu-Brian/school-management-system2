@@ -113,7 +113,7 @@
 
     @if($examId)
       <div class="mt-3 text-end">
-        <form action="{{ route('exams.publish', $examId) }}" method="post" onsubmit="return confirm('Publish results for this exam to report cards?');">
+        <form action="{{ route('academics.exams.publish', $examId) }}" method="post" onsubmit="return confirm('Publish results for this exam to report cards?');">
           @csrf
           <button class="btn btn-settings-primary"><i class="bi bi-cloud-upload"></i> Publish Results</button>
         </form>

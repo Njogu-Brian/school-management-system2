@@ -2,6 +2,7 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('academics.exam_reports.partials.exam_report_print_css')
 @endpush
 
 @section('content')
@@ -109,13 +110,23 @@
     @endif
 
     @if($payload)
+      <div class="d-flex justify-content-end mb-2 no-print gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+      </div>
+      <div id="exam-report-print-area" class="exam-report-print-root">
+        @include('academics.exam_reports.partials.report_letterhead', [
+          'reportTitle' => 'Student Insights',
+          'reportSubtitle' => ($mode ?? 'exam') === 'term' ? 'Termly comparison' : 'Per-exam performance',
+          'generatedAt' => now(),
+          'generatedBy' => auth()->user()?->name,
+        ])
       <div class="row g-3">
         <div class="col-lg-6">
           <div class="settings-card h-100">
-            <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-award"></i><h5 class="mb-0">Top Students</h5></div>
+            <div class="card-header d-flex align-items-center gap-2 d-print-none"><i class="bi bi-award"></i><h5 class="mb-0">Top Students</h5></div>
             <div class="card-body p-0">
               <div class="table-responsive">
-                <table class="table table-modern align-middle mb-0">
+                <table class="table table-modern align-middle mb-0 exam-report-marks-table">
                   <thead class="table-light"><tr><th>Pos</th><th>Adm No</th><th>Student</th><th>Total</th><th>Avg</th></tr></thead>
                   <tbody>
                     @foreach(($payload['top_students'] ?? []) as $row)
@@ -139,10 +150,10 @@
 
         <div class="col-lg-6">
           <div class="settings-card h-100">
-            <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-graph-up-arrow"></i><h5 class="mb-0">Most Improved</h5></div>
+            <div class="card-header d-flex align-items-center gap-2 d-print-none"><i class="bi bi-graph-up-arrow"></i><h5 class="mb-0">Most Improved</h5></div>
             <div class="card-body p-0">
               <div class="table-responsive">
-                <table class="table table-modern align-middle mb-0">
+                <table class="table table-modern align-middle mb-0 exam-report-marks-table">
                   <thead class="table-light"><tr><th>Adm No</th><th>Student</th><th>Prev</th><th>Current</th><th>+/-</th></tr></thead>
                   <tbody>
                     @foreach(($payload['most_improved'] ?? []) as $row)
@@ -163,6 +174,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     @endif
   </div>

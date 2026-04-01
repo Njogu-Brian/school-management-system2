@@ -141,12 +141,13 @@ class ExamReportsController extends Controller
 
         $flow = $request->input('sheet_flow');
         $filename = 'class-mark-sheets-'.$flow.'-'.now()->format('Y-m-d-His').'.xlsx';
+        $generatedBy = $user?->name ?? 'System';
 
         if (count($sheets) === 1) {
-            return Excel::download(new ClassSheetExport($sheets[0]['payload'], $sheets[0]['title']), $filename);
+            return Excel::download(new ClassSheetExport($sheets[0]['payload'], $sheets[0]['title'], $generatedBy), $filename);
         }
 
-        return Excel::download(new ClassSheetsWorkbookExport($sheets), $filename);
+        return Excel::download(new ClassSheetsWorkbookExport($sheets, $generatedBy), $filename);
     }
 
     public function exportClassSheetPdf(Request $request)
@@ -175,6 +176,8 @@ class ExamReportsController extends Controller
         $pdf = Pdf::loadView('academics.exam_reports.class_sheet_pdf', [
             'bundles' => $pdfBundles,
             'sheetFlow' => $request->input('sheet_flow'),
+            'generatedAt' => now(),
+            'generatedBy' => $user?->name ?? 'System',
         ])->setPaper('a4', 'landscape');
 
         $filename = 'class-mark-sheets-'.$request->input('sheet_flow').'-'.now()->format('Y-m-d-His').'.pdf';
@@ -231,14 +234,13 @@ class ExamReportsController extends Controller
             $classroom = Classroom::findOrFail((int) $request->classroom_id);
             ExamReportsAccess::assertClassroomAccess($user, $classroom->id);
 
-            $session = ExamSession::query()
-                ->forScope(
-                    (int) $request->exam_type_id,
-                    (int) $request->academic_year_id,
-                    (int) $request->term_id,
-                    $classroom->id,
-                    $streamId
-                )->first();
+            $session = $this->findExamSessionForClassMarkSheet(
+                (int) $request->exam_type_id,
+                (int) $request->academic_year_id,
+                (int) $request->term_id,
+                $classroom->id,
+                $streamId
+            );
 
             if (! $session) {
                 return [[
@@ -308,6 +310,154 @@ class ExamReportsController extends Controller
         );
 
         return [['classroom' => $classroom, 'payload' => $payload, 'notice' => null]];
+    }
+
+    /**
+     * Resolve the exam sitting for “by exam type” flow. Exact term_id is tried first; then any term in the
+     * same academic year with the same name (handles duplicate term rows); then a subject paper’s session.
+     */
+    private function findExamSessionForClassMarkSheet(
+        int $examTypeId,
+        int $academicYearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId
+    ): ?ExamSession {
+        $direct = ExamSession::query()
+            ->forScope($examTypeId, $academicYearId, $termId, $classroomId, $streamId)
+            ->first();
+
+        if ($direct) {
+            return $direct;
+        }
+
+        $termIds = $this->termIdsForClassMarkSheet($termId, $academicYearId, $examTypeId, $classroomId, $streamId);
+
+        $session = ExamSession::query()
+            ->where('exam_type_id', $examTypeId)
+            ->where('academic_year_id', $academicYearId)
+            ->where('classroom_id', $classroomId)
+            ->whereIn('term_id', $termIds)
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
+            ->orderByDesc('id')
+            ->first();
+
+        if ($session) {
+            return $session;
+        }
+
+        $examSessionId = Exam::query()
+            ->whereNotNull('subject_id')
+            ->whereNotNull('exam_session_id')
+            ->where('academic_year_id', $academicYearId)
+            ->where('classroom_id', $classroomId)
+            ->whereIn('term_id', $termIds)
+            ->where(function ($q) use ($examTypeId) {
+                $q->where('exam_type_id', $examTypeId)
+                    ->orWhereHas('examSession', fn ($s) => $s->where('exam_type_id', $examTypeId));
+            })
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
+            ->orderByDesc('id')
+            ->value('exam_session_id');
+
+        return $examSessionId ? ExamSession::query()->find($examSessionId) : null;
+    }
+
+    /**
+     * Term ids used to find ExamSession / papers for the selected calendar term.
+     * Includes terms in the selected academic year with the same label, plus legacy paper {@see Term} rows
+     * (e.g. exams still pointing at an older year's term id while academic_year_id on the exam is correct).
+     *
+     * @return list<int>
+     */
+    private function termIdsForClassMarkSheet(
+        int $selectedTermId,
+        int $academicYearId,
+        int $examTypeId,
+        int $classroomId,
+        ?int $streamId
+    ): array {
+        $base = $this->termIdsWithSameLabelInYear($selectedTermId, $academicYearId);
+        $selected = Term::find($selectedTermId);
+        $needleNorm = $selected ? $this->normalizeTermLabelForMatching($selected->name) : '';
+        if ($needleNorm === '') {
+            return $base;
+        }
+
+        $paperTermIds = Exam::query()
+            ->whereNotNull('subject_id')
+            ->whereNotNull('exam_session_id')
+            ->where('academic_year_id', $academicYearId)
+            ->where('classroom_id', $classroomId)
+            ->where(function ($q) use ($examTypeId) {
+                $q->where('exam_type_id', $examTypeId)
+                    ->orWhereHas('examSession', fn ($s) => $s->where('exam_type_id', $examTypeId));
+            })
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
+            ->distinct()
+            ->pluck('term_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->all();
+
+        $extra = [];
+        foreach ($paperTermIds as $tid) {
+            if (in_array($tid, $base, true)) {
+                continue;
+            }
+            $t = Term::find($tid);
+            if ($t && $this->normalizeTermLabelForMatching($t->name) === $needleNorm) {
+                $extra[] = $tid;
+            }
+        }
+
+        $merged = array_values(array_unique(array_merge($base, $extra)));
+
+        return $merged !== [] ? $merged : [$selectedTermId];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function termIdsWithSameLabelInYear(int $termId, int $academicYearId): array
+    {
+        $term = Term::find($termId);
+        if (! $term) {
+            return [$termId];
+        }
+
+        $needleRaw = mb_strtolower(trim((string) $term->name));
+        $needleNorm = $this->normalizeTermLabelForMatching($term->name);
+
+        $ids = Term::query()
+            ->where('academic_year_id', $academicYearId)
+            ->get(['id', 'name'])
+            ->filter(function ($t) use ($needleRaw, $needleNorm) {
+                $raw = mb_strtolower(trim((string) $t->name));
+                if ($raw === $needleRaw) {
+                    return true;
+                }
+
+                return $needleNorm !== ''
+                    && $this->normalizeTermLabelForMatching($t->name) === $needleNorm;
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $ids !== [] ? $ids : [$termId];
+    }
+
+    /** Strip leading year prefix so "2026 - Term 1" and "Term 1" match. */
+    private function normalizeTermLabelForMatching(?string $name): string
+    {
+        $s = mb_strtolower(trim((string) $name));
+        $s = preg_replace('/^\d{4}\s*[-–.\/]\s*/u', '', $s);
+
+        return trim($s);
     }
 
     private function excelSheetTitle(array $payload, string $classLabel): string

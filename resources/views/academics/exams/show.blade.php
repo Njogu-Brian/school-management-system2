@@ -85,7 +85,7 @@
             @endif
             <a href="{{ route('academics.exams.timetable', ['exam_id' => $exam->id]) }}" class="btn btn-ghost-strong text-info"><i class="bi bi-printer"></i> View Timetable</a>
             @if($exam->can_publish)
-              <form action="{{ route('exams.publish', $exam->id) }}" method="POST" onsubmit="return confirm('Publish results to report cards?')">
+              <form action="{{ route('academics.exams.publish', $exam) }}" method="POST" onsubmit="return confirm('Publish results to report cards?')">
                 @csrf
                 <button type="submit" class="btn btn-settings-primary w-100"><i class="bi bi-cloud-upload"></i> Publish Results</button>
               </form>

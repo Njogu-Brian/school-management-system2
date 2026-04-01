@@ -10,7 +10,8 @@ class ClassSheetsWorkbookExport implements WithMultipleSheets
      * @param  list<array{title: string, payload: array}>  $sheets
      */
     public function __construct(
-        private readonly array $sheets
+        private readonly array $sheets,
+        private readonly string $generatedBy = 'System',
     ) {}
 
     public function sheets(): array
@@ -19,7 +20,7 @@ class ClassSheetsWorkbookExport implements WithMultipleSheets
         foreach ($this->sheets as $i => $item) {
             $title = $item['title'] ?? ('Sheet '.($i + 1));
             $payload = $item['payload'] ?? [];
-            $out[] = new ClassSheetExport($payload, $title);
+            $out[] = new ClassSheetExport($payload, $title, $this->generatedBy);
         }
 
         return $out;
