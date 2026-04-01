@@ -20,10 +20,15 @@ echo ""
 
 # Step 2: Fix storage permissions (prevents "Permission denied" on view compilation)
 echo "Step 2: Fixing storage/bootstrap permissions..."
-chmod -R 775 storage bootstrap/cache 2>/dev/null || true
-# Use www-data on Ubuntu/Debian, apache on CentOS, or $USER on cPanel/shared hosting
-chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
-echo "✅ Permissions set"
+WEB_USER="${WEB_USER:-www-data}"
+if [ "$(id -u)" -eq 0 ]; then
+  chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
+  chmod -R ug+rwx storage bootstrap/cache
+else
+  sudo chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
+  sudo chmod -R ug+rwx storage bootstrap/cache
+fi
+echo "✅ Permissions set (owner: ${WEB_USER})"
 echo ""
 
 # Step 3: Clear all caches
@@ -52,6 +57,11 @@ echo "Step 6: Optimizing for production..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+if [ "$(id -u)" -eq 0 ]; then
+  chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
+else
+  sudo chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
+fi
 echo "✅ Optimization complete"
 echo ""
 

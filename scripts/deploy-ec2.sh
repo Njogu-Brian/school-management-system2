@@ -51,12 +51,24 @@ echo "[5/8] Running migrations..."
 php artisan migrate --force
 echo "✓ Migrations done"
 
+# Web server / PHP-FPM user (Ubuntu: www-data; RHEL: apache; nginx+php-fpm pool may differ)
+WEB_USER="${WEB_USER:-www-data}"
+
+fix_storage_perms() {
+  if [ "$(id -u)" -eq 0 ]; then
+    chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
+    chmod -R ug+rwx storage bootstrap/cache
+  else
+    sudo chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
+    sudo chmod -R ug+rwx storage bootstrap/cache
+  fi
+}
+
 # Step 6: Storage
 echo ""
 echo "[6/8] Storage setup..."
 php artisan storage:link 2>/dev/null || true
-chmod -R 775 storage bootstrap/cache
-chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
+fix_storage_perms
 echo "✓ Storage linked and permissions set"
 
 # Step 7: Optimize
@@ -66,6 +78,8 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan optimize
+# view:cache writes compiled blades as the current user — re-own so the web user can recompile on demand
+fix_storage_perms
 echo "✓ Caches rebuilt"
 
 # Step 8: Queue (restart workers if using supervisor)
