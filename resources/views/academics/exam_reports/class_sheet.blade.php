@@ -193,13 +193,16 @@
   </div>
 </div>
 
-<script type="application/json" id="class-sheet-filter-data">@json([
-  'classrooms' => $classrooms->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
-  'classroomExamTypeIds' => $classroomExamTypeIds ?? [],
-  'subjectExamScopes' => $subjectExamScopes ?? [],
-  'termYearClassScopes' => $termYearClassScopes ?? [],
-  'streamsByClassroom' => $streamsByClassroom ?? [],
-])</script>
+@php
+  $classSheetFilterData = [
+    'classrooms' => $classrooms->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
+    'classroomExamTypeIds' => $classroomExamTypeIds ?? [],
+    'subjectExamScopes' => $subjectExamScopes ?? [],
+    'termYearClassScopes' => $termYearClassScopes ?? [],
+    'streamsByClassroom' => $streamsByClassroom ?? [],
+  ];
+@endphp
+<script type="application/json" id="class-sheet-filter-data">@json($classSheetFilterData)</script>
 
 @push('scripts')
 <script>
