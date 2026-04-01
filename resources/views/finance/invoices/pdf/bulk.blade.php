@@ -212,7 +212,8 @@
       <tbody>
         @php
           $activeItems = $invoice->items->filter(fn($item) => ($item->status ?? 'active') === 'active');
-          $sumPaidLines = 0; $sumDue = 0;
+          $sumPaidLines = 0;
+          $sumDue = 0;
         @endphp
         @foreach($activeItems as $i => $item)
           @php
@@ -220,7 +221,6 @@
             $net = (float) $item->amount - $disc;
             $paidLine = $item->allocations->filter(fn($a) => $a->payment && !$a->payment->reversed)->sum('amount');
             $dueLine = max(0, round($net - (float) $paidLine, 2));
-            $sumNet += $net;
             $sumPaidLines += (float) $paidLine;
             $sumDue += $dueLine;
           @endphp
