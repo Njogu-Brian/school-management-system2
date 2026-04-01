@@ -123,6 +123,7 @@ use App\Http\Controllers\Academics\ExtraCurricularActivityController as Academic
 use App\Http\Controllers\Academics\CurriculumDesignController;
 use App\Http\Controllers\Academics\CurriculumAssistantController;
 use App\Http\Controllers\Academics\ExamAnalyticsController;
+use App\Http\Controllers\Academics\ExamReportsController;
 use App\Http\Controllers\ParentPortal\DiaryController as ParentDiaryController;
 
 // Communication
@@ -924,6 +925,10 @@ Route::middleware('auth')->group(function () {
             // Modules update
             Route::post('/update-features', [SettingController::class, 'updateFeatures'])->name('update.features');
             Route::post('/update-modules',  [SettingController::class, 'updateModules'])->name('update.modules');
+
+            // Report cards & exam analytics toggles
+            Route::get('/academic-reports', [SettingController::class, 'academicReports'])->name('academic-reports.index');
+            Route::post('/academic-reports', [SettingController::class, 'updateAcademicReports'])->name('academic-reports.update');
         });
 
     // Academic Config (Years, Terms)
@@ -1608,6 +1613,14 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::prefix('academics')->as('academics.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')->group(function () {
         Route::get('exam-analytics', [ExamAnalyticsController::class, 'index'])->name('exam-analytics.index');
         Route::get('exam-analytics/classroom/{classroom}', [ExamAnalyticsController::class, 'classroomPerformance'])->name('exam-analytics.classroom');
+
+        // Exam Reports & Analysis
+        Route::get('exam-reports/class-sheet', [ExamReportsController::class, 'classSheet'])->name('exam-reports.class-sheet');
+        Route::get('exam-reports/export/class-sheet.xlsx', [ExamReportsController::class, 'exportClassSheet'])->name('exam-reports.export.class-sheet');
+        Route::get('exam-reports/export/term-workbook.xlsx', [ExamReportsController::class, 'exportTermWorkbook'])->name('exam-reports.export.term-workbook');
+        Route::get('exam-reports/teacher-performance', [ExamReportsController::class, 'teacherPerformance'])->name('exam-reports.teacher-performance');
+        Route::get('exam-reports/subject-performance', [ExamReportsController::class, 'subjectPerformance'])->name('exam-reports.subject-performance');
+        Route::get('exam-reports/student-insights', [ExamReportsController::class, 'studentInsights'])->name('exam-reports.student-insights');
 
         Route::get('assessments', [\App\Http\Controllers\Academics\AssessmentController::class, 'index'])->name('assessments.index');
         Route::get('assessments/create', [\App\Http\Controllers\Academics\AssessmentController::class, 'create'])->name('assessments.create');

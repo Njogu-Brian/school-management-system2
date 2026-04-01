@@ -15,6 +15,11 @@
       </div>
       <div class="d-flex flex-wrap gap-2">
         <a href="{{ route('academics.report_cards.pdf', $report_card) }}" target="_blank" class="btn btn-ghost-strong text-danger"><i class="bi bi-printer"></i> Build & Download PDF</a>
+        @if(!empty($report_card->public_token))
+          <a href="{{ route('academics.report_cards.public', $report_card->public_token) }}" target="_blank" class="btn btn-outline-secondary">
+            <i class="bi bi-link-45deg"></i> Public Link
+          </a>
+        @endif
         @if(!$report_card->locked_at)
         <form action="{{ route('academics.report_cards.publish',$report_card) }}" method="POST" class="d-inline">
           @csrf

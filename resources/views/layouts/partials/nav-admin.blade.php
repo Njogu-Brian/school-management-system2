@@ -260,6 +260,7 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
         || Request::is('academics/exam-grades*')
         || Request::is('academics/exam-marks*')
         || Request::is('academics/exams/results*')
+        || Request::is('academics/exam-reports*')
         || Request::is('academics/exams/timetable*');
 @endphp
 
@@ -289,6 +290,11 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     <a href="{{ route('academics.exams.results.index') }}"
     class="sublink {{ Request::is('academics/exams/results*') ? 'active' : '' }}">
         <i class="bi bi-bar-chart"></i> Exam Results
+    </a>
+
+    <a href="{{ route('academics.exam-reports.class-sheet') }}"
+    class="sublink {{ Request::is('academics/exam-reports*') ? 'active' : '' }}">
+        <i class="bi bi-table"></i> Exam Reports & Analysis
     </a>
 
     <a href="{{ route('academics.exams.timetable') }}"
@@ -835,6 +841,7 @@ class="{{ $posActive ? 'parent-active' : '' }}">
 @php 
     $isAcademicConfig = Request::is('settings/academic*') || Request::is('settings/school-days*');
     $isTermHolidays = Request::is('settings/academic/term-holidays*');
+    $isAcademicReportsSettings = Request::is('settings/academic-reports*');
 @endphp
 <a href="#settingsMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isSettingsActive ? 'true' : 'false' }}"
@@ -853,6 +860,10 @@ class="{{ $isSettingsActive ? 'parent-active' : '' }}">
     <a href="{{ route('settings.academic.term-holidays') }}" 
     class="sublink {{ $isTermHolidays ? 'active' : '' }}">
     <i class="bi bi-umbrella"></i> Term Holidays
+    </a>
+    <a href="{{ route('settings.academic-reports.index') }}"
+    class="sublink {{ $isAcademicReportsSettings ? 'active' : '' }}">
+    <i class="bi bi-card-text"></i> Academic &amp; Reports
     </a>
     @if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
     <a href="{{ route('activity-logs.index') }}" 

@@ -18,6 +18,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\TermAssessmentService;
 use App\Services\ReportCardBatchService;
 use App\Models\Academics\Stream;
+use App\Services\ReportCardAccessService;
+use App\Services\CommunicationService;
 
 class ReportCardController extends Controller
 {
@@ -218,7 +220,27 @@ class ReportCardController extends Controller
             'published_by'=>optional(Auth::user()->staff)->id
         ]);
 
-        // Hook: notify guardians if needed
+        // Notify guardians (optional)
+        $notify = (bool) setting('notify_parents_on_report_publish', false);
+        if ($notify && !empty($report_card->public_token)) {
+            try {
+                $report_card->loadMissing(['student.parent']);
+                $parent = $report_card->student?->parent;
+                $phone = $parent?->primary_contact_phone;
+                if ($parent && $phone) {
+                    $url = route('academics.report_cards.public', $report_card->public_token);
+                    $studentName = $report_card->student?->name ?? 'your child';
+                    $term = $report_card->term?->name ?? '';
+                    $year = $report_card->academicYear?->year ?? '';
+                    $msg = "Dear Parent,\n\n{$studentName}'s report card is now available (Term {$term} {$year}).\nView: {$url}\n\nThank you.";
+                    app(CommunicationService::class)->sendSMS('parent', $parent->id, $phone, $msg, 'Report Card Published');
+                }
+            } catch (\Throwable $e) {
+                // best-effort; do not block publishing
+                \Log::warning('Report card publish notification failed: ' . $e->getMessage());
+            }
+        }
+
         return redirect()->route('academics.report_cards.index')->with('success','Report published.');
     }
 
@@ -274,8 +296,19 @@ class ReportCardController extends Controller
     public function publicView($token)
     {
         $report_card = ReportCard::where('public_token',$token)->firstOrFail();
-        // For public, you can also build DTO if the PDF blade and show blade share structure
-        return view('academics.report_cards.public', compact('report_card'));
+        [$allowed, $balance] = ReportCardAccessService::canViewPublicReportCard($report_card);
+
+        if (! $allowed) {
+            return view('academics.report_cards.public_locked', [
+                'report_card' => $report_card,
+                'balance' => $balance,
+            ]);
+        }
+
+        $dto = ReportCardBatchService::build($report_card->id);
+        $isPdf = false;
+
+        return view('academics.report_cards.public', compact('report_card', 'dto', 'isPdf'));
     }
 
     public function generateForm()

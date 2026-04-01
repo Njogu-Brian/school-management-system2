@@ -304,4 +304,31 @@ class SettingController extends Controller
         return back()->with('success', 'Placeholder added successfully.');
     }
 
+    /**
+     * Report cards & exam analytics defaults (pass mark, fee lock, parent SMS on publish).
+     */
+    public function academicReports()
+    {
+        return view('settings.academic_reports', [
+            'notifyParentsOnReportPublish' => Setting::getBool('notify_parents_on_report_publish', false),
+            'blockResultsWhenFeeBalance' => Setting::getBool('block_results_when_fee_balance', false),
+            'examPassMarkPercent' => Setting::getInt('exam_pass_mark_percent', 40),
+        ]);
+    }
+
+    public function updateAcademicReports(Request $request)
+    {
+        $request->validate([
+            'notify_parents_on_report_publish' => 'nullable|boolean',
+            'block_results_when_fee_balance' => 'nullable|boolean',
+            'exam_pass_mark_percent' => 'required|integer|min:0|max:100',
+        ]);
+
+        Setting::setBool('notify_parents_on_report_publish', $request->boolean('notify_parents_on_report_publish'));
+        Setting::setBool('block_results_when_fee_balance', $request->boolean('block_results_when_fee_balance'));
+        Setting::setInt('exam_pass_mark_percent', (int) $request->exam_pass_mark_percent);
+
+        return redirect()->back()->with('success', 'Academic report settings updated successfully.');
+    }
+
 }

@@ -23,6 +23,9 @@
                 <a href="{{ route('settings.school-days.index') }}" class="btn btn-ghost-strong btn-sm text-nowrap">
                     <i class="bi bi-calendar-week"></i> School Days
                 </a>
+                <a href="{{ route('settings.academic-reports.index') }}" class="btn btn-ghost-strong btn-sm text-nowrap">
+                    <i class="bi bi-card-text"></i> Academic &amp; Reports
+                </a>
             </div>
         </div>
 

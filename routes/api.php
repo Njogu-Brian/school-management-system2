@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\ApiAccountController;
 use App\Http\Controllers\Api\ApiNotificationPreferencesController;
 use App\Http\Controllers\Api\ApiStaffClockController;
 use App\Http\Controllers\Api\AuthApiController;
+use App\Http\Controllers\Api\ApiExamReportsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -111,6 +112,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/marks/matrix/context', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marksMatrixContext']);
     Route::get('/marks/matrix', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marksMatrix']);
     Route::post('/exam-marks/matrix/batch', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'batchMarksMatrix']);
+
+    // Exam Reports & Analysis
+    Route::get('/reports/exams/class-sheet', [ApiExamReportsController::class, 'classSheet']);
+    Route::get('/reports/exams/teacher-performance', [ApiExamReportsController::class, 'teacherPerformance']);
+    Route::get('/reports/exams/subject-performance', [ApiExamReportsController::class, 'subjectPerformance']);
+    Route::get('/reports/exams/student-insights', [ApiExamReportsController::class, 'studentInsights']);
+    Route::get('/reports/exams/trends', [ApiExamReportsController::class, 'trends']);
+    Route::get('/reports/exams/insights', [ApiExamReportsController::class, 'insights']);
+    Route::get('/reports/exams/mastery-profile', [ApiExamReportsController::class, 'masteryProfile']);
+    Route::get('/reports/exams/export/class-sheet.xlsx', [ApiExamReportsController::class, 'exportClassSheet']);
+    Route::get('/reports/exams/export/term-workbook.xlsx', [ApiExamReportsController::class, 'exportTermWorkbook']);
 
     Route::prefix('senior-teacher')->group(function () {
         Route::get('/supervised-classrooms', [ApiSeniorTeacherController::class, 'supervisedClassrooms']);

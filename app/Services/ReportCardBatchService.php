@@ -11,6 +11,7 @@ use App\Models\Academics\StudentBehaviour;
 use App\Models\Setting; // if you store branding here; otherwise adjust.
 use App\Services\CBCAssessmentService;
 use Illuminate\Support\Facades\Log;
+use App\Services\AttendanceReportService;
 
 class ReportCardBatchService
 {
@@ -103,6 +104,7 @@ class ReportCardBatchService
         $student = $report->student;
         $yearId  = $report->academic_year_id;
         $termId  = $report->term_id;
+        $term    = $report->term;
 
         // All marks for this student within term/year grouped by subject
         $marks = ExamMark::with(['exam','subject'])
@@ -160,15 +162,34 @@ class ReportCardBatchService
             'comment' => $s->comment ?? null,
         ])->values()->all();
 
-        // Attendance for the term (simple range: use created_at month/term if you have dates on terms)
-        $attendanceQuery = Attendance::where('student_id', $student->id);
-        // If you store term date ranges, filter here. For now, just count totals in term’s months if available.
+        // Attendance for the term (present X out of X school days)
+        $present = 0;
+        $late = 0;
+        $absent = 0;
+        $expectedSchoolDays = 0;
+        $percent = 0;
 
-        $present = (clone $attendanceQuery)->where('status','present')->count();
-        $late    = (clone $attendanceQuery)->where('status','late')->count();
-        $absent  = (clone $attendanceQuery)->where('status','absent')->count();
-        $total   = $present + $late + $absent;
-        $percent = $total ? round($present / $total * 100, 1) : 0;
+        if ($term && $term->opening_date && $term->closing_date) {
+            $stats = app(AttendanceReportService::class)->studentStats(
+                $student,
+                $term->opening_date->toDateString(),
+                $term->closing_date->toDateString()
+            );
+            $present = (int) ($stats['present'] ?? 0);
+            $late = (int) ($stats['late'] ?? 0);
+            $absent = (int) ($stats['absent'] ?? 0);
+            $expectedSchoolDays = (int) ($stats['expected_school_days'] ?? 0);
+            $percent = (float) ($stats['percent'] ?? 0);
+        } else {
+            // Fallback: count recorded attendance rows only
+            $attendanceQuery = Attendance::where('student_id', $student->id);
+            $present = (clone $attendanceQuery)->where('status', 'present')->count();
+            $late    = (clone $attendanceQuery)->where('status', 'late')->count();
+            $absent  = (clone $attendanceQuery)->where('status', 'absent')->count();
+            $expectedSchoolDays = $present + $late + $absent;
+            $attending = $present + $late;
+            $percent = $expectedSchoolDays ? round(($attending / $expectedSchoolDays) * 100, 1) : 0;
+        }
 
         // Behaviour in term/year
         $beh = StudentBehaviour::with('behaviour')
@@ -270,7 +291,15 @@ class ReportCardBatchService
             ],
             'subjects'   => $subjectsRows,
             'skills'     => $skills,
-            'attendance' => compact('present','late','absent','percent'),
+            'attendance' => [
+                'present' => $present,
+                'late' => $late,
+                'absent' => $absent,
+                'total' => $expectedSchoolDays,
+                'expected_school_days' => $expectedSchoolDays,
+                'attending' => $present + $late,
+                'percent' => $percent,
+            ],
             'behavior'   => $behavior,
             'comments'   => [
                 'teacher_remark'   => (string) $report->teacher_remark,

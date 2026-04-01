@@ -90,7 +90,7 @@
         <table style="width:100%; margin-top:6px; border-collapse:collapse; border:1px solid #d1d5db;">
           <tr>
             <td style="padding:6px; border:1px solid #d1d5db; width:40%;"><strong>Attendance</strong></td>
-            <td style="padding:6px; border:1px solid #d1d5db;">Present: {{ $D['attendance']['present'] ?? 0 }}</td>
+            <td style="padding:6px; border:1px solid #d1d5db;">Present: {{ $D['attendance']['present'] ?? 0 }} / {{ $D['attendance']['total'] ?? ($D['attendance']['expected_school_days'] ?? 0) }}</td>
             <td style="padding:6px; border:1px solid #d1d5db;">Late: {{ $D['attendance']['late'] ?? 0 }}</td>
             <td style="padding:6px; border:1px solid #d1d5db;">Absent: {{ $D['attendance']['absent'] ?? 0 }}</td>
             <td style="padding:6px; border:1px solid #d1d5db;">%: {{ $D['attendance']['percent'] ?? 0 }}</td>

@@ -6,6 +6,7 @@
   $attActive = Request::is('attendance*');
   $swimmingActive = Request::is('swimming*');
   $marksActive = Request::is('exam-marks*');
+  $examReportsActive = Request::is('academics/exam-reports*');
   $reportsActive = Request::is('academics/report_cards*');
   $homeworkActive = Request::is('academics/homework*');
   $diariesActive = Request::is('academics/diaries*');
@@ -101,6 +102,12 @@
     @endif
   </div>
 @endif
+
+{{-- Exam Reports & Analysis --}}
+<a href="{{ route('academics.exam-reports.class-sheet') }}"
+   class="{{ $examReportsActive ? 'active' : '' }}">
+  <i class="bi bi-table"></i> Exam Reports &amp; Analysis
+</a>
 
 {{-- Assessments --}}
 <a href="{{ route('academics.assessments.index') }}" class="{{ Request::is('academics/assessments*') ? 'active' : '' }}">

@@ -3,6 +3,7 @@
   $attActive = Request::is('attendance*');
   $swimmingActive = Request::is('swimming*');
   $marksActive = Request::is('exam-marks*');
+  $examReportsActive = Request::is('academics/exam-reports*');
   $reportsActive = Request::is('academics/report_cards*');
   $homeworkActive = Request::is('academics/homework*');
   $diariesActive = Request::is('academics/diaries*');
@@ -147,6 +148,12 @@
       @endif
     </div>
   @endif
+
+  {{-- Exam Reports & Analysis (assigned + supervised classes) --}}
+  <a href="{{ route('academics.exam-reports.class-sheet') }}"
+     class="{{ $examReportsActive ? 'active' : '' }}">
+    <i class="bi bi-table"></i> Exam Reports &amp; Analysis
+  </a>
 
   {{-- Report Cards --}}
   @if (can_access('report_cards.view') || can_access('report_card_skills.edit') || can_access('report_cards.remarks.edit'))
