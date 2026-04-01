@@ -2,7 +2,7 @@
 @php
   $attActive = Request::is('attendance*');
   $swimmingActive = Request::is('swimming*');
-  $marksActive = Request::is('exam-marks*');
+  $marksActive = Request::is('exam-marks*') || Request::is('academics/exams/grading*');
   $examReportsActive = Request::is('academics/exam-reports*');
   $reportsActive = Request::is('academics/report_cards*');
   $homeworkActive = Request::is('academics/homework*');
@@ -144,6 +144,12 @@
         <a href="{{ route('academics.exam-marks.index') }}"
            class="sublink {{ Request::is('exam-marks') && !Request::is('exam-marks/bulk*') ? 'active' : '' }}">
           <i class="bi bi-list-check"></i> View Marks
+        </a>
+      @endif
+      @if (can_access('exams.view'))
+        <a href="{{ route('academics.exams.grading.index') }}"
+           class="sublink {{ Request::is('academics/exams/grading*') ? 'active' : '' }}">
+          <i class="bi bi-ui-radios-grid"></i> Class grading schemes
         </a>
       @endif
     </div>

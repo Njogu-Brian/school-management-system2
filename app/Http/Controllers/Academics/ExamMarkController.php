@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Academics\Exam;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamMark;
-use App\Models\Academics\ExamGrade;
 use App\Models\Academics\Subject;
+use App\Services\Academics\ClassroomGradingService;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Models\Student;
@@ -246,21 +246,15 @@ class ExamMarkController extends Controller
                     'subject_id' => (int) $exam->subject_id,
                 ]);
 
-                $g = null;
-                if (!is_null($score)) {
-                    $examTypeKey = strtoupper((string) ($exam->examType?->code ?? $exam->examType?->name ?? ''));
-                    if ($examTypeKey !== '') {
-                        $g = ExamGrade::where('exam_type', $examTypeKey)
-                            ->where('percent_from', '<=', $score)
-                            ->where('percent_upto', '>=', $score)
-                            ->first();
-                    }
-                }
+                $grading = app(ClassroomGradingService::class);
+                $g = ! is_null($score)
+                    ? $grading->gradeForRawScore($score, $maxMarks, $classroomId)
+                    : ['label' => null, 'points' => null];
 
                 $mark->fill([
                     'score_raw' => $score,
-                    'grade_label' => $g?->grade_name ?? ($mark->grade_label ?? 'BE'),
-                    'pl_level' => $g?->grade_point ?? ($mark->pl_level ?? 1.0),
+                    'grade_label' => $g['label'] ?? $mark->grade_label,
+                    'pl_level' => $g['points'] ?? $mark->pl_level,
                     'subject_remark' => $hasRemark ? trim((string) $remarkInput) : $mark->subject_remark,
                     'status' => 'submitted',
                     'teacher_id' => optional($authUser->staff)->id,
@@ -650,26 +644,19 @@ class ExamMarkController extends Controller
                 $score = $scores->avg();
             }
 
+            $grading = app(ClassroomGradingService::class);
             $g = null;
-            if (!is_null($score)) {
-                // Validate score is within range
+            if (! is_null($score)) {
                 if ($score < $minMarks || $score > $maxMarks) {
-                    continue; // Skip invalid scores
+                    continue;
                 }
-
-                $examTypeKey = strtoupper((string) ($exam->examType?->code ?? $exam->examType?->name ?? ''));
-                if ($examTypeKey !== '') {
-                    $g = ExamGrade::where('exam_type', $examTypeKey)
-                        ->where('percent_from','<=',$score)
-                        ->where('percent_upto','>=',$score)
-                        ->first();
-                }
+                $g = $grading->gradeForRawScore($score, $maxMarks, (int) $data['classroom_id']);
             }
 
             $mark->fill([
                 'score_raw'      => $score,
-                'grade_label'    => $g?->grade_name ?? 'BE',
-                'pl_level'       => $g?->grade_point ?? 1.0,
+                'grade_label'    => $g ? ($g['label'] ?? null) : null,
+                'pl_level'       => $g ? ($g['points'] ?? null) : null,
                 'subject_remark' => $row['subject_remark'] ?? null,
                 'status'         => 'submitted',
                 'teacher_id'     => optional(Auth::user()->staff)->id,
@@ -767,25 +754,24 @@ class ExamMarkController extends Controller
 
         $finalScore = $scores->count() ? $scores->avg() : null;
 
-        $g = null;
-        if (!is_null($finalScore)) {
-            // Validate final score is within range
+        $g = ['label' => null, 'points' => null];
+        if (! is_null($finalScore)) {
             if ($finalScore < $minMarks || $finalScore > $maxMarks) {
                 return back()
                     ->withInput()
                     ->with('error', "Final score must be between {$minMarks} and {$maxMarks}.");
             }
 
-            $g = ExamGrade::where('exam_type',$exam_mark->exam->type)
-                ->where('percent_from','<=',$finalScore)
-                ->where('percent_upto','>=',$finalScore)
-                ->first();
+            $classroomId = (int) ($exam->classroom_id ?? 0);
+            if ($classroomId > 0) {
+                $g = app(ClassroomGradingService::class)->gradeForRawScore($finalScore, $maxMarks, $classroomId);
+            }
         }
 
         $exam_mark->update(array_merge($v, [
             'score_raw'   => $finalScore,
-            'grade_label' => $g?->grade_name ?? 'BE',
-            'pl_level'    => $g?->grade_point ?? 1.0,
+            'grade_label' => $g['label'] ?? null,
+            'pl_level'    => $g['points'] ?? null,
             'status'      => 'submitted',
             'teacher_id'  => optional(Auth::user()->staff)->id,
         ]));

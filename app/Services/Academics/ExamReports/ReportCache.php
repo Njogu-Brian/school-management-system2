@@ -5,6 +5,7 @@ namespace App\Services\Academics\ExamReports;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Exam;
 use App\Models\Academics\ExamMark;
+use App\Models\Academics\ExamSession;
 use Illuminate\Support\Facades\Cache;
 
 class ReportCache
@@ -24,6 +25,41 @@ class ReportCache
             'class_sheet',
             'exam',
             $exam->id,
+            'class',
+            $classroom->id,
+            'stream',
+            $streamId ?: 0,
+            'v',
+            $stamp ? strtotime((string) $stamp) : 0,
+        ]);
+
+        return Cache::remember($key, now()->addMinutes(10), fn () => $build());
+    }
+
+    public function rememberExamSessionClassSheet(ExamSession $session, Classroom $classroom, ?int $streamId, \Closure $build): array
+    {
+        $paperIds = Exam::query()
+            ->where('exam_session_id', $session->id)
+            ->whereNotNull('subject_id')
+            ->pluck('id');
+
+        $stamp = $paperIds->isEmpty()
+            ? null
+            : ExamMark::query()
+                ->whereIn('exam_id', $paperIds)
+                ->whereHas('student', function ($q) use ($classroom, $streamId) {
+                    $q->where('classroom_id', $classroom->id);
+                    if ($streamId) {
+                        $q->where('stream_id', $streamId);
+                    }
+                })
+                ->max('updated_at');
+
+        $key = implode(':', [
+            'exam_reports',
+            'class_sheet',
+            'exam_session',
+            $session->id,
             'class',
             $classroom->id,
             'stream',

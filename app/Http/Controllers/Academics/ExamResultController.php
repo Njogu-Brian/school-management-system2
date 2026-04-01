@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Exam;
 use App\Models\Academics\ExamMark;
+use App\Models\Academics\ExamSession;
+use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamSchedule;
 use App\Models\Academics\GradingBand;
 use App\Models\Academics\GradingScheme;
@@ -19,14 +21,43 @@ class ExamResultController extends Controller
 {
     public function index(Request $request)
     {
-        // same as your ExamMarkController@index but under results route
+        $examTypeId = $request->query('exam_type_id');
+        $examSessionId = $request->query('exam_session_id');
         $examId = $request->query('exam_id');
-        $marks = ExamMark::with(['student','subject','exam'])
-            ->when($examId, fn($q)=>$q->where('exam_id',$examId))
-            ->latest()->paginate(50);
 
-        $exams = Exam::latest()->take(30)->get();
-        return view('academics.exam_results.index', compact('marks','examId','exams'));
+        $marks = ExamMark::with(['student', 'subject', 'exam'])
+            ->when($examId, fn ($q) => $q->where('exam_id', $examId))
+            ->when(! $examId && $examSessionId, fn ($q) => $q->whereHas('exam', fn ($eq) => $eq->where('exam_session_id', $examSessionId)))
+            ->when(! $examId && ! $examSessionId && $examTypeId, fn ($q) => $q->whereHas('exam', fn ($eq) => $eq->where('exam_type_id', $examTypeId)))
+            ->latest()
+            ->paginate(50)
+            ->withQueryString();
+
+        $examTypes = ExamType::orderBy('name')->get();
+        $sessions = ExamSession::query()
+            ->with(['examType', 'classroom', 'academicYear', 'term'])
+            ->when($examTypeId, fn ($q) => $q->where('exam_type_id', $examTypeId))
+            ->orderByDesc('id')
+            ->limit(200)
+            ->get();
+        $papers = Exam::query()
+            ->with(['academicYear', 'term', 'subject'])
+            ->whereNotNull('subject_id')
+            ->when($examSessionId, fn ($q) => $q->where('exam_session_id', $examSessionId))
+            ->when(! $examSessionId && $examTypeId, fn ($q) => $q->where('exam_type_id', $examTypeId))
+            ->orderByDesc('id')
+            ->limit(200)
+            ->get();
+
+        return view('academics.exam_results.index', compact(
+            'marks',
+            'examId',
+            'examTypeId',
+            'examSessionId',
+            'examTypes',
+            'sessions',
+            'papers'
+        ));
     }
 
     // bulk form identical to your existing bulk form; omitted for brevity

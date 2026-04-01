@@ -45,6 +45,7 @@ class Exam extends Model
         'grade_mapping',
         'descriptor_mapping',
         'import_template_id',
+        'exam_session_id',
     ];
 
     protected $casts = [
@@ -134,6 +135,12 @@ class Exam extends Model
     public function examType()
     {
         return $this->belongsTo(ExamType::class, 'exam_type_id');
+    }
+
+    /** Parent sitting (Midterm for this class/stream) — subject papers link here. */
+    public function examSession()
+    {
+        return $this->belongsTo(ExamSession::class, 'exam_session_id');
     }
 
     // Scopes

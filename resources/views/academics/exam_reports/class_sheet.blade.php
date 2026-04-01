@@ -26,14 +26,59 @@
           <div class="col-md-2">
             <label class="form-label">Mode</label>
             <select name="mode" class="form-select">
-              <option value="exam" {{ $mode === 'exam' ? 'selected' : '' }}>Per Exam</option>
+              <option value="exam_session" {{ $mode === 'exam_session' ? 'selected' : '' }}>Exam sitting (all papers)</option>
+              <option value="exam" {{ $mode === 'exam' ? 'selected' : '' }}>Single paper</option>
               <option value="term" {{ $mode === 'term' ? 'selected' : '' }}>Termly</option>
             </select>
           </div>
 
+          @if($mode === 'exam_session')
+          <div class="col-md-2">
+            <label class="form-label">Filter sittings (type)</label>
+            <select name="session_filter_exam_type_id" class="form-select">
+              <option value="">All types</option>
+              @foreach($examTypes ?? [] as $et)
+                <option value="{{ $et->id }}" @selected(request('session_filter_exam_type_id') == $et->id)>{{ $et->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Year</label>
+            <select name="session_filter_year_id" class="form-select">
+              <option value="">All</option>
+              @foreach($academicYears as $y)
+                <option value="{{ $y->id }}" @selected(request('session_filter_year_id') == $y->id)>{{ $y->year }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Term</label>
+            <select name="session_filter_term_id" class="form-select">
+              <option value="">All</option>
+              @foreach($terms as $t)
+                <option value="{{ $t->id }}" @selected(request('session_filter_term_id') == $t->id)>
+                  {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
           <div class="col-md-4">
-            <label class="form-label">Exam</label>
-            <select name="exam_id" class="form-select" {{ $mode === 'term' ? 'disabled' : '' }}>
+            <label class="form-label">Exam sitting</label>
+            <select name="exam_session_id" class="form-select">
+              <option value="">Select sitting</option>
+              @foreach($examSessions ?? [] as $sess)
+                <option value="{{ $sess->id }}" @selected(request('exam_session_id') == $sess->id)>
+                  {{ $sess->examType->name ?? 'Type' }} — {{ $sess->classroom->name ?? '' }}
+                  · {{ $sess->academicYear->year ?? '' }} {{ $sess->term->name ?? '' }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+          @endif
+
+          <div class="col-md-4 {{ $mode === 'exam_session' ? 'd-none' : '' }}">
+            <label class="form-label">Exam (single paper)</label>
+            <select name="exam_id" class="form-select" {{ $mode === 'term' || $mode === 'exam_session' ? 'disabled' : '' }}>
               <option value="">Select Exam</option>
               @foreach($exams as $exam)
                 <option value="{{ $exam->id }}" {{ request('exam_id') == $exam->id ? 'selected' : '' }}>
@@ -41,27 +86,27 @@
                 </option>
               @endforeach
             </select>
-            @if($mode === 'term')
+            @if($mode === 'term' || $mode === 'exam_session')
               <input type="hidden" name="exam_id" value="">
             @endif
           </div>
 
-          <div class="col-md-2">
+          <div class="col-md-2 {{ $mode === 'exam' || $mode === 'exam_session' ? 'd-none' : '' }}">
             <label class="form-label">Academic Year</label>
-            <select name="academic_year_id" class="form-select" {{ $mode === 'exam' ? 'disabled' : '' }}>
+            <select name="academic_year_id" class="form-select" {{ $mode === 'exam' || $mode === 'exam_session' ? 'disabled' : '' }}>
               <option value="">Select Year</option>
               @foreach($academicYears as $y)
                 <option value="{{ $y->id }}" {{ request('academic_year_id') == $y->id ? 'selected' : '' }}>{{ $y->year }}</option>
               @endforeach
             </select>
-            @if($mode === 'exam')
+            @if($mode === 'exam' || $mode === 'exam_session')
               <input type="hidden" name="academic_year_id" value="">
             @endif
           </div>
 
-          <div class="col-md-2">
+          <div class="col-md-2 {{ $mode === 'exam' || $mode === 'exam_session' ? 'd-none' : '' }}">
             <label class="form-label">Term</label>
-            <select name="term_id" class="form-select" {{ $mode === 'exam' ? 'disabled' : '' }}>
+            <select name="term_id" class="form-select" {{ $mode === 'exam' || $mode === 'exam_session' ? 'disabled' : '' }}>
               <option value="">Select Term</option>
               @foreach($terms as $t)
                 <option value="{{ $t->id }}" {{ request('term_id') == $t->id ? 'selected' : '' }}>
@@ -69,7 +114,7 @@
                 </option>
               @endforeach
             </select>
-            @if($mode === 'exam')
+            @if($mode === 'exam' || $mode === 'exam_session')
               <input type="hidden" name="term_id" value="">
             @endif
           </div>
@@ -138,6 +183,8 @@
             {{ ($payload['meta']['classroom']['name'] ?? '') }}
             @if(!empty($payload['meta']['mode']) && $payload['meta']['mode'] === 'term')
               · Termly
+            @elseif(!empty($payload['meta']['mode']) && $payload['meta']['mode'] === 'exam_session')
+              · {{ $payload['meta']['exam_session']['name'] ?? '' }}
             @else
               · {{ $payload['meta']['exam']['name'] ?? '' }}
             @endif

@@ -6,6 +6,7 @@ use App\Models\Academics\Classroom;
 use App\Models\Academics\ClassroomSubject;
 use App\Models\Academics\Exam;
 use App\Models\Academics\ExamMark;
+use App\Models\Academics\ExamSession;
 use App\Models\Academics\Subject;
 use App\Models\Student;
 use Illuminate\Support\Collection;
@@ -118,6 +119,142 @@ class ClassSheetBuilder
     }
 
     /**
+     * Full class mark sheet for one exam sitting (all subject papers under the same exam type / class / stream).
+     */
+    public function buildForExamSession(ExamSession $session, Classroom $classroom, ?int $streamId = null): array
+    {
+        if ((int) $session->classroom_id !== (int) $classroom->id) {
+            throw new \InvalidArgumentException('Classroom does not match this exam session.');
+        }
+
+        $papers = Exam::query()
+            ->where('exam_session_id', $session->id)
+            ->whereNotNull('subject_id')
+            ->with('subject')
+            ->orderBy('id')
+            ->get();
+
+        if ($papers->isEmpty()) {
+            return [
+                'meta' => [
+                    'mode' => 'exam_session',
+                    'exam_session' => [
+                        'id' => $session->id,
+                        'name' => $session->name,
+                    ],
+                    'classroom' => ['id' => $classroom->id, 'name' => $classroom->name],
+                    'stream_id' => $streamId,
+                ],
+                'subjects' => [],
+                'rows' => [],
+            ];
+        }
+
+        $subjects = $papers->map(fn (Exam $e) => $e->subject)->filter()->unique('id')->values();
+        $paperIds = $papers->pluck('id');
+
+        $students = Student::query()
+            ->where('classroom_id', $classroom->id)
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
+            ->orderBy('first_name')
+            ->orderBy('middle_name')
+            ->orderBy('last_name')
+            ->get(['id', 'admission_number', 'first_name', 'middle_name', 'last_name', 'classroom_id', 'stream_id']);
+
+        $marks = ExamMark::query()
+            ->whereIn('exam_id', $paperIds)
+            ->whereIn('student_id', $students->pluck('id'))
+            ->whereIn('subject_id', $subjects->pluck('id'))
+            ->get(['id', 'exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated'])
+            ->map(function (ExamMark $m) {
+                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
+
+                return $m;
+            })
+            ->keyBy(fn (ExamMark $m) => $m->student_id . ':' . $m->subject_id);
+
+        $rows = $students->map(function (Student $s) use ($subjects, $marks) {
+            $subjectScores = [];
+            $total = 0.0;
+            $taken = 0;
+
+            foreach ($subjects as $subject) {
+                $key = $s->id . ':' . $subject->id;
+                $score = $marks->get($key)?->marks_obtained;
+                $subjectScores[$subject->id] = $score;
+                if ($score !== null) {
+                    $total += (float) $score;
+                    $taken++;
+                }
+            }
+
+            $avg = $taken > 0 ? ($total / $taken) : null;
+
+            return [
+                'student_id' => $s->id,
+                'admission_number' => $s->admission_number,
+                'name' => $s->name,
+                'subject_scores' => $subjectScores,
+                'total' => $taken > 0 ? round($total, 2) : null,
+                'average' => $avg !== null ? round($avg, 2) : null,
+                'subjects_taken' => $taken,
+            ];
+        });
+
+        $subjectPositions = $this->subjectPositions($rows, $subjects->pluck('id')->all());
+        $rows = $rows->map(function (array $row) use ($subjectPositions) {
+            $row['subject_positions'] = $subjectPositions[$row['student_id']] ?? [];
+
+            return $row;
+        });
+
+        $rows = (new RowRanker())->rankByTotal($rows);
+
+        if ($streamId) {
+            $classwide = $this->buildForExamSession($session, $classroom, null);
+            $classPos = collect($classwide['rows'])->keyBy('student_id')->map(fn ($r) => $r['position']);
+            $rows = $rows->map(function ($row) use ($classPos) {
+                $row['stream_position'] = $row['position'];
+                $row['class_position'] = $classPos->get($row['student_id']);
+
+                return $row;
+            });
+        } else {
+            $rows = $rows->map(function ($row) {
+                $row['class_position'] = $row['position'];
+                $row['stream_position'] = null;
+
+                return $row;
+            });
+        }
+
+        return [
+            'meta' => [
+                'mode' => 'exam_session',
+                'exam_session' => [
+                    'id' => $session->id,
+                    'name' => $session->name,
+                    'exam_type_id' => $session->exam_type_id,
+                    'academic_year_id' => $session->academic_year_id,
+                    'term_id' => $session->term_id,
+                ],
+                'classroom' => [
+                    'id' => $classroom->id,
+                    'name' => $classroom->name,
+                ],
+                'stream_id' => $streamId,
+                'paper_exam_ids' => $paperIds->values(),
+            ],
+            'subjects' => $subjects->map(fn (Subject $sub) => [
+                'id' => $sub->id,
+                'name' => $sub->name,
+                'code' => $sub->code,
+            ])->values(),
+            'rows' => $rows->values(),
+        ];
+    }
+
+    /**
      * Termly sheet = simple average across exams in term (equal weight), per subject.
      */
     public function buildForTerm(int $academicYearId, int $termId, Classroom $classroom, ?int $streamId = null): array
@@ -140,6 +277,7 @@ class ClassSheetBuilder
         $exams = Exam::query()
             ->where('academic_year_id', $academicYearId)
             ->where('term_id', $termId)
+            ->whereNotNull('subject_id')
             ->orderBy('starts_on')
             ->orderBy('created_at')
             ->get(['id', 'name', 'weight', 'max_marks', 'starts_on']);

@@ -109,6 +109,7 @@ use App\Http\Controllers\Academics\StudentBehaviourController;
 use App\Http\Controllers\Academics\ExamScheduleController;
 use App\Http\Controllers\Academics\ExamTypeController;
 use App\Http\Controllers\Academics\ExamResultController;
+use App\Http\Controllers\Academics\ExamClassroomGradingController;
 use App\Http\Controllers\Academics\ExamPublishingController;
 use App\Http\Controllers\Academics\StudentSkillGradeController;
 use App\Http\Controllers\Academics\SchemeOfWorkController;
@@ -420,6 +421,15 @@ Route::middleware('auth')->group(function () {
 
         // Exams + lookups
         Route::get('exams/results',      [ExamResultController::class, 'index'])->name('exams.results.index');
+        Route::prefix('exams/grading')->name('exams.grading.')->group(function () {
+            Route::get('/', [ExamClassroomGradingController::class, 'index'])->name('index');
+            Route::get('/bulk', [ExamClassroomGradingController::class, 'bulkForm'])->name('bulk');
+            Route::post('/bulk', [ExamClassroomGradingController::class, 'bulkApply'])->name('bulk-apply');
+            Route::get('/duplicate', [ExamClassroomGradingController::class, 'duplicateForm'])->name('duplicate');
+            Route::post('/duplicate', [ExamClassroomGradingController::class, 'duplicateScheme'])->name('duplicate-store');
+            Route::get('/{classroom}/edit', [ExamClassroomGradingController::class, 'edit'])->name('edit');
+            Route::put('/{classroom}', [ExamClassroomGradingController::class, 'update'])->name('update');
+        });
         Route::post('exams/publish/{exam}', [ExamPublishingController::class, 'publish'])->name('exams.publish');
         Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
         Route::get('exams/bulk-create', [ExamController::class, 'createBulk'])->name('exams.bulk-create');

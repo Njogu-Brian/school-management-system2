@@ -260,6 +260,7 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
         || Request::is('academics/exam-grades*')
         || Request::is('academics/exam-marks*')
         || Request::is('academics/exams/results*')
+        || Request::is('academics/exams/grading*')
         || Request::is('academics/exam-reports*')
         || Request::is('academics/exams/timetable*');
 @endphp
@@ -280,6 +281,11 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     <a href="{{ route('academics.exams.index') }}"
     class="sublink {{ Request::is('academics/exams') && !Request::is('academics/exams/*') ? 'active' : '' }}">
         <i class="bi bi-journal-check"></i> Manage Exams
+    </a>
+
+    <a href="{{ route('academics.exams.grading.index') }}"
+    class="sublink {{ Request::is('academics/exams/grading*') ? 'active' : '' }}">
+        <i class="bi bi-ui-radios-grid"></i> Class grading schemes
     </a>
 
     <a href="{{ route('academics.exam-marks.bulk.form') }}"

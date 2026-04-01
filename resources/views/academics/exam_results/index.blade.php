@@ -13,14 +13,39 @@
         <h1 class="mb-1">Exam Results</h1>
         <p class="text-muted mb-0">Review and publish results to report cards.</p>
       </div>
-      <form method="get" class="d-flex gap-2">
-        <select name="exam_id" class="form-select" onchange="this.form.submit()">
-          <option value="">All Exams</option>
-          @foreach($exams as $e)
-            <option value="{{ $e->id }}" @selected($examId==$e->id)>{{ $e->name }} ({{ $e->term?->name }} {{ $e->academicYear?->year }})</option>
-          @endforeach
-        </select>
-        <button class="btn btn-ghost-strong"><i class="bi bi-search"></i></button>
+      <form method="get" class="d-flex flex-wrap gap-2 align-items-end">
+        <div>
+          <label class="form-label small mb-0 text-muted">Exam type</label>
+          <select name="exam_type_id" class="form-select" style="min-width:160px" onchange="this.form.submit()">
+            <option value="">All types</option>
+            @foreach($examTypes ?? [] as $et)
+              <option value="{{ $et->id }}" @selected((string)($examTypeId ?? '') === (string)$et->id)>{{ $et->name }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-0 text-muted">Sitting</label>
+          <select name="exam_session_id" class="form-select" style="min-width:220px" onchange="this.form.submit()">
+            <option value="">All sittings</option>
+            @foreach($sessions ?? [] as $s)
+              <option value="{{ $s->id }}" @selected((string)($examSessionId ?? '') === (string)$s->id)>
+                {{ $s->examType->name ?? '' }} — {{ $s->classroom->name ?? '' }} ({{ $s->academicYear->year ?? '' }} {{ $s->term->name ?? '' }})
+              </option>
+            @endforeach
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-0 text-muted">Paper / subject</label>
+          <select name="exam_id" class="form-select" style="min-width:260px" onchange="this.form.submit()">
+            <option value="">All papers in scope</option>
+            @foreach($papers ?? [] as $e)
+              <option value="{{ $e->id }}" @selected((string)($examId ?? '') === (string)$e->id)>
+                {{ $e->subject?->name ?? 'Subject' }} — {{ $e->name }}
+              </option>
+            @endforeach
+          </select>
+        </div>
+        <button type="submit" class="btn btn-ghost-strong"><i class="bi bi-search"></i></button>
       </form>
     </div>
 

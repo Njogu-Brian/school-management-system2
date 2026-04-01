@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Exam;
+use App\Models\Academics\ExamSession;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Subject;
@@ -104,6 +105,14 @@ class ExamController extends Controller
             $query->where('subject_id', $request->subject_id);
         }
 
+        if ($request->filled('exam_type_id')) {
+            $query->where('exam_type_id', $request->exam_type_id);
+        }
+
+        if ($request->filled('exam_session_id')) {
+            $query->where('exam_session_id', $request->exam_session_id);
+        }
+
         // Statistics (filtered by teacher or senior teacher if applicable)
         $statsQuery = Exam::query();
         $isTeacher = ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) && ! $privileged;
@@ -131,6 +140,15 @@ class ExamController extends Controller
         $types = ExamType::orderBy('name')->get();
         $years = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
+
+        $examSessions = ExamSession::query()
+            ->with(['examType', 'classroom'])
+            ->when($request->filled('year_id'), fn ($q) => $q->where('academic_year_id', $request->year_id))
+            ->when($request->filled('term_id'), fn ($q) => $q->where('term_id', $request->term_id))
+            ->when($request->filled('exam_type_id'), fn ($q) => $q->where('exam_type_id', $request->exam_type_id))
+            ->orderByDesc('id')
+            ->limit(150)
+            ->get();
         
         // Filter classrooms based on user role
         $user = Auth::user();
@@ -154,6 +172,7 @@ class ExamController extends Controller
             'types',
             'years',
             'terms',
+            'examSessions',
             'classrooms',
             'subjects',
             'perPage'
@@ -224,7 +243,28 @@ class ExamController extends Controller
         $examType = ExamType::findOrFail((int) $v['exam_type_id']);
         $maxMarks = (float) ($examType->default_max_mark ?? 100);
 
+        $streamId = ! empty($v['stream_id']) ? (int) $v['stream_id'] : null;
+        $examSessionId = null;
+        if (! empty($v['classroom_id']) && ! empty($v['subject_id']) && ! empty($v['exam_type_id'])) {
+            $classroom = Classroom::find($v['classroom_id']);
+            $sessionName = $examType->name.' — '.($classroom->name ?? 'Class');
+            $session = ExamSession::findOrCreateForScope(
+                (int) $v['exam_type_id'],
+                (int) $v['academic_year_id'],
+                (int) $v['term_id'],
+                (int) $v['classroom_id'],
+                $streamId,
+                $sessionName,
+                $v['modality'],
+                (float) $v['weight'],
+                $v['starts_on'] ?? null,
+                $v['ends_on'] ?? null
+            );
+            $examSessionId = $session->id;
+        }
+
         $exam = Exam::create($v + [
+            'exam_session_id' => $examSessionId,
             'max_marks' => $maxMarks,
             'created_by' => Auth::id(),
             'status' => 'draft',
@@ -633,12 +673,34 @@ class ExamController extends Controller
         $maxMarks = (float) ($examType->default_max_mark ?? 100);
 
         DB::transaction(function () use ($v, $pairs, $classNames, $subjectNames, $publishExam, $publishResult, $maxMarks, &$created) {
+            $sessionByClassStream = [];
+            $streamId = ! empty($v['stream_id']) ? (int) $v['stream_id'] : null;
+
             foreach ($pairs as $pair) {
                 $cid = $pair['classroom_id'];
                 $sid = $pair['subject_id'];
                 $classLabel = $classNames[$cid] ?? (string) $cid;
                 $subLabel = $subjectNames[$sid] ?? (string) $sid;
                 $name = $v['name_template'].' — '.$classLabel.' — '.$subLabel;
+
+                $cacheKey = $cid.'_'.($streamId ?? '0');
+                if (! isset($sessionByClassStream[$cacheKey])) {
+                    $sessionName = trim($v['name_template'].' — '.$classLabel);
+                    $session = ExamSession::findOrCreateForScope(
+                        (int) $v['exam_type_id'],
+                        (int) $v['academic_year_id'],
+                        (int) $v['term_id'],
+                        $cid,
+                        $streamId,
+                        $sessionName,
+                        $v['modality'],
+                        (float) $v['weight'],
+                        $v['starts_on'] ?? null,
+                        $v['ends_on'] ?? null
+                    );
+                    $sessionByClassStream[$cacheKey] = $session->id;
+                }
+                $examSessionId = $sessionByClassStream[$cacheKey];
 
                 Exam::create([
                     'name'             => $name,
@@ -655,6 +717,7 @@ class ExamController extends Controller
                     'publish_exam'     => $publishExam,
                     'publish_result'   => $publishResult,
                     'exam_type_id'     => (int) $v['exam_type_id'],
+                    'exam_session_id'  => $examSessionId,
                     'created_by'       => Auth::id(),
                     'status'           => 'draft',
                 ]);

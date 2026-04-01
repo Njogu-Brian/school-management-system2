@@ -52,7 +52,8 @@
 
     <div class="settings-card mb-3">
       <div class="card-body">
-        <form method="GET" class="row g-3 align-items-end">
+        <form method="GET">
+          <div class="row g-3 align-items-end">
           <div class="col-md-3">
             <label class="form-label">Search</label>
             <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="Exam name...">
@@ -83,8 +84,59 @@
               @endforeach
             </select>
           </div>
-          <div class="col-md-1">
-            <button type="submit" class="btn btn-settings-primary w-100"><i class="bi bi-search"></i></button>
+          <div class="col-md-2">
+            <label class="form-label">Exam type</label>
+            <select name="exam_type_id" class="form-select">
+              <option value="">All types</option>
+              @foreach($types ?? [] as $t)
+                <option value="{{ $t->id }}" @selected(request('exam_type_id')==$t->id)>{{ $t->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Exam sitting</label>
+            <select name="exam_session_id" class="form-select">
+              <option value="">All sittings</option>
+              @foreach($examSessions ?? [] as $sess)
+                <option value="{{ $sess->id }}" @selected(request('exam_session_id')==$sess->id)>
+                  {{ $sess->examType->name ?? '' }} — {{ $sess->classroom->name ?? '' }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+          </div>
+          <div class="row g-3 align-items-end mt-1">
+          <div class="col-md-2">
+            <label class="form-label">Class</label>
+            <select name="classroom_id" class="form-select">
+              <option value="">All classes</option>
+              @foreach($classrooms ?? [] as $c)
+                <option value="{{ $c->id }}" @selected(request('classroom_id')==$c->id)>{{ $c->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Subject / paper</label>
+            <select name="subject_id" class="form-select">
+              <option value="">All subjects</option>
+              @foreach($subjects ?? [] as $s)
+                <option value="{{ $s->id }}" @selected(request('subject_id')==$s->id)>{{ $s->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Status</label>
+            <select name="status" class="form-select">
+              <option value="">All statuses</option>
+              @foreach(['draft','open','marking','moderation','approved','published','locked'] as $st)
+                <option value="{{ $st }}" @selected(request('status')==$st)>{{ ucfirst($st) }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-2 ms-auto">
+            <label class="form-label d-block">&nbsp;</label>
+            <button type="submit" class="btn btn-settings-primary w-100"><i class="bi bi-search"></i> Filter</button>
+          </div>
           </div>
         </form>
       </div>

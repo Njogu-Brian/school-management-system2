@@ -7,6 +7,8 @@ use App\Exports\TermWorkbookExport;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Exam;
+use App\Models\Academics\ExamSession;
+use App\Models\Academics\ExamType;
 use App\Models\Academics\Stream;
 use App\Models\AcademicYear;
 use App\Models\Term;
@@ -24,19 +26,37 @@ class ExamReportsController extends Controller
     public function classSheet(Request $request)
     {
         $request->validate([
-            'mode' => 'nullable|in:exam,term',
+            'mode' => 'nullable|in:exam,exam_session,term',
             'exam_id' => 'nullable|required_if:mode,exam|exists:exams,id',
+            'exam_session_id' => 'nullable|required_if:mode,exam_session|exists:exam_sessions,id',
             'academic_year_id' => 'nullable|required_if:mode,term|integer',
             'term_id' => 'nullable|required_if:mode,term|exists:terms,id',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
+            'session_filter_exam_type_id' => 'nullable|exists:exam_types,id',
+            'session_filter_year_id' => 'nullable|exists:academic_years,id',
+            'session_filter_term_id' => 'nullable|exists:terms,id',
         ]);
 
         $user = $request->user();
         $examReportsFullAccess = ExamReportsAccess::userHasFullAccess($user instanceof User ? $user : null);
 
         $mode = $request->input('mode', 'exam');
-        $exams = Exam::with(['academicYear', 'term'])->orderByDesc('created_at')->limit(60)->get();
+        $examTypes = ExamType::orderBy('name')->get();
+        $exams = Exam::with(['academicYear', 'term'])
+            ->whereNotNull('subject_id')
+            ->orderByDesc('created_at')
+            ->limit(60)
+            ->get();
+        $examSessions = ExamSession::query()
+            ->with(['examType', 'academicYear', 'term', 'classroom'])
+            ->when($request->filled('session_filter_exam_type_id'), fn ($q) => $q->where('exam_type_id', $request->session_filter_exam_type_id))
+            ->when($request->filled('session_filter_year_id'), fn ($q) => $q->where('academic_year_id', $request->session_filter_year_id))
+            ->when($request->filled('session_filter_term_id'), fn ($q) => $q->where('term_id', $request->session_filter_term_id))
+            ->when($request->filled('classroom_id'), fn ($q) => $q->where('classroom_id', $request->classroom_id))
+            ->orderByDesc('id')
+            ->limit(120)
+            ->get();
         $classrooms = ExamReportsAccess::classroomsQueryFor($user instanceof User ? $user : null)->get();
         $streams = Stream::orderBy('name')->get();
         $academicYears = AcademicYear::orderByDesc('year')->get();
@@ -44,11 +64,27 @@ class ExamReportsController extends Controller
 
         $payload = null;
         $selectedExam = null;
+        $selectedExamSession = null;
         $selectedClassroom = null;
 
         if ($request->filled('classroom_id')) {
             ExamReportsAccess::assertClassroomAccess($user instanceof User ? $user : null, (int) $request->classroom_id);
             $selectedClassroom = Classroom::find($request->classroom_id);
+        }
+
+        if ($mode === 'exam_session' && $request->filled('exam_session_id') && $selectedClassroom) {
+            $selectedExamSession = ExamSession::find($request->exam_session_id);
+            if ($selectedExamSession && (int) $selectedExamSession->classroom_id === (int) $selectedClassroom->id) {
+                $cache = new ReportCache();
+                $builder = new ClassSheetBuilder();
+                $streamId = $request->integer('stream_id') ?: null;
+                $payload = $cache->rememberExamSessionClassSheet(
+                    session: $selectedExamSession,
+                    classroom: $selectedClassroom,
+                    streamId: $streamId,
+                    build: fn () => $builder->buildForExamSession($selectedExamSession, $selectedClassroom, $streamId)
+                );
+            }
         }
 
         if ($mode === 'exam' && $request->filled('exam_id') && $selectedClassroom) {
@@ -83,12 +119,15 @@ class ExamReportsController extends Controller
 
         return view('academics.exam_reports.class_sheet', compact(
             'mode',
+            'examTypes',
+            'examSessions',
             'exams',
             'classrooms',
             'streams',
             'academicYears',
             'terms',
             'selectedExam',
+            'selectedExamSession',
             'selectedClassroom',
             'payload',
             'examReportsFullAccess'
@@ -98,8 +137,9 @@ class ExamReportsController extends Controller
     public function exportClassSheet(Request $request)
     {
         $request->validate([
-            'mode' => 'nullable|in:exam,term',
+            'mode' => 'nullable|in:exam,exam_session,term',
             'exam_id' => 'nullable|required_if:mode,exam|exists:exams,id',
+            'exam_session_id' => 'nullable|required_if:mode,exam_session|exists:exam_sessions,id',
             'academic_year_id' => 'nullable|required_if:mode,term|integer',
             'term_id' => 'nullable|required_if:mode,term|exists:terms,id',
             'classroom_id' => 'required|exists:classrooms,id',
@@ -121,6 +161,15 @@ class ExamReportsController extends Controller
             $payload = $cache->rememberTermClassSheet($ay, $termId, $classroom, $streamId, fn () => $builder->buildForTerm($ay, $termId, $classroom, $streamId));
             $title = ($classroom->name ?? 'Class') . ' Term Sheet';
             $filename = 'term-sheet-' . $classroom->id . '.xlsx';
+        } elseif ($mode === 'exam_session') {
+            $session = ExamSession::findOrFail((int) $request->exam_session_id);
+            if ((int) $session->classroom_id !== (int) $classroom->id) {
+                abort(422, 'The selected class does not match this exam sitting.');
+            }
+            $cache = new ReportCache();
+            $payload = $cache->rememberExamSessionClassSheet($session, $classroom, $streamId, fn () => $builder->buildForExamSession($session, $classroom, $streamId));
+            $title = ($classroom->name ?? 'Class').' '.$session->name;
+            $filename = 'class-sheet-session-'.$session->id.'-'.$classroom->id.'.xlsx';
         } else {
             $exam = Exam::findOrFail($request->exam_id);
             $cache = new ReportCache();
