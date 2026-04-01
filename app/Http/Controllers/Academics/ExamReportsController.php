@@ -46,22 +46,59 @@ class ExamReportsController extends Controller
         $examTypes = ExamType::orderBy('name')->get();
         $subjects = Subject::query()->where('is_active', true)->orderBy('name')->get();
         $classrooms = ExamReportsAccess::classroomsQueryFor($u)->get();
+        $allowedClassIds = $classrooms->pluck('id')->all();
 
-        $classroomId = $request->integer('classroom_id') ?: null;
-        if (! $classroomId && $request->filled('classroom_ids')) {
-            $ids = array_filter(array_map('intval', (array) $request->input('classroom_ids', [])));
-            $classroomId = $ids[0] ?? null;
-        }
-        $streamsForClass = $classroomId
-            ? Stream::query()->where('classroom_id', $classroomId)->orderBy('name')->get()
-            : collect();
+        $classroomExamTypeIds = $allowedClassIds === [] ? [] : Exam::query()
+            ->whereNotNull('exam_type_id')
+            ->whereNotNull('classroom_id')
+            ->whereIn('classroom_id', $allowedClassIds)
+            ->select('classroom_id', 'exam_type_id')
+            ->distinct()
+            ->get()
+            ->groupBy('classroom_id')
+            ->map(fn ($g) => $g->pluck('exam_type_id')->unique()->values()->all())
+            ->toArray();
+
+        $subjectExamScopes = $allowedClassIds === [] ? [] : Exam::query()
+            ->whereNotNull('subject_id')
+            ->whereNotNull('classroom_id')
+            ->whereIn('classroom_id', $allowedClassIds)
+            ->select('subject_id', 'classroom_id', 'academic_year_id', 'term_id')
+            ->distinct()
+            ->get()
+            ->map(fn ($e) => [
+                'subject_id' => (int) $e->subject_id,
+                'classroom_id' => (int) $e->classroom_id,
+                'academic_year_id' => (int) $e->academic_year_id,
+                'term_id' => (int) $e->term_id,
+            ])
+            ->values()
+            ->all();
+
+        $termYearClassScopes = $allowedClassIds === [] ? [] : Exam::query()
+            ->whereNotNull('classroom_id')
+            ->whereIn('classroom_id', $allowedClassIds)
+            ->select('academic_year_id', 'term_id', 'classroom_id')
+            ->distinct()
+            ->get()
+            ->map(fn ($e) => [
+                'academic_year_id' => (int) $e->academic_year_id,
+                'term_id' => (int) $e->term_id,
+                'classroom_id' => (int) $e->classroom_id,
+            ])
+            ->values()
+            ->all();
+
+        $streamsByClassroom = $allowedClassIds === [] ? [] : Stream::query()
+            ->whereIn('classroom_id', $allowedClassIds)
+            ->orderBy('name')
+            ->get()
+            ->groupBy('classroom_id')
+            ->map(fn ($rows) => $rows->map(fn ($s) => ['id' => (int) $s->id, 'name' => $s->name])->values()->all())
+            ->toArray();
 
         $academicYears = AcademicYear::orderByDesc('year')->get();
         $terms = Term::with('academicYear')->orderByDesc('academic_year_id')->orderBy('name')->get();
-        $yearId = $request->integer('academic_year_id') ?: null;
-        $termsForYear = $yearId
-            ? $terms->where('academic_year_id', $yearId)->values()
-            : collect();
 
         return view('academics.exam_reports.class_sheet', compact(
             'sheetFlow',
@@ -69,10 +106,12 @@ class ExamReportsController extends Controller
             'examTypes',
             'subjects',
             'classrooms',
-            'streamsForClass',
+            'classroomExamTypeIds',
+            'subjectExamScopes',
+            'termYearClassScopes',
+            'streamsByClassroom',
             'academicYears',
             'terms',
-            'termsForYear',
             'examReportsFullAccess'
         ));
     }

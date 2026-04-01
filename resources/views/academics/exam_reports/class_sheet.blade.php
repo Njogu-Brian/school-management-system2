@@ -19,7 +19,7 @@
       <div>
         <div class="crumb">Academics · Exam Reports &amp; Analysis</div>
         <h1 class="mb-1">Class Mark Sheet</h1>
-        <p class="text-muted mb-0">Load by exam type (full sitting) or by subject (one paper). Then print or export.</p>
+        <p class="text-muted mb-0">Choose year and term first, then class and stream (when they exist).</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.teacher-performance') }}">Teacher Performance</a>
@@ -30,7 +30,7 @@
 
     <div class="settings-card mb-3 no-print">
       <div class="card-body">
-        <form method="GET" id="classSheetForm" class="row g-3">
+        <form method="GET" id="classSheetForm" class="row g-3 align-items-end">
 
           <div class="col-12">
             <label class="form-label d-block mb-2">Report type</label>
@@ -47,10 +47,34 @@
             </div>
           </div>
 
+          <div class="col-md-3">
+            <label class="form-label">Academic year</label>
+            <select name="academic_year_id" class="form-select" id="academic_year_id_field">
+              <option value="">Select year</option>
+              @foreach($academicYears ?? [] as $y)
+                <option value="{{ $y->id }}" @selected(request('academic_year_id') == $y->id)>{{ $y->year }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Term</label>
+            <select name="term_id" class="form-select" id="term_id_field">
+              <option value="">Select term</option>
+              @foreach($terms ?? [] as $t)
+                <option value="{{ $t->id }}"
+                        data-academic-year-id="{{ $t->academic_year_id }}"
+                        @selected(request('term_id') == $t->id)>
+                  {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
+                </option>
+              @endforeach
+            </select>
+            <div class="form-text" id="term_year_hint">Terms update when you pick a year.</div>
+          </div>
+
           {{-- By exam type --}}
           <div class="col-md-3 flow-exam-type {{ ($sheetFlow ?? 'by_exam_type') === 'by_exam_type' ? '' : 'd-none' }}">
             <label class="form-label">Exam type</label>
-            <select name="exam_type_id" class="form-select">
+            <select name="exam_type_id" class="form-select" id="exam_type_id_field">
               <option value="">Select type</option>
               @foreach($examTypes ?? [] as $et)
                 <option value="{{ $et->id }}" @selected(request('exam_type_id') == $et->id)>{{ $et->name }}</option>
@@ -61,77 +85,41 @@
             <label class="form-label">Class</label>
             <select name="classroom_id" class="form-select" id="classroom_id_exam_type">
               <option value="">Select class</option>
-              @foreach($classrooms ?? [] as $c)
-                <option value="{{ $c->id }}" @selected(request('classroom_id') == $c->id)>{{ $c->name }}</option>
-              @endforeach
             </select>
+            <div class="form-text text-muted small d-none" id="hint_exam_type_class">No classes have exams for this type yet.</div>
           </div>
 
-          {{-- By subject: multi class --}}
-          <div class="col-md-4 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
+          {{-- By subject --}}
+          <div class="col-md-3 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
             <label class="form-label">Subject</label>
-            <select name="subject_id" class="form-select">
+            <select name="subject_id" class="form-select" id="subject_id_field">
               <option value="">Select subject</option>
               @foreach($subjects ?? [] as $sub)
                 <option value="{{ $sub->id }}" @selected(request('subject_id') == $sub->id)>{{ $sub->name }}</option>
               @endforeach
             </select>
           </div>
-          <div class="col-md-5 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
+          <div class="col-md-6 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
             <label class="form-label">Classes <span class="text-muted small">(Ctrl/Cmd + click for several)</span></label>
-            <select name="classroom_ids[]" class="form-select" multiple size="6">
-              @foreach($classrooms ?? [] as $c)
-                <option value="{{ $c->id }}" @selected(collect((array)request('classroom_ids', []))->contains($c->id))>{{ $c->name }}</option>
-              @endforeach
+            <select name="classroom_ids[]" class="form-select" id="classroom_ids_subject" multiple size="6">
             </select>
+            <div class="form-text text-muted small d-none" id="hint_subject_class">Pick subject, year, and term to list classes with that paper.</div>
           </div>
 
-          {{-- Whole term: single class --}}
+          {{-- Whole term --}}
           <div class="col-md-3 flow-term {{ ($sheetFlow ?? '') === 'term' ? '' : 'd-none' }}">
             <label class="form-label">Class</label>
             <select name="classroom_id" class="form-select" id="classroom_id_term">
               <option value="">Select class</option>
-              @foreach($classrooms ?? [] as $c)
-                <option value="{{ $c->id }}" @selected(request('classroom_id') == $c->id)>{{ $c->name }}</option>
-              @endforeach
             </select>
+            <div class="form-text text-muted small d-none" id="hint_term_class">No classes have exams in this year/term.</div>
           </div>
 
-          <div class="col-md-2">
-            <label class="form-label">Stream <span class="text-muted">(optional)</span></label>
-            <select name="stream_id" class="form-select">
+          <div class="col-md-3 d-none" id="streamFieldWrapper">
+            <label class="form-label">Stream</label>
+            <select name="stream_id" class="form-select" id="stream_id_field">
               <option value="">All streams</option>
-              @foreach($streamsForClass ?? [] as $st)
-                <option value="{{ $st->id }}" @selected(request('stream_id') == $st->id)>{{ $st->name }}</option>
-              @endforeach
             </select>
-            @if(($streamsForClass ?? collect())->isEmpty())
-              <div class="form-text">Choose class and reload to list streams for that class.</div>
-            @endif
-          </div>
-
-          <div class="col-md-2">
-            <label class="form-label">Academic year</label>
-            <select name="academic_year_id" class="form-select" id="academic_year_id_field">
-              <option value="">Select year</option>
-              @foreach($academicYears ?? [] as $y)
-                <option value="{{ $y->id }}" @selected(request('academic_year_id') == $y->id)>{{ $y->year }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Term</label>
-            <select name="term_id" class="form-select">
-              <option value="">Select term</option>
-              @foreach($termsForYear ?? [] as $t)
-                <option value="{{ $t->id }}" @selected(request('term_id') == $t->id)>
-                  {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
-                </option>
-              @endforeach
-            </select>
-            @if(($termsForYear ?? collect())->isEmpty() && !request('academic_year_id'))
-              <div class="form-text">Pick a year to narrow terms.</div>
-            @endif
           </div>
 
           <div class="col-12 d-flex flex-wrap justify-content-end gap-2 no-print">
@@ -205,30 +193,272 @@
   </div>
 </div>
 
+<script type="application/json" id="class-sheet-filter-data">@json([
+  'classrooms' => $classrooms->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
+  'classroomExamTypeIds' => $classroomExamTypeIds ?? [],
+  'subjectExamScopes' => $subjectExamScopes ?? [],
+  'termYearClassScopes' => $termYearClassScopes ?? [],
+  'streamsByClassroom' => $streamsByClassroom ?? [],
+])</script>
+
 @push('scripts')
 <script>
 (function () {
   const form = document.getElementById('classSheetForm');
   if (!form) return;
 
-  function syncFlowVisibility() {
-    const flow = form.querySelector('input[name="sheet_flow"]:checked')?.value || 'by_exam_type';
-    document.querySelectorAll('.flow-exam-type').forEach(el => el.classList.toggle('d-none', flow !== 'by_exam_type'));
-    document.querySelectorAll('.flow-subject').forEach(el => el.classList.toggle('d-none', flow !== 'by_subject'));
-    document.querySelectorAll('.flow-term').forEach(el => el.classList.toggle('d-none', flow !== 'term'));
-    const idExam = document.getElementById('classroom_id_exam_type');
-    const idTerm = document.getElementById('classroom_id_term');
-    if (idExam) { idExam.disabled = flow !== 'by_exam_type'; }
-    if (idTerm) { idTerm.disabled = flow !== 'term'; }
-    const examTypeId = form.querySelector('select[name="exam_type_id"]');
-    if (examTypeId) examTypeId.disabled = flow !== 'by_exam_type';
-    const subj = form.querySelector('select[name="subject_id"]');
-    if (subj) subj.disabled = flow !== 'by_subject';
-    const subjCls = form.querySelector('select[name="classroom_ids[]"]');
-    if (subjCls) subjCls.disabled = flow !== 'by_subject';
+  const raw = document.getElementById('class-sheet-filter-data');
+  const DATA = raw ? JSON.parse(raw.textContent) : {};
+  const CLASSROOMS = DATA.classrooms || [];
+  const EXAM_TYPES_BY_CLASS = DATA.classroomExamTypeIds || {};
+  const SUBJECT_SCOPES = DATA.subjectExamScopes || [];
+  const TERM_SCOPES = DATA.termYearClassScopes || [];
+  const STREAMS_BY_CLASS = DATA.streamsByClassroom || {};
+
+  const yearSel = document.getElementById('academic_year_id_field');
+  const termSel = document.getElementById('term_id_field');
+  const streamWrap = document.getElementById('streamFieldWrapper');
+  const streamSel = document.getElementById('stream_id_field');
+
+  function filterTermsByYear() {
+    const y = yearSel && yearSel.value;
+    const currentTerm = termSel.value;
+    let valid = false;
+    termSel.querySelectorAll('option').forEach(function (opt) {
+      if (!opt.value) {
+        opt.hidden = false;
+        return;
+      }
+      const oy = String(opt.getAttribute('data-academic-year-id') || '');
+      const show = y && oy === String(y);
+      opt.hidden = !show;
+      if (show && opt.value === currentTerm) valid = true;
+    });
+    if (!y || !valid) {
+      termSel.value = '';
+    }
   }
 
-  form.querySelectorAll('input[name="sheet_flow"]').forEach(r => r.addEventListener('change', syncFlowVisibility));
+  function fillSelectOptions(selectEl, ids, preserveValue) {
+    const allowed = new Set(ids.map(String));
+    const prev = preserveValue != null && preserveValue !== '' ? String(preserveValue) : '';
+    selectEl.innerHTML = '';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = selectEl.id === 'classroom_ids_subject' ? 'Select class(es)' : 'Select class';
+    selectEl.appendChild(ph);
+    CLASSROOMS.forEach(function (c) {
+      if (!allowed.has(String(c.id))) return;
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.name;
+      selectEl.appendChild(o);
+    });
+    if (!selectEl.multiple && prev && allowed.has(prev)) {
+      selectEl.value = prev;
+    }
+  }
+
+  function examTypeClassIds(examTypeId) {
+    if (!examTypeId) return [];
+    const et = parseInt(examTypeId, 10);
+    const out = [];
+    Object.keys(EXAM_TYPES_BY_CLASS).forEach(function (cid) {
+      const list = EXAM_TYPES_BY_CLASS[cid] || [];
+      if (list.map(Number).includes(et)) out.push(parseInt(cid, 10));
+    });
+    return out;
+  }
+
+  function syncExamTypeClass() {
+    const sel = document.getElementById('classroom_id_exam_type');
+    const hint = document.getElementById('hint_exam_type_class');
+    const et = document.getElementById('exam_type_id_field')?.value;
+    if (!sel) return;
+    if (!et) {
+      sel.innerHTML = '<option value="">Select class</option>';
+      sel.disabled = true;
+      if (hint) { hint.classList.add('d-none'); }
+      syncStreams();
+      return;
+    }
+    const ids = examTypeClassIds(et);
+    const reqClass = @json(request()->filled('classroom_id') ? (int) request('classroom_id') : null);
+    fillSelectOptions(sel, ids, reqClass != null ? reqClass : sel.value);
+    sel.disabled = ids.length === 0;
+    if (hint) {
+      hint.classList.toggle('d-none', ids.length > 0);
+    }
+    syncStreams();
+  }
+
+  function subjectClassIds(subjectId, yearId, termId) {
+    if (!subjectId || !yearId || !termId) return [];
+    const s = parseInt(subjectId, 10), y = parseInt(yearId, 10), t = parseInt(termId, 10);
+    const out = [];
+    SUBJECT_SCOPES.forEach(function (row) {
+      if (row.subject_id === s && row.academic_year_id === y && row.term_id === t) {
+        out.push(row.classroom_id);
+      }
+    });
+    return [...new Set(out)];
+  }
+
+  function syncSubjectClasses() {
+    const sel = document.getElementById('classroom_ids_subject');
+    const hint = document.getElementById('hint_subject_class');
+    if (!sel) return;
+    const sub = document.getElementById('subject_id_field')?.value;
+    const y = yearSel?.value;
+    const t = termSel?.value;
+    if (!sub || !y || !t) {
+      sel.innerHTML = '';
+      sel.disabled = true;
+      if (hint) hint.classList.remove('d-none');
+      syncStreams();
+      return;
+    }
+    if (hint) hint.classList.add('d-none');
+    const ids = subjectClassIds(sub, y, t);
+    const prev = @json(array_values(array_map('intval', (array) request('classroom_ids', []))));
+    sel.innerHTML = '';
+    sel.disabled = ids.length === 0;
+    if (ids.length === 0) {
+      if (hint) hint.classList.remove('d-none');
+      syncStreams();
+      return;
+    }
+    const prevSet = new Set(prev.map(String));
+    CLASSROOMS.forEach(function (c) {
+      if (!ids.includes(c.id)) return;
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.name;
+      o.selected = prevSet.has(String(c.id));
+      sel.appendChild(o);
+    });
+    syncStreams();
+  }
+
+  function termFlowClassIds(yearId, termId) {
+    if (!yearId || !termId) return [];
+    const y = parseInt(yearId, 10), t = parseInt(termId, 10);
+    const out = [];
+    TERM_SCOPES.forEach(function (row) {
+      if (row.academic_year_id === y && row.term_id === t) out.push(row.classroom_id);
+    });
+    return [...new Set(out)];
+  }
+
+  function syncTermClass() {
+    const sel = document.getElementById('classroom_id_term');
+    const hint = document.getElementById('hint_term_class');
+    if (!sel) return;
+    const y = yearSel?.value;
+    const t = termSel?.value;
+    if (!y || !t) {
+      sel.innerHTML = '<option value="">Select class</option>';
+      sel.disabled = true;
+      if (hint) hint.classList.add('d-none');
+      syncStreams();
+      return;
+    }
+    const ids = termFlowClassIds(y, t);
+    const reqClass = @json(request()->filled('classroom_id') ? (int) request('classroom_id') : null);
+    fillSelectOptions(sel, ids, reqClass != null ? reqClass : sel.value);
+    sel.disabled = ids.length === 0;
+    if (hint) hint.classList.toggle('d-none', ids.length > 0);
+    syncStreams();
+  }
+
+  function primaryClassIdForStream() {
+    const flow = form.querySelector('input[name="sheet_flow"]:checked')?.value || 'by_exam_type';
+    if (flow === 'by_exam_type') {
+      const v = document.getElementById('classroom_id_exam_type')?.value;
+      return v ? parseInt(v, 10) : null;
+    }
+    if (flow === 'by_subject') {
+      const m = document.getElementById('classroom_ids_subject');
+      if (!m || !m.selectedOptions.length) return null;
+      return parseInt(m.selectedOptions[0].value, 10);
+    }
+    if (flow === 'term') {
+      const v = document.getElementById('classroom_id_term')?.value;
+      return v ? parseInt(v, 10) : null;
+    }
+    return null;
+  }
+
+  function syncStreams() {
+    if (!streamWrap || !streamSel) return;
+    const cid = primaryClassIdForStream();
+    const list = cid ? (STREAMS_BY_CLASS[String(cid)] || []) : [];
+    const reqStream = @json(request()->filled('stream_id') ? (int) request('stream_id') : null);
+    streamSel.innerHTML = '<option value="">All streams</option>';
+    if (!list.length) {
+      streamWrap.classList.add('d-none');
+      streamSel.value = '';
+      streamSel.disabled = true;
+      return;
+    }
+    streamWrap.classList.remove('d-none');
+    streamSel.disabled = false;
+    list.forEach(function (st) {
+      const o = document.createElement('option');
+      o.value = st.id;
+      o.textContent = st.name;
+      if (reqStream != null && Number(st.id) === Number(reqStream)) o.selected = true;
+      streamSel.appendChild(o);
+    });
+  }
+
+  function syncFlowVisibility() {
+    const flow = form.querySelector('input[name="sheet_flow"]:checked')?.value || 'by_exam_type';
+    document.querySelectorAll('.flow-exam-type').forEach(function (el) { el.classList.toggle('d-none', flow !== 'by_exam_type'); });
+    document.querySelectorAll('.flow-subject').forEach(function (el) { el.classList.toggle('d-none', flow !== 'by_subject'); });
+    document.querySelectorAll('.flow-term').forEach(function (el) { el.classList.toggle('d-none', flow !== 'term'); });
+
+    const idExam = document.getElementById('classroom_id_exam_type');
+    const idTerm = document.getElementById('classroom_id_term');
+    if (idExam) idExam.disabled = flow !== 'by_exam_type';
+    if (idTerm) idTerm.disabled = flow !== 'term';
+
+    const examTypeId = document.getElementById('exam_type_id_field');
+    if (examTypeId) examTypeId.disabled = flow !== 'by_exam_type';
+    const subj = document.getElementById('subject_id_field');
+    if (subj) subj.disabled = flow !== 'by_subject';
+    const subjCls = document.getElementById('classroom_ids_subject');
+    if (subjCls) subjCls.disabled = flow !== 'by_subject';
+
+    if (flow === 'by_exam_type') syncExamTypeClass();
+    if (flow === 'by_subject') syncSubjectClasses();
+    if (flow === 'term') syncTermClass();
+    syncStreams();
+  }
+
+  yearSel && yearSel.addEventListener('change', function () {
+    filterTermsByYear();
+    syncSubjectClasses();
+    syncTermClass();
+    syncExamTypeClass();
+    syncStreams();
+  });
+  termSel && termSel.addEventListener('change', function () {
+    syncSubjectClasses();
+    syncTermClass();
+    syncStreams();
+  });
+  document.getElementById('exam_type_id_field')?.addEventListener('change', syncExamTypeClass);
+  document.getElementById('subject_id_field')?.addEventListener('change', syncSubjectClasses);
+  document.getElementById('classroom_id_exam_type')?.addEventListener('change', syncStreams);
+  document.getElementById('classroom_ids_subject')?.addEventListener('change', syncStreams);
+  document.getElementById('classroom_id_term')?.addEventListener('change', syncStreams);
+
+  form.querySelectorAll('input[name="sheet_flow"]').forEach(function (r) {
+    r.addEventListener('change', syncFlowVisibility);
+  });
+
+  filterTermsByYear();
   syncFlowVisibility();
 })();
 </script>
