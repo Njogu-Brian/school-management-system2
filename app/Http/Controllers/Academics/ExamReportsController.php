@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Academics;
 
 use App\Exports\ClassSheetExport;
+use App\Exports\ClassSheetsWorkbookExport;
 use App\Exports\TermWorkbookExport;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
@@ -10,175 +11,286 @@ use App\Models\Academics\Exam;
 use App\Models\Academics\ExamSession;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\Stream;
+use App\Models\Academics\Subject;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Models\User;
 use App\Services\Academics\ExamReports\AnalyticsService;
 use App\Services\Academics\ExamReports\ClassSheetBuilder;
+use App\Services\Academics\ExamReports\ClassSheetSubjectResolver;
 use App\Services\Academics\ExamReports\ExamReportsAccess;
 use App\Services\Academics\ExamReports\ReportCache;
 use App\Services\Academics\ExamReports\SchoolWideTeacherRankingService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ExamReportsController extends Controller
 {
     public function classSheet(Request $request)
     {
-        $request->validate([
-            'mode' => 'nullable|in:exam,exam_session,term',
-            'exam_id' => 'nullable|required_if:mode,exam|exists:exams,id',
-            'exam_session_id' => 'nullable|required_if:mode,exam_session|exists:exam_sessions,id',
-            'academic_year_id' => 'nullable|required_if:mode,term|integer',
-            'term_id' => 'nullable|required_if:mode,term|exists:terms,id',
-            'classroom_id' => 'nullable|exists:classrooms,id',
-            'stream_id' => 'nullable|exists:streams,id',
-            'session_filter_exam_type_id' => 'nullable|exists:exam_types,id',
-            'session_filter_year_id' => 'nullable|exists:academic_years,id',
-            'session_filter_term_id' => 'nullable|exists:terms,id',
-        ]);
-
         $user = $request->user();
-        $examReportsFullAccess = ExamReportsAccess::userHasFullAccess($user instanceof User ? $user : null);
+        $u = $user instanceof User ? $user : null;
+        $examReportsFullAccess = ExamReportsAccess::userHasFullAccess($u);
 
-        $mode = $request->input('mode', 'exam');
+        $sheetFlow = $request->input('sheet_flow', 'by_exam_type');
+
+        if ($request->filled('load')) {
+            $this->validateClassSheetRequest($request);
+            $bundles = $this->buildClassSheetBundles($request, $u);
+        } else {
+            $bundles = [];
+        }
+
         $examTypes = ExamType::orderBy('name')->get();
-        $exams = Exam::with(['academicYear', 'term'])
-            ->whereNotNull('subject_id')
-            ->orderByDesc('created_at')
-            ->limit(60)
-            ->get();
-        $examSessions = ExamSession::query()
-            ->with(['examType', 'academicYear', 'term', 'classroom'])
-            ->when($request->filled('session_filter_exam_type_id'), fn ($q) => $q->where('exam_type_id', $request->session_filter_exam_type_id))
-            ->when($request->filled('session_filter_year_id'), fn ($q) => $q->where('academic_year_id', $request->session_filter_year_id))
-            ->when($request->filled('session_filter_term_id'), fn ($q) => $q->where('term_id', $request->session_filter_term_id))
-            ->when($request->filled('classroom_id'), fn ($q) => $q->where('classroom_id', $request->classroom_id))
-            ->orderByDesc('id')
-            ->limit(120)
-            ->get();
-        $classrooms = ExamReportsAccess::classroomsQueryFor($user instanceof User ? $user : null)->get();
-        $streams = Stream::orderBy('name')->get();
+        $subjects = Subject::query()->where('is_active', true)->orderBy('name')->get();
+        $classrooms = ExamReportsAccess::classroomsQueryFor($u)->get();
+
+        $classroomId = $request->integer('classroom_id') ?: null;
+        if (! $classroomId && $request->filled('classroom_ids')) {
+            $ids = array_filter(array_map('intval', (array) $request->input('classroom_ids', [])));
+            $classroomId = $ids[0] ?? null;
+        }
+        $streamsForClass = $classroomId
+            ? Stream::query()->where('classroom_id', $classroomId)->orderBy('name')->get()
+            : collect();
+
         $academicYears = AcademicYear::orderByDesc('year')->get();
         $terms = Term::with('academicYear')->orderByDesc('academic_year_id')->orderBy('name')->get();
-
-        $payload = null;
-        $selectedExam = null;
-        $selectedExamSession = null;
-        $selectedClassroom = null;
-
-        if ($request->filled('classroom_id')) {
-            ExamReportsAccess::assertClassroomAccess($user instanceof User ? $user : null, (int) $request->classroom_id);
-            $selectedClassroom = Classroom::find($request->classroom_id);
-        }
-
-        if ($mode === 'exam_session' && $request->filled('exam_session_id') && $selectedClassroom) {
-            $selectedExamSession = ExamSession::find($request->exam_session_id);
-            if ($selectedExamSession && (int) $selectedExamSession->classroom_id === (int) $selectedClassroom->id) {
-                $cache = new ReportCache();
-                $builder = new ClassSheetBuilder();
-                $streamId = $request->integer('stream_id') ?: null;
-                $payload = $cache->rememberExamSessionClassSheet(
-                    session: $selectedExamSession,
-                    classroom: $selectedClassroom,
-                    streamId: $streamId,
-                    build: fn () => $builder->buildForExamSession($selectedExamSession, $selectedClassroom, $streamId)
-                );
-            }
-        }
-
-        if ($mode === 'exam' && $request->filled('exam_id') && $selectedClassroom) {
-            $selectedExam = Exam::find($request->exam_id);
-            if ($selectedExam) {
-                $cache = new ReportCache();
-                $builder = new ClassSheetBuilder();
-                $streamId = $request->integer('stream_id') ?: null;
-                $payload = $cache->rememberExamClassSheet(
-                    exam: $selectedExam,
-                    classroom: $selectedClassroom,
-                    streamId: $streamId,
-                    build: fn () => $builder->buildForExam($selectedExam, $selectedClassroom, $streamId)
-                );
-            }
-        }
-
-        if ($mode === 'term' && $selectedClassroom && $request->filled('term_id') && $request->filled('academic_year_id')) {
-            $cache = new ReportCache();
-            $builder = new ClassSheetBuilder();
-            $streamId = $request->integer('stream_id') ?: null;
-            $ay = (int) $request->academic_year_id;
-            $termId = (int) $request->term_id;
-            $payload = $cache->rememberTermClassSheet(
-                academicYearId: $ay,
-                termId: $termId,
-                classroom: $selectedClassroom,
-                streamId: $streamId,
-                build: fn () => $builder->buildForTerm($ay, $termId, $selectedClassroom, $streamId)
-            );
-        }
+        $yearId = $request->integer('academic_year_id') ?: null;
+        $termsForYear = $yearId
+            ? $terms->where('academic_year_id', $yearId)->values()
+            : collect();
 
         return view('academics.exam_reports.class_sheet', compact(
-            'mode',
+            'sheetFlow',
+            'bundles',
             'examTypes',
-            'examSessions',
-            'exams',
+            'subjects',
             'classrooms',
-            'streams',
+            'streamsForClass',
             'academicYears',
             'terms',
-            'selectedExam',
-            'selectedExamSession',
-            'selectedClassroom',
-            'payload',
+            'termsForYear',
             'examReportsFullAccess'
         ));
     }
 
     public function exportClassSheet(Request $request)
     {
-        $request->validate([
-            'mode' => 'nullable|in:exam,exam_session,term',
-            'exam_id' => 'nullable|required_if:mode,exam|exists:exams,id',
-            'exam_session_id' => 'nullable|required_if:mode,exam_session|exists:exam_sessions,id',
-            'academic_year_id' => 'nullable|required_if:mode,term|integer',
-            'term_id' => 'nullable|required_if:mode,term|exists:terms,id',
-            'classroom_id' => 'required|exists:classrooms,id',
-            'stream_id' => 'nullable|exists:streams,id',
-        ]);
-
+        $this->validateClassSheetRequest($request);
         $user = $request->user();
-        ExamReportsAccess::assertClassroomAccess($user instanceof User ? $user : null, (int) $request->classroom_id);
+        $u = $user instanceof User ? $user : null;
 
-        $mode = $request->input('mode', 'exam');
-        $classroom = Classroom::findOrFail($request->classroom_id);
-        $streamId = $request->integer('stream_id') ?: null;
-
-        $builder = new ClassSheetBuilder();
-        if ($mode === 'term') {
-            $cache = new ReportCache();
-            $ay = (int) $request->academic_year_id;
-            $termId = (int) $request->term_id;
-            $payload = $cache->rememberTermClassSheet($ay, $termId, $classroom, $streamId, fn () => $builder->buildForTerm($ay, $termId, $classroom, $streamId));
-            $title = ($classroom->name ?? 'Class') . ' Term Sheet';
-            $filename = 'term-sheet-' . $classroom->id . '.xlsx';
-        } elseif ($mode === 'exam_session') {
-            $session = ExamSession::findOrFail((int) $request->exam_session_id);
-            if ((int) $session->classroom_id !== (int) $classroom->id) {
-                abort(422, 'The selected class does not match this exam sitting.');
+        $bundles = $this->buildClassSheetBundles($request, $u);
+        $sheets = [];
+        foreach ($bundles as $b) {
+            if (empty($b['payload'])) {
+                continue;
             }
-            $cache = new ReportCache();
-            $payload = $cache->rememberExamSessionClassSheet($session, $classroom, $streamId, fn () => $builder->buildForExamSession($session, $classroom, $streamId));
-            $title = ($classroom->name ?? 'Class').' '.$session->name;
-            $filename = 'class-sheet-session-'.$session->id.'-'.$classroom->id.'.xlsx';
-        } else {
-            $exam = Exam::findOrFail($request->exam_id);
-            $cache = new ReportCache();
-            $payload = $cache->rememberExamClassSheet($exam, $classroom, $streamId, fn () => $builder->buildForExam($exam, $classroom, $streamId));
-            $title = ($classroom->name ?? 'Class') . ' ' . ($exam->name ?? 'Exam');
-            $filename = 'class-sheet-' . $exam->id . '-' . $classroom->id . '.xlsx';
+            $cls = $b['classroom']->name ?? 'Class';
+            $sheets[] = [
+                'title' => $this->excelSheetTitle($b['payload'], $cls),
+                'payload' => $b['payload'],
+            ];
         }
 
-        return Excel::download(new ClassSheetExport($payload, $title), $filename);
+        if ($sheets === []) {
+            abort(422, 'Nothing to export. Check filters or ensure mark data exists.');
+        }
+
+        $flow = $request->input('sheet_flow');
+        $filename = 'class-mark-sheets-'.$flow.'-'.now()->format('Y-m-d-His').'.xlsx';
+
+        if (count($sheets) === 1) {
+            return Excel::download(new ClassSheetExport($sheets[0]['payload'], $sheets[0]['title']), $filename);
+        }
+
+        return Excel::download(new ClassSheetsWorkbookExport($sheets), $filename);
+    }
+
+    public function exportClassSheetPdf(Request $request)
+    {
+        $this->validateClassSheetRequest($request);
+        $user = $request->user();
+        $u = $user instanceof User ? $user : null;
+
+        $bundles = $this->buildClassSheetBundles($request, $u);
+        $pdfBundles = [];
+        foreach ($bundles as $b) {
+            if (empty($b['payload'])) {
+                continue;
+            }
+            $pdfBundles[] = [
+                'classroom' => $b['classroom'],
+                'payload' => $b['payload'],
+                'notice' => $b['notice'],
+            ];
+        }
+
+        if ($pdfBundles === []) {
+            abort(422, 'Nothing to export. Check filters or ensure mark data exists.');
+        }
+
+        $pdf = Pdf::loadView('academics.exam_reports.class_sheet_pdf', [
+            'bundles' => $pdfBundles,
+            'sheetFlow' => $request->input('sheet_flow'),
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'class-mark-sheets-'.$request->input('sheet_flow').'-'.now()->format('Y-m-d-His').'.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    private function validateClassSheetRequest(Request $request): void
+    {
+        $flow = $request->input('sheet_flow', 'by_exam_type');
+
+        if ($flow === 'by_exam_type') {
+            Validator::make($request->all(), [
+                'sheet_flow' => 'required|in:by_exam_type,by_subject,term',
+                'exam_type_id' => 'required|exists:exam_types,id',
+                'classroom_id' => 'required|exists:classrooms,id',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'term_id' => 'required|exists:terms,id',
+                'stream_id' => 'nullable|exists:streams,id',
+            ])->validate();
+        } elseif ($flow === 'by_subject') {
+            Validator::make($request->all(), [
+                'sheet_flow' => 'required|in:by_exam_type,by_subject,term',
+                'subject_id' => 'required|exists:subjects,id',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'term_id' => 'required|exists:terms,id',
+                'stream_id' => 'nullable|exists:streams,id',
+                'classroom_ids' => 'required|array|min:1',
+                'classroom_ids.*' => 'exists:classrooms,id',
+            ])->validate();
+        } else {
+            Validator::make($request->all(), [
+                'sheet_flow' => 'required|in:by_exam_type,by_subject,term',
+                'classroom_id' => 'required|exists:classrooms,id',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'term_id' => 'required|exists:terms,id',
+                'stream_id' => 'nullable|exists:streams,id',
+            ])->validate();
+        }
+    }
+
+    /**
+     * @return list<array{classroom: Classroom, payload: ?array, notice: ?string}>
+     */
+    private function buildClassSheetBundles(Request $request, ?User $user): array
+    {
+        $flow = $request->input('sheet_flow', 'by_exam_type');
+        $streamId = $request->integer('stream_id') ?: null;
+        $cache = new ReportCache();
+        $builder = new ClassSheetBuilder();
+        $resolver = new ClassSheetSubjectResolver();
+
+        if ($flow === 'by_exam_type') {
+            $classroom = Classroom::findOrFail((int) $request->classroom_id);
+            ExamReportsAccess::assertClassroomAccess($user, $classroom->id);
+
+            $session = ExamSession::query()
+                ->forScope(
+                    (int) $request->exam_type_id,
+                    (int) $request->academic_year_id,
+                    (int) $request->term_id,
+                    $classroom->id,
+                    $streamId
+                )->first();
+
+            if (! $session) {
+                return [[
+                    'classroom' => $classroom,
+                    'payload' => null,
+                    'notice' => 'No exam sitting found for this exam type, class, academic year, and term. Create exams for this combination or adjust the stream filter.',
+                ]];
+            }
+
+            $payload = $cache->rememberExamSessionClassSheet(
+                $session,
+                $classroom,
+                $streamId,
+                fn () => $builder->buildForExamSession($session, $classroom, $streamId)
+            );
+
+            return [['classroom' => $classroom, 'payload' => $payload, 'notice' => null]];
+        }
+
+        if ($flow === 'by_subject') {
+            $ids = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('classroom_ids', [])))));
+            $out = [];
+            foreach ($ids as $cid) {
+                $classroom = Classroom::find($cid);
+                if (! $classroom) {
+                    continue;
+                }
+                ExamReportsAccess::assertClassroomAccess($user, $cid);
+                $exam = $resolver->resolveExam(
+                    (int) $request->subject_id,
+                    $cid,
+                    (int) $request->academic_year_id,
+                    (int) $request->term_id,
+                    $streamId
+                );
+                if (! $exam) {
+                    $out[] = [
+                        'classroom' => $classroom,
+                        'payload' => null,
+                        'notice' => 'No exam paper found for this subject, class, year, and term.',
+                    ];
+
+                    continue;
+                }
+                $payload = $cache->rememberExamClassSheet(
+                    $exam,
+                    $classroom,
+                    $streamId,
+                    fn () => $builder->buildForSingleSubjectExam($exam, $classroom, $streamId)
+                );
+                $out[] = ['classroom' => $classroom, 'payload' => $payload, 'notice' => null];
+            }
+
+            return $out;
+        }
+
+        $classroom = Classroom::findOrFail((int) $request->classroom_id);
+        ExamReportsAccess::assertClassroomAccess($user, $classroom->id);
+        $ay = (int) $request->academic_year_id;
+        $termId = (int) $request->term_id;
+        $payload = $cache->rememberTermClassSheet(
+            $ay,
+            $termId,
+            $classroom,
+            $streamId,
+            fn () => $builder->buildForTerm($ay, $termId, $classroom, $streamId)
+        );
+
+        return [['classroom' => $classroom, 'payload' => $payload, 'notice' => null]];
+    }
+
+    private function excelSheetTitle(array $payload, string $classLabel): string
+    {
+        $meta = $payload['meta'] ?? [];
+        $mode = $meta['mode'] ?? '';
+
+        if ($mode === 'term') {
+            return mb_substr($classLabel.' Term', 0, 31);
+        }
+        if ($mode === 'exam_session') {
+            $name = $meta['exam_session']['name'] ?? 'Sitting';
+
+            return mb_substr($classLabel.' '.$name, 0, 31);
+        }
+        if ($mode === 'subject_paper') {
+            $sub = $meta['subject']['name'] ?? 'Subject';
+
+            return mb_substr($classLabel.' '.$sub, 0, 31);
+        }
+
+        return mb_substr($classLabel.' Sheet', 0, 31);
     }
 
     public function exportTermWorkbook(Request $request)

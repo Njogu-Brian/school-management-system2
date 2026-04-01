@@ -1627,6 +1627,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Exam Reports & Analysis
         Route::get('exam-reports/class-sheet', [ExamReportsController::class, 'classSheet'])->name('exam-reports.class-sheet');
         Route::get('exam-reports/export/class-sheet.xlsx', [ExamReportsController::class, 'exportClassSheet'])->name('exam-reports.export.class-sheet');
+        Route::get('exam-reports/export/class-sheet.pdf', [ExamReportsController::class, 'exportClassSheetPdf'])->name('exam-reports.export.class-sheet-pdf');
         Route::get('exam-reports/export/term-workbook.xlsx', [ExamReportsController::class, 'exportTermWorkbook'])->name('exam-reports.export.term-workbook');
         Route::get('exam-reports/teacher-performance', [ExamReportsController::class, 'teacherPerformance'])->name('exam-reports.teacher-performance');
         Route::get('exam-reports/subject-performance', [ExamReportsController::class, 'subjectPerformance'])->name('exam-reports.subject-performance');

@@ -8,12 +8,7 @@ use App\Models\Academics\ExamMark;
 use App\Models\Academics\ExamSession;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamSchedule;
-use App\Models\Academics\GradingBand;
-use App\Models\Academics\GradingScheme;
-use App\Models\Academics\GradingSchemeMapping;
-use App\Models\Academics\Subject;
-use App\Models\Academics\Classroom;
-use App\Models\Student;
+use App\Services\Academics\ClassroomGradingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -96,9 +91,8 @@ class ExamResultController extends Controller
             }
         }
 
-        // resolve grading scheme for this class (fallback: first default scheme)
-        $schemeId = GradingSchemeMapping::where('classroom_id',$data['classroom_id'])->value('grading_scheme_id')
-            ?? GradingScheme::where('is_default',1)->value('id');
+        $grading = app(ClassroomGradingService::class);
+        $classroomId = (int) $data['classroom_id'];
 
         foreach ($data['rows'] as $row) {
             // Validate student is not alumni or archived
@@ -109,13 +103,9 @@ class ExamResultController extends Controller
             
             $score = ($row['score'] === '' ? null : $row['score']);
 
-            $band = null;
-            if ($score !== null && $schemeId) {
-                $band = GradingBand::where('grading_scheme_id',$schemeId)
-                    ->where('min','<=',$score)
-                    ->where('max','>=',$score)
-                    ->orderByDesc('min')
-                    ->first();
+            $g = ['label' => null, 'points' => null];
+            if ($score !== null && is_numeric($score)) {
+                $g = $grading->gradeForRawScore((float) $score, (float) $max, $classroomId);
             }
 
             $mark = ExamMark::firstOrNew([
@@ -126,9 +116,9 @@ class ExamResultController extends Controller
 
             $mark->fill([
                 'score_raw'      => $score,
-                'final_score'    => $score,               // if you later add final_score column
-                'grade_label'    => $band?->label ?? null,
-                'pl_level'       => $band?->rank ?? null,
+                'final_score'    => $score,
+                'grade_label'    => $g['label'],
+                'pl_level'       => $g['points'],
                 'subject_remark' => $row['subject_remark'] ?? null,
                 'status'         => 'submitted',
                 'teacher_id'     => optional(Auth::user()->staff)->id,

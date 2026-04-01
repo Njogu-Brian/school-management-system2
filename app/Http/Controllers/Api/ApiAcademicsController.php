@@ -8,8 +8,8 @@ use App\Models\Academics\Classroom;
 use App\Models\Academics\Exam;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamMark;
-use App\Models\Academics\ExamGrade;
 use App\Models\Academics\Stream;
+use App\Services\Academics\ClassroomGradingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -224,8 +224,11 @@ class ApiAcademicsController extends Controller
             return response()->json(['success' => false, 'message' => 'This exam is not open for mark entry.'], 422);
         }
 
-        $maxMarks = (float) ($exam->max_marks ?? 100);
-        $minMarks = 0;
+        $exam->loadMissing('examType');
+        $maxMarks = (float) ($exam->examType?->default_max_mark ?? $exam->max_marks ?? 100);
+        $minMarks = (float) ($exam->examType?->default_min_mark ?? 0);
+        $classroomId = (int) $data['classroom_id'];
+        $grading = app(ClassroomGradingService::class);
         $rows = $data['marks'] ?? [];
         $count = 0;
 
@@ -242,7 +245,7 @@ class ApiAcademicsController extends Controller
             if (! $student || $student->archive || $student->is_alumni) {
                 continue;
             }
-            if ((int) $student->classroom_id !== (int) $data['classroom_id']) {
+            if ((int) $student->classroom_id !== $classroomId) {
                 continue;
             }
             if ($user && $user->hasTeacherLikeRole()) {
@@ -259,20 +262,13 @@ class ApiAcademicsController extends Controller
                 'subject_id' => $data['subject_id'],
             ]);
 
-            $examTypeKey = strtoupper((string) ($exam->examType?->code ?? $exam->examType?->name ?? ''));
-            $g = null;
-            if ($examTypeKey !== '') {
-                $g = ExamGrade::where('exam_type', $examTypeKey)
-                    ->where('percent_from', '<=', $score)
-                    ->where('percent_upto', '>=', $score)
-                    ->first();
-            }
+            $g = $grading->gradeForRawScore($score, $maxMarks, $classroomId);
 
             $mark->fill([
                 'score_raw' => $score,
                 'final_score' => $score,
-                'grade_label' => $g?->grade_name ?? 'BE',
-                'pl_level' => $g?->grade_point ?? 1.0,
+                'grade_label' => $g['label'],
+                'pl_level' => $g['points'],
                 'subject_remark' => $row['remarks'] ?? null,
                 'status' => 'submitted',
                 'teacher_id' => optional($user->staff)->id,
@@ -473,6 +469,7 @@ class ApiAcademicsController extends Controller
 
         $saved = 0;
         $skipped = 0;
+        $grading = app(ClassroomGradingService::class);
         foreach ($entries as $entry) {
             $studentId = (int) $entry['student_id'];
             $examId = (int) $entry['exam_id'];
@@ -509,22 +506,20 @@ class ApiAcademicsController extends Controller
                 'subject_id' => (int) $exam->subject_id,
             ]);
 
-            $g = null;
-            if (!is_null($score)) {
-                $examTypeKey = strtoupper((string) ($exam->examType?->code ?? $exam->examType?->name ?? ''));
-                if ($examTypeKey !== '') {
-                    $g = ExamGrade::where('exam_type', $examTypeKey)
-                        ->where('percent_from', '<=', $score)
-                        ->where('percent_upto', '>=', $score)
-                        ->first();
-                }
+            if ($score !== null) {
+                $g = $grading->gradeForRawScore($score, $maxMarks, $classroomId);
+                $gradeLabel = $g['label'];
+                $plLevel = $g['points'];
+            } else {
+                $gradeLabel = $mark->grade_label;
+                $plLevel = $mark->pl_level;
             }
 
             $mark->fill([
                 'score_raw' => $score,
                 'final_score' => $score,
-                'grade_label' => $g?->grade_name ?? ($mark->grade_label ?? 'BE'),
-                'pl_level' => $g?->grade_point ?? ($mark->pl_level ?? 1.0),
+                'grade_label' => $gradeLabel,
+                'pl_level' => $plLevel,
                 'subject_remark' => $hasRemark ? trim((string) $remarks) : $mark->subject_remark,
                 'status' => 'submitted',
                 'teacher_id' => optional($user->staff)->id,

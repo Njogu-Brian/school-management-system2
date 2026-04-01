@@ -2,158 +2,158 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    <style>
+      @media print {
+        .no-print { display: none !important; }
+        .settings-page .settings-shell { max-width: 100% !important; padding: 0 !important; }
+        .settings-card { box-shadow: none !important; border: none !important; }
+        a[href]:after { content: none !important; }
+      }
+    </style>
 @endpush
 
 @section('content')
 <div class="settings-page">
   <div class="settings-shell">
-    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3 no-print">
       <div>
         <div class="crumb">Academics · Exam Reports &amp; Analysis</div>
         <h1 class="mb-1">Class Mark Sheet</h1>
-        <p class="text-muted mb-0">Generate per-class sheets with subject scores, totals, averages, and positions.</p>
+        <p class="text-muted mb-0">Load by exam type (full sitting) or by subject (one paper). Then print or export.</p>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.teacher-performance') }}">Teacher Performance</a>
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.subject-performance') }}">Subject Performance</a>
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.student-insights') }}">Student Insights</a>
       </div>
     </div>
 
-    <div class="settings-card mb-3">
+    <div class="settings-card mb-3 no-print">
       <div class="card-body">
-        <form method="GET" class="row g-3 align-items-end">
-          <div class="col-md-2">
-            <label class="form-label">Mode</label>
-            <select name="mode" class="form-select">
-              <option value="exam_session" {{ $mode === 'exam_session' ? 'selected' : '' }}>Exam sitting (all papers)</option>
-              <option value="exam" {{ $mode === 'exam' ? 'selected' : '' }}>Single paper</option>
-              <option value="term" {{ $mode === 'term' ? 'selected' : '' }}>Termly</option>
-            </select>
+        <form method="GET" id="classSheetForm" class="row g-3">
+
+          <div class="col-12">
+            <label class="form-label d-block mb-2">Report type</label>
+            <div class="btn-group flex-wrap" role="group">
+              <input type="radio" class="btn-check" name="sheet_flow" id="flow_exam_type" value="by_exam_type" autocomplete="off"
+                     @checked(($sheetFlow ?? 'by_exam_type') === 'by_exam_type')>
+              <label class="btn btn-outline-primary" for="flow_exam_type">By exam type</label>
+              <input type="radio" class="btn-check" name="sheet_flow" id="flow_subject" value="by_subject" autocomplete="off"
+                     @checked(($sheetFlow ?? '') === 'by_subject')>
+              <label class="btn btn-outline-primary" for="flow_subject">By subject</label>
+              <input type="radio" class="btn-check" name="sheet_flow" id="flow_term" value="term" autocomplete="off"
+                     @checked(($sheetFlow ?? '') === 'term')>
+              <label class="btn btn-outline-primary" for="flow_term">Whole term</label>
+            </div>
           </div>
 
-          @if($mode === 'exam_session')
-          <div class="col-md-2">
-            <label class="form-label">Filter sittings (type)</label>
-            <select name="session_filter_exam_type_id" class="form-select">
-              <option value="">All types</option>
+          {{-- By exam type --}}
+          <div class="col-md-3 flow-exam-type {{ ($sheetFlow ?? 'by_exam_type') === 'by_exam_type' ? '' : 'd-none' }}">
+            <label class="form-label">Exam type</label>
+            <select name="exam_type_id" class="form-select">
+              <option value="">Select type</option>
               @foreach($examTypes ?? [] as $et)
-                <option value="{{ $et->id }}" @selected(request('session_filter_exam_type_id') == $et->id)>{{ $et->name }}</option>
+                <option value="{{ $et->id }}" @selected(request('exam_type_id') == $et->id)>{{ $et->name }}</option>
               @endforeach
             </select>
           </div>
-          <div class="col-md-2">
-            <label class="form-label">Year</label>
-            <select name="session_filter_year_id" class="form-select">
-              <option value="">All</option>
-              @foreach($academicYears as $y)
-                <option value="{{ $y->id }}" @selected(request('session_filter_year_id') == $y->id)>{{ $y->year }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Term</label>
-            <select name="session_filter_term_id" class="form-select">
-              <option value="">All</option>
-              @foreach($terms as $t)
-                <option value="{{ $t->id }}" @selected(request('session_filter_term_id') == $t->id)>
-                  {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
-                </option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Exam sitting</label>
-            <select name="exam_session_id" class="form-select">
-              <option value="">Select sitting</option>
-              @foreach($examSessions ?? [] as $sess)
-                <option value="{{ $sess->id }}" @selected(request('exam_session_id') == $sess->id)>
-                  {{ $sess->examType->name ?? 'Type' }} — {{ $sess->classroom->name ?? '' }}
-                  · {{ $sess->academicYear->year ?? '' }} {{ $sess->term->name ?? '' }}
-                </option>
-              @endforeach
-            </select>
-          </div>
-          @endif
-
-          <div class="col-md-4 {{ $mode === 'exam_session' ? 'd-none' : '' }}">
-            <label class="form-label">Exam (single paper)</label>
-            <select name="exam_id" class="form-select" {{ $mode === 'term' || $mode === 'exam_session' ? 'disabled' : '' }}>
-              <option value="">Select Exam</option>
-              @foreach($exams as $exam)
-                <option value="{{ $exam->id }}" {{ request('exam_id') == $exam->id ? 'selected' : '' }}>
-                  {{ $exam->name }} - {{ $exam->academicYear->year ?? '' }} {{ $exam->term ? 'Term ' . $exam->term->name : '' }}
-                </option>
-              @endforeach
-            </select>
-            @if($mode === 'term' || $mode === 'exam_session')
-              <input type="hidden" name="exam_id" value="">
-            @endif
-          </div>
-
-          <div class="col-md-2 {{ $mode === 'exam' || $mode === 'exam_session' ? 'd-none' : '' }}">
-            <label class="form-label">Academic Year</label>
-            <select name="academic_year_id" class="form-select" {{ $mode === 'exam' || $mode === 'exam_session' ? 'disabled' : '' }}>
-              <option value="">Select Year</option>
-              @foreach($academicYears as $y)
-                <option value="{{ $y->id }}" {{ request('academic_year_id') == $y->id ? 'selected' : '' }}>{{ $y->year }}</option>
-              @endforeach
-            </select>
-            @if($mode === 'exam' || $mode === 'exam_session')
-              <input type="hidden" name="academic_year_id" value="">
-            @endif
-          </div>
-
-          <div class="col-md-2 {{ $mode === 'exam' || $mode === 'exam_session' ? 'd-none' : '' }}">
-            <label class="form-label">Term</label>
-            <select name="term_id" class="form-select" {{ $mode === 'exam' || $mode === 'exam_session' ? 'disabled' : '' }}>
-              <option value="">Select Term</option>
-              @foreach($terms as $t)
-                <option value="{{ $t->id }}" {{ request('term_id') == $t->id ? 'selected' : '' }}>
-                  {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
-                </option>
-              @endforeach
-            </select>
-            @if($mode === 'exam' || $mode === 'exam_session')
-              <input type="hidden" name="term_id" value="">
-            @endif
-          </div>
-
-          <div class="col-md-2">
+          <div class="col-md-3 flow-exam-type {{ ($sheetFlow ?? 'by_exam_type') === 'by_exam_type' ? '' : 'd-none' }}">
             <label class="form-label">Class</label>
-            <select name="classroom_id" class="form-select" required>
-              <option value="">Select Class</option>
-              @foreach($classrooms as $classroom)
-                <option value="{{ $classroom->id }}" {{ request('classroom_id') == $classroom->id ? 'selected' : '' }}>{{ $classroom->name }}</option>
+            <select name="classroom_id" class="form-select" id="classroom_id_exam_type">
+              <option value="">Select class</option>
+              @foreach($classrooms ?? [] as $c)
+                <option value="{{ $c->id }}" @selected(request('classroom_id') == $c->id)>{{ $c->name }}</option>
+              @endforeach
+            </select>
+          </div>
+
+          {{-- By subject: multi class --}}
+          <div class="col-md-4 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
+            <label class="form-label">Subject</label>
+            <select name="subject_id" class="form-select">
+              <option value="">Select subject</option>
+              @foreach($subjects ?? [] as $sub)
+                <option value="{{ $sub->id }}" @selected(request('subject_id') == $sub->id)>{{ $sub->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-5 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
+            <label class="form-label">Classes <span class="text-muted small">(Ctrl/Cmd + click for several)</span></label>
+            <select name="classroom_ids[]" class="form-select" multiple size="6">
+              @foreach($classrooms ?? [] as $c)
+                <option value="{{ $c->id }}" @selected(collect((array)request('classroom_ids', []))->contains($c->id))>{{ $c->name }}</option>
+              @endforeach
+            </select>
+          </div>
+
+          {{-- Whole term: single class --}}
+          <div class="col-md-3 flow-term {{ ($sheetFlow ?? '') === 'term' ? '' : 'd-none' }}">
+            <label class="form-label">Class</label>
+            <select name="classroom_id" class="form-select" id="classroom_id_term">
+              <option value="">Select class</option>
+              @foreach($classrooms ?? [] as $c)
+                <option value="{{ $c->id }}" @selected(request('classroom_id') == $c->id)>{{ $c->name }}</option>
               @endforeach
             </select>
           </div>
 
           <div class="col-md-2">
-            <label class="form-label">Stream (Optional)</label>
+            <label class="form-label">Stream <span class="text-muted">(optional)</span></label>
             <select name="stream_id" class="form-select">
-              <option value="">All Streams</option>
-              @foreach($streams as $stream)
-                <option value="{{ $stream->id }}" {{ request('stream_id') == $stream->id ? 'selected' : '' }}>{{ $stream->name }}</option>
+              <option value="">All streams</option>
+              @foreach($streamsForClass ?? [] as $st)
+                <option value="{{ $st->id }}" @selected(request('stream_id') == $st->id)>{{ $st->name }}</option>
+              @endforeach
+            </select>
+            @if(($streamsForClass ?? collect())->isEmpty())
+              <div class="form-text">Choose class and reload to list streams for that class.</div>
+            @endif
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label">Academic year</label>
+            <select name="academic_year_id" class="form-select" id="academic_year_id_field">
+              <option value="">Select year</option>
+              @foreach($academicYears ?? [] as $y)
+                <option value="{{ $y->id }}" @selected(request('academic_year_id') == $y->id)>{{ $y->year }}</option>
               @endforeach
             </select>
           </div>
+          <div class="col-md-2">
+            <label class="form-label">Term</label>
+            <select name="term_id" class="form-select">
+              <option value="">Select term</option>
+              @foreach($termsForYear ?? [] as $t)
+                <option value="{{ $t->id }}" @selected(request('term_id') == $t->id)>
+                  {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
+                </option>
+              @endforeach
+            </select>
+            @if(($termsForYear ?? collect())->isEmpty() && !request('academic_year_id'))
+              <div class="form-text">Pick a year to narrow terms.</div>
+            @endif
+          </div>
 
-          <div class="col-12 d-flex justify-content-end gap-2">
-            <button type="submit" class="btn btn-settings-primary">Generate</button>
-            @if($payload)
-              <a class="btn btn-outline-secondary"
-                 href="{{ route('academics.exam-reports.export.class-sheet', request()->query()) }}">
-                Export XLSX
+          <div class="col-12 d-flex flex-wrap justify-content-end gap-2 no-print">
+            <button type="submit" name="load" value="1" class="btn btn-settings-primary">Load results</button>
+            @if(!empty($bundles) && collect($bundles)->contains(fn ($b) => !empty($b['payload'])))
+              @php $q = request()->query(); @endphp
+              <button type="button" class="btn btn-outline-secondary" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print
+              </button>
+              <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.export.class-sheet', $q) }}">
+                <i class="bi bi-file-earmark-spreadsheet"></i> Export XLSX
+              </a>
+              <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.export.class-sheet-pdf', $q) }}">
+                <i class="bi bi-file-earmark-pdf"></i> Export PDF
               </a>
             @endif
-            @if($mode === 'term' && request('academic_year_id') && request('term_id'))
-              <a class="btn btn-outline-secondary"
-                 href="{{ route('academics.exam-reports.export.term-workbook', ['academic_year_id' => request('academic_year_id'), 'term_id' => request('term_id')]) }}">
+            @if(($sheetFlow ?? '') === 'term' && request('academic_year_id') && request('term_id'))
+              <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.export.term-workbook', ['academic_year_id' => request('academic_year_id'), 'term_id' => request('term_id')]) }}">
                 @if(!empty($examReportsFullAccess))
-                  Export Term Workbook (All Classes)
+                  Term workbook (all classes)
                 @else
-                  Export Term Workbook (My Classes)
+                  Term workbook (my classes)
                 @endif
               </a>
             @endif
@@ -163,77 +163,74 @@
     </div>
 
     @if($classrooms->isEmpty())
-      <div class="alert alert-warning border-0 shadow-sm mb-3" role="alert">
+      <div class="alert alert-warning border-0 shadow-sm mb-3 no-print" role="alert">
         <i class="bi bi-info-circle me-1"></i>
-        No classes are available for your account. Ask an administrator to assign you to a class or assign your senior-teacher campus.
+        No classes are available for your account.
       </div>
     @endif
 
-    @if($payload)
-      @php
-        $subjects = $payload['subjects'] ?? [];
-        $rows = $payload['rows'] ?? [];
-      @endphp
-
-      <div class="settings-card">
-        <div class="card-header d-flex align-items-center gap-2">
-          <i class="bi bi-table"></i>
-          <h5 class="mb-0">Mark Sheet</h5>
-          <span class="text-muted small ms-2">
-            {{ ($payload['meta']['classroom']['name'] ?? '') }}
-            @if(!empty($payload['meta']['mode']) && $payload['meta']['mode'] === 'term')
-              · Termly
-            @elseif(!empty($payload['meta']['mode']) && $payload['meta']['mode'] === 'exam_session')
-              · {{ $payload['meta']['exam_session']['name'] ?? '' }}
-            @else
-              · {{ $payload['meta']['exam']['name'] ?? '' }}
-            @endif
-          </span>
-        </div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table table-modern align-middle mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th style="min-width:60px">#</th>
-                  <th style="min-width:130px">Adm No</th>
-                  <th style="min-width:220px">Student</th>
-                  @foreach($subjects as $s)
-                    <th style="min-width:120px">{{ $s['code'] ? $s['code'] : $s['name'] }}</th>
-                    <th style="min-width:80px">Pos</th>
-                  @endforeach
-                  <th style="min-width:110px">Total</th>
-                  <th style="min-width:110px">Average</th>
-                  <th style="min-width:110px">Class Pos</th>
-                  <th style="min-width:110px">Stream Pos</th>
-                </tr>
-              </thead>
-              <tbody>
-                @forelse($rows as $i => $r)
-                  <tr>
-                    <td>{{ $i + 1 }}</td>
-                    <td>{{ $r['admission_number'] ?? '' }}</td>
-                    <td class="fw-semibold">{{ $r['name'] ?? '' }}</td>
-                    @foreach($subjects as $s)
-                      @php $sid = $s['id']; @endphp
-                      <td>{{ data_get($r, "subject_scores.$sid") }}</td>
-                      <td class="text-muted">{{ data_get($r, "subject_positions.$sid") }}</td>
-                    @endforeach
-                    <td class="fw-semibold">{{ $r['total'] }}</td>
-                    <td>{{ $r['average'] }}</td>
-                    <td class="fw-semibold">{{ $r['class_position'] ?? $r['position'] }}</td>
-                    <td class="text-muted">{{ $r['stream_position'] }}</td>
-                  </tr>
-                @empty
-                  <tr><td colspan="{{ 7 + (count($subjects) * 2) }}" class="text-center text-muted py-4">No data found.</td></tr>
-                @endforelse
-              </tbody>
-            </table>
+    <div id="class-sheet-print-area">
+      @if(!empty($bundles))
+        @foreach($bundles as $bundle)
+          <div class="settings-card mb-3">
+            <div class="card-header d-flex flex-wrap align-items-center gap-2">
+              <i class="bi bi-table"></i>
+              <h5 class="mb-0">{{ $bundle['classroom']->name ?? 'Class' }}</h5>
+              @if(!empty($bundle['payload']['meta']))
+                @php $meta = $bundle['payload']['meta']; @endphp
+                <span class="text-muted small">
+                  @if(($meta['mode'] ?? '') === 'exam_session')
+                    {{ $meta['exam_session']['name'] ?? '' }}
+                  @elseif(($meta['mode'] ?? '') === 'subject_paper')
+                    {{ $meta['subject']['name'] ?? '' }}
+                  @elseif(($meta['mode'] ?? '') === 'term')
+                    Term overview
+                  @endif
+                </span>
+              @endif
+            </div>
+            <div class="card-body p-0">
+              @if(!empty($bundle['notice']))
+                <div class="p-3">
+                  <div class="alert alert-warning mb-0">{{ $bundle['notice'] }}</div>
+                </div>
+              @elseif(!empty($bundle['payload']))
+                @include('academics.exam_reports.partials.class_sheet_table', ['payload' => $bundle['payload']])
+              @endif
+            </div>
           </div>
-        </div>
-      </div>
-    @endif
+        @endforeach
+      @endif
+    </div>
   </div>
 </div>
-@endsection
 
+@push('scripts')
+<script>
+(function () {
+  const form = document.getElementById('classSheetForm');
+  if (!form) return;
+
+  function syncFlowVisibility() {
+    const flow = form.querySelector('input[name="sheet_flow"]:checked')?.value || 'by_exam_type';
+    document.querySelectorAll('.flow-exam-type').forEach(el => el.classList.toggle('d-none', flow !== 'by_exam_type'));
+    document.querySelectorAll('.flow-subject').forEach(el => el.classList.toggle('d-none', flow !== 'by_subject'));
+    document.querySelectorAll('.flow-term').forEach(el => el.classList.toggle('d-none', flow !== 'term'));
+    const idExam = document.getElementById('classroom_id_exam_type');
+    const idTerm = document.getElementById('classroom_id_term');
+    if (idExam) { idExam.disabled = flow !== 'by_exam_type'; }
+    if (idTerm) { idTerm.disabled = flow !== 'term'; }
+    const examTypeId = form.querySelector('select[name="exam_type_id"]');
+    if (examTypeId) examTypeId.disabled = flow !== 'by_exam_type';
+    const subj = form.querySelector('select[name="subject_id"]');
+    if (subj) subj.disabled = flow !== 'by_subject';
+    const subjCls = form.querySelector('select[name="classroom_ids[]"]');
+    if (subjCls) subjCls.disabled = flow !== 'by_subject';
+  }
+
+  form.querySelectorAll('input[name="sheet_flow"]').forEach(r => r.addEventListener('change', syncFlowVisibility));
+  syncFlowVisibility();
+})();
+</script>
+@endpush
+@endsection
