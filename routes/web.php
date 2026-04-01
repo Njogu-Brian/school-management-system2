@@ -1272,22 +1272,19 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/generate',      [InvoiceController::class, 'generate'])->name('generate');
             Route::get('/export-csv',     [InvoiceController::class, 'exportCsv'])->name('export_csv');
             Route::post('/carry-forward-prior-term', [InvoiceController::class, 'carryForwardPriorTermBalances'])->name('carry_forward_prior_term');
+
+            // Literal paths must be registered BEFORE /{invoice} or "print", "import", etc. match as invoice IDs (404).
+            Route::get('/print',            [InvoiceController::class, 'printBulk'])->name('print');
+            Route::get('/import', [InvoiceController::class, 'importForm'])->name('import.form');
+            Route::post('/import',[InvoiceController::class, 'import'])->name('import');
+            Route::get('/adjustments/import', [InvoiceAdjustmentController::class, 'importForm'])->name('adjustments.import.form');
+            Route::post('/adjustments/import',[InvoiceAdjustmentController::class, 'import'])->name('adjustments.import');
+
             Route::get('/{invoice}',      [InvoiceController::class, 'show'])->name('show');
             Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
             Route::put('/{invoice}',      [InvoiceController::class, 'update'])->name('update');
             Route::post('/reverse/{invoice}', [InvoiceController::class, 'reverse'])->name('reverse');
-
-            // Print PDFs
-            Route::get('/print',            [InvoiceController::class, 'printBulk'])->name('print');
             Route::get('/{invoice}/print',  [InvoiceController::class, 'printSingle'])->name('print_single');
-
-            // Excel Import
-            Route::get('/import', [InvoiceController::class, 'importForm'])->name('import.form');
-            Route::post('/import',[InvoiceController::class, 'import'])->name('import');
-
-            // Adjustments (Credit/Debit Notes via batch import)
-            Route::get('/adjustments/import', [InvoiceAdjustmentController::class, 'importForm'])->name('adjustments.import.form');
-            Route::post('/adjustments/import',[InvoiceAdjustmentController::class, 'import'])->name('adjustments.import');
         });
 
         // Optional Fees
