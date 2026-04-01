@@ -48,6 +48,16 @@
         $subjects = $payload['subjects'] ?? [];
         $rows = $payload['rows'] ?? [];
         $meta = $payload['meta'] ?? [];
+        $subjectAverages = collect($subjects)->mapWithKeys(function ($s) use ($rows) {
+            $sid = $s['id'] ?? null;
+            if (! $sid) return [];
+            $vals = collect($rows)
+                ->map(fn ($r) => data_get($r, "subject_scores.$sid"))
+                ->filter(fn ($v) => $v !== null && $v !== '' && is_numeric($v))
+                ->map(fn ($v) => (float) $v);
+            $avg = $vals->count() ? round($vals->avg(), 2) : null;
+            return [$sid => $avg];
+        });
         $sub = null;
         if (($meta['mode'] ?? '') === 'exam_session') {
             $sub = $meta['exam_session']['name'] ?? null;
@@ -110,6 +120,21 @@
               </tr>
             @endforeach
           </tbody>
+          @if(!empty($rows))
+          <tfoot>
+            <tr>
+              <td colspan="3" style="font-weight:bold;">Subject average</td>
+              @foreach($subjects as $s)
+                @php $sid = $s['id']; @endphp
+                <td class="num" style="font-weight:bold;">{{ $subjectAverages[$sid] ?? '' }}</td>
+              @endforeach
+              <td class="num" style="font-weight:bold;"></td>
+              <td class="num" style="font-weight:bold;"></td>
+              <td class="num" style="font-weight:bold;"></td>
+              <td class="num" style="font-weight:bold;"></td>
+            </tr>
+          </tfoot>
+          @endif
         </table>
       </div>
     @endif

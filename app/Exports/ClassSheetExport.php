@@ -64,6 +64,35 @@ class ClassSheetExport implements FromArray, WithTitle
             $out[] = $line;
         }
 
+        if (!empty($rows)) {
+            $subjectAvgs = [];
+            foreach ($subjects as $s) {
+                $sid = $s['id'] ?? null;
+                if (!$sid) {
+                    $subjectAvgs[] = null;
+                    continue;
+                }
+                $sum = 0.0;
+                $count = 0;
+                foreach ($rows as $r) {
+                    $v = $r['subject_scores'][$sid] ?? null;
+                    if ($v === null || $v === '' || !is_numeric($v)) {
+                        continue;
+                    }
+                    $sum += (float) $v;
+                    $count++;
+                }
+                $subjectAvgs[] = $count ? round($sum / $count, 2) : null;
+            }
+
+            $out[] = [];
+            $out[] = array_merge(
+                ['', '', 'Subject average'],
+                $subjectAvgs,
+                ['', '', '', '']
+            );
+        }
+
         return $out;
     }
 }
