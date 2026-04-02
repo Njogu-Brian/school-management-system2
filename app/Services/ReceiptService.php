@@ -138,10 +138,12 @@ class ReceiptService
                     $q->where('id', $payment->invoice_id);
                 }
             })
-            ->with('items') // Eager load items to avoid N+1
+            // Eager load items and term+academicYear on the query. Do not use loadMissing('term.*') here:
+            // Invoice has a legacy `term` column that shadows the term() BelongsTo; Eloquent's
+            // loadMissing plucks by relation name and receives ints, breaking nested loads.
+            ->with(['items', 'term.academicYear'])
             ->get();
 
-        $invoices->loadMissing('term.academicYear');
         $totalInvoices = $invoices->sum('total');
 
         $termLabels = $invoices
