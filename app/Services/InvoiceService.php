@@ -247,6 +247,243 @@ class InvoiceService
     }
 
     /**
+     * When a Term 1 (2026+) invoice is edited, rebuild the carry-forward artifacts
+     * so Term 2/3 balances correlate with the corrected Term 1 charges.
+     *
+     * This updates:
+     * - the `prior_term_carryforward` invoice item lines on Term 2/3
+     * - the internal carry-forward transfer payment (TERM-CF-...)
+     * - then re-allocates unallocated real payments for consistency
+     */
+    public static function syncCarryForwardFromTerm1(Invoice $term1Invoice): void
+    {
+        $year = (int) ($term1Invoice->year ?? 0);
+        $term = (int) ($term1Invoice->term ?? 0);
+
+        if ($year < 2026 || $term !== 1) {
+            return;
+        }
+
+        $term1Invoice->loadMissing('student');
+        $student = $term1Invoice->student;
+        if (!$student) {
+            return;
+        }
+
+        $studentId = (int) $student->id;
+
+        foreach ([2, 3] as $t) {
+            $termInvoice = Invoice::query()
+                ->where('student_id', $studentId)
+                ->where('year', $year)
+                ->where('term', (int) $t)
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'reversed');
+                })
+                ->first();
+
+            if ($termInvoice) {
+                self::rebuildPriorTermCarryForwardForInvoice($termInvoice, $student);
+            }
+        }
+
+        // Re-allocate any real payment portions that were attached to old carry-forward lines
+        // (we remove/recreate those lines during rebuild).
+        self::allocateUnallocatedPaymentsForStudent($studentId);
+    }
+
+    /**
+     * Force rebuild the `prior_term_carryforward` line(s) + internal transfer payment
+     * for the provided Term 2/3 invoice.
+     */
+    private static function rebuildPriorTermCarryForwardForInvoice(Invoice $invoice, Student $student): void
+    {
+        if ((int) ($invoice->term ?? 0) < 2) {
+            return;
+        }
+
+        $year = (int) $invoice->year;
+        $studentId = (int) $student->id;
+        $termNumber = (int) $invoice->term;
+        $txCode = 'TERM-CF-' . $year . '-T' . $termNumber . '-S' . $studentId;
+
+        DB::transaction(function () use ($invoice, $student, $year, $studentId, $termNumber, $txCode) {
+            // 1) Remove carry-forward line(s) on this invoice and any payment allocations to them.
+            $carryItems = InvoiceItem::query()
+                ->where('invoice_id', $invoice->id)
+                ->where('source', 'prior_term_carryforward')
+                ->get(['id']);
+
+            if ($carryItems->isNotEmpty()) {
+                $carryItemIds = $carryItems->pluck('id')->all();
+
+                // Remove allocations attached to the old carried-forward invoice item
+                // so the rebuilt carry-forward line can be allocated correctly.
+                \App\Models\PaymentAllocation::query()
+                    ->whereIn('invoice_item_id', $carryItemIds)
+                    ->delete();
+
+                InvoiceItem::query()
+                    ->whereIn('id', $carryItemIds)
+                    ->delete();
+            }
+
+            // 2) Clear the internal carry-forward payment's allocations (so prior-term balances return).
+            $internalPayment = Payment::query()
+                ->where('transaction_code', $txCode)
+                ->where('student_id', $studentId)
+                ->first();
+
+            if ($internalPayment) {
+                $internalPayment->allocations()->delete();
+            }
+
+            // 3) Recalculate prior term invoices and compute current carry-forward total.
+            $priorInvoices = Invoice::query()
+                ->where('student_id', $studentId)
+                ->where('year', $year)
+                ->where('term', '<', $termNumber)
+                ->where('status', '!=', 'reversed')
+                ->orderBy('term')
+                ->get();
+
+            foreach ($priorInvoices as $inv) {
+                $inv->recalculate();
+            }
+
+            $priorInvoices = $priorInvoices->filter(fn ($inv) => (float) ($inv->balance ?? 0) > 0.01);
+
+            if ($priorInvoices->isEmpty()) {
+                if ($internalPayment) {
+                    $internalPayment->update([
+                        'amount' => 0,
+                        'allocated_amount' => 0,
+                        'unallocated_amount' => 0,
+                        'reversed' => false,
+                        'reversed_by' => null,
+                        'reversed_at' => null,
+                        'reversal_reason' => null,
+                    ]);
+                }
+
+                self::recalc($invoice);
+                return;
+            }
+
+            $total = round((float) $priorInvoices->sum(fn ($inv) => (float) $inv->balance), 2);
+
+            if ($total <= 0) {
+                if ($internalPayment) {
+                    $internalPayment->update([
+                        'amount' => 0,
+                        'allocated_amount' => 0,
+                        'unallocated_amount' => 0,
+                        'reversed' => false,
+                        'reversed_by' => null,
+                        'reversed_at' => null,
+                        'reversal_reason' => null,
+                    ]);
+                }
+
+                self::recalc($invoice);
+                return;
+            }
+
+            // 4) Build allocations from prior invoice items (based on their current unpaid balances).
+            $allocations = [];
+            $remaining = $total;
+
+            foreach ($priorInvoices as $inv) {
+                foreach ($inv->items()->where('status', 'active')->get() as $item) {
+                    $bal = round((float) $item->getBalance(), 2);
+                    if ($bal <= 0) {
+                        continue;
+                    }
+
+                    $amt = round(min($remaining, $bal), 2);
+                    if ($amt <= 0) {
+                        continue;
+                    }
+
+                    $allocations[] = ['invoice_item_id' => $item->id, 'amount' => $amt];
+                    $remaining -= $amt;
+
+                    if ($remaining <= 0.001) {
+                        break 2;
+                    }
+                }
+            }
+
+            $allocSum = round(array_sum(array_column($allocations, 'amount')), 2);
+            if ($allocations === [] || abs($allocSum - $total) > 0.05) {
+                Log::warning('Prior term carry-forward sync skipped: allocation mismatch', [
+                    'invoice_id' => $invoice->id,
+                    'student_id' => $studentId,
+                    'total' => $total,
+                    'alloc_sum' => $allocSum,
+                ]);
+
+                self::recalc($invoice);
+                return;
+            }
+
+            // 5) Ensure the internal payment exists, is correctly sized, and then allocate it.
+            if (!$internalPayment) {
+                $internalPayment = Payment::create([
+                    'transaction_code' => $txCode,
+                    'student_id' => $studentId,
+                    'family_id' => $student->family_id,
+                    'invoice_id' => null,
+                    'amount' => $total,
+                    'allocated_amount' => 0,
+                    'unallocated_amount' => $total,
+                    'payment_method' => 'Internal transfer',
+                    'payment_channel' => 'term_balance_transfer',
+                    'narration' => 'Prior term balance(s) cleared and moved to invoice ' . ($invoice->invoice_number ?? '#' . $invoice->id),
+                    'payment_date' => now(),
+                    'reversed' => false,
+                ]);
+            } else {
+                $internalPayment->update([
+                    'amount' => $total,
+                    'allocated_amount' => 0,
+                    'unallocated_amount' => $total,
+                    'reversed' => false,
+                    'reversed_by' => null,
+                    'reversed_at' => null,
+                    'reversal_reason' => null,
+                    'payment_method' => 'Internal transfer',
+                    'payment_channel' => 'term_balance_transfer',
+                    'family_id' => $student->family_id,
+                    'payment_date' => now(),
+                ]);
+            }
+
+            app(\App\Services\PaymentAllocationService::class)
+                ->allocatePayment($internalPayment, $allocations);
+
+            // 6) Recreate the carry-forward invoice item line with the corrected total.
+            $votehead = Votehead::firstOrCreate(
+                ['code' => 'PRIOR_TERM_ARREARS'],
+                ['name' => 'Balance from prior term(s)', 'is_active' => true]
+            );
+
+            InvoiceItem::create([
+                'invoice_id' => $invoice->id,
+                'votehead_id' => $votehead->id,
+                'amount' => $total,
+                'discount_amount' => 0,
+                'status' => 'active',
+                'source' => 'prior_term_carryforward',
+                'effective_date' => $invoice->issued_date ?? now(),
+            ]);
+
+            $invoice->refresh();
+            self::recalc($invoice);
+        });
+    }
+
+    /**
      * Run prior-term carry-forward for an existing invoice (backfill / manual). Idempotent.
      *
      * @return bool True if a new prior-term line was added on this run
@@ -449,6 +686,11 @@ class InvoiceService
             // Recalculate invoice
             self::recalc($item->invoice);
             self::allocateUnallocatedPaymentsForStudent($item->invoice->student_id);
+
+            // Keep Term 2/3 carry-forward correlated with corrected Term 1.
+            if ((int) ($item->invoice->year ?? 0) >= 2026 && (int) ($item->invoice->term ?? 0) === 1) {
+                self::syncCarryForwardFromTerm1($item->fresh());
+            }
             
             return [
                 'item' => $item->fresh(),

@@ -146,17 +146,26 @@ class ReceiptService
 
         $totalInvoices = $invoices->sum('total');
 
+        // NOTE:
+        // `Invoice` has a legacy `term` column that conflicts with the `term()` relation.
+        // Using `pluck('term')` can return the column value (often an int) instead of the
+        // loaded `Term` model, which then breaks `$term->academicYear`.
         $termLabels = $invoices
-            ->pluck('term')
-            ->filter()
-            ->unique('id')
-            ->map(function ($term) {
+            ->map(function ($invoice) {
+                /** @var mixed $term */
+                $term = $invoice->relationLoaded('term') ? $invoice->getRelation('term') : null;
+
+                if (!is_object($term) || !method_exists($term, 'academicYear')) {
+                    return null;
+                }
+
                 $year = $term->academicYear?->year;
                 $name = $term->name ?? '';
 
                 return trim($name . ($year ? ' (' . $year . ')' : ''));
             })
             ->filter()
+            ->unique()
             ->values();
         $receiptTermLabel = $termLabels->isEmpty() ? null : $termLabels->implode(', ');
         $invoiceNumbersSummary = $invoices->pluck('invoice_number')->filter()->unique()->sort()->implode(', ');
