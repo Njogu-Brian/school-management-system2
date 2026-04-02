@@ -689,7 +689,8 @@ class InvoiceService
 
             // Keep Term 2/3 carry-forward correlated with corrected Term 1.
             if ((int) ($item->invoice->year ?? 0) >= 2026 && (int) ($item->invoice->term ?? 0) === 1) {
-                self::syncCarryForwardFromTerm1($item->fresh());
+                // $item is an InvoiceItem; sync needs the parent Invoice (Term 1).
+                self::syncCarryForwardFromTerm1($item->invoice);
             }
             
             return [
