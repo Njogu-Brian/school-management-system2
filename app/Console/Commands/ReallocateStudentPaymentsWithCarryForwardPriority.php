@@ -127,6 +127,16 @@ class ReallocateStudentPaymentsWithCarryForwardPriority extends Command
                 $q->whereNull('payment_channel')
                     ->orWhereNotIn('payment_channel', ['term_balance_transfer', 'balance_brought_forward']);
             })
+            // Also exclude internal transfers even when payment_channel is missing.
+            ->where(function ($q) {
+                $q->whereNull('payment_method')
+                    ->orWhereRaw('LOWER(payment_method) != ?', ['internal transfer']);
+            })
+            // Exclude known system transaction code patterns (carry-forward internal payments)
+            ->where(function ($q) {
+                $q->whereNull('transaction_code')
+                    ->orWhereRaw("transaction_code NOT LIKE 'TERM-CF-%'");
+            })
             ->when($fromDate, function ($q) use ($fromDate) {
                 // payment_date is usually a date/datetime; treat from-date as inclusive
                 $q->whereDate('payment_date', '>=', $fromDate);
