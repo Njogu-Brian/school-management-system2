@@ -46,43 +46,47 @@ class ReallocateStudentPaymentsWithCarryForwardPriority extends Command
 
     private function reallocateAllStudentsWithCarryForward(bool $dryRun): int
     {
-        $priorVotehead = Votehead::where('code', 'PRIOR_TERM_ARREARS')->first();
-        $bbfVotehead = Votehead::where('code', 'BAL_BF')->first();
+        // IMPORTANT: Only include students who CURRENTLY still owe carry-forward/BBF.
+        // Exclude students whose prior-term/BBF lines exist but are already fully paid/cleared.
+
+        $priorVoteheadId = Votehead::where('code', 'PRIOR_TERM_ARREARS')->value('id');
+        $bbfVoteheadId = Votehead::where('code', 'BAL_BF')->value('id');
 
         $studentIds = collect();
 
-        // Students with prior-term carry-forward line
+        // Students with unpaid prior-term carry-forward line
         $studentIds = $studentIds->merge(
-            InvoiceItem::where('source', 'prior_term_carryforward')
-                ->where('status', 'active')
-                ->whereHas('invoice', fn ($q) => $q->where('status', '!=', 'reversed'))
-                ->with('invoice')
-                ->get()
-                ->pluck('invoice.student_id')
+            DB::table('invoice_items')
+                ->join('invoices', 'invoice_items.invoice_id', '=', 'invoices.id')
+                ->leftJoin('payment_allocations', 'payment_allocations.invoice_item_id', '=', 'invoice_items.id')
+                ->whereNull('invoice_items.deleted_at')
+                ->where('invoice_items.status', 'active')
+                ->where(function ($q) use ($priorVoteheadId) {
+                    $q->where('invoice_items.source', 'prior_term_carryforward');
+                    if ($priorVoteheadId) {
+                        $q->orWhere('invoice_items.votehead_id', $priorVoteheadId);
+                    }
+                })
+                ->where('invoices.status', '!=', 'reversed')
+                ->groupBy('invoices.student_id', 'invoice_items.id', 'invoice_items.amount', 'invoice_items.discount_amount')
+                ->havingRaw('(COALESCE(invoice_items.amount,0) - COALESCE(invoice_items.discount_amount,0) - COALESCE(SUM(payment_allocations.amount),0)) > 0.01')
+                ->pluck('invoices.student_id')
         );
 
-        // Students with BBF line (optional)
-        if ($bbfVotehead) {
+        // Students with unpaid BBF line
+        if ($bbfVoteheadId) {
             $studentIds = $studentIds->merge(
-                InvoiceItem::where('votehead_id', $bbfVotehead->id)
-                    ->where('source', 'balance_brought_forward')
-                    ->where('status', 'active')
-                    ->whereHas('invoice', fn ($q) => $q->where('status', '!=', 'reversed'))
-                    ->with('invoice')
-                    ->get()
-                    ->pluck('invoice.student_id')
-            );
-        }
-
-        // Students with prior-term votehead (fallback)
-        if ($priorVotehead) {
-            $studentIds = $studentIds->merge(
-                InvoiceItem::where('votehead_id', $priorVotehead->id)
-                    ->where('status', 'active')
-                    ->whereHas('invoice', fn ($q) => $q->where('status', '!=', 'reversed'))
-                    ->with('invoice')
-                    ->get()
-                    ->pluck('invoice.student_id')
+                DB::table('invoice_items')
+                    ->join('invoices', 'invoice_items.invoice_id', '=', 'invoices.id')
+                    ->leftJoin('payment_allocations', 'payment_allocations.invoice_item_id', '=', 'invoice_items.id')
+                    ->whereNull('invoice_items.deleted_at')
+                    ->where('invoice_items.status', 'active')
+                    ->where('invoice_items.source', 'balance_brought_forward')
+                    ->where('invoice_items.votehead_id', $bbfVoteheadId)
+                    ->where('invoices.status', '!=', 'reversed')
+                    ->groupBy('invoices.student_id', 'invoice_items.id', 'invoice_items.amount', 'invoice_items.discount_amount')
+                    ->havingRaw('(COALESCE(invoice_items.amount,0) - COALESCE(invoice_items.discount_amount,0) - COALESCE(SUM(payment_allocations.amount),0)) > 0.01')
+                    ->pluck('invoices.student_id')
             );
         }
 
@@ -137,7 +141,8 @@ class ReallocateStudentPaymentsWithCarryForwardPriority extends Command
                 }
 
                 if ($dryRun) {
-                    $this->line("  {$student->admission_number}: Would deallocate {$allocations->count()} from payment #{$payment->id} ({$payment->receipt_number})");
+                    $label = $student->admission_number ?: (string) $student->id;
+                    $this->line("  {$label}: Would deallocate {$allocations->count()} from payment #{$payment->id} ({$payment->receipt_number})");
                     continue;
                 }
 
