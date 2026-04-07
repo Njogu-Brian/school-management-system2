@@ -121,6 +121,12 @@ class ReallocateStudentPaymentsWithCarryForwardPriority extends Command
         $paymentsQuery = Payment::where('student_id', $student->id)
             ->where('reversed', false)
             ->whereRaw("COALESCE(receipt_number, '') NOT LIKE 'SWIM-%'")
+            // Do NOT touch system/internal carry-forward/BBF credit payments.
+            // We only want to reallocate real fee payments that were misapplied to non-priority items.
+            ->where(function ($q) {
+                $q->whereNull('payment_channel')
+                    ->orWhereNotIn('payment_channel', ['term_balance_transfer', 'balance_brought_forward']);
+            })
             ->when($fromDate, function ($q) use ($fromDate) {
                 // payment_date is usually a date/datetime; treat from-date as inclusive
                 $q->whereDate('payment_date', '>=', $fromDate);
