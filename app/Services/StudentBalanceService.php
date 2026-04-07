@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Student;
 use App\Models\Invoice;
 use App\Models\LegacyStatementTerm;
+use App\Models\InvoiceItem;
+use App\Models\Votehead;
 
 class StudentBalanceService
 {
@@ -147,6 +149,81 @@ class StudentBalanceService
         return (float) Invoice::where('student_id', $studentModel->id)
             ->where('status', '!=', 'reversed')
             ->sum('balance');
+    }
+
+    /**
+     * Outstanding "Balance from prior term(s)" (prior-term carry forward) for a student.
+     * This is the unpaid portion of invoice items created by prior-term carry-forward logic.
+     *
+     * @param Student|int $student
+     * @return float Unpaid prior-term arrears (>= 0)
+     */
+    public static function getOutstandingPriorTermArrears($student): float
+    {
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return 0.0;
+        }
+
+        $voteheadId = Votehead::where('code', 'PRIOR_TERM_ARREARS')->value('id');
+
+        $items = InvoiceItem::whereHas('invoice', function ($q) use ($studentModel) {
+            $q->where('student_id', $studentModel->id)
+              ->where('status', '!=', 'reversed');
+        })
+            ->where('status', 'active')
+            ->where(function ($q) use ($voteheadId) {
+                $q->where('source', 'prior_term_carryforward');
+                if ($voteheadId) {
+                    $q->orWhere('votehead_id', $voteheadId);
+                }
+            })
+            ->get();
+
+        $outstanding = $items->sum(function (InvoiceItem $item) {
+            $allocated = (float) $item->allocations()->sum('amount');
+            $discount = (float) ($item->discount_amount ?? 0);
+            return max(0.0, (float) $item->amount - $discount - $allocated);
+        });
+
+        return (float) max(0.0, $outstanding);
+    }
+
+    /**
+     * Outstanding Balance Brought Forward (BAL_BF) for a student.
+     * This is the unpaid portion of BBF invoice items (when materialized on invoices).
+     *
+     * @param Student|int $student
+     * @return float Unpaid BBF (>= 0)
+     */
+    public static function getOutstandingBalanceBroughtForward($student): float
+    {
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return 0.0;
+        }
+
+        $voteheadId = Votehead::where('code', 'BAL_BF')->value('id');
+        if (!$voteheadId) {
+            return 0.0;
+        }
+
+        $items = InvoiceItem::whereHas('invoice', function ($q) use ($studentModel) {
+            $q->where('student_id', $studentModel->id)
+              ->where('status', '!=', 'reversed');
+        })
+            ->where('status', 'active')
+            ->where('votehead_id', $voteheadId)
+            ->where('source', 'balance_brought_forward')
+            ->get();
+
+        $outstanding = $items->sum(function (InvoiceItem $item) {
+            $allocated = (float) $item->allocations()->sum('amount');
+            $discount = (float) ($item->discount_amount ?? 0);
+            return max(0.0, (float) $item->amount - $discount - $allocated);
+        });
+
+        return (float) max(0.0, $outstanding);
     }
 
     /**

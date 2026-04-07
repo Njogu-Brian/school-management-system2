@@ -245,11 +245,16 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
             case 'swimming_balance':
                 $data['swimming_balance_only'] = true;
                 break;
+            case 'prior_term_balance':
+                $data['prior_term_balance_only'] = true;
+                break;
         }
 
         if (isset($item->balance_min) && $item->balance_min > 0) {
             if ($item->filter_type === 'swimming_balance') {
                 $data['swimming_balance_min'] = $item->balance_min;
+            } elseif ($item->filter_type === 'prior_term_balance') {
+                $data['prior_term_balance_min'] = $item->balance_min;
             } else {
                 $data['fee_balance_min'] = $item->balance_min;
             }

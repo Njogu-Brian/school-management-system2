@@ -6,6 +6,7 @@ use App\Models\Student;
 use App\Models\Staff;
 use App\Models\Invoice;
 use App\Models\SwimmingWallet;
+use Illuminate\Support\Facades\DB;
 
 class CommunicationHelperService
 {
@@ -14,7 +15,7 @@ class CommunicationHelperService
      * $target: students|parents|staff|class|student|one_parent|specific_students|custom|all
      * $data: ['target', 'classroom_id', 'classroom_ids', 'student_id', 'selected_student_ids', 'custom_emails', 'custom_numbers',
      *         'fee_balance_only', 'swimming_balance_only', 'upcoming_invoices_only', 'fee_balance_min', 'fee_balance_percent_min',
-     *         'swimming_balance_min', 'exclude_student_ids', 'exclude_staff']
+     *         'swimming_balance_min', 'prior_term_balance_only', 'prior_term_balance_min', 'exclude_student_ids', 'exclude_staff']
      * $type: 'email', 'sms', or 'whatsapp'
      */
     public static function collectRecipients(array $data, string $type): array
@@ -304,6 +305,47 @@ class CommunicationHelperService
                         if (!($e instanceof Student)) return true;
                         $wallet = SwimmingWallet::getOrCreateForStudent($e->id);
                         return $wallet->balance < 0 && abs((float) $wallet->balance) >= $min;
+                    });
+                    return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                }, $out);
+                $out = array_filter($out);
+            }
+        }
+
+        // Only recipients with prior-term carry-forward balance (Balance from prior term(s) invoice items)
+        if (!empty($data['prior_term_balance_only'])) {
+            // Get student IDs that have an unpaid prior-term carry-forward line (cheap DB pre-filter)
+            $unpaidStudentIds = DB::table('invoice_items')
+                ->join('invoices', 'invoice_items.invoice_id', '=', 'invoices.id')
+                ->leftJoin('payment_allocations', 'payment_allocations.invoice_item_id', '=', 'invoice_items.id')
+                ->whereNull('invoice_items.deleted_at')
+                ->where('invoice_items.status', 'active')
+                ->where('invoice_items.source', 'prior_term_carryforward')
+                ->where('invoices.status', '!=', 'reversed')
+                ->groupBy('invoices.student_id', 'invoice_items.id', 'invoice_items.amount', 'invoice_items.discount_amount')
+                ->havingRaw('(COALESCE(invoice_items.amount,0) - COALESCE(invoice_items.discount_amount,0) - COALESCE(SUM(payment_allocations.amount),0)) > 0.01')
+                ->pluck('invoices.student_id')
+                ->flip()
+                ->all();
+
+            $out = array_map(function ($entities) use ($unpaidStudentIds) {
+                $list = is_array($entities) ? $entities : [$entities];
+                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($unpaidStudentIds[$e->id]));
+                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+            }, $out);
+            $out = array_filter($out);
+        }
+
+        // Prior-term balance amount threshold (outstanding >= X)
+        if (isset($data['prior_term_balance_min']) && $data['prior_term_balance_min'] !== '' && $data['prior_term_balance_min'] !== null) {
+            $min = (float) $data['prior_term_balance_min'];
+            if ($min > 0) {
+                $out = array_map(function ($entities) use ($min) {
+                    $list = is_array($entities) ? $entities : [$entities];
+                    $filtered = array_filter($list, function ($e) use ($min) {
+                        if (!($e instanceof Student)) return true;
+                        $balance = StudentBalanceService::getOutstandingPriorTermArrears($e);
+                        return $balance >= $min;
                     });
                     return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
                 }, $out);

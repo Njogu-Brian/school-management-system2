@@ -211,15 +211,16 @@ class PaymentAllocationService
 
     /**
      * Check if an invoice item is Balance Brought Forward (BBF).
-     * BBF must always be cleared first when allocating payments.
+     * BBF / Prior term arrears must always be cleared first when allocating payments.
      */
     protected static function isBalanceBroughtForwardItem(InvoiceItem $item): bool
     {
-        if (($item->source ?? null) === 'balance_brought_forward') {
+        $source = $item->source ?? null;
+        if ($source === 'balance_brought_forward' || $source === 'prior_term_carryforward') {
             return true;
         }
         $code = $item->votehead?->code ?? null;
-        return $code === 'BAL_BF';
+        return in_array($code, ['BAL_BF', 'PRIOR_TERM_ARREARS'], true);
     }
 
     /**
@@ -354,7 +355,7 @@ class PaymentAllocationService
         ->filter(function ($item) {
             return $item->getBalance() > 0;
         })
-        ->sortBy('invoice.issued_date');
+        ->sort(self::invoiceItemsAllocationOrder());
         
         return $items->map(function ($item) {
             return [

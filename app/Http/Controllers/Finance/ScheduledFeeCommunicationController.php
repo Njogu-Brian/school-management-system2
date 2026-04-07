@@ -62,6 +62,7 @@ class ScheduledFeeCommunicationController extends Controller
             ['key' => 'parent_name', 'value' => "Parent's full name"],
             ['key' => 'father_name', 'value' => "Parent's full name"],
             ['key' => 'outstanding_amount', 'value' => 'Outstanding fee balance'],
+            ['key' => 'prior_term_balance', 'value' => 'Balance from prior term(s) (carried forward only)'],
             ['key' => 'invoice_number', 'value' => 'Invoice number'],
             ['key' => 'total_amount', 'value' => 'Total invoice amount'],
             ['key' => 'due_date', 'value' => 'Due date'],
@@ -86,7 +87,7 @@ class ScheduledFeeCommunicationController extends Controller
             'selected_student_ids' => 'nullable|required_if:target,specific_students|string',
             'classroom_ids' => 'nullable|required_if:target,class|array',
             'classroom_ids.*' => 'integer|exists:classrooms,id',
-            'filter_type' => 'required|in:all,outstanding_fees,upcoming_invoices,swimming_balance',
+            'filter_type' => 'required|in:all,outstanding_fees,upcoming_invoices,swimming_balance,prior_term_balance',
             'balance_min' => 'nullable|numeric|min:0',
             'balance_max' => 'nullable|numeric|min:0',
             'balance_percent_min' => 'nullable|numeric|min:0|max:100',
@@ -329,11 +330,16 @@ class ScheduledFeeCommunicationController extends Controller
             case 'swimming_balance':
                 $data['swimming_balance_only'] = true;
                 break;
+            case 'prior_term_balance':
+                $data['prior_term_balance_only'] = true;
+                break;
         }
 
         if ($request->filled('balance_min') && (float) $request->balance_min > 0) {
             if ($request->input('filter_type') === 'swimming_balance') {
                 $data['swimming_balance_min'] = (float) $request->balance_min;
+            } elseif ($request->input('filter_type') === 'prior_term_balance') {
+                $data['prior_term_balance_min'] = (float) $request->balance_min;
             } else {
                 $data['fee_balance_min'] = (float) $request->balance_min;
             }
@@ -387,11 +393,16 @@ class ScheduledFeeCommunicationController extends Controller
             case 'swimming_balance':
                 $data['swimming_balance_only'] = true;
                 break;
+            case 'prior_term_balance':
+                $data['prior_term_balance_only'] = true;
+                break;
         }
 
         if ($request->filled('balance_min') && (float) $request->balance_min > 0) {
             if ($request->input('filter_type') === 'swimming_balance') {
                 $data['swimming_balance_min'] = (float) $request->balance_min;
+            } elseif ($request->input('filter_type') === 'prior_term_balance') {
+                $data['prior_term_balance_min'] = (float) $request->balance_min;
             } else {
                 $data['fee_balance_min'] = (float) $request->balance_min;
             }
@@ -428,11 +439,15 @@ class ScheduledFeeCommunicationController extends Controller
 
         $recipients = [];
         foreach ($pairs as [$contact, $entity]) {
+            $filterType = $request->input('filter_type') ?? 'all';
+            $balance = $filterType === 'prior_term_balance'
+                ? StudentBalanceService::getOutstandingPriorTermArrears($entity)
+                : StudentBalanceService::getTotalOutstandingBalance($entity, true);
             $recipients[] = [
                 'student_name' => $entity->full_name ?? ($entity->first_name . ' ' . $entity->last_name),
                 'admission_number' => $entity->admission_number ?? $entity->admission_no ?? '-',
                 'parent_contact' => $contact,
-                'fee_balance' => number_format(StudentBalanceService::getTotalOutstandingBalance($entity, true), 2),
+                'fee_balance' => number_format($balance, 2),
             ];
         }
 

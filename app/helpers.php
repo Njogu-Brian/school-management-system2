@@ -445,6 +445,9 @@ if (!function_exists('replace_placeholders')) {
                         ->first();
                     $replacements['{{outstanding_amount}}'] = number_format(round($totalOutstanding, 2), 2);
                     $replacements['{outstanding_amount}'] = $replacements['{{outstanding_amount}}'];
+                    $priorTerm = (float) \App\Services\StudentBalanceService::getOutstandingPriorTermArrears($entity);
+                    $replacements['{{prior_term_balance}}'] = number_format(round($priorTerm, 2), 2);
+                    $replacements['{prior_term_balance}'] = $replacements['{{prior_term_balance}}'];
                     $replacements['{{total_amount}}'] = $latestInvoice ? number_format((float) $latestInvoice->total, 2) : '0.00';
                     $replacements['{total_amount}'] = $replacements['{{total_amount}}'];
                     $replacements['{{invoice_number}}'] = $latestInvoice ? ($latestInvoice->invoice_number ?? 'N/A') : 'N/A';
@@ -454,6 +457,8 @@ if (!function_exists('replace_placeholders')) {
                 } catch (\Throwable $e) {
                     $replacements['{{outstanding_amount}}'] = '0.00';
                     $replacements['{outstanding_amount}'] = '0.00';
+                    $replacements['{{prior_term_balance}}'] = '0.00';
+                    $replacements['{prior_term_balance}'] = '0.00';
                     $replacements['{{total_amount}}'] = '0.00';
                     $replacements['{total_amount}'] = '0.00';
                     $replacements['{{invoice_number}}'] = 'N/A';

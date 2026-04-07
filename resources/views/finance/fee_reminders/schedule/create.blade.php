@@ -145,6 +145,10 @@
                   <span>Outstanding fees only</span>
                 </label>
                 <label class="schedule-radio">
+                  <input type="radio" name="filter_type" value="prior_term_balance" {{ old('filter_type') == 'prior_term_balance' ? 'checked' : '' }}>
+                  <span>Balance from prior term(s) only</span>
+                </label>
+                <label class="schedule-radio">
                   <input type="radio" name="filter_type" value="upcoming_invoices" {{ old('filter_type') == 'upcoming_invoices' ? 'checked' : '' }}>
                   <span>Upcoming invoices only</span>
                 </label>
@@ -435,7 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function toggleBalanceFields() {
     const filter = document.querySelector('input[name="filter_type"]:checked')?.value || 'all';
     document.querySelectorAll('.balance-criteria').forEach(el => el.classList.add('d-none'));
-    if (filter === 'outstanding_fees') {
+    if (filter === 'outstanding_fees' || filter === 'prior_term_balance') {
       document.querySelectorAll('.balance-outstanding').forEach(el => el.classList.remove('d-none'));
     } else if (filter === 'swimming_balance') {
       document.querySelectorAll('.balance-swimming').forEach(el => el.classList.remove('d-none'));
