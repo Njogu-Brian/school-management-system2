@@ -20,7 +20,8 @@ class ReallocateStudentPaymentsWithCarryForwardPriority extends Command
 {
     protected $signature = 'finance:reallocate-student-carryforward
                             {student? : Student ID, admission number (e.g. RKS463), or "all" for all students with prior-term carry-forward/BBF}
-                            {--dry-run : Show what would be done without making changes}';
+                            {--dry-run : Show what would be done without making changes}
+                            {--from-date= : Only consider payments on/after this date (YYYY-MM-DD)}';
 
     protected $description = 'Re-allocate student payments with prior-term carry-forward/BBF cleared first. Use "all" to fix all students who have a carried-forward balance line.';
 
@@ -116,12 +117,18 @@ class ReallocateStudentPaymentsWithCarryForwardPriority extends Command
 
     private function reallocateStudent(Student $student, bool $dryRun): int
     {
-        $payments = Payment::where('student_id', $student->id)
+        $fromDate = $this->option('from-date');
+        $paymentsQuery = Payment::where('student_id', $student->id)
             ->where('reversed', false)
             ->whereRaw("COALESCE(receipt_number, '') NOT LIKE 'SWIM-%'")
+            ->when($fromDate, function ($q) use ($fromDate) {
+                // payment_date is usually a date/datetime; treat from-date as inclusive
+                $q->whereDate('payment_date', '>=', $fromDate);
+            })
             ->orderBy('payment_date')
             ->orderBy('id')
-            ->get();
+            ;
+        $payments = $paymentsQuery->get();
 
         if ($payments->isEmpty()) {
             return 1;
