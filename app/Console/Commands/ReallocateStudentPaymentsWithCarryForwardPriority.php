@@ -137,6 +137,12 @@ class ReallocateStudentPaymentsWithCarryForwardPriority extends Command
                 $q->whereNull('transaction_code')
                     ->orWhereRaw("transaction_code NOT LIKE 'TERM-CF-%'");
             })
+            // Exclude system-generated numeric-only receipt numbers (often used for internal transfers)
+            // e.g. 20261283, 20261289, etc.
+            ->where(function ($q) {
+                $q->whereNull('receipt_number')
+                    ->orWhereRaw("receipt_number NOT REGEXP '^[0-9]{7,}$'");
+            })
             ->when($fromDate, function ($q) use ($fromDate) {
                 // payment_date is usually a date/datetime; treat from-date as inclusive
                 $q->whereDate('payment_date', '>=', $fromDate);
