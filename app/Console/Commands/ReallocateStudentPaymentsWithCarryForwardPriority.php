@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\{Payment, Invoice, Student, InvoiceItem, Votehead};
 use App\Services\{PaymentAllocationService, InvoiceService};
+use App\Services\StudentBalanceService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -134,9 +135,34 @@ class ReallocateStudentPaymentsWithCarryForwardPriority extends Command
         $allocationService = app(PaymentAllocationService::class);
 
         DB::transaction(function () use ($payments, $student, $allocationService, $dryRun) {
+            $unpaidPriorTerm = (float) StudentBalanceService::getOutstandingPriorTermArrears($student);
+            $unpaidBbf = (float) StudentBalanceService::getOutstandingBalanceBroughtForward($student);
+            $hasUnpaidPriority = ($unpaidPriorTerm + $unpaidBbf) > 0.01;
+
             foreach ($payments as $payment) {
                 $allocations = $payment->allocations()->get();
                 if ($allocations->isEmpty()) {
+                    continue;
+                }
+
+                // Only touch payments that are currently allocated to non-priority items
+                // while the student still has an unpaid carried-forward/BBF balance.
+                // This avoids rewriting receipts/payments that are already correctly prioritized.
+                $hasNonPriorityAlloc = DB::table('payment_allocations')
+                    ->join('invoice_items', 'payment_allocations.invoice_item_id', '=', 'invoice_items.id')
+                    ->leftJoin('voteheads', 'invoice_items.votehead_id', '=', 'voteheads.id')
+                    ->where('payment_allocations.payment_id', $payment->id)
+                    ->where(function ($q) {
+                        $q->whereNotIn('invoice_items.source', ['prior_term_carryforward', 'balance_brought_forward'])
+                            ->orWhereNull('invoice_items.source');
+                    })
+                    ->where(function ($q) {
+                        $q->whereNotIn('voteheads.code', ['PRIOR_TERM_ARREARS', 'BAL_BF'])
+                            ->orWhereNull('voteheads.code');
+                    })
+                    ->exists();
+
+                if (!$hasUnpaidPriority || !$hasNonPriorityAlloc) {
                     continue;
                 }
 
