@@ -109,7 +109,34 @@
         .share-block { background: #f8f9fa; border-radius: 0.75rem; padding: 1rem; margin-top: 0.75rem; }
         .sibling-amount-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
         .sibling-amount-row input { flex: 0 0 100px; }
-        @media (min-width: 576px) {
+        .invoice-breakdown {
+            margin: 0.35rem 0 0.75rem;
+            padding: 0.5rem 0.65rem;
+            background: #fafafa;
+            border-radius: 0.5rem;
+            border: 1px solid #eee;
+        }
+        .invoice-breakdown .inv-line {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.35rem 0.75rem;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid #ececec;
+            font-size: 0.82rem;
+        }
+        .invoice-breakdown .inv-line:last-child { border-bottom: none; }
+        .invoice-breakdown .inv-meta { color: #555; flex: 1 1 auto; min-width: 0; }
+        .invoice-breakdown .inv-bal { font-weight: 700; color: #c62828; white-space: nowrap; }
+        .invoice-block { padding-bottom: 0.35rem; margin-bottom: 0.35rem; border-bottom: 1px solid #ececec; }
+        .invoice-block:last-child { border-bottom: none; margin-bottom: 0; }
+        .inv-line-header { font-weight: 600; }
+        .inv-line-item { font-size: 0.8rem; padding-left: 0.45rem; color: #444; }
+        .inv-line-item .inv-meta { font-weight: 400; }
+        .inv-item-amt { font-weight: 600; color: #333; white-space: nowrap; }
+        .breakdown-heading { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #666; margin: 0.25rem 0 0.15rem; }
+        @@media (min-width: 576px) {
             body { padding: 24px; }
             .pay-body { padding: 1.5rem 1.5rem 2rem; }
             .pay-card { max-width: 480px; }
@@ -125,21 +152,29 @@
         </div>
 
         <div class="pay-body">
-            @if($isFamilyLink ?? false)
-                {{-- Family link: show all children with balance, share toggle, amounts --}}
+            @if(($isFamilyLink ?? false) && ($showFamilySplitUi ?? false))
+                {{-- Family link with 2+ children: split payment UI --}}
                 <div class="mb-3">
                     <h5 class="mb-2"><strong>Your children</strong></h5>
-                    <p class="small text-muted mb-0">Current fee balance per child. You can pay for one child or split one payment among several.</p>
+                    <p class="small text-muted mb-0">Fee balance per child. Split one M-PESA payment across children, or pay one child only.</p>
                 </div>
                 @php $familyTotalBalance = 0; @endphp
                 @foreach($familyStudents ?? [] as $s)
                     @php $familyTotalBalance += (float)($s['fee_balance'] ?? 0); @endphp
-                    <div class="child-row">
-                        <div>
-                            <span class="child-name">{{ $s['full_name'] }}</span>
-                            <span class="child-meta d-block">Adm: {{ $s['admission_number'] }} · {{ $s['classroom_name'] ?? '–' }}</span>
+                    <div class="mb-2">
+                        <div class="child-row">
+                            <div>
+                                <span class="child-name">{{ $s['full_name'] }}</span>
+                                <span class="child-meta d-block">Adm: {{ $s['admission_number'] }} · {{ $s['classroom_name'] ?? '–' }}</span>
+                            </div>
+                            <div class="child-balance text-end">KES {{ number_format($s['fee_balance'] ?? 0, 2) }}</div>
                         </div>
-                        <div class="child-balance text-end">KES {{ number_format($s['fee_balance'] ?? 0, 2) }}</div>
+                        @if(!empty($s['invoices']))
+                            <p class="breakdown-heading mb-0">Unpaid invoices &amp; items</p>
+                            <div class="invoice-breakdown">
+                                @include('finance.mpesa.partials.unpaid-invoice-breakdown', ['invoices' => $s['invoices']])
+                            </div>
+                        @endif
                     </div>
                 @endforeach
                 @if(empty($familyStudents))
@@ -192,24 +227,24 @@
                     </div>
                     <button type="submit" class="btn btn-pay mt-4" id="payBtn"><i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA</button>
                 </form>
-            @else
-                {{-- Single-student link --}}
+            @elseif($displayStudentForPay ?? null)
+                {{-- Per-student payment link OR family link with only one child (simple UI, no split) --}}
                 @php
-                    $student = $paymentLink->student;
-                    $feeBalance = 0;
-                    if ($student) {
-                        $feeBalance = (float) \App\Models\Invoice::where('student_id', $student->id)
-                            ->where(function ($q) {
-                                $q->where('balance', '>', 0)->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
-                            })->get()->sum(fn ($inv) => (float)($inv->balance ?? ($inv->total ?? 0) - ($inv->paid_amount ?? 0)));
-                    }
-                    $maxAmount = max($feeBalance, (float)$paymentLink->amount);
+                    $student = $displayStudentForPay;
+                    $feeBalance = (float) ($feeBalance ?? 0);
+                    $maxAmount = max($feeBalance, (float) $paymentLink->amount);
                 @endphp
                 <div class="text-center mb-3">
                     <h5 class="mb-1">Paying for</h5>
-                    <h4 class="mb-0"><strong>{{ $student ? $student->full_name : '–' }}</strong></h4>
-                    <p class="text-muted small mb-0">Admission: {{ $student ? $student->admission_number : '–' }}</p>
+                    <h4 class="mb-0"><strong>{{ $student->full_name ?? '–' }}</strong></h4>
+                    <p class="text-muted small mb-0">Admission: {{ $student->admission_number ?? '–' }} @if($isFamilyLink ?? false)<span> · Family account</span>@endif</p>
                 </div>
+                @if(!empty($singleStudentInvoices))
+                    <p class="breakdown-heading mb-1">Unpaid invoices &amp; items</p>
+                    <div class="invoice-breakdown mb-3">
+                        @include('finance.mpesa.partials.unpaid-invoice-breakdown', ['invoices' => $singleStudentInvoices])
+                    </div>
+                @endif
                 <div class="balance-box">
                     <span class="label">Current fee balance</span>
                     <div class="value">KES {{ number_format($feeBalance, 2) }}</div>
@@ -217,6 +252,9 @@
                 </div>
                 <form id="paymentForm">
                     <input type="hidden" name="payment_type" value="single">
+                    @if($isFamilyLink ?? false)
+                        <input type="hidden" id="family_single_student_id" name="family_single_student_id" value="{{ $student->id }}">
+                    @endif
                     <label class="form-label">Amount (KES)</label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text">KES</span>
@@ -235,6 +273,8 @@
                     </div>
                     <button type="submit" class="btn btn-pay mt-4" id="payBtn"><i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA</button>
                 </form>
+            @else
+                <p class="text-muted text-center small">Unable to load this payment page. The link may be invalid.</p>
             @endif
 
             <div id="statusMessage"></div>
@@ -249,6 +289,7 @@
     <script>
     (function() {
         var isFamilyLink = {{ ($isFamilyLink ?? false) ? 'true' : 'false' }};
+        var showFamilySplitUi = {{ ($showFamilySplitUi ?? false) ? 'true' : 'false' }};
         var familyStudents = @json($familyStudents ?? []);
         var payUrl = '{{ route("payment.link.process", $paymentLink->hashed_id) }}';
         var token = '{{ csrf_token() }}';
@@ -260,7 +301,7 @@
             el.style.display = 'block';
         }
 
-        if (isFamilyLink && familyStudents.length) {
+        if (isFamilyLink && showFamilySplitUi && familyStudents.length > 1) {
             var feeBalanceMap = {};
             familyStudents.forEach(function(s) { feeBalanceMap[s.id] = parseFloat(s.fee_balance) || 0; });
 
@@ -337,7 +378,7 @@
             if (!phone) { showStatus('error', 'Please enter your phone number.'); return; }
 
             var payload = { phone_number: phone, _token: token };
-            if (isFamilyLink) {
+            if (isFamilyLink && showFamilySplitUi) {
                 if ($('#shareToggle').is(':checked')) {
                     var allocs = [];
                     $('.sibling-amount').each(function() {
@@ -355,6 +396,13 @@
                     payload.student_id = sid;
                     payload.amount = am;
                 }
+            } else if (isFamilyLink && !showFamilySplitUi) {
+                var fsid = document.getElementById('family_single_student_id');
+                var sid = fsid ? parseInt(fsid.value, 10) : null;
+                var am = parseFloat($('#payment_amount').val()) || 0;
+                if (!sid || am < 1) { showStatus('error', 'Enter a valid amount.'); return; }
+                payload.student_id = sid;
+                payload.amount = am;
             } else {
                 payload.amount = parseFloat($('#payment_amount').val()) || 0;
                 if (payload.amount < 1) { showStatus('error', 'Enter a valid amount.'); return; }

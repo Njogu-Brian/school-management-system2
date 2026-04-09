@@ -429,6 +429,60 @@ class MpesaPaymentController extends Controller
     }
 
     /**
+     * Unpaid/partial fee invoices for the public pay page breakdown (per student), including line items.
+     *
+     * @return list<array{invoice_number: string, year: mixed, term: mixed, total: float, paid_amount: float, balance: float, due_date_label: ?string, status: string, lines: list<array{label: string, balance: float}>}>
+     */
+    private function unpaidInvoiceSummariesForStudent(int $studentId): array
+    {
+        $invoices = Invoice::where('student_id', $studentId)
+            ->where('status', '!=', 'reversed')
+            ->where(function ($q) {
+                $q->where('balance', '>', 0.005)
+                    ->orWhereIn('status', ['unpaid', 'partial']);
+            })
+            ->with([
+                'items' => function ($q) {
+                    $q->where('status', 'active')->orderBy('id');
+                },
+                'items.votehead',
+                'items.allocations',
+            ])
+            ->orderBy('year')
+            ->orderBy('term')
+            ->orderBy('id')
+            ->get();
+
+        return $invoices->map(function (Invoice $inv) {
+            $lines = [];
+            foreach ($inv->items as $item) {
+                $allocated = (float) $item->allocations->sum('amount');
+                $disc = (float) ($item->discount_amount ?? 0);
+                $bal = max(0.0, (float) $item->amount - $disc - $allocated);
+                if ($bal < 0.005) {
+                    continue;
+                }
+                $lines[] = [
+                    'label' => $item->votehead?->name ?? 'Fee',
+                    'balance' => round($bal, 2),
+                ];
+            }
+
+            return [
+                'invoice_number' => $inv->invoice_number ?? ('#' . $inv->id),
+                'year' => $inv->year,
+                'term' => $inv->term,
+                'total' => round((float) $inv->total, 2),
+                'paid_amount' => round((float) $inv->paid_amount, 2),
+                'balance' => round(max(0.0, (float) $inv->balance), 2),
+                'due_date_label' => $inv->due_date ? $inv->due_date->format('d M Y') : null,
+                'status' => (string) $inv->status,
+                'lines' => $lines,
+            ];
+        })->values()->all();
+    }
+
+    /**
      * Show public payment page (for payment links).
      * Family link (student_id null): load all students in family with fee balances for share/full/partial UI.
      */
@@ -444,6 +498,11 @@ class MpesaPaymentController extends Controller
         }
 
         $familyStudents = [];
+        $singleStudentInvoices = [];
+        $feeBalance = 0.0;
+        $showFamilySplitUi = false;
+        $payStudent = null;
+
         $isFamilyLink = $paymentLink->student_id === null && $paymentLink->family_id;
         if ($isFamilyLink) {
             $familyStudents = Student::where('family_id', $paymentLink->family_id)
@@ -451,25 +510,50 @@ class MpesaPaymentController extends Controller
                 ->with('classroom')
                 ->get()
                 ->map(function ($s) {
-                    $bal = (float) Invoice::where('student_id', $s->id)
-                        ->where(function ($q) {
-                            $q->where('balance', '>', 0)->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
-                        })
-                        ->get()
-                        ->sum(fn ($inv) => (float) ($inv->balance ?? ($inv->total ?? 0) - ($inv->paid_amount ?? 0)));
+                    $invoices = $this->unpaidInvoiceSummariesForStudent((int) $s->id);
+                    $bal = array_sum(array_column($invoices, 'balance'));
+
                     return [
                         'id' => $s->id,
                         'full_name' => $s->full_name ?? trim($s->first_name . ' ' . $s->last_name),
                         'admission_number' => $s->admission_number,
                         'classroom_name' => $s->classroom?->name,
-                        'fee_balance' => round($bal, 2),
+                        'fee_balance' => round((float) $bal, 2),
+                        'invoices' => $invoices,
                     ];
                 })
                 ->values()
                 ->toArray();
+
+            $showFamilySplitUi = count($familyStudents) > 1;
+            if (count($familyStudents) === 1) {
+                $only = $familyStudents[0];
+                $singleStudentInvoices = $only['invoices'];
+                $feeBalance = round((float) ($only['fee_balance'] ?? 0), 2);
+                $payStudent = Student::find($only['id']);
+            }
+        } elseif ($paymentLink->student_id) {
+            $singleStudentInvoices = $this->unpaidInvoiceSummariesForStudent((int) $paymentLink->student_id);
+            $feeBalance = round(array_sum(array_column($singleStudentInvoices, 'balance')), 2);
         }
 
-        return view('finance.mpesa.payment-page', compact('paymentLink', 'familyStudents', 'isFamilyLink'));
+        $displayStudentForPay = null;
+        if (!$isFamilyLink && $paymentLink->student_id) {
+            $displayStudentForPay = $paymentLink->student;
+        } elseif ($isFamilyLink && !$showFamilySplitUi && $payStudent) {
+            $displayStudentForPay = $payStudent;
+        }
+
+        return view('finance.mpesa.payment-page', compact(
+            'paymentLink',
+            'familyStudents',
+            'isFamilyLink',
+            'showFamilySplitUi',
+            'payStudent',
+            'displayStudentForPay',
+            'singleStudentInvoices',
+            'feeBalance'
+        ));
     }
 
     /**

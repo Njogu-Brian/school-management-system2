@@ -83,7 +83,7 @@ class CommunicationTemplateController extends Controller
             ['key' => 'invoice_number', 'value' => 'Invoice number (e.g., INV-2024-001)'],
             ['key' => 'total_amount', 'value' => 'Total invoice amount (e.g., 15,000.00)'],
             ['key' => 'due_date', 'value' => 'Due date (e.g., 31 Dec 2024)'],
-            ['key' => 'outstanding_amount', 'value' => 'Outstanding balance amount'],
+            ['key' => 'outstanding_amount', 'value' => 'Total outstanding (all fee invoices, due or not yet due)'],
             ['key' => 'status', 'value' => 'Invoice status (paid, partial, unpaid)'],
             ['key' => 'invoice_link', 'value' => 'Public invoice link (10-char hash)'],
             ['key' => 'days_overdue', 'value' => 'Number of days overdue'],

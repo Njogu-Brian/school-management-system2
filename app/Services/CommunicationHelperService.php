@@ -261,7 +261,7 @@ class CommunicationHelperService
                     $list = is_array($entities) ? $entities : [$entities];
                     $filtered = array_filter($list, function ($e) use ($min) {
                         if (!($e instanceof Student)) return true;
-                        $balance = StudentBalanceService::getTotalOutstandingBalance($e, true);
+                        $balance = StudentBalanceService::getTotalOutstandingBalance($e, false);
                         return $balance >= $min;
                     });
                     return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
@@ -279,7 +279,7 @@ class CommunicationHelperService
                     $list = is_array($entities) ? $entities : [$entities];
                     $filtered = array_filter($list, function ($e) use ($percentMin, $currentTermId) {
                         if (!($e instanceof Student)) return true;
-                        $outstanding = StudentBalanceService::getTotalOutstandingBalance($e, true);
+                        $outstanding = StudentBalanceService::getTotalOutstandingBalance($e, false);
                         if ($outstanding <= 0) return false;
                         $termTotal = Invoice::where('student_id', $e->id)
                             ->where('status', '!=', 'reversed')

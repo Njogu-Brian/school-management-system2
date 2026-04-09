@@ -438,7 +438,8 @@ if (!function_exists('replace_placeholders')) {
                                 });
                         });
 
-                    $totalOutstanding = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($entity, true);
+                    // Include all non-reversed invoices (due or not yet due) so SMS matches parent expectations.
+                    $totalOutstanding = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($entity, false);
                     $latestInvoice = (clone $dueInvoiceQuery)
                         ->orderBy('due_date', 'desc')
                         ->orderBy('id', 'desc')

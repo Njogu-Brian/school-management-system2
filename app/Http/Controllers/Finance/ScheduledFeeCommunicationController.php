@@ -61,12 +61,12 @@ class ScheduledFeeCommunicationController extends Controller
             ['key' => 'class_name', 'value' => 'Class name'],
             ['key' => 'parent_name', 'value' => "Parent's full name"],
             ['key' => 'father_name', 'value' => "Parent's full name"],
-            ['key' => 'outstanding_amount', 'value' => 'Outstanding fee balance'],
+            ['key' => 'outstanding_amount', 'value' => 'Total outstanding (all fee invoices, due or not yet due)'],
             ['key' => 'prior_term_balance', 'value' => 'Balance from prior term(s) (carried forward only)'],
             ['key' => 'invoice_number', 'value' => 'Invoice number'],
             ['key' => 'total_amount', 'value' => 'Total invoice amount'],
             ['key' => 'due_date', 'value' => 'Due date'],
-            ['key' => 'invoice_link', 'value' => 'Public invoice/payment link'],
+            ['key' => 'invoice_link', 'value' => 'Public pay link (mobile-friendly; invoice breakdown + M-PESA)'],
             ['key' => 'finance_portal_link', 'value' => 'Student statement link (finance portal)'],
             ['key' => 'swimming_balance', 'value' => 'Swimming wallet balance (when applicable)'],
             ['key' => 'payment_plan_link', 'value' => 'Payment plan link'],
@@ -442,7 +442,7 @@ class ScheduledFeeCommunicationController extends Controller
             $filterType = $request->input('filter_type') ?? 'all';
             $balance = $filterType === 'prior_term_balance'
                 ? StudentBalanceService::getOutstandingPriorTermArrears($entity)
-                : StudentBalanceService::getTotalOutstandingBalance($entity, true);
+                : StudentBalanceService::getTotalOutstandingBalance($entity, false);
             $recipients[] = [
                 'student_name' => $entity->full_name ?? ($entity->first_name . ' ' . $entity->last_name),
                 'admission_number' => $entity->admission_number ?? $entity->admission_no ?? '-',
