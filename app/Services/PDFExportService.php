@@ -53,7 +53,7 @@ class PDFExportService
                 return [
                     'success' => true,
                     'path' => $path,
-                    'url' => Storage::url($path),
+                    'url' => storage_public_url($path) ?? Storage::url($path),
                     'filename' => $filename,
                 ];
             }
@@ -142,7 +142,7 @@ class PDFExportService
             return [
                 'success' => true,
                 'zip_path' => $zipPath,
-                'zip_url' => Storage::url($zipPath),
+                'zip_url' => storage_public_url($zipPath) ?? Storage::url($zipPath),
                 'pdfs_count' => count($pdfs),
                 'errors_count' => count($errors),
                 'errors' => $errors,

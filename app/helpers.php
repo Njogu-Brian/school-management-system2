@@ -836,6 +836,44 @@ if (!function_exists('storage_private')) {
 }
 
 /**
+ * Get a URL for a public file.
+ * - Local: returns /storage/... URL
+ * - S3 (private buckets / Block Public Access): returns a temporary signed URL
+ */
+if (!function_exists('storage_public_url')) {
+    function storage_public_url(?string $path, int $minutes = 10): ?string
+    {
+        if (!$path) {
+            return null;
+        }
+        $disk = storage_public();
+        if (method_exists($disk, 'temporaryUrl')) {
+            return $disk->temporaryUrl($path, now()->addMinutes($minutes));
+        }
+        $u = $disk->url($path);
+        return str_starts_with($u, 'http') ? $u : url($u);
+    }
+}
+
+/**
+ * Get a temporary signed URL for a private file (recommended).
+ */
+if (!function_exists('storage_private_url')) {
+    function storage_private_url(?string $path, int $minutes = 10): ?string
+    {
+        if (!$path) {
+            return null;
+        }
+        $disk = storage_private();
+        if (method_exists($disk, 'temporaryUrl')) {
+            return $disk->temporaryUrl($path, now()->addMinutes($minutes));
+        }
+        // Fallback for local private disk: use the admin download route instead of exposing a filesystem path.
+        return null;
+    }
+}
+
+/**
  * Get a local filesystem path for a stored file. For local disks returns the path.
  * For S3, downloads to a temp file and returns that path (caller should not rely on persistence).
  */

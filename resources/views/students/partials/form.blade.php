@@ -246,14 +246,15 @@
       <label class="form-label">Passport Photo</label>
       <input type="file" name="photo" class="form-control" accept="image/*">
       @if($s?->photo_path)
-        <div class="small mt-1"><a target="_blank" href="{{ asset('storage/'.$s->photo_path) }}">Current file</a></div>
+        <div class="small mt-1"><a target="_blank" href="{{ storage_public_url($s->photo_path) ?? asset('storage/'.$s->photo_path) }}">Current file</a></div>
       @endif
     </div>
     <div class="col-md-6">
       <label class="form-label">Birth Certificate</label>
       <input type="file" name="birth_certificate" class="form-control" accept=".pdf,image/*">
       @if($s?->birth_certificate_path)
-        <div class="small mt-1"><a target="_blank" href="{{ asset('storage/'.$s->birth_certificate_path) }}">Current file</a></div>
+        @php $birthCertUrl = storage_private_url($s->birth_certificate_path); @endphp
+        <div class="small mt-1"><a target="_blank" href="{{ $birthCertUrl ?? asset('storage/'.$s->birth_certificate_path) }}">Current file</a></div>
       @endif
     </div>
   </div>
@@ -311,7 +312,8 @@
     <div class="col-md-3"><label class="form-label">ID Document (upload)</label>
       <input type="file" name="father_id_document" class="form-control" accept=".pdf,image/*">
       @if($p?->father_id_document)
-        <div class="small mt-1"><a target="_blank" href="{{ asset('storage/'.$p->father_id_document) }}">Current file</a></div>
+        @php $fatherIdUrl = storage_private_url($p->father_id_document); @endphp
+        <div class="small mt-1"><a target="_blank" href="{{ $fatherIdUrl ?? asset('storage/'.$p->father_id_document) }}">Current file</a></div>
       @endif
     </div>
 
@@ -353,7 +355,8 @@
     <div class="col-md-3"><label class="form-label">ID Document (upload)</label>
       <input type="file" name="mother_id_document" class="form-control" accept=".pdf,image/*">
       @if($p?->mother_id_document)
-        <div class="small mt-1"><a target="_blank" href="{{ asset('storage/'.$p->mother_id_document) }}">Current file</a></div>
+        @php $motherIdUrl = storage_private_url($p->mother_id_document); @endphp
+        <div class="small mt-1"><a target="_blank" href="{{ $motherIdUrl ?? asset('storage/'.$p->mother_id_document) }}">Current file</a></div>
       @endif
     </div>
 

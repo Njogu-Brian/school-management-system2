@@ -98,7 +98,7 @@
                     <div><a target="_blank" href="{{ $doc->file_url }}">{{ $doc->title }}</a> <small class="text-muted">({{ $doc->created_at->format('M d, Y') }})</small></div>
                   @endforeach
                 @elseif($student->photo_path)
-                  <a target="_blank" href="{{ asset('storage/'.$student->photo_path) }}">Legacy Photo</a>
+                  <a target="_blank" href="{{ storage_public_url($student->photo_path) ?? asset('storage/'.$student->photo_path) }}">Legacy Photo</a>
                 @else
                   <span>—</span>
                 @endif
@@ -112,7 +112,12 @@
                     <div><a target="_blank" href="{{ $doc->file_url }}">{{ $doc->title }}</a> <small class="text-muted">({{ $doc->created_at->format('M d, Y') }})</small></div>
                   @endforeach
                 @elseif($student->birth_certificate_path)
-                  <a target="_blank" href="{{ asset('storage/'.$student->birth_certificate_path) }}">Legacy Certificate</a>
+                  @php $birthCertUrl = storage_private_url($student->birth_certificate_path); @endphp
+                  @if($birthCertUrl)
+                    <a target="_blank" href="{{ $birthCertUrl }}">Legacy Certificate</a>
+                  @else
+                    <a target="_blank" href="{{ asset('storage/'.$student->birth_certificate_path) }}">Legacy Certificate</a>
+                  @endif
                 @else
                   <span>—</span>
                 @endif
@@ -145,7 +150,12 @@
                       <div><a target="_blank" href="{{ $doc->file_url }}">{{ $doc->title }}</a> <small class="text-muted">({{ $doc->created_at->format('M d, Y') }})</small></div>
                     @endforeach
                   @elseif($parent->father_id_document)
-                    <a target="_blank" href="{{ asset('storage/'.$parent->father_id_document) }}">Legacy Document</a>
+                    @php $fatherIdUrl = storage_private_url($parent->father_id_document); @endphp
+                    @if($fatherIdUrl)
+                      <a target="_blank" href="{{ $fatherIdUrl }}">Legacy Document</a>
+                    @else
+                      <a target="_blank" href="{{ asset('storage/'.$parent->father_id_document) }}">Legacy Document</a>
+                    @endif
                   @else
                     <span>—</span>
                   @endif
@@ -159,7 +169,12 @@
                       <div><a target="_blank" href="{{ $doc->file_url }}">{{ $doc->title }}</a> <small class="text-muted">({{ $doc->created_at->format('M d, Y') }})</small></div>
                     @endforeach
                   @elseif($parent->mother_id_document)
-                    <a target="_blank" href="{{ asset('storage/'.$parent->mother_id_document) }}">Legacy Document</a>
+                    @php $motherIdUrl = storage_private_url($parent->mother_id_document); @endphp
+                    @if($motherIdUrl)
+                      <a target="_blank" href="{{ $motherIdUrl }}">Legacy Document</a>
+                    @else
+                      <a target="_blank" href="{{ asset('storage/'.$parent->mother_id_document) }}">Legacy Document</a>
+                    @endif
                   @else
                     <span>—</span>
                   @endif

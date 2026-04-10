@@ -76,10 +76,10 @@
                                     </td>
                                     <td>
                                         @if($vehicle->insurance_document)
-                                            <a href="{{ asset('storage/'.$vehicle->insurance_document) }}" target="_blank" class="btn btn-sm btn-ghost-strong">Insurance</a>
+                                            <a href="{{ storage_public_url($vehicle->insurance_document) ?? asset('storage/'.$vehicle->insurance_document) }}" target="_blank" class="btn btn-sm btn-ghost-strong">Insurance</a>
                                         @endif
                                         @if($vehicle->logbook_document)
-                                            <a href="{{ asset('storage/'.$vehicle->logbook_document) }}" target="_blank" class="btn btn-sm btn-ghost-strong">Logbook</a>
+                                            <a href="{{ storage_public_url($vehicle->logbook_document) ?? asset('storage/'.$vehicle->logbook_document) }}" target="_blank" class="btn btn-sm btn-ghost-strong">Logbook</a>
                                         @endif
                                         @if(!$vehicle->insurance_document && !$vehicle->logbook_document)
                                             <span class="text-muted">—</span>

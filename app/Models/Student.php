@@ -432,9 +432,10 @@ class Student extends Model
             
             // Check if file exists on public disk
             if (storage_public()->exists($path)) {
-                $u = storage_public()->url($path);
-                // Mobile clients need an absolute URL; Laravel local disk often returns "/storage/...".
-                return str_starts_with($u, 'http') ? $u : url($u);
+                $u = storage_public_url($path);
+                if ($u) {
+                    return $u;
+                }
             }
             
             // Fallback: try direct asset() approach

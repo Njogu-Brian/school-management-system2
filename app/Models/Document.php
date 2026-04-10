@@ -54,11 +54,9 @@ class Document extends Model
 
     public function getFileUrlAttribute()
     {
-        $disk = config('filesystems.public_disk', 'public');
-        if (in_array($disk, ['s3_public', 's3'])) {
-            return storage_public()->url($this->file_path);
-        }
-        return asset('storage/' . $this->file_path);
+        // Option B: even "public" files may live in a private bucket with Block Public Access.
+        // Always prefer a temporary signed URL when supported.
+        return storage_public_url($this->file_path) ?? asset('storage/' . $this->file_path);
     }
 
     public function getFileSizeHumanAttribute()
