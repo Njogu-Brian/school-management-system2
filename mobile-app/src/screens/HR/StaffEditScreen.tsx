@@ -225,7 +225,7 @@ export const StaffEditScreen: React.FC<Props> = ({ navigation, route }) => {
                     <Text style={[styles.sectionTitle, { color: textMain }]}>Photo</Text>
                     <View style={styles.photoRow}>
                         {displayAvatar ? (
-                            <Image source={{ uri: displayAvatar }} style={styles.photo} />
+                            <Image source={{ uri: displayAvatar }} style={styles.photo} resizeMode="cover" />
                         ) : (
                             <View style={[styles.photoPlaceholder, { borderColor: BRAND.border }]}>
                                 <Icon name="person" size={48} color={textSub} />

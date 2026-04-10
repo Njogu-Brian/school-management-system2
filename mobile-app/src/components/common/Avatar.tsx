@@ -24,6 +24,7 @@ export const Avatar: React.FC<AvatarProps> = ({ name, imageUrl, size = 40 }) => 
         return (
             <Image
                 source={{ uri: imageUrl }}
+                resizeMode="cover"
                 style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
             />
         );
