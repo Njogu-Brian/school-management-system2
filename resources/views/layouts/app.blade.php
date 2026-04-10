@@ -43,8 +43,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <link rel="icon" href="{{ $faviconUrl }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-
-    @vite(['resources/sass/app.scss', 'resources/js/app.js'])
+    {{-- Static CSS (no Vite build required on server) --}}
+    <link rel="stylesheet" href="{{ asset('css/app-custom.css') }}">
     <style>
         /* Finance legacy class fallbacks aligned to the standard app theme */
         .finance-table { width: 100%; border-collapse: collapse; }

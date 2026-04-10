@@ -1,0 +1,28 @@
+/* Minimal shared CSS that does NOT require Vite/NPM builds.
+   Keep this file lightweight and safe to load globally. */
+
+/* Avatar helpers (proportional images everywhere) */
+.avatar-24 { width: 24px; height: 24px; }
+.avatar-28 { width: 28px; height: 28px; }
+.avatar-32 { width: 32px; height: 32px; }
+.avatar-36 { width: 36px; height: 36px; }
+.avatar-40 { width: 40px; height: 40px; }
+.avatar-44 { width: 44px; height: 44px; }
+.avatar-48 { width: 48px; height: 48px; }
+.avatar-56 { width: 56px; height: 56px; }
+.avatar-120 { width: 120px; height: 120px; }
+
+img.avatar-120,
+img.avatar-24,
+img.avatar-28,
+img.avatar-32,
+img.avatar-36,
+img.avatar-40,
+img.avatar-44,
+img.avatar-48,
+img.avatar-56 {
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
