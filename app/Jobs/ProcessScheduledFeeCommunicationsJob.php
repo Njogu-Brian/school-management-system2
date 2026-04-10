@@ -10,8 +10,10 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use App\Mail\GenericMail;
 
 class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
@@ -27,13 +29,36 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
             ->get();
 
         foreach ($pending as $item) {
+            $lock = Cache::lock("scheduled_fee_comm:{$item->id}", 15 * 60);
+            if (!$lock->get()) {
+                Log::info('ProcessScheduledFeeCommunicationsJob: skipping item (lock held)', ['item_id' => $item->id]);
+                continue;
+            }
+
             try {
-                $this->processItem($item);
+                // Re-check due/pending inside the lock to prevent double-send under concurrency.
+                $fresh = ScheduledFeeCommunication::query()
+                    ->whereKey($item->id)
+                    ->pending()
+                    ->due()
+                    ->first();
+
+                if (!$fresh) {
+                    continue;
+                }
+
+                $this->processItem($fresh);
             } catch (\Throwable $e) {
                 Log::error('ProcessScheduledFeeCommunicationsJob failed for item ' . $item->id, [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
+            } finally {
+                try {
+                    $lock->release();
+                } catch (\Throwable $e) {
+                    // ignore
+                }
             }
         }
     }
@@ -62,7 +87,7 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
             }
 
             if (count($pairs) > 10) {
-                $trackingId = 'scheduled_fee_' . $item->id . '_' . $channel . '_' . time();
+                $trackingId = 'scheduled_fee_' . $item->id . '_' . $channel . '_' . Str::uuid()->toString();
                 $title = $subject;
 
                 $recipientsData = [];

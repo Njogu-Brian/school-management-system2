@@ -13,7 +13,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use App\Mail\GenericMail;
 
 class SendScheduledCommunicationsJob implements ShouldQueue
@@ -30,6 +32,22 @@ class SendScheduledCommunicationsJob implements ShouldQueue
             ->get();
 
         foreach ($pending as $item) {
+            $lock = Cache::lock("scheduled_comm:{$item->id}", 15 * 60);
+            if (!$lock->get()) {
+                continue;
+            }
+
+            try {
+                // Re-check inside the lock to avoid double-send under concurrency.
+                $item = ScheduledCommunication::query()
+                    ->whereKey($item->id)
+                    ->where('status', 'pending')
+                    ->where('send_at', '<=', $now)
+                    ->first();
+                if (!$item) {
+                    continue;
+                }
+
             $template = CommunicationTemplate::find($item->template_id);
             if (!$template) continue;
 
@@ -45,7 +63,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
 
             // For large batches (>10), dispatch bulk job to avoid timeout
             if (count($pairs) > 10) {
-                $trackingId = 'scheduled_' . $item->type . '_' . $item->id . '_' . time();
+                $trackingId = 'scheduled_' . $item->type . '_' . $item->id . '_' . Str::uuid()->toString();
                 $title = $template->title ?? ucfirst($item->type);
 
                 if ($item->type === 'email') {
@@ -172,6 +190,13 @@ class SendScheduledCommunicationsJob implements ShouldQueue
             }
 
             $item->update(['status' => 'sent']);
+            } finally {
+                try {
+                    $lock->release();
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
         }
     }
 
