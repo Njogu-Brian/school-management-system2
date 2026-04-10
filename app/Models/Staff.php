@@ -44,7 +44,9 @@ class Staff extends Model
             // Use Storage facade to generate URL (handles symlink automatically)
             try {
                 if (storage_public()->exists($path)) {
-                    return storage_public()->url($path);
+                    $u = storage_public()->url($path);
+                    // Mobile clients need an absolute URL; Laravel local disk often returns "/storage/...".
+                    return str_starts_with($u, 'http') ? $u : url($u);
                 }
             } catch (\Exception $e) {
                 // Fall through to fallback
@@ -54,13 +56,15 @@ class Staff extends Model
             try {
                 $fullPath = storage_path('app/public/'.$path);
                 if (file_exists($fullPath)) {
-                    return asset('storage/'.$path);
+                    $u = asset('storage/'.$path);
+                    return str_starts_with($u, 'http') ? $u : url($u);
                 }
                 
                 // Also check public/storage (symlink target)
                 $publicPath = public_path('storage/'.$path);
                 if (file_exists($publicPath)) {
-                    return asset('storage/'.$path);
+                    $u = asset('storage/'.$path);
+                    return str_starts_with($u, 'http') ? $u : url($u);
                 }
             } catch (\Exception $e) {
                 // Fall through to fallback

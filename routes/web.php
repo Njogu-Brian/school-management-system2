@@ -211,6 +211,11 @@ Route::post('/invoice/{invoice}/pay/mpesa', [\App\Http\Controllers\Finance\Mpesa
 // Public family profile update (no auth)
 Route::get('/family-update/{token}', [FamilyUpdateController::class, 'publicForm'])->name('family-update.form');
 Route::post('/family-update/{token}', [FamilyUpdateController::class, 'submit'])->name('family-update.submit');
+// Public (token-based) preview/download of legacy private uploads linked to the family/student
+Route::get('/family-update/{token}/files/{model}/{id}/{field}', [FamilyUpdateController::class, 'publicFilePreview'])
+    ->name('family-update.files.preview');
+Route::get('/family-update/{token}/files/{model}/{id}/{field}/download', [FamilyUpdateController::class, 'publicFileDownload'])
+    ->name('family-update.files.download');
 
 // Admin file download for private files
 Route::middleware(['auth', 'role:Super Admin|Admin|Secretary'])->group(function () {

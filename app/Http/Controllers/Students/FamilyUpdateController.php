@@ -8,6 +8,7 @@ use App\Models\FamilyUpdateLink;
 use App\Models\FamilyUpdateAudit;
 use App\Models\Student;
 use App\Models\Document;
+use App\Models\ParentInfo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +16,94 @@ use Illuminate\Support\Str;
 
 class FamilyUpdateController extends Controller
 {
+    public function publicFilePreview(string $token, string $model, int $id, string $field)
+    {
+        return $this->servePublicTokenFile($token, $model, $id, $field, true);
+    }
+
+    public function publicFileDownload(string $token, string $model, int $id, string $field)
+    {
+        return $this->servePublicTokenFile($token, $model, $id, $field, false);
+    }
+
+    private function servePublicTokenFile(string $token, string $model, int $id, string $field, bool $inline)
+    {
+        $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->first();
+        abort_unless($link, 404);
+
+        $students = collect();
+        if ($link->student_id && !$link->family_id) {
+            $student = Student::where('id', $link->student_id)
+                ->where('archive', 0)
+                ->with('parent')
+                ->firstOrFail();
+            $students = collect([$student]);
+        } else {
+            $family = $link->family()
+                ->with(['students' => function ($q) {
+                    $q->where('archive', 0)->with('parent');
+                }])
+                ->firstOrFail();
+            $students = $family->students;
+        }
+
+        abort_unless($students->isNotEmpty(), 404);
+
+        $allowedStudentIds = $students->pluck('id')->map(fn ($v) => (int) $v)->values();
+        $allowedParentIds = $students->pluck('parent_id')->filter()->unique()->map(fn ($v) => (int) $v)->values();
+
+        $map = [
+            'student' => [
+                'model' => Student::withArchived(),
+                'fields' => [
+                    'photo_path' => 'public',
+                    'birth_certificate_path' => 'private',
+                ],
+            ],
+            'parent' => [
+                'model' => ParentInfo::query(),
+                'fields' => [
+                    'father_id_document' => 'private',
+                    'mother_id_document' => 'private',
+                    'guardian_id_document' => 'private',
+                ],
+            ],
+        ];
+
+        abort_unless(isset($map[$model]), 404);
+        abort_unless(array_key_exists($field, $map[$model]['fields']), 404);
+
+        if ($model === 'student') {
+            abort_unless($allowedStudentIds->contains($id), 403);
+        }
+        if ($model === 'parent') {
+            abort_unless($allowedParentIds->contains($id), 403);
+        }
+
+        $record = $map[$model]['model']->findOrFail($id);
+        $path = $record->{$field};
+        abort_unless($path, 404);
+
+        $diskType = $map[$model]['fields'][$field];
+        $disk = $diskType === 'private' ? storage_private() : storage_public();
+        abort_unless($disk->exists($path), 404);
+
+        $mime = $disk->mimeType($path) ?: 'application/octet-stream';
+        $filename = $model . '-' . $id . '-' . basename($path);
+
+        if ($inline) {
+            $inlineTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (in_array(strtolower($mime), $inlineTypes, true)) {
+                return $disk->response($path, $filename, [
+                    'Content-Type' => $mime,
+                    'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                ]);
+            }
+        }
+
+        return $disk->download($path, $filename);
+    }
+
     /**
      * Admin: list all family update links.
      */

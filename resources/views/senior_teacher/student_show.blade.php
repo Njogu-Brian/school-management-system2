@@ -34,9 +34,12 @@
         <div class="col-lg-4">
             <div class="card shadow-sm">
                 <div class="card-body text-center">
-                    <div class="avatar-circle bg-primary text-white mx-auto mb-3" style="width: 100px; height: 100px; font-size: 36px;">
-                        {{ strtoupper(substr($student->first_name, 0, 1)) }}{{ strtoupper(substr($student->last_name, 0, 1)) }}
-                    </div>
+                    <img
+                        src="{{ $student->photo_url }}"
+                        alt="{{ $student->full_name }}"
+                        class="rounded-circle mx-auto mb-3"
+                        style="width: 100px; height: 100px; object-fit: cover;"
+                        onerror="this.onerror=null;this.src='{{ asset('images/avatar-student.png') }}'">
                     <h4>{{ $student->full_name }}</h4>
                     <p class="text-muted mb-3">{{ $student->admission_number }}</p>
                     <span class="badge {{ $student->status === 'Active' ? 'bg-success' : 'bg-danger' }}">

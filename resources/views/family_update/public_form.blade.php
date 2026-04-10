@@ -166,6 +166,12 @@
     </style>
 </head>
 <body>
+@php
+    $schoolName = setting('school_name') ?? $appName ?? config('app.name', 'School Management System');
+    $schoolPhone = setting('school_phone') ?? null;
+    $schoolEmail = setting('school_email') ?? null;
+    $schoolAddress = setting('school_address') ?? null;
+@endphp
 <div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-xl-9 col-lg-10">
@@ -173,9 +179,24 @@
                 <div class="d-flex align-items-center gap-3">
                     <img src="{{ $logoUrl }}" alt="Logo" style="width:56px;height:56px;object-fit:contain;border-radius:12px;background:rgba(255,255,255,0.15);padding:8px;">
                     <div>
-                        <div class="fw-semibold text-uppercase small" style="letter-spacing:0.6px;">Secure Update</div>
+                        <div class="fw-semibold text-uppercase small" style="letter-spacing:0.6px;">{{ $schoolName }}</div>
                         <h4 class="mb-0">Student Details</h4>
-                        <small class="opacity-75">{{ $family ? 'Family ID: ' . $family->id : 'Student Update' }}</small>
+                        <small class="opacity-75">
+                            {{ $family ? 'Family ID: ' . $family->id : 'Student Update' }}
+                            @if($schoolPhone || $schoolEmail || $schoolAddress)
+                                <span class="d-block mt-1">
+                                    @if($schoolPhone)
+                                        <span class="me-2"><strong>Tel:</strong> {{ $schoolPhone }}</span>
+                                    @endif
+                                    @if($schoolEmail)
+                                        <span class="me-2"><strong>Email:</strong> {{ $schoolEmail }}</span>
+                                    @endif
+                                    @if($schoolAddress)
+                                        <span class="d-block"><strong>Address:</strong> {{ $schoolAddress }}</span>
+                                    @endif
+                                </span>
+                            @endif
+                        </small>
                     </div>
                 </div>
                 <span class="badge-pill">Encrypted Link</span>
@@ -307,8 +328,11 @@
                                                     </a>
                                                 @endforeach
                                                 @if($stu->photo_path && !$passportDocs->where('file_path', $stu->photo_path)->first())
-                                                    <a href="{{ Storage::url($stu->photo_path) }}" target="_blank">
+                                                    <a href="{{ route('family-update.files.preview', [$link->token, 'student', $stu->id, 'photo_path']) }}" target="_blank">
                                                         <i class="bi bi-image"></i> Legacy Photo
+                                                    </a>
+                                                    <a href="{{ route('family-update.files.download', [$link->token, 'student', $stu->id, 'photo_path']) }}" target="_blank">
+                                                        <i class="bi bi-download"></i> Download
                                                     </a>
                                                 @endif
                                             </div>
@@ -346,8 +370,11 @@
                                                     </a>
                                                 @endforeach
                                                 @if($stu->birth_certificate_path && !$birthCertDocs->where('file_path', $stu->birth_certificate_path)->first())
-                                                    <a href="{{ Storage::url($stu->birth_certificate_path) }}" target="_blank">
+                                                    <a href="{{ route('family-update.files.preview', [$link->token, 'student', $stu->id, 'birth_certificate_path']) }}" target="_blank">
                                                         <i class="bi bi-file-earmark"></i> Legacy Certificate
+                                                    </a>
+                                                    <a href="{{ route('family-update.files.download', [$link->token, 'student', $stu->id, 'birth_certificate_path']) }}" target="_blank">
+                                                        <i class="bi bi-download"></i> Download
                                                     </a>
                                                 @endif
                                             </div>
@@ -456,8 +483,11 @@
                                                 </a>
                                             @endforeach
                                             @if(optional($parent)->father_id_document && !$fatherIdDocs->where('file_path', $parent->father_id_document)->first())
-                                                <a href="{{ Storage::url($parent->father_id_document) }}" target="_blank">
+                                                <a href="{{ route('family-update.files.preview', [$link->token, 'parent', $parent->id, 'father_id_document']) }}" target="_blank">
                                                     <i class="bi bi-file-earmark"></i> Legacy Document
+                                                </a>
+                                                <a href="{{ route('family-update.files.download', [$link->token, 'parent', $parent->id, 'father_id_document']) }}" target="_blank">
+                                                    <i class="bi bi-download"></i> Download
                                                 </a>
                                             @endif
                                         </div>
@@ -552,8 +582,11 @@
                                                 </a>
                                             @endforeach
                                             @if(optional($parent)->mother_id_document && !$motherIdDocs->where('file_path', $parent->mother_id_document)->first())
-                                                <a href="{{ Storage::url($parent->mother_id_document) }}" target="_blank">
+                                                <a href="{{ route('family-update.files.preview', [$link->token, 'parent', $parent->id, 'mother_id_document']) }}" target="_blank">
                                                     <i class="bi bi-file-earmark"></i> Legacy Document
+                                                </a>
+                                                <a href="{{ route('family-update.files.download', [$link->token, 'parent', $parent->id, 'mother_id_document']) }}" target="_blank">
+                                                    <i class="bi bi-download"></i> Download
                                                 </a>
                                             @endif
                                         </div>
