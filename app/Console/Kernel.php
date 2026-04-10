@@ -11,6 +11,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         \App\Console\Commands\SendScheduledCommunications::class,
         \App\Console\Commands\BackfillStudentDiaries::class,
+        \App\Console\Commands\PurgeLocalStorageAndDocuments::class,
     ];
 
     protected function schedule(Schedule $schedule)
