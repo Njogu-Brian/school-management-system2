@@ -86,8 +86,22 @@ class MigrateFilesToS3 extends Command
                 }
 
                 try {
-                    $contents = Storage::disk($localDisk)->get($path);
-                    Storage::disk($s3Disk)->put($path, $contents);
+                    // Use streams to avoid memory spikes and to handle edge cases where get() may return null.
+                    $readStream = Storage::disk($localDisk)->readStream($path);
+                    if ($readStream === false || $readStream === null) {
+                        $this->error("  Error: {$path} - could not read stream from {$localDisk}");
+                        $errors++;
+                        continue;
+                    }
+                    $ok = Storage::disk($s3Disk)->writeStream($path, $readStream);
+                    if (is_resource($readStream)) {
+                        fclose($readStream);
+                    }
+                    if (! $ok) {
+                        $this->error("  Error: {$path} - writeStream returned false to {$s3Disk}");
+                        $errors++;
+                        continue;
+                    }
                     $this->line("  Copied: {$path}");
                     $copied++;
                 } catch (\Throwable $e) {
@@ -117,8 +131,21 @@ class MigrateFilesToS3 extends Command
                         continue;
                     }
                     try {
-                        $contents = Storage::disk($dirConfig['local'])->get($path);
-                        Storage::disk($dirConfig['s3'])->put($path, $contents);
+                        $readStream = Storage::disk($dirConfig['local'])->readStream($path);
+                        if ($readStream === false || $readStream === null) {
+                            $this->error("  Error: {$path} - could not read stream from {$dirConfig['local']}");
+                            $errors++;
+                            continue;
+                        }
+                        $ok = Storage::disk($dirConfig['s3'])->writeStream($path, $readStream);
+                        if (is_resource($readStream)) {
+                            fclose($readStream);
+                        }
+                        if (! $ok) {
+                            $this->error("  Error: {$path} - writeStream returned false to {$dirConfig['s3']}");
+                            $errors++;
+                            continue;
+                        }
                         $this->line("  Copied: {$path}");
                         $copied++;
                     } catch (\Throwable $e) {
