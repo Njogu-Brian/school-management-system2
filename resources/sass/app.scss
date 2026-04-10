@@ -1,0 +1,6 @@
+/* Vite entrypoint for shared app styles.
+   Keep this minimal: the app uses Bootstrap CDN, but we need a place to ship
+   small shared utilities (avatars, form system styles, etc.) consistently. */
+
+@import "../css/_form-system.css";
+
