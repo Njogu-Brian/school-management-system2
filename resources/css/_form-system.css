@@ -224,3 +224,16 @@ label.form-label {
 .toggle-content { display: none; margin-top: 0.75rem; }
 .toggle-content.visible { display: block; }
 
+/* Avatar helpers (used across student/staff views) */
+.avatar-120 {
+  width: 120px;
+  height: 120px;
+}
+img.avatar-120 {
+  display: block;
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  object-position: center;
+}
+
