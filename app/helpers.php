@@ -846,12 +846,8 @@ if (!function_exists('storage_public_url')) {
         if (!$path) {
             return null;
         }
-        $disk = storage_public();
-        if (method_exists($disk, 'temporaryUrl')) {
-            return $disk->temporaryUrl($path, now()->addMinutes($minutes));
-        }
-        $u = $disk->url($path);
-        return str_starts_with($u, 'http') ? $u : url($u);
+        $diskName = config('filesystems.public_disk', 'public');
+        return media_signed_url($diskName, $path, $minutes);
     }
 }
 
@@ -864,12 +860,33 @@ if (!function_exists('storage_private_url')) {
         if (!$path) {
             return null;
         }
-        $disk = storage_private();
-        if (method_exists($disk, 'temporaryUrl')) {
-            return $disk->temporaryUrl($path, now()->addMinutes($minutes));
+        $diskName = config('filesystems.private_disk', 'private');
+        return media_signed_url($diskName, $path, $minutes);
+    }
+}
+
+/**
+ * Create a short, app-domain signed URL for a storage path.
+ * This avoids exposing extremely long S3 pre-signed URLs to users.
+ */
+if (!function_exists('media_signed_url')) {
+    function media_signed_url(string $diskName, string $path, int $minutes = 10): ?string
+    {
+        $path = str_replace('\\', '/', $path);
+        $path = ltrim($path, '/');
+        if ($path === '' || str_contains($path, '..')) {
+            return null;
         }
-        // Fallback for local private disk: use the admin download route instead of exposing a filesystem path.
-        return null;
+
+        // base64url encode the path to keep route segments safe.
+        $encoded = rtrim(strtr(base64_encode($path), '+/', '-_'), '=');
+
+        // Pass requested minutes as query param so controller can match expiry.
+        return \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'media.signed',
+            now()->addMinutes(max(1, min($minutes, 60))),
+            ['disk' => $diskName, 'encodedPath' => $encoded, 'm' => max(1, min($minutes, 60))]
+        );
     }
 }
 

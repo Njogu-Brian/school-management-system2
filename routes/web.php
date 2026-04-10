@@ -47,6 +47,7 @@ use App\Http\Controllers\Students\ExtracurricularActivityController;
 use App\Http\Controllers\Students\AcademicHistoryController;
 use App\Http\Controllers\Students\StudentCategoryController;
 use App\Http\Controllers\FileDownloadController;
+use App\Http\Controllers\MediaController;
 
 // Communication
 use App\Http\Controllers\CommunicationController;
@@ -216,6 +217,12 @@ Route::get('/family-update/{token}/files/{model}/{id}/{field}', [FamilyUpdateCon
     ->name('family-update.files.preview');
 Route::get('/family-update/{token}/files/{model}/{id}/{field}/download', [FamilyUpdateController::class, 'publicFileDownload'])
     ->name('family-update.files.download');
+
+// Short, app-domain URL for signed storage redirects (S3 signed URLs are extremely long).
+Route::get('/media/{disk}/{encodedPath}', [MediaController::class, 'signedRedirect'])
+    ->name('media.signed')
+    ->where('disk', '[A-Za-z0-9_]+')
+    ->where('encodedPath', '[A-Za-z0-9\\-_]+');
 
 // Admin file download for private files
 Route::middleware(['auth', 'role:Super Admin|Admin|Secretary'])->group(function () {
