@@ -88,7 +88,13 @@ return [
             'url' => env('AWS_URL'),
             // Optional prefix within the bucket, e.g. "public"
             'root' => trim((string) env('AWS_PUBLIC_PREFIX', ''), '/'),
-            'visibility' => 'public',
+            // IMPORTANT: Many modern buckets have Object Ownership = "Bucket owner enforced",
+            // which disables ACLs. Setting visibility=public causes AWS SDK to send ACL headers
+            // (e.g. x-amz-acl: public-read) and uploads will fail with AccessControlListNotSupported.
+            //
+            // Keep this disk private at the API level; if you need public reads, use a bucket policy
+            // (or CloudFront) to allow s3:GetObject for the desired prefix.
+            'visibility' => 'private',
             'throw' => false,
         ],
 
