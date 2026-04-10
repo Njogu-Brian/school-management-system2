@@ -57,7 +57,15 @@
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Frequency</label>
                     <select name="frequency" class="form-select" {{ $canManageBackups ? '' : 'disabled' }}>
-                        @foreach(['daily' => 'Daily', 'weekly' => 'Weekly', 'biweekly' => 'Bi-weekly', 'monthly' => 'Monthly'] as $key => $label)
+                        @foreach([
+                            'hourly' => 'Hourly',
+                            'every_6_hours' => 'Every 6 hours',
+                            'every_12_hours' => 'Every 12 hours',
+                            'daily' => 'Daily',
+                            'weekly' => 'Weekly',
+                            'biweekly' => 'Bi-weekly',
+                            'monthly' => 'Monthly',
+                        ] as $key => $label)
                             <option value="{{ $key }}" {{ ($backupSchedule['frequency'] ?? 'weekly') === $key ? 'selected' : '' }}>{{ $label }}</option>
                         @endforeach
                     </select>

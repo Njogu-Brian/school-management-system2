@@ -10,6 +10,7 @@ class PruneDatabaseBackups extends Command
     protected $signature = 'backup:prune
                             {--all : Delete every backup file in the backup directory}
                             {--force : Required when using --all}
+                            {--keep= : Keep only the latest N backups (count-based)}
                             {--days= : Override retention days (default: config backup.retention_days)}';
 
     protected $description = 'Prune local database backups older than the retention period, or delete all with --all --force';
@@ -24,6 +25,14 @@ class PruneDatabaseBackups extends Command
             }
             $n = $backups->deleteAll();
             $this->info("Deleted {$n} backup file(s) from {$backups->directory()}.");
+
+            return self::SUCCESS;
+        }
+
+        $keep = $this->option('keep');
+        if ($keep !== null && $keep !== '') {
+            $n = $backups->pruneKeepLatest(max(0, (int) $keep));
+            $this->info("Pruned {$n} backup file(s) by count in {$backups->directory()}.");
 
             return self::SUCCESS;
         }
