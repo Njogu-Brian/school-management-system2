@@ -231,13 +231,39 @@ class DocumentManagementController extends Controller
             return null;
         }
 
-        // Prefer public disk first for backward compatibility.
-        if (storage_public()->exists($path)) {
-            return config('filesystems.public_disk', 'public');
+        // Prefer current configured disks first (typically S3 in production).
+        $configuredPublic = config('filesystems.public_disk', 'public');
+        $configuredPrivate = config('filesystems.private_disk', 'private');
+
+        try {
+            if (Storage::disk($configuredPublic)->exists($path)) {
+                return $configuredPublic;
+            }
+        } catch (\Throwable $e) {
+            // ignore and fall through
         }
 
-        if (storage_private()->exists($path)) {
-            return config('filesystems.private_disk', 'private');
+        try {
+            if (Storage::disk($configuredPrivate)->exists($path)) {
+                return $configuredPrivate;
+            }
+        } catch (\Throwable $e) {
+            // ignore and fall through
+        }
+
+        // Transition-friendly fallback: if some files haven't been migrated yet, still allow
+        // preview/download from local disks.
+        foreach (['public', 'private'] as $localDisk) {
+            if (in_array($localDisk, [$configuredPublic, $configuredPrivate], true)) {
+                continue;
+            }
+            try {
+                if (Storage::disk($localDisk)->exists($path)) {
+                    return $localDisk;
+                }
+            } catch (\Throwable $e) {
+                // ignore
+            }
         }
 
         return null;
