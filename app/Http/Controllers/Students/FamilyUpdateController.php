@@ -88,8 +88,29 @@ class FamilyUpdateController extends Controller
         $disk = $diskType === 'private' ? storage_private() : storage_public();
         abort_unless($disk->exists($path), 404);
 
-        $mime = $disk->mimeType($path) ?: 'application/octet-stream';
         $filename = $model . '-' . $id . '-' . basename($path);
+        $mime = $disk->mimeType($path) ?: 'application/octet-stream';
+
+        // If the disk supports temporary URLs (S3), prefer redirecting to a signed URL
+        // to avoid proxying large files through the app server.
+        if (method_exists($disk, 'temporaryUrl')) {
+            $expires = now()->addMinutes(10);
+            $disposition = $inline ? 'inline' : 'attachment';
+            $opts = [
+                'ResponseContentType' => $mime,
+                'ResponseContentDisposition' => $disposition . '; filename="' . $filename . '"',
+            ];
+
+            // Only allow inline for safe types; otherwise force download.
+            if ($inline) {
+                $inlineTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                if (!in_array(strtolower($mime), $inlineTypes, true)) {
+                    $opts['ResponseContentDisposition'] = 'attachment; filename="' . $filename . '"';
+                }
+            }
+
+            return redirect()->away($disk->temporaryUrl($path, $expires, $opts));
+        }
 
         if ($inline) {
             $inlineTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];

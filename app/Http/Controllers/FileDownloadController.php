@@ -44,7 +44,20 @@ class FileDownloadController extends Controller
         abort_unless(storage_private()->exists($path), 404);
 
         $filename = $map[$model]['label'] . '-' . $id . '-' . basename($path);
-        return storage_private()->download($path, $filename);
+
+        // If using S3/private disk, prefer signed URL redirect to avoid proxying.
+        $disk = storage_private();
+        if (method_exists($disk, 'temporaryUrl')) {
+            $expires = now()->addMinutes(10);
+            $mime = $disk->mimeType($path) ?: 'application/octet-stream';
+            $url = $disk->temporaryUrl($path, $expires, [
+                'ResponseContentType' => $mime,
+                'ResponseContentDisposition' => 'attachment; filename="' . $filename . '"',
+            ]);
+            return redirect()->away($url);
+        }
+
+        return $disk->download($path, $filename);
     }
 }
 

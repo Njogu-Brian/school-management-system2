@@ -83,8 +83,11 @@ return [
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION'),
-            'bucket' => env('AWS_BUCKET'),
+            // Prefer dedicated bucket for public assets; fall back to AWS_BUCKET
+            'bucket' => env('AWS_PUBLIC_BUCKET', env('AWS_BUCKET')),
             'url' => env('AWS_URL'),
+            // Optional prefix within the bucket, e.g. "public"
+            'root' => trim((string) env('AWS_PUBLIC_PREFIX', ''), '/'),
             'visibility' => 'public',
             'throw' => false,
         ],
@@ -94,7 +97,10 @@ return [
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION'),
-            'bucket' => env('AWS_BUCKET'),
+            // Prefer dedicated bucket for private documents; fall back to AWS_BUCKET
+            'bucket' => env('AWS_PRIVATE_BUCKET', env('AWS_BUCKET')),
+            // Optional prefix within the bucket, e.g. "private"
+            'root' => trim((string) env('AWS_PRIVATE_PREFIX', ''), '/'),
             'visibility' => 'private',
             'throw' => false,
         ],
