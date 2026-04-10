@@ -125,16 +125,18 @@ class DocumentManagementController extends Controller
 
     public function download(Document $document)
     {
-        if (!storage_public()->exists($document->file_path)) {
+        $disk = $this->resolveDiskForPath($document->file_path);
+        if (!$disk) {
             return back()->with('error', 'File not found.');
         }
 
-        return storage_public()->download($document->file_path, $document->file_name);
+        return Storage::disk($disk)->download($document->file_path, $document->file_name);
     }
 
     public function preview(Document $document)
     {
-        if (!storage_public()->exists($document->file_path)) {
+        $disk = $this->resolveDiskForPath($document->file_path);
+        if (!$disk) {
             abort(404, 'File not found.');
         }
         $mime = $document->file_type ?? 'application/octet-stream';
@@ -142,13 +144,13 @@ class DocumentManagementController extends Controller
         // For images and pdf, force inline view
         $inlineTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         if (in_array(strtolower($mime), $inlineTypes)) {
-            return storage_public()->response($document->file_path, $document->file_name, [
+            return Storage::disk($disk)->response($document->file_path, $document->file_name, [
                 'Content-Type' => $mime,
                 'Content-Disposition' => 'inline; filename="' . $document->file_name . '"',
             ]);
         }
 
-        return storage_public()->download($document->file_path, $document->file_name);
+        return Storage::disk($disk)->download($document->file_path, $document->file_name);
     }
 
     public function email(Request $request, Document $document)
@@ -159,11 +161,12 @@ class DocumentManagementController extends Controller
             'message' => 'nullable|string',
         ]);
 
-        if (!storage_public()->exists($document->file_path)) {
+        $disk = $this->resolveDiskForPath($document->file_path);
+        if (!$disk) {
             return back()->with('error', 'File not found.');
         }
 
-        $content = storage_public()->get($document->file_path);
+        $content = Storage::disk($disk)->get($document->file_path);
         $mime = $document->file_type ?? 'application/octet-stream';
 
         Mail::raw($validated['message'] ?? 'Please find the attached document.', function ($message) use ($validated, $document, $content, $mime) {
@@ -210,9 +213,33 @@ class DocumentManagementController extends Controller
 
     public function destroy(Document $document)
     {
-        storage_public()->delete($document->file_path);
+        $disk = $this->resolveDiskForPath($document->file_path) ?? config('filesystems.public_disk', 'public');
+        Storage::disk($disk)->delete($document->file_path);
         $document->delete();
         return redirect()->route('documents.index')
             ->with('success', 'Document deleted successfully.');
+    }
+
+    /**
+     * Some records in documents table may point to files stored on the "private" disk
+     * (e.g. IDs/birth certificates). For admin document management, allow preview/download
+     * from either disk.
+     */
+    protected function resolveDiskForPath(?string $path): ?string
+    {
+        if (!$path) {
+            return null;
+        }
+
+        // Prefer public disk first for backward compatibility.
+        if (storage_public()->exists($path)) {
+            return config('filesystems.public_disk', 'public');
+        }
+
+        if (storage_private()->exists($path)) {
+            return config('filesystems.private_disk', 'private');
+        }
+
+        return null;
     }
 }
