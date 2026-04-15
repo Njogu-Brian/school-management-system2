@@ -365,7 +365,10 @@
                   <th>#</th>
                   <th>Student Name</th>
                   <th>Admission #</th>
+                  <th>Class</th>
                   <th>Parent Contact</th>
+                  <th>Message</th>
+                  <th>Statement</th>
                   <th class="text-end">Fee Balance (KES)</th>
                 </tr>
               </thead>
@@ -386,6 +389,38 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         <button type="button" class="btn btn-finance btn-finance-primary" data-bs-dismiss="modal" onclick="document.getElementById('scheduleSubmitBtn').focus()">
           <i class="bi bi-calendar-check"></i> Continue to Schedule
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Message Preview Modal --}}
+<div class="modal fade" id="previewMessageModal" tabindex="-1" aria-labelledby="previewMessageModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="previewMessageModalLabel">
+          <i class="bi bi-chat-text"></i> Message preview
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <div class="text-muted small">Recipient</div>
+          <div class="fw-semibold" id="previewMessageRecipient">-</div>
+        </div>
+        <div class="mb-2">
+          <div class="text-muted small">Email subject (when emailing)</div>
+          <div class="fw-semibold" id="previewMessageSubject">-</div>
+        </div>
+        <div class="text-muted small mb-1">Message</div>
+        <pre id="previewMessageBody" class="p-3 bg-light border rounded" style="white-space: pre-wrap; word-break: break-word; margin: 0;"></pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-finance btn-finance-primary" id="copyPreviewMessageBtn">
+          <i class="bi bi-clipboard"></i> Copy
         </button>
       </div>
     </div>
@@ -575,6 +610,66 @@ document.addEventListener('DOMContentLoaded', function() {
     return div.innerHTML;
   }
 
+  function openMessagePreview(recipientLabel, subject, message) {
+    const modalEl = document.getElementById('previewMessageModal');
+    if (!modalEl) return;
+    document.getElementById('previewMessageRecipient').textContent = recipientLabel || '-';
+    document.getElementById('previewMessageSubject').textContent = subject || '-';
+    document.getElementById('previewMessageBody').textContent = message || '';
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+
+  document.getElementById('copyPreviewMessageBtn')?.addEventListener('click', async function() {
+    const text = document.getElementById('previewMessageBody')?.textContent || '';
+    try {
+      await navigator.clipboard.writeText(text);
+      this.innerHTML = '<i class="bi bi-check2"></i> Copied';
+      setTimeout(() => (this.innerHTML = '<i class="bi bi-clipboard"></i> Copy'), 1200);
+    } catch (e) {
+      alert('Copy failed. Please select and copy manually.');
+    }
+  });
+
+  function renderRecipientsGrouped(res) {
+    const tbody = document.getElementById('previewRecipientsTableBody');
+    const groups = Array.isArray(res.groups) ? res.groups : [];
+    if (!tbody) return;
+    let n = 0;
+    const html = groups.map(g => {
+      const className = g.class_name || 'Unassigned';
+      const rows = Array.isArray(g.recipients) ? g.recipients : [];
+      const headerRow = '<tr class="table-secondary">' +
+        '<td colspan="7"><strong>' + escapeHtml(className) + '</strong> <span class="text-muted">(' + rows.length + ')</span></td>' +
+        '<td class="text-end"></td>' +
+      '</tr>';
+      const bodyRows = rows.map(r => {
+        n++;
+        const msg = (r.personalized_message || '');
+        const msgBtn = '<button type="button" class="btn btn-sm btn-outline-primary js-view-message" ' +
+          'data-recipient="' + escapeHtml((r.student_name || '-') + ' • ' + (r.parent_contact || '-')) + '" ' +
+          'data-subject="' + escapeHtml(r.email_subject || '') + '" ' +
+          'data-message="' + encodeURIComponent(msg) + '">' +
+          '<i class="bi bi-eye"></i> View</button>';
+        const stmt = r.statement_url
+          ? '<a href="' + escapeHtml(r.statement_url) + '" target="_blank" rel="noopener">View</a>'
+          : '-';
+        return '<tr>' +
+          '<td>' + n + '</td>' +
+          '<td>' + escapeHtml(r.student_name || '-') + '</td>' +
+          '<td>' + escapeHtml(r.admission_number || '-') + '</td>' +
+          '<td>' + escapeHtml(r.class_name || '-') + '</td>' +
+          '<td>' + escapeHtml(r.parent_contact || '-') + '</td>' +
+          '<td>' + msgBtn + '</td>' +
+          '<td>' + stmt + '</td>' +
+          '<td class="text-end">' + escapeHtml(r.fee_balance || '0.00') + '</td>' +
+        '</tr>';
+      }).join('');
+      return headerRow + bodyRows;
+    }).join('');
+    tbody.innerHTML = html;
+  }
+
   document.getElementById('previewRecipientsBtn').addEventListener('click', function() {
     const form = document.getElementById('scheduleFeeForm');
     const formData = new FormData(form);
@@ -598,6 +693,8 @@ document.addEventListener('DOMContentLoaded', function() {
       selected_student_ids: formData.get('selected_student_ids'),
       classroom_ids: formData.getAll('classroom_ids[]'),
       channels: formData.getAll('channels[]'),
+        template_id: formData.get('template_id'),
+        custom_message: formData.get('custom_message'),
       filter_type: formData.get('filter_type') || 'all',
       balance_min: formData.get('balance_min'),
       balance_percent_min: formData.get('balance_percent_min'),
@@ -617,9 +714,31 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('previewCountResult').textContent = res.count + ' parent(s)';
       if (res.recipients && res.recipients.length > 0) {
         countEl.textContent = res.count;
-        tbody.innerHTML = res.recipients.map((r, i) =>
-          '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(r.student_name || '-') + '</td><td>' + escapeHtml(r.admission_number || '-') + '</td><td>' + escapeHtml(r.parent_contact || '-') + '</td><td class="text-end">' + escapeHtml(r.fee_balance || '0.00') + '</td></tr>'
-        ).join('');
+        if (Array.isArray(res.groups) && res.groups.length > 0) {
+          renderRecipientsGrouped(res);
+        } else {
+          tbody.innerHTML = res.recipients.map((r, i) => {
+            const msg = (r.personalized_message || '');
+            const msgBtn = '<button type="button" class="btn btn-sm btn-outline-primary js-view-message" ' +
+              'data-recipient="' + escapeHtml((r.student_name || '-') + ' • ' + (r.parent_contact || '-')) + '" ' +
+              'data-subject="' + escapeHtml(r.email_subject || '') + '" ' +
+              'data-message="' + encodeURIComponent(msg) + '">' +
+              '<i class="bi bi-eye"></i> View</button>';
+            const stmt = r.statement_url
+              ? '<a href="' + escapeHtml(r.statement_url) + '" target="_blank" rel="noopener">View</a>'
+              : '-';
+            return '<tr>' +
+              '<td>' + (i + 1) + '</td>' +
+              '<td>' + escapeHtml(r.student_name || '-') + '</td>' +
+              '<td>' + escapeHtml(r.admission_number || '-') + '</td>' +
+              '<td>' + escapeHtml(r.class_name || '-') + '</td>' +
+              '<td>' + escapeHtml(r.parent_contact || '-') + '</td>' +
+              '<td>' + msgBtn + '</td>' +
+              '<td>' + stmt + '</td>' +
+              '<td class="text-end">' + escapeHtml(r.fee_balance || '0.00') + '</td>' +
+            '</tr>';
+          }).join('');
+        }
         content.classList.remove('d-none');
       } else {
         empty.classList.remove('d-none');
@@ -630,6 +749,16 @@ document.addEventListener('DOMContentLoaded', function() {
       err.classList.remove('d-none');
       document.getElementById('previewCountResult').textContent = 'Preview failed';
     });
+  });
+
+  // View message click (event delegation)
+  document.getElementById('previewRecipientsTableBody')?.addEventListener('click', function(e) {
+    const btn = e.target.closest('.js-view-message');
+    if (!btn) return;
+    const recipient = btn.getAttribute('data-recipient') || '-';
+    const subject = btn.getAttribute('data-subject') || '';
+    const message = decodeURIComponent(btn.getAttribute('data-message') || '');
+    openMessagePreview(recipient, subject, message);
   });
 });
 </script>

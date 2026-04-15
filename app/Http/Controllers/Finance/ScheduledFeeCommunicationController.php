@@ -10,6 +10,7 @@ use App\Services\CommunicationHelperService;
 use App\Services\StudentBalanceService;
 use App\Models\Academics\Classroom;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ScheduledFeeCommunicationController extends Controller
 {
@@ -355,7 +356,7 @@ class ScheduledFeeCommunicationController extends Controller
     }
 
     /**
-     * Preview recipients with student name, parent contact, and fee balance.
+     * Preview recipients with student name, parent contact, fee balance, and personalized message.
      */
     public function previewRecipients(Request $request)
     {
@@ -418,6 +419,21 @@ class ScheduledFeeCommunicationController extends Controller
         }
         $channels = array_intersect($channels, ['email', 'sms', 'whatsapp']);
 
+        // Resolve message (custom_message wins; else template content)
+        $message = trim((string) $request->input('custom_message', ''));
+        $subject = null;
+        $templateId = $request->input('template_id');
+        if ($message === '' && !empty($templateId)) {
+            $tpl = CommunicationTemplate::find($templateId);
+            if ($tpl) {
+                $message = trim((string) ($tpl->content ?? ''));
+                $subject = $tpl->subject ?? $tpl->title;
+            }
+        }
+        if ($subject === null) {
+            $subject = 'Fee Payment Reminder';
+        }
+
         $allPairs = [];
         foreach ($channels as $channel) {
             $channelRecipients = CommunicationHelperService::collectRecipients($data, $channel);
@@ -439,6 +455,10 @@ class ScheduledFeeCommunicationController extends Controller
 
         $recipients = [];
         foreach ($pairs as [$contact, $entity]) {
+            if (!$entity instanceof Student) {
+                continue;
+            }
+            $entity->loadMissing('classroom');
             $filterType = $request->input('filter_type') ?? 'all';
             $balance = $filterType === 'prior_term_balance'
                 ? StudentBalanceService::getOutstandingPriorTermArrears($entity)
@@ -446,14 +466,54 @@ class ScheduledFeeCommunicationController extends Controller
             $recipients[] = [
                 'student_name' => $entity->full_name ?? ($entity->first_name . ' ' . $entity->last_name),
                 'admission_number' => $entity->admission_number ?? $entity->admission_no ?? '-',
+                'class_name' => $entity->classroom->name ?? 'Unassigned',
+                'classroom_id' => $entity->classroom_id,
                 'parent_contact' => $contact,
                 'fee_balance' => number_format($balance, 2),
+                'statement_url' => url('/finance/student-statements/' . $entity->id),
+                'personalized_message' => $message !== '' ? replace_placeholders($message, $entity) : '',
+                'email_subject' => $subject,
+            ];
+        }
+
+        // Sort by class then student name (A–Z)
+        usort($recipients, function ($a, $b) {
+            $classA = Str::lower((string) ($a['class_name'] ?? ''));
+            $classB = Str::lower((string) ($b['class_name'] ?? ''));
+            if ($classA !== $classB) {
+                return $classA <=> $classB;
+            }
+            $nameA = Str::lower((string) ($a['student_name'] ?? ''));
+            $nameB = Str::lower((string) ($b['student_name'] ?? ''));
+            if ($nameA !== $nameB) {
+                return $nameA <=> $nameB;
+            }
+            return Str::lower((string) ($a['admission_number'] ?? '')) <=> Str::lower((string) ($b['admission_number'] ?? ''));
+        });
+
+        // Group by class for UI preview
+        $grouped = [];
+        foreach ($recipients as $r) {
+            $k = $r['class_name'] ?? 'Unassigned';
+            if (!isset($grouped[$k])) {
+                $grouped[$k] = [];
+            }
+            $grouped[$k][] = $r;
+        }
+        $groups = [];
+        foreach ($grouped as $className => $rows) {
+            $groups[] = [
+                'class_name' => $className,
+                'count' => count($rows),
+                'recipients' => $rows,
             ];
         }
 
         return response()->json([
             'count' => count($recipients),
+            // Back-compat: keep flat list, but also return grouped structure
             'recipients' => $recipients,
+            'groups' => $groups,
         ]);
     }
 }

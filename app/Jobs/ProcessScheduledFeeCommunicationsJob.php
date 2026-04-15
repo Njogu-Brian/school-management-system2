@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use App\Mail\GenericMail;
+use App\Models\Student;
 
 class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
 {
@@ -85,6 +86,33 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                 Log::info('ProcessScheduledFeeCommunicationsJob: no recipients for channel', ['item_id' => $item->id, 'channel' => $channel, 'target' => $item->target]);
                 continue;
             }
+
+            // Sort by class then student name (A–Z) for consistent sending order
+            usort($pairs, function ($a, $b) {
+                [$contactA, $entityA] = $a;
+                [$contactB, $entityB] = $b;
+
+                $classA = '';
+                $nameA = '';
+                if ($entityA instanceof Student) {
+                    $entityA->loadMissing('classroom');
+                    $classA = Str::lower((string) ($entityA->classroom->name ?? ''));
+                    $nameA = Str::lower((string) ($entityA->full_name ?? trim(($entityA->first_name ?? '') . ' ' . ($entityA->last_name ?? ''))));
+                }
+
+                $classB = '';
+                $nameB = '';
+                if ($entityB instanceof Student) {
+                    $entityB->loadMissing('classroom');
+                    $classB = Str::lower((string) ($entityB->classroom->name ?? ''));
+                    $nameB = Str::lower((string) ($entityB->full_name ?? trim(($entityB->first_name ?? '') . ' ' . ($entityB->last_name ?? ''))));
+                }
+
+                if ($classA !== $classB) return $classA <=> $classB;
+                if ($nameA !== $nameB) return $nameA <=> $nameB;
+
+                return Str::lower((string) $contactA) <=> Str::lower((string) $contactB);
+            });
 
             if (count($pairs) > 10) {
                 $trackingId = 'scheduled_fee_' . $item->id . '_' . $channel . '_' . Str::uuid()->toString();
