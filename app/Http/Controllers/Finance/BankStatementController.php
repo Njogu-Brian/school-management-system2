@@ -3919,7 +3919,9 @@ class BankStatementController extends Controller
         
         // Create missing payments for shared allocations
         try {
-            $this->parser->createMissingPaymentsForTransaction($transaction, false);
+            if ($transaction instanceof \App\Models\BankStatementTransaction) {
+                $this->parser->createMissingPaymentsForTransaction($transaction, false);
+            }
         } catch (\Exception $e) {
             \Log::warning('Failed to create missing payments for shared allocations', [
                 'transaction_id' => $transaction->id,
