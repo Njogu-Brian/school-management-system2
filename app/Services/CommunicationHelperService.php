@@ -314,8 +314,24 @@ class CommunicationHelperService
 
         // Only recipients with prior-term carry-forward balance (Balance from prior term(s) invoice items)
         if (!empty($data['prior_term_balance_only'])) {
-            // Get student IDs that have an unpaid prior-term carry-forward line (cheap DB pre-filter)
-            $unpaidStudentIds = DB::table('invoice_items')
+            $currentYear = (int) (setting('current_year') ?? date('Y'));
+            $currentTerm = (int) (get_current_term_number() ?? 0);
+
+            // Get student IDs that have an unpaid prior-term invoice balance (term < current term, same year)
+            $priorInvoiceStudentIds = [];
+            if ($currentTerm > 1) {
+                $priorInvoiceStudentIds = \App\Models\Invoice::where('status', '!=', 'reversed')
+                    ->where('year', $currentYear)
+                    ->where('term', '<', $currentTerm)
+                    ->where('balance', '>', 0)
+                    ->distinct()
+                    ->pluck('student_id')
+                    ->flip()
+                    ->all();
+            }
+
+            // Also include legacy carry-forward lines (for installations that use them)
+            $carryForwardStudentIds = DB::table('invoice_items')
                 ->join('invoices', 'invoice_items.invoice_id', '=', 'invoices.id')
                 ->leftJoin('payment_allocations', 'payment_allocations.invoice_item_id', '=', 'invoice_items.id')
                 ->whereNull('invoice_items.deleted_at')
@@ -327,6 +343,8 @@ class CommunicationHelperService
                 ->pluck('invoices.student_id')
                 ->flip()
                 ->all();
+
+            $unpaidStudentIds = $priorInvoiceStudentIds + $carryForwardStudentIds;
 
             $out = array_map(function ($entities) use ($unpaidStudentIds) {
                 $list = is_array($entities) ? $entities : [$entities];

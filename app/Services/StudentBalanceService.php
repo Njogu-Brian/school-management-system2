@@ -152,8 +152,13 @@ class StudentBalanceService
     }
 
     /**
-     * Outstanding "Balance from prior term(s)" (prior-term carry forward) for a student.
-     * This is the unpaid portion of invoice items created by prior-term carry-forward logic.
+     * Outstanding "Balance from prior term(s)" for a student.
+     *
+     * In the live system, "prior term balance" should reflect unpaid invoices from earlier terms
+     * in the current academic year (e.g. when current term is 2, include term 1 invoice balances).
+     *
+     * It also includes any unpaid invoice items created by prior-term carry-forward logic
+     * (source=prior_term_carryforward / PRIOR_TERM_ARREARS votehead), for backwards compatibility.
      *
      * @param Student|int $student
      * @return float Unpaid prior-term arrears (>= 0)
@@ -165,28 +170,41 @@ class StudentBalanceService
             return 0.0;
         }
 
-        $voteheadId = Votehead::where('code', 'PRIOR_TERM_ARREARS')->value('id');
+        $currentYear = (int) (setting('current_year') ?? date('Y'));
+        $currentTerm = (int) (get_current_term_number() ?? 0);
 
+        // 1) Prior-term invoice balances (term < current term) for the current year
+        $priorInvoiceBalance = 0.0;
+        if ($currentTerm > 1) {
+            $priorInvoiceBalance = (float) Invoice::where('student_id', $studentModel->id)
+                ->where('status', '!=', 'reversed')
+                ->where('year', $currentYear)
+                ->where('term', '<', $currentTerm)
+                ->sum('balance');
+        }
+
+        // 2) Legacy carry-forward items (if used in some schools/years)
+        $voteheadId = Votehead::where('code', 'PRIOR_TERM_ARREARS')->value('id');
         $items = InvoiceItem::whereHas('invoice', function ($q) use ($studentModel) {
             $q->where('student_id', $studentModel->id)
               ->where('status', '!=', 'reversed');
         })
-            ->where('status', 'active')
-            ->where(function ($q) use ($voteheadId) {
-                $q->where('source', 'prior_term_carryforward');
-                if ($voteheadId) {
-                    $q->orWhere('votehead_id', $voteheadId);
-                }
-            })
-            ->get();
+        ->where('status', 'active')
+        ->where(function ($q) use ($voteheadId) {
+            $q->where('source', 'prior_term_carryforward');
+            if ($voteheadId) {
+                $q->orWhere('votehead_id', $voteheadId);
+            }
+        })
+        ->get();
 
-        $outstanding = $items->sum(function (InvoiceItem $item) {
+        $carryForwardOutstanding = (float) $items->sum(function (InvoiceItem $item) {
             $allocated = (float) $item->allocations()->sum('amount');
             $discount = (float) ($item->discount_amount ?? 0);
             return max(0.0, (float) $item->amount - $discount - $allocated);
         });
 
-        return (float) max(0.0, $outstanding);
+        return (float) max(0.0, $priorInvoiceBalance + $carryForwardOutstanding);
     }
 
     /**
