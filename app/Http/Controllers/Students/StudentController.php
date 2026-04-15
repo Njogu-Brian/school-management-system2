@@ -344,6 +344,50 @@ class StudentController extends Controller
             'countryCodes' => $countryCodes,
         ]);
     }
+
+    /**
+     * Used by the admission form to fetch family/parent details
+     * when a sibling is selected for mapping.
+     */
+    public function familyLinkPreview(Student $student)
+    {
+        $student->loadMissing(['parent', 'family', 'classroom', 'stream']);
+        $p = $student->parent;
+
+        // Return local numbers + country code for easy form filling
+        $fatherCode = $p?->father_phone_country_code ?? '+254';
+        $motherCode = $p?->mother_phone_country_code ?? '+254';
+        $guardianCode = $p?->guardian_phone_country_code ?? '+254';
+
+        return response()->json([
+            'data' => [
+                'student_id' => $student->id,
+                'family_id' => $student->family_id,
+                'parent_id' => $student->parent_id,
+                'parent' => $p ? [
+                    'marital_status' => $p->marital_status,
+                    'father_name' => $p->father_name,
+                    'father_email' => $p->father_email,
+                    'father_id_number' => $p->father_id_number,
+                    'father_phone_country_code' => $fatherCode,
+                    'father_phone_local' => extract_local_phone($p->father_phone, $fatherCode) ?? '',
+                    'father_whatsapp_local' => extract_local_phone($p->father_whatsapp, $fatherCode) ?? '',
+                    'mother_name' => $p->mother_name,
+                    'mother_email' => $p->mother_email,
+                    'mother_id_number' => $p->mother_id_number,
+                    'mother_phone_country_code' => $motherCode,
+                    'mother_phone_local' => extract_local_phone($p->mother_phone, $motherCode) ?? '',
+                    'mother_whatsapp_local' => extract_local_phone($p->mother_whatsapp, $motherCode) ?? '',
+                    'guardian_name' => $p->guardian_name,
+                    'guardian_email' => $p->guardian_email,
+                    'guardian_relationship' => $p->guardian_relationship,
+                    'guardian_phone_country_code' => $guardianCode,
+                    'guardian_phone_local' => extract_local_phone($p->guardian_phone, $guardianCode) ?? '',
+                    'guardian_whatsapp_local' => extract_local_phone($p->guardian_whatsapp, $guardianCode) ?? '',
+                ] : null,
+            ],
+        ]);
+    }
     /**
      * Store a new student
      *
@@ -421,91 +465,108 @@ class StudentController extends Controller
                 return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
             }
 
-            // Handle family linkage first (needed for use_sibling_parent check)
-            $familyId = $request->input('family_id');
-            $useSiblingParent = $request->boolean('use_sibling_parent');
+            // Sibling mapping (family/parent are shared across mapped siblings)
+            $familyId = null;
             $ref = $request->filled('copy_family_from_student_id')
                 ? Student::withArchived()->with('parent')->find($request->copy_family_from_student_id)
                 : null;
 
-            // Enforce parent validation unless reusing sibling's parent
-            if (!$useSiblingParent || !$ref?->parent) {
+            $userId = auth()->id();
+
+            $parent = null;
+
+            if ($ref) {
+                // Families exist only for sibling-mapped students.
+                // If sibling has a family already, reuse it; otherwise create and assign to sibling.
+                if ($ref->family_id) {
+                    $familyId = (int) $ref->family_id;
+                } else {
+                    $fam = \App\Models\Family::create([
+                        'guardian_name' => $ref->parent?->guardian_name ?? ($ref->parent?->father_name ?? $ref->parent?->mother_name ?? ('Family ' . ($ref->admission_number ?? ''))),
+                        'phone' => $ref->parent?->father_phone ?? $ref->parent?->mother_phone ?? $ref->parent?->guardian_phone,
+                        'email' => $ref->parent?->father_email ?? $ref->parent?->mother_email ?? $ref->parent?->guardian_email,
+                    ]);
+                    $ref->update(['family_id' => $fam->id]);
+                    $familyId = (int) $fam->id;
+                }
+
+                // Reuse the sibling's parent record. If missing, create one and assign to the sibling.
+                if ($ref->parent_id) {
+                    $parent = $ref->parent;
+                } else {
+                    // Need parent details to create the shared parent record
+                    $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+                    $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
+                    if (!$parentName || !$parentPhone) {
+                        return back()->withInput()->with('error', 'Select a sibling with existing parent details, or provide at least one parent/guardian name and phone.');
+                    }
+                }
+            }
+
+            // Build parent data from request (used to create or to update shared parent)
+            $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
+            $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
+            $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
+            $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode);
+            $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode);
+            $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode);
+            $motherWhatsapp = $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode);
+            $guardianPhone = $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode);
+            $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode);
+
+            $parentData = [
+                'father_name' => $request->father_name,
+                'father_phone' => $fatherPhone,
+                'father_whatsapp' => $fatherWhatsapp,
+                'father_email' => $request->father_email,
+                'father_id_number' => $request->father_id_number,
+                'mother_name' => $request->mother_name,
+                'mother_phone' => $motherPhone,
+                'mother_whatsapp' => $motherWhatsapp,
+                'mother_email' => $request->mother_email,
+                'mother_id_number' => $request->mother_id_number,
+                'guardian_name' => $request->guardian_name,
+                'guardian_phone' => $guardianPhone,
+                'guardian_whatsapp' => $guardianWhatsapp,
+                'guardian_email' => $request->guardian_email,
+                'guardian_relationship' => $request->guardian_relationship,
+                'marital_status' => $request->marital_status,
+                'father_phone_country_code' => $fatherCountryCode,
+                'mother_phone_country_code' => $motherCountryCode,
+                'guardian_phone_country_code' => $guardianCountryCode,
+            ];
+
+            if ($ref) {
+                // Update shared parent record with any provided values (affects all mapped siblings)
+                if (!$parent) {
+                    $parent = ParentInfo::create($parentData);
+                    $ref->update(['parent_id' => $parent->id]);
+                } else {
+                    $filtered = array_filter(
+                        $parentData,
+                        fn ($v) => !($v === null || (is_string($v) && trim($v) === ''))
+                    );
+                    if (!empty($filtered)) {
+                        $parent->update($filtered);
+                    }
+                }
+            } else {
+                // No sibling selected: this is a standalone student, create a new parent record.
                 $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
                 $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
                 if (!$parentName || !$parentPhone) {
                     return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
                 }
-            }
-
-            // If chosen a student to copy family from
-            if (!$familyId && $ref) {
-                if ($ref->family_id) {
-                    $familyId = $ref->family_id;
-                } elseif ($request->boolean('create_family_from_parent') && $ref->parent) {
-                    // Create a family and assign both (if ref lacks family_id)
-                    $fam = \App\Models\Family::create([
-                        'guardian_name' => $ref->parent->guardian_name ?? ($ref->parent->father_name ?? $ref->parent->mother_name ?? 'Family '.$ref->admission_number),
-                        'phone' => $ref->parent->father_phone ?? $ref->parent->mother_phone ?? $ref->parent->guardian_phone,
-                        'email' => $ref->parent->father_email ?? $ref->parent->mother_email ?? $ref->parent->guardian_email,
-                    ]);
-                    $ref->update(['family_id'=>$fam->id]);
-                    $familyId = $fam->id;
-                }
-            }
-            if (!$familyId && $request->boolean('create_family_from_parent')) {
-                // Create new family for THIS student using parent info (will be populated after parent is created)
-                $fam = \App\Models\Family::create([
-                    'guardian_name' => 'New Family', // Will be auto-populated when first student is linked
-                    'phone'         => null,
-                    'email'         => null,
-                ]);
-                $familyId = $fam->id;
-            }
-            $userId = auth()->id();
-
-            // Use sibling's parent record when requested (avoids duplicate parent_info)
-            if ($useSiblingParent && $ref?->parent_id) {
-                $parent = $ref->parent;
-            } else {
-                // Create new ParentInfo
-                $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
-                $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
-                $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
-                $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode);
-                $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode);
-                $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode);
-                $motherWhatsapp = $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode);
-                $guardianPhone = $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode);
-                $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode);
-                $parentData = [
-                    'father_name' => $request->father_name,
-                    'father_phone' => $fatherPhone,
-                    'father_whatsapp' => $fatherWhatsapp,
-                    'father_email' => $request->father_email,
-                    'father_id_number' => $request->father_id_number,
-                    'mother_name' => $request->mother_name,
-                    'mother_phone' => $motherPhone,
-                    'mother_whatsapp' => $motherWhatsapp,
-                    'mother_email' => $request->mother_email,
-                    'mother_id_number' => $request->mother_id_number,
-                    'guardian_name' => $request->guardian_name,
-                    'guardian_phone' => $guardianPhone,
-                    'guardian_whatsapp' => $guardianWhatsapp,
-                    'guardian_email' => $request->guardian_email,
-                    'guardian_relationship' => $request->guardian_relationship,
-                    'marital_status' => $request->marital_status,
-                    'father_phone_country_code' => $fatherCountryCode,
-                    'mother_phone_country_code' => $motherCountryCode,
-                    'guardian_phone_country_code' => $guardianCountryCode,
-                ];
                 $parent = ParentInfo::create($parentData);
-                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_phone', $request->father_phone, $fatherPhone, $fatherCountryCode, 'student_create', $userId);
-                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_whatsapp', $request->father_whatsapp, $fatherWhatsapp, $fatherCountryCode, 'student_create', $userId);
-                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_phone', $request->mother_phone, $motherPhone, $motherCountryCode, 'student_create', $userId);
-                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_whatsapp', $request->mother_whatsapp, $motherWhatsapp, $motherCountryCode, 'student_create', $userId);
-                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_phone', $request->guardian_phone, $guardianPhone, $guardianCountryCode, 'student_create', $userId);
-                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_whatsapp', $request->guardian_whatsapp, $guardianWhatsapp, $guardianCountryCode, 'student_create', $userId);
             }
+
+            // Log phone normalization
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_phone', $request->father_phone, $fatherPhone, $fatherCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_whatsapp', $request->father_whatsapp, $fatherWhatsapp, $fatherCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_phone', $request->mother_phone, $motherPhone, $motherCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_whatsapp', $request->mother_whatsapp, $motherWhatsapp, $motherCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_phone', $request->guardian_phone, $guardianPhone, $guardianCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_whatsapp', $request->guardian_whatsapp, $guardianWhatsapp, $guardianCountryCode, 'student_create', $userId);
 
             $admission_number = $this->generateNextAdmissionNumber();
 
@@ -578,14 +639,14 @@ class StudentController extends Controller
             
             $this->handleParentIdUploads($parent, $request);
 
-            // Auto-populate family details from parent if family was created
+            // Keep family details aligned to the shared parent record (family exists only when sibling-mapped)
             if ($familyId) {
                 $family = \App\Models\Family::find($familyId);
-                if ($family && (!$family->guardian_name || $family->guardian_name === 'New Family')) {
+                if ($family) {
                     $family->update([
-                        'guardian_name' => $parent->guardian_name ?? $parent->father_name ?? $parent->mother_name ?? 'Family',
-                        'phone' => $family->phone ?: ($parent->guardian_phone ?? $parent->father_phone ?? $parent->mother_phone),
-                        'email' => $family->email ?: ($parent->guardian_email ?? $parent->father_email ?? $parent->mother_email),
+                        'guardian_name' => $parent->guardian_name ?? $parent->father_name ?? $parent->mother_name ?? ($family->guardian_name ?: 'Family'),
+                        'phone' => $parent->guardian_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $family->phone,
+                        'email' => $parent->guardian_email ?? $parent->father_email ?? $parent->mother_email ?? $family->email,
                     ]);
                 }
             }
@@ -973,27 +1034,21 @@ class StudentController extends Controller
         $familyId = $request->input('family_id');
 
         if (!$familyId && $request->filled('copy_family_from_student_id')) {
-            $ref = Student::withArchived()->find($request->copy_family_from_student_id);
-            if ($ref && $ref->family_id) {
-                $familyId = $ref->family_id;
-            } elseif ($ref && $request->boolean('create_family_from_parent')) {
-                $fam = \App\Models\Family::create([
-                    'guardian_name' => $ref->parent->guardian_name ?? ($ref->parent->father_name ?? $ref->parent->mother_name ?? 'Family '.$ref->admission_number),
-                    'phone' => $ref->parent->father_phone ?? $ref->parent->mother_phone ?? $ref->parent->guardian_phone,
-                    'email' => $ref->parent->father_email ?? $ref->parent->mother_email ?? $ref->parent->guardian_email,
-                ]);
-                $ref->update(['family_id'=>$fam->id]);
-                $familyId = $fam->id;
+            $ref = Student::withArchived()->with('parent')->find($request->copy_family_from_student_id);
+            if ($ref) {
+                if ($ref->family_id) {
+                    $familyId = $ref->family_id;
+                } else {
+                    // Families are created only when mapping siblings
+                    $fam = \App\Models\Family::create([
+                        'guardian_name' => $ref->parent?->guardian_name ?? ($ref->parent?->father_name ?? $ref->parent?->mother_name ?? 'Family ' . ($ref->admission_number ?? '')),
+                        'phone' => $ref->parent?->father_phone ?? $ref->parent?->mother_phone ?? $ref->parent?->guardian_phone,
+                        'email' => $ref->parent?->father_email ?? $ref->parent?->mother_email ?? $ref->parent?->guardian_email,
+                    ]);
+                    $ref->update(['family_id' => $fam->id]);
+                    $familyId = $fam->id;
+                }
             }
-        } elseif (!$familyId && $request->boolean('create_family_from_parent')) {
-            $fam = \App\Models\Family::create([
-                'guardian_name' => $request->guardian_name ?? $request->father_name ?? $request->mother_name ?? 'New Family',
-                'phone'         => $this->formatPhoneWithCode($request->guardian_phone, $request->input('guardian_phone_country_code', '+254'))
-                    ?? $this->formatPhoneWithCode($request->father_phone, $request->input('father_phone_country_code', '+254'))
-                    ?? $this->formatPhoneWithCode($request->mother_phone, $request->input('mother_phone_country_code', '+254')),
-                'email'         => $request->guardian_email ?? $request->father_email ?? $request->mother_email,
-            ]);
-            $familyId = $fam->id;
         }
 
         if ($familyId) {
@@ -1109,30 +1164,32 @@ class StudentController extends Controller
      */
     private function applyCategoryChangeRebilling(Student $student, int $newCategoryId, int $year, int $term): void
     {
-        $preview = $this->buildCategoryChangePreview($student, $newCategoryId, $year, $term);
-        $diffs = $preview['diffs'];
+        DB::transaction(function () use ($student, $newCategoryId, $year, $term) {
+            $preview = $this->buildCategoryChangePreview($student, $newCategoryId, $year, $term);
+            $diffs = $preview['diffs'];
 
-        // Deactivate discounts and zero invoice discount amounts for current term
-        FeeConcession::where('student_id', $student->id)->update(['is_active' => false]);
-        if ($preview['existing_invoice']) {
-            $preview['existing_invoice']->items()->update(['discount_amount' => 0]);
-            $preview['existing_invoice']->update(['discount_amount' => 0]);
-        }
+            // Deactivate discounts and zero invoice discount amounts for current term
+            FeeConcession::where('student_id', $student->id)->update(['is_active' => false]);
+            if ($preview['existing_invoice']) {
+                $preview['existing_invoice']->items()->update(['discount_amount' => 0]);
+                $preview['existing_invoice']->update(['discount_amount' => 0]);
+            }
 
-        // Update student category before committing
-        $student->update(['category_id' => $newCategoryId]);
+            if ($diffs->isNotEmpty()) {
+                $fps = new FeePostingService();
+                $fps->commitWithTracking(
+                    $diffs,
+                    $year,
+                    $term,
+                    true,
+                    null,
+                    ['student_id' => $student->id]
+                );
+            }
 
-        if ($diffs->isNotEmpty()) {
-            $fps = new FeePostingService();
-            $fps->commitWithTracking(
-                $diffs,
-                $year,
-                $term,
-                true,
-                null,
-                ['student_id' => $student->id]
-            );
-        }
+            // Only update category after posting succeeds; if anything fails, transaction rolls back
+            $student->update(['category_id' => $newCategoryId]);
+        });
     }
 
     /**
@@ -1244,7 +1301,7 @@ class StudentController extends Controller
                 }
                 if (round($existing['amount'], 2) !== round($item['amount'], 2)) {
                     $diffs->push([
-                        'action' => 'updated',
+                        'action' => ((float) $item['amount'] > (float) $existing['amount']) ? 'increased' : 'decreased',
                         'student_id' => $studentId,
                         'votehead_id' => $item['votehead_id'],
                         'old_amount' => $existing['amount'],

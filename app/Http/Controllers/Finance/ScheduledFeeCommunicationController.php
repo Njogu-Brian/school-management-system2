@@ -458,7 +458,7 @@ class ScheduledFeeCommunicationController extends Controller
             if (!$entity instanceof Student) {
                 continue;
             }
-            $entity->loadMissing('classroom');
+            $entity->loadMissing('classroom', 'stream');
             $filterType = $request->input('filter_type') ?? 'all';
             $balance = $filterType === 'prior_term_balance'
                 ? StudentBalanceService::getOutstandingPriorTermArrears($entity)
@@ -468,6 +468,8 @@ class ScheduledFeeCommunicationController extends Controller
                 'admission_number' => $entity->admission_number ?? $entity->admission_no ?? '-',
                 'class_name' => $entity->classroom->name ?? 'Unassigned',
                 'classroom_id' => $entity->classroom_id,
+                'stream_name' => $entity->stream->name ?? '—',
+                'stream_id' => $entity->stream_id,
                 'parent_contact' => $contact,
                 'fee_balance' => number_format($balance, 2),
                 'statement_url' => url('/finance/student-statements/' . $entity->id),
@@ -476,12 +478,17 @@ class ScheduledFeeCommunicationController extends Controller
             ];
         }
 
-        // Sort by class then student name (A–Z)
+        // Sort by class, then stream, then student name (A–Z)
         usort($recipients, function ($a, $b) {
             $classA = Str::lower((string) ($a['class_name'] ?? ''));
             $classB = Str::lower((string) ($b['class_name'] ?? ''));
             if ($classA !== $classB) {
                 return $classA <=> $classB;
+            }
+            $streamA = Str::lower((string) ($a['stream_name'] ?? ''));
+            $streamB = Str::lower((string) ($b['stream_name'] ?? ''));
+            if ($streamA !== $streamB) {
+                return $streamA <=> $streamB;
             }
             $nameA = Str::lower((string) ($a['student_name'] ?? ''));
             $nameB = Str::lower((string) ($b['student_name'] ?? ''));
@@ -491,21 +498,28 @@ class ScheduledFeeCommunicationController extends Controller
             return Str::lower((string) ($a['admission_number'] ?? '')) <=> Str::lower((string) ($b['admission_number'] ?? ''));
         });
 
-        // Group by class for UI preview
+        // Group by class + stream for UI preview
         $grouped = [];
         foreach ($recipients as $r) {
-            $k = $r['class_name'] ?? 'Unassigned';
+            $className = $r['class_name'] ?? 'Unassigned';
+            $streamName = $r['stream_name'] ?? '—';
+            $k = $className . ' — ' . $streamName;
             if (!isset($grouped[$k])) {
-                $grouped[$k] = [];
+                $grouped[$k] = [
+                    'class_name' => $className,
+                    'stream_name' => $streamName,
+                    'recipients' => [],
+                ];
             }
-            $grouped[$k][] = $r;
+            $grouped[$k]['recipients'][] = $r;
         }
         $groups = [];
-        foreach ($grouped as $className => $rows) {
+        foreach ($grouped as $g) {
             $groups[] = [
-                'class_name' => $className,
-                'count' => count($rows),
-                'recipients' => $rows,
+                'class_name' => $g['class_name'],
+                'stream_name' => $g['stream_name'],
+                'count' => count($g['recipients']),
+                'recipients' => $g['recipients'],
             ];
         }
 

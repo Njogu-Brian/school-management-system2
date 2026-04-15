@@ -1069,6 +1069,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     // API-like search (inside auth)
     Route::get('/api/students/search', [StudentController::class, 'search'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('api.students.search');
+
+    // Family-link preview for admission sibling mapping (inside auth)
+    Route::get('/api/students/{student}/family-link-preview', [StudentController::class, 'familyLinkPreview'])
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('api.students.family-link-preview');
     
     // M-PESA JSON helpers (must NOT use /api/students/{id} — that path is reserved for Sanctum mobile API in routes/api.php)
     Route::get('/api/finance/students/{student}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentData'])

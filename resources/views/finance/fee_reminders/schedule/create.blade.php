@@ -366,6 +366,7 @@
                   <th>Student Name</th>
                   <th>Admission #</th>
                   <th>Class</th>
+                  <th>Stream</th>
                   <th>Parent Contact</th>
                   <th>Message</th>
                   <th>Statement</th>
@@ -638,9 +639,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let n = 0;
     const html = groups.map(g => {
       const className = g.class_name || 'Unassigned';
+      const streamName = g.stream_name || '—';
       const rows = Array.isArray(g.recipients) ? g.recipients : [];
       const headerRow = '<tr class="table-secondary">' +
-        '<td colspan="7"><strong>' + escapeHtml(className) + '</strong> <span class="text-muted">(' + rows.length + ')</span></td>' +
+        '<td colspan="8"><strong>' + escapeHtml(className + ' — ' + streamName) + '</strong> <span class="text-muted">(' + rows.length + ')</span></td>' +
         '<td class="text-end"></td>' +
       '</tr>';
       const bodyRows = rows.map(r => {
@@ -659,6 +661,7 @@ document.addEventListener('DOMContentLoaded', function() {
           '<td>' + escapeHtml(r.student_name || '-') + '</td>' +
           '<td>' + escapeHtml(r.admission_number || '-') + '</td>' +
           '<td>' + escapeHtml(r.class_name || '-') + '</td>' +
+          '<td>' + escapeHtml(r.stream_name || '—') + '</td>' +
           '<td>' + escapeHtml(r.parent_contact || '-') + '</td>' +
           '<td>' + msgBtn + '</td>' +
           '<td>' + stmt + '</td>' +
@@ -732,6 +735,7 @@ document.addEventListener('DOMContentLoaded', function() {
               '<td>' + escapeHtml(r.student_name || '-') + '</td>' +
               '<td>' + escapeHtml(r.admission_number || '-') + '</td>' +
               '<td>' + escapeHtml(r.class_name || '-') + '</td>' +
+              '<td>' + escapeHtml(r.stream_name || '—') + '</td>' +
               '<td>' + escapeHtml(r.parent_contact || '-') + '</td>' +
               '<td>' + msgBtn + '</td>' +
               '<td>' + stmt + '</td>' +

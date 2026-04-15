@@ -87,28 +87,33 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                 continue;
             }
 
-            // Sort by class then student name (A–Z) for consistent sending order
+            // Sort by class, then stream, then student name (A–Z) for consistent sending order
             usort($pairs, function ($a, $b) {
                 [$contactA, $entityA] = $a;
                 [$contactB, $entityB] = $b;
 
                 $classA = '';
+                $streamA = '';
                 $nameA = '';
                 if ($entityA instanceof Student) {
-                    $entityA->loadMissing('classroom');
+                    $entityA->loadMissing('classroom', 'stream');
                     $classA = Str::lower((string) ($entityA->classroom->name ?? ''));
+                    $streamA = Str::lower((string) ($entityA->stream->name ?? ''));
                     $nameA = Str::lower((string) ($entityA->full_name ?? trim(($entityA->first_name ?? '') . ' ' . ($entityA->last_name ?? ''))));
                 }
 
                 $classB = '';
+                $streamB = '';
                 $nameB = '';
                 if ($entityB instanceof Student) {
-                    $entityB->loadMissing('classroom');
+                    $entityB->loadMissing('classroom', 'stream');
                     $classB = Str::lower((string) ($entityB->classroom->name ?? ''));
+                    $streamB = Str::lower((string) ($entityB->stream->name ?? ''));
                     $nameB = Str::lower((string) ($entityB->full_name ?? trim(($entityB->first_name ?? '') . ' ' . ($entityB->last_name ?? ''))));
                 }
 
                 if ($classA !== $classB) return $classA <=> $classB;
+                if ($streamA !== $streamB) return $streamA <=> $streamB;
                 if ($nameA !== $nameB) return $nameA <=> $nameB;
 
                 return Str::lower((string) $contactA) <=> Str::lower((string) $contactB);

@@ -24,9 +24,9 @@
     <div class="col-md-6">
       <label class="form-label">Link to Sibling Family <span class="badge bg-info">Optional</span></label>
       <div class="input-group">
-        <input type="text" name="family_id" id="family_id"
-               value="{{ old('family_id', $s->family_id ?? '') }}"
-               class="form-control" placeholder="Search for existing sibling...">
+        <input type="text" id="family_link_display"
+               value=""
+               class="form-control" placeholder="No sibling selected" readonly>
         <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#familySearchModal">
           <i class="bi bi-search"></i> Search Sibling
         </button>
@@ -34,21 +34,13 @@
       </div>
       <div class="form-text">
         <i class="bi bi-info-circle"></i> Search for an existing student to link this new student as their sibling. 
-        Family details will be auto-populated from parent records.
+        This will automatically:
+        (1) link the new child into the sibling's family,
+        (2) reuse the same parent record, and
+        (3) auto-fill parent details below (editable).
       </div>
+      <input type="hidden" name="family_id" id="family_id" value="{{ old('family_id', $s->family_id ?? '') }}">
       <input type="hidden" name="copy_family_from_student_id" id="copy_family_from_student_id">
-      <div class="form-check mt-2">
-        <input class="form-check-input" type="checkbox" value="1" name="create_family_from_parent" id="create_family_from_parent" checked>
-        <label class="form-check-label" for="create_family_from_parent">
-          Create new family for this student (if no sibling selected)
-        </label>
-      </div>
-      <div class="form-check mt-2" id="use_sibling_parent_wrapper" style="display:none">
-        <input class="form-check-input" type="checkbox" value="1" name="use_sibling_parent" id="use_sibling_parent">
-        <label class="form-check-label" for="use_sibling_parent">
-          Use sibling's parent details (recommended – avoids duplicate parent records)
-        </label>
-      </div>
     </div>
   </div>
 
@@ -545,10 +537,8 @@
   document.getElementById('familyClear')?.addEventListener('click', ()=>{
     document.getElementById('family_id').value = '';
     document.getElementById('copy_family_from_student_id').value = '';
-    const wrap = document.getElementById('use_sibling_parent_wrapper');
-    if (wrap) wrap.style.display = 'none';
-    const cb = document.getElementById('use_sibling_parent');
-    if (cb) cb.checked = false;
+    const display = document.getElementById('family_link_display');
+    if (display) display.value = '';
   });
 
   // transport visibility + other drop-off input
@@ -623,9 +613,54 @@
           a.addEventListener('click', (e)=>{
             e.preventDefault();
             document.getElementById('copy_family_from_student_id').value = r.id;
-            document.getElementById('family_id').value = '';
-            const wrap = document.getElementById('use_sibling_parent_wrapper');
-            if (wrap) wrap.style.display = 'block';
+            const display = document.getElementById('family_link_display');
+            if (display) display.value = `${r.admission_number} — ${r.full_name}${cls}`;
+
+            // Fetch parent/family data and auto-fill the form (still editable)
+            fetch(`{{ route('api.students.family-link-preview', ['student' => '__ID__']) }}`.replace('__ID__', r.id), {
+              headers: { 'Accept': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(payload => {
+              const data = payload?.data || payload;
+              if (!data) return;
+
+              // Set family_id (used on submit)
+              const fam = document.getElementById('family_id');
+              if (fam) fam.value = data.family_id || '';
+
+              // Parent fields
+              const p = data.parent || {};
+              const setVal = (name, val) => {
+                const el = document.querySelector(`[name="${name}"]`);
+                if (!el) return;
+                if (val === undefined || val === null) return;
+                el.value = val;
+              };
+              setVal('marital_status', p.marital_status || '');
+              setVal('father_name', p.father_name || '');
+              setVal('father_email', p.father_email || '');
+              setVal('father_id_number', p.father_id_number || '');
+              setVal('mother_name', p.mother_name || '');
+              setVal('mother_email', p.mother_email || '');
+              setVal('mother_id_number', p.mother_id_number || '');
+              setVal('guardian_name', p.guardian_name || '');
+              setVal('guardian_email', p.guardian_email || '');
+              setVal('guardian_relationship', p.guardian_relationship || '');
+
+              setVal('father_phone_country_code', p.father_phone_country_code || '+254');
+              setVal('mother_phone_country_code', p.mother_phone_country_code || '+254');
+              setVal('guardian_phone_country_code', p.guardian_phone_country_code || '+254');
+
+              setVal('father_phone', p.father_phone_local || '');
+              setVal('father_whatsapp', p.father_whatsapp_local || '');
+              setVal('mother_phone', p.mother_phone_local || '');
+              setVal('mother_whatsapp', p.mother_whatsapp_local || '');
+              setVal('guardian_phone', p.guardian_phone_local || '');
+              setVal('guardian_whatsapp', p.guardian_whatsapp_local || '');
+            })
+            .catch(() => {});
+
             const modal = bootstrap.Modal.getInstance(document.getElementById('familySearchModal'));
             modal?.hide();
           });

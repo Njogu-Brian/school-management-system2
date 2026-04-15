@@ -90,7 +90,7 @@ class CommunicationHelperService
         // Entire class(es) (exclude alumni and archived) – supports single or multiple classrooms
         $classroomIds = self::normalizeClassroomIds($data);
         if ($target === 'class' && !empty($classroomIds)) {
-            Student::with('parent', 'classroom')
+            Student::with('parent', 'classroom', 'stream')
                 ->whereIn('classroom_id', $classroomIds)
                 ->where('archive', 0)
                 ->where('is_alumni', false)
@@ -120,7 +120,7 @@ class CommunicationHelperService
         // All students (via parent contacts) – every non-archived, non-alumni student active for current term; send to parent when available
         // 'all' is alias for 'parents' for fee communications
         if ($target === 'parents' || $target === 'all') {
-            Student::with('parent', 'classroom')
+            Student::with('parent', 'classroom', 'stream')
                 ->where('archive', 0)
                 ->where('is_alumni', false)
                 ->activeForCurrentTerm()
