@@ -1026,6 +1026,13 @@
                         </div>
                         <div class="modal-body">
                             <p class="text-muted mb-3">Search by <strong>student name or admission number</strong> (results appear as you type). You can add payments from <strong>more than one student</strong> if manual payments were created for different students. Only manual or Equity bank payments appear (no M-Pesa C2B). Select payment(s); amount must match the transaction. If siblings share a receipt, select the full set. Once linked, the transaction moves to Collected.</p>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" value="1" id="linkPaymentIncludeFamily" checked>
+                                <label class="form-check-label" for="linkPaymentIncludeFamily">
+                                    Include sibling payments (same family)
+                                </label>
+                                <div class="form-text">When enabled, selecting a student loads payments for all students in that family so you can link one or all siblings.</div>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Student</label>
                                 @include('partials.student_live_search', [
@@ -1486,6 +1493,10 @@ function loadPaymentsForLink(q, studentId, append) {
     const url = new URL(linkPaymentsBaseUrl);
     if (sid) url.searchParams.set('student_id', sid);
     if (query) url.searchParams.set('q', query);
+    const includeFamilyCb = document.getElementById('linkPaymentIncludeFamily');
+    if (sid && includeFamilyCb && includeFamilyCb.checked) {
+        url.searchParams.set('include_family', '1');
+    }
     const resultsEl = document.getElementById('linkPaymentResults');
     if (!resultsEl) return;
     if (!append) resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading...</p>';
@@ -1544,6 +1555,7 @@ document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.b
     const hid2 = document.getElementById('linkPaymentStudent2Id');
     const display1 = document.getElementById('linkPaymentStudentSearch');
     const display2 = document.getElementById('linkPaymentStudent2Search');
+    const includeFamilyCb = document.getElementById('linkPaymentIncludeFamily');
     const results = document.getElementById('linkPaymentResults');
     const btn = document.getElementById('linkToExistingPaymentsBtn');
     const summaryEl = document.getElementById('linkPaymentAmountSummary');
@@ -1551,6 +1563,7 @@ document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.b
     if (hid2) hid2.value = '';
     if (display1) display1.value = '';
     if (display2) display2.value = '';
+    if (includeFamilyCb) includeFamilyCb.checked = true;
     linkPaymentAccumulated = [];
     linkPaymentSelectionOrder = [];
     if (results) results.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
@@ -1558,6 +1571,17 @@ document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.b
     if (summaryEl) summaryEl.textContent = '';
     const container = document.getElementById('linkPaymentSelectedIds');
     if (container) container.innerHTML = '';
+});
+
+// If toggled while modal open, reload based on the first selected student
+document.getElementById('linkPaymentIncludeFamily')?.addEventListener('change', function() {
+    const modal = document.getElementById('linkToExistingPaymentsModal');
+    if (!modal || !modal.classList.contains('show')) return;
+    const hid1 = document.getElementById('linkPaymentStudentId');
+    const sid = hid1 && hid1.value ? parseInt(hid1.value, 10) : null;
+    if (sid) {
+        loadPaymentsForLink('', sid, false);
+    }
 });
 function updateLinkPaymentForm() {
     const allCb = document.querySelectorAll('.link-payment-cb');

@@ -1401,9 +1401,11 @@ class BankStatementController extends Controller
         $request->validate([
             'q' => 'nullable|string|max:255',
             'student_id' => 'nullable|integer|exists:students,id',
+            'include_family' => 'nullable|boolean',
         ]);
         $q = trim((string) $request->input('q', ''));
         $studentId = $request->input('student_id') ? (int) $request->input('student_id') : null;
+        $includeFamily = (bool) $request->boolean('include_family', false);
 
         if (!$studentId && $q === '') {
             return response()->json(['payments' => []]);
@@ -1437,7 +1439,21 @@ class BankStatementController extends Controller
             });
 
         if ($studentId) {
-            $query->where('student_id', $studentId);
+            if ($includeFamily) {
+                $familyId = (int) (Student::where('id', $studentId)->value('family_id') ?? 0);
+                if ($familyId > 0) {
+                    $familyStudentIds = Student::where('family_id', $familyId)->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+                    if (!empty($familyStudentIds)) {
+                        $query->whereIn('student_id', $familyStudentIds);
+                    } else {
+                        $query->where('student_id', $studentId);
+                    }
+                } else {
+                    $query->where('student_id', $studentId);
+                }
+            } else {
+                $query->where('student_id', $studentId);
+            }
         } else {
             $query->whereHas('student', function ($s) use ($q) {
                 $s->where('admission_number', 'LIKE', '%' . $q . '%')
@@ -1449,7 +1465,7 @@ class BankStatementController extends Controller
         $query->orderBy('payment_date', 'desc')->limit(100);
         $studentPayments = $query->get();
 
-        // Include sibling payments that share a receipt with any of this student's payments
+        // Include sibling payments that share a receipt with any of these payments
         $sharedBases = $studentPayments->pluck('shared_receipt_number')->filter()->unique()->values();
         if ($sharedBases->isNotEmpty()) {
             $siblingQuery = Payment::with('student')
