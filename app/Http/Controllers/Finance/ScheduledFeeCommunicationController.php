@@ -188,7 +188,8 @@ class ScheduledFeeCommunicationController extends Controller
             $validated['recurrence_next_at'] = null;
         }
 
-        if ($validated['recurrence_type'] === 'once' && !$sendNow) {
+        // For "send now" and one-time schedules, do not compute recurrence.
+        if ($sendNow || ($validated['recurrence_type'] === 'once' && !$sendNow)) {
             $validated['recurrence_times'] = null;
             $validated['recurrence_week_days'] = null;
             $validated['recurrence_start_at'] = null;
