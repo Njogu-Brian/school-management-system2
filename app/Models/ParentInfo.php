@@ -6,6 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class ParentInfo extends Model
 {
+    use \App\Models\Concerns\NormalizesNameAttributes;
+
+    protected static array $sentenceCaseNameAttributes = [
+        'father_name',
+        'mother_name',
+        'guardian_name',
+        'primary_contact_person',
+    ];
+
     protected $table = 'parent_info';
 
     protected $fillable = [

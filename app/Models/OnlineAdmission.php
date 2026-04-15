@@ -8,6 +8,17 @@ use Illuminate\Database\Eloquent\Model;
 class OnlineAdmission extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\NormalizesNameAttributes;
+
+    protected static array $sentenceCaseNameAttributes = [
+        'first_name',
+        'middle_name',
+        'last_name',
+        'father_name',
+        'mother_name',
+        'guardian_name',
+        'emergency_contact_name',
+    ];
 
     protected $fillable = [
         'first_name', 'middle_name', 'last_name', 'dob', 'gender',

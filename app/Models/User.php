@@ -13,6 +13,11 @@ use App\Models\Student;
 class User extends Authenticatable
 {
     use HasFactory, Notifiable, HasRoles, HasApiTokens;
+    use \App\Models\Concerns\NormalizesNameAttributes;
+
+    protected static array $sentenceCaseNameAttributes = [
+        'name',
+    ];
 
     protected $fillable = [
         'name', 'email', 'password', 'must_change_password',

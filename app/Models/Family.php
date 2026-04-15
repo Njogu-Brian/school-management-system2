@@ -6,6 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Family extends Model
 {
+    use \App\Models\Concerns\NormalizesNameAttributes;
+
+    protected static array $sentenceCaseNameAttributes = [
+        'guardian_name',
+        'father_name',
+        'mother_name',
+    ];
     /**
      * The attributes that are mass assignable.
      *

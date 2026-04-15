@@ -23,6 +23,14 @@ use Illuminate\Support\Facades\Storage;
 class Student extends Model
 {
     use HasFactory;
+    use \App\Models\Concerns\NormalizesNameAttributes;
+
+    protected static array $sentenceCaseNameAttributes = [
+        'first_name',
+        'middle_name',
+        'last_name',
+        'emergency_contact_name',
+    ];
     protected static function boot()
     {
         parent::boot();
