@@ -1288,6 +1288,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/generate',      [InvoiceController::class, 'generate'])->name('generate');
             Route::get('/export-csv',     [InvoiceController::class, 'exportCsv'])->name('export_csv');
             Route::post('/carry-forward-prior-term', [InvoiceController::class, 'carryForwardPriorTermBalances'])->name('carry_forward_prior_term');
+            Route::post('/bulk-delete',   [InvoiceController::class, 'bulkDelete'])->name('bulk_delete');
 
             // Literal paths must be registered BEFORE /{invoice} or "print", "import", etc. match as invoice IDs (404).
             Route::get('/print', [InvoiceController::class, 'printBulk'])

@@ -75,6 +75,15 @@
                     <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
                 </select>
             </div>
+            <div class="col-md-6 col-lg-3 d-flex align-items-end">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="1" id="include_orphans" name="include_orphans" {{ request()->boolean('include_orphans') ? 'checked' : '' }}>
+                    <label class="form-check-label" for="include_orphans">
+                        Show invoices with missing student / no voteheads
+                    </label>
+                    <div class="form-text">Normally hidden. Enable to review and bulk delete broken invoices.</div>
+                </div>
+            </div>
             <div class="col-12">
                 <button type="submit" class="btn btn-finance btn-finance-primary">
                     <i class="bi bi-search"></i> Filter
@@ -145,12 +154,23 @@
 
     <!-- Bulk send toolbar -->
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-        <div class="text-muted small">Select invoices then send via SMS / Email / WhatsApp.</div>
+        <div class="text-muted small">
+            Select invoices then send via SMS / Email / WhatsApp.
+            <span id="selectedInvoiceCountBadge" class="badge bg-primary ms-2" style="display: none;">0 selected</span>
+        </div>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-finance btn-finance-secondary"
                 onclick="openSendDocument('invoice', collectCheckedIds('.invoice-checkbox'))">
                 <i class="bi bi-send"></i> Send Selected
             </button>
+            <form method="POST" action="{{ route('finance.invoices.bulk_delete') }}" id="bulkDeleteInvoicesForm" class="d-inline"
+                  onsubmit="return confirm('Delete selected invoices? This will only delete invoices with NO payments/allocations. Continue?');">
+                @csrf
+                <div id="bulkDeleteInvoiceIds"></div>
+                <button type="submit" class="btn btn-finance btn-finance-danger" id="bulkDeleteInvoicesBtn" disabled>
+                    <i class="bi bi-trash"></i> Bulk Delete (<span id="bulkDeleteInvoicesCount">0</span>)
+                </button>
+            </form>
             <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status'])) }}" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF (bulk)</a>
         </div>
     </div>
@@ -289,7 +309,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="12">
+                            <td colspan="13">
                                 <div class="finance-empty-state">
                                     <div class="finance-empty-state-icon">
                                         <i class="bi bi-file-text"></i>
@@ -344,17 +364,54 @@
 
 @push('scripts')
 <script>
+function collectCheckedIds(selector) {
+    return Array.from(document.querySelectorAll(selector))
+        .filter(cb => cb && cb.checked && !cb.disabled)
+        .map(cb => cb.value);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const checkAll = document.getElementById('invoiceCheckAll');
     const boxes = document.querySelectorAll('.invoice-checkbox');
+    const badge = document.getElementById('selectedInvoiceCountBadge');
+    const bulkBtn = document.getElementById('bulkDeleteInvoicesBtn');
+    const bulkCount = document.getElementById('bulkDeleteInvoicesCount');
+    const bulkContainer = document.getElementById('bulkDeleteInvoiceIds');
+
+    function updateBulkDelete() {
+        const ids = collectCheckedIds('.invoice-checkbox');
+        if (badge) {
+            badge.style.display = ids.length > 0 ? 'inline-block' : 'none';
+            badge.textContent = ids.length + ' selected';
+        }
+        if (bulkCount) {
+            bulkCount.textContent = String(ids.length);
+        }
+        if (bulkBtn) {
+            bulkBtn.disabled = ids.length === 0;
+        }
+        if (bulkContainer) {
+            bulkContainer.innerHTML = '';
+            ids.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'invoice_ids[]';
+                input.value = id;
+                bulkContainer.appendChild(input);
+            });
+        }
+    }
+
     function refresh() {
         if (checkAll) {
             const allChecked = boxes.length && Array.from(boxes).every(b => b.checked);
             checkAll.checked = allChecked;
         }
+        updateBulkDelete();
     }
     checkAll?.addEventListener('change', () => {
         boxes.forEach(b => b.checked = checkAll.checked);
+        refresh();
     });
     boxes.forEach(b => b.addEventListener('change', refresh));
     refresh();

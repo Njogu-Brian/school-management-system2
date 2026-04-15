@@ -25,7 +25,16 @@ class InvoiceController extends Controller
 {
     public function index(Request $request)
     {
+        $includeOrphans = (bool) $request->boolean('include_orphans', false);
+
         $q = Invoice::with(['student.classroom','student.stream', 'items', 'term', 'academicYear'])
+            ->when(!$includeOrphans, function (Builder $qq) {
+                // Hide broken/orphan invoices from the normal list:
+                // - invoices without a student
+                // - invoices with no items (or items missing voteheads)
+                $qq->whereHas('student')
+                    ->whereHas('items', fn (Builder $ii) => $ii->whereNotNull('votehead_id'));
+            })
             ->when($request->filled('year'), fn($qq)=>$qq->where('year',$request->year))
             ->when($request->filled('term'), fn($qq)=>$qq->where('term',$request->term))
             ->when($request->filled('student_id'), fn($qq)=>$qq->where('student_id', (int) $request->student_id))
@@ -42,6 +51,61 @@ class InvoiceController extends Controller
         $voteheads  = \App\Models\Votehead::orderBy('name')->get();
 
         return view('finance.invoices.index', compact('invoices','classrooms','streams','voteheads'));
+    }
+
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'invoice_ids' => 'required|array|min:1',
+            'invoice_ids.*' => 'required|integer|exists:invoices,id',
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $request->invoice_ids)));
+
+        // Only allow deletion of invoices that have no allocations/payments (safety).
+        $invoices = Invoice::with(['items'])
+            ->whereIn('id', $ids)
+            ->get();
+
+        $deletable = collect();
+        $blocked = [];
+
+        foreach ($invoices as $inv) {
+            $hasAllocations = \App\Models\PaymentAllocation::whereHas('invoiceItem', function ($q) use ($inv) {
+                $q->where('invoice_id', $inv->id);
+            })->exists();
+
+            if ($hasAllocations || ((float) ($inv->paid_amount ?? 0) > 0.01) || in_array((string) ($inv->status ?? ''), ['paid', 'partial'], true)) {
+                $blocked[] = $inv->invoice_number ?? ('#' . $inv->id);
+                continue;
+            }
+
+            $deletable->push($inv);
+        }
+
+        if ($deletable->isEmpty()) {
+            return redirect()->back()->with('error', 'No selected invoices can be deleted. Invoices with payments/allocations cannot be bulk deleted.');
+        }
+
+        DB::transaction(function () use ($deletable) {
+            foreach ($deletable as $inv) {
+                // Soft-delete items first for clarity (invoice is soft-deleted too).
+                try {
+                    \App\Models\InvoiceItem::where('invoice_id', $inv->id)->delete();
+                } catch (\Throwable $e) {
+                    // If items don't use SoftDeletes, this will hard delete; acceptable for cleanup.
+                    \App\Models\InvoiceItem::where('invoice_id', $inv->id)->forceDelete();
+                }
+                $inv->delete();
+            }
+        });
+
+        $msg = 'Deleted ' . $deletable->count() . ' invoice(s).';
+        if (!empty($blocked)) {
+            $msg .= ' Skipped ' . count($blocked) . ' with payments/allocations.';
+        }
+
+        return redirect()->route('finance.invoices.index')->with('success', $msg);
     }
 
     public function create()
