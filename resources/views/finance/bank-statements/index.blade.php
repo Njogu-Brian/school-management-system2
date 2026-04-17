@@ -439,7 +439,8 @@
                 @csrf
                 <div id="bulkTransactionIdsContainer"></div>
                 <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
-                    <i class="bi bi-check-circle"></i> Confirm & Create Payments
+                    <i class="bi bi-check-circle"></i>
+                    {{ request('view') === 'swimming' ? 'Confirm & Credit Wallets' : 'Confirm & Create Payments' }}
                 </button>
             </form>
             
@@ -1162,7 +1163,11 @@
                 input.value = id;
                 bulkIdsContainer.appendChild(input);
             });
-            if (confirm(`Confirm and create payments for ${confirmableIds.length} transaction(s)? Receipts will open for printing.`)) {
+            const isSwimmingView = @json(request('view') === 'swimming');
+            const msg = isSwimmingView
+                ? `Confirm and credit wallets for ${confirmableIds.length} transaction(s)? This will allocate/credit swimming wallets (no fee receipts).`
+                : `Confirm and create payments for ${confirmableIds.length} transaction(s)? Receipts will open for printing.`;
+            if (confirm(msg)) {
                 document.getElementById('bulkConfirmForm').submit();
             }
         }
