@@ -12,6 +12,8 @@ class Term extends Model
         'academic_year_id', 
         'is_current',
         'opening_date',
+        'fee_clearance_day1_date',
+        'fee_clearance_strict_from_date',
         'closing_date',
         'midterm_start_date',
         'midterm_end_date',
@@ -21,6 +23,8 @@ class Term extends Model
 
     protected $casts = [
         'opening_date' => 'date',
+        'fee_clearance_day1_date' => 'date',
+        'fee_clearance_strict_from_date' => 'date',
         'closing_date' => 'date',
         'midterm_start_date' => 'date',
         'midterm_end_date' => 'date',

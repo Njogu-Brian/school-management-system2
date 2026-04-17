@@ -9,6 +9,7 @@ use App\Models\Term;
 use App\Models\Trip;
 use App\Models\StudentAssignment;
 use App\Services\FeeClearanceStatusService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class ApiFeeClearanceController extends Controller
@@ -44,6 +45,7 @@ class ApiFeeClearanceController extends Controller
 
         return response()->json([
             'success' => true,
+            'meta' => $this->enforcementMeta($term),
             'data' => $this->toPublicPayload($snapshot),
         ]);
     }
@@ -110,7 +112,11 @@ class ApiFeeClearanceController extends Controller
             ], $this->toPublicPayload($snapshot));
         })->values();
 
-        return response()->json(['success' => true, 'data' => $data]);
+        return response()->json([
+            'success' => true,
+            'meta' => $this->enforcementMeta($term),
+            'data' => $data,
+        ]);
     }
 
     /**
@@ -188,7 +194,11 @@ class ApiFeeClearanceController extends Controller
             ];
         })->values();
 
-        return response()->json(['success' => true, 'data' => $data]);
+        return response()->json([
+            'success' => true,
+            'meta' => $this->enforcementMeta($term),
+            'data' => $data,
+        ]);
     }
 
     protected function toPublicPayload(StudentTermFeeClearance $snapshot): array
@@ -197,6 +207,33 @@ class ApiFeeClearanceController extends Controller
             'status' => $snapshot->status,
             'computed_at' => $snapshot->computed_at?->toIso8601String(),
             'final_clearance_deadline' => $snapshot->final_clearance_deadline?->toDateString(),
+        ];
+    }
+
+    protected function enforcementMeta(Term $term): array
+    {
+        $today = Carbon::now()->startOfDay();
+        $day1 = ($term->fee_clearance_day1_date ?: $term->opening_date)?->copy()->startOfDay();
+        $strictFrom = ($term->fee_clearance_strict_from_date ?: ($day1 ? $day1->copy()->addDay() : null))?->copy()->startOfDay();
+
+        $level = 'unknown';
+        if ($day1) {
+            if ($today->lt($day1)) {
+                $level = 'preterm';
+            } elseif ($today->equalTo($day1)) {
+                $level = 'day1';
+            } elseif ($strictFrom && $today->gte($strictFrom)) {
+                $level = 'strict';
+            } else {
+                $level = 'grace';
+            }
+        }
+
+        return [
+            'enforcement_level' => $level,
+            'day1_date' => $day1?->toDateString(),
+            'strict_from_date' => $strictFrom?->toDateString(),
+            'term_id' => (int) $term->id,
         ];
     }
 }

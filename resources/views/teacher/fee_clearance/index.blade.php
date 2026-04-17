@@ -16,6 +16,20 @@
         </div>
     </div>
 
+    @if($term && ($term->fee_clearance_day1_date || $term->fee_clearance_strict_from_date || $term->opening_date))
+        @php
+            $day1 = ($term->fee_clearance_day1_date ?: $term->opening_date);
+            $strictFrom = ($term->fee_clearance_strict_from_date ?: ($day1 ? $day1->copy()->addDay() : null));
+        @endphp
+        <div class="alert alert-info">
+            <div class="fw-semibold mb-1">Enforcement</div>
+            <div class="small">
+                Day 1: {{ $day1 ? $day1->format('M d, Y') : '—' }}.
+                Strict enforcement from: {{ $strictFrom ? $strictFrom->format('M d, Y') : '—' }}.
+            </div>
+        </div>
+    @endif
+
     <div class="card shadow-sm border-0 mb-3">
         <div class="card-body">
             <form method="GET" class="row g-2 align-items-end">
