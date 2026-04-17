@@ -402,6 +402,16 @@
                     @endforeach
                 </select>
             </div>
+            @if(request('view') === 'swimming')
+                <div class="col-md-3">
+                    <label class="finance-form-label">Swimming Allocation</label>
+                    <select name="swimming_allocation" class="finance-form-select">
+                        <option value="">All Swimming</option>
+                        <option value="wallet" {{ request('swimming_allocation') === 'wallet' ? 'selected' : '' }}>Allocated to Wallet</option>
+                        <option value="unmatched" {{ request('swimming_allocation') === 'unmatched' ? 'selected' : '' }}>Unmatched (Not Allocated)</option>
+                    </select>
+                </div>
+            @endif
             <div class="col-md-3">
                 <label class="finance-form-label">Search</label>
                 <input type="text" name="search" class="finance-form-control" placeholder="Description, reference, phone..." value="{{ request('search') }}">

@@ -86,6 +86,7 @@ class BankStatementController extends Controller
         // View filters (all, auto-assigned, manual-assigned, draft, unassigned, confirmed, collected, archived)
         $view = $request->get('view', 'all');
         $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        $swimmingAllocationFilter = $request->get('swimming_allocation'); // wallet | unmatched | null
         $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%")))';
         $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
         $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
@@ -196,6 +197,37 @@ class BankStatementController extends Controller
                 // Swimming exclusion is handled below
         }
 
+        // Swimming tab: optional wallet allocation filter (bank transactions only)
+        if ($view === 'swimming' && in_array($swimmingAllocationFilter, ['wallet', 'unmatched'], true)) {
+            if (Schema::hasTable('swimming_transaction_allocations')) {
+                if ($swimmingAllocationFilter === 'wallet') {
+                    // Wallet allocated = has at least one non-reversed allocation with status=allocated
+                    $query->whereExists(function ($sub) {
+                        $sub->selectRaw('1')
+                            ->from('swimming_transaction_allocations')
+                            ->whereColumn('swimming_transaction_allocations.bank_statement_transaction_id', 'bank_statement_transactions.id')
+                            ->where('swimming_transaction_allocations.status', \App\Models\SwimmingTransactionAllocation::STATUS_ALLOCATED);
+                    });
+                } else {
+                    // Unmatched = no non-reversed allocations (pending/allocated)
+                    $query->whereNotExists(function ($sub) {
+                        $sub->selectRaw('1')
+                            ->from('swimming_transaction_allocations')
+                            ->whereColumn('swimming_transaction_allocations.bank_statement_transaction_id', 'bank_statement_transactions.id')
+                            ->whereIn('swimming_transaction_allocations.status', [
+                                \App\Models\SwimmingTransactionAllocation::STATUS_PENDING,
+                                \App\Models\SwimmingTransactionAllocation::STATUS_ALLOCATED,
+                            ]);
+                    });
+                }
+            } else {
+                // If allocations table doesn't exist, treat all as unmatched when filter applied
+                if ($swimmingAllocationFilter === 'wallet') {
+                    $query->whereRaw('1 = 0');
+                }
+            }
+        }
+
         // Additional filters
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -250,6 +282,10 @@ class BankStatementController extends Controller
         $c2bTransactions = collect();
         if (!$request->filled('statement_file')) {
             $c2bQuery = $this->getC2BTransactionsQuery($request, $view);
+            // Swimming wallet allocation filter is only meaningful for bank statement transactions.
+            if ($view === 'swimming' && in_array($swimmingAllocationFilter, ['wallet', 'unmatched'], true)) {
+                $c2bQuery->whereRaw('1 = 0');
+            }
             $c2bTransactions = $c2bQuery->get();
             $this->checkCrossTypeDuplicates($c2bTransactions);
         }
