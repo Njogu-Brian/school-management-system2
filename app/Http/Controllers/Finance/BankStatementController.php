@@ -288,12 +288,28 @@ class BankStatementController extends Controller
             // Swimming wallet allocation filter for C2B uses swimming_ledger credits (source = this C2B transaction).
             if ($view === 'swimming' && in_array($swimmingAllocationFilter, ['wallet', 'unmatched'], true)) {
                 if (Schema::hasTable('swimming_ledger')) {
+                    // C2B credits can be recorded either directly against the C2B transaction (no Payment created),
+                    // or against split swimming Payment(s) whose transaction_code starts with "<trans_id>-SWIM-".
                     $existsLedgerCredit = function ($sub) {
                         $sub->selectRaw('1')
                             ->from('swimming_ledger')
-                            ->whereColumn('swimming_ledger.source_id', 'mpesa_c2b_transactions.id')
-                            ->where('swimming_ledger.source_type', \App\Models\MpesaC2BTransaction::class)
-                            ->where('swimming_ledger.type', \App\Models\SwimmingLedger::TYPE_CREDIT);
+                            ->where('swimming_ledger.type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                            ->where(function ($q) {
+                                $q->where(function ($q2) {
+                                    $q2->whereColumn('swimming_ledger.source_id', 'mpesa_c2b_transactions.id')
+                                        ->where('swimming_ledger.source_type', \App\Models\MpesaC2BTransaction::class);
+                                })->orWhereExists(function ($p) {
+                                    $p->selectRaw('1')
+                                        ->from('payments')
+                                        ->whereColumn('payments.id', 'swimming_ledger.source_id')
+                                        ->where('swimming_ledger.source_type', \App\Models\Payment::class)
+                                        ->where(function ($qry) {
+                                            $qry->where('payments.reversed', 0)->orWhereNull('payments.reversed');
+                                        })
+                                        ->whereNull('payments.deleted_at')
+                                        ->whereRaw("payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, '-SWIM-%')");
+                                });
+                            });
                     };
 
                     if ($swimmingAllocationFilter === 'wallet') {
