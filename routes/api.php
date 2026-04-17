@@ -84,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payroll-records', [\App\Http\Controllers\Api\ApiPayrollRecordsController::class, 'index']);
     Route::get('/routes', [\App\Http\Controllers\Api\ApiRouteController::class, 'index']);
     Route::get('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'show']);
+    Route::get('/routes/{id}/fee-clearance-roster', [ApiFeeClearanceController::class, 'tripRoster']);
     Route::get('/leave-types', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'leaveTypes']);
     Route::get('/leave-requests', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'index']);
     Route::post('/leave-requests', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'store']);
@@ -132,6 +133,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/supervised-classrooms', [ApiSeniorTeacherController::class, 'supervisedClassrooms']);
         Route::get('/supervised-staff', [ApiSeniorTeacherController::class, 'supervisedStaff']);
         Route::get('/fee-balances', [ApiSeniorTeacherController::class, 'feeBalances']);
+        Route::get('/fee-clearances/pending', [ApiSeniorTeacherController::class, 'pendingFeeClearances']);
         Route::get('/students', [ApiSeniorTeacherController::class, 'supervisedStudents']);
     });
 });

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
 use App\Models\Staff;
 use App\Models\Student;
+use App\Models\StudentTermFeeClearance;
+use App\Models\Term;
 use App\Services\StudentBalanceService;
 use Illuminate\Http\Request;
 
@@ -155,6 +157,89 @@ class ApiSeniorTeacherController extends Controller
                 'class_name' => $s->classroom?->name,
                 'stream_name' => $s->stream?->name,
                 'status' => $s->archive ? 'archived' : 'active',
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'data' => $data,
+                'current_page' => $rows->currentPage(),
+                'last_page' => $rows->lastPage(),
+                'per_page' => $rows->perPage(),
+                'total' => $rows->total(),
+                'from' => $rows->firstItem(),
+                'to' => $rows->lastItem(),
+            ],
+        ]);
+    }
+
+    /**
+     * Fee clearance: pending list for supervised scope (privacy-safe: no amounts).
+     */
+    public function pendingFeeClearances(Request $request)
+    {
+        $this->ensureSeniorTeacherScope($request);
+
+        $request->validate([
+            'term_id' => 'nullable|exists:terms,id',
+            'class_id' => 'nullable|exists:classrooms,id',
+            'per_page' => 'nullable|integer|min:1|max:200',
+        ]);
+
+        $term = $request->term_id
+            ? Term::find($request->term_id)
+            : Term::where('is_current', true)->orderByDesc('id')->first();
+
+        if (!$term) {
+            return response()->json(['success' => false, 'message' => 'No term found.'], 422);
+        }
+
+        $user = $request->user();
+        $classroomIds = array_values(array_unique(array_merge(
+            array_map('intval', $user->getSupervisedClassroomIds()),
+            array_map('intval', $user->getAssignedClassroomIds())
+        )));
+
+        if ($classroomIds === []) {
+            return response()->json(['success' => true, 'data' => ['data' => [], 'total' => 0]]);
+        }
+
+        if ($request->filled('class_id')) {
+            $cid = (int) $request->class_id;
+            $classroomIds = in_array($cid, $classroomIds, true) ? [$cid] : [];
+        }
+
+        if ($classroomIds === []) {
+            return response()->json(['success' => true, 'data' => ['data' => [], 'total' => 0]]);
+        }
+
+        $perPage = (int) ($request->input('per_page', 50));
+
+        $query = StudentTermFeeClearance::query()
+            ->where('term_id', $term->id)
+            ->where('status', 'pending')
+            ->whereHas('student', function ($q) use ($classroomIds) {
+                $q->whereIn('classroom_id', $classroomIds)
+                    ->where('archive', 0)
+                    ->where('is_alumni', false);
+            })
+            ->with(['student.classroom', 'student.stream'])
+            ->orderByDesc('computed_at');
+
+        $rows = $query->paginate($perPage);
+
+        $data = $rows->getCollection()->map(function (StudentTermFeeClearance $c) {
+            $s = $c->student;
+            return [
+                'student_id' => (int) $s->id,
+                'student_name' => $s->full_name ?? trim(($s->first_name ?? '') . ' ' . ($s->last_name ?? '')),
+                'admission_number' => $s->admission_number,
+                'class_name' => $s->classroom?->name,
+                'stream_name' => $s->stream?->name,
+                'status' => $c->status,
+                'final_clearance_deadline' => $c->final_clearance_deadline?->toDateString(),
+                'computed_at' => $c->computed_at?->toIso8601String(),
             ];
         })->values();
 

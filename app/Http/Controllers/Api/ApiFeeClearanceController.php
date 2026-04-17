@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\StudentTermFeeClearance;
 use App\Models\Term;
+use App\Models\Trip;
+use App\Models\StudentAssignment;
 use App\Services\FeeClearanceStatusService;
 use Illuminate\Http\Request;
 
@@ -106,6 +108,84 @@ class ApiFeeClearanceController extends Controller
                 'name' => $student->full_name ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
                 'admission_number' => $student->admission_number ?? null,
             ], $this->toPublicPayload($snapshot));
+        })->values();
+
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * Fee clearance roster for a transport trip (for drivers mobile).
+     * Returns status only (no fee amounts).
+     */
+    public function tripRoster(Request $request, int $id)
+    {
+        $request->validate([
+            'term_id' => 'nullable|exists:terms,id',
+        ]);
+
+        $term = $request->term_id
+            ? Term::find($request->term_id)
+            : Term::where('is_current', true)->orderByDesc('id')->first();
+
+        if (!$term) {
+            return response()->json(['success' => false, 'message' => 'No term found.'], 422);
+        }
+
+        $trip = Trip::findOrFail($id);
+
+        $user = $request->user();
+        if ($user && $user->hasAnyRole(['Driver', 'driver'])) {
+            $staff = $user->staff;
+            if (!$staff || (int) $trip->driver_id !== (int) $staff->id) {
+                return response()->json(['success' => false, 'message' => 'You are not assigned to this trip.'], 403);
+            }
+        }
+
+        $direction = strtolower((string) ($trip->direction ?? ''));
+        $isMorning = str_contains($direction, 'morning');
+        $isEvening = str_contains($direction, 'evening');
+
+        $assignments = StudentAssignment::query()
+            ->with(['student', 'morningDropOffPoint', 'eveningDropOffPoint'])
+            ->where(function ($q) use ($trip) {
+                $q->where('morning_trip_id', $trip->id)
+                    ->orWhere('evening_trip_id', $trip->id);
+            })
+            ->get()
+            ->filter(fn ($a) => $a->student && ! $a->student->archive && ! $a->student->is_alumni)
+            ->values();
+
+        $studentIds = $assignments->pluck('student_id')->unique()->values();
+
+        $snapshots = StudentTermFeeClearance::where('term_id', $term->id)
+            ->whereIn('student_id', $studentIds)
+            ->get()
+            ->keyBy('student_id');
+
+        $data = $assignments->map(function ($a) use ($trip, $term, $snapshots, $isMorning, $isEvening) {
+            $student = $a->student;
+            $snapshot = $snapshots->get($student->id);
+            if (! $snapshot) {
+                $snapshot = $this->service->upsertSnapshot($student, $term);
+            }
+
+            $stop = null;
+            if ($isMorning) {
+                $stop = $a->morningDropOffPoint?->name;
+            } elseif ($isEvening) {
+                $stop = $a->eveningDropOffPoint?->name;
+            } else {
+                $stop = $a->morningDropOffPoint?->name ?? $a->eveningDropOffPoint?->name;
+            }
+
+            return [
+                'trip_id' => (int) $trip->id,
+                'student_id' => (int) $student->id,
+                'name' => $student->full_name ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+                'admission_number' => $student->admission_number ?? null,
+                'stop_name' => $stop,
+                ...$this->toPublicPayload($snapshot),
+            ];
         })->values();
 
         return response()->json(['success' => true, 'data' => $data]);
