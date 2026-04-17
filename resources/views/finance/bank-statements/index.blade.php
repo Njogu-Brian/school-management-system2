@@ -437,6 +437,8 @@
         <div class="d-flex gap-2">
             <form id="bulkConfirmForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm') }}">
                 @csrf
+                <input type="hidden" name="view" value="{{ request('view') }}">
+                <input type="hidden" name="swimming_allocation" value="{{ request('swimming_allocation') }}">
                 <div id="bulkTransactionIdsContainer"></div>
                 <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
                     <i class="bi bi-check-circle"></i>

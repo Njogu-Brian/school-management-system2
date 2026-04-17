@@ -4060,6 +4060,7 @@ class BankStatementController extends Controller
      */
     public function bulkConfirm(Request $request)
     {
+        $isSwimmingView = $request->get('view') === 'swimming';
         $transactionIds = $request->input('transaction_ids', []);
         if (is_string($transactionIds)) {
             $transactionIds = json_decode($transactionIds, true) ?? [];
@@ -4074,6 +4075,7 @@ class BankStatementController extends Controller
 
         $receiptIds = [];
         $errors = [];
+        $walletCredits = 0;
         $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
 
         foreach ($transactionIds as $transactionId) {
@@ -4116,6 +4118,7 @@ class BankStatementController extends Controller
                         try {
                             if ($isC2bSwimming) {
                                 $this->createSwimmingPaymentForC2B($c2bTransaction->fresh());
+                                $walletCredits++;
                             } else {
                                 $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
                                 if ($payment) {
@@ -4185,6 +4188,7 @@ class BankStatementController extends Controller
                 if ($transaction->is_swimming_transaction ?? false) {
                     try {
                         $this->processSwimmingTransaction($transaction);
+                        $walletCredits++;
                     } catch (\Exception $e) {
                         $errors[] = "Transaction #{$transactionId} (swimming): " . $e->getMessage();
                     }
@@ -4214,14 +4218,25 @@ class BankStatementController extends Controller
         }
 
         $receiptIds = array_values(array_unique($receiptIds));
-        $message = count($receiptIds) > 0
-            ? 'Confirmed and created payments. ' . count($receiptIds) . ' receipt(s) ready. Communications sent.'
-            : 'No payments created or linked for selected transactions.';
+        if (count($receiptIds) > 0) {
+            $message = 'Confirmed and created payments. ' . count($receiptIds) . ' receipt(s) ready. Communications sent.';
+        } elseif ($isSwimmingView) {
+            $message = $walletCredits > 0
+                ? "Confirmed and credited swimming wallets for {$walletCredits} transaction(s)."
+                : 'No swimming wallets were credited for the selected transactions.';
+        } else {
+            $message = 'No payments created or linked for selected transactions.';
+        }
         if (!empty($errors)) {
             $message .= ' Errors: ' . implode('; ', array_slice($errors, 0, 3));
         }
 
-        $redirect = redirect()->route('finance.bank-statements.index')->with('success', $message);
+        $redirectParams = array_filter([
+            'view' => $request->get('view'),
+            'swimming_allocation' => $request->get('swimming_allocation'),
+        ], fn ($v) => $v !== null && $v !== '');
+
+        $redirect = redirect()->route('finance.bank-statements.index', $redirectParams)->with('success', $message);
         if (!empty($receiptIds)) {
             $redirect->with('receipt_ids', $receiptIds);
         }
