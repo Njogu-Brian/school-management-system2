@@ -3,11 +3,19 @@
 @section('content')
 <div class="finance-page">
   <div class="finance-shell">
-    <div class="finance-card finance-animate mb-3 d-flex justify-content-between align-items-center p-3">
+    <div class="finance-card finance-animate mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2 p-3">
         <h1 class="h4 mb-0">Payment Plan Details</h1>
-        <a href="{{ route('finance.fee-payment-plans.index') }}" class="btn btn-finance btn-finance-outline">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ route('finance.fee-payment-plans.print', $feePaymentPlan) }}" target="_blank" class="btn btn-finance btn-finance-outline" title="Opens a printable page with letterhead and signature lines">
+                <i class="bi bi-printer"></i> Print agreement
+            </a>
+            <a href="{{ route('finance.fee-payment-plans.download-pdf', $feePaymentPlan) }}" class="btn btn-finance btn-finance-primary">
+                <i class="bi bi-file-pdf"></i> Download PDF
+            </a>
+            <a href="{{ route('finance.fee-payment-plans.index') }}" class="btn btn-finance btn-finance-outline">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
     </div>
 
     <div class="row">

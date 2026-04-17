@@ -5,7 +5,6 @@ namespace App\Jobs;
 use App\Models\Payment;
 use App\Models\CommunicationLog;
 use App\Models\CommunicationTemplate;
-use App\Http\Controllers\Finance\PaymentController;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -116,7 +115,7 @@ class BulkSendPaymentNotifications implements ShouldQueue
 
             foreach ($payments as $payment) {
                 $processed++;
-                
+
                 try {
                     $currentInfo = [
                         'receipt' => $payment->receipt_number,
@@ -132,7 +131,7 @@ class BulkSendPaymentNotifications implements ShouldQueue
 
                     // Get already sent channels for this payment
                     $bulkSent = $payment->bulk_sent_channels ?? [];
-                    
+
                     // Filter out channels that have already been sent
                     $channelsToSend = array_filter($this->channels, function($channel) use ($bulkSent) {
                         return !in_array($channel, $bulkSent);
@@ -168,7 +167,7 @@ class BulkSendPaymentNotifications implements ShouldQueue
                             if ($hasContact) {
                                 $this->sendPaymentNotificationByChannel($payment, $channel, $parent);
                                 $sentChannels[] = $channel;
-                                
+
                                 // Small delay between sends to avoid rate limiting
                                 usleep(200000); // 0.2 seconds
                             }
@@ -179,7 +178,7 @@ class BulkSendPaymentNotifications implements ShouldQueue
                                 'channel' => $channel,
                                 'error' => $e->getMessage()
                             ]);
-                            
+
                             if (count($errors) < 10) { // Limit errors stored
                                 $errors[] = "Payment #{$payment->receipt_number} ({$channel}): " . $e->getMessage();
                             }
@@ -209,11 +208,11 @@ class BulkSendPaymentNotifications implements ShouldQueue
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString()
                     ]);
-                    
+
                     if (count($errors) < 10) {
                         $errors[] = "Payment #{$payment->receipt_number}: " . $e->getMessage();
                     }
-                    
+
                     $this->updateProgress([
                         'failed' => $failedCount
                     ]);
@@ -262,14 +261,13 @@ class BulkSendPaymentNotifications implements ShouldQueue
     {
         // Never consider guardian as available for fee-related communications; guardians are reached via manual number entry only
         if ($channel === 'sms') {
-            return !empty($parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null);
+            return count($parent->schoolNotificationSmsPhones()) > 0;
         } elseif ($channel === 'email') {
-            return !empty($parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null);
+            return count($parent->schoolNotificationEmails()) > 0;
         } elseif ($channel === 'whatsapp') {
-            return !empty($parent->father_whatsapp ?? $parent->mother_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? null);
+            return count($parent->schoolNotificationWhatsAppNumbers()) > 0;
         }
-        
+
         return false;
     }
 
@@ -326,81 +324,76 @@ class BulkSendPaymentNotifications implements ShouldQueue
 
         // Send via specific channel
         if ($channel === 'sms') {
-            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
-            if ($parentPhone) {
-                $smsTemplate = CommunicationTemplate::where('code', 'payment_receipt_sms')
-                    ->orWhere('code', 'finance_payment_received_sms')
-                    ->first();
-                
-                if (!$smsTemplate) {
-                    $smsTemplate = CommunicationTemplate::firstOrCreate(
-                        ['code' => 'payment_receipt_sms'],
-                        [
-                            'title' => 'Payment Receipt SMS',
-                            'type' => 'sms',
-                            'subject' => null,
-                            'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{finance_portal_link}}\n\nThank you for your continued support.\n{{school_name}}",
-                        ]
-                    );
-                }
+            $smsTemplate = CommunicationTemplate::where('code', 'payment_receipt_sms')
+                ->orWhere('code', 'finance_payment_received_sms')
+                ->first();
 
-                $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
-                $smsService = app(\App\Services\SMSService::class);
-                $financeSenderId = $smsService->getFinanceSenderId();
+            if (! $smsTemplate) {
+                $smsTemplate = CommunicationTemplate::firstOrCreate(
+                    ['code' => 'payment_receipt_sms'],
+                    [
+                        'title' => 'Payment Receipt SMS',
+                        'type' => 'sms',
+                        'subject' => null,
+                        'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{finance_portal_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                    ]
+                );
+            }
+
+            $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+            $smsService = app(\App\Services\SMSService::class);
+            $financeSenderId = $smsService->getFinanceSenderId();
+            foreach ($parent->schoolNotificationSmsPhones() as $parentPhone) {
                 $commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
             }
         } elseif ($channel === 'email') {
-            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
-            if ($parentEmail) {
-                $emailTemplate = CommunicationTemplate::where('code', 'payment_receipt_email')
-                    ->orWhere('code', 'finance_payment_received_email')
-                    ->first();
-                
-                if (!$emailTemplate) {
-                    $emailTemplate = CommunicationTemplate::firstOrCreate(
-                        ['code' => 'payment_receipt_email'],
-                        [
-                            'title' => 'Payment Receipt Email',
-                            'type' => 'email',
-                            'subject' => 'Payment Receipt – {{student_name}}',
-                            'content' => "{{greeting}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
-                        ]
-                    );
-                }
+            $emailTemplate = CommunicationTemplate::where('code', 'payment_receipt_email')
+                ->orWhere('code', 'finance_payment_received_email')
+                ->first();
 
-                $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-                $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
-                $receiptService = app(\App\Services\ReceiptService::class);
-                $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
+            if (! $emailTemplate) {
+                $emailTemplate = CommunicationTemplate::firstOrCreate(
+                    ['code' => 'payment_receipt_email'],
+                    [
+                        'title' => 'Payment Receipt Email',
+                        'type' => 'email',
+                        'subject' => 'Payment Receipt – {{student_name}}',
+                        'content' => "{{greeting}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
+                    ]
+                );
+            }
+
+            $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+            $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
+            $receiptService = app(\App\Services\ReceiptService::class);
+            $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
+            foreach ($parent->schoolNotificationEmails() as $parentEmail) {
                 $commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
             }
         } elseif ($channel === 'whatsapp') {
-            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? null;
-            
-            if ($whatsappPhone) {
-                $whatsappTemplate = CommunicationTemplate::where('code', 'payment_receipt_whatsapp')
-                    ->orWhere('code', 'finance_payment_received_whatsapp')
-                    ->first();
-                
-                if (!$whatsappTemplate) {
-                    $whatsappTemplate = CommunicationTemplate::firstOrCreate(
-                        ['code', 'payment_receipt_whatsapp'],
-                        [
-                            'title' => 'Payment Receipt WhatsApp',
-                            'type' => 'whatsapp',
-                            'subject' => null,
-                            'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
-                        ]
-                    );
-                }
+            $whatsappTemplate = CommunicationTemplate::where('code', 'payment_receipt_whatsapp')
+                ->orWhere('code', 'finance_payment_received_whatsapp')
+                ->first();
 
-                $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
-                $whatsappService = app(\App\Services\WhatsAppService::class);
+            if (! $whatsappTemplate) {
+                $whatsappTemplate = CommunicationTemplate::firstOrCreate(
+                    ['code' => 'payment_receipt_whatsapp'],
+                    [
+                        'title' => 'Payment Receipt WhatsApp',
+                        'type' => 'whatsapp',
+                        'subject' => null,
+                        'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                    ]
+                );
+            }
+
+            $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
+            $whatsappService = app(\App\Services\WhatsAppService::class);
+            foreach ($parent->schoolNotificationWhatsAppNumbers() as $whatsappPhone) {
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
-                
+
                 $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
-                
+
                 CommunicationLog::create([
                     'recipient_type' => 'parent',
                     'recipient_id'   => $parent->id ?? null,
@@ -414,7 +407,7 @@ class BulkSendPaymentNotifications implements ShouldQueue
                     'scope'          => 'whatsapp',
                     'sent_at'        => now(),
                     'payment_id'     => $payment->id,
-                    'provider_id'    => data_get($response, 'body.data.id') 
+                    'provider_id'    => data_get($response, 'body.data.id')
                                         ?? data_get($response, 'body.data.message.id')
                                         ?? data_get($response, 'body.messageId')
                                         ?? data_get($response, 'body.id'),
@@ -443,4 +436,3 @@ class BulkSendPaymentNotifications implements ShouldQueue
         ]);
     }
 }
-

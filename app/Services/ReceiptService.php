@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\{Payment, BankAccount};
+use App\Models\{Payment, BankAccount, FeePaymentPlan};
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
@@ -303,6 +303,14 @@ class ReceiptService
     }
     
     /**
+     * Branding for PDFs (receipts, payment plan agreements, etc.)
+     */
+    public function getDocumentBranding(): array
+    {
+        return $this->getBranding();
+    }
+
+    /**
      * Get branding information with logo base64
      */
     private function getBranding(): array
@@ -359,6 +367,71 @@ class ReceiptService
         return compact('name','email','phone','website','address','logoBase64');
     }
     
+    /**
+     * Data for payment plan agreement PDF / print view.
+     *
+     * @param  \Illuminate\Contracts\Auth\Authenticatable|null  $preparedBy
+     */
+    public function buildPaymentPlanAgreementData(FeePaymentPlan $plan, $preparedBy = null): array
+    {
+        $plan->load([
+            'student.classroom',
+            'student.stream',
+            'student.parent',
+            'invoice.term.academicYear',
+            'installments' => fn ($q) => $q->orderBy('installment_number'),
+            'creator',
+        ]);
+
+        $student = $plan->student;
+        $parent = $student?->parent;
+        $parentDisplay = null;
+        if ($parent) {
+            $parentDisplay = $parent->primary_contact_person
+                ?: $parent->father_name
+                ?: $parent->mother_name
+                ?: $parent->guardian_name;
+        }
+
+        $schoolSettings = $this->getSchoolSettings();
+        $branding = $this->getDocumentBranding();
+
+        $intro = '';
+        if (class_exists(\App\Models\Setting::class)) {
+            $intro = (string) \App\Models\Setting::get('payment_plan_agreement_intro', '');
+        }
+        if ($intro === '') {
+            $intro = "The parent/guardian named below agrees to pay the school's fees according to the schedule in this document. "
+                . 'Failure to meet agreed dates may result in the student\'s fee status being marked as pending and may affect attendance and transport per school policy.';
+        }
+
+        $preparedByName = $preparedBy ? (string) ($preparedBy->name ?? '') : '';
+
+        return [
+            'plan' => $plan,
+            'student' => $student,
+            'parent' => $parent,
+            'parent_display_name' => $parentDisplay,
+            'schoolSettings' => $schoolSettings,
+            'branding' => $branding,
+            'agreement_intro' => $intro,
+            'prepared_by_name' => $preparedByName,
+            'prepared_at' => now(),
+        ];
+    }
+
+    /**
+     * Generate payment plan agreement PDF binary.
+     */
+    public function generatePaymentPlanAgreementPdf(FeePaymentPlan $plan, $preparedBy = null): string
+    {
+        $data = $this->buildPaymentPlanAgreementData($plan, $preparedBy);
+        $pdf = Pdf::loadView('finance.fee_payment_plans.pdf.agreement', $data);
+        $pdf->setPaper('a4', 'portrait');
+
+        return $pdf->output();
+    }
+
     /**
      * Get payment allocations summary
      */

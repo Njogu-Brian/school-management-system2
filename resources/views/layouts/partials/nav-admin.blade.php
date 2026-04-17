@@ -652,6 +652,10 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/pending-jobs*') ? 'active' : '' }}">
     <i class="bi bi-hourglass-split"></i> Pending Jobs
     </a>
+    <a href="{{ route('communication.parent-notification-blocks.index') }}" 
+    class="sublink {{ Request::is('communication/parent-notification-blocks*') ? 'active' : '' }}">
+    <i class="bi bi-person-slash"></i> Parent notification prefs
+    </a>
     <a href="{{ route('announcements.index') }}" 
     class="sublink {{ Request::is('communication/announcements*') ? 'active' : '' }}">
     <i class="bi bi-megaphone"></i> Announcements

@@ -46,14 +46,7 @@ class CommunicationHelperService
                     ->each(function ($s) use (&$out, $type) {
                         if ($s->parent) {
                             // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
-                            $contacts = match ($type) {
-                                'email' => [$s->parent->father_email, $s->parent->mother_email],
-                                'whatsapp' => [
-                                    !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
-                                    !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
-                                ],
-                                default => [$s->parent->father_phone, $s->parent->mother_phone],
-                            };
+                            $contacts = self::parentContactsForSchoolNotifications($s->parent, $type);
                             foreach ($contacts as $c) {
                                 if ($c) {
                                     if (!isset($out[$c])) $out[$c] = [];
@@ -73,14 +66,7 @@ class CommunicationHelperService
                 ->find($data['student_id']);
             if ($student && $student->parent) {
                 // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
-                $contacts = match ($type) {
-                    'email' => [$student->parent->father_email, $student->parent->mother_email],
-                    'whatsapp' => [
-                        !empty($student->parent->father_whatsapp) ? $student->parent->father_whatsapp : $student->parent->father_phone,
-                        !empty($student->parent->mother_whatsapp) ? $student->parent->mother_whatsapp : $student->parent->mother_phone,
-                    ],
-                    default => [$student->parent->father_phone, $student->parent->mother_phone],
-                };
+                $contacts = self::parentContactsForSchoolNotifications($student->parent, $type);
                 foreach ($contacts as $c) {
                     if ($c) $out[$c] = [$student];
                 }
@@ -99,14 +85,7 @@ class CommunicationHelperService
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
                         // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
-                        $contacts = match ($type) {
-                            'email' => [$s->parent->father_email, $s->parent->mother_email],
-                            'whatsapp' => [
-                                !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
-                                !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
-                            ],
-                            default => [$s->parent->father_phone, $s->parent->mother_phone],
-                        };
+                        $contacts = self::parentContactsForSchoolNotifications($s->parent, $type);
                         foreach ($contacts as $c) {
                             if ($c) {
                                 if (!isset($out[$c])) $out[$c] = [];
@@ -128,14 +107,7 @@ class CommunicationHelperService
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
                         // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
-                        $contacts = match ($type) {
-                            'email' => [$s->parent->father_email, $s->parent->mother_email],
-                            'whatsapp' => [
-                                !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
-                                !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
-                            ],
-                            default => [$s->parent->father_phone, $s->parent->mother_phone],
-                        };
+                        $contacts = self::parentContactsForSchoolNotifications($s->parent, $type);
                         foreach ($contacts as $c) {
                             if ($c) {
                                 if (!isset($out[$c])) $out[$c] = [];
@@ -426,5 +398,24 @@ class CommunicationHelperService
             }
         }
         return $pairs;
+    }
+
+    /**
+     * Father/mother contacts for bulk communications, respecting parent notification preferences.
+     *
+     * @param  \App\Models\ParentInfo  $parent
+     * @return list<string>
+     */
+    private static function parentContactsForSchoolNotifications($parent, string $type): array
+    {
+        if (! $parent) {
+            return [];
+        }
+
+        return match ($type) {
+            'email' => $parent->schoolNotificationEmails(),
+            'whatsapp' => $parent->schoolNotificationWhatsAppNumbers(),
+            default => $parent->schoolNotificationSmsPhones(),
+        };
     }
 }

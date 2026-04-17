@@ -208,13 +208,13 @@ class FeeReminderController extends Controller
         };
 
         if ($reminder->channel === 'email' || $reminder->channel === 'both') {
-            $email = null;
+            $emails = [];
             if ($parent) {
                 // Never send fee-related communications to guardian; guardians are reached via manual number entry only
-            $email = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
+                $emails = $parent->schoolNotificationEmails();
             }
-            
-            if ($email) {
+
+            foreach ($emails as $email) {
                 try {
                     if ($emailTemplate && !$reminder->message) {
                         $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
@@ -223,7 +223,7 @@ class FeeReminderController extends Controller
                         $subject = 'Fee Payment Reminder';
                         $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
                     }
-                    
+
                     Mail::to($email)->send(new GenericMail($subject, $message));
                 } catch (\Exception $e) {
                     $reminder->update([
@@ -236,21 +236,23 @@ class FeeReminderController extends Controller
         }
 
         if ($reminder->channel === 'sms' || $reminder->channel === 'both') {
-            $phone = null;
+            $phones = [];
             if ($parent) {
                 // Never send fee-related communications to guardian; guardians are reached via manual number entry only
-            $phone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
+                $phones = $parent->schoolNotificationSmsPhones();
             }
-            $phone = $phone ?? $student->phone_number ?? null;
-            
-            if ($phone) {
+            if (empty($phones) && $student->phone_number) {
+                $phones = [$student->phone_number];
+            }
+
+            foreach ($phones as $phone) {
                 try {
                     if ($smsTemplate && !$reminder->message) {
                         $message = $replacePlaceholders($smsTemplate->content, $variables);
                     } else {
                         $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
                     }
-                    
+
                     $this->smsService->sendSMS($phone, $message);
                 } catch (\Exception $e) {
                     $reminder->update([
@@ -262,31 +264,30 @@ class FeeReminderController extends Controller
             }
         }
 
-        // Handle WhatsApp channel - prioritize WhatsApp fields, fallback to father/mother phone
+        // Handle WhatsApp channel - father/mother only; respect parent notification preferences
         if ($reminder->channel === 'whatsapp' || $reminder->channel === 'both') {
-            $whatsappPhone = null;
+            $whatsappPhones = [];
             if ($parent) {
                 // Never send fee-related communications to guardian; guardians are reached via manual number entry only
-            $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
-                    : (!empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
-                    : (!empty($parent->father_phone) ? $parent->father_phone 
-                    : (!empty($parent->mother_phone) ? $parent->mother_phone : null)));
+                $whatsappPhones = $parent->schoolNotificationWhatsAppNumbers();
             }
-            $whatsappPhone = $whatsappPhone ?? (!empty($student->phone_number) ? $student->phone_number : null);
-            
-            if ($whatsappPhone) {
+            if (empty($whatsappPhones) && !empty($student->phone_number)) {
+                $whatsappPhones = [$student->phone_number];
+            }
+
+            foreach ($whatsappPhones as $whatsappPhone) {
                 try {
                     $whatsappService = app(\App\Services\WhatsAppService::class);
-                    
+
                     if ($reminder->message) {
                         $message = $reminder->message;
                     } else {
                         $message = $this->generateDefaultMessage($reminder);
                     }
-                    
+
                     // Replace placeholders for WhatsApp
                     $message = $replacePlaceholders($message, $variables);
-                    
+
                     $whatsappService->sendMessage($whatsappPhone, $message);
                 } catch (\Exception $e) {
                     // Don't fail the entire reminder if WhatsApp fails

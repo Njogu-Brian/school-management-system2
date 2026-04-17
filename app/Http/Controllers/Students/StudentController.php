@@ -425,6 +425,7 @@ class StudentController extends Controller
                 'mother_phone_country_code' => 'nullable|string|max:8',
                 'guardian_phone_country_code' => 'nullable|string|max:8',
                 'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+                'school_notifications_muted_parent' => 'nullable|in:father,mother',
                 'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
                 'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
                 'guardian_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
@@ -536,6 +537,19 @@ class StudentController extends Controller
                 'guardian_phone_country_code' => $guardianCountryCode,
             ];
 
+            $muteVal = $request->input('school_notifications_muted_parent');
+            $muteVal = ($muteVal === '' || $muteVal === null) ? null : $muteVal;
+            if ($ref && $parent) {
+                $preview = $parent->replicate();
+                $preview->fill(array_merge($parentData, ['school_notifications_muted_parent' => $muteVal]));
+                ParentInfo::validateSchoolNotificationMute($muteVal, $preview->getAttributes());
+            } else {
+                ParentInfo::validateSchoolNotificationMute($muteVal, array_merge($parentData, ['school_notifications_muted_parent' => $muteVal]));
+            }
+            $parentData['school_notifications_muted_parent'] = $muteVal;
+            $parentDataForFiltered = $parentData;
+            unset($parentDataForFiltered['school_notifications_muted_parent']);
+
             if ($ref) {
                 // Update shared parent record with any provided values (affects all mapped siblings)
                 if (!$parent) {
@@ -543,7 +557,7 @@ class StudentController extends Controller
                     $ref->update(['parent_id' => $parent->id]);
                 } else {
                     $filtered = array_filter(
-                        $parentData,
+                        $parentDataForFiltered,
                         fn ($v) => !($v === null || (is_string($v) && trim($v) === ''))
                     );
                     if (!empty($filtered)) {
@@ -559,6 +573,8 @@ class StudentController extends Controller
                 }
                 $parent = ParentInfo::create($parentData);
             }
+
+            $parent->forceFill(['school_notifications_muted_parent' => $muteVal])->save();
 
             // Log phone normalization
             $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_phone', $request->father_phone, $fatherPhone, $fatherCountryCode, 'student_create', $userId);
@@ -816,6 +832,7 @@ class StudentController extends Controller
             'transfer_to_school' => 'nullable|string|max:255',
             'status_change_reason' => 'nullable|string',
             'is_readmission' => 'nullable|boolean',
+            'school_notifications_muted_parent' => 'nullable|in:father,mother',
         ]);
             \Log::info('Student Update: Validation passed', ['validated_keys' => array_keys($validated)]);
 
@@ -1088,6 +1105,12 @@ class StudentController extends Controller
                 'mother_phone_country_code' => $motherCountryCode,
                 'guardian_phone_country_code' => $guardianCountryCode,
             ];
+            $muteVal = $request->input('school_notifications_muted_parent');
+            $muteVal = ($muteVal === '' || $muteVal === null) ? null : $muteVal;
+            $previewParent = $student->parent->replicate();
+            $previewParent->fill($parentUpdateData);
+            ParentInfo::validateSchoolNotificationMute($muteVal, $previewParent->getAttributes());
+            $parentUpdateData['school_notifications_muted_parent'] = $muteVal;
             $userId = auth()->id();
             $this->logPhoneNormalization(ParentInfo::class, $student->parent->id, 'father_phone', $student->parent->father_phone, $fatherPhone, $fatherCountryCode, 'student_update', $userId);
             $this->logPhoneNormalization(ParentInfo::class, $student->parent->id, 'father_whatsapp', $student->parent->father_whatsapp, $fatherWhatsapp, $fatherCountryCode, 'student_update', $userId);

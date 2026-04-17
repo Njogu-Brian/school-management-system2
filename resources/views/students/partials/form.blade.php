@@ -266,6 +266,15 @@
         <option value="co_parenting" @selected(old('marital_status', $p->marital_status ?? '')=='co_parenting')>Co-parenting</option>
       </select>
     </div>
+    <div class="col-md-6">
+      <label class="form-label">School notifications (SMS / email / WhatsApp)</label>
+      <select name="school_notifications_muted_parent" class="form-select">
+        <option value="" @selected(old('school_notifications_muted_parent', $p->school_notifications_muted_parent ?? '') === '' || old('school_notifications_muted_parent', $p->school_notifications_muted_parent ?? '') === null)>Both parents</option>
+        <option value="father" @selected(old('school_notifications_muted_parent', $p->school_notifications_muted_parent ?? '') === 'father')>Do not notify father (mother only)</option>
+        <option value="mother" @selected(old('school_notifications_muted_parent', $p->school_notifications_muted_parent ?? '') === 'mother')>Do not notify mother (father only)</option>
+      </select>
+      <div class="form-text">Only one parent can be excluded; the other must have phone, WhatsApp, or email. Guardian is never used for automated school messages.</div>
+    </div>
     {{-- Father --}}
     <div class="col-12"><div class="fw-semibold mb-1">Father</div></div>
     <div class="col-md-3"><label class="form-label">Name</label>

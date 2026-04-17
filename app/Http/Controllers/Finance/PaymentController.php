@@ -571,19 +571,10 @@ class PaymentController extends Controller
             return;
         }
         
-        // Collect parent contacts from father and mother only (never guardian)
-        $parentPhones = array_values(array_unique(array_filter([
-            $parent->father_phone ?? null,
-            $parent->mother_phone ?? null,
-        ])));
-        $parentEmails = array_values(array_unique(array_filter([
-            $parent->father_email ?? null,
-            $parent->mother_email ?? null,
-        ])));
-        $parentWhatsappNumbers = array_values(array_unique(array_filter([
-            $parent->father_whatsapp ?? $parent->father_phone ?? null,
-            $parent->mother_whatsapp ?? $parent->mother_phone ?? null,
-        ])));
+        // Collect parent contacts from father and mother only (never guardian); respect notification preferences
+        $parentPhones = $parent->schoolNotificationSmsPhones();
+        $parentEmails = $parent->schoolNotificationEmails();
+        $parentWhatsappNumbers = $parent->schoolNotificationWhatsAppNumbers();
         
         if (empty($parentPhones) && empty($parentEmails)) {
             Log::info('No parent contact info found for payment notification (father/mother only)', ['payment_id' => $payment->id]);

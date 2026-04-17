@@ -423,6 +423,7 @@ class FamilyUpdateController extends Controller
                 'students.*.birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'school_notifications_muted_parent' => 'nullable|in:father,mother',
             ]);
             
             \Log::info('FamilyUpdate Submit: Validation passed', [
@@ -578,6 +579,14 @@ class FamilyUpdateController extends Controller
                     }
                     if (array_key_exists('marital_status', $validated)) {
                         $parentData['marital_status'] = $validated['marital_status'] ?: null;
+                    }
+                    if (array_key_exists('school_notifications_muted_parent', $validated)) {
+                        $muteVal = $validated['school_notifications_muted_parent'] === '' ? null : $validated['school_notifications_muted_parent'];
+                        $dup = $parent->replicate();
+                        $dup->fill($parentData);
+                        $dup->school_notifications_muted_parent = $muteVal;
+                        ParentInfo::validateSchoolNotificationMute($muteVal, $dup->getAttributes());
+                        $parentData['school_notifications_muted_parent'] = $muteVal;
                     }
 
                     // Get before snapshot for parent

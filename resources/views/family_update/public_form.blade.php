@@ -397,6 +397,16 @@
                                     <option value="co_parenting" @selected(old('marital_status', $students->first()->parent->marital_status ?? '')=='co_parenting')>Co-parenting</option>
                                 </select>
                             </div>
+                            <div class="col-12">
+                                <label class="form-label">School notifications (SMS / email / WhatsApp)</label>
+                                @php $pubParent = $students->first()?->parent; $pubMute = $pubParent?->school_notifications_muted_parent; @endphp
+                                <select name="school_notifications_muted_parent" class="form-select">
+                                    <option value="" @selected(old('school_notifications_muted_parent', $pubMute ?? '') === '' || old('school_notifications_muted_parent', $pubMute) === null)>Both parents</option>
+                                    <option value="father" @selected(old('school_notifications_muted_parent', $pubMute) === 'father')>Do not notify father (mother only)</option>
+                                    <option value="mother" @selected(old('school_notifications_muted_parent', $pubMute) === 'mother')>Do not notify mother (father only)</option>
+                                </select>
+                                <small class="text-muted d-block mt-1">Only one parent can be excluded. The other must have at least one contact on file.</small>
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father Name</label>
                                 <input type="text" name="father_name" class="form-control" value="{{ old('father_name', $students->first()->parent->father_name ?? '') }}">

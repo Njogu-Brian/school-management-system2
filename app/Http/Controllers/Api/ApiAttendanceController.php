@@ -195,10 +195,7 @@ class ApiAttendanceController extends Controller
                 $tpl->content ?? ''
             );
 
-            $phones = array_values(array_unique(array_filter([
-                $student->parent->primary_contact_phone ?? $student->parent->father_phone ?? null,
-                $student->parent->mother_phone ?? null,
-            ])));
+            $phones = $student->parent->schoolNotificationSmsPhones();
 
             foreach ($phones as $phone) {
                 $this->smsService->sendSMS($phone, $message);

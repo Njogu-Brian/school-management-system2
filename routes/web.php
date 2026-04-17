@@ -58,6 +58,7 @@ use App\Http\Controllers\WhatsAppWebhookController;
 use App\Http\Controllers\WasenderSessionController;
 use App\Http\Controllers\CommunicationDocumentController;
 use App\Http\Controllers\CommunicationNoteController;
+use App\Http\Controllers\ParentNotificationBlockController;
 
 // Finance
 use App\Http\Controllers\Finance\VoteheadController;
@@ -1238,6 +1239,13 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('pending-jobs/{id}/cancel', [CommunicationController::class, 'cancelJob'])->name('communication.pending-jobs.cancel');
         Route::post('pending-jobs/{id}/send-immediately', [CommunicationController::class, 'sendJobImmediately'])->name('communication.pending-jobs.send-immediately');
 
+        // Parent notification preferences (exclude one parent from automated school comms)
+        Route::get('parent-notification-blocks', [ParentNotificationBlockController::class, 'index'])->name('communication.parent-notification-blocks.index');
+        Route::get('parent-notification-blocks/create', [ParentNotificationBlockController::class, 'create'])->name('communication.parent-notification-blocks.create');
+        Route::post('parent-notification-blocks', [ParentNotificationBlockController::class, 'store'])->name('communication.parent-notification-blocks.store');
+        Route::get('parent-notification-blocks/{parentInfo}/edit', [ParentNotificationBlockController::class, 'edit'])->name('communication.parent-notification-blocks.edit');
+        Route::put('parent-notification-blocks/{parentInfo}', [ParentNotificationBlockController::class, 'update'])->name('communication.parent-notification-blocks.update');
+
         // Announcements
         Route::resource('announcements', CommunicationAnnouncementController::class)->except(['show']);
 
@@ -1527,6 +1535,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
         // Fee Payment Plans
         Route::get('fee-payment-plans/student-invoices/{student}', [FeePaymentPlanController::class, 'getStudentInvoicesAndSiblings'])->name('fee-payment-plans.student-invoices');
+        Route::get('fee-payment-plans/{feePaymentPlan}/print', [FeePaymentPlanController::class, 'printAgreement'])->name('fee-payment-plans.print');
+        Route::get('fee-payment-plans/{feePaymentPlan}/download-pdf', [FeePaymentPlanController::class, 'downloadAgreementPdf'])->name('fee-payment-plans.download-pdf');
         Route::resource('fee-payment-plans', FeePaymentPlanController::class)->parameters(['fee-payment-plans' => 'feePaymentPlan']);
         Route::post('fee-payment-plans/{feePaymentPlan}/update-status', [FeePaymentPlanController::class, 'updateStatus'])->name('fee-payment-plans.update-status');
 

@@ -994,14 +994,13 @@ class CommunicationController extends Controller
                                 ?? 'Parent';
                     
                     // Preview uses father/mother only; guardians are reached via manual number entry
+                    $p = $firstStudent->parent;
                     if ($data['channel'] === 'email') {
-                        $parentContact = $firstStudent->parent->father_email 
-                                      ?? $firstStudent->parent->mother_email 
-                                      ?? '';
+                        $parentContact = ($p->schoolNotificationEmails()[0] ?? '');
+                    } elseif ($data['channel'] === 'whatsapp') {
+                        $parentContact = ($p->schoolNotificationWhatsAppNumbers()[0] ?? '');
                     } else {
-                        $parentContact = $firstStudent->parent->father_phone 
-                                      ?? $firstStudent->parent->mother_phone 
-                                      ?? '';
+                        $parentContact = ($p->schoolNotificationSmsPhones()[0] ?? '');
                     }
                 }
             } catch (\Exception $e) {

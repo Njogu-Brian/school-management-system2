@@ -31,23 +31,16 @@ class PaymentPlanNotificationService
         $message = $this->buildMessage($plan);
         [$emailSubject, $emailBody] = $this->buildEmailSubjectAndBody($plan);
 
-        // SMS – never send fee-related communications to guardian; guardians are reached via manual number entry only
-        $phone = $parent->father_phone ?? $parent->mother_phone ?? null;
-        if ($phone) {
+        // SMS / WhatsApp / email – father & mother only; respect school notification preferences
+        foreach ($parent->schoolNotificationSmsPhones() as $phone) {
             $this->sendSms($phone, $message, $student);
         }
 
-        // WhatsApp (prefer WhatsApp number) – never include guardian
-        $waPhone = ! empty($parent->father_whatsapp) ? $parent->father_whatsapp
-            : (! empty($parent->mother_whatsapp) ? $parent->mother_whatsapp
-            : $phone);
-        if ($waPhone) {
+        foreach ($parent->schoolNotificationWhatsAppNumbers() as $waPhone) {
             $this->sendWhatsApp($waPhone, $message, $student);
         }
 
-        // Email – never send fee-related communications to guardian
-        $email = $parent->father_email ?? $parent->mother_email ?? null;
-        if ($email) {
+        foreach ($parent->schoolNotificationEmails() as $email) {
             $this->sendEmail($email, $emailSubject, $emailBody, $student);
         }
     }

@@ -8,6 +8,7 @@ use App\Models\FeePaymentPlanInstallment;
 use App\Models\Student;
 use App\Models\Invoice;
 use App\Services\PaymentPlanNotificationService;
+use App\Services\ReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -230,6 +231,33 @@ public function store(Request $request)
     {
         $feePaymentPlan->load(['student', 'invoice', 'installments', 'creator']);
         return view('finance.fee_payment_plans.show', compact('feePaymentPlan'));
+    }
+
+    /**
+     * Printable HTML (browser print / save as PDF) with letterhead and signature blocks.
+     */
+    public function printAgreement(FeePaymentPlan $feePaymentPlan)
+    {
+        $data = app(ReceiptService::class)->buildPaymentPlanAgreementData($feePaymentPlan, auth()->user());
+        $data['showPrintChrome'] = true;
+
+        return view('finance.fee_payment_plans.pdf.agreement', $data);
+    }
+
+    /**
+     * Download agreement as PDF (DomPDF).
+     */
+    public function downloadAgreementPdf(FeePaymentPlan $feePaymentPlan)
+    {
+        $pdf = app(ReceiptService::class)->generatePaymentPlanAgreementPdf($feePaymentPlan, auth()->user());
+        $student = $feePaymentPlan->student;
+        $studentSlug = \Illuminate\Support\Str::slug($student->full_name ?? 'student');
+        $filename = 'Payment_plan_agreement_' . $studentSlug . '_' . $feePaymentPlan->id . '.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     public function updateStatus(Request $request, FeePaymentPlan $feePaymentPlan)

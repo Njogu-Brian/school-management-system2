@@ -380,11 +380,7 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
         : "Your child {$student->full_name} was marked {$status} on {$humanDate}. Reason: {$reason}";
 
     // Never send attendance notifications to guardian; guardians are reached via manual number entry only
-    // Deduplicate: same number in primary/father and mother must not receive multiple SMS
-    $phones = array_values(array_unique(array_filter([
-        $student->parent->primary_contact_phone ?? $student->parent->father_phone ?? null,
-        $student->parent->mother_phone ?? null,
-    ])));
+    $phones = $student->parent->schoolNotificationSmsPhones();
 
     foreach ($phones as $phone) {
         try {
@@ -844,11 +840,7 @@ private function applyPlaceholders(string $content, Student $student, string $hu
                 $message = str_replace('{{school_name}}', $schoolName, $message);
                 
                 // Never send attendance notifications to guardian; guardians are reached via manual number entry only
-                // Deduplicate so the same parent does not receive multiple SMS when father/mother share a number
-                $phones = array_values(array_unique(array_filter([
-                    $student->parent->primary_contact_phone ?? $student->parent->father_phone ?? null,
-                    $student->parent->mother_phone ?? null,
-                ])));
+                $phones = $student->parent->schoolNotificationSmsPhones();
 
                 foreach ($phones as $phone) {
                     try {
