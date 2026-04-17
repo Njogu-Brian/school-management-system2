@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ApiNotificationPreferencesController;
 use App\Http\Controllers\Api\ApiStaffClockController;
 use App\Http\Controllers\Api\AuthApiController;
 use App\Http\Controllers\Api\ApiExamReportsController;
+use App\Http\Controllers\Api\ApiFeeClearanceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -58,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/students/{id}/update', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'update']);
     Route::post('/students/{id}/mpesa/prompt', [\App\Http\Controllers\Api\ApiMpesaPaymentController::class, 'prompt']);
     Route::get('/students/{id}/mpesa/payment-link', [\App\Http\Controllers\Api\ApiMpesaPaymentController::class, 'paymentLinkUrl']);
+    Route::get('/students/{id}/fee-clearance', [ApiFeeClearanceController::class, 'show']);
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'show']);
@@ -96,6 +98,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/notifications/{id}', [\App\Http\Controllers\Api\ApiNotificationController::class, 'destroy']);
     Route::get('/attendance/class', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'classAttendance']);
     Route::post('/attendance/mark', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'mark']);
+
+    Route::get('/classes/{classId}/fee-clearance-roster', [ApiFeeClearanceController::class, 'classRoster']);
 
     Route::get('/timetables/teacher/{staffId}', [\App\Http\Controllers\Api\ApiTimetableController::class, 'teacher']);
 

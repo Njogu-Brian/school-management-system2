@@ -13,6 +13,7 @@
   $behaviourActive = Request::is('academics/student-behaviours*');
   $curriculumActive = Request::is('academics/curriculum-designs*') || Request::is('academics/schemes-of-work*') || Request::is('academics/lesson-plans*') || Request::is('academics/portfolio-assessments*');
   $studentsActive = Request::is('my-students*');
+  $feeClearanceActive = Request::is('teacher/fee-clearance*');
   $transportActive = Request::is('teacher/transport*');
   $salaryActive = Request::is('salary') || Request::is('salary/*');
   $leaveActive = Request::is('leaves*');
@@ -37,6 +38,11 @@
 {{-- My Students --}}
 <a href="{{ $teacherUrl('teacher.students.index', '/my-students') }}" class="{{ $studentsActive ? 'active' : '' }}">
   <i class="bi bi-people"></i> My Students
+</a>
+
+{{-- Fee Clearance --}}
+<a href="{{ route('teacher.fee-clearance.index') }}" class="{{ $feeClearanceActive ? 'active' : '' }}">
+  <i class="bi bi-shield-check"></i> Fee Clearance
 </a>
 
 {{-- Attendance --}}

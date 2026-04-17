@@ -19,6 +19,7 @@ use App\Http\Controllers\CommunicationAnnouncementController;
 use App\Http\Controllers\EventCalendarController;
 use App\Http\Controllers\Teacher\AdvanceRequestController;
 use App\Http\Controllers\Hr\StaffAttendanceController;
+use App\Http\Controllers\Teacher\FeeClearanceController;
 
 Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor'])->group(function () {
 
@@ -138,6 +139,14 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher|Sen
     Route::prefix('my-students')->name('teacher.students.')->group(function () {
         Route::get('/', [StudentsController::class, 'index'])->name('index');
         Route::get('/{student}', [StudentsController::class, 'show'])->name('show');
+    });
+
+    /*
+    |---------------------- Fee Clearance ----------------------
+    | View clearance status for assigned students (no amounts)
+    */
+    Route::prefix('teacher/fee-clearance')->name('teacher.fee-clearance.')->group(function () {
+        Route::get('/', [FeeClearanceController::class, 'index'])->name('index');
     });
 
     /*
