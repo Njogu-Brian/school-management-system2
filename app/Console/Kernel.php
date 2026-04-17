@@ -12,6 +12,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\SendScheduledCommunications::class,
         \App\Console\Commands\BackfillStudentDiaries::class,
         \App\Console\Commands\PurgeLocalStorageAndDocuments::class,
+        \App\Console\Commands\RecomputeFeeClearances::class,
     ];
 
     protected function schedule(Schedule $schedule)
@@ -32,6 +33,9 @@ class Kernel extends ConsoleKernel
 
         // Update payment plan statuses (overdue, completed, broken) daily
         $schedule->command('payment-plans:update-statuses')->dailyAt('00:15');
+
+        // Recompute fee clearance snapshots daily (for gate/class/transport enforcement)
+        $schedule->command('fee-clearance:recompute')->dailyAt('00:30')->withoutOverlapping();
 
         // Database backup schedule checker (honors frequency/time in settings)
         $schedule->call(function () {
