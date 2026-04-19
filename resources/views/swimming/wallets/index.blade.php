@@ -153,19 +153,25 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group">
-                                        @if($wallet->balance < 0)
+                                        @if($wallet->balance < 0 && $wallet->student_id)
                                             <button type="button" 
                                                     class="btn btn-sm btn-finance btn-finance-warning" 
                                                     title="Send Balance & Payment Link"
-                                                    onclick="openSendModal({{ $wallet->student_id }}, '{{ $wallet->student->full_name ?? '' }}', {{ abs($wallet->balance) }})">
+                                                    onclick="openSendModal({{ $wallet->student_id }}, @json($wallet->student->full_name ?? 'Student'), {{ abs($wallet->balance) }})">
                                                 <i class="bi bi-send"></i>
                                             </button>
                                         @endif
-                                        <a href="{{ route('swimming.wallets.show', $wallet->student) }}" 
+                                        @if($wallet->student_id)
+                                        <a href="{{ route('swimming.wallets.show', $wallet->student_id) }}" 
                                            class="btn btn-sm btn-finance btn-finance-outline" 
                                            title="View Wallet Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
+                                        @else
+                                            <span class="btn btn-sm btn-finance btn-finance-outline disabled" title="No student linked to this wallet">
+                                                <i class="bi bi-eye"></i>
+                                            </span>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

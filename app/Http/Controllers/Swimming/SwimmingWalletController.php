@@ -19,26 +19,43 @@ class SwimmingWalletController extends Controller
     }
 
     /**
+     * Resolve student for swimming wallet routes (include archived/alumni so wallet rows still work).
+     */
+    protected function resolveStudentForWallet(int|string $id): Student
+    {
+        return Student::withoutGlobalScope('active')->findOrFail((int) $id);
+    }
+
+    /**
      * List all wallets
      */
     public function index(Request $request)
     {
-        $query = SwimmingWallet::with(['student.classroom']);
+        $query = SwimmingWallet::with([
+            'student' => function ($q) {
+                $q->withoutGlobalScope('active');
+            },
+            'student.classroom',
+        ]);
         
         // Search
         if ($request->filled('search')) {
             $search = $request->search;
             $query->whereHas('student', function($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('admission_number', 'like', "%{$search}%");
+                $q->withoutGlobalScope('active')
+                    ->where(function ($q2) use ($search) {
+                        $q2->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('admission_number', 'like', "%{$search}%");
+                    });
             });
         }
         
         // Filter by classroom
         if ($request->filled('classroom_id')) {
             $query->whereHas('student', function($q) use ($request) {
-                $q->where('classroom_id', $request->classroom_id);
+                $q->withoutGlobalScope('active')
+                    ->where('classroom_id', $request->classroom_id);
             });
         }
         
@@ -68,8 +85,9 @@ class SwimmingWalletController extends Controller
     /**
      * Show wallet details for a student
      */
-    public function show(Student $student)
+    public function show($student)
     {
+        $student = $this->resolveStudentForWallet($student);
         $wallet = SwimmingWallet::getOrCreateForStudent($student->id);
         $wallet->load(['student', 'ledgerEntries' => function($q) {
             $q->orderBy('created_at', 'desc')->limit(100);
@@ -84,8 +102,9 @@ class SwimmingWalletController extends Controller
     /**
      * Adjust wallet balance (admin only)
      */
-    public function adjust(Request $request, Student $student)
+    public function adjust(Request $request, $student)
     {
+        $student = $this->resolveStudentForWallet($student);
         $request->validate([
             'amount' => 'required|numeric|min:0.01',
             'type' => 'required|in:credit,debit',
@@ -382,8 +401,9 @@ class SwimmingWalletController extends Controller
      * Fix wallet for a student by reversing orphaned optional fee credits
      * This fixes cases where OptionalFee was deleted but wallet wasn't debited
      */
-    public function fixOrphanedCredits(Request $request, Student $student)
+    public function fixOrphanedCredits(Request $request, $student)
     {
+        $student = $this->resolveStudentForWallet($student);
         if (!Auth::user()->hasAnyRole(['Super Admin', 'Admin'])) {
             abort(403, 'Only administrators can fix orphaned credits.');
         }
