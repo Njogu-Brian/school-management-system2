@@ -1452,6 +1452,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('fee-balances/export', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'export'])->name('fee-balances.export');
         Route::get('fee-balances/export-pdf', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'exportPdf'])->name('fee-balances.export-pdf');
         Route::get('fee-balances/print', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'printPdf'])->name('fee-balances.print');
+
+        // Fee Clearance (Cleared / Pending) report
+        Route::get('fee-clearance', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'index'])->name('fee-clearance.index');
+        Route::post('fee-clearance/recompute', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'recompute'])->name('fee-clearance.recompute');
         
         // Balance Brought Forward
         Route::get('balance-brought-forward', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'index'])->name('balance-brought-forward.index');
