@@ -8,6 +8,8 @@ import {
     Alert,
     TouchableOpacity,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import SmsRetriever from 'react-native-sms-retriever';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Button } from '@components/common/Button';
@@ -44,14 +46,53 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
         return () => clearInterval(interval);
     }, []);
 
-    const handleChangeText = (text: string, index: number) => {
-        if (text.length > 1) {
-            // Handle paste
-            const otpArray = text.slice(0, 6).split('');
-            setOtp(otpArray.concat(Array(6 - otpArray.length).fill('')));
+    // Android: listen for incoming OTP SMS (SMS Retriever API; no SMS permission)
+    useEffect(() => {
+        if (typeof SmsRetriever?.startSmsRetriever !== 'function') return;
+
+        let mounted = true;
+        let subscription: { remove: () => void } | null = null;
+
+        (async () => {
+            try {
+                const started = await SmsRetriever.startSmsRetriever();
+                if (!mounted || !started) return;
+
+                subscription = SmsRetriever.addSmsListener((event: { message?: string }) => {
+                    const msg = String(event?.message ?? '');
+                    const m = msg.match(/\b(\d{6})\b/);
+                    if (m?.[1]) {
+                        setOtpFromCode(m[1]);
+                        subscription?.remove?.();
+                    }
+                });
+            } catch {
+                // ignore (play services missing etc.)
+            }
+        })();
+
+        return () => {
+            mounted = false;
+            subscription?.remove?.();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const setOtpFromCode = (raw: string) => {
+        const digitsOnly = String(raw ?? '').replace(/\D/g, '').slice(0, 6);
+        if (digitsOnly.length === 0) return;
+        const otpArray = digitsOnly.split('');
+        setOtp(otpArray.concat(Array(6 - otpArray.length).fill('')));
+        if (digitsOnly.length >= 6) {
             inputRefs.current[5]?.focus();
-            return;
+        } else {
+            inputRefs.current[Math.min(digitsOnly.length, 5)]?.focus();
         }
+    };
+
+    const handleChangeText = (text: string, index: number) => {
+        // Handle paste/auto-fill
+        if (text.length > 1) return setOtpFromCode(text);
 
         const newOtp = [...otp];
         newOtp[index] = text;
@@ -60,6 +101,11 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
         if (text && index < 5) {
             inputRefs.current[index + 1]?.focus();
         }
+    };
+
+    const handlePasteFromClipboard = async () => {
+        const clip = await Clipboard.getStringAsync();
+        setOtpFromCode(clip);
     };
 
     const handleKeyPress = (e: any, index: number) => {
@@ -94,6 +140,15 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
             setLoading(false);
         }
     };
+
+    // Auto-verify once all 6 digits exist
+    useEffect(() => {
+        const code = otp.join('');
+        if (!loading && code.length === 6 && !code.includes('')) {
+            void handleVerify();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [otp.join('')]);
 
     const handleResend = async () => {
         setResending(true);
@@ -157,9 +212,15 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
                             keyboardType="number-pad"
                             maxLength={1}
                             selectTextOnFocus
+                            autoComplete={index === 0 ? 'sms-otp' : 'off'}
+                            textContentType={index === 0 ? 'oneTimeCode' : 'none'}
                         />
                     ))}
                 </View>
+
+                <TouchableOpacity onPress={handlePasteFromClipboard} style={styles.pasteButton}>
+                    <Text style={[styles.pasteText, { color: colors.primary }]}>Paste code</Text>
+                </TouchableOpacity>
 
                 {/* Timer & Resend */}
                 <View style={styles.resendContainer}>
@@ -230,6 +291,16 @@ const styles = StyleSheet.create({
     resendContainer: {
         alignItems: 'center',
         marginBottom: SPACING.xl,
+    },
+    pasteButton: {
+        alignItems: 'center',
+        marginTop: -SPACING.md,
+        marginBottom: SPACING.lg,
+    },
+    pasteText: {
+        fontSize: FONT_SIZES.sm,
+        fontWeight: '700',
+        textDecorationLine: 'underline',
     },
     timerText: {
         fontSize: FONT_SIZES.sm,

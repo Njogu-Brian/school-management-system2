@@ -39,6 +39,18 @@
     @endif
 
     <div class="settings-card mb-3">
+      <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <div class="fw-bold">Passkeys (Fingerprint / Face ID)</div>
+          <div class="text-muted small">Add a passkey so you can sign in without typing your password.</div>
+        </div>
+        <button type="button" class="btn btn-outline-dark" onclick="registerPasskey()">
+          Add Passkey
+        </button>
+      </div>
+    </div>
+
+    <div class="settings-card mb-3">
       <div class="card-body d-flex align-items-center flex-wrap gap-3">
         <img src="{{ $staff->photo_url }}" class="rounded-circle" width="80" height="80" alt="avatar" id="profilePhotoPreview"
              onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ urlencode($staff->full_name) }}&background=0D8ABC&color=fff&size=80'">
@@ -200,6 +212,32 @@
   </div>
 </div>
 @endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/@laragear/webpass@2/dist/webpass.js" defer></script>
+<script>
+  async function registerPasskey() {
+    try {
+      if (!window.Webpass) {
+        alert('Passkeys are still loading. Please try again in a second.');
+        return;
+      }
+      if (window.Webpass.isUnsupported()) {
+        alert("Your browser doesn't support Passkeys (WebAuthn).");
+        return;
+      }
+      const result = await window.Webpass.attest('/webauthn/register/options', '/webauthn/register');
+      if (result && result.success) {
+        alert('Passkey added successfully.');
+        return;
+      }
+      alert(result?.error || 'Could not add passkey.');
+    } catch (e) {
+      alert('Could not add passkey.');
+    }
+  }
+</script>
+@endpush
 
 @push('scripts')
 <script>

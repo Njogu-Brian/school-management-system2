@@ -16,6 +16,10 @@ export const authApi = {
         return apiClient.post<LoginResponse>('/login', credentials);
     },
 
+    async loginWithGoogle(data: { id_token: string }): Promise<ApiResponse<LoginResponse>> {
+        return apiClient.post<LoginResponse>('/login/google', data);
+    },
+
     async requestLoginOTP(data: { identifier: string }): Promise<ApiResponse<{ message: string }>> {
         return apiClient.post('/login/otp/request', data);
     },

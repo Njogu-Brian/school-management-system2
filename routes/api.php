@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('/login', [AuthApiController::class, 'login']);
+Route::post('/login/google', [AuthApiController::class, 'loginWithGoogle']);
 Route::post('/login/otp/request', [AuthApiController::class, 'requestLoginOtp']);
 Route::post('/login/otp/verify', [AuthApiController::class, 'verifyLoginOtp']);
 Route::post('/password/email', [AuthApiController::class, 'requestPasswordResetEmailLink']);

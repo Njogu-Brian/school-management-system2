@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Laragear\WebAuthn\Http\Routes as WebAuthnRoutes;
 
 /*
 |--------------------------------------------------------------------------
@@ -9,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 |--------------------------------------------------------------------------
 */
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\SocialAuthController;
 use App\Http\Controllers\DashboardController;
 
 // Attendance
@@ -145,9 +148,15 @@ use App\Http\Controllers\BackupRestoreController;
 */
 Route::get('/', fn () => redirect()->route('login'));
 
+// Passkeys (WebAuthn)
+WebAuthnRoutes::register()->withoutMiddleware(VerifyCsrfToken::class);
+
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
+
+    Route::get('/auth/google/redirect', [SocialAuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [SocialAuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
     
     // Password Reset
     Route::get('/password/reset', [AuthController::class, 'showLinkRequestForm'])->name('password.request');

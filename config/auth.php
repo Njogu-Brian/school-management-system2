@@ -66,8 +66,10 @@ return [
 
     'providers' => [
         'users' => [
-            'driver' => 'eloquent',
+            'driver' => 'eloquent-webauthn',
             'model' => env('AUTH_MODEL', App\Models\User::class),
+            // Allow normal password login when request is not a WebAuthn assertion.
+            'password_fallback' => true,
         ],
 
         // 'users' => [

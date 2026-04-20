@@ -11,6 +11,7 @@ use App\Services\SMSService;
 use App\Services\OtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
 
@@ -42,6 +43,67 @@ class AuthApiController extends Controller
         // Revoke other tokens for this user (single device) or keep many - we'll keep one per login
         $user->tokens()->delete();
 
+        $token = $user->createToken('mobile-app')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'token' => $token,
+                'user' => $this->formatUserForApi($user),
+            ],
+        ]);
+    }
+
+    /**
+     * Login with Google ID token (mobile app).
+     * Links existing account by email if not linked yet.
+     */
+    public function loginWithGoogle(Request $request)
+    {
+        $request->validate([
+            'id_token' => 'required|string',
+        ]);
+
+        $tokenInfo = Http::timeout(10)->get('https://oauth2.googleapis.com/tokeninfo', [
+            'id_token' => (string) $request->id_token,
+        ]);
+
+        if (! $tokenInfo->ok()) {
+            return response()->json(['success' => false, 'message' => 'Invalid Google token.'], 401);
+        }
+
+        $payload = $tokenInfo->json();
+        $aud = (string) ($payload['aud'] ?? '');
+        $googleId = (string) ($payload['sub'] ?? '');
+        $email = strtolower(trim((string) ($payload['email'] ?? '')));
+        $emailVerified = (string) ($payload['email_verified'] ?? 'false');
+
+        $expectedAud = (string) config('services.google.client_id');
+        if ($expectedAud !== '' && $aud !== $expectedAud) {
+            return response()->json(['success' => false, 'message' => 'Google token audience mismatch.'], 401);
+        }
+        if ($googleId === '' || $email === '' || $emailVerified !== 'true') {
+            return response()->json(['success' => false, 'message' => 'Google account email must be verified.'], 401);
+        }
+
+        $user = User::where('google_id', $googleId)->first();
+        if (! $user) {
+            $user = User::whereRaw('LOWER(TRIM(email)) = ?', [$email])->first();
+            if (! $user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No account found for this Google email. Please sign in with password/OTP first.',
+                ], 404);
+            }
+
+            $user->forceFill([
+                'google_id' => $googleId,
+                'google_email' => $email,
+            ])->save();
+        }
+
+        $user->load('roles', 'roles.permissions', 'staff');
+        $user->tokens()->delete();
         $token = $user->createToken('mobile-app')->plainTextToken;
 
         return response()->json([

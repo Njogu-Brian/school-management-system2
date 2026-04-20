@@ -162,6 +162,17 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | OTP SMS Retriever App Hash (Android)
+    |--------------------------------------------------------------------------
+    |
+    | When set, OTP SMS messages will include this hash on the last line so
+    | Android can auto-detect the OTP without SMS permissions (SMS Retriever).
+    |
+    */
+    'otp_sms_app_hash' => env('OTP_SMS_APP_HASH', ''),
+
     'providers' => [
 
     /*

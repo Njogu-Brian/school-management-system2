@@ -547,7 +547,12 @@ class SMSService
      */
     public function sendOTP(string $phoneNumber, string $otpCode): array
     {
-        $message = "Your verification code is: {$otpCode}. Valid for 10 minutes. Do not share this code with anyone.";
+        // Android SMS Retriever format: include a 6-digit code and the app hash on the last line.
+        // The app hash should be generated from your Android package + signing certificate.
+        // Set OTP_SMS_APP_HASH in .env once (e.g. "FA+9qCX9VSu").
+        $appHash = (string) (config('app.otp_sms_app_hash') ?? env('OTP_SMS_APP_HASH', ''));
+        $hashLine = $appHash !== '' ? ("\n" . $appHash) : '';
+        $message = "Your School ERP code is {$otpCode}\nExpires in 10 minutes. Do not share it." . $hashLine;
         return $this->sendSMS($phoneNumber, $message);
     }
 

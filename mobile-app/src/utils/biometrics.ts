@@ -3,11 +3,10 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 
 const BIOMETRIC_ENABLED_KEY = '@school_erp_biometric_enabled';
-const BIOMETRIC_CREDENTIALS_KEY = 'school_erp_biometric_credentials';
+const BIOMETRIC_AUTH_BUNDLE_KEY = 'school_erp_biometric_auth_bundle';
 
-type BiometricCredentials = {
-    identifier: string;
-    password: string;
+type BiometricAuthBundle = {
+    token: string;
 };
 
 export async function canUseBiometrics(): Promise<boolean> {
@@ -28,7 +27,7 @@ export async function authenticateWithBiometrics(reason = 'Authenticate to login
 export async function setBiometricEnabled(enabled: boolean): Promise<void> {
     await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, JSON.stringify(enabled));
     if (!enabled) {
-        await SecureStore.deleteItemAsync(BIOMETRIC_CREDENTIALS_KEY);
+        await SecureStore.deleteItemAsync(BIOMETRIC_AUTH_BUNDLE_KEY);
     }
 }
 
@@ -37,18 +36,18 @@ export async function getBiometricEnabled(): Promise<boolean> {
     return raw ? JSON.parse(raw) : false;
 }
 
-export async function saveBiometricCredentials(identifier: string, password: string): Promise<void> {
-    const payload: BiometricCredentials = { identifier, password };
-    await SecureStore.setItemAsync(BIOMETRIC_CREDENTIALS_KEY, JSON.stringify(payload), {
+export async function saveBiometricAuthBundle(token: string): Promise<void> {
+    const payload: BiometricAuthBundle = { token };
+    await SecureStore.setItemAsync(BIOMETRIC_AUTH_BUNDLE_KEY, JSON.stringify(payload), {
         requireAuthentication: true,
     });
 }
 
-export async function getBiometricCredentials(): Promise<BiometricCredentials | null> {
-    const raw = await SecureStore.getItemAsync(BIOMETRIC_CREDENTIALS_KEY);
+export async function getBiometricAuthBundle(): Promise<BiometricAuthBundle | null> {
+    const raw = await SecureStore.getItemAsync(BIOMETRIC_AUTH_BUNDLE_KEY);
     if (!raw) return null;
     try {
-        return JSON.parse(raw) as BiometricCredentials;
+        return JSON.parse(raw) as BiometricAuthBundle;
     } catch {
         return null;
     }

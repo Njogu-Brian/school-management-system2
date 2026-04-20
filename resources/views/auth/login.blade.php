@@ -208,14 +208,22 @@
             </div>
 
             <button type="submit" class="btn btn-primary w-100 mb-2">Login</button>
-            <button type="button" class="btn btn-outline-info w-100" onclick="requestOTP()">Login with OTP</button>
+            <button type="button" class="btn btn-outline-info w-100" onclick="showOtpRequestForm()">Login with OTP</button>
+            <a class="btn btn-outline-danger w-100 mt-2" href="{{ route('auth.google.redirect') }}">Continue with Google</a>
+            <button type="button" class="btn btn-outline-dark w-100 mt-2" onclick="loginWithPasskey()">Sign in with Passkey</button>
         </form>
 
-        {{-- ✅ Hidden OTP Request Form --}}
-        <form method="POST" action="{{ route('login') }}" class="d-none" id="otpRequestForm">
+        {{-- ✅ OTP Request Form (username/email/phone first, then request OTP) --}}
+        <form method="POST" action="{{ route('login') }}" class="d-none text-start" id="otpRequestForm">
             @csrf
             <input type="hidden" name="request_otp" value="1">
-            <input type="hidden" name="identifier" id="otpRequestIdentifier">
+            <div class="mb-3">
+                <label>Work Email or Phone Number</label>
+                <input type="text" class="form-control" name="identifier" id="otpRequestIdentifier" value="{{ old('identifier', old('email')) }}" required>
+                <small class="text-muted">Enter your email or phone number, then request an OTP</small>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 mb-2">Request OTP</button>
+            <button type="button" class="btn btn-outline-secondary w-100" onclick="showPasswordForm()">Use Password Instead</button>
         </form>
     @endif
 
@@ -229,18 +237,55 @@
     @endif
 
     <script>
-        function requestOTP() {
-            const identifier = document.querySelector('#passwordLoginForm input[name="identifier"]').value;
-            if (!identifier) {
-                alert('Please enter your work email or phone number first.');
-                return;
+        // WebAuthn helper (Passkeys)
+        // CDN helper from Laragear Webpass (no build step required)
+        (function ensureWebpassLoaded() {
+            if (window.Webpass) return;
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/@laragear/webpass@2/dist/webpass.js';
+            s.defer = true;
+            document.head.appendChild(s);
+        })();
+
+        async function loginWithPasskey() {
+            try {
+                if (!window.Webpass) {
+                    alert('Passkeys are still loading. Please try again in a second.');
+                    return;
+                }
+                if (window.Webpass.isUnsupported()) {
+                    alert("Your browser doesn't support Passkeys (WebAuthn).");
+                    return;
+                }
+                const result = await window.Webpass.assert('/webauthn/login/options', '/webauthn/login');
+                if (result && result.success) {
+                    window.location.reload();
+                    return;
+                }
+                alert(result?.error || 'Passkey sign-in failed.');
+            } catch (e) {
+                alert('Passkey sign-in failed. Please use password/OTP.');
             }
-            document.getElementById('otpRequestIdentifier').value = identifier;
-            document.getElementById('otpRequestForm').submit();
+        }
+
+        function showOtpRequestForm() {
+            const passwordForm = document.getElementById('passwordLoginForm');
+            const otpForm = document.getElementById('otpRequestForm');
+            if (passwordForm) passwordForm.classList.add('d-none');
+            if (otpForm) otpForm.classList.remove('d-none');
+
+            const existing = document.querySelector('#passwordLoginForm input[name="identifier"]')?.value || '';
+            const otpIdentifier = document.getElementById('otpRequestIdentifier');
+            if (otpIdentifier && !otpIdentifier.value) otpIdentifier.value = existing;
+            otpIdentifier?.focus();
         }
 
         function showPasswordForm() {
-            window.location.reload();
+            const passwordForm = document.getElementById('passwordLoginForm');
+            const otpForm = document.getElementById('otpRequestForm');
+            if (otpForm) otpForm.classList.add('d-none');
+            if (passwordForm) passwordForm.classList.remove('d-none');
+            document.querySelector('#passwordLoginForm input[name="password"]')?.focus();
         }
     </script>
 

@@ -9,11 +9,14 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use App\Models\ParentInfo;
 use App\Models\Student;
+use Laragear\WebAuthn\Contracts\WebAuthnAuthenticatable;
+use Laragear\WebAuthn\WebAuthnAuthentication;
 
-class User extends Authenticatable
+class User extends Authenticatable implements WebAuthnAuthenticatable
 {
     use HasFactory, Notifiable, HasRoles, HasApiTokens;
     use \App\Models\Concerns\NormalizesNameAttributes;
+    use WebAuthnAuthentication;
 
     protected static array $sentenceCaseNameAttributes = [
         'name',
@@ -21,6 +24,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name', 'email', 'password', 'must_change_password',
+        'google_id', 'google_email',
     ];
 
     protected $hidden = [

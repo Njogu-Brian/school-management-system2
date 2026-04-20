@@ -30,18 +30,24 @@ import type { AppBranding } from '@types/branding.types';
 import {
     authenticateWithBiometrics,
     canUseBiometrics,
-    getBiometricCredentials,
+    getBiometricAuthBundle,
     getBiometricEnabled,
-    saveBiometricCredentials,
+    saveBiometricAuthBundle,
     setBiometricEnabled,
 } from '@utils/biometrics';
+import { getToken } from '@utils/storage';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '@utils/env';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface LoginScreenProps {
     navigation: any;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
-    const { login, loading } = useAuth();
+    const { login, loading, completeLogin } = useAuth();
     const { isDark, colors } = useTheme();
     const insets = useSafeAreaInsets();
 
@@ -55,6 +61,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const [showBiometricButton, setShowBiometricButton] = useState(false);
     const [branding, setBranding] = useState<AppBranding | null>(null);
     const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
 
     const gradientColors = isDark ? LOGIN_GRADIENT_DARK : LOGIN_GRADIENT_LIGHT;
 
@@ -96,6 +103,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const displayName = branding?.school_name?.trim() || 'School ERP';
     const showRemoteLogo = Boolean(branding?.logo_url && !logoLoadFailed);
 
+    const [googleRequest, googleResponse, googlePromptAsync] = Google.useIdTokenAuthRequest({
+        androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
+        iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+        webClientId: GOOGLE_WEB_CLIENT_ID || undefined,
+        selectAccount: true,
+    });
+
+    useEffect(() => {
+        (async () => {
+            if (googleResponse?.type !== 'success') return;
+            const idToken = googleResponse?.params?.id_token;
+            if (!idToken) return;
+            setGoogleLoading(true);
+            try {
+                const res = await authApi.loginWithGoogle({ id_token: String(idToken) });
+                if (res.success && res.data) {
+                    await completeLogin(res.data);
+                } else {
+                    throw new Error(res.message || 'Google sign-in failed');
+                }
+            } catch (err: any) {
+                Alert.alert('Google sign-in failed', err.message || 'Please try again.');
+            } finally {
+                setGoogleLoading(false);
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [googleResponse]);
+
     const validate = (): boolean => {
         const newErrors: { identifier?: string; password?: string } = {};
         const id = identifier.trim();
@@ -127,7 +163,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             const biometricEnabled = await getBiometricEnabled();
             const deviceSupportsBiometrics = await canUseBiometrics();
             if (biometricEnabled && deviceSupportsBiometrics) {
-                await saveBiometricCredentials(identifier.trim(), password);
+                const token = await getToken();
+                if (token) {
+                    await saveBiometricAuthBundle(token);
+                    setShowBiometricButton(true);
+                }
                 setShowBiometricButton(true);
             }
         } catch (err: any) {
@@ -154,19 +194,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const handleBiometricLogin = async () => {
         const success = await authenticateWithBiometrics('Authenticate to sign in');
         if (!success) return;
-        const creds = await getBiometricCredentials();
-        if (!creds) {
-            Alert.alert('Biometric login', 'No saved biometric credentials found. Login once with password.');
+        const bundle = await getBiometricAuthBundle();
+        if (!bundle?.token) {
+            Alert.alert('Biometric login', 'No saved biometric session found. Login once with password.');
             await setBiometricEnabled(false);
             setShowBiometricButton(false);
             return;
         }
         try {
-            await login({
-                identifier: creds.identifier,
-                password: creds.password,
-                remember: true,
-            });
+            await authApi.getProfile(); // validate token in secure store
         } catch (err: any) {
             Alert.alert('Biometric login failed', err.message || 'Please sign in with password.');
         }
@@ -333,6 +369,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                 fullWidth
                                 style={styles.loginButton}
                             />
+                            <Button
+                                title="Continue with Google"
+                                onPress={async () => {
+                                    try {
+                                        await googlePromptAsync();
+                                    } catch {
+                                        Alert.alert('Google sign-in', 'Could not open Google sign-in.');
+                                    }
+                                }}
+                                loading={googleLoading}
+                                disabled={!googleRequest}
+                                variant="outline"
+                                fullWidth
+                                style={styles.googleButton}
+                            />
                             {showBiometricButton ? (
                                 <Button
                                     title="Login with Biometrics"
@@ -364,9 +415,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             const [enabled, available, creds] = await Promise.all([
                 getBiometricEnabled(),
                 canUseBiometrics(),
-                getBiometricCredentials(),
+                getBiometricAuthBundle(),
             ]);
-            setShowBiometricButton(enabled && available && !!creds);
+            setShowBiometricButton(enabled && available && !!creds?.token);
         })();
     }, []);
 
@@ -540,6 +591,9 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     loginButton: {
+        marginTop: SPACING.sm,
+    },
+    googleButton: {
         marginTop: SPACING.sm,
     },
     biometricButton: {

@@ -54,6 +54,12 @@ return [
         'webhook_secret' => env('MPESA_WEBHOOK_SECRET'),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', env('APP_URL') . '/auth/google/callback'),
+    ],
+
     'stripe' => [
         'key' => env('PAYMENT_STRIPE_KEY'),
         'secret' => env('PAYMENT_STRIPE_SECRET'),

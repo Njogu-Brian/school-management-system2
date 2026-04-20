@@ -68,6 +68,9 @@ export default {
       /** Public web origin (no /api). Override when API is on a different host than the portal. */
       WEB_BASE_URL: process.env.EXPO_PUBLIC_WEB_BASE_URL || webBaseDefault,
       IOS_APP_STORE_ID: process.env.EXPO_PUBLIC_IOS_APP_STORE_ID || '',
+      GOOGLE_ANDROID_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '',
+      GOOGLE_IOS_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '',
+      GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
     },
   },
 };
