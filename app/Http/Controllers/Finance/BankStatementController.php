@@ -1416,17 +1416,29 @@ class BankStatementController extends Controller
         }
 
         $activeTotal = (float) $activePayments->sum('amount');
-        $remainingAmount = max(0, (float) $bankStatement->amount - $activeTotal);
 
         $swimmingAllocations = collect();
         $swimmingTotal = 0.0;
-        if (!$isC2B && Schema::hasTable('swimming_transaction_allocations')) {
+        if ($isC2B) {
+            // C2B transactions credit the swimming wallet directly via SwimmingLedger
+            // (no SwimmingTransactionAllocation row is created), so we read the ledger.
+            $swimmingLedgerEntries = \App\Models\SwimmingLedger::with('student')
+                ->where('source_type', MpesaC2BTransaction::class)
+                ->where('source_id', $transaction->id)
+                ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                ->get();
+            $swimmingAllocations = $swimmingLedgerEntries;
+            $swimmingTotal = (float) $swimmingLedgerEntries->sum('amount');
+        } elseif (Schema::hasTable('swimming_transaction_allocations')) {
             $swimmingAllocations = \App\Models\SwimmingTransactionAllocation::with('student')
                 ->where('bank_statement_transaction_id', $transaction->id)
                 ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
                 ->get();
             $swimmingTotal = (float) $swimmingAllocations->sum('amount');
         }
+
+        $remainingAmount = max(0, (float) $bankStatement->amount - $activeTotal - $swimmingTotal);
+
         $canCreateAdditionalPayments = $bankStatement->status === 'confirmed'
             && $remainingAmount > 0.01
             && ($bankStatement->student_id || ($bankStatement->is_shared ?? false))

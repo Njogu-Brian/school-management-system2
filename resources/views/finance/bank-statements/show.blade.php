@@ -759,7 +759,7 @@
                     @endif
 
                     @if($activePayments->isNotEmpty())
-                        <div class="mb-0">
+                        <div class="mb-3">
                             <h6 class="text-success mb-2">
                                 <i class="bi bi-check-circle"></i> Active / Newly Created Payment(s)
                             </h6>
@@ -787,6 +787,30 @@
                                         @endif
                                     </li>
                                 @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    @if(($swimmingAllocations ?? collect())->isNotEmpty())
+                        <div class="mb-0">
+                            <h6 class="text-info mb-2">
+                                <i class="bi bi-droplet-half"></i> Swimming Allocation(s)
+                            </h6>
+                            <ul class="list-unstyled mb-0">
+                                @foreach($swimmingAllocations as $swim)
+                                    <li class="mb-2">
+                                        @if($swim->student)
+                                            {{ $swim->student->full_name }} ({{ $swim->student->admission_number }})
+                                        @else
+                                            <em class="text-muted">Unknown student</em>
+                                        @endif
+                                        - Ksh {{ number_format($swim->amount, 2) }}
+                                        <span class="badge bg-info text-dark ms-1">Swimming Wallet</span>
+                                    </li>
+                                @endforeach
+                                <li class="small text-muted mt-1">
+                                    Total credited to swimming: <strong>Ksh {{ number_format($swimmingTotal ?? 0, 2) }}</strong>
+                                </li>
                             </ul>
                         </div>
                     @endif
