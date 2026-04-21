@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Laragear\WebAuthn\Http\Routes as WebAuthnRoutes;
 
 /*
@@ -149,7 +148,9 @@ use App\Http\Controllers\BackupRestoreController;
 Route::get('/', fn () => redirect()->route('login'));
 
 // Passkeys (WebAuthn)
-WebAuthnRoutes::register()->withoutMiddleware(VerifyCsrfToken::class);
+// CSRF is disabled for these routes in bootstrap/app.php (validateCsrfTokens except list)
+// because the browser's WebAuthn client posts JSON directly without a CSRF token.
+WebAuthnRoutes::register();
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');

@@ -34,6 +34,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'webhooks/payment/mpesa/queue-timeout',
             'webhooks/payment/mpesa/validation',
             'webhooks/payment/mpesa/confirmation',
+
+            // Passkeys (WebAuthn) - browser posts JSON without a CSRF token
+            'webauthn/*',
         ]);
     })
 
