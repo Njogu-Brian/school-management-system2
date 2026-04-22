@@ -2263,6 +2263,32 @@ class BankStatementController extends Controller
     }
 
     /**
+     * True when the payment was created by a self-service channel (M-PESA STK push, the
+     * parent portal payment link, or the paybill flow where the parent already got their
+     * SMS/receipt). Bulk-confirm uses this to flip such transactions to "collected" silently:
+     * no new receipt modal, no duplicate parent notification.
+     */
+    protected function paymentAlreadyCollectedViaSelfService(?\App\Models\Payment $payment): bool
+    {
+        if (!$payment) {
+            return false;
+        }
+
+        $channel = $payment->payment_channel;
+        if (in_array($channel, ['stk_push', 'payment_link', 'paybill_manual'], true)) {
+            return true;
+        }
+
+        // Back-compat: older rows may only have mpesa_receipt_number / payment_transaction_id set
+        // without the modern payment_channel. Treat those as self-service too.
+        if (!empty($payment->payment_transaction_id) || !empty($payment->payment_link_id)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Public entry point to confirm and create payment for a C2B transaction.
      * Used by C2B callback for auto-confirm when admission number matches single student (no siblings).
      */
@@ -4128,9 +4154,21 @@ class BankStatementController extends Controller
                     if ($existingPayments->isNotEmpty()) {
                         $first = $existingPayments->first();
                         if (!$c2bTransaction->payment_id) {
-                            $c2bTransaction->update(['payment_id' => $first->id, 'status' => 'processed']);
+                            $c2bTransaction->update([
+                                'payment_id' => $first->id,
+                                'status' => 'processed',
+                                'allocated_amount' => $c2bTransaction->trans_amount,
+                                'unallocated_amount' => 0,
+                            ]);
                         }
                         if (!$isC2bSwimming) {
+                            // Silent collection: payment came from STK push / payment link, so
+                            // the parent was already notified and a receipt already exists.
+                            // Just flip the row to collected without re-opening a receipt or
+                            // re-sending comms.
+                            if ($this->paymentAlreadyCollectedViaSelfService($first)) {
+                                continue;
+                            }
                             foreach ($existingPayments as $p) {
                                 $receiptIds[] = $p->id;
                             }
@@ -4193,6 +4231,12 @@ class BankStatementController extends Controller
                         ]);
                     } else {
                         $transaction->update(['payment_created' => true, 'status' => 'confirmed']);
+                    }
+                    // Silent collection when the payment originated from STK push / payment link:
+                    // parent was already notified and a receipt already exists, so we just flip
+                    // the row to collected without re-opening the receipt modal or re-sending comms.
+                    if ($this->paymentAlreadyCollectedViaSelfService($first)) {
+                        continue;
                     }
                     foreach ($existingPayments as $p) {
                         $receiptIds[] = $p->id;
@@ -4316,9 +4360,17 @@ class BankStatementController extends Controller
                     if ($existingPayments->isNotEmpty()) {
                         $first = $existingPayments->first();
                         if (!$c2bTransaction->payment_id) {
-                            $c2bTransaction->update(['payment_id' => $first->id, 'status' => 'processed']);
+                            $c2bTransaction->update([
+                                'payment_id' => $first->id,
+                                'status' => 'processed',
+                                'allocated_amount' => $c2bTransaction->trans_amount,
+                                'unallocated_amount' => 0,
+                            ]);
                         }
                         if (!$isC2bSwimming) {
+                            if ($this->paymentAlreadyCollectedViaSelfService($first)) {
+                                continue;
+                            }
                             foreach ($existingPayments as $p) {
                                 $receiptIds[] = $p->id;
                             }
@@ -4380,6 +4432,9 @@ class BankStatementController extends Controller
                         ]);
                     } else {
                         $transaction->update(['payment_created' => true, 'status' => 'confirmed']);
+                    }
+                    if ($this->paymentAlreadyCollectedViaSelfService($first)) {
+                        continue;
                     }
                     foreach ($existingPayments as $p) {
                         $receiptIds[] = $p->id;

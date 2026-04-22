@@ -184,6 +184,7 @@ class PaymentWebhookController extends Controller
                             if ($transaction->payment_link_id) {
                                 $transaction->paymentLink?->update(['payment_id' => $existingPayment->id]);
                             }
+                            $this->linkToExistingFinanceTransactions($existingPayment);
                             $webhook->markAsProcessed('Payment already existed');
                             return response()->json(['success' => true], 200);
                         }
@@ -236,6 +237,7 @@ class PaymentWebhookController extends Controller
                                 } catch (\Exception $e) {
                                     Log::error('Receipt/notify failed (shared)', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
                                 }
+                                $this->linkToExistingFinanceTransactions($payment);
                             }
                             $transaction->update(['payment_id' => $firstPaymentId]);
                             if ($transaction->payment_link_id) {
@@ -284,6 +286,7 @@ class PaymentWebhookController extends Controller
                                 Log::error('Failed to generate receipt for M-PESA payment', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
                             }
                             $this->sendPaymentConfirmation($payment, $pdfPath ?? null);
+                            $this->linkToExistingFinanceTransactions($payment);
                         }
 
                         // Handle POS order payment if exists
@@ -412,6 +415,25 @@ class PaymentWebhookController extends Controller
 
         // Send notification to parent
         $this->sendPosOrderConfirmation($order);
+    }
+
+    /**
+     * Back-fill any MpesaC2BTransaction / BankStatementTransaction rows that represent the
+     * same M-PESA receipt as this freshly-created Payment. This prevents transactions from
+     * being stuck in "auto-assigned" when the paybill confirmation callback arrived before
+     * the STK / payment-link webhook created the Payment.
+     */
+    protected function linkToExistingFinanceTransactions(\App\Models\Payment $payment): void
+    {
+        try {
+            app(\App\Services\UnifiedTransactionService::class)
+                ->linkPaymentToMatchingTransactions($payment);
+        } catch (\Throwable $e) {
+            Log::warning('PaymentWebhookController: failed to back-fill finance transactions', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

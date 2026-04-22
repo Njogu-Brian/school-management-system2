@@ -2011,19 +2011,21 @@ class MpesaPaymentController extends Controller
                 // All C2B transactions remain in AutoAssign/Draft for manual confirmation,
                 // so staff can handle siblings or wrong admission numbers.
                 //
-                // Exception: If this C2B was from a payment link or admin-prompted STK push,
-                // the STK webhook already created the Payment. Link this C2B to that existing
-                // payment so it shows as collected (no duplicate payment, no duplicate receipt).
+                // Exception: If a Payment already exists for this same M-PESA receipt (e.g. from
+                // a payment link, admin-prompted STK push, or any other source), link this C2B
+                // to that existing payment so it shows as collected (no duplicate payment, no
+                // duplicate receipt). We match purely by transaction code/receipt so race
+                // conditions and non-standard payment_channels don't leave rows stuck.
                 $t = $c2bTransaction;
-                if ($t->student_id && !$t->payment_id && $t->status !== 'processed') {
+                if (!$t->payment_id && $t->status !== 'processed') {
+                    $ref = $t->trans_id;
                     $existingPayment = \App\Models\Payment::where('reversed', false)
-                        ->where('student_id', $t->student_id)
-                        ->whereIn('payment_channel', ['payment_link', 'stk_push'])
-                        ->where(function ($q) use ($t) {
-                            $ref = $t->trans_id;
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($ref) {
                             $q->where('transaction_code', $ref)
                               ->orWhere('transaction_code', 'LIKE', $ref . '-%');
                         })
+                        ->orderBy('created_at', 'asc')
                         ->first();
                     if ($existingPayment) {
                         $t->update([
@@ -2031,11 +2033,13 @@ class MpesaPaymentController extends Controller
                             'status' => 'processed',
                             'allocated_amount' => $t->trans_amount,
                             'unallocated_amount' => 0,
+                            'student_id' => $t->student_id ?? $existingPayment->student_id,
                         ]);
-                        \Illuminate\Support\Facades\Log::info('C2B linked to existing STK/payment-link payment', [
+                        \Illuminate\Support\Facades\Log::info('C2B linked to existing payment on callback', [
                             'c2b_id' => $t->id,
                             'trans_id' => $t->trans_id,
                             'payment_id' => $existingPayment->id,
+                            'payment_channel' => $existingPayment->payment_channel,
                         ]);
                     }
                 }

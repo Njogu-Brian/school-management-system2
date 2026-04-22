@@ -142,8 +142,9 @@ class MoveAutoAssignedToCollected extends Command
             return 0;
         }
 
+        // Matches the "auto-assigned" tab filter used by UnifiedTransactionService so we don't
+        // miss rows that were matched by channels that never set allocation_status.
         $candidates = MpesaC2BTransaction::where('match_confidence', '>=', 80)
-            ->where('allocation_status', 'auto_matched')
             ->whereNull('payment_id')
             ->where('is_duplicate', false)
             ->get();

@@ -386,6 +386,87 @@ class UnifiedTransactionService
     }
 
     /**
+     * Back-fill matching MpesaC2BTransaction / BankStatementTransaction rows after a Payment
+     * is created (e.g. from an STK push or payment link webhook).
+     *
+     * Without this, a paybill confirmation (C2B callback) that arrived BEFORE the STK
+     * callback would leave the transaction stuck at "auto-assigned" even though a valid
+     * Payment now exists under the same M-PESA receipt number.
+     *
+     * Safe to call with any Payment – only rows that are genuinely unlinked are touched.
+     * Notifications / receipts are NOT triggered here; the caller owns that flow.
+     */
+    public function linkPaymentToMatchingTransactions(Payment $payment): void
+    {
+        $code = trim((string) ($payment->transaction_code ?? ''));
+        if ($code === '') {
+            return;
+        }
+
+        // Strip a trailing "-N" sibling suffix, if any, to recover the raw M-PESA receipt.
+        $baseCode = preg_replace('/-\d+$/', '', $code);
+
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('mpesa_c2b_transactions')) {
+                MpesaC2BTransaction::whereNull('payment_id')
+                    ->where(function ($q) use ($baseCode, $code) {
+                        $q->where('trans_id', $baseCode)->orWhere('trans_id', $code);
+                    })
+                    ->get()
+                    ->each(function (MpesaC2BTransaction $c2b) use ($payment) {
+                        $c2b->update([
+                            'payment_id' => $payment->id,
+                            'status' => 'processed',
+                            'allocated_amount' => $c2b->trans_amount,
+                            'unallocated_amount' => 0,
+                            'student_id' => $c2b->student_id ?? $payment->student_id,
+                        ]);
+                        Log::info('UnifiedTransactionService: linked C2B to existing payment', [
+                            'c2b_id' => $c2b->id,
+                            'trans_id' => $c2b->trans_id,
+                            'payment_id' => $payment->id,
+                        ]);
+                    });
+            }
+        } catch (\Throwable $e) {
+            Log::warning('linkPaymentToMatchingTransactions: C2B back-fill failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            BankStatementTransaction::where('payment_created', false)
+                ->where('is_duplicate', false)
+                ->where(function ($q) use ($baseCode, $code) {
+                    $q->where('reference_number', $baseCode)->orWhere('reference_number', $code);
+                })
+                ->get()
+                ->each(function (BankStatementTransaction $txn) use ($payment) {
+                    $txn->update([
+                        'payment_id' => $payment->id,
+                        'payment_created' => true,
+                        'status' => 'confirmed',
+                        'match_status' => $txn->match_status && $txn->match_status !== 'unmatched'
+                            ? $txn->match_status
+                            : 'manual',
+                        'student_id' => $txn->student_id ?? $payment->student_id,
+                    ]);
+                    Log::info('UnifiedTransactionService: linked bank statement to existing payment', [
+                        'txn_id' => $txn->id,
+                        'reference_number' => $txn->reference_number,
+                        'payment_id' => $payment->id,
+                    ]);
+                });
+        } catch (\Throwable $e) {
+            Log::warning('linkPaymentToMatchingTransactions: bank statement back-fill failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
      * Generate a match reason from match type and matched value
      */
     protected function generateMatchReason(array $match): string
