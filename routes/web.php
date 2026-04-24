@@ -88,6 +88,7 @@ use App\Http\Controllers\Finance\DocumentSettingsController;
 use App\Http\Controllers\Finance\LegacyFinanceImportController;
 use App\Http\Controllers\Finance\TransportFeeController;
 use App\Http\Controllers\Finance\BankStatementController;
+use App\Http\Controllers\Finance\PaymentThresholdController;
 
 // Swimming
 use App\Http\Controllers\Swimming\SwimmingAttendanceController;
@@ -1469,6 +1470,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Fee Clearance (Cleared / Pending) report
         Route::get('fee-clearance', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'index'])->name('fee-clearance.index');
         Route::post('fee-clearance/recompute', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'recompute'])->name('fee-clearance.recompute');
+
+        Route::resource('payment-thresholds', PaymentThresholdController::class)
+            ->parameters(['payment-thresholds' => 'payment_threshold'])
+            ->except(['show']);
         
         // Balance Brought Forward
         Route::get('balance-brought-forward', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'index'])->name('balance-brought-forward.index');

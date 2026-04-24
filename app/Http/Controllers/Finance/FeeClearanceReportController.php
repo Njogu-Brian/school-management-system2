@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
 use App\Models\AcademicYear;
+use App\Models\PaymentThreshold;
 use App\Models\Student;
 use App\Models\StudentTermFeeClearance;
 use App\Models\Term;
@@ -36,8 +37,10 @@ class FeeClearanceReportController extends Controller
 
         $rows = collect();
         $counts = ['cleared' => 0, 'pending' => 0, 'total' => 0];
+        $paymentThresholdsCount = 0;
 
         if ($term) {
+            $paymentThresholdsCount = PaymentThreshold::where('term_id', $term->id)->where('is_active', true)->count();
             $this->ensureSnapshotsForTerm($term, $filters['classroom_id']);
 
             $query = StudentTermFeeClearance::query()
@@ -85,6 +88,7 @@ class FeeClearanceReportController extends Controller
             'rows' => $rows,
             'counts' => $counts,
             'filters' => $filters,
+            'paymentThresholdsCount' => $paymentThresholdsCount,
         ]);
     }
 

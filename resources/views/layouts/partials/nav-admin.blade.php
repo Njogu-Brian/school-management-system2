@@ -513,7 +513,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     {{-- REPORTS RELATED --}}
     {{-- ============================================ --}}
     @php
-        $reportsActive = Request::is('finance/accountant-dashboard*') || Request::is('finance/student-statements*') || Request::is('finance/fee-balances*') || Request::is('finance/fee-clearance*') || Request::is('finance/balance-brought-forward*') || Request::is('finance/fees-comparison-import*');
+        $reportsActive = Request::is('finance/accountant-dashboard*') || Request::is('finance/student-statements*') || Request::is('finance/fee-balances*') || Request::is('finance/fee-clearance*') || Request::is('finance/payment-thresholds*') || Request::is('finance/balance-brought-forward*') || Request::is('finance/fees-comparison-import*');
         $systemReportsActive = Request::is('reports/phone-normalization*');
     @endphp
     <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Reports</span>
@@ -523,6 +523,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('finance.student-statements.index') }}" class="sublink {{ Request::is('finance/student-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Student Statements</a>
         <a href="{{ route('finance.fee-balances.index') }}" class="sublink {{ Request::is('finance/fee-balances*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Fee Balance Report</a>
         <a href="{{ route('finance.fee-clearance.index') }}" class="sublink {{ Request::is('finance/fee-clearance*') ? 'active' : '' }}"><i class="bi bi-shield-check"></i> Fee Clearance (Cleared/Pending)</a>
+        <a href="{{ route('finance.payment-thresholds.index') }}" class="sublink {{ Request::is('finance/payment-thresholds*') ? 'active' : '' }}"><i class="bi bi-sliders"></i> Payment thresholds</a>
         <a href="{{ route('finance.balance-brought-forward.index') }}" class="sublink {{ Request::is('finance/balance-brought-forward*') ? 'active' : '' }}"><i class="bi bi-arrow-left-circle"></i> Balance Brought Forward</a>
         <a href="{{ route('finance.fees-comparison-import.index') }}" class="sublink {{ Request::is('finance/fees-comparison-import*') ? 'active' : '' }}"><i class="bi bi-file-earmark-spreadsheet"></i> Fees Comparison Import</a>
     </div>
