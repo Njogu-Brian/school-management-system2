@@ -6,7 +6,7 @@
         @include('finance.partials.header', [
             'title' => 'Add payment threshold',
             'icon' => 'bi bi-plus-circle',
-            'subtitle' => 'One row per term + student category',
+            'subtitle' => 'One row per term and category; you can create several categories at once with the same rule.',
         ])
 
         <div class="finance-card finance-animate">
@@ -21,6 +21,7 @@
                         'terms' => $terms,
                         'categories' => $categories,
                         'defaultTermId' => $selectedTermId,
+                        'multiCategory' => true,
                     ])
 
                     <div class="d-flex justify-content-end gap-2 mt-4">
@@ -28,7 +29,7 @@
                             <i class="bi bi-x-circle"></i> Cancel
                         </a>
                         <button type="submit" class="btn btn-finance btn-finance-primary">
-                            <i class="bi bi-check-circle"></i> Save threshold
+                            <i class="bi bi-check-circle"></i> Save thresholds
                         </button>
                     </div>
                 </form>

@@ -2,7 +2,13 @@
     /** @var \App\Models\PaymentThreshold|null $threshold */
     $threshold = $threshold ?? null;
     $defaultTermId = $defaultTermId ?? null;
+    $multiCategory = $multiCategory ?? false;
     $termIdValue = old('term_id', $threshold?->term_id ?? $defaultTermId);
+    $oldCategoryIds = old('student_category_ids', []);
+    if (! is_array($oldCategoryIds)) {
+        $oldCategoryIds = [];
+    }
+    $oldCategoryIds = array_map('intval', $oldCategoryIds);
 @endphp
 
 <div class="row g-3">
@@ -22,18 +28,40 @@
     </div>
 
     <div class="col-md-6">
-        <label class="finance-form-label">Student category <span class="text-danger">*</span></label>
-        <select name="student_category_id" class="finance-form-select @error('student_category_id') is-invalid @enderror" required>
-            <option value="">— Select category —</option>
-            @foreach($categories as $cat)
-                <option value="{{ $cat->id }}" {{ (int) old('student_category_id', $threshold?->student_category_id) === (int) $cat->id ? 'selected' : '' }}>
-                    {{ $cat->name }}
-                </option>
-            @endforeach
-        </select>
-        @error('student_category_id')
-            <div class="invalid-feedback d-block">{{ $message }}</div>
-        @enderror
+        @if($multiCategory)
+            <label class="finance-form-label">Student categories <span class="text-danger">*</span></label>
+            <div class="border rounded p-2 @error('student_category_ids') border-danger @enderror @error('student_category_ids.*') border-danger @enderror" style="max-height: 220px; overflow-y: auto; background: var(--fin-surface-alt, #f9fafb);">
+                @forelse($categories as $cat)
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="student_category_ids[]" value="{{ $cat->id }}"
+                               id="student_cat_{{ $cat->id }}" {{ in_array((int) $cat->id, $oldCategoryIds, true) ? 'checked' : '' }}>
+                        <label class="form-check-label" for="student_cat_{{ $cat->id }}">{{ $cat->name }}</label>
+                    </div>
+                @empty
+                    <p class="text-muted small mb-0">No categories.</p>
+                @endforelse
+            </div>
+            <small class="form-text d-block mt-1" style="color: var(--fin-muted, #6b7280);">Select one or more; each category gets its own row with the same percentages and deadlines.</small>
+            @error('student_category_ids')
+                <div class="invalid-feedback d-block">{{ $message }}</div>
+            @enderror
+            @error('student_category_ids.*')
+                <div class="invalid-feedback d-block">{{ $message }}</div>
+            @enderror
+        @else
+            <label class="finance-form-label">Student category <span class="text-danger">*</span></label>
+            <select name="student_category_id" class="finance-form-select @error('student_category_id') is-invalid @enderror" required>
+                <option value="">— Select category —</option>
+                @foreach($categories as $cat)
+                    <option value="{{ $cat->id }}" {{ (int) old('student_category_id', $threshold?->student_category_id) === (int) $cat->id ? 'selected' : '' }}>
+                        {{ $cat->name }}
+                    </option>
+                @endforeach
+            </select>
+            @error('student_category_id')
+                <div class="invalid-feedback d-block">{{ $message }}</div>
+            @enderror
+        @endif
         @if($categories->isEmpty())
             <div class="alert alert-warning mt-2 mb-0 small">
                 <i class="bi bi-exclamation-triangle me-1"></i>

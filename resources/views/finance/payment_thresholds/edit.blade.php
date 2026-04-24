@@ -21,6 +21,7 @@
                         'threshold' => $paymentThreshold,
                         'terms' => $terms,
                         'categories' => $categories,
+                        'multiCategory' => false,
                     ])
 
                     <div class="d-flex justify-content-end gap-2 mt-4">

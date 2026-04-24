@@ -7,6 +7,7 @@ use App\Models\PaymentThreshold;
 use App\Models\StudentCategory;
 use App\Models\Term;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class PaymentThresholdController extends Controller
@@ -50,31 +51,65 @@ class PaymentThresholdController extends Controller
     {
         $validated = $request->validate([
             'term_id' => ['required', 'exists:terms,id'],
-            'student_category_id' => [
-                'required',
-                'exists:student_categories,id',
-                Rule::unique('payment_thresholds', 'student_category_id')->where(
-                    fn ($q) => $q->where('term_id', $request->integer('term_id'))
-                ),
-            ],
+            'student_category_ids' => ['required', 'array', 'min:1'],
+            'student_category_ids.*' => ['integer', 'distinct', 'exists:student_categories,id'],
             'minimum_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
             'final_deadline_day' => ['required', 'integer', 'min:1', 'max:31'],
             'final_deadline_month_offset' => ['required', 'integer', 'min:0', 'max:36'],
             'is_active' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:2000'],
-        ], [
-            'student_category_id.unique' => 'A threshold already exists for this term and student category.',
         ]);
 
-        $validated['is_active'] = $request->boolean('is_active', true);
-        $validated['created_by'] = auth()->id();
-        $validated['updated_by'] = auth()->id();
+        $termId = (int) $validated['term_id'];
+        $categoryIds = array_values(array_unique(array_map('intval', $validated['student_category_ids'])));
 
-        PaymentThreshold::create($validated);
+        $conflicts = PaymentThreshold::query()
+            ->where('term_id', $termId)
+            ->whereIn('student_category_id', $categoryIds)
+            ->with('studentCategory:id,name')
+            ->get();
+
+        if ($conflicts->isNotEmpty()) {
+            $names = $conflicts->pluck('studentCategory.name')->filter()->implode(', ');
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors([
+                    'student_category_ids' => 'A threshold already exists for this term for: '.$names.'.',
+                ]);
+        }
+
+        $isActive = $request->boolean('is_active', true);
+        $userId = auth()->id();
+
+        $base = [
+            'term_id' => $termId,
+            'minimum_percentage' => $validated['minimum_percentage'],
+            'final_deadline_day' => $validated['final_deadline_day'],
+            'final_deadline_month_offset' => $validated['final_deadline_month_offset'],
+            'is_active' => $isActive,
+            'notes' => $validated['notes'] ?? null,
+            'created_by' => $userId,
+            'updated_by' => $userId,
+        ];
+
+        DB::transaction(function () use ($base, $categoryIds) {
+            foreach ($categoryIds as $categoryId) {
+                PaymentThreshold::create(array_merge($base, [
+                    'student_category_id' => $categoryId,
+                ]));
+            }
+        });
+
+        $count = count($categoryIds);
+        $message = $count === 1
+            ? 'Payment threshold created. Run fee clearance recompute so student statuses update.'
+            : "{$count} payment thresholds created (one per category). Run fee clearance recompute so student statuses update.";
 
         return redirect()
-            ->route('finance.payment-thresholds.index', ['term_id' => $validated['term_id']])
-            ->with('success', 'Payment threshold created. Run fee clearance recompute so student statuses update.');
+            ->route('finance.payment-thresholds.index', ['term_id' => $termId])
+            ->with('success', $message);
     }
 
     public function edit(PaymentThreshold $payment_threshold)
