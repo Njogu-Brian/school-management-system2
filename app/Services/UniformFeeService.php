@@ -214,11 +214,6 @@ class UniformFeeService
             InvoiceService::allocateUnallocatedPaymentsForStudent($item->invoice->student_id);
             app()->instance('auto_allocating', false);
 
-            // If a Term 1 (2026+) invoice is edited, keep Term 2/3 carry-forward in sync.
-            if ((int) ($item->invoice->year ?? 0) >= 2026 && (int) ($item->invoice->term ?? 0) === 1) {
-                InvoiceService::syncCarryForwardFromTerm1($item->invoice);
-            }
-
             return $item->fresh(['votehead']);
         });
     }
@@ -240,10 +235,6 @@ class UniformFeeService
             InvoiceService::recalc($invoice);
             InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
             app()->instance('auto_allocating', false);
-
-            if ((int) ($invoice->year ?? 0) >= 2026 && (int) ($invoice->term ?? 0) === 1) {
-                InvoiceService::syncCarryForwardFromTerm1($invoice);
-            }
         });
     }
 
@@ -270,10 +261,6 @@ class UniformFeeService
             InvoiceService::allocateUnallocatedPaymentsForStudent($item->invoice->student_id);
             app()->instance('auto_allocating', false);
 
-            if ((int) ($item->invoice->year ?? 0) >= 2026 && (int) ($item->invoice->term ?? 0) === 1) {
-                InvoiceService::syncCarryForwardFromTerm1($item->invoice);
-            }
-
             return $item->fresh();
         });
     }
@@ -295,10 +282,6 @@ class UniformFeeService
             InvoiceService::recalc($invoice);
             InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
             app()->instance('auto_allocating', false);
-
-            if ((int) ($invoice->year ?? 0) >= 2026 && (int) ($invoice->term ?? 0) === 1) {
-                InvoiceService::syncCarryForwardFromTerm1($invoice);
-            }
         });
     }
 

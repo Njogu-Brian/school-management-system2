@@ -97,58 +97,24 @@
 
     <div class="finance-card finance-animate mb-4">
         <div class="finance-card-header">
-            <i class="bi bi-download me-2"></i> Export CSV &amp; prior-term balances
+            <i class="bi bi-download me-2"></i> Export CSV
         </div>
         <div class="finance-card-body">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <p class="small text-muted mb-2">
-                        <strong>CSV export</strong> requires year and term. Uses the filters above (class, stream, student, votehead, status).
-                        Rows are sorted by class, then stream, then first name. Includes full name, admission number, class, stream, totals.
-                        <strong>PDF (bulk)</strong> uses the same filters and order: A4, one invoice per page, class headings, line-level paid/balance, payments list, and current balance due.
-                    </p>
-                    @if(request()->filled('term'))
-                        <a href="{{ route('finance.invoices.export_csv', array_merge(request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status']), ['year' => request('year', now()->year)])) }}"
-                           class="btn btn-finance btn-finance-outline">
-                            <i class="bi bi-file-earmark-spreadsheet"></i> Download CSV (current filters)
-                        </a>
-                    @else
-                        <button type="button" class="btn btn-finance btn-finance-outline" disabled title="Choose a specific term in the filters above">
-                            <i class="bi bi-file-earmark-spreadsheet"></i> Download CSV (select a term first)
-                        </button>
-                    @endif
-                </div>
-                <div class="col-md-6">
-                    <p class="small text-muted mb-2">
-                        <strong>Prior-term balances</strong> — if Term 2/3 invoices were generated before balances were moved from earlier terms, run this for the same year/term (2026+). Optional class limits the run.
-                    </p>
-                    <form method="POST" action="{{ route('finance.invoices.carry_forward_prior_term') }}" class="row g-2 align-items-end">
-                        @csrf
-                        <input type="hidden" name="year" value="{{ request('year', now()->year) }}">
-                        <div class="col-sm-4">
-                            <label class="finance-form-label">Target term</label>
-                            <select name="term" class="finance-form-select" required>
-                                <option value="2" {{ (string) request('term') === '2' ? 'selected' : '' }}>Term 2</option>
-                                <option value="3" {{ (string) request('term') === '3' ? 'selected' : '' }}>Term 3</option>
-                            </select>
-                        </div>
-                        <div class="col-sm-4">
-                            <label class="finance-form-label">Class (optional)</label>
-                            <select name="class_id" class="finance-form-select">
-                                <option value="">All classes</option>
-                                @foreach($classrooms ?? [] as $c)
-                                    <option value="{{ $c->id }}" {{ request('class_id')==$c->id ? 'selected' : '' }}>{{ $c->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-sm-4">
-                            <button type="submit" class="btn btn-finance btn-finance-secondary w-100">
-                                <i class="bi bi-arrow-left-right"></i> Apply carry-forward
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            <p class="small text-muted mb-2">
+                <strong>CSV export</strong> requires year and term. Uses the filters above (class, stream, student, votehead, status).
+                Rows are sorted by class, then stream, then first name. Includes full name, admission number, class, stream, totals.
+                <strong>PDF (bulk)</strong> uses the same filters and order: A4, one invoice per page, class headings, line-level paid/balance, payments list, and current balance due.
+            </p>
+            @if(request()->filled('term'))
+                <a href="{{ route('finance.invoices.export_csv', array_merge(request()->only(['year','term','votehead_id','class_id','stream_id','student_id','status']), ['year' => request('year', now()->year)])) }}"
+                   class="btn btn-finance btn-finance-outline">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Download CSV (current filters)
+                </a>
+            @else
+                <button type="button" class="btn btn-finance btn-finance-outline" disabled title="Choose a specific term in the filters above">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Download CSV (select a term first)
+                </button>
+            @endif
         </div>
     </div>
 

@@ -634,39 +634,18 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Backfill prior-term balances onto existing Term 2/3 invoices (same as ensure() would do).
+     * Legacy endpoint — intra-year "Balance from prior term(s)" carry-forward has been
+     * scrapped. The student statement now flows naturally using each term's own
+     * invoice items, credit notes, discounts and payments, so no backfill is required.
+     * Endpoint is kept so bookmarked/cached forms return a friendly notice.
      */
     public function carryForwardPriorTermBalances(Request $request)
     {
-        $request->validate([
-            'year' => 'required|integer|min:2026',
-            'term' => 'required|in:2,3',
-            'class_id' => 'nullable|integer',
-        ]);
-
-        $q = Invoice::query()
-            ->where('year', (int) $request->year)
-            ->where('term', (int) $request->term)
-            ->where(function ($q2) {
-                $q2->whereNull('status')->orWhere('status', '<>', 'reversed');
-            })
-            ->with('student');
-
-        if ($request->filled('class_id')) {
-            $q->whereHas('student', fn ($s) => $s->where('classroom_id', (int) $request->class_id));
-        }
-
-        $applied = 0;
-        foreach ($q->get() as $invoice) {
-            if (InvoiceService::applyPriorTermCarryForwardIfNeeded($invoice)) {
-                $applied++;
-            }
-        }
-
         return back()->with(
-            'success',
-            "Prior-term carry-forward completed. New arrears lines added on {$applied} invoice(s). " .
-            'Invoices with nothing to move or already processed were skipped.'
+            'info',
+            'Prior-term carry-forward has been disabled. Student statements now flow ' .
+            'naturally across terms using invoices, credit notes, discounts and payments. ' .
+            'No action was taken.'
         );
     }
 
