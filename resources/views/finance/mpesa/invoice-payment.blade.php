@@ -173,11 +173,11 @@
                             <span class="input-group-text">KES</span>
                         </div>
                         <input type="number" class="form-control form-control-lg" id="payment_amount" 
-                               name="amount" step="0.01" min="1" max="{{ $invoice->balance }}"
+                               name="amount" step="0.01" min="1" max="{{ $mpesaStkMaxKes }}"
                                value="{{ $invoice->balance }}" required>
                     </div>
                     <small class="form-text text-muted">
-                        <i class="fas fa-info-circle"></i> You can pay partially or in full. Maximum: KES {{ number_format($invoice->balance, 2) }}
+                        <i class="fas fa-info-circle"></i> Pay in full, in part, or more (overpayment is credited). Total fee balance for this learner: KES {{ number_format($studentTotalOutstanding, 2) }}. M-PESA limit KES {{ number_format($mpesaStkMaxKes) }} per transaction.
                     </small>
                     <div class="mt-2">
                         <button type="button" class="btn btn-sm btn-success" onclick="$('#payment_amount').val({{ $invoice->balance }})">
@@ -268,9 +268,20 @@
                 return;
             }
 
-            if (parseFloat(paymentAmount) > {{ $invoice->balance }}) {
-                showStatus('error', 'Payment amount cannot exceed the outstanding balance');
+            var amt = parseFloat(paymentAmount);
+            var mpesaMax = {{ (int) $mpesaStkMaxKes }};
+            var refBal = {{ number_format((float) $studentTotalOutstanding, 2, '.', '') }};
+            if (amt > mpesaMax + 0.01) {
+                showStatus('error', 'M-PESA allows up to KES ' + mpesaMax.toLocaleString('en-KE') + ' per transaction. Enter a lower amount or split into multiple payments.');
                 return;
+            }
+            if (amt > refBal + 0.009) {
+                var over = amt - refBal;
+                if (!window.confirm('You are paying KES ' + amt.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
+                    ', which is more than the total outstanding fee balance of KES ' + refBal.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
+                    ' (overpayment KES ' + over.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '). The extra amount will be credited. Continue?')) {
+                    return;
+                }
             }
 
             // Disable button and show loading

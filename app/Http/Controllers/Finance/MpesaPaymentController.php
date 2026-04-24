@@ -690,12 +690,6 @@ class MpesaPaymentController extends Controller
                 'message' => 'Please enter a valid payment amount.',
             ], 400);
         }
-        if ($paymentLink->amount > 0 && $amount > $paymentLink->amount) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment amount cannot exceed KES ' . number_format($paymentLink->amount, 2),
-            ], 400);
-        }
 
         try {
             $result = $this->mpesaGateway->initiatePaymentFromLink(
@@ -722,8 +716,10 @@ class MpesaPaymentController extends Controller
     public function showInvoicePayment(Invoice $invoice)
     {
         $invoice->load(['student', 'items']);
+        $studentTotalOutstanding = \App\Services\StudentBalanceService::getTotalOutstandingBalance($invoice->student);
+        $mpesaStkMaxKes = \App\Services\PaymentGateways\MpesaGateway::STK_MAX_AMOUNT_KES;
 
-        return view('finance.mpesa.invoice-payment', compact('invoice'));
+        return view('finance.mpesa.invoice-payment', compact('invoice', 'studentTotalOutstanding', 'mpesaStkMaxKes'));
     }
 
     /**

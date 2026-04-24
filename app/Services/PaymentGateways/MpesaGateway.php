@@ -10,6 +10,9 @@ use Illuminate\Support\Str;
 
 class MpesaGateway implements PaymentGatewayInterface
 {
+    /** Safaricom STK Push / Lipa na M-PESA typical per-transaction maximum (KES). */
+    public const STK_MAX_AMOUNT_KES = 250000;
+
     protected string $consumerKey;
     protected string $consumerSecret;
     protected string $shortcode;
@@ -293,6 +296,30 @@ class MpesaGateway implements PaymentGatewayInterface
 
         // Format phone number to 254XXXXXXXXX
         $phoneNumber = $this->formatPhoneNumber($phoneNumber);
+
+        $amountInt = (int) round((float) $transaction->amount);
+        if ($amountInt < 1) {
+            $transaction->update([
+                'status' => 'failed',
+                'failure_reason' => 'Invalid payment amount',
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Please enter a valid payment amount.',
+            ];
+        }
+        if ($amountInt > self::STK_MAX_AMOUNT_KES) {
+            $transaction->update([
+                'status' => 'failed',
+                'failure_reason' => 'Amount exceeds M-PESA per-transaction limit',
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'M-PESA allows up to KES ' . number_format(self::STK_MAX_AMOUNT_KES) . ' per transaction. Enter a lower amount or split into multiple payments.',
+            ];
+        }
 
         // Validate credentials are configured
         if (empty($this->shortcode) || empty($this->passkey)) {
@@ -627,14 +654,6 @@ class MpesaGateway implements PaymentGatewayInterface
 
         // Use provided amount or default to link amount
         $paymentAmount = $amount ?? $paymentLink->amount;
-        
-        // Validate amount doesn't exceed link amount
-        if ($paymentAmount > $paymentLink->amount) {
-            return [
-                'success' => false,
-                'message' => 'Payment amount exceeds the maximum allowed',
-            ];
-        }
 
         // Create payment transaction (reference must be unique per transaction)
         $accountReference = $paymentLink->account_reference

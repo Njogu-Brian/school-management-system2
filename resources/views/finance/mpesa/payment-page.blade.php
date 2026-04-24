@@ -2,6 +2,13 @@
     $brandPrimary = setting('finance_primary_color', '#3a1a59');
     $brandSecondary = setting('finance_secondary_color', '#14b8a6');
     $brandMpesaGreen = setting('finance_mpesa_green', '#007e33');
+    $mpesaStkMaxKes = \App\Services\PaymentGateways\MpesaGateway::STK_MAX_AMOUNT_KES;
+    $familyTotalRefBalance = 0.0;
+    if (($isFamilyLink ?? false) && ($showFamilySplitUi ?? false) && !empty($familyStudents ?? [])) {
+        foreach ($familyStudents as $s) {
+            $familyTotalRefBalance += (float) ($s['fee_balance'] ?? 0);
+        }
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -184,6 +191,7 @@
                         <span class="label">Total family balance</span>
                         <div class="value">KES {{ number_format($familyTotalBalance, 2) }}</div>
                     </div>
+                    <p class="small text-muted mb-0">You may pay more than the balance; extra is credited. M-PESA limit KES {{ number_format($mpesaStkMaxKes) }} per transaction.</p>
                 @endif
 
                 <form id="paymentForm">
@@ -232,7 +240,6 @@
                 @php
                     $student = $displayStudentForPay;
                     $feeBalance = (float) ($feeBalance ?? 0);
-                    $maxAmount = max($feeBalance, (float) $paymentLink->amount);
                 @endphp
                 <div class="text-center mb-3">
                     <h5 class="mb-1">Paying for</h5>
@@ -248,7 +255,7 @@
                 <div class="balance-box">
                     <span class="label">Current fee balance</span>
                     <div class="value">KES {{ number_format($feeBalance, 2) }}</div>
-                    <small class="text-muted">You can pay the full balance or a partial amount.</small>
+                    <small class="text-muted">Pay in full, in part, or more (overpayment is credited). M-PESA limit KES {{ number_format($mpesaStkMaxKes) }} per transaction.</small>
                 </div>
                 <form id="paymentForm">
                     <input type="hidden" name="payment_type" value="single">
@@ -258,11 +265,11 @@
                     <label class="form-label">Amount (KES)</label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text">KES</span>
-                        <input type="number" class="form-control" id="payment_amount" name="amount" step="0.01" min="1" max="{{ $maxAmount > 0 ? $maxAmount : 99999999 }}" value="{{ $feeBalance > 0 ? $feeBalance : $paymentLink->amount }}" required>
+                        <input type="number" class="form-control" id="payment_amount" name="amount" step="0.01" min="1" max="{{ $mpesaStkMaxKes }}" value="{{ $feeBalance > 0 ? $feeBalance : $paymentLink->amount }}" required>
                     </div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullBtn">Pay full balance</button>
-                        @if($maxAmount >= 1000)
+                        @if($feeBalance >= 1000)
                         <button type="button" class="btn btn-outline-secondary btn-quick" id="payHalfBtn">Pay half</button>
                         @endif
                     </div>
@@ -293,12 +300,46 @@
         var familyStudents = @json($familyStudents ?? []);
         var payUrl = '{{ route("payment.link.process", $paymentLink->hashed_id) }}';
         var token = '{{ csrf_token() }}';
+        var mpesaStkMax = {{ (int) $mpesaStkMaxKes }};
+        var familyTotalRefBalance = {{ number_format($familyTotalRefBalance, 2, '.', '') }};
+        var singleRefBalance = {{ number_format((float) ($feeBalance ?? 0), 2, '.', '') }};
 
         function showStatus(type, html) {
             var el = document.getElementById('statusMessage');
             el.className = 'alert alert-' + (type === 'success' ? 'success' : (type === 'warning' ? 'warning' : 'danger'));
             el.innerHTML = html;
             el.style.display = 'block';
+        }
+
+        function getReferenceBalanceForOverpayment() {
+            if (isFamilyLink && showFamilySplitUi) {
+                if ($('#shareToggle').is(':checked')) {
+                    return familyTotalRefBalance;
+                }
+                var opt = $('#single_student_id option:selected');
+                var b = opt.data('balance');
+                return b != null ? parseFloat(b) : 0;
+            }
+            return singleRefBalance;
+        }
+
+        function confirmOverpaymentIfNeeded(amt) {
+            var ref = getReferenceBalanceForOverpayment();
+            if (amt <= ref + 0.009) {
+                return true;
+            }
+            var over = amt - ref;
+            return window.confirm('You are paying KES ' + amt.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
+                ', which is more than the outstanding fee balance of KES ' + ref.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
+                ' (overpayment KES ' + over.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '). The extra amount will be credited to the account. Continue?');
+        }
+
+        function assertMpesaStkMax(amt) {
+            if (amt > mpesaStkMax + 0.01) {
+                showStatus('error', 'M-PESA allows up to KES ' + mpesaStkMax.toLocaleString('en-KE') + ' per transaction. Enter a lower amount or split into multiple payments.');
+                return false;
+            }
+            return true;
         }
 
         if (isFamilyLink && showFamilySplitUi && familyStudents.length > 1) {
@@ -407,6 +448,9 @@
                 payload.amount = parseFloat($('#payment_amount').val()) || 0;
                 if (payload.amount < 1) { showStatus('error', 'Enter a valid amount.'); return; }
             }
+
+            if (!assertMpesaStkMax(payload.amount)) { return; }
+            if (!confirmOverpaymentIfNeeded(payload.amount)) { return; }
 
             btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Processing...');
             $('#statusMessage').hide();
