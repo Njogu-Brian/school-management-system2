@@ -71,6 +71,8 @@ export interface Student {
     attendance_percentage?: number;
     fees_balance?: number;
     exam_average?: number;
+    fee_status?: 'cleared' | 'pending';
+    outstanding_balance?: number;
 
     created_at: string;
     updated_at: string;

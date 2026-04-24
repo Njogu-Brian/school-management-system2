@@ -11,6 +11,7 @@ import {
     saveToken,
     getToken,
     saveUser,
+    getUser,
     clearAuthData,
     saveRememberMe,
 } from '@utils/storage';
@@ -70,8 +71,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         });
                         return;
                     }
-                } catch {
-                    await clearAuthData();
+                } catch (err: any) {
+                    // Only clear the stored session on a true 401. Network errors (no
+                    // response, offline, 5xx) must not sign the user out — we optimistically
+                    // restore from cached user until the next successful call.
+                    const status = err?.status;
+                    if (status === 401) {
+                        await clearAuthData();
+                    } else {
+                        const cached = await getUser();
+                        if (cached) {
+                            setState({
+                                isAuthenticated: true,
+                                user: normalizeUserRole(cached),
+                                token,
+                                loading: false,
+                                error: null,
+                            });
+                            return;
+                        }
+                    }
                 }
             }
 

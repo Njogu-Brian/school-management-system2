@@ -137,4 +137,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/fee-clearances/pending', [ApiSeniorTeacherController::class, 'pendingFeeClearances']);
         Route::get('/students', [ApiSeniorTeacherController::class, 'supervisedStudents']);
     });
+
+    Route::prefix('teacher/requirements')->group(function () {
+        Route::get('/students', [\App\Http\Controllers\Api\ApiTeacherRequirementsController::class, 'students']);
+        Route::get('/students/{student}/templates', [\App\Http\Controllers\Api\ApiTeacherRequirementsController::class, 'templatesForStudent']);
+        Route::post('/collect', [\App\Http\Controllers\Api\ApiTeacherRequirementsController::class, 'collect']);
+    });
+
+    Route::prefix('teacher/transport')->group(function () {
+        Route::get('/students', [\App\Http\Controllers\Api\ApiTeacherTransportController::class, 'students']);
+        Route::get('/vehicles', [\App\Http\Controllers\Api\ApiTeacherTransportController::class, 'vehicles']);
+        Route::post('/pickups', [\App\Http\Controllers\Api\ApiTeacherTransportController::class, 'markCollectedByParent']);
+        Route::delete('/pickups/{pickupId}', [\App\Http\Controllers\Api\ApiTeacherTransportController::class, 'cancelPickup']);
+        Route::post('/reassign', [\App\Http\Controllers\Api\ApiTeacherTransportController::class, 'temporaryReassignment']);
+    });
 });

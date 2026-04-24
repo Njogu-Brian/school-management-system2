@@ -25,22 +25,21 @@ export const TeacherClockScreen: React.FC = () => {
     });
     const [history, setHistory] = useState<StaffClockHistoryItem[]>([]);
 
+    const [configError, setConfigError] = useState<string | null>(null);
+
     const loadData = useCallback(async () => {
         setLoading(true);
+        setConfigError(null);
         try {
-            const [geo, today] = await Promise.all([
-                staffClockApi.getGeofenceConfig(),
-                staffClockApi.getTodayClockStatus(),
-            ]);
-            const historyRes = await staffClockApi.getClockHistory(14);
-
+            // Run in sequence so that a transient network fault on one call
+            // doesn't mark the screen as "unconfigured" unnecessarily.
+            const geo = await staffClockApi.getGeofenceConfig();
             if (geo.success && geo.data) {
                 setRadius(Math.round(geo.data.radius_meters || 100));
                 setIsConfigured(Boolean(geo.data.is_configured));
-            } else {
-                setIsConfigured(false);
             }
 
+            const today = await staffClockApi.getTodayClockStatus();
             if (today.success && today.data) {
                 setClockStatus({
                     checkInTime: today.data.check_in_time,
@@ -50,13 +49,16 @@ export const TeacherClockScreen: React.FC = () => {
                 setClockStatus({ checkInTime: null, checkOutTime: null });
             }
 
+            const historyRes = await staffClockApi.getClockHistory(14);
             if (historyRes.success && historyRes.data) {
                 setHistory(historyRes.data);
             } else {
                 setHistory([]);
             }
-        } catch {
-            setIsConfigured(false);
+        } catch (error: any) {
+            // Don't flip isConfigured on a network error — keep last good state so
+            // teachers aren't blocked by transient connectivity issues.
+            setConfigError(error?.message || 'Could not load clock data. Check your connection.');
         } finally {
             setLoading(false);
         }
@@ -85,7 +87,10 @@ export const TeacherClockScreen: React.FC = () => {
 
     const performClock = async (mode: 'in' | 'out') => {
         if (!isConfigured) {
-            Alert.alert('Not configured', 'Admin must set school geofence coordinates before clocking.');
+            Alert.alert(
+                'Geofence not configured',
+                'School geofence has not been configured by admin. Ask an admin to set the coordinates in Settings first.'
+            );
             return;
         }
 
@@ -100,6 +105,8 @@ export const TeacherClockScreen: React.FC = () => {
                 Alert.alert('Unable to continue', response.message || 'Request failed.');
             }
         } catch (error: any) {
+            // Backend 422 already provides a clear distance-vs-radius message.
+            // Location permission errors throw here too — surface whatever message we get.
             Alert.alert('Unable to continue', error?.message || 'Please try again.');
         } finally {
             setBusyAction(null);
@@ -122,6 +129,14 @@ export const TeacherClockScreen: React.FC = () => {
                     <Text style={[styles.desc, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                         You must be within {radius}m of the configured school location to record attendance.
                     </Text>
+                    {configError ? (
+                        <Text style={[styles.warning]}>{configError}</Text>
+                    ) : null}
+                    {!configError && !isConfigured && !loading ? (
+                        <Text style={[styles.warning]}>
+                            Geofence not configured. Ask an admin to set school coordinates in Settings.
+                        </Text>
+                    ) : null}
                     <Text style={[styles.info, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                         Status: {statusLabel}
                     </Text>
@@ -195,4 +210,12 @@ const styles = StyleSheet.create({
     },
     historyDate: { fontSize: FONT_SIZES.sm, fontWeight: '700' },
     historyMeta: { fontSize: FONT_SIZES.xs, marginTop: 2 },
+    warning: {
+        fontSize: FONT_SIZES.sm,
+        marginBottom: SPACING.sm,
+        padding: SPACING.sm,
+        backgroundColor: '#FFF4E5',
+        borderRadius: 6,
+        color: '#8A5000',
+    },
 });

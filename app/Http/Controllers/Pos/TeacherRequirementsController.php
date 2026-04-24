@@ -27,8 +27,13 @@ class TeacherRequirementsController extends Controller
             'collectedBy'
         ]);
 
-        // Teachers see only their assigned classes
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        // Teachers & senior teachers see only their assigned classes
+        $isTeacherOnly = ($user->hasRole('Teacher') || $user->hasRole('teacher')
+            || $user->hasRole('Senior Teacher') || $user->hasRole('senior teacher')
+            || $user->hasRole('Supervisor') || $user->hasRole('supervisor'))
+            && ! ($user->hasRole('Super Admin') || $user->hasRole('Admin') || $user->hasRole('admin') || $user->hasRole('super admin'));
+
+        if ($isTeacherOnly) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
                 $query->whereHas('student', function($q) use ($assignedClassroomIds) {
@@ -37,6 +42,11 @@ class TeacherRequirementsController extends Controller
             } else {
                 $query->whereRaw('1 = 0'); // No access
             }
+
+            // Teachers must not see new-joiner items — those are admin-only.
+            $query->whereHas('requirementTemplate', function ($q) {
+                $q->whereIn('student_type', ['existing', 'both']);
+            });
         }
 
         if ($request->filled('classroom_id')) {
@@ -109,12 +119,21 @@ class TeacherRequirementsController extends Controller
     public function markReceived(Request $request, StudentRequirement $requirement)
     {
         $user = Auth::user();
-        
-        // Verify teacher has access
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        $isTeacherOnly = ($user->hasRole('Teacher') || $user->hasRole('teacher')
+            || $user->hasRole('Senior Teacher') || $user->hasRole('senior teacher')
+            || $user->hasRole('Supervisor') || $user->hasRole('supervisor'))
+            && ! ($user->hasRole('Super Admin') || $user->hasRole('Admin') || $user->hasRole('admin') || $user->hasRole('super admin'));
+
+        if ($isTeacherOnly) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!in_array($requirement->student->classroom_id, $assignedClassroomIds)) {
                 return back()->with('error', 'You do not have access to this requirement.');
+            }
+
+            // Teachers cannot receive new-joiner items.
+            $tplType = $requirement->requirementTemplate->student_type ?? 'both';
+            if ($tplType === 'new') {
+                return back()->with('error', 'New-joiner requirements must be received by the admin office.');
             }
         }
 
@@ -170,12 +189,19 @@ class TeacherRequirementsController extends Controller
     public function show(StudentRequirement $requirement)
     {
         $user = Auth::user();
-        
-        // Verify teacher has access
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        $isTeacherOnly = ($user->hasRole('Teacher') || $user->hasRole('teacher')
+            || $user->hasRole('Senior Teacher') || $user->hasRole('senior teacher')
+            || $user->hasRole('Supervisor') || $user->hasRole('supervisor'))
+            && ! ($user->hasRole('Super Admin') || $user->hasRole('Admin') || $user->hasRole('admin') || $user->hasRole('super admin'));
+
+        if ($isTeacherOnly) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!in_array($requirement->student->classroom_id, $assignedClassroomIds)) {
                 abort(403, 'You do not have access to this requirement.');
+            }
+            $tplType = $requirement->requirementTemplate->student_type ?? 'both';
+            if ($tplType === 'new') {
+                abort(403, 'New-joiner requirements must be received by the admin office.');
             }
         }
 

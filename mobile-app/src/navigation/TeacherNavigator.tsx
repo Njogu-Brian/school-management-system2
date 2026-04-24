@@ -18,7 +18,6 @@ import { ExamMarksSetupScreen } from '@screens/Academics/ExamMarksSetupScreen';
 import { MarksMatrixSetupScreen } from '@screens/Academics/MarksMatrixSetupScreen';
 import { MarksMatrixEntryScreen } from '@screens/Academics/MarksMatrixEntryScreen';
 import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
-import { RoutesListScreen } from '@screens/Transport/RoutesListScreen';
 import { RouteDetailScreen } from '@screens/Transport/RouteDetailScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
 import { SettingsScreen } from '@screens/Settings/SettingsScreen';
@@ -36,6 +35,9 @@ import { SupervisedStaffScreen } from '@screens/SeniorTeacher/SupervisedStaffScr
 import { FeeBalancesScreen } from '@screens/SeniorTeacher/FeeBalancesScreen';
 import { RecordPaymentScreen } from '@screens/Finance/RecordPaymentScreen';
 import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
+import { TeacherRequirementsScreen } from '@screens/Requirements/TeacherRequirementsScreen';
+import { TeacherRequirementDetailScreen } from '@screens/Requirements/TeacherRequirementDetailScreen';
+import { TeacherTransportListScreen } from '@screens/Transport/TeacherTransportListScreen';
 import { useTheme } from '@contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -127,7 +129,8 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="ExamMarksSetup" component={ExamMarksSetupScreen} />
             <Stack.Screen name="ExamDetail" component={ComingSoonScreen} />
             <Stack.Screen name="ReportCard" component={ReportCardScreen} />
-            <Stack.Screen name="Transport" component={RoutesListScreen} />
+            <Stack.Screen name="Transport" component={TeacherTransportListScreen} />
+            <Stack.Screen name="TeacherTransport" component={TeacherTransportListScreen} />
             <Stack.Screen name="RouteDetail" component={RouteDetailScreen} />
             <Stack.Screen name="Diary" component={DiaryScreen} />
             <Stack.Screen name="MyProfile" component={MyProfileScreen} />
@@ -143,6 +146,8 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
             <Stack.Screen name="CreateAssignment" component={CreateAssignmentScreen} />
             <Stack.Screen name="LessonPlanDetail" component={ComingSoonScreen} />
+            <Stack.Screen name="TeacherRequirements" component={TeacherRequirementsScreen} />
+            <Stack.Screen name="TeacherRequirementDetail" component={TeacherRequirementDetailScreen} />
         </Stack.Navigator>
     );
 };

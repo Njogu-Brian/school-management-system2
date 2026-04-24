@@ -244,6 +244,7 @@ class ApiStudentController extends Controller
 
         $blood = $s->blood_group ?? null;
         $phoneSvc = app(PhoneNumberService::class);
+        $feeInfo = $this->resolveFeeStatus($s);
         $fCc = $parent ? ($parent->father_phone_country_code ?? '+254') : '+254';
         $mCc = $parent ? ($parent->mother_phone_country_code ?? '+254') : '+254';
         $gCc = $parent ? ($parent->guardian_phone_country_code ?? '+254') : '+254';
@@ -286,6 +287,8 @@ class ApiStudentController extends Controller
             'blood_group' => $blood,
             'admission_date' => $s->admission_date ? $s->admission_date->format('Y-m-d') : null,
             'enrollment_year' => $s->enrollment_year ?? null,
+            'fee_status' => $feeInfo['status'],
+            'outstanding_balance' => $feeInfo['balance'],
             'parent' => $parent ? [
                 'father_name' => $parent->father_name,
                 'mother_name' => $parent->mother_name,
@@ -317,5 +320,24 @@ class ApiStudentController extends Controller
             'created_at' => $s->created_at->toIso8601String(),
             'updated_at' => $s->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * Resolve outstanding balance + cleared/pending flag via StudentBalanceService.
+     * Cached per-request so re-formatting the same student is cheap.
+     */
+    protected function resolveFeeStatus(Student $s): array
+    {
+        static $cache = [];
+        if (isset($cache[$s->id])) {
+            return $cache[$s->id];
+        }
+        try {
+            $balance = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($s);
+        } catch (\Throwable $e) {
+            $balance = 0.0;
+        }
+        $status = $balance > 0 ? 'pending' : 'cleared';
+        return $cache[$s->id] = ['status' => $status, 'balance' => round($balance, 2)];
     }
 }

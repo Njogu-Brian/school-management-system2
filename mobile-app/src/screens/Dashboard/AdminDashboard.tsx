@@ -6,13 +6,16 @@ import { useAuth } from '@contexts/AuthContext';
 import { useTheme } from '@contexts/ThemeContext';
 import { dashboardApi, DashboardStats } from '@api/dashboard.api';
 import { formatters } from '@utils/formatters';
+import { getDashboardRoleLabel } from '@utils/dashboardRoleLabel';
 import { SPACING } from '@constants/theme';
-import { BRAND, RADIUS, SCREEN, CARD_STYLE, HEADER } from '@constants/designTokens';
+import { BRAND, RADIUS, SCREEN, CARD_STYLE } from '@constants/designTokens';
 import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { DashboardLineChart, DashboardBarChart } from '@components/dashboard';
-import { mainBackgroundGradient, brandHeroGradient } from '@styles/screenGradients';
+import { DashboardHero, DashboardLineChart, DashboardBarChart, DashboardMenuGrid } from '@components/dashboard';
+import type { DashboardMenuItem } from '@components/dashboard';
+import { mainBackgroundGradient } from '@styles/screenGradients';
 import { adminDashboardStyles as s } from '@styles/screens/adminDashboard.styles';
+import { tileColorForIndex } from '@styles/sections/dashboard';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - SPACING.xl * 2 - SPACING.md) / 2;
@@ -69,7 +72,7 @@ function chartSeries(
 }
 
 export const AdminDashboard = () => {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const { isDark, colors } = useTheme();
     const navigation = useNavigation<any>();
     const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -77,12 +80,31 @@ export const AdminDashboard = () => {
     const [refreshing, setRefreshing] = useState(false);
 
     const bgGradient = useMemo(() => [...mainBackgroundGradient(colors, isDark)] as [string, string, string], [colors, isDark]);
-    const heroGradient = useMemo(() => [...brandHeroGradient(colors)] as [string, string], [colors]);
 
-    const fetchStats = async () => {
+    const greeting = useMemo(() => {
+        const h = new Date().getHours();
+        if (h < 12) return 'Good morning';
+        if (h < 17) return 'Good afternoon';
+        return 'Good evening';
+    }, []);
+
+    const [filterYearId, setFilterYearId] = useState<number | null>(null);
+    const [filterTermId, setFilterTermId] = useState<number | null>(null);
+
+    const fetchStats = async (yearId?: number | null, termId?: number | null) => {
         try {
-            const res = await dashboardApi.getStats();
-            if (res.success && res.data) setStats(res.data);
+            const res = await dashboardApi.getStats({
+                academic_year_id: yearId !== undefined ? yearId : filterYearId,
+                term_id: termId !== undefined ? termId : filterTermId,
+            });
+            if (res.success && res.data) {
+                setStats(res.data);
+                if (res.data.filters) {
+                    if (yearId === undefined && filterYearId == null && res.data.filters.academic_year_id != null) {
+                        setFilterYearId(res.data.filters.academic_year_id);
+                    }
+                }
+            }
         } catch {
             setStats(null);
         } finally {
@@ -100,6 +122,63 @@ export const AdminDashboard = () => {
         fetchStats();
     };
 
+    const availableYears = stats?.filters?.available_years ?? [];
+    const availableTerms = (stats?.filters?.available_terms ?? []).filter((t) =>
+        filterYearId ? t.academic_year_id === filterYearId : true
+    );
+
+    const cycleYear = () => {
+        if (!availableYears.length) return;
+        const idx = availableYears.findIndex((y) => y.id === filterYearId);
+        const next = availableYears[(idx + 1) % availableYears.length];
+        setFilterYearId(next.id);
+        setFilterTermId(null);
+        setRefreshing(true);
+        fetchStats(next.id, null);
+    };
+
+    const cycleTerm = () => {
+        if (!availableTerms.length) return;
+        const idx = availableTerms.findIndex((t) => t.id === filterTermId);
+        const next = filterTermId == null ? availableTerms[0] : availableTerms[(idx + 1) % (availableTerms.length + 1)];
+        const nextId = !next || idx + 1 >= availableTerms.length ? null : next.id;
+        setFilterTermId(nextId);
+        setRefreshing(true);
+        fetchStats(filterYearId, nextId);
+    };
+
+    const selectedYearLabel = availableYears.find((y) => y.id === filterYearId)?.year ?? 'All';
+    const selectedTermLabel = availableTerms.find((t) => t.id === filterTermId)?.name ?? 'Whole year';
+
+    const navItems: DashboardMenuItem[] = useMemo(() => {
+        const items = [
+            { id: 'students', title: 'Students', icon: 'school', to: ['Students', 'StudentsList'] as const },
+            { id: 'add', title: 'Add student', icon: 'person-add', to: ['Students', 'AddStudent'] as const },
+            { id: 'staff', title: 'Staff', icon: 'badge', to: ['More', 'StaffDirectory'] as const },
+            { id: 'attendance', title: 'Attendance', icon: 'fact-check', to: ['Attendance', 'MarkAttendance'] as const },
+            { id: 'invoices', title: 'Invoices', icon: 'receipt-long', to: ['Finance', 'InvoicesList'] as const },
+            { id: 'payments', title: 'Payments', icon: 'payments', to: ['Finance', 'PaymentsList'] as const },
+            { id: 'fees', title: 'Fee structures', icon: 'attach-money', to: ['Finance', 'FeeStructures'] as const },
+            { id: 'reqs', title: 'Requirements', icon: 'inventory-2', to: ['More', 'TeacherRequirements'] as const },
+            { id: 'transport', title: 'Transport', icon: 'directions-bus', to: ['More', 'RoutesList'] as const },
+            { id: 'leave', title: 'Leave', icon: 'event-busy', to: ['More', 'LeaveManagement'] as const },
+            { id: 'payroll', title: 'Payroll', icon: 'account-balance-wallet', to: ['More', 'PayrollRecords'] as const },
+            { id: 'announcements', title: 'Announcements', icon: 'campaign', to: ['More', 'Announcements'] as const },
+            { id: 'notifications', title: 'Notifications', icon: 'notifications', to: ['More', 'Notifications'] as const },
+            { id: 'settings', title: 'Settings', icon: 'settings', to: ['More', 'Settings'] as const },
+        ];
+        return items.map((item, i) => ({
+            id: item.id,
+            title: item.title,
+            icon: item.icon,
+            color: tileColorForIndex(i),
+            onPress: () => {
+                const nav = navigation.getParent() ?? navigation;
+                nav.navigate(item.to[0], { screen: item.to[1] });
+            },
+        }));
+    }, [navigation]);
+
     const enrollment = useMemo(() => chartSeries(stats, 'enrollment'), [stats]);
     const payments = useMemo(() => chartSeries(stats, 'payments'), [stats]);
     const invoices = useMemo(() => chartSeries(stats, 'invoices'), [stats]);
@@ -111,42 +190,82 @@ export const AdminDashboard = () => {
         <LinearGradient colors={bgGradient} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.gradient}>
             <SafeAreaView style={s.flex}>
                 <ScrollView
-                    contentContainerStyle={[s.scrollContent, { paddingHorizontal: SCREEN.paddingHorizontal }]}
+                    contentContainerStyle={{ paddingBottom: SPACING.xxl }}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
                     }
                     showsVerticalScrollIndicator={false}
                 >
-                    <LinearGradient
-                        colors={heroGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={s.headerAccent}
-                    >
-                        <View style={s.header}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={[s.greeting, { color: 'rgba(255,255,255,0.9)' }]}>Welcome back,</Text>
-                                <Text style={[s.name, { color: '#fff' }]}>{user?.name}</Text>
+                    <DashboardHero
+                        greeting={greeting}
+                        userName={user?.name || 'Admin'}
+                        roleLabel={getDashboardRoleLabel(user?.role)}
+                        avatarUrl={user?.avatar}
+                        onPressNotifications={() => {
+                            const nav = navigation.getParent() ?? navigation;
+                            nav.navigate('More', { screen: 'Notifications' });
+                        }}
+                        onPressSettings={() => {
+                            const nav = navigation.getParent() ?? navigation;
+                            nav.navigate('More', { screen: 'Settings' });
+                        }}
+                    />
+
+                    <View style={{ paddingHorizontal: SCREEN.paddingHorizontal, paddingTop: SPACING.lg }}>
+
+                    {/* Academic year / term filter pills */}
+                    <View style={{ flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md }}>
+                        <TouchableOpacity
+                            onPress={cycleYear}
+                            style={{
+                                flex: 1,
+                                paddingVertical: SPACING.sm,
+                                paddingHorizontal: SPACING.md,
+                                borderRadius: RADIUS.button,
+                                borderWidth: 1,
+                                borderColor: isDark ? colors.borderDark : BRAND.border,
+                                backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <View>
+                                <Text style={{ fontSize: 11, color: isDark ? colors.textSubDark : colors.textSubLight }}>
+                                    Academic year
+                                </Text>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: isDark ? colors.textMainDark : colors.textMainLight }}>
+                                    {String(selectedYearLabel)}
+                                </Text>
                             </View>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        const nav = navigation.getParent() ?? navigation;
-                                        nav.navigate('More', { screen: 'Settings' });
-                                    }}
-                                    style={[s.logoutButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
-                                >
-                                    <Icon name="settings" size={HEADER.iconSize} color="#fff" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={logout}
-                                    style={[s.logoutButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
-                                >
-                                    <Icon name="logout" size={HEADER.iconSize} color="#fff" />
-                                </TouchableOpacity>
+                            <Icon name="swap-horiz" size={20} color={colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={cycleTerm}
+                            style={{
+                                flex: 1,
+                                paddingVertical: SPACING.sm,
+                                paddingHorizontal: SPACING.md,
+                                borderRadius: RADIUS.button,
+                                borderWidth: 1,
+                                borderColor: isDark ? colors.borderDark : BRAND.border,
+                                backgroundColor: isDark ? colors.surfaceDark : BRAND.surface,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <View>
+                                <Text style={{ fontSize: 11, color: isDark ? colors.textSubDark : colors.textSubLight }}>
+                                    Term
+                                </Text>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: isDark ? colors.textMainDark : colors.textMainLight }}>
+                                    {selectedTermLabel}
+                                </Text>
                             </View>
-                        </View>
-                    </LinearGradient>
+                            <Icon name="swap-horiz" size={20} color={colors.primary} />
+                        </TouchableOpacity>
+                    </View>
 
                     <View style={s.cardsContainer}>
                         <DashboardCard
@@ -160,12 +279,6 @@ export const AdminDashboard = () => {
                             }}
                         />
                         <DashboardCard
-                            title="Total Staff"
-                            value={loading ? '…' : stats?.total_staff != null ? stats.total_staff.toLocaleString() : '0'}
-                            icon="people"
-                            color={BRAND.success}
-                        />
-                        <DashboardCard
                             title="Present Today"
                             value={loading ? '…' : stats?.present_today != null ? stats.present_today.toLocaleString() : '0'}
                             icon="check-circle"
@@ -176,16 +289,48 @@ export const AdminDashboard = () => {
                             }}
                         />
                         <DashboardCard
-                            title="Fees Collected"
-                            value={loading ? '…' : formatters.formatCurrency(stats?.fees_collected ?? 0)}
+                            title="Total Invoiced"
+                            value={loading ? '…' : formatters.formatCurrency(stats?.total_invoiced ?? 0)}
+                            icon="receipt-long"
+                            color={colors.info}
+                            onPress={() => {
+                                const nav = navigation.getParent() ?? navigation;
+                                nav.navigate('Finance', { screen: 'InvoicesList' });
+                            }}
+                        />
+                        <DashboardCard
+                            title="Total Payments"
+                            value={loading ? '…' : formatters.formatCurrency(stats?.total_payments ?? stats?.fees_collected ?? 0)}
                             icon="payments"
+                            color={BRAND.success}
+                            onPress={() => {
+                                const nav = navigation.getParent() ?? navigation;
+                                nav.navigate('Finance', { screen: 'PaymentsList' });
+                            }}
+                        />
+                        <DashboardCard
+                            title="Outstanding Balance"
+                            value={loading ? '…' : formatters.formatCurrency(stats?.outstanding_balance ?? 0)}
+                            icon="account-balance-wallet"
                             color={BRAND.danger}
                             onPress={() => {
                                 const nav = navigation.getParent() ?? navigation;
                                 nav.navigate('Finance', { screen: 'InvoicesList' });
                             }}
                         />
+                        <DashboardCard
+                            title="Total Staff"
+                            value={loading ? '…' : stats?.total_staff != null ? stats.total_staff.toLocaleString() : '0'}
+                            icon="people"
+                            color={BRAND.success}
+                            onPress={() => {
+                                const nav = navigation.getParent() ?? navigation;
+                                nav.navigate('More', { screen: 'StaffDirectory' });
+                            }}
+                        />
                     </View>
+
+                    <DashboardMenuGrid title="Navigate" items={navItems} />
 
                     {enrollment.labels.length > 0 && (
                         <DashboardLineChart
@@ -365,6 +510,7 @@ export const AdminDashboard = () => {
                                 </Text>
                             </TouchableOpacity>
                         </View>
+                    </View>
                     </View>
                 </ScrollView>
             </SafeAreaView>

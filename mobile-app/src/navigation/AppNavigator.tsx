@@ -7,7 +7,7 @@ import { User } from '../types/auth.types';
 import { AuthNavigator } from './AuthNavigator';
 import { RoleBasedNavigator } from './RoleBasedNavigator';
 import { OfflineBanner } from '@components/common/OfflineBanner';
-import { GlobalAppHeader } from '@components/common/GlobalAppHeader';
+import { AppScreenHeader } from '@components/common/AppScreenHeader';
 import { useNetworkStatus } from '@hooks/useNetworkStatus';
 import { usePushNotifications } from '@hooks/usePushNotifications';
 import { checkForAppUpdate } from '@services/update.service';
@@ -207,11 +207,11 @@ const AuthenticatedShell: React.FC<{ user: User; currentRouteName: string | null
             keyboardVerticalOffset={0}
         >
             {shouldShowGlobalHeader ? (
-                <GlobalAppHeader
+                <AppScreenHeader
                     title={globalTitle}
                     onBack={handleBack}
-                    onSettings={handleSettings}
-                    showSettings={canOpenSettings}
+                    rightIcon={canOpenSettings ? 'settings' : undefined}
+                    onRightPress={canOpenSettings ? handleSettings : undefined}
                 />
             ) : null}
             <OfflineBanner visible={!online} />

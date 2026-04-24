@@ -1795,7 +1795,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Point of Sale (POS) Management
     |----------------------------------------------------------------------
     */
-    Route::prefix('pos')->name('pos.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+    Route::prefix('pos')->name('pos.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|senior teacher|Supervisor|supervisor')->group(function () {
         // Products
         Route::resource('products', \App\Http\Controllers\Pos\ProductController::class);
         Route::post('products/{product}/adjust-stock', [\App\Http\Controllers\Pos\ProductController::class, 'adjustStock'])->name('products.adjust-stock');

@@ -20,6 +20,8 @@ import { hrApi } from '@api/hr.api';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
 import { canManageStaff } from '@utils/staffHrAccess';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 type LeaveTypeOption = { id: number; name: string; code?: string; max_days?: number };
 
@@ -41,6 +43,33 @@ export const ApplyLeaveScreen: React.FC<ApplyLeaveScreenProps> = ({ navigation, 
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [reason, setReason] = useState('');
+    const [showStartPicker, setShowStartPicker] = useState(false);
+    const [showEndPicker, setShowEndPicker] = useState(false);
+
+    const toIso = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    const parseIso = (iso: string): Date => {
+        const parts = iso?.split('-');
+        if (parts?.length === 3) {
+            const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            if (!isNaN(d.getTime())) return d;
+        }
+        return new Date();
+    };
+
+    const onChangeStart = (event: DateTimePickerEvent, date?: Date) => {
+        setShowStartPicker(Platform.OS === 'ios');
+        if (event.type === 'set' && date) setStartDate(toIso(date));
+    };
+    const onChangeEnd = (event: DateTimePickerEvent, date?: Date) => {
+        setShowEndPicker(Platform.OS === 'ios');
+        if (event.type === 'set' && date) setEndDate(toIso(date));
+    };
     const [staffIdInput, setStaffIdInput] = useState(paramStaffId != null ? String(paramStaffId) : '');
     const prefilledStaffId = useRef(false);
 
@@ -178,21 +207,43 @@ export const ApplyLeaveScreen: React.FC<ApplyLeaveScreenProps> = ({ navigation, 
 
                         <Card style={styles.card}>
                             <Text style={[styles.label, { color: mainText }]}>Start date</Text>
-                            <TextInput
-                                style={[styles.input, { color: mainText, borderColor: border }]}
-                                value={startDate}
-                                onChangeText={setStartDate}
-                                placeholder="YYYY-MM-DD"
-                                placeholderTextColor={subText}
-                            />
+                            <TouchableOpacity
+                                style={[styles.dateButton, { borderColor: border }]}
+                                onPress={() => setShowStartPicker(true)}
+                            >
+                                <Icon name="calendar-today" size={18} color={mainText} />
+                                <Text style={[styles.dateButtonText, { color: startDate ? mainText : subText }]}>
+                                    {startDate || 'Select start date'}
+                                </Text>
+                            </TouchableOpacity>
+                            {showStartPicker ? (
+                                <DateTimePicker
+                                    value={startDate ? parseIso(startDate) : new Date()}
+                                    mode="date"
+                                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                                    onChange={onChangeStart}
+                                />
+                            ) : null}
+
                             <Text style={[styles.label, { color: mainText, marginTop: SPACING.md }]}>End date</Text>
-                            <TextInput
-                                style={[styles.input, { color: mainText, borderColor: border }]}
-                                value={endDate}
-                                onChangeText={setEndDate}
-                                placeholder="YYYY-MM-DD"
-                                placeholderTextColor={subText}
-                            />
+                            <TouchableOpacity
+                                style={[styles.dateButton, { borderColor: border }]}
+                                onPress={() => setShowEndPicker(true)}
+                            >
+                                <Icon name="event" size={18} color={mainText} />
+                                <Text style={[styles.dateButtonText, { color: endDate ? mainText : subText }]}>
+                                    {endDate || 'Select end date'}
+                                </Text>
+                            </TouchableOpacity>
+                            {showEndPicker ? (
+                                <DateTimePicker
+                                    value={endDate ? parseIso(endDate) : (startDate ? parseIso(startDate) : new Date())}
+                                    mode="date"
+                                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                                    minimumDate={startDate ? parseIso(startDate) : undefined}
+                                    onChange={onChangeEnd}
+                                />
+                            ) : null}
                         </Card>
 
                         <Card style={styles.card}>
@@ -247,4 +298,13 @@ const styles = StyleSheet.create({
         textAlignVertical: 'top',
     },
     centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    dateButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.md,
+    },
+    dateButtonText: { marginLeft: SPACING.sm, fontSize: FONT_SIZES.md },
 });

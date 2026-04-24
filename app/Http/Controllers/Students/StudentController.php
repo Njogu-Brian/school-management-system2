@@ -72,6 +72,16 @@ class StudentController extends Controller
     {
         $perPage = (int) $request->input('per_page', 20);
 
+        // Filter-first: we only run the expensive query when the user has
+        // chosen a scope. On a bare /students open we return an empty paginator
+        // so big schools aren't forced to load every record just to see the page.
+        $hasFilter = $request->filled('name')
+            || $request->filled('admission_number')
+            || $request->filled('classroom_id')
+            || $request->filled('stream_id')
+            || $request->boolean('show_all')
+            || $request->has('showArchived');
+
         $query = $request->has('showArchived')
             ? Student::withArchived()->with(['parent','classroom','stream','category'])
             : Student::with(['parent','classroom','stream','category'])->where('archive', 0);
@@ -96,8 +106,18 @@ class StudentController extends Controller
             $query->where('stream_id', $request->stream_id);
         }
 
-        // eager
-        $students = $query->orderBy('first_name')->paginate($perPage)->withQueryString();
+        if ($hasFilter) {
+            $students = $query->orderBy('first_name')->paginate($perPage)->withQueryString();
+        } else {
+            // Empty paginator that still renders nicely in the Blade view.
+            $students = new \Illuminate\Pagination\LengthAwarePaginator(
+                collect(),
+                0,
+                $perPage,
+                1,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+        }
 
         $classrooms = Classroom::orderBy('name')->get();
         $streams    = Stream::orderBy('name')->get();

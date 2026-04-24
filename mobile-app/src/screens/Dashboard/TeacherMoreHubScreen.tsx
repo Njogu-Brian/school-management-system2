@@ -29,7 +29,7 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
         { title: 'My salary / payslips', icon: 'payments', screen: 'MySalary' },
         { title: 'Leave & apply', icon: 'event-busy', screen: 'Leave' },
         { title: 'Clock in / out', icon: 'access-time', screen: 'TeacherClock' },
-        { title: 'Transport routes', icon: 'directions-bus', screen: 'Transport' },
+        { title: 'Transport list', icon: 'directions-bus', screen: 'TeacherTransport' },
         { title: 'Diary', icon: 'book', screen: 'Diary' },
         { title: 'Notifications', icon: 'notifications', screen: 'Notifications' },
         { title: 'Settings', icon: 'settings', screen: 'Settings' },

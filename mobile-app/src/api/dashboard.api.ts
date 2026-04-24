@@ -19,11 +19,36 @@ export interface TeacherOnLeaveItem {
     leave_type: string | null;
 }
 
+export interface DashboardAcademicYearOption {
+    id: number;
+    year: number | string;
+    is_active?: boolean;
+}
+
+export interface DashboardTermOption {
+    id: number;
+    name: string;
+    academic_year_id: number;
+    opening_date?: string | null;
+    closing_date?: string | null;
+    is_current?: boolean;
+}
+
+export interface DashboardFilters {
+    academic_year_id: number | null;
+    term_id: number | null;
+    available_years: DashboardAcademicYearOption[];
+    available_terms: DashboardTermOption[];
+}
+
 export interface DashboardStats {
     total_students?: number;
     total_staff?: number;
     present_today?: number;
     fees_collected?: number;
+    total_invoiced?: number;
+    total_payments?: number;
+    outstanding_balance?: number;
     role?: string;
     /** Teacher / senior teacher (from /dashboard/stats) */
     my_classes?: number;
@@ -33,6 +58,7 @@ export interface DashboardStats {
     children_count?: number;
     total_fee_balance?: number;
     /** Admin dashboard */
+    filters?: DashboardFilters;
     charts?: {
         enrollment?: DashboardChartSeries;
         payments?: DashboardChartSeries;
@@ -45,8 +71,16 @@ export interface DashboardStats {
     teachers_on_leave?: TeacherOnLeaveItem[];
 }
 
+export interface DashboardStatsFilters {
+    academic_year_id?: number | null;
+    term_id?: number | null;
+}
+
 export const dashboardApi = {
-    async getStats(): Promise<ApiResponse<DashboardStats>> {
-        return apiClient.get<DashboardStats>('/dashboard/stats');
+    async getStats(filters?: DashboardStatsFilters): Promise<ApiResponse<DashboardStats>> {
+        const params: Record<string, any> = {};
+        if (filters?.academic_year_id != null) params.academic_year_id = filters.academic_year_id;
+        if (filters?.term_id != null) params.term_id = filters.term_id;
+        return apiClient.get<DashboardStats>('/dashboard/stats', params);
     },
 };

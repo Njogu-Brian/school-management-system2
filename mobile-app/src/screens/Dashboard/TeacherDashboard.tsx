@@ -68,11 +68,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
         { id: '5', title: 'Lesson plans', icon: 'menu-book', screen: 'LessonPlans' as const },
         { id: '6', title: 'My classes', icon: 'class', onPress: () => goTab('Classes') },
         { id: '7', title: 'Clock in / out', icon: 'access-time', screen: 'TeacherClock' as const },
-        { id: '8', title: 'Transport', icon: 'directions-bus', screen: 'Transport' as const },
+        { id: '8', title: 'Transport', icon: 'directions-bus', screen: 'TeacherTransport' as const },
         { id: '9', title: 'Diary', icon: 'book', screen: 'Diary' as const },
         { id: '10', title: 'My profile', icon: 'person', screen: 'MyProfile' as const },
         { id: '11', title: 'My salary', icon: 'payments', screen: 'MySalary' as const },
         { id: '12', title: 'Leave', icon: 'event-busy', screen: 'Leave' as const },
+        { id: '13r', title: 'Requirements', icon: 'inventory-2', screen: 'TeacherRequirements' as const },
     ];
     const seniorOnly = isSeniorTeacher
         ? [

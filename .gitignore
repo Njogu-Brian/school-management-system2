@@ -29,3 +29,5 @@ yarn-error.log
 /.vscode
 /.zed
 .qodo
+
+.git-commit-msg.tmp

@@ -11,15 +11,23 @@ class ApiStaffClockController extends Controller
 {
     private function geofenceConfig(): array
     {
-        $lat = setting('school_geofence_latitude');
-        $lng = setting('school_geofence_longitude');
+        $latRaw = setting('school_geofence_latitude');
+        $lngRaw = setting('school_geofence_longitude');
         $radius = (float) setting('school_geofence_radius_meters', '100');
 
+        // Settings are stored as strings, so normalise before the is_configured check.
+        // Treat whitespace-only or non-numeric values as "not configured" to avoid false positives.
+        $lat = (is_string($latRaw) ? trim($latRaw) : $latRaw);
+        $lng = (is_string($lngRaw) ? trim($lngRaw) : $lngRaw);
+
+        $latValid = $lat !== null && $lat !== '' && is_numeric($lat);
+        $lngValid = $lng !== null && $lng !== '' && is_numeric($lng);
+
         return [
-            'latitude' => $lat !== null && $lat !== '' ? (float) $lat : null,
-            'longitude' => $lng !== null && $lng !== '' ? (float) $lng : null,
+            'latitude' => $latValid ? (float) $lat : null,
+            'longitude' => $lngValid ? (float) $lng : null,
             'radius_meters' => $radius > 0 ? $radius : 100.0,
-            'is_configured' => $lat !== null && $lat !== '' && $lng !== null && $lng !== '',
+            'is_configured' => $latValid && $lngValid,
         ];
     }
 

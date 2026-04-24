@@ -53,6 +53,36 @@ class ExpoPushService
     }
 
     /**
+     * Send a custom notification to the given tokens.
+     *
+     * @param  array<int, string>  $tokens
+     * @param  array<string, mixed>  $data  Optional data payload delivered with the notification.
+     */
+    public function sendToTokens(array $tokens, string $title, string $body, array $data = []): void
+    {
+        $tokens = array_values(array_filter(array_unique($tokens), fn ($t) => is_string($t) && $t !== ''));
+        if ($tokens === []) {
+            return;
+        }
+        $title = Str::limit($title, 100);
+        $body = Str::limit($body, 160);
+
+        foreach (array_chunk($tokens, self::CHUNK) as $chunk) {
+            $messages = [];
+            foreach ($chunk as $token) {
+                $messages[] = [
+                    'to' => $token,
+                    'title' => $title,
+                    'body' => $body,
+                    'sound' => 'default',
+                    'data' => $data,
+                ];
+            }
+            $this->postMessages($messages);
+        }
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $messages
      */
     private function postMessages(array $messages): void

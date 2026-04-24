@@ -186,7 +186,27 @@
                   <td class="text-end">@include('students.partials.action-dropdown')</td>
                 </tr>
               @empty
-                <tr><td colspan="8">@include('students.partials.empty-state')</td></tr>
+                @php
+                    $hasAnyFilter = request()->filled('name') || request()->filled('admission_number')
+                        || request()->filled('classroom_id') || request()->filled('stream_id')
+                        || request()->boolean('show_all') || request()->has('showArchived');
+                @endphp
+                @if(! $hasAnyFilter)
+                  <tr>
+                    <td colspan="8" class="text-center py-5">
+                      <div class="d-flex flex-column align-items-center gap-2">
+                        <i class="bi bi-funnel" style="font-size:2rem; color:#6c757d;"></i>
+                        <h6 class="mb-0">Pick a filter to load students</h6>
+                        <p class="text-muted small mb-2">To keep this page fast, no students are listed until you search, pick a class/stream, or choose "Show all".</p>
+                        <a href="{{ request()->fullUrlWithQuery(['show_all' => 1]) }}" class="btn btn-outline-primary btn-sm">
+                          <i class="bi bi-people"></i> Show all students
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                @else
+                  <tr><td colspan="8">@include('students.partials.empty-state')</td></tr>
+                @endif
               @endforelse
             </tbody>
           </table>

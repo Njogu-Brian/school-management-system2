@@ -310,6 +310,21 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                         <Text style={[styles.admissionNumber, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                             {item.admission_number}
                         </Text>
+                        {item.fee_status ? (
+                            <View style={[styles.feeBadge, {
+                                backgroundColor: item.fee_status === 'cleared' ? '#E8F5E9' : '#FFEBEE',
+                                borderColor: item.fee_status === 'cleared' ? '#2E7D32' : '#C62828',
+                            }]}>
+                                <Icon
+                                    name={item.fee_status === 'cleared' ? 'check-circle' : 'error'}
+                                    size={12}
+                                    color={item.fee_status === 'cleared' ? '#2E7D32' : '#C62828'}
+                                />
+                                <Text style={[styles.feeBadgeText, { color: item.fee_status === 'cleared' ? '#2E7D32' : '#C62828' }]}>
+                                    {item.fee_status === 'cleared' ? 'Fees cleared' : `Pending${item.outstanding_balance ? ` (${item.outstanding_balance.toFixed(0)})` : ''}`}
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
                 </View>
 
@@ -459,6 +474,17 @@ const styles = StyleSheet.create({
     studentDetails: { flex: 1 },
     studentName: { fontSize: FONT_SIZES.md, fontWeight: '600' },
     admissionNumber: { fontSize: FONT_SIZES.xs },
+    feeBadge: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 8,
+        borderWidth: 1,
+        marginTop: 4,
+    },
+    feeBadgeText: { fontSize: 10, marginLeft: 2, fontWeight: '600' },
     statusRow: { flexDirection: 'row', gap: 6 },
     statusBtn: {
         width: 40,

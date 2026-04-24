@@ -59,9 +59,12 @@ class ApiDashboardController extends Controller
         }
 
         // Admin, Secretary, Super Admin, etc.
+        $yearId = $request->query('academic_year_id') !== null ? (int) $request->query('academic_year_id') : null;
+        $termId = $request->query('term_id') !== null ? (int) $request->query('term_id') : null;
+
         return response()->json([
             'success' => true,
-            'data' => $this->adminDashboard(),
+            'data' => $this->adminDashboard($yearId, $termId),
         ]);
     }
 
@@ -427,25 +430,59 @@ class ApiDashboardController extends Controller
         return ['labels' => $labels, 'values' => $values];
     }
 
-    protected function adminDashboard(): array
+    protected function adminDashboard(?int $yearId = null, ?int $termId = null): array
     {
         $today = now()->toDateString();
+
+        // Resolve window for scoped aggregates. When a term is given we use its
+        // opening_date..closing_date; otherwise the whole active year; otherwise all time.
+        [$windowStart, $windowEnd, $resolvedYearId, $resolvedTermId] = $this->resolveWindow($yearId, $termId);
 
         $totalStudents = Student::where('archive', 0)->where('is_alumni', false)->count();
         $totalStaff = Staff::count();
         $presentToday = SchoolDay::isSchoolDay($today)
             ? Attendance::whereDate('date', $today)->where('status', 'present')->count()
             : 0;
-        $feesCollected = Payment::where(function ($q) {
+
+        $paymentsQuery = Payment::query()->where(function ($q) {
             $q->whereNull('reversed')->orWhere('reversed', false);
-        })->sum('amount');
+        });
+        if ($windowStart && $windowEnd) {
+            $paymentsQuery->whereBetween('payment_date', [$windowStart, $windowEnd]);
+        }
+        $feesCollected = (float) $paymentsQuery->sum('amount');
+
+        $invoiceQuery = Invoice::query();
+        if ($resolvedTermId) {
+            $invoiceQuery->where('term_id', $resolvedTermId);
+        } elseif ($resolvedYearId) {
+            $invoiceQuery->where('academic_year_id', $resolvedYearId);
+        }
+        $totalInvoiced = (float) $invoiceQuery->sum('total');
+        $totalBalance = (float) (clone $invoiceQuery)->sum('balance');
+
+        // Filter options for the dropdowns on the UI.
+        $years = AcademicYear::orderByDesc('year')->get(['id', 'year', 'is_active']);
+        $terms = Term::query()
+            ->when($resolvedYearId, fn ($q) => $q->where('academic_year_id', $resolvedYearId))
+            ->orderBy('opening_date')
+            ->get(['id', 'name', 'academic_year_id', 'opening_date', 'closing_date', 'is_current']);
 
         return [
             'role' => 'admin',
             'total_students' => $totalStudents,
             'total_staff' => $totalStaff,
             'present_today' => $presentToday,
-            'fees_collected' => round((float) $feesCollected, 2),
+            'fees_collected' => round($feesCollected, 2),
+            'total_invoiced' => round($totalInvoiced, 2),
+            'total_payments' => round($feesCollected, 2),
+            'outstanding_balance' => round($totalBalance, 2),
+            'filters' => [
+                'academic_year_id' => $resolvedYearId,
+                'term_id' => $resolvedTermId,
+                'available_years' => $years,
+                'available_terms' => $terms,
+            ],
             'charts' => [
                 'enrollment' => $this->adminEnrolmentByTerm(),
                 'payments' => $this->adminPaymentsByTerm(),
@@ -454,6 +491,46 @@ class ApiDashboardController extends Controller
             'birthdays' => $this->adminUpcomingBirthdays(),
             'teachers_on_leave' => $this->adminTeachersOnLeave(),
         ];
+    }
+
+    /**
+     * Resolve the date window for a given year/term filter, returning
+     * [startCarbon|null, endCarbon|null, yearId|null, termId|null].
+     */
+    protected function resolveWindow(?int $yearId, ?int $termId): array
+    {
+        $resolvedTermId = null;
+        $resolvedYearId = $yearId;
+
+        if ($termId) {
+            $term = Term::find($termId);
+            if ($term) {
+                $resolvedTermId = $term->id;
+                $resolvedYearId = $term->academic_year_id;
+                $start = $term->opening_date ? $term->opening_date->copy()->startOfDay() : null;
+                $end = $term->closing_date ? $term->closing_date->copy()->endOfDay() : null;
+                if ($start && $end) {
+                    return [$start, $end, $resolvedYearId, $resolvedTermId];
+                }
+            }
+        }
+
+        if (! $resolvedYearId) {
+            $active = AcademicYear::where('is_active', true)->first();
+            $resolvedYearId = $active?->id;
+        }
+
+        if ($resolvedYearId) {
+            $termRange = Term::where('academic_year_id', $resolvedYearId)
+                ->orderBy('opening_date')->get();
+            $start = $termRange->first()?->opening_date?->copy()->startOfDay();
+            $end = $termRange->last()?->closing_date?->copy()->endOfDay();
+            if ($start && $end) {
+                return [$start, $end, $resolvedYearId, null];
+            }
+        }
+
+        return [null, null, $resolvedYearId, null];
     }
 
     /**

@@ -13,6 +13,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\BackfillStudentDiaries::class,
         \App\Console\Commands\PurgeLocalStorageAndDocuments::class,
         \App\Console\Commands\RecomputeFeeClearances::class,
+        \App\Console\Commands\SendTeacherClockAttendanceReminders::class,
     ];
 
     protected function schedule(Schedule $schedule)
@@ -30,6 +31,12 @@ class Kernel extends ConsoleKernel
         
         // Send fee reminders daily at 9 AM
         $schedule->job(new \App\Jobs\SendFeeRemindersJob)->dailyAt('09:00');
+
+        // Daily 9am reminder to teachers missing clock-in/attendance (school days only).
+        $schedule->command('reminders:teacher-clock-attendance')
+            ->dailyAt('09:00')
+            ->weekdays()
+            ->withoutOverlapping();
 
         // Update payment plan statuses (overdue, completed, broken) daily
         $schedule->command('payment-plans:update-statuses')->dailyAt('00:15');

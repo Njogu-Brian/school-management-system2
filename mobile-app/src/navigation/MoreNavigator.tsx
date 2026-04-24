@@ -17,6 +17,8 @@ import { LeaveManagementScreen } from '@screens/HR/LeaveManagementScreen';
 import { ApplyLeaveScreen } from '@screens/HR/ApplyLeaveScreen';
 import { SettingsScreen } from '@screens/Settings/SettingsScreen';
 import { TeacherClockScreen } from '@screens/Attendance/TeacherClockScreen';
+import { TeacherRequirementsScreen } from '@screens/Requirements/TeacherRequirementsScreen';
+import { TeacherRequirementDetailScreen } from '@screens/Requirements/TeacherRequirementDetailScreen';
 
 const Stack = createStackNavigator();
 
@@ -39,5 +41,7 @@ export const MoreNavigator = () => (
         <Stack.Screen name="ExamsList" component={ExamsListScreen} />
         <Stack.Screen name="ExamMarksSetup" component={ExamMarksSetupScreen} />
         <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />
+        <Stack.Screen name="TeacherRequirements" component={TeacherRequirementsScreen} />
+        <Stack.Screen name="TeacherRequirementDetail" component={TeacherRequirementDetailScreen} />
     </Stack.Navigator>
 );
