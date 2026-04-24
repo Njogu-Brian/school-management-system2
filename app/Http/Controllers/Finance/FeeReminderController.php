@@ -7,6 +7,9 @@ use App\Models\FeeReminder;
 use App\Models\Invoice;
 use App\Models\ScheduledFeeCommunication;
 use App\Models\Student;
+use App\Models\StudentTermFeeClearance;
+use App\Models\Term;
+use App\Services\FeeReminderAutomationSettings;
 use App\Services\SMSService;
 use App\Models\CommunicationTemplate;
 use Illuminate\Http\Request;
@@ -81,6 +84,7 @@ class FeeReminderController extends Controller
         $reminder = FeeReminder::create([
             'student_id' => $validated['student_id'],
             'invoice_id' => $validated['invoice_id'] ?? null,
+            'fee_reminder_type' => 'invoice',
             'channel' => $validated['channel'],
             'outstanding_amount' => $outstanding,
             'due_date' => $validated['due_date'],
@@ -121,7 +125,6 @@ class FeeReminderController extends Controller
             return;
         }
 
-        // Never send fee reminders to children in the staff category
         $student->loadMissing('category');
         if ($student->category && strtolower($student->category->name) === 'staff') {
             $reminder->update([
@@ -132,51 +135,194 @@ class FeeReminderController extends Controller
         }
 
         $parent = $student->parent ?? null;
+        $variables = $this->buildReminderVariables($reminder, $student, $parent);
 
-        // Use templates from CommunicationTemplateSeeder if no custom message
-        $smsTemplate = null;
-        $emailTemplate = null;
-        
-        if (!$reminder->message) {
-            // Use finance_fee_reminder_sms for SMS
-            $smsTemplate = \App\Models\CommunicationTemplate::where('code', 'finance_fee_reminder_sms')->first();
-            
-            // Use finance_fee_plan_email for Email
-            $emailTemplate = \App\Models\CommunicationTemplate::where('code', 'finance_fee_plan_email')->first();
-            
-            // Fallback: create templates if seeder hasn't run yet
-            if (!$smsTemplate) {
-                $smsTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
-                    ['code' => 'finance_fee_reminder_sms'],
-                    [
-                        'title' => 'Fee Reminder (SMS)',
-                        'type' => 'sms',
-                        'subject' => null,
-                        'content' => "Dear {{parent_name}},\n\nFriendly reminder: there is an outstanding fee balance for {{student_name}} for {{term_name}}, {{academic_year}}.\nPlease review details here:\n{{finance_portal_link}}\n\nThank you for your cooperation.\n{{school_name}}",
-                    ]
-                );
+        $replacePlaceholders = function ($text, $vars) {
+            foreach ($vars as $key => $value) {
+                $text = str_replace('{{' . $key . '}}', (string) $value, $text);
             }
-            
-            if (!$emailTemplate) {
-                $emailTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
-                    ['code' => 'finance_fee_plan_email'],
-                    [
-                        'title' => 'Fee Payment Plan (Email)',
-                        'type' => 'email',
-                        'subject' => 'Fee Payment Update – {{student_name}}',
-                        'content' => "Dear {{parent_name}},\n\nSchool fees for {{student_name}} remain pending for {{term_name}}, {{academic_year}}.\nIf you are on a payment plan or need assistance, kindly reach out.\n\nView the full statement here:\n{{finance_portal_link}}\n\nWe appreciate your continued partnership.\n\nWarm regards,\n{{school_name}} Accounts Office",
-                    ]
-                );
+            return $text;
+        };
+
+        $channels = $this->channelsListForReminder($reminder);
+
+        foreach ($channels as $channel) {
+            if ($channel === 'email') {
+                $emails = $parent ? $parent->schoolNotificationEmails() : [];
+                $emailTemplate = $this->communicationTemplateForReminder($reminder, 'email');
+                foreach ($emails as $email) {
+                    try {
+                        if ($emailTemplate && !$reminder->message) {
+                            $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+                            $message = $replacePlaceholders($emailTemplate->content, $variables);
+                        } else {
+                            $subject = 'Fee Payment Reminder';
+                            $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
+                            $message = $replacePlaceholders($message, $variables);
+                        }
+                        Mail::to($email)->send(new GenericMail($subject, $message));
+                    } catch (\Exception $e) {
+                        $reminder->update([
+                            'status' => 'failed',
+                            'error_message' => 'Email failed: ' . $e->getMessage(),
+                        ]);
+                        return;
+                    }
+                }
+                continue;
+            }
+
+            if ($channel === 'sms') {
+                $phones = $parent ? $parent->schoolNotificationSmsPhones() : [];
+                if (empty($phones) && $student->phone_number) {
+                    $phones = [$student->phone_number];
+                }
+                $smsTemplate = $this->communicationTemplateForReminder($reminder, 'sms');
+                foreach ($phones as $phone) {
+                    try {
+                        if ($smsTemplate && !$reminder->message) {
+                            $message = $replacePlaceholders($smsTemplate->content, $variables);
+                        } else {
+                            $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
+                            $message = $replacePlaceholders($message, $variables);
+                        }
+                        $this->smsService->sendSMS($phone, $message, $this->smsService->getFinanceSenderId());
+                    } catch (\Exception $e) {
+                        $reminder->update([
+                            'status' => 'failed',
+                            'error_message' => 'SMS failed: ' . $e->getMessage(),
+                        ]);
+                        return;
+                    }
+                }
+                continue;
+            }
+
+            if ($channel === 'whatsapp') {
+                $whatsappPhones = $parent ? $parent->schoolNotificationWhatsAppNumbers() : [];
+                if (empty($whatsappPhones) && !empty($student->phone_number)) {
+                    $whatsappPhones = [$student->phone_number];
+                }
+                $waTemplate = $this->communicationTemplateForReminder($reminder, 'whatsapp');
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                foreach ($whatsappPhones as $whatsappPhone) {
+                    try {
+                        if ($waTemplate && !$reminder->message) {
+                            $message = $replacePlaceholders($waTemplate->content, $variables);
+                        } else {
+                            $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
+                            $message = $replacePlaceholders($message, $variables);
+                        }
+                        $whatsappService->sendMessage($whatsappPhone, $message);
+                    } catch (\Exception $e) {
+                        \Log::warning('WhatsApp reminder failed', [
+                            'reminder_id' => $reminder->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
             }
         }
 
-        // Prepare template variables
+        $reminder->update([
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function channelsListForReminder(FeeReminder $reminder): array
+    {
+        if (is_array($reminder->channels) && count($reminder->channels) > 0) {
+            return array_values(array_unique(array_map('strtolower', $reminder->channels)));
+        }
+
+        return match ($reminder->channel) {
+            'email' => ['email'],
+            'sms' => ['sms'],
+            'whatsapp' => ['whatsapp'],
+            'both' => ['email', 'sms', 'whatsapp'],
+            default => ['email', 'sms'],
+        };
+    }
+
+    protected function communicationTemplateForReminder(FeeReminder $reminder, string $channelType): ?CommunicationTemplate
+    {
+        if ($reminder->message) {
+            return null;
+        }
+
+        $reason = (string) ($reminder->reason_code ?: 'pending');
+        $reason = preg_replace('/[^a-z0-9_]/', '', str_replace('-', '_', $reason));
+
+        if (($reminder->fee_reminder_type ?? 'invoice') === 'clearance') {
+            $specific = CommunicationTemplate::where('code', "fee_clearance_reminder_{$reason}_{$channelType}")->first();
+            if ($specific) {
+                return $specific;
+            }
+            $fallback = CommunicationTemplate::where('code', "fee_clearance_reminder_pending_{$channelType}")->first();
+            if ($fallback) {
+                return $fallback;
+            }
+        }
+
+        $code = match ($channelType) {
+            'sms' => 'finance_fee_reminder_sms',
+            'email' => 'finance_fee_plan_email',
+            'whatsapp' => 'finance_fee_reminder_whatsapp',
+            default => null,
+        };
+        if (!$code) {
+            return null;
+        }
+
+        $tpl = CommunicationTemplate::where('code', $code)->first();
+        if ($tpl) {
+            return $tpl;
+        }
+
+        return match ($channelType) {
+            'sms' => CommunicationTemplate::firstOrCreate(
+                ['code' => 'finance_fee_reminder_sms'],
+                [
+                    'title' => 'Fee Reminder (SMS)',
+                    'type' => 'sms',
+                    'subject' => null,
+                    'content' => "Dear {{parent_name}},\n\nFriendly reminder: there is an outstanding fee balance for {{student_name}} for {{term_name}}, {{academic_year}}.\nPlease review details here:\n{{finance_portal_link}}\n\nThank you for your cooperation.\n{{school_name}}",
+                ]
+            ),
+            'email' => CommunicationTemplate::firstOrCreate(
+                ['code' => 'finance_fee_plan_email'],
+                [
+                    'title' => 'Fee Payment Plan (Email)',
+                    'type' => 'email',
+                    'subject' => 'Fee Payment Update – {{student_name}}',
+                    'content' => "Dear {{parent_name}},\n\nSchool fees for {{student_name}} remain pending for {{term_name}}, {{academic_year}}.\nIf you are on a payment plan or need assistance, kindly reach out.\n\nView the full statement here:\n{{finance_portal_link}}\n\nWe appreciate your continued partnership.\n\nWarm regards,\n{{school_name}} Accounts Office",
+                ]
+            ),
+            'whatsapp' => CommunicationTemplate::firstOrCreate(
+                ['code' => 'finance_fee_reminder_whatsapp'],
+                [
+                    'title' => 'Fee Reminder (WhatsApp)',
+                    'type' => 'whatsapp',
+                    'subject' => null,
+                    'content' => "Dear {{parent_name}},\n\nFriendly reminder: outstanding fees for {{student_name}} ({{term_name}}, {{academic_year}}).\nDetails: {{finance_portal_link}}\n\n{{school_name}}",
+                ]
+            ),
+            default => null,
+        };
+    }
+
+    protected function buildReminderVariables(FeeReminder $reminder, Student $student, $parent): array
+    {
         $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
         $parentName = $parent ? ($parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent') : 'Parent';
-        $currentTerm = \App\Models\Term::where('is_current', true)->first();
+        $currentTerm = Term::where('is_current', true)->first();
         $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
         $financePortalLink = url('/finance/student-statements/' . $student->id);
-        
+
         $variables = [
             'parent_name' => $parentName,
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
@@ -186,123 +332,33 @@ class FeeReminderController extends Controller
             'school_name' => $schoolName,
         ];
 
-        // Add installment-specific variables if this is an installment reminder
         if ($reminder->payment_plan_installment_id) {
             $installment = $reminder->paymentPlanInstallment;
             $plan = $reminder->paymentPlan;
-            $remainingBalance = $plan->total_amount - $plan->installments()->sum('paid_amount');
-            
-            $variables['installment_amount'] = number_format($installment->amount, 2);
-            $variables['installment_number'] = $installment->installment_number;
-            $variables['due_date'] = $installment->due_date->format('F d, Y');
-            $variables['remaining_balance'] = number_format($remainingBalance, 2);
-            $variables['payment_plan_link'] = url('/payment-plans/' . $plan->hashed_id);
+            if ($installment && $plan) {
+                $remainingBalance = $plan->total_amount - $plan->installments()->sum('paid_amount');
+                $variables['installment_amount'] = number_format($installment->amount, 2);
+                $variables['installment_number'] = (string) $installment->installment_number;
+                $variables['due_date'] = $installment->due_date->format('F d, Y');
+                $variables['remaining_balance'] = number_format($remainingBalance, 2);
+                $variables['payment_plan_link'] = url('/payment-plan/' . $plan->hashed_id);
+            }
         }
-        
-        // Replace placeholders
-        $replacePlaceholders = function($text, $vars) {
-            foreach ($vars as $key => $value) {
-                $text = str_replace('{{' . $key . '}}', $value, $text);
-            }
-            return $text;
-        };
 
-        if ($reminder->channel === 'email' || $reminder->channel === 'both') {
-            $emails = [];
-            if ($parent) {
-                // Never send fee-related communications to guardian; guardians are reached via manual number entry only
-                $emails = $parent->schoolNotificationEmails();
-            }
-
-            foreach ($emails as $email) {
-                try {
-                    if ($emailTemplate && !$reminder->message) {
-                        $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-                        $message = $replacePlaceholders($emailTemplate->content, $variables);
-                    } else {
-                        $subject = 'Fee Payment Reminder';
-                        $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
-                    }
-
-                    Mail::to($email)->send(new GenericMail($subject, $message));
-                } catch (\Exception $e) {
-                    $reminder->update([
-                        'status' => 'failed',
-                        'error_message' => 'Email failed: ' . $e->getMessage(),
-                    ]);
-                    return;
+        if (($reminder->fee_reminder_type ?? '') === 'clearance' && $reminder->term_id) {
+            $term = Term::find($reminder->term_id);
+            if ($term) {
+                $variables['term_name'] = $term->name;
+                if ($term->academicYear) {
+                    $variables['academic_year'] = (string) $term->academicYear->year;
                 }
             }
+            $variables['fee_clearance_deadline'] = Carbon::parse($reminder->due_date)->format('d M Y');
+            $variables['fee_clearance_reason'] = str_replace('_', ' ', (string) ($reminder->reason_code ?? ''));
+            $variables['outstanding_amount'] = number_format((float) $reminder->outstanding_amount, 2);
         }
 
-        if ($reminder->channel === 'sms' || $reminder->channel === 'both') {
-            $phones = [];
-            if ($parent) {
-                // Never send fee-related communications to guardian; guardians are reached via manual number entry only
-                $phones = $parent->schoolNotificationSmsPhones();
-            }
-            if (empty($phones) && $student->phone_number) {
-                $phones = [$student->phone_number];
-            }
-
-            foreach ($phones as $phone) {
-                try {
-                    if ($smsTemplate && !$reminder->message) {
-                        $message = $replacePlaceholders($smsTemplate->content, $variables);
-                    } else {
-                        $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
-                    }
-
-                    $this->smsService->sendSMS($phone, $message);
-                } catch (\Exception $e) {
-                    $reminder->update([
-                        'status' => 'failed',
-                        'error_message' => 'SMS failed: ' . $e->getMessage(),
-                    ]);
-                    return;
-                }
-            }
-        }
-
-        // Handle WhatsApp channel - father/mother only; respect parent notification preferences
-        if ($reminder->channel === 'whatsapp' || $reminder->channel === 'both') {
-            $whatsappPhones = [];
-            if ($parent) {
-                // Never send fee-related communications to guardian; guardians are reached via manual number entry only
-                $whatsappPhones = $parent->schoolNotificationWhatsAppNumbers();
-            }
-            if (empty($whatsappPhones) && !empty($student->phone_number)) {
-                $whatsappPhones = [$student->phone_number];
-            }
-
-            foreach ($whatsappPhones as $whatsappPhone) {
-                try {
-                    $whatsappService = app(\App\Services\WhatsAppService::class);
-
-                    if ($reminder->message) {
-                        $message = $reminder->message;
-                    } else {
-                        $message = $this->generateDefaultMessage($reminder);
-                    }
-
-                    // Replace placeholders for WhatsApp
-                    $message = $replacePlaceholders($message, $variables);
-
-                    $whatsappService->sendMessage($whatsappPhone, $message);
-                } catch (\Exception $e) {
-                    // Don't fail the entire reminder if WhatsApp fails
-                    \Log::warning('WhatsApp reminder failed', [
-                        'reminder_id' => $reminder->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-        }
-
-        $reminder->update([
-            'status' => 'sent',
-            'sent_at' => now(),
-        ]);
+        return $variables;
     }
 
     /**
@@ -361,29 +417,33 @@ class FeeReminderController extends Controller
     }
 
     /**
-     * Automated reminder job - send reminders for due fees and installments
+     * Automated reminder job - send reminders for due fees, installments, and fee clearance deadlines.
      */
     public function sendAutomatedReminders()
     {
-        $daysBeforeDue = [7, 3, 1]; // Remind 7 days, 3 days, 1 day before due
-        $daysAfterOverdue = [1, 3, 7]; // Remind 1, 3, 7 days after overdue
+        $cfg = FeeReminderAutomationSettings::load();
+        // Scheduled job respects the master switch; manual run from Finance UI still works when disabled (for testing).
+        if (!$cfg->enabled && app()->runningInConsole()) {
+            return;
+        }
+
+        $daysBeforeDue = $cfg->daysBeforeDue;
+        $daysAfterOverdue = $cfg->daysAfterOverdue;
 
         // Process invoice-based reminders
         foreach ($daysBeforeDue as $days) {
             $dueDate = now()->addDays($days)->format('Y-m-d');
 
-            // Find students with outstanding fees due on this date
             $invoices = Invoice::where('status', '!=', 'reversed')
-                ->whereHas('student', function($q) {
+                ->whereHas('student', function ($q) {
                     $q->whereNotNull('parent_id')
-                        ->whereDoesntHave('category', function($q2) {
+                        ->whereDoesntHave('category', function ($q2) {
                             $q2->whereRaw('LOWER(name) = ?', ['staff']);
                         });
                 })
                 ->with(['student.parent', 'payments'])
                 ->get()
-                ->filter(function($invoice) use ($dueDate) {
-                    // Check if invoice is due on this date
+                ->filter(function ($invoice) use ($dueDate) {
                     $invoiceDueDate = $this->getInvoiceDueDate($invoice);
                     return $invoiceDueDate === $dueDate && $this->hasOutstanding($invoice);
                 });
@@ -392,8 +452,8 @@ class FeeReminderController extends Controller
                 $student = $invoice->student;
                 $outstanding = $this->calculateOutstanding($student, $invoice->id);
 
-                // Check if reminder already sent for this date
                 $existing = FeeReminder::where('student_id', $student->id)
+                    ->where('fee_reminder_type', 'invoice')
                     ->where('invoice_id', $invoice->id)
                     ->where('days_before_due', $days)
                     ->where('reminder_rule', 'before_due')
@@ -404,7 +464,9 @@ class FeeReminderController extends Controller
                     $reminder = FeeReminder::create([
                         'student_id' => $student->id,
                         'invoice_id' => $invoice->id,
+                        'fee_reminder_type' => 'invoice',
                         'channel' => 'both',
+                        'channels' => $cfg->channelsBeforeDue,
                         'outstanding_amount' => $outstanding,
                         'due_date' => $dueDate,
                         'days_before_due' => $days,
@@ -417,15 +479,14 @@ class FeeReminderController extends Controller
             }
         }
 
-        // Process installment-based reminders (before due)
         foreach ($daysBeforeDue as $days) {
             $dueDate = now()->addDays($days)->format('Y-m-d');
 
             $installments = \App\Models\FeePaymentPlanInstallment::where('due_date', $dueDate)
                 ->whereIn('status', ['pending', 'partial'])
-                ->whereHas('paymentPlan.student', function($q) {
+                ->whereHas('paymentPlan.student', function ($q) {
                     $q->whereNotNull('parent_id')
-                        ->whereDoesntHave('category', function($q2) {
+                        ->whereDoesntHave('category', function ($q2) {
                             $q2->whereRaw('LOWER(name) = ?', ['staff']);
                         });
                 })
@@ -437,8 +498,8 @@ class FeeReminderController extends Controller
                 $student = $plan->student;
                 $outstanding = $installment->amount - $installment->paid_amount;
 
-                // Check if reminder already sent for this installment and rule
                 $existing = FeeReminder::where('student_id', $student->id)
+                    ->where('fee_reminder_type', 'installment')
                     ->where('payment_plan_installment_id', $installment->id)
                     ->where('days_before_due', $days)
                     ->where('reminder_rule', 'before_due')
@@ -450,7 +511,9 @@ class FeeReminderController extends Controller
                         'student_id' => $student->id,
                         'payment_plan_id' => $plan->id,
                         'payment_plan_installment_id' => $installment->id,
+                        'fee_reminder_type' => 'installment',
                         'channel' => 'both',
+                        'channels' => $cfg->channelsBeforeDue,
                         'outstanding_amount' => $outstanding,
                         'due_date' => $dueDate,
                         'days_before_due' => $days,
@@ -463,13 +526,12 @@ class FeeReminderController extends Controller
             }
         }
 
-        // Process installment reminders on due date
         $today = now()->format('Y-m-d');
         $installmentsDueToday = \App\Models\FeePaymentPlanInstallment::where('due_date', $today)
             ->whereIn('status', ['pending', 'partial'])
-            ->whereHas('paymentPlan.student', function($q) {
+            ->whereHas('paymentPlan.student', function ($q) {
                 $q->whereNotNull('parent_id')
-                    ->whereDoesntHave('category', function($q2) {
+                    ->whereDoesntHave('category', function ($q2) {
                         $q2->whereRaw('LOWER(name) = ?', ['staff']);
                     });
             })
@@ -481,8 +543,8 @@ class FeeReminderController extends Controller
             $student = $plan->student;
             $outstanding = $installment->amount - $installment->paid_amount;
 
-            // Check if reminder already sent for this installment on due date
             $existing = FeeReminder::where('student_id', $student->id)
+                ->where('fee_reminder_type', 'installment')
                 ->where('payment_plan_installment_id', $installment->id)
                 ->where('reminder_rule', 'on_due')
                 ->where('status', 'sent')
@@ -493,7 +555,9 @@ class FeeReminderController extends Controller
                     'student_id' => $student->id,
                     'payment_plan_id' => $plan->id,
                     'payment_plan_installment_id' => $installment->id,
+                    'fee_reminder_type' => 'installment',
                     'channel' => 'both',
+                    'channels' => $cfg->channelsOnDue,
                     'outstanding_amount' => $outstanding,
                     'due_date' => $today,
                     'days_before_due' => 0,
@@ -505,21 +569,20 @@ class FeeReminderController extends Controller
             }
         }
 
-        // Process overdue installment reminders
         foreach ($daysAfterOverdue as $days) {
             $overdueDate = now()->subDays($days)->format('Y-m-d');
 
             $overdueInstallments = \App\Models\FeePaymentPlanInstallment::where('due_date', $overdueDate)
                 ->whereIn('status', ['overdue', 'partial'])
-                ->whereHas('paymentPlan.student', function($q) {
+                ->whereHas('paymentPlan.student', function ($q) {
                     $q->whereNotNull('parent_id')
-                        ->whereDoesntHave('category', function($q2) {
+                        ->whereDoesntHave('category', function ($q2) {
                             $q2->whereRaw('LOWER(name) = ?', ['staff']);
                         });
                 })
                 ->with(['paymentPlan.student.parent', 'paymentPlan'])
                 ->get()
-                ->filter(function($installment) {
+                ->filter(function ($installment) {
                     return ($installment->amount - $installment->paid_amount) > 0;
                 });
 
@@ -528,8 +591,8 @@ class FeeReminderController extends Controller
                 $student = $plan->student;
                 $outstanding = $installment->amount - $installment->paid_amount;
 
-                // Check if reminder already sent for this installment and days after
                 $existing = FeeReminder::where('student_id', $student->id)
+                    ->where('fee_reminder_type', 'installment')
                     ->where('payment_plan_installment_id', $installment->id)
                     ->where('days_before_due', $days)
                     ->where('reminder_rule', 'after_overdue')
@@ -541,7 +604,9 @@ class FeeReminderController extends Controller
                         'student_id' => $student->id,
                         'payment_plan_id' => $plan->id,
                         'payment_plan_installment_id' => $installment->id,
+                        'fee_reminder_type' => 'installment',
                         'channel' => 'both',
+                        'channels' => $cfg->channelsAfterOverdue,
                         'outstanding_amount' => $outstanding,
                         'due_date' => $installment->due_date->format('Y-m-d'),
                         'days_before_due' => $days,
@@ -554,14 +619,92 @@ class FeeReminderController extends Controller
             }
         }
 
-        return redirect()->route('finance.fee-reminders.index')
-            ->with('success', 'Automated reminders sent. Parents with due fees and installments have been notified.');
+        // Fee clearance final deadline (term threshold) — uses editable per-reason templates when fee_reminder_type = clearance
+        if ($cfg->clearanceEnabled) {
+            foreach ($cfg->clearanceDaysBefore as $days) {
+                $deadlineOn = now()->addDays($days)->toDateString();
+                $this->sendClearanceDeadlineReminders($deadlineOn, 'before_due', $days, $cfg->clearanceChannelsBefore);
+            }
+
+            $this->sendClearanceDeadlineReminders(now()->toDateString(), 'on_due', 0, $cfg->clearanceChannelsOn);
+
+            foreach ($cfg->clearanceDaysAfter as $days) {
+                $deadlineWas = now()->subDays($days)->toDateString();
+                $this->sendClearanceDeadlineReminders($deadlineWas, 'after_overdue', $days, $cfg->clearanceChannelsAfter);
+            }
+        }
+
+        if (!app()->runningInConsole()) {
+            return redirect()->route('finance.fee-reminders.index')
+                ->with('success', 'Automated reminders processed. Parents are notified according to your automation settings.');
+        }
+    }
+
+    /**
+     * @param  list<string>  $channelList
+     */
+    protected function sendClearanceDeadlineReminders(string $deadlineDate, string $rule, int $daysParam, array $channelList): void
+    {
+        $snapshots = StudentTermFeeClearance::query()
+            ->where('status', 'pending')
+            ->whereDate('final_clearance_deadline', $deadlineDate)
+            ->whereHas('student', function ($q) {
+                $q->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->whereNotNull('parent_id')
+                    ->whereDoesntHave('category', function ($q2) {
+                        $q2->whereRaw('LOWER(name) = ?', ['staff']);
+                    });
+            })
+            ->with(['student.parent', 'term.academicYear'])
+            ->get();
+
+        foreach ($snapshots as $snap) {
+            $student = $snap->student;
+            if (!$student) {
+                continue;
+            }
+            $balance = (float) ($snap->meta['balance'] ?? 0);
+            if ($balance <= 0) {
+                continue;
+            }
+
+            $existing = FeeReminder::where('student_id', $student->id)
+                ->where('fee_reminder_type', 'clearance')
+                ->where('term_id', $snap->term_id)
+                ->where('days_before_due', $daysParam)
+                ->where('reminder_rule', $rule)
+                ->where('status', 'sent')
+                ->exists();
+
+            if ($existing) {
+                continue;
+            }
+
+            $reminder = FeeReminder::create([
+                'student_id' => $student->id,
+                'term_id' => $snap->term_id,
+                'fee_reminder_type' => 'clearance',
+                'reason_code' => $snap->reason_code,
+                'channel' => 'both',
+                'channels' => $channelList,
+                'outstanding_amount' => $balance,
+                'due_date' => $snap->final_clearance_deadline,
+                'days_before_due' => $daysParam,
+                'reminder_rule' => $rule,
+                'status' => 'pending',
+            ]);
+
+            $this->sendReminder($reminder);
+        }
     }
 
     protected function getInvoiceDueDate(Invoice $invoice)
     {
-        // Use term end date or invoice date + 30 days as default
-        $term = \App\Models\Term::where('name', $invoice->term)->first();
+        if ($invoice->due_date) {
+            return $invoice->due_date->format('Y-m-d');
+        }
+        $term = $invoice->term_id ? Term::find($invoice->term_id) : \App\Models\Term::where('name', $invoice->term)->first();
         if ($term && $term->end_date) {
             return $term->end_date->format('Y-m-d');
         }

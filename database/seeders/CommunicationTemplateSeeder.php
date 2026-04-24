@@ -129,6 +129,80 @@ class CommunicationTemplateSeeder extends Seeder
                 'subject' => 'Fee Payment Update – {{student_name}}',
                 'content' => "Dear {{parent_name}},\n\nSchool fees for {{student_name}} remain pending for {{term_name}}, {{academic_year}}.\nIf you are on a payment plan or need assistance, kindly reach out.\n\nView the full statement here:\n{{finance_portal_link}}\n\nWe appreciate your continued partnership.\n\nWarm regards,\n{{school_name}} Accounts Office",
             ],
+            [
+                'code'    => 'finance_fee_reminder_whatsapp',
+                'title'   => 'Fee Reminder (WhatsApp)',
+                'type'    => 'whatsapp',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\nFriendly reminder: outstanding fees for {{student_name}} ({{term_name}}, {{academic_year}}).\nStatement: {{finance_portal_link}}\n\n{{school_name}}",
+            ],
+
+            // Payment plan created (editable; used when a plan is saved)
+            [
+                'code'    => 'payment_plan_created_sms',
+                'title'   => 'Payment plan created (SMS)',
+                'type'    => 'sms',
+                'subject' => null,
+                'content' => "Dear Parent/Guardian,\n\nA payment plan was created for {{student_name}}.\nTotal: KES {{total_amount}} in {{installment_count}} installments of KES {{installment_amount}}.\n{{start_date}} – {{end_date}}.\nView: {{payment_plan_link}}\n\n{{school_name}}",
+            ],
+            [
+                'code'    => 'payment_plan_created_whatsapp',
+                'title'   => 'Payment plan created (WhatsApp)',
+                'type'    => 'whatsapp',
+                'subject' => null,
+                'content' => "Dear Parent/Guardian,\n\nA payment plan was created for {{student_name}}.\nTotal: KES {{total_amount}} in {{installment_count}} installments of KES {{installment_amount}}.\nPeriod: {{start_date}} to {{end_date}}.\nView your plan: {{payment_plan_link}}\n\n{{school_name}}",
+            ],
+            [
+                'code'    => 'payment_plan_created_email',
+                'title'   => 'Payment plan created (Email)',
+                'type'    => 'email',
+                'subject' => 'Payment plan – {{student_name}}',
+                'content' => "Dear Parent/Guardian,\n\nA payment plan has been created for {{student_name}}.\n\nTotal: KES {{total_amount}}\nInstallments: {{installment_count}} of KES {{installment_amount}}\nPeriod: {{start_date}} to {{end_date}}\n\nView your plan: {{payment_plan_link}}\n\nRegards,\n{{school_name}}",
+            ],
+
+            // Fee clearance automation (optional overrides — codes: fee_clearance_reminder_{reason}_{sms|email|whatsapp})
+            [
+                'code'    => 'fee_clearance_reminder_below_threshold_sms',
+                'title'   => 'Fee clearance: below threshold (SMS)',
+                'type'    => 'sms',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\n{{student_name}} is not yet cleared for {{term_name}} ({{academic_year}}). Reason: fees below required threshold.\nDeadline: {{fee_clearance_deadline}}. Balance: KES {{outstanding_amount}}.\nDetails: {{finance_portal_link}}\n{{school_name}}",
+            ],
+            [
+                'code'    => 'fee_clearance_reminder_below_threshold_whatsapp',
+                'title'   => 'Fee clearance: below threshold (WhatsApp)',
+                'type'    => 'whatsapp',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\n{{student_name}} — not cleared for {{term_name}}. Below fee threshold.\nDeadline: {{fee_clearance_deadline}}. Balance: KES {{outstanding_amount}}.\n{{finance_portal_link}}\n{{school_name}}",
+            ],
+            [
+                'code'    => 'fee_clearance_reminder_below_threshold_email',
+                'title'   => 'Fee clearance: below threshold (Email)',
+                'type'    => 'email',
+                'subject' => 'Fee clearance – {{student_name}}',
+                'content' => "Dear {{parent_name}},\n\n{{student_name}} is not yet cleared for {{term_name}} ({{academic_year}}) — fees are below the required threshold.\n\nClearance deadline: {{fee_clearance_deadline}}\nOutstanding: KES {{outstanding_amount}}\n\nView statement: {{finance_portal_link}}\n\n{{school_name}}",
+            ],
+            [
+                'code'    => 'fee_clearance_reminder_deadline_passed_sms',
+                'title'   => 'Fee clearance: deadline passed (SMS)',
+                'type'    => 'sms',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\nThe fee clearance deadline ({{fee_clearance_deadline}}) has passed for {{student_name}} — {{term_name}}. Balance: KES {{outstanding_amount}}.\n{{finance_portal_link}}\n{{school_name}}",
+            ],
+            [
+                'code'    => 'fee_clearance_reminder_deadline_passed_whatsapp',
+                'title'   => 'Fee clearance: deadline passed (WhatsApp)',
+                'type'    => 'whatsapp',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\nFee clearance deadline passed for {{student_name}} ({{term_name}}). Balance: KES {{outstanding_amount}}.\n{{finance_portal_link}}\n{{school_name}}",
+            ],
+            [
+                'code'    => 'fee_clearance_reminder_deadline_passed_email',
+                'title'   => 'Fee clearance: deadline passed (Email)',
+                'type'    => 'email',
+                'subject' => 'Fee clearance overdue – {{student_name}}',
+                'content' => "Dear {{parent_name}},\n\nThe fee clearance deadline ({{fee_clearance_deadline}}) has passed for {{student_name}} for {{term_name}} ({{academic_year}}).\n\nOutstanding: KES {{outstanding_amount}}\n\nPlease arrange payment or a payment plan.\n{{finance_portal_link}}\n\n{{school_name}}",
+            ],
 
             // Academics
             [

@@ -16,6 +16,6 @@ Artisan::command('inspire', function () {
 Schedule::command('communications:send-scheduled')->everyMinute();
 Schedule::command('fee-communications:process-scheduled')->everyMinute();
 Schedule::command('queue:work --stop-when-empty --max-time=300')->everyMinute();
-Schedule::job(new \App\Jobs\SendFeeRemindersJob)->dailyAt('09:00');
+Schedule::job(new \App\Jobs\SendFeeRemindersJob)->everyMinute();
 Schedule::command('payment-plans:update-statuses')->dailyAt('00:15');
 Schedule::call([\App\Http\Controllers\BackupRestoreController::class, 'runScheduledIfDue'])->hourly();

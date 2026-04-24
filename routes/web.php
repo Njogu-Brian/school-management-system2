@@ -1260,6 +1260,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::resource('announcements', CommunicationAnnouncementController::class)->except(['show']);
 
         // Templates
+        Route::get('fee-reminder-automation', [\App\Http\Controllers\FeeReminderAutomationController::class, 'edit'])->name('communication.fee-reminder-automation.edit');
+        Route::put('fee-reminder-automation', [\App\Http\Controllers\FeeReminderAutomationController::class, 'update'])->name('communication.fee-reminder-automation.update');
+
         Route::resource('communication-templates', CommunicationTemplateController::class)
             ->parameters(['communication-templates' => 'communication_template'])
             ->except(['show']);

@@ -29,8 +29,8 @@ class Kernel extends ConsoleKernel
             ->everyMinute()
             ->withoutOverlapping();
         
-        // Send fee reminders daily at 9 AM
-        $schedule->job(new \App\Jobs\SendFeeRemindersJob)->dailyAt('09:00');
+        // Fee reminders: job runs every minute and fires once per day at configured time (see Fee reminder automation settings)
+        $schedule->job(new \App\Jobs\SendFeeRemindersJob)->everyMinute();
 
         // Daily 9am reminder to teachers missing clock-in/attendance (school days only).
         $schedule->command('reminders:teacher-clock-attendance')

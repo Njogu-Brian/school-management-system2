@@ -96,6 +96,10 @@ class CommunicationTemplateController extends Controller
             ['key' => 'end_date', 'value' => 'Payment plan end date'],
             ['key' => 'remaining_installments', 'value' => 'Number of remaining installments'],
             ['key' => 'payment_plan_link', 'value' => 'Public payment plan link (10-char hash)'],
+
+            // Fee clearance (automated reminders; also use templates fee_clearance_reminder_{reason}_{channel})
+            ['key' => 'fee_clearance_deadline', 'value' => 'Final clearance deadline date for the term'],
+            ['key' => 'fee_clearance_reason', 'value' => 'Human-readable clearance reason (e.g. below threshold)'],
             
             // Custom Finance
             ['key' => 'custom_message', 'value' => 'Custom message content'],

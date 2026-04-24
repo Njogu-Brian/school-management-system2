@@ -11,6 +11,10 @@ class FeeReminder extends Model
         'invoice_id',
         'payment_plan_id',
         'payment_plan_installment_id',
+        'term_id',
+        'fee_reminder_type',
+        'reason_code',
+        'channels',
         'hashed_id',
         'channel',
         'status',
@@ -27,6 +31,7 @@ class FeeReminder extends Model
         'due_date' => 'date',
         'sent_at' => 'datetime',
         'outstanding_amount' => 'decimal:2',
+        'channels' => 'array',
     ];
 
     public function student()
@@ -47,6 +52,11 @@ class FeeReminder extends Model
     public function paymentPlanInstallment()
     {
         return $this->belongsTo(FeePaymentPlanInstallment::class);
+    }
+
+    public function term()
+    {
+        return $this->belongsTo(Term::class);
     }
 
     /**

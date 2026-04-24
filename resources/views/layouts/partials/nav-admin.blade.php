@@ -633,6 +633,10 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/communication-templates*') ? 'active' : '' }}">
     <i class="bi bi-layer-forward"></i> Templates
     </a>
+    <a href="{{ route('communication.fee-reminder-automation.edit') }}" 
+    class="sublink {{ Request::is('communication/fee-reminder-automation*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-event"></i> Fee reminder automation
+    </a>
     @if(Route::has('communication.delivery-reports.index'))
     <a href="{{ route('communication.delivery-reports.index') }}" 
     class="sublink {{ Request::is('communication/delivery-reports*') ? 'active' : '' }}">

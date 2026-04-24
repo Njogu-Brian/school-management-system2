@@ -11,7 +11,9 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('student_id')->constrained()->cascadeOnDelete();
             $table->date('date');
-            $table->foreignId('recorded_by_user_id')->constrained('users');
+            // No DB FK to users: local DBs often have users.id that is not BIGINT UNSIGNED (imports / older
+            // schemas), which makes MySQL errno 150; prod Laravel defaults match foreignId() but dev may not.
+            $table->unsignedBigInteger('recorded_by_user_id')->index();
             $table->string('picked_up_by')->nullable();
             $table->enum('direction', ['morning', 'evening', 'both'])->default('evening');
             $table->boolean('skip_evening_trip')->default(true);

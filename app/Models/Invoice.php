@@ -151,6 +151,15 @@ class Invoice extends Model
         // Auto-update payment statuses and auto-allocate unallocated payments
         $this->updatePaymentStatuses();
         $this->autoAllocateUnallocatedPayments();
+
+        try {
+            app(\App\Services\FeeClearanceRecomputeService::class)->recomputeForInvoice($this);
+        } catch (\Throwable $e) {
+            \Log::warning('Fee clearance recompute after invoice recalc failed', [
+                'invoice_id' => $this->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

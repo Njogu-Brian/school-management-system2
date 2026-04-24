@@ -36,8 +36,9 @@ class PaymentPlanNotificationService
             $this->sendSms($phone, $message, $student);
         }
 
+        $waMessage = $this->buildWhatsAppMessage($plan);
         foreach ($parent->schoolNotificationWhatsAppNumbers() as $waPhone) {
-            $this->sendWhatsApp($waPhone, $message, $student);
+            $this->sendWhatsApp($waPhone, $waMessage, $student);
         }
 
         foreach ($parent->schoolNotificationEmails() as $email) {
@@ -75,6 +76,16 @@ class PaymentPlanNotificationService
             'start_date' => $plan->start_date->format('d M Y'),
             'end_date' => $plan->end_date->format('d M Y'),
         ];
+    }
+
+    protected function buildWhatsAppMessage(FeePaymentPlan $plan): string
+    {
+        $extra = $this->planExtra($plan);
+        $template = CommunicationTemplate::where('code', 'payment_plan_created_whatsapp')->first();
+        if ($template && $template->content) {
+            return replace_placeholders($template->content, $plan->student, $extra);
+        }
+        return $this->buildMessage($plan);
     }
 
     protected function buildEmailSubjectAndBody(FeePaymentPlan $plan): array

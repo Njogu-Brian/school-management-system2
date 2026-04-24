@@ -146,9 +146,13 @@ public function store(Request $request)
 
         DB::beginTransaction();
         try {
+            $invoice = !empty($validated['invoice_id']) ? Invoice::find($validated['invoice_id']) : null;
+
             $plan = FeePaymentPlan::create([
                 'student_id' => $primaryStudent->id,
                 'invoice_id' => $validated['invoice_id'] ?? null,
+                'term_id' => $invoice?->term_id,
+                'academic_year_id' => $invoice?->academic_year_id,
                 'total_amount' => $totalAmount,
                 'installment_count' => $installmentCount,
                 'installment_amount' => $installmentAmount,

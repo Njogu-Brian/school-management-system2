@@ -112,5 +112,26 @@ class FeePaymentPlan extends Model
                 $plan->hashed_id = self::generateHashedId();
             }
         });
+
+        static::saved(function (FeePaymentPlan $plan) {
+            if (!$plan->student_id) {
+                return;
+            }
+            try {
+                $svc = app(\App\Services\FeeClearanceRecomputeService::class);
+                if ($plan->term_id) {
+                    $student = Student::find($plan->student_id);
+                    $term = Term::find($plan->term_id);
+                    $svc->recomputeForStudentTerm($student, $term);
+                } else {
+                    $svc->recomputeAllTermsForStudent((int) $plan->student_id);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Fee clearance recompute after payment plan save failed', [
+                    'payment_plan_id' => $plan->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 }
