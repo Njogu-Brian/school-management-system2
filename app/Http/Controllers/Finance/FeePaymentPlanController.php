@@ -52,8 +52,11 @@ class FeePaymentPlanController extends Controller
 
             $invoiceQuery = Invoice::query()
                 ->whereNull('reversed_at')
-                ->whereIn('status', ['unpaid', 'partial'])
-                ->with(['student'])
+                // Do not trust legacy status/balance fields alone; compute live totals from items/allocations.
+                ->with([
+                    'student',
+                    'items.allocations.payment',
+                ])
                 ->orderBy('due_date', 'desc');
 
             if ($familyId) {
@@ -65,20 +68,22 @@ class FeePaymentPlanController extends Controller
             $invoiceModels = $invoiceQuery->get();
 
             $invoices = $invoiceModels
-                ->map(function ($inv) {
+                ->map(function (Invoice $inv) {
+                    // Live totals from loaded relations (safe for stale legacy invoices).
+                    $inv->fillTotalsFromLoadedRelations();
+
                     $total = (float) ($inv->total ?? 0);
                     $paid = (float) ($inv->paid_amount ?? 0);
-                    // Balance can be stale on some legacy invoices; fall back to computed (total - paid).
-                    $storedBalance = isset($inv->balance) ? (float) $inv->balance : null;
-                    $computedBalance = $total - $paid;
-                    $balance = $storedBalance !== null && $storedBalance > 0.009 ? $storedBalance : $computedBalance;
+                    $balance = (float) ($inv->balance ?? max(0, $total - $paid));
+
                     $stu = $inv->student;
                     $studentName = $stu?->full_name ?? trim((string) (($stu->first_name ?? '') . ' ' . ($stu->last_name ?? '')));
+
                     return [
                         'id' => $inv->id,
                         'invoice_number' => $inv->invoice_number ?? 'Inv',
                         'total' => $total,
-                        'balance' => max(0, (float) $balance),
+                        'balance' => max(0, $balance),
                         'due_date' => $inv->due_date ? (\Carbon\Carbon::parse($inv->due_date)->format('Y-m-d')) : null,
                         'term' => $inv->term?->name ?? null,
                         'academic_year' => $inv->academicYear?->year ?? $inv->year ?? null,
@@ -87,6 +92,7 @@ class FeePaymentPlanController extends Controller
                         'admission_number' => $stu?->admission_number ?? '',
                     ];
                 })
+                // only keep invoices that still have outstanding balance
                 ->filter(fn ($row) => (float) ($row['balance'] ?? 0) > 0.009)
                 ->values()
                 ->all();
