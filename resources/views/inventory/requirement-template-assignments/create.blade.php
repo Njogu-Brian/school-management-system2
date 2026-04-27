@@ -49,7 +49,7 @@
 
                     <div class="col-md-4">
                         <label class="form-label">Academic Year</label>
-                        <select name="academic_year_id" class="form-select">
+                        <select name="academic_year_id" class="form-select" id="academicYearSelect">
                             <option value="">Any</option>
                             @foreach($academicYears as $year)
                                 <option value="{{ $year->id }}" @selected(old('academic_year_id') == $year->id)>{{ $year->year }}</option>
@@ -59,11 +59,8 @@
 
                     <div class="col-md-4">
                         <label class="form-label">Term</label>
-                        <select name="term_id" class="form-select">
+                        <select name="term_id" class="form-select" id="termSelect" data-selected="{{ old('term_id') }}">
                             <option value="">Any</option>
-                            @foreach($terms as $term)
-                                <option value="{{ $term->id }}" @selected(old('term_id') == $term->id)>{{ $term->name }}</option>
-                            @endforeach
                         </select>
                     </div>
 
@@ -121,4 +118,51 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    (function () {
+        const academicYearSelect = document.getElementById('academicYearSelect');
+        const termSelect = document.getElementById('termSelect');
+        if (!academicYearSelect || !termSelect) return;
+
+        const selectedTermId = termSelect.getAttribute('data-selected');
+        const defaultAnyOptionHtml = '<option value="">Any</option>';
+
+        function setOptions(terms) {
+            let html = defaultAnyOptionHtml;
+            for (const t of terms) {
+                const selected = selectedTermId && String(t.id) === String(selectedTermId) ? ' selected' : '';
+                html += `<option value="${t.id}"${selected}>${t.name}</option>`;
+            }
+            termSelect.innerHTML = html;
+        }
+
+        async function loadTerms() {
+            const yearId = academicYearSelect.value;
+            if (!yearId) {
+                termSelect.innerHTML = defaultAnyOptionHtml;
+                return;
+            }
+
+            const res = await fetch(`{{ url('/inventory/academic-years') }}/${yearId}/terms`, {
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) {
+                termSelect.innerHTML = defaultAnyOptionHtml;
+                return;
+            }
+            const data = await res.json();
+            setOptions(data.terms || []);
+        }
+
+        academicYearSelect.addEventListener('change', () => {
+            termSelect.setAttribute('data-selected', '');
+            loadTerms();
+        });
+
+        loadTerms();
+    })();
+</script>
+@endpush
 
