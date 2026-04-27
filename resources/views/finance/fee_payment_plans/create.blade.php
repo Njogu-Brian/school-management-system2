@@ -68,7 +68,8 @@
 
                 <div class="row mb-3">
                     <div class="col-12">
-                        <div class="alert alert-info border-0 mb-0" style="background: rgba(20,184,166,.12);">
+                        <div class="alert border-0 mb-0"
+                             style="background: color-mix(in srgb, var(--brand-accent, #14b8a6) 14%, transparent);">
                             <div class="d-flex align-items-start gap-2">
                                 <div class="mt-1"><i class="bi bi-people"></i></div>
                                 <div>
@@ -386,25 +387,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         return `
                           <div class="col-lg-6">
-                            <div class="card border-0 shadow-sm h-100">
-                              <div class="card-body">
+                            <div class="p-3 rounded-3 h-100"
+                                 style="background: var(--brand-surface, #fff); border: 1px solid var(--brand-border, #e5e7eb); box-shadow: 0 10px 30px rgba(0,0,0,.06);">
                                 <div class="d-flex justify-content-between align-items-start gap-2">
                                   <div>
                                     <div class="fw-semibold">${stu.student_name || 'Student'} ${adm}</div>
                                     <div class="small text-muted">Invoices total: KES ${total} · Outstanding: KES ${out}</div>
                                   </div>
-                                  <span class="badge bg-light text-dark border">Student</span>
+                                  <span class="badge"
+                                        style="background: color-mix(in srgb, var(--brand-primary, #0f766e) 12%, transparent); color: var(--brand-primary, #0f766e); border: 1px solid color-mix(in srgb, var(--brand-primary, #0f766e) 25%, transparent);">
+                                    Student
+                                  </span>
                                 </div>
                                 <div class="mt-2 small">${invBadges || '<span class="text-muted">No outstanding invoices</span>'}</div>
-                              </div>
                             </div>
                           </div>
                         `;
                     }).join('');
 
                     siblingsPreview.innerHTML = `
-                      <div class="card border-0 shadow-sm">
-                        <div class="card-body">
+                      <div class="p-3 rounded-3"
+                           style="background: var(--brand-surface, #fff); border: 1px solid var(--brand-border, #e5e7eb); box-shadow: 0 10px 30px rgba(0,0,0,.06);">
                           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                             <div>
                               <div class="fw-semibold">Family invoices included in this plan</div>
@@ -412,13 +415,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             <div class="text-end">
                               <div class="small text-muted">Combined outstanding</div>
-                              <div class="h5 mb-0">KES ${combined}</div>
+                              <div class="h5 mb-0" style="color: var(--brand-primary, #0f766e);">KES ${combined}</div>
                             </div>
                           </div>
                           <div class="row g-3 mt-1">
                             ${cards}
                           </div>
-                        </div>
                       </div>
                     `;
                 } else {

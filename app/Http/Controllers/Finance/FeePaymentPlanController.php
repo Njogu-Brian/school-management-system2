@@ -65,18 +65,20 @@ class FeePaymentPlanController extends Controller
             $invoiceModels = $invoiceQuery->get();
 
             $invoices = $invoiceModels
-                ->filter(fn ($inv) => (float) ($inv->balance ?? ((float) ($inv->total ?? 0) - (float) ($inv->paid_amount ?? 0))) > 0.009)
                 ->map(function ($inv) {
                     $total = (float) ($inv->total ?? 0);
                     $paid = (float) ($inv->paid_amount ?? 0);
-                    $balance = isset($inv->balance) ? (float) $inv->balance : ($total - $paid);
+                    // Balance can be stale on some legacy invoices; fall back to computed (total - paid).
+                    $storedBalance = isset($inv->balance) ? (float) $inv->balance : null;
+                    $computedBalance = $total - $paid;
+                    $balance = $storedBalance !== null && $storedBalance > 0.009 ? $storedBalance : $computedBalance;
                     $stu = $inv->student;
                     $studentName = $stu?->full_name ?? trim((string) (($stu->first_name ?? '') . ' ' . ($stu->last_name ?? '')));
                     return [
                         'id' => $inv->id,
                         'invoice_number' => $inv->invoice_number ?? 'Inv',
                         'total' => $total,
-                        'balance' => max(0, $balance),
+                        'balance' => max(0, (float) $balance),
                         'due_date' => $inv->due_date ? (\Carbon\Carbon::parse($inv->due_date)->format('Y-m-d')) : null,
                         'term' => $inv->term?->name ?? null,
                         'academic_year' => $inv->academicYear?->year ?? $inv->year ?? null,
@@ -85,6 +87,7 @@ class FeePaymentPlanController extends Controller
                         'admission_number' => $stu?->admission_number ?? '',
                     ];
                 })
+                ->filter(fn ($row) => (float) ($row['balance'] ?? 0) > 0.009)
                 ->values()
                 ->all();
 
