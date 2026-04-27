@@ -10,10 +10,18 @@ return new class extends Migration
     {
         Schema::create('timetable_stream_activity_teachers', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('activity_requirement_id')
-                ->constrained('timetable_stream_activity_requirements')
+            // Use explicit short FK names to satisfy MySQL 64-char limit.
+            $table->unsignedBigInteger('activity_requirement_id');
+            $table->foreign('activity_requirement_id', 'tsat_act_req_fk')
+                ->references('id')
+                ->on('timetable_stream_activity_requirements')
                 ->cascadeOnDelete();
-            $table->foreignId('staff_id')->constrained('staff')->cascadeOnDelete();
+
+            $table->unsignedBigInteger('staff_id');
+            $table->foreign('staff_id', 'tsat_staff_fk')
+                ->references('id')
+                ->on('staff')
+                ->cascadeOnDelete();
             $table->unsignedSmallInteger('periods_per_week')->default(0);
             $table->json('meta')->nullable();
             $table->timestamps();
