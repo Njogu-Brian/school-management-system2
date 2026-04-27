@@ -12,6 +12,21 @@
 
     <div class="finance-card finance-animate">
         <div class="finance-card-body">
+            @if (session('error'))
+                <div class="alert alert-danger">
+                    {{ session('error') }}
+                </div>
+            @endif
+            @if ($errors->any())
+                <div class="alert alert-danger">
+                    <div class="fw-semibold mb-1">Could not create payment plan:</div>
+                    <ul class="mb-0">
+                        @foreach ($errors->all() as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
             <form action="{{ route('finance.fee-payment-plans.store') }}" method="POST">
                 @csrf
 
@@ -340,6 +355,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (installmentCountInput) installmentCountInput.addEventListener('input', calculateEndDate);
     if (startDateInput.value) calculateEndDate();
     if (studentIdInput.value) loadInvoicesAndSiblings(studentIdInput.value);
+
+    // If server validation failed and user was on custom schedule, show the custom block immediately.
+    if (scheduleTypeSelect.value === 'custom') {
+        customNotice.classList.remove('d-none');
+        recalcCustomInstallments(true);
+    }
 });
 </script>
 @endpush

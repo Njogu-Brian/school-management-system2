@@ -28,7 +28,8 @@ return new class extends Migration
             $table->index(['template_id', 'target_type']);
             $table->index(['role_name']);
             $table->index(['user_id']);
-            $table->index(['classroom_id', 'stream_id', 'subject_id']);
+            // Custom short index name to avoid MySQL identifier length limit (64 chars).
+            $table->index(['classroom_id', 'stream_id', 'subject_id'], 'ara_cls_stream_subj_idx');
         });
     }
 

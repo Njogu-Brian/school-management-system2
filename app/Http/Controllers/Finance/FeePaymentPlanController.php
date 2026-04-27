@@ -145,6 +145,14 @@ public function store(Request $request)
         $computedTotal = (float) $outstandingInvoices->sum(fn ($i) => max(0, (float) ($i->balance ?? 0)));
         $totalAmount = round($computedTotal, 2);
 
+        if ($totalAmount <= 0.009) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'total_amount' => 'No outstanding active invoices were found for this student/family. Payment plan cannot be created.',
+                ]);
+        }
+
         // If there is already an active family plan, adjust it instead of creating a new one.
         $existingPlan = null;
         if ($primaryStudent->family_id) {
@@ -159,6 +167,28 @@ public function store(Request $request)
         $installmentCount = $scheduleType === 'one_time' ? 1 : (int) ($validated['installment_count'] ?? 1);
         if ($installmentCount < 1) {
             $installmentCount = 1;
+        }
+
+        // For custom schedules, enforce that installment sum exactly covers the computed total.
+        if ($scheduleType === 'custom') {
+            $rows = collect($validated['installments'] ?? [])
+                ->filter(fn ($r) => is_array($r))
+                ->values();
+
+            if ($rows->isEmpty()) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['installments' => 'Please add at least one custom installment (date and amount).']);
+            }
+
+            $sum = (float) $rows->sum(fn ($r) => (float) ($r['amount'] ?? 0));
+            if (abs(round($sum, 2) - round($totalAmount, 2)) > 0.009) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'installments' => 'Custom installment amounts must add up to the full total (KES ' . number_format($totalAmount, 2) . '). Current sum: KES ' . number_format($sum, 2) . '.',
+                    ]);
+            }
         }
 
         $startDate = Carbon::parse($validated['start_date']);
