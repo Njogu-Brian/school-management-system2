@@ -182,6 +182,13 @@ public function store(Request $request)
         $totalAmount = round($computedTotal, 2);
 
         if ($totalAmount <= 0.009) {
+            \Log::warning('Payment plan create blocked: no outstanding invoices', [
+                'student_id' => $primaryStudent->id,
+                'family_id' => $primaryStudent->family_id,
+                'outstanding_invoice_ids' => $outstandingInvoiceIds,
+                'computed_total' => $totalAmount,
+                'schedule_type' => $validated['schedule_type'] ?? null,
+            ]);
             return back()
                 ->withInput()
                 ->withErrors([
@@ -212,15 +219,30 @@ public function store(Request $request)
                 ->values();
 
             if ($rows->isEmpty()) {
+                \Log::warning('Payment plan custom schedule blocked: empty installments', [
+                    'student_id' => $primaryStudent->id,
+                    'family_id' => $primaryStudent->family_id,
+                    'computed_total' => $totalAmount,
+                ]);
                 return back()
                     ->withInput()
+                    ->with('error', 'Custom plan not created: please add at least one installment (date + amount).')
                     ->withErrors(['installments' => 'Please add at least one custom installment (date and amount).']);
             }
 
             $sum = (float) $rows->sum(fn ($r) => (float) ($r['amount'] ?? 0));
             if (abs(round($sum, 2) - round($totalAmount, 2)) > 0.009) {
+                \Log::warning('Payment plan custom schedule blocked: sum mismatch', [
+                    'student_id' => $primaryStudent->id,
+                    'family_id' => $primaryStudent->family_id,
+                    'computed_total' => $totalAmount,
+                    'client_total_amount' => (float) ($validated['total_amount'] ?? 0),
+                    'installment_sum' => round($sum, 2),
+                    'outstanding_invoice_ids' => $outstandingInvoiceIds,
+                ]);
                 return back()
                     ->withInput()
+                    ->with('error', 'Custom plan not created: installment amounts must match the outstanding total.')
                     ->withErrors([
                         'installments' => 'Custom installment amounts must add up to the full total (KES ' . number_format($totalAmount, 2) . '). Current sum: KES ' . number_format($sum, 2) . '.',
                     ]);
@@ -347,6 +369,15 @@ public function store(Request $request)
                 ->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error('Payment plan create failed', [
+                'student_id' => $primaryStudent->id,
+                'family_id' => $primaryStudent->family_id,
+                'invoice_id' => $validated['invoice_id'] ?? null,
+                'schedule_type' => $validated['schedule_type'] ?? null,
+                'outstanding_invoice_ids' => $outstandingInvoiceIds ?? [],
+                'computed_total' => $totalAmount ?? null,
+                'error' => $e->getMessage(),
+            ]);
             return back()->with('error', 'Error creating payment plan: ' . $e->getMessage());
         }
     }

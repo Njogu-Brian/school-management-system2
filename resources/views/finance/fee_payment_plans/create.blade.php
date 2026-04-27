@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     siblingsPreview.classList.remove('d-none');
                     const combined = parseFloat(data.combined_total || 0).toFixed(2);
 
-                    const cards = familyStudents.map(stu => {
+                        const cards = familyStudents.map(stu => {
                         const adm = stu.admission_number ? `<span class="text-muted">(${stu.admission_number})</span>` : '';
                         const total = parseFloat(stu.total_invoice_amount || 0).toFixed(2);
                         const out = parseFloat(stu.total_outstanding || 0).toFixed(2);
@@ -392,14 +392,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div class="d-flex justify-content-between align-items-start gap-2">
                                   <div>
                                     <div class="fw-semibold">${stu.student_name || 'Student'} ${adm}</div>
-                                    <div class="small text-muted">Invoices total: KES ${total} · Outstanding: KES ${out}</div>
+                                    <div class="small text-muted">Outstanding invoices total: KES ${total} · Outstanding balance: KES ${out}</div>
                                   </div>
                                   <span class="badge"
                                         style="background: color-mix(in srgb, var(--brand-primary, #0f766e) 12%, transparent); color: var(--brand-primary, #0f766e); border: 1px solid color-mix(in srgb, var(--brand-primary, #0f766e) 25%, transparent);">
                                     Student
                                   </span>
                                 </div>
-                                <div class="mt-2 small">${invBadges || '<span class="text-muted">No outstanding invoices</span>'}</div>
+                                <div class="mt-2 small">${invBadges || '<span class="text-muted">No outstanding invoices for this student</span>'}</div>
                             </div>
                           </div>
                         `;
