@@ -71,6 +71,7 @@ class ScheduledFeeCommunicationController extends Controller
             ['key' => 'finance_portal_link', 'value' => 'Student statement link (finance portal)'],
             ['key' => 'swimming_balance', 'value' => 'Swimming wallet balance (when applicable)'],
             ['key' => 'payment_plan_link', 'value' => 'Payment plan link'],
+            ['key' => 'pay_link', 'value' => 'Unified Pay Now link (family link for siblings; click to pay)'],
             ['key' => 'profile_update_link', 'value' => 'Profile update link for parents'],
         ];
     }

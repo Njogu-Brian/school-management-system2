@@ -42,6 +42,16 @@ class FeePaymentPlan extends Model
         return $this->belongsTo(Invoice::class);
     }
 
+    /**
+     * A plan can cover multiple invoices (family-wide).
+     * `invoice_id` remains for legacy / optional "primary invoice" linking.
+     */
+    public function invoices()
+    {
+        return $this->belongsToMany(Invoice::class, 'fee_payment_plan_invoices', 'fee_payment_plan_id', 'invoice_id')
+            ->withTimestamps();
+    }
+
     public function term()
     {
         return $this->belongsTo(Term::class);

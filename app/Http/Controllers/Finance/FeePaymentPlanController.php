@@ -8,6 +8,7 @@ use App\Models\FeePaymentPlanInstallment;
 use App\Models\Student;
 use App\Models\Invoice;
 use App\Services\PaymentPlanNotificationService;
+use App\Services\PaymentPlanSyncService;
 use App\Services\ReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,9 +48,21 @@ class FeePaymentPlanController extends Controller
     public function getStudentInvoicesAndSiblings(Student $student)
     {
         try {
-            $invoices = Invoice::where('student_id', $student->id)
-                ->orderBy('due_date', 'desc')
-                ->get()
+            $familyId = $student->family_id;
+
+            $invoiceQuery = Invoice::query()
+                ->whereNull('reversed_at')
+                ->whereIn('status', ['unpaid', 'partial'])
+                ->orderBy('due_date', 'desc');
+
+            if ($familyId) {
+                $invoiceQuery->where('family_id', $familyId);
+            } else {
+                $invoiceQuery->where('student_id', $student->id);
+            }
+
+            $invoices = $invoiceQuery->get()
+                ->filter(fn ($inv) => (float) ($inv->balance ?? ((float) ($inv->total ?? 0) - (float) ($inv->paid_amount ?? 0))) > 0.009)
                 ->map(function ($inv) {
                     $total = (float) ($inv->total ?? 0);
                     $paid = (float) ($inv->paid_amount ?? 0);
@@ -62,6 +75,7 @@ class FeePaymentPlanController extends Controller
                         'due_date' => $inv->due_date ? (\Carbon\Carbon::parse($inv->due_date)->format('Y-m-d')) : null,
                         'term' => $inv->term?->name ?? null,
                         'academic_year' => $inv->academicYear?->year ?? $inv->year ?? null,
+                        'student_id' => $inv->student_id,
                     ];
                 })
                 ->values()
@@ -121,7 +135,25 @@ public function store(Request $request)
         ]);
 
         $primaryStudent = Student::findOrFail($validated['student_id']);
-        $totalAmount = (float) $validated['total_amount'];
+        $syncService = app(PaymentPlanSyncService::class);
+
+        // Always compute total from outstanding invoices (student-only or family-wide) to avoid mismatch and duplicate plans.
+        $outstandingInvoiceIds = $syncService->collectOutstandingInvoiceIdsForStudentOrFamily($primaryStudent)->all();
+        $outstandingInvoices = !empty($outstandingInvoiceIds)
+            ? Invoice::whereIn('id', $outstandingInvoiceIds)->get()
+            : collect();
+        $computedTotal = (float) $outstandingInvoices->sum(fn ($i) => max(0, (float) ($i->balance ?? 0)));
+        $totalAmount = round($computedTotal, 2);
+
+        // If there is already an active family plan, adjust it instead of creating a new one.
+        $existingPlan = null;
+        if ($primaryStudent->family_id) {
+            $existingPlan = FeePaymentPlan::query()
+                ->whereIn('status', ['active', 'compliant', 'overdue', 'broken'])
+                ->whereHas('student', fn ($q) => $q->where('family_id', $primaryStudent->family_id))
+                ->latest()
+                ->first();
+        }
 
         $scheduleType = $validated['schedule_type'];
         $installmentCount = $scheduleType === 'one_time' ? 1 : (int) ($validated['installment_count'] ?? 1);
@@ -148,9 +180,28 @@ public function store(Request $request)
         try {
             $invoice = !empty($validated['invoice_id']) ? Invoice::find($validated['invoice_id']) : null;
 
+            if ($existingPlan) {
+                // Sync invoices + totals, and reuse the existing plan (no duplicates for the same family).
+                $existingPlan->loadMissing('student');
+                $existingPlan->invoices()->sync($outstandingInvoiceIds);
+                if (!$existingPlan->invoice_id) {
+                    $existingPlan->invoice_id = $outstandingInvoiceIds[0] ?? null;
+                }
+                $existingPlan->notes = trim((string) ($validated['notes'] ?? $existingPlan->notes ?? ''));
+                $existingPlan->updated_by = auth()->id();
+                $existingPlan->save();
+
+                $syncService->syncPlanFromInvoices($existingPlan);
+
+                DB::commit();
+
+                return redirect()->route('finance.fee-payment-plans.show', $existingPlan)
+                    ->with('success', 'Existing family payment plan updated to include all active invoices (no duplicate plan created).');
+            }
+
             $plan = FeePaymentPlan::create([
                 'student_id' => $primaryStudent->id,
-                'invoice_id' => $validated['invoice_id'] ?? null,
+                'invoice_id' => $outstandingInvoiceIds[0] ?? ($validated['invoice_id'] ?? null),
                 'term_id' => $invoice?->term_id,
                 'academic_year_id' => $invoice?->academic_year_id,
                 'total_amount' => $totalAmount,
@@ -162,6 +213,13 @@ public function store(Request $request)
                 'notes' => ($validated['notes'] ?? '') . ($primaryStudent->family_id ? ' (Combined family plan)' : ''),
                 'created_by' => auth()->id(),
             ]);
+
+            if (!empty($outstandingInvoiceIds)) {
+                $plan->invoices()->sync($outstandingInvoiceIds);
+            } elseif (!empty($validated['invoice_id'])) {
+                // Back-compat: if no outstanding invoices detected but user linked one, attach it.
+                $plan->invoices()->sync([(int) $validated['invoice_id']]);
+            }
 
             if ($scheduleType === 'custom' && !empty($validated['installments'])) {
                 $customInstallments = collect($validated['installments'])->sortBy('due_date')->values();
@@ -207,6 +265,13 @@ public function store(Request $request)
                 app(PaymentPlanNotificationService::class)->notifyParentOnPlanCreated($plan);
             } catch (\Throwable $e) {
                 \Log::warning('Payment plan notification failed', ['plan_id' => $plan->id, 'error' => $e->getMessage()]);
+            }
+
+            // Ensure plan is immediately synced to invoice balances.
+            try {
+                $syncService->syncPlanFromInvoices($plan);
+            } catch (\Throwable $e) {
+                \Log::warning('Payment plan sync after create failed', ['plan_id' => $plan->id, 'error' => $e->getMessage()]);
             }
 
             $msg = $primaryStudent->family_id

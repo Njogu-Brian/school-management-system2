@@ -338,5 +338,17 @@ class Invoice extends Model
                 $invoice->hashed_id = self::generateHashedId();
             }
         });
+
+        static::saved(function (Invoice $invoice) {
+            try {
+                // Keep payment plans aligned when invoice balance changes.
+                app(\App\Services\PaymentPlanSyncService::class)->syncPlansForInvoice($invoice);
+            } catch (\Throwable $e) {
+                \Log::warning('Payment plan sync after invoice save failed', [
+                    'invoice_id' => $invoice->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\FeePaymentPlan;
 use App\Models\CommunicationTemplate;
 use App\Models\CommunicationLog;
+use App\Models\PaymentLink;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\GenericMail;
 
@@ -61,18 +62,32 @@ class PaymentPlanNotificationService
         $start = $plan->start_date->format('d M Y');
         $end = $plan->end_date->format('d M Y');
         $link = url('/payment-plan/' . $plan->hashed_id);
+        $payLink = $extra['pay_link'] ?? null;
         $schoolName = setting('school_name', config('app.name'));
-        return "Dear Parent/Guardian,\n\nA payment plan has been created for {$studentName}.\n\nTotal: KES {$total} in {$count} installments of KES {$installmentAmount}.\nPeriod: {$start} to {$end}.\n\nView your plan: {$link}\n\nRegards,\n{$schoolName}";
+        $payLine = $payLink ? "\nPay now: {$payLink}\n(Click the link to pay)\n" : "";
+        return "Dear Parent/Guardian,\n\nA payment plan has been created for {$studentName}.\n\nTotal: KES {$total} in {$count} installments of KES {$installmentAmount}.\nPeriod: {$start} to {$end}.\n\nView your plan: {$link}{$payLine}\nRegards,\n{$schoolName}";
     }
 
     protected function planExtra(FeePaymentPlan $plan): array
     {
         $link = url('/payment-plan/' . $plan->hashed_id);
+        $payLink = null;
+        if ($plan->student && $plan->student->family_id) {
+            $pl = PaymentLink::getOrCreateFamilyLink((int) $plan->student->family_id, auth()->id(), 'payment_plan');
+            $payLink = $pl->getPaymentUrl();
+        } elseif ($plan->student) {
+            $existing = PaymentLink::active()
+                ->where('student_id', $plan->student->id)
+                ->whereNull('family_id')
+                ->first();
+            $payLink = $existing?->getPaymentUrl();
+        }
         return [
             'total_amount' => number_format((float) $plan->total_amount, 2),
             'installment_count' => (string) $plan->installment_count,
             'installment_amount' => number_format((float) $plan->installment_amount, 2),
             'payment_plan_link' => $link,
+            'pay_link' => $payLink ?? '',
             'start_date' => $plan->start_date->format('d M Y'),
             'end_date' => $plan->end_date->format('d M Y'),
         ];

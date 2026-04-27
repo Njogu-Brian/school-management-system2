@@ -322,6 +322,10 @@ class FeeReminderController extends Controller
         $currentTerm = Term::where('is_current', true)->first();
         $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
         $financePortalLink = url('/finance/student-statements/' . $student->id);
+        $payLink = null;
+        if ($student->family_id) {
+            $payLink = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $student->family_id, auth()->id(), 'fee_reminder')->getPaymentUrl();
+        }
 
         $variables = [
             'parent_name' => $parentName,
@@ -330,6 +334,7 @@ class FeeReminderController extends Controller
             'academic_year' => $currentYear->year ?? date('Y'),
             'finance_portal_link' => $financePortalLink,
             'school_name' => $schoolName,
+            'pay_link' => $payLink ?? '',
         ];
 
         if ($reminder->payment_plan_installment_id) {
@@ -342,6 +347,9 @@ class FeeReminderController extends Controller
                 $variables['due_date'] = $installment->due_date->format('F d, Y');
                 $variables['remaining_balance'] = number_format($remainingBalance, 2);
                 $variables['payment_plan_link'] = url('/payment-plan/' . $plan->hashed_id);
+                if ($student->family_id) {
+                    $variables['pay_link'] = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $student->family_id, auth()->id(), 'payment_plan_reminder')->getPaymentUrl();
+                }
             }
         }
 
