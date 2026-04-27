@@ -1,6 +1,6 @@
 module.exports = {
     presets: ['babel-preset-expo'],
-    plugins: [
+    plugins
         [
             'module-resolver',
             {

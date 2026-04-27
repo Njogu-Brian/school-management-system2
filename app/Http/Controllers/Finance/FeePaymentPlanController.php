@@ -298,7 +298,7 @@ public function store(Request $request)
 
     public function show(FeePaymentPlan $feePaymentPlan)
     {
-        $feePaymentPlan->load(['student', 'invoice', 'installments', 'creator']);
+        $feePaymentPlan->load(['student', 'invoice', 'installments', 'creator', 'invoices.student']);
         return view('finance.fee_payment_plans.show', compact('feePaymentPlan'));
     }
 

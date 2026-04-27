@@ -108,8 +108,19 @@
 
                 <div id="custom_installments_block" class="mb-3 d-none">
                     <label class="form-label">Custom installments (date and amount per installment)</label>
+                    <div id="custom_installments_notice" class="alert alert-warning py-2 small d-none mb-2"></div>
+                    @error('installments')
+                        <div class="text-danger small mb-2">{{ $message }}</div>
+                    @enderror
+                    @error('installments.*.due_date')
+                        <div class="text-danger small mb-2">{{ $message }}</div>
+                    @enderror
+                    @error('installments.*.amount')
+                        <div class="text-danger small mb-2">{{ $message }}</div>
+                    @enderror
                     <div id="custom_installments_list"></div>
                     <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add_custom_installment"><i class="bi bi-plus"></i> Add installment</button>
+                    <small class="text-muted d-block mt-2">Tip: enter amounts for the first rows; the last row will auto-adjust to ensure the full total is covered.</small>
                 </div>
 
                 <div class="mb-3">
@@ -142,6 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const invoiceSelect = document.getElementById('invoice_id');
     const siblingsPreview = document.getElementById('siblings_preview');
     const totalAmountInput = document.getElementById('total_amount');
+    const customNotice = document.getElementById('custom_installments_notice');
     const studentInvoicesUrlTemplate = '{{ route("finance.fee-payment-plans.student-invoices", ["student" => 0]) }}';
     function studentInvoicesUrl(id) { return studentInvoicesUrlTemplate.replace(/\/0$/, '/' + id); }
 
@@ -190,23 +202,96 @@ document.addEventListener('DOMContentLoaded', function() {
     function addCustomInstallmentRow(dueDate, amount) {
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2 align-items-center custom-installment-row';
-        row.innerHTML = '<div class="col-md-5"><input type="date" name="installments[' + customInstallmentIndex + '][due_date]" class="form-control form-control-sm" value="' + (dueDate || '') + '"></div>' +
-            '<div class="col-md-5"><input type="number" step="0.01" min="0" name="installments[' + customInstallmentIndex + '][amount]" class="form-control form-control-sm" placeholder="Amount" value="' + (amount || '') + '"></div>' +
+        row.innerHTML = '<div class="col-md-5"><input type="date" required name="installments[' + customInstallmentIndex + '][due_date]" class="form-control form-control-sm" value="' + (dueDate || '') + '"></div>' +
+            '<div class="col-md-5"><input type="number" required step="0.01" min="0" name="installments[' + customInstallmentIndex + '][amount]" class="form-control form-control-sm installment-amount" placeholder="Amount" value="' + (amount || '') + '"></div>' +
             '<div class="col-md-2"><button type="button" class="btn btn-sm btn-outline-danger remove-custom-installment"><i class="bi bi-dash"></i></button></div>';
         customInstallmentsList.appendChild(row);
         customInstallmentIndex++;
-        row.querySelector('.remove-custom-installment').addEventListener('click', function() { row.remove(); });
+        row.querySelector('.remove-custom-installment').addEventListener('click', function() {
+            row.remove();
+            recalcCustomInstallments(true);
+        });
+        row.querySelector('input.installment-amount').addEventListener('input', function() {
+            recalcCustomInstallments(true);
+        });
+        recalcCustomInstallments(true);
     }
     addCustomInstallmentBtn.addEventListener('click', function() { addCustomInstallmentRow('', ''); });
     scheduleTypeSelect.addEventListener('change', refreshScheduleVisibility);
     refreshScheduleVisibility();
 
-    document.querySelector('form').addEventListener('submit', function() {
+    function getTotalAmount() {
+        const v = parseFloat(totalAmountInput.value || '0');
+        return isNaN(v) ? 0 : v;
+    }
+
+    function recalcCustomInstallments(autoAdjustLast) {
+        if (scheduleTypeSelect.value !== 'custom') return;
+
+        const rows = Array.from(customInstallmentsList.querySelectorAll('.custom-installment-row'));
+        const total = getTotalAmount();
+        if (rows.length === 0) return;
+
+        const amounts = rows.map(r => {
+            const input = r.querySelector('input.installment-amount');
+            const val = parseFloat(input?.value || '0');
+            return isNaN(val) ? 0 : val;
+        });
+
+        const sumExceptLast = amounts.slice(0, -1).reduce((a, b) => a + b, 0);
+        const lastInput = rows[rows.length - 1].querySelector('input.installment-amount');
+        if (autoAdjustLast && lastInput) {
+            const remainder = Math.max(0, Math.round((total - sumExceptLast) * 100) / 100);
+            lastInput.value = remainder.toFixed(2);
+            amounts[amounts.length - 1] = remainder;
+        }
+
+        const sum = amounts.reduce((a, b) => a + b, 0);
+        const diff = Math.round((total - sum) * 100) / 100;
+
+        if (total > 0 && Math.abs(diff) > 0.009) {
+            customNotice.classList.remove('d-none');
+            customNotice.classList.remove('alert-success');
+            customNotice.classList.add('alert-warning');
+            customNotice.textContent = `Custom installments total KES ${sum.toFixed(2)}. Difference: KES ${diff.toFixed(2)}. Adjust amounts so the total equals KES ${total.toFixed(2)}.`;
+        } else {
+            customNotice.classList.remove('d-none');
+            customNotice.classList.remove('alert-warning');
+            customNotice.classList.add('alert-success');
+            customNotice.textContent = `Custom installments cover the full amount: KES ${sum.toFixed(2)}.`;
+        }
+    }
+
+    totalAmountInput.addEventListener('input', function() {
         if (scheduleTypeSelect.value === 'custom') {
+            recalcCustomInstallments(true);
+        }
+    });
+
+    document.querySelector('form').addEventListener('submit', function(e) {
+        if (scheduleTypeSelect.value === 'custom') {
+            // Re-index fields, then force last row to cover remainder.
             customInstallmentsList.querySelectorAll('.custom-installment-row').forEach(function(row, i) {
                 row.querySelector('input[name*="[due_date]"]').name = 'installments[' + i + '][due_date]';
                 row.querySelector('input[name*="[amount]"]').name = 'installments[' + i + '][amount]';
             });
+
+            recalcCustomInstallments(true);
+
+            // Validate equality after adjustment.
+            const total = getTotalAmount();
+            const amounts = Array.from(customInstallmentsList.querySelectorAll('input.installment-amount'))
+                .map(x => parseFloat(x.value || '0'))
+                .map(x => isNaN(x) ? 0 : x);
+            const sum = amounts.reduce((a, b) => a + b, 0);
+            const diff = Math.round((total - sum) * 100) / 100;
+            if (total > 0 && Math.abs(diff) > 0.009) {
+                e.preventDefault();
+                customNotice.classList.remove('d-none');
+                customNotice.classList.remove('alert-success');
+                customNotice.classList.add('alert-warning');
+                customNotice.textContent = `Cannot submit: custom installments must equal the Total Amount (KES ${total.toFixed(2)}). Current sum: KES ${sum.toFixed(2)}.`;
+            }
         }
     });
 
@@ -229,6 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 if (data.combined_total != null && data.combined_total > 0) {
                     totalAmountInput.value = parseFloat(data.combined_total).toFixed(2);
+                    recalcCustomInstallments(true);
                 }
                 if (data.siblings && data.siblings.length > 0) {
                     siblingsPreview.classList.remove('d-none');

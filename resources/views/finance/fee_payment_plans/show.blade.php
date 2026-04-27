@@ -66,6 +66,43 @@
                     </table>
                 </div>
             </div>
+
+            @php
+                $covered = $feePaymentPlan->invoices ?? collect();
+                $covered = $covered->filter(fn ($i) => $i && $i->student)->groupBy(fn ($i) => $i->student->id);
+            @endphp
+            @if($covered->count() > 0)
+                <div class="finance-card finance-animate mb-4">
+                    <div class="finance-card-header">
+                        <h5 class="mb-0">Covered Invoices (Family)</h5>
+                    </div>
+                    <div class="finance-card-body">
+                        @foreach($covered as $studentId => $invoices)
+                            @php
+                                $stu = $invoices->first()->student;
+                                $studentName = $stu->full_name ?? trim(($stu->first_name ?? '') . ' ' . ($stu->last_name ?? ''));
+                                $studentTotal = (float) $invoices->sum(fn ($inv) => (float) ($inv->total ?? 0));
+                                $studentBalance = (float) $invoices->sum(fn ($inv) => (float) ($inv->balance ?? 0));
+                            @endphp
+                            <div class="mb-3">
+                                <div class="fw-semibold">{{ $studentName }}</div>
+                                <div class="small text-muted">
+                                    Total invoiced: KES {{ number_format($studentTotal, 2) }} · Outstanding: KES {{ number_format($studentBalance, 2) }}
+                                </div>
+                                <div class="small mt-1">
+                                    @foreach($invoices as $inv)
+                                        <span class="badge bg-light text-dark border me-1 mb-1">
+                                            {{ $inv->invoice_number ?? ('Invoice #' . $inv->id) }}:
+                                            total KES {{ number_format((float) ($inv->total ?? 0), 2) }},
+                                            balance KES {{ number_format((float) ($inv->balance ?? 0), 2) }}
+                                        </span>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="col-md-6">
