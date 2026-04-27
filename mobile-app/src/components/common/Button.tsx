@@ -119,7 +119,7 @@ export const Button: React.FC<ButtonProps> = ({
             ) : (
                 <>
                     {icon && <>{icon}</>}
-                    <Text style={[getTextStyle(), icon && { marginLeft: SPACING.sm }]}>{title}</Text>
+                    <Text style={[getTextStyle(), icon ? { marginLeft: SPACING.sm } : undefined]}>{title}</Text>
                 </>
             )}
         </TouchableOpacity>

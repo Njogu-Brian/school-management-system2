@@ -12,7 +12,7 @@ import {
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { financeApi } from '@api/finance.api';
-import { StudentStatement } from '@types/finance.types';
+import { StudentStatement } from 'types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
@@ -47,9 +47,11 @@ export const StudentStatementScreen: React.FC<Props> = ({ navigation, route }) =
     }, [studentId, year]);
 
     const load = async () => {
+        const id = studentId;
+        if (id == null) return;
         try {
             setLoading(true);
-            const res = await financeApi.getStudentStatement(studentId, year);
+            const res = await financeApi.getStudentStatement(id, year);
             if (res.success && res.data) {
                 setStatement(res.data as StudentStatement);
             } else {

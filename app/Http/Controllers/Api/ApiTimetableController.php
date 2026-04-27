@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
+use App\Models\Student;
 use App\Models\Term;
 use App\Services\TimetableService;
 use Illuminate\Http\Request;
@@ -51,6 +52,80 @@ class ApiTimetableController extends Controller
             'success' => true,
             'data' => [
                 'class_name' => null,
+                'academic_year_id' => $yearId,
+                'term_id' => $resolvedTermId,
+                'slots' => $slots,
+            ],
+        ]);
+    }
+
+    /**
+     * Class timetable for a student (from their current classroom allocation).
+     */
+    public function student(Request $request, int $studentId)
+    {
+        $user = $request->user();
+        if (! $user) {
+            abort(401);
+        }
+
+        $student = Student::with(['classroom'])->findOrFail($studentId);
+
+        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            // full access
+        } elseif ($user->hasTeacherLikeRole()) {
+            $query = Student::query()->where('id', $studentId)->where('archive', 0)->where('is_alumni', false);
+            $user->applyTeacherStudentFilter($query);
+            if (! $query->exists()) {
+                abort(403, 'You do not have access to this student.');
+            }
+        } elseif ($user->hasAnyRole(['Parent', 'Guardian'])) {
+            if (! $user->canAccessStudent((int) $studentId)) {
+                abort(403, 'You do not have access to this student.');
+            }
+        } else {
+            abort(403, 'You cannot view this timetable.');
+        }
+
+        if (! $student->classroom_id) {
+            abort(422, 'Student is not assigned to a class.');
+        }
+
+        $termId = $request->integer('term_id') ?: null;
+        [$yearId, $resolvedTermId] = $this->resolveAcademicContext($termId);
+
+        $generated = TimetableService::generateForClassroom((int) $student->classroom_id, $yearId, $resolvedTermId);
+
+        $slots = [];
+        $i = 0;
+        foreach ($generated['timetable'] as $day => $periods) {
+            foreach ($periods as $period => $data) {
+                if (in_array($period, ['Break', 'Lunch'], true)) {
+                    continue;
+                }
+                if (! is_array($data) || ($data['subject'] ?? null) === null) {
+                    continue;
+                }
+                $subject = $data['subject'];
+                $teacher = $data['teacher'] ?? null;
+                $slots[] = [
+                    'id' => ++$i,
+                    'day' => is_string($day) ? $day : (string) $day,
+                    'start_time' => isset($data['start']) ? (string) $data['start'] : '08:00',
+                    'end_time' => isset($data['end']) ? (string) $data['end'] : '08:40',
+                    'subject_id' => $subject->id ?? 0,
+                    'subject_name' => $subject->name ?? '',
+                    'teacher_id' => $teacher->id ?? 0,
+                    'teacher_name' => $teacher ? ($teacher->full_name ?? null) : null,
+                    'room' => $student->classroom->name ?? null,
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'class_name' => $student->classroom->name ?? null,
                 'academic_year_id' => $yearId,
                 'term_id' => $resolvedTermId,
                 'slots' => $slots,

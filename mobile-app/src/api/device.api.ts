@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { ApiResponse } from '@types/api.types';
+import { ApiResponse } from 'types/api.types';
 
 export const deviceApi = {
     async registerPushToken(token: string, platform?: string): Promise<ApiResponse<{ message?: string }>> {

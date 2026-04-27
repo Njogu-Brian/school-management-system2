@@ -18,7 +18,7 @@ import { UserRole } from '@constants/roles';
 import { Card } from '@components/common/Card';
 import { Input } from '@components/common/Input';
 import { hrApi } from '@api/hr.api';
-import { Staff } from '@types/hr.types';
+import { Staff } from 'types/hr.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { Palette } from '@styles/palette';

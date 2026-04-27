@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL, API_TIMEOUT } from '@utils/env';
 import { getToken, clearToken } from '@utils/storage';
-import { ApiError, ApiResponse } from '@types/api.types';
+import { ApiError, ApiResponse } from 'types/api.types';
 
 type UnauthorizedCallback = () => void | Promise<void>;
 

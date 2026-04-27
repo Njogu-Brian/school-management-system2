@@ -18,6 +18,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'Director',
             'Admin',
             'Secretary',
+            'Academic Administrator',
             'Teacher',
             'Supervisor',
             'Driver',
@@ -141,6 +142,18 @@ class RolesAndPermissionsSeeder extends Seeder
             'communication.view', 'communication.create',
             'finance.view',
         ]);
+
+        // Academic Administrator (global academic visibility; no finance/HR mutation)
+        $academicAdmin = Role::where('name', 'Academic Administrator')->first();
+        if ($academicAdmin) {
+            $academicAdmin->syncPermissions([
+                'admin.dashboard',
+                'students.view',
+                'attendance.view',
+                'academics.view',
+                'communication.view',
+            ]);
+        }
 
         // Teacher
         $teacher = Role::where('name', 'Teacher')->first();

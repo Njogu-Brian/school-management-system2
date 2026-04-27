@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Act
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { academicsApi } from '@api/academics.api';
-import { Assignment } from '@types/academics.types';
+import { Assignment } from 'types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';

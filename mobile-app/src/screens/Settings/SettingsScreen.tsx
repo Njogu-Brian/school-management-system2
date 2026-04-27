@@ -21,7 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { checkForAppUpdate } from '@services/update.service';
-import { authenticateWithBiometrics, canUseBiometrics, getBiometricCredentials, getBiometricEnabled, setBiometricEnabled } from '@utils/biometrics';
+import { authenticateWithBiometrics, canUseBiometrics, getBiometricAuthBundle, getBiometricEnabled, setBiometricEnabled } from '@utils/biometrics';
 import { authApi } from '@api/auth.api';
 import { staffClockApi } from '@api/staffClock.api';
 import * as Location from 'expo-location';
@@ -132,7 +132,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                         await setBiometricEnabled(true);
                         setBiometrics((prev) => ({ ...prev, enabled: true }));
 
-                        const creds = await getBiometricCredentials();
+                        const creds = await getBiometricAuthBundle();
                         if (!creds) {
                             Alert.alert(
                                 'Biometrics enabled',

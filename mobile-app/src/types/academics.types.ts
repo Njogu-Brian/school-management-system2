@@ -17,6 +17,11 @@ export interface Exam {
     end_date: string;
     status: 'draft' | 'published' | 'ongoing' | 'completed';
     total_marks?: number;
+    classroom_id?: number | null;
+    stream_id?: number | null;
+    subject_id?: number | null;
+    classroom_name?: string | null;
+    subject_name?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -161,6 +166,7 @@ export interface AssignmentSubmission {
 export interface LessonPlan {
     id: number;
     teacher_id: number;
+    teacher_name?: string | null;
     subject_id: number;
     subject_name?: string;
     class_id: number;

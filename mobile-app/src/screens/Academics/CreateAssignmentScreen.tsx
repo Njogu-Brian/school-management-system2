@@ -18,7 +18,7 @@ import { Input } from '@components/common/Input';
 import { Card } from '@components/common/Card';
 import { academicsApi } from '@api/academics.api';
 import { studentsApi } from '@api/students.api';
-import { Class, Stream, ClassSubject } from '@types/student.types';
+import { Class, Stream, ClassSubject } from 'types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -231,11 +231,16 @@ export const CreateAssignmentScreen: React.FC<Props> = ({ navigation }) => {
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                         <Icon name="arrow-back" size={24} color={textMain} />
                     </TouchableOpacity>
-                    <Text style={[styles.title, { color: textMain }]}>New homework</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.title, { color: textMain }]}>Create assignment</Text>
+                        <Text style={[styles.subtitle, { color: textSub }]}>
+                            Details publish to the class stream you select (Sovereign layout).
+                        </Text>
+                    </View>
                     <View style={{ width: 40 }} />
                 </View>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-                    <Card>
+                    <Card style={{ borderLeftWidth: 3, borderLeftColor: colors.primary }}>
                         <Input label="Title" value={title} onChangeText={setTitle} />
                         <Input
                             label="Instructions (optional)"
@@ -316,7 +321,8 @@ const styles = StyleSheet.create({
         paddingVertical: SPACING.sm,
     },
     backBtn: { padding: SPACING.sm, marginRight: SPACING.sm },
-    title: { flex: 1, fontSize: FONT_SIZES.lg, fontWeight: '700' },
+    title: { fontSize: FONT_SIZES.lg, fontWeight: '800' },
+    subtitle: { fontSize: FONT_SIZES.sm, marginTop: 4, lineHeight: 18 },
     scroll: { padding: SPACING.md, paddingBottom: SPACING.xxl },
     label: { fontSize: FONT_SIZES.sm, marginBottom: SPACING.xs },
     selectBtn: {

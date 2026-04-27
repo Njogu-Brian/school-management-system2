@@ -7,8 +7,10 @@ import { AdminDashboard } from '@screens/Dashboard/AdminDashboard';
 import { StudentsNavigator, AttendanceNavigator, FinanceNavigator, PaymentsNavigator } from './ModuleNavigators';
 import { MoreNavigator } from './MoreNavigator';
 import { TeacherNavigator } from './TeacherNavigator';
+import { AcademicAdminNavigator } from './AcademicAdminNavigator';
 import { ParentTabNavigator } from './ParentTabNavigator';
 import { StudentTabNavigator } from './StudentTabNavigator';
+import { DriverTabNavigator } from './DriverTabNavigator';
 import { useTheme } from '@contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -94,6 +96,11 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
         );
     }
 
+    // Academic administrator – read-only academics shell (no finance/attendance marking)
+    if (user.role === UserRole.ACADEMIC_ADMIN) {
+        return <AcademicAdminNavigator />;
+    }
+
     // Teacher & Senior Teacher Navigation – full stack: Dashboard, My Classes, Attendance, Academics, Transport, Diary, Profile, Salary; senior teachers get extra (Supervised Classrooms/Staff, Fee Balances)
     if (user.role === UserRole.TEACHER || user.role === UserRole.SENIOR_TEACHER || user.role === UserRole.SUPERVISOR) {
         return <TeacherNavigator />;
@@ -107,6 +114,11 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
     // Student
     if (user.role === UserRole.STUDENT) {
         return <StudentTabNavigator />;
+    }
+
+    // Driver / transport staff (Stitch: 3-tab shell + active trip)
+    if (user.role === UserRole.DRIVER || user.role === UserRole.TRANSPORT) {
+        return <DriverTabNavigator />;
     }
 
     // Default fallback

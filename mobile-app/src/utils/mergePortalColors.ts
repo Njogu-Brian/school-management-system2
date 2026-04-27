@@ -1,5 +1,5 @@
 import { COLORS } from '@constants/theme';
-import type { PortalBrandColors } from '@types/branding.types';
+import type { PortalBrandColors } from 'types/branding.types';
 
 /** Apply portal Settings → Branding hex colors onto the app palette. */
 export function mergePortalColors(portal: PortalBrandColors | undefined): typeof COLORS {
@@ -15,6 +15,9 @@ export function mergePortalColors(portal: PortalBrandColors | undefined): typeof
     }
     if (portal.primary_dark) {
         next.primaryDark = portal.primary_dark;
+    }
+    if (portal.secondary) {
+        next.secondary = portal.secondary;
     }
     if (portal.success) {
         next.success = portal.success;
@@ -44,6 +47,24 @@ export function mergePortalColors(portal: PortalBrandColors | undefined): typeof
     }
     if (portal.accent_light) {
         next.accentLight = portal.accent_light;
+    }
+    if (portal.background_dark) {
+        next.backgroundDark = portal.background_dark;
+    }
+    if (portal.surface_dark) {
+        next.surfaceDark = portal.surface_dark;
+    }
+    if (portal.border_dark) {
+        next.borderDark = portal.border_dark;
+    }
+    if (portal.text_main_dark) {
+        next.textMainDark = portal.text_main_dark;
+    }
+    if (portal.text_sub_dark) {
+        next.textSubDark = portal.text_sub_dark;
+    }
+    if (portal.accent_dark) {
+        next.accentDark = portal.accent_dark;
     }
     return next;
 }

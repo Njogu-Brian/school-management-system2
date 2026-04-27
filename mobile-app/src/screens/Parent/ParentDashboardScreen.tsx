@@ -22,6 +22,8 @@ import { DashboardHero, DashboardLineChart, DashboardBarChart, DashboardMenuGrid
 import type { DashboardMenuItem } from '@components/dashboard';
 import { tileColorForIndex } from '@styles/sections/dashboard';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
+import type { DashboardStats } from '@api/dashboard.api';
 
 interface Props {
     navigation: { navigate: (name: string, params?: object) => void; getParent: () => { navigate: (name: string, params?: object) => void } | null };
@@ -32,6 +34,8 @@ export const ParentDashboardScreen: React.FC<Props> = ({ navigation }) => {
     const { user } = useAuth();
     const [childrenCount, setChildrenCount] = useState<number | null>(null);
     const [balance, setBalance] = useState<number | null>(null);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [statsLoadError, setStatsLoadError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
 
     const bg = isDark ? colors.backgroundDark : BRAND.bg;
@@ -42,12 +46,21 @@ export const ParentDashboardScreen: React.FC<Props> = ({ navigation }) => {
         try {
             const res = await dashboardApi.getStats();
             if (res.success && res.data) {
+                setStatsLoadError(null);
+                setStats(res.data);
                 setChildrenCount(res.data.children_count ?? null);
                 setBalance(typeof res.data.total_fee_balance === 'number' ? res.data.total_fee_balance : null);
+            } else {
+                setStats(null);
+                setChildrenCount(null);
+                setBalance(null);
+                setStatsLoadError(res.message || 'Could not load your dashboard.');
             }
-        } catch {
+        } catch (e: any) {
+            setStats(null);
             setChildrenCount(null);
             setBalance(null);
+            setStatsLoadError(e?.message || 'Could not load your dashboard.');
         } finally {
             setRefreshing(false);
         }
@@ -121,6 +134,11 @@ export const ParentDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
     const roleLabel = getDashboardRoleLabel(user?.role);
 
+    const lineChart = stats?.charts?.line;
+    const barChart = stats?.charts?.bar;
+    const showLine = lineChart && lineChart.labels?.length > 0;
+    const showBar = barChart && barChart.labels?.length > 0;
+
     return (
         <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
             <ScrollView
@@ -140,6 +158,21 @@ export const ParentDashboardScreen: React.FC<Props> = ({ navigation }) => {
                 />
 
                 <View style={styles.pad}>
+                    {statsLoadError ? (
+                        <LoadErrorBanner
+                            message={statsLoadError}
+                            onRetry={() => {
+                                setStatsLoadError(null);
+                                setRefreshing(true);
+                                void load();
+                            }}
+                            surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                            borderColor={isDark ? colors.borderDark : BRAND.border}
+                            textColor={isDark ? colors.textMainDark : textMain}
+                            subColor={isDark ? colors.textSubDark : textSub}
+                            accentColor={colors.primary}
+                        />
+                    ) : null}
                     <View style={styles.summaryRow}>
                         <Card
                             style={{
@@ -179,12 +212,17 @@ export const ParentDashboardScreen: React.FC<Props> = ({ navigation }) => {
                         </View>
                     </View>
 
-                    <DashboardLineChart
-                        title="Attendance trend (sample)"
-                        labels={['W1', 'W2', 'W3', 'W4']}
-                        data={[92, 94, 91, 95]}
-                    />
-                    <DashboardBarChart title="Fee paid vs due (sample)" labels={['Jan', 'Feb', 'Mar']} data={[80, 65, 45]} />
+                    {showLine ? (
+                        <DashboardLineChart title="Attendance trend (your children)" labels={lineChart!.labels} data={lineChart!.values} />
+                    ) : null}
+                    {showBar ? (
+                        <DashboardBarChart title="Outstanding balance by child" labels={barChart!.labels} data={barChart!.values} />
+                    ) : null}
+                    {!statsLoadError && stats && !showLine && !showBar ? (
+                        <Text style={[styles.chartsHint, { color: textSub }]}>
+                            Charts will show here once your children have attendance and fee records.
+                        </Text>
+                    ) : null}
 
                     <DashboardMenuGrid title="Shortcuts" items={menuItems} />
 
@@ -244,4 +282,5 @@ const styles = StyleSheet.create({
         gap: SPACING.md,
     },
     linkText: { flex: 1, fontSize: FONT_SIZES.md, fontWeight: '600' },
+    chartsHint: { fontSize: FONT_SIZES.sm, lineHeight: 20, marginBottom: SPACING.md },
 });

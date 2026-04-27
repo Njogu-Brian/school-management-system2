@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { ApiResponse } from '@types/api.types';
+import { ApiResponse } from 'types/api.types';
 
 export interface DashboardChartSeries {
     labels: string[];
@@ -57,6 +57,12 @@ export interface DashboardStats {
     /** Parent / guardian */
     children_count?: number;
     total_fee_balance?: number;
+    /** Logged-in student (role Student) */
+    student_id?: number | null;
+    class_name?: string | null;
+    attendance_pct?: number | null;
+    fee_balance?: number | null;
+    pending_assignments?: number;
     /** Admin dashboard */
     filters?: DashboardFilters;
     charts?: {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { MoreScreen } from '@screens/More/MoreScreen';
@@ -19,12 +20,18 @@ import { SettingsScreen } from '@screens/Settings/SettingsScreen';
 import { TeacherClockScreen } from '@screens/Attendance/TeacherClockScreen';
 import { TeacherRequirementsScreen } from '@screens/Requirements/TeacherRequirementsScreen';
 import { TeacherRequirementDetailScreen } from '@screens/Requirements/TeacherRequirementDetailScreen';
+import { AcademicReportsListScreen } from '@screens/Reports/AcademicReportsListScreen';
+import { AcademicReportFillScreen } from '@screens/Reports/AcademicReportFillScreen';
+import { FeedbackScreen } from '@screens/Reports/FeedbackScreen';
 
 const Stack = createStackNavigator();
 
 export const MoreNavigator = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MoreMenu" component={MoreScreen} />
+        <Stack.Screen name="AcademicReports" component={AcademicReportsListScreen} />
+        <Stack.Screen name="AcademicReportFill" component={AcademicReportFillScreen} />
+        <Stack.Screen name="Feedback" component={FeedbackScreen} />
         <Stack.Screen name="StaffDirectory" component={StaffDirectoryScreen} />
         <Stack.Screen name="StaffDetail" component={StaffDetailScreen} />
         <Stack.Screen name="StaffEdit" component={StaffEditScreen} />

@@ -42,7 +42,7 @@
             "@utils/*": [
                 "utils/*"
             ],
-            "@types/*": [
+            "types/*": [
                 "types/*"
             ],
             "@constants/*": [

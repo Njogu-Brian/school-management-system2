@@ -6,6 +6,8 @@ export const COLORS = {
     primary: '#004A99',
     primaryDark: '#003d7a',
     primaryLight: '#1a6bc4',
+    /** `finance_secondary_color` in portal; accents, links, secondary CTAs */
+    secondary: '#14b8a6',
 
     backgroundLight: '#f0f5fa',
     backgroundDark: '#0a1628',

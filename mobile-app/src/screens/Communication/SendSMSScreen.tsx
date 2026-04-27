@@ -60,9 +60,11 @@ export const SendSMSScreen: React.FC<SendSMSScreenProps> = ({ navigation }) => {
 
         setLoading(true);
         try {
-            const response = await communicationApi.sendSMS({
-                ...formData,
-                class_id: formData.class_id ? parseInt(formData.class_id, 10) : undefined,
+            const response = await communicationApi.sendMessage({
+                type: 'sms',
+                body: formData.message,
+                recipient_type: formData.recipient_type,
+                target_classes: formData.class_id ? [parseInt(formData.class_id, 10)] : undefined,
             });
 
             if (response.success) {

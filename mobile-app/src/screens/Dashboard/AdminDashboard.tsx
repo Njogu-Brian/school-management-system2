@@ -16,6 +16,7 @@ import type { DashboardMenuItem } from '@components/dashboard';
 import { mainBackgroundGradient } from '@styles/screenGradients';
 import { adminDashboardStyles as s } from '@styles/screens/adminDashboard.styles';
 import { tileColorForIndex } from '@styles/sections/dashboard';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - SPACING.xl * 2 - SPACING.md) / 2;
@@ -76,6 +77,7 @@ export const AdminDashboard = () => {
     const { isDark, colors } = useTheme();
     const navigation = useNavigation<any>();
     const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [statsLoadError, setStatsLoadError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -98,15 +100,20 @@ export const AdminDashboard = () => {
                 term_id: termId !== undefined ? termId : filterTermId,
             });
             if (res.success && res.data) {
+                setStatsLoadError(null);
                 setStats(res.data);
                 if (res.data.filters) {
                     if (yearId === undefined && filterYearId == null && res.data.filters.academic_year_id != null) {
                         setFilterYearId(res.data.filters.academic_year_id);
                     }
                 }
+            } else {
+                setStats(null);
+                setStatsLoadError(res.message || 'Could not load dashboard statistics.');
             }
-        } catch {
+        } catch (e: any) {
             setStats(null);
+            setStatsLoadError(e?.message || 'Could not load dashboard statistics.');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -212,6 +219,21 @@ export const AdminDashboard = () => {
                     />
 
                     <View style={{ paddingHorizontal: SCREEN.paddingHorizontal, paddingTop: SPACING.lg }}>
+                    {statsLoadError ? (
+                        <LoadErrorBanner
+                            message={statsLoadError}
+                            onRetry={() => {
+                                setStatsLoadError(null);
+                                setRefreshing(true);
+                                fetchStats();
+                            }}
+                            surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                            borderColor={isDark ? colors.borderDark : BRAND.border}
+                            textColor={isDark ? colors.textMainDark : colors.textMainLight}
+                            subColor={isDark ? colors.textSubDark : colors.textSubLight}
+                            accentColor={colors.primary}
+                        />
+                    ) : null}
 
                     {/* Academic year / term filter pills */}
                     <View style={{ flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md }}>

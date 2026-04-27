@@ -64,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'show']);
+    Route::get('/fee-structures', [\App\Http\Controllers\Api\ApiFeeStructureController::class, 'index']);
     Route::get('/payments', [\App\Http\Controllers\Api\ApiPaymentController::class, 'index']);
     Route::get('/payments/{id}', [\App\Http\Controllers\Api\ApiPaymentController::class, 'show']);
     Route::post('/payments', [\App\Http\Controllers\Api\ApiPaymentController::class, 'store']);
@@ -104,11 +105,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/classes/{classId}/fee-clearance-roster', [ApiFeeClearanceController::class, 'classRoster']);
 
     Route::get('/timetables/teacher/{staffId}', [\App\Http\Controllers\Api\ApiTimetableController::class, 'teacher']);
+    Route::get('/timetables/student/{studentId}', [\App\Http\Controllers\Api\ApiTimetableController::class, 'student']);
 
     Route::get('/assignments', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'index']);
     Route::post('/assignments', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'store']);
     Route::get('/assignments/{id}', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'show']);
     Route::get('/lesson-plans', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'index']);
+    Route::get('/lesson-plans/{id}', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'show']);
 
     Route::get('/exams', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'exams']);
     Route::get('/exams/{id}/marking-options', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examMarkingOptions']);
@@ -151,4 +154,33 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/pickups/{pickupId}', [\App\Http\Controllers\Api\ApiTeacherTransportController::class, 'cancelPickup']);
         Route::post('/reassign', [\App\Http\Controllers\Api\ApiTeacherTransportController::class, 'temporaryReassignment']);
     });
+
+    Route::prefix('academic-reports')->group(function () {
+        // Template builder (Super Admin / Admin / Academic Admin / Senior Teacher)
+        Route::get('/templates', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'templates']);
+        Route::post('/templates', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'storeTemplate']);
+        Route::put('/templates/{template}', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'updateTemplate']);
+        Route::post('/templates/{template}/publish', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'publish']);
+
+        // Mobile fill
+        Route::get('/assigned', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'assigned']);
+        Route::get('/templates/{template}', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'showTemplate']);
+        Route::post('/submissions', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'submit']);
+        Route::post('/submissions/{submission}/questions/{question}/file', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'uploadFile']);
+
+        // View submissions (managers)
+        Route::get('/submissions', [\App\Http\Controllers\Api\ApiAcademicReportsController::class, 'submissions']);
+    });
+
+    Route::prefix('feedback')->group(function () {
+        Route::get('/template', [\App\Http\Controllers\Api\ApiFeedbackController::class, 'template']);
+        Route::post('/submit', [\App\Http\Controllers\Api\ApiFeedbackController::class, 'submit']);
+        Route::post('/submissions/{submission}/questions/{question}/file', [\App\Http\Controllers\Api\ApiFeedbackController::class, 'uploadFile']);
+    });
+
+    Route::get('/driver/trips', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'index']);
+    Route::get('/driver/trips/{trip}', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'show']);
+
+    Route::get('/report-cards', [\App\Http\Controllers\Api\ApiReportCardController::class, 'index']);
+    Route::get('/report-cards/{id}', [\App\Http\Controllers\Api\ApiReportCardController::class, 'show']);
 });

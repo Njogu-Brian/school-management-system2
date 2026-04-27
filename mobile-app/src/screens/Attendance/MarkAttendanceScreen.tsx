@@ -16,7 +16,7 @@ import { Avatar } from '@components/common/Avatar';
 import { Card } from '@components/common/Card';
 import { studentsApi } from '@api/students.api';
 import { attendanceApi } from '@api/attendance.api';
-import { Student, Class, Stream } from '@types/student.types';
+import { Student, Class, Stream } from 'types/student.types';
 import { SPACING, FONT_SIZES, BORDER_RADIUS, COLORS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { Palette } from '@styles/palette';

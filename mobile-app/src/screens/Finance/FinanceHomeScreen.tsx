@@ -1,15 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import {
-    Alert,
-    View,
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    TouchableOpacity,
-    ScrollView,
-    RefreshControl,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, RefreshControl, Alert } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
@@ -22,8 +13,9 @@ import { DashboardHero, DashboardLineChart, DashboardBarChart, DashboardMenuGrid
 import type { DashboardMenuItem } from '@components/dashboard';
 import { tileColorForIndex, FINANCE_STAT_COLORS } from '@styles/sections/dashboard';
 import { financeApi } from '@api/finance.api';
-import { Payment } from '@types/finance.types';
+import { Payment } from 'types/finance.types';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
 
 interface Props {
     navigation: { navigate: (name: string, params?: object) => void };
@@ -47,6 +39,7 @@ export const FinanceHomeScreen: React.FC<Props> = ({ navigation }) => {
     const [recentPayments, setRecentPayments] = useState<
         { id: number; student: string; amount: number; method: string; time: string }[]
     >([]);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const loadDashboardData = useCallback(
         async (isRefresh: boolean = false) => {
@@ -198,6 +191,21 @@ export const FinanceHomeScreen: React.FC<Props> = ({ navigation }) => {
                 />
 
                 <View style={styles.pad}>
+                    {loadError ? (
+                        <LoadErrorBanner
+                            message={loadError}
+                            onRetry={() => {
+                                setLoadError(null);
+                                setRefreshing(true);
+                                loadDashboardData(true);
+                            }}
+                            surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                            borderColor={isDark ? colors.borderDark : BRAND.border}
+                            textColor={isDark ? colors.textMainDark : textMain}
+                            subColor={isDark ? colors.textSubDark : textSub}
+                            accentColor={colors.primary}
+                        />
+                    ) : null}
                     <Text style={[styles.sectionTitle, { color: textMain }]}>Collections</Text>
                     <View style={styles.statsRow}>
                         {renderStat('Today', stats.todayCollection, 'today', FINANCE_STAT_COLORS.today, true)}

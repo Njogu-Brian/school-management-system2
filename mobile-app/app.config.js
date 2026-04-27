@@ -5,6 +5,16 @@ const apiBase =
 const webBaseDefault =
   apiBase.replace(/\/api\/?$/i, '').replace(/\/$/, '') || 'https://erp.royalkingsschools.sc.ke';
 
+/** EAS OTA: only "on" in EAS Build, never for local `expo start` (Expo Go) — see eas.json `env`. */
+const wantsEasOta =
+  process.env.EXPO_PUBLIC_UPDATES_ENABLED === '1' ||
+  process.env.EXPO_PUBLIC_UPDATES_ENABLED === 'true';
+const isEasBuild = process.env.EAS_BUILD === 'true' || process.env.EAS_BUILD === '1';
+const updatesEnabledInThisBinary = wantsEasOta && isEasBuild;
+
+/** Same as extra.eas.projectId — used by EAS Update (`eas update`). */
+const EAS_PROJECT_ID = 'd8b53a3a-3093-407c-b552-de66fc1cc8bb';
+
 export default {
   expo: {
     newArchEnabled: true,
@@ -19,9 +29,13 @@ export default {
       resizeMode: 'contain',
     },
     assetBundlePatterns: ['assets/**/*'],
+    // OTA: local dev always off (EAS_BUILD unset). EAS release builds: set EXPO_PUBLIC_UPDATES_ENABLED
+    // in eas.json + run `eas update` (same runtimeVersion) or you get download failures on device.
     updates: {
-      enabled: true,
-      checkAutomatically: 'ON_LOAD',
+      url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+      enabled: updatesEnabledInThisBinary,
+      checkAutomatically:
+        process.env.EXPO_PUBLIC_UPDATES_ON_LOAD === '1' ? 'ON_LOAD' : 'NEVER',
       fallbackToCacheTimeout: 0,
     },
     runtimeVersion: process.env.EXPO_RUNTIME_VERSION || '1.0.0',
@@ -58,10 +72,12 @@ export default {
       'expo-notifications',
       'expo-secure-store',
       'expo-updates',
+      'expo-web-browser',
+      '@react-native-community/datetimepicker',
     ],
     extra: {
       eas: {
-        projectId: 'd8b53a3a-3093-407c-b552-de66fc1cc8bb',
+        projectId: EAS_PROJECT_ID,
       },
       API_BASE_URL: apiBase,
       API_TIMEOUT: process.env.API_TIMEOUT || process.env.EXPO_PUBLIC_API_TIMEOUT || '30000',

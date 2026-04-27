@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { User } from '@types/auth.types';
+import { User } from 'types/auth.types';
 
 const ASYNC_KEYS = {
     TOKEN: '@school_erp_token',

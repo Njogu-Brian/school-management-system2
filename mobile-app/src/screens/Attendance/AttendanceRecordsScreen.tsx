@@ -56,7 +56,7 @@ export const AttendanceRecordsScreen: React.FC<AttendanceRecordsScreenProps> = (
                 filters.class_id = classId;
             }
 
-            const response = await attendanceApi.getAttendance(filters);
+            const response = await attendanceApi.getAttendanceRecords(filters);
 
             if (response.success && response.data) {
                 setRecords(response.data.data);

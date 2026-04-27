@@ -20,7 +20,7 @@ import { Button } from '@components/common/Button';
 import { Card } from '@components/common/Card';
 import { Input } from '@components/common/Input';
 import { studentsApi } from '@api/students.api';
-import { Student, Class, Stream } from '@types/student.types';
+import { Student, Class, Stream } from 'types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';

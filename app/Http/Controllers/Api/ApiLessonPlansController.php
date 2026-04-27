@@ -74,6 +74,28 @@ class ApiLessonPlansController extends Controller
         ]);
     }
 
+    public function show(Request $request, int $id)
+    {
+        $user = $request->user();
+        $lp = LessonPlan::with(['subject', 'classroom', 'creator'])->findOrFail($id);
+
+        $privileged = $user && $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        if ($user && $user->hasTeacherLikeRole() && ! $privileged) {
+            $classIds = $user->getDashboardClassroomIds();
+            $staffId = $user->staff?->id;
+            $allowed = in_array((int) $lp->classroom_id, $classIds, true)
+                || ($staffId && (int) $lp->created_by === (int) $staffId);
+            if (! $allowed) {
+                abort(403, 'You do not have access to this lesson plan.');
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->formatLessonPlan($lp),
+        ]);
+    }
+
     protected function formatLessonPlan(LessonPlan $lp): array
     {
         $objectives = $lp->learning_objectives;

@@ -15,8 +15,8 @@ import { Button } from '@components/common/Button';
 import { Card } from '@components/common/Card';
 import { academicsApi } from '@api/academics.api';
 import { studentsApi } from '@api/students.api';
-import { Exam, Mark } from '../types/academics.types';
-import { Student } from '../types/student.types';
+import { Exam, Mark } from 'types/academics.types';
+import { Student } from 'types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
 

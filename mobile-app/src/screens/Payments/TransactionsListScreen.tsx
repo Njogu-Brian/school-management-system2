@@ -13,7 +13,7 @@ import { Card } from '@components/common/Card';
 import { Input } from '@components/common/Input';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { financeApi } from '@api/finance.api';
-import { FinanceTransaction } from '@types/finance.types';
+import { FinanceTransaction } from 'types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
@@ -66,12 +66,13 @@ export const TransactionsListScreen: React.FC<Props> = ({ navigation, embedded =
                     date_to: dateTo.trim() || undefined,
                 });
                 if (response.success && response.data) {
+                    const pageData = response.data;
                     if (pageNum === 1) {
-                        setRows(response.data.data);
+                        setRows(pageData.data);
                     } else {
-                        setRows((prev) => [...prev, ...response.data.data]);
+                        setRows((prev) => [...prev, ...pageData.data]);
                     }
-                    setHasMore(response.data.current_page < response.data.last_page);
+                    setHasMore(pageData.current_page < pageData.last_page);
                     setPage(pageNum);
                 }
             } catch (error: any) {

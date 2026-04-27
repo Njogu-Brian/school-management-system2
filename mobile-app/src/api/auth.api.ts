@@ -7,8 +7,8 @@ import {
     VerifyOTPRequest,
     ResetPasswordRequest,
     User,
-} from '@types/auth.types';
-import { ApiResponse } from '@types/api.types';
+} from 'types/auth.types';
+import { ApiResponse } from 'types/api.types';
 
 export const authApi = {
     // Login

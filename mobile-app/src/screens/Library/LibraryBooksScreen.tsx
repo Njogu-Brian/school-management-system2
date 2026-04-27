@@ -15,7 +15,7 @@ import { StatusBadge } from '@components/common/StatusBadge';
 import { Input } from '@components/common/Input';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { libraryApi } from '@api/library.api';
-import { Book } from '../types/library.types';
+import { Book } from 'types/library.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -48,13 +48,14 @@ export const LibraryBooksScreen: React.FC<LibraryBooksScreenProps> = ({ navigati
                 });
 
                 if (response.success && response.data) {
+                    const pageData = response.data;
                     if (pageNum === 1) {
-                        setBooks(response.data.data);
+                        setBooks(pageData.data);
                     } else {
-                        setBooks((prev) => [...prev, ...response.data.data]);
+                        setBooks((prev) => [...prev, ...pageData.data]);
                     }
 
-                    setHasMore(response.data.current_page < response.data.last_page);
+                    setHasMore(pageData.current_page < pageData.last_page);
                     setPage(pageNum);
                 }
             } catch (error: any) {

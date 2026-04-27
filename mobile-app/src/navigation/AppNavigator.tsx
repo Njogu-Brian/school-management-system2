@@ -26,9 +26,13 @@ const HIDE_GLOBAL_HEADER_ROUTES = new Set([
     'FinanceHome',
     'StudentHome',
     'StudentHomeTab',
+    'StudentHomeworkMain',
+    'StudentResultsMain',
     'ParentDashboard',
     'ParentHome',
     'ParentHomeTab',
+    'DriverHomeMain',
+    'DriverHomeTab',
 ]);
 
 const ROUTE_TITLES: Record<string, string> = {
@@ -50,6 +54,9 @@ const ROUTE_TITLES: Record<string, string> = {
     PaymentsList: 'Payments',
     PaymentDetail: 'Payment details',
     RecordPayment: 'Record payment',
+    FeeStructures: 'Fee structures',
+    Receipts: 'Receipts',
+    Defaulters: 'Defaulters',
     StudentStatement: 'Student statement',
     More: 'More',
     MoreMenu: 'More',
@@ -97,8 +104,16 @@ const ROUTE_TITLES: Record<string, string> = {
     ParentMoreTab: 'More',
     StudentMoreTab: 'More',
     StudentHomeworkTab: 'Homework',
+    StudentHomeworkMain: 'Homework',
     StudentResultsTab: 'Results',
+    StudentResultsMain: 'Results',
     TransactionDetail: 'Transaction details',
+    DriverHomeTab: 'Home',
+    DriverHomeMain: 'Home',
+    DriverRoutesTab: 'Routes',
+    DriverAccountTab: 'Account',
+    DriverSettings: 'Settings',
+    ActiveTrip: 'Active trip',
 };
 
 function toTitleCaseFromRoute(routeName: string): string {
@@ -141,6 +156,9 @@ function getDashboardFallback(user: User) {
     if (user.role === UserRole.STUDENT) {
         return { name: 'StudentHomeTab' };
     }
+    if (user.role === UserRole.DRIVER || user.role === UserRole.TRANSPORT) {
+        return { name: 'DriverHomeTab' };
+    }
     return { name: 'Dashboard' };
 }
 
@@ -168,7 +186,12 @@ const AuthenticatedShell: React.FC<{ user: User; currentRouteName: string | null
         }
 
         const fallback = getDashboardFallback(user);
-        navigationRef.navigate(fallback.name as never, fallback.params as never);
+        const nav = navigationRef as unknown as { navigate: (name: string, params?: object) => void };
+        if ('params' in fallback && fallback.params !== undefined) {
+            nav.navigate(fallback.name, fallback.params);
+        } else {
+            nav.navigate(fallback.name);
+        }
     };
 
     const handleSettings = () => {
@@ -180,10 +203,16 @@ const AuthenticatedShell: React.FC<{ user: User; currentRouteName: string | null
             user.role === UserRole.ACCOUNTANT ||
             user.role === UserRole.FINANCE
         ) {
-            navigationRef.navigate('More' as never, { screen: 'Settings' } as never);
+            (navigationRef as unknown as { navigate: (n: string, p?: object) => void }).navigate('More', { screen: 'Settings' });
             return;
         }
-        navigationRef.navigate('Settings' as never);
+        if (user.role === UserRole.DRIVER || user.role === UserRole.TRANSPORT) {
+            (navigationRef as unknown as { navigate: (n: string, p?: object) => void }).navigate('DriverAccountTab', {
+                screen: 'DriverSettings',
+            });
+            return;
+        }
+        (navigationRef as unknown as { navigate: (n: string) => void }).navigate('Settings');
     };
 
     const globalTitle = useMemo(
@@ -198,7 +227,9 @@ const AuthenticatedShell: React.FC<{ user: User; currentRouteName: string | null
         user.role === UserRole.FINANCE ||
         user.role === UserRole.TEACHER ||
         user.role === UserRole.SENIOR_TEACHER ||
-        user.role === UserRole.SUPERVISOR;
+        user.role === UserRole.SUPERVISOR ||
+        user.role === UserRole.DRIVER ||
+        user.role === UserRole.TRANSPORT;
 
     return (
         <KeyboardAvoidingView

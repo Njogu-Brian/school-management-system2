@@ -4,6 +4,7 @@
 export const BRAND = {
     primary: '#004A99',
     primaryDark: '#003d7a',
+    secondary: '#14b8a6',
     accent: '#1a6bc4',
     bg: '#f0f5fa',
     surface: '#ffffff',
@@ -16,8 +17,8 @@ export const BRAND = {
     navy: '#002a5c',
 };
 
-/** ScholarCore: 4px cards/buttons; pill for chips. */
-export const RADIUS = { card: 4, button: 4, pill: 999 };
+/** Slightly generous radius for 2024+ mobile; pill for filters/chips. */
+export const RADIUS = { card: 12, button: 10, pill: 999 };
 
 export const SCREEN = {
     paddingHorizontal: 16,

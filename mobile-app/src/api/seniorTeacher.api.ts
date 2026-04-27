@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { ApiResponse, PaginatedResponse } from '@types/api.types';
+import { ApiResponse, PaginatedResponse } from 'types/api.types';
 
 export interface SupervisedClassroom {
     id: number;

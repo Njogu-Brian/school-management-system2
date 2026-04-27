@@ -13,7 +13,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { StatusBadge } from '@components/common/StatusBadge';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
-import { FeeStructure } from '../types/finance-enhanced.types';
+import { FeeStructure } from 'types/finance-enhanced.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';

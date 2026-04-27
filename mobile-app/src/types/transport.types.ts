@@ -47,7 +47,7 @@ export interface Trip {
     id: number;
     route_id: number;
     route_name?: string;
-    vehicle_id: number;
+    vehicle_id?: number;
     vehicle_registration?: string;
     driver_id: number;
     driver_name?: string;
@@ -56,11 +56,27 @@ export interface Trip {
     start_time?: string;
     end_time?: string;
     status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+    /** Roster size for the trip row date (driver API). */
+    students_on_route?: number;
     students_picked?: number;
     students_dropped?: number;
     notes?: string;
     created_at: string;
     updated_at: string;
+}
+
+/** Payload from GET /driver/trips/{id} */
+export interface DriverTripDetail {
+    trip: Trip;
+    students: {
+        id: number;
+        full_name: string;
+        admission_number?: string | null;
+        class_name?: string | null;
+        stream_name?: string | null;
+    }[];
+    student_count: number;
+    date: string;
 }
 
 export interface StudentRouteAssignment {

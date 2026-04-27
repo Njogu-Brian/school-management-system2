@@ -20,11 +20,12 @@ import { Input } from '@components/common/Input';
 import { Button } from '@components/common/Button';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { studentsApi } from '@api/students.api';
-import { Student, StudentFilters, Class, Stream } from '@types/student.types';
+import { Student, StudentFilters, Class, Stream } from 'types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, SCREEN } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
 
 interface StudentsListScreenProps {
     navigation: any;
@@ -59,35 +60,55 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [applied, setApplied] = useState(false);
+    const [listError, setListError] = useState<string | null>(null);
+    const [classesError, setClassesError] = useState<string | null>(null);
+    const [streamsError, setStreamsError] = useState<string | null>(null);
 
-    // Load classes list once for the picker.
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await studentsApi.getClasses();
-                if (res.success && res.data) setClasses(res.data);
-            } catch {
-                /* non-fatal */
+    const loadClasses = useCallback(async () => {
+        setClassesError(null);
+        try {
+            const res = await studentsApi.getClasses();
+            if (res.success && res.data) {
+                setClasses(res.data);
+            } else {
+                setClasses([]);
+                setClassesError(res.message || 'Could not load classes.');
             }
-        })();
+        } catch (e: any) {
+            setClasses([]);
+            setClassesError(e?.message || 'Could not load classes.');
+        }
     }, []);
 
-    // Load streams whenever class selection changes.
+    const loadStreamsForClass = useCallback(async (classId: number) => {
+        setStreamsError(null);
+        try {
+            const res = await studentsApi.getStreams(classId);
+            if (res.success && res.data) {
+                setStreams(res.data);
+            } else {
+                setStreams([]);
+                setStreamsError(res.message || 'Could not load streams.');
+            }
+        } catch (e: any) {
+            setStreams([]);
+            setStreamsError(e?.message || 'Could not load streams.');
+        }
+    }, []);
+
+    useEffect(() => {
+        void loadClasses();
+    }, [loadClasses]);
+
     useEffect(() => {
         if (!selectedClassId) {
             setStreams([]);
             setSelectedStreamId(null);
+            setStreamsError(null);
             return;
         }
-        (async () => {
-            try {
-                const res = await studentsApi.getStreams(selectedClassId);
-                if (res.success && res.data) setStreams(res.data);
-            } catch {
-                setStreams([]);
-            }
-        })();
-    }, [selectedClassId]);
+        void loadStreamsForClass(selectedClassId);
+    }, [selectedClassId, loadStreamsForClass]);
 
     const buildFilters = useCallback((): StudentFilters => {
         const f: StudentFilters = { per_page: 20 };
@@ -102,6 +123,7 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
 
     const fetchStudents = useCallback(
         async (pageNum: number = 1) => {
+            setListError(null);
             try {
                 if (pageNum === 1) setLoading(true);
                 const response = await studentsApi.getStudents({
@@ -109,16 +131,21 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
                     page: pageNum,
                 });
                 if (response.success && response.data) {
+                    const pageData = response.data;
                     if (pageNum === 1) {
-                        setStudents(response.data.data);
+                        setStudents(pageData.data);
                     } else {
-                        setStudents((prev) => [...prev, ...response.data.data]);
+                        setStudents((prev) => [...prev, ...pageData.data]);
                     }
-                    setHasMore(response.data.current_page < response.data.last_page);
+                    setHasMore(pageData.current_page < pageData.last_page);
                     setPage(pageNum);
+                } else {
+                    if (pageNum === 1) setStudents([]);
+                    setListError(response.message || 'Failed to load students');
                 }
             } catch (error: any) {
-                Alert.alert('Error', error?.message || 'Failed to load students');
+                if (pageNum === 1) setStudents([]);
+                setListError(error?.message || 'Failed to load students');
             } finally {
                 setLoading(false);
                 setRefreshing(false);
@@ -140,6 +167,7 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
             Alert.alert('Search term', 'Type at least one character.');
             return;
         }
+        setListError(null);
         setApplied(true);
         setPage(1);
         fetchStudents(1);
@@ -212,6 +240,46 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
 
     const renderFilterCard = () => (
         <View style={[styles.filterCard, { backgroundColor: surface, borderColor: border }]}>
+            {listError ? (
+                <LoadErrorBanner
+                    message={listError}
+                    onRetry={
+                        applied
+                            ? () => {
+                                  setRefreshing(true);
+                                  fetchStudents(1);
+                              }
+                            : undefined
+                    }
+                    surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                    borderColor={isDark ? colors.borderDark : border}
+                    textColor={textMain}
+                    subColor={textSub}
+                    accentColor={colors.primary}
+                />
+            ) : null}
+            {(scope === 'class' || scope === 'stream') && classesError ? (
+                <LoadErrorBanner
+                    message={classesError}
+                    onRetry={() => void loadClasses()}
+                    surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                    borderColor={isDark ? colors.borderDark : border}
+                    textColor={textMain}
+                    subColor={textSub}
+                    accentColor={colors.primary}
+                />
+            ) : null}
+            {scope === 'stream' && selectedClassId && streamsError ? (
+                <LoadErrorBanner
+                    message={streamsError}
+                    onRetry={() => void loadStreamsForClass(selectedClassId)}
+                    surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                    borderColor={isDark ? colors.borderDark : border}
+                    textColor={textMain}
+                    subColor={textSub}
+                    accentColor={colors.primary}
+                />
+            ) : null}
             <Text style={[styles.filterTitle, { color: textMain }]}>Choose what to load</Text>
             <Text style={[styles.filterHint, { color: textSub }]}>
                 The list stays empty until you apply a filter, so the screen opens instantly.

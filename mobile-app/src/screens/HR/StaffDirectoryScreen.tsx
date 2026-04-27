@@ -18,7 +18,7 @@ import { StatusBadge } from '@components/common/StatusBadge';
 import { Input } from '@components/common/Input';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { hrApi } from '@api/hr.api';
-import { Staff } from '@types/hr.types';
+import { Staff } from 'types/hr.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { WEB_BASE_URL } from '@utils/env';
 import { canManageStaff, canViewPayrollRecords } from '@utils/staffHrAccess';
@@ -57,13 +57,14 @@ export const StaffDirectoryScreen: React.FC<StaffDirectoryScreenProps> = ({ navi
                 });
 
                 if (response.success && response.data) {
+                    const pageData = response.data;
                     if (pageNum === 1) {
-                        setStaff(response.data.data);
+                        setStaff(pageData.data);
                     } else {
-                        setStaff((prev) => [...prev, ...response.data.data]);
+                        setStaff((prev) => [...prev, ...pageData.data]);
                     }
 
-                    setHasMore(response.data.current_page < response.data.last_page);
+                    setHasMore(pageData.current_page < pageData.last_page);
                     setPage(pageNum);
                 }
             } catch (error: any) {
@@ -137,7 +138,7 @@ export const StaffDirectoryScreen: React.FC<StaffDirectoryScreenProps> = ({ navi
                 </View>
 
                 <View style={styles.statusContainer}>
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={item.status ?? '—'} />
                     <Icon name="chevron-right" size={24} color={isDark ? colors.textSubDark : colors.textSubLight} />
                 </View>
             </View>

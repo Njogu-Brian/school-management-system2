@@ -2,10 +2,18 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 class StudentTermFeeClearance extends Model
 {
+    /**
+     * Clearance reasons where no term threshold deadline applies (no outstanding fee obligation).
+     *
+     * @var list<string>
+     */
+    public const REASONS_NO_CLEARANCE_DEADLINE = ['fully_paid', 'no_fees'];
+
     protected $fillable = [
         'student_id',
         'term_id',
@@ -43,6 +51,18 @@ class StudentTermFeeClearance extends Model
     public function paymentPlan()
     {
         return $this->belongsTo(FeePaymentPlan::class, 'payment_plan_id');
+    }
+
+    /**
+     * Deadline shown to users: hidden when the student has no remaining fee obligation for this term.
+     */
+    public function displayFinalClearanceDeadline(): ?Carbon
+    {
+        if (in_array((string) $this->reason_code, self::REASONS_NO_CLEARANCE_DEADLINE, true)) {
+            return null;
+        }
+
+        return $this->final_clearance_deadline;
     }
 }
 

@@ -1,32 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    SafeAreaView,
-    TouchableOpacity,
-    RefreshControl,
-    Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { StatusBadge } from '@components/common/StatusBadge';
 import { Input } from '@components/common/Input';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { financeApi } from '@api/finance.api';
-import { Invoice } from '@types/finance.types';
+import { Invoice } from 'types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
+import { BRAND } from '@constants/designTokens';
 
 interface InvoicesListScreenProps {
     navigation: any;
+    route?: { params?: { invoiceStatus?: string; title?: string } };
 }
 
-export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigation }) => {
+export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigation, route }) => {
     const { isDark, colors } = useTheme();
+    const invoiceStatus = route?.params?.invoiceStatus;
+    const screenTitle = route?.params?.title ?? (invoiceStatus === 'overdue' ? 'Defaulters' : 'Active invoices');
 
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
@@ -34,10 +30,12 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
+    const [listError, setListError] = useState<string | null>(null);
 
     // Fetch invoices
     const fetchInvoices = useCallback(
         async (pageNum: number = 1, search?: string) => {
+            setListError(null);
             try {
                 if (pageNum === 1) {
                     setLoading(true);
@@ -48,26 +46,32 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
                     page: pageNum,
                     per_page: 20,
                     include_reversed: false,
+                    ...(invoiceStatus ? { status: invoiceStatus } : {}),
                 });
 
                 if (response.success && response.data) {
+                    const pageData = response.data;
                     if (pageNum === 1) {
-                        setInvoices(response.data.data);
+                        setInvoices(pageData.data);
                     } else {
-                        setInvoices((prev) => [...prev, ...response.data.data]);
+                        setInvoices((prev) => [...prev, ...pageData.data]);
                     }
 
-                    setHasMore(response.data.current_page < response.data.last_page);
+                    setHasMore(pageData.current_page < pageData.last_page);
                     setPage(pageNum);
+                } else {
+                    if (pageNum === 1) setInvoices([]);
+                    setListError(response.message || 'Failed to load invoices');
                 }
             } catch (error: any) {
-                Alert.alert('Error', error.message || 'Failed to load invoices');
+                if (pageNum === 1) setInvoices([]);
+                setListError(error?.message || 'Failed to load invoices');
             } finally {
                 setLoading(false);
                 setRefreshing(false);
             }
         },
-        [searchQuery]
+        [searchQuery, invoiceStatus]
     );
 
     useEffect(() => {
@@ -76,7 +80,7 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
             fetchInvoices(1, searchQuery);
         }, delay);
         return () => clearTimeout(t);
-    }, [searchQuery]);
+    }, [searchQuery, invoiceStatus]);
 
     const handleRefresh = () => {
         setRefreshing(true);
@@ -193,9 +197,7 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
                 <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={12}>
                     <Icon name="arrow-back" size={24} color={colors.primary} />
                 </TouchableOpacity>
-                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                    Active invoices
-                </Text>
+                <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{screenTitle}</Text>
                 <View style={{ width: 40 }} />
             </View>
             <Text
@@ -204,8 +206,26 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
                     { color: isDark ? colors.textSubDark : colors.textSubLight, paddingHorizontal: SPACING.xl, marginBottom: SPACING.sm },
                 ]}
             >
-                Create invoices in the web portal.
+                {invoiceStatus === 'overdue'
+                    ? 'Overdue invoices with an outstanding balance. Manage collections in the web portal.'
+                    : 'Create invoices in the web portal.'}
             </Text>
+            {listError ? (
+                <View style={{ paddingHorizontal: SPACING.xl, marginBottom: SPACING.sm }}>
+                    <LoadErrorBanner
+                        message={listError}
+                        onRetry={() => {
+                            setRefreshing(true);
+                            fetchInvoices(1);
+                        }}
+                        surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                        borderColor={isDark ? colors.borderDark : BRAND.border}
+                        textColor={isDark ? colors.textMainDark : colors.textMainLight}
+                        subColor={isDark ? colors.textSubDark : colors.textSubLight}
+                        accentColor={colors.primary}
+                    />
+                </View>
+            ) : null}
 
             {/* Search Bar */}
             <View style={styles.searchContainer}>
@@ -237,8 +257,14 @@ export const InvoicesListScreen: React.FC<InvoicesListScreenProps> = ({ navigati
                 ListEmptyComponent={
                     <EmptyState
                         icon="receipt"
-                        title="No Invoices Found"
-                        message="No invoices match your search criteria"
+                        title={listError ? 'Could not load' : 'No invoices found'}
+                        message={
+                            listError
+                                ? 'Use retry above or pull to refresh.'
+                                : invoiceStatus === 'overdue'
+                                  ? 'No overdue invoices right now.'
+                                  : 'No invoices match your search criteria'
+                        }
                     />
                 }
             />

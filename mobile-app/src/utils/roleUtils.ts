@@ -17,6 +17,8 @@ export function normalizeRole(role: unknown): string {
         'super admin': UserRole.SUPER_ADMIN,
         'super_admin': UserRole.SUPER_ADMIN,
         'admin': UserRole.ADMIN,
+        'academic administrator': UserRole.ACADEMIC_ADMIN,
+        'academic_admin': UserRole.ACADEMIC_ADMIN,
         'secretary': UserRole.SECRETARY,
         'accountant': UserRole.ACCOUNTANT,
         'finance': UserRole.FINANCE,

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
-import { SPACING, FONT_SIZES } from '@constants/theme';
-import { BRAND, RADIUS } from '@constants/designTokens';
+import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
+import { BRAND } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
 import { PaymentsListScreen } from '@screens/Finance/PaymentsListScreen';
 import { TransactionsListScreen } from './TransactionsListScreen';
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     segment: {
         flex: 1,
         paddingVertical: SPACING.md,
-        borderRadius: RADIUS.md,
+        borderRadius: BORDER_RADIUS.md,
         borderWidth: 1,
         alignItems: 'center',
     },

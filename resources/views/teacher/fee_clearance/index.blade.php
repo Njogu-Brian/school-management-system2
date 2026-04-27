@@ -86,7 +86,7 @@
                                 @php
                                     $snap = $snapshots->get($st->id);
                                     $status = $snap?->status ?? 'pending';
-                                    $deadline = $snap?->final_clearance_deadline;
+                                    $deadline = $snap?->displayFinalClearanceDeadline();
                                 @endphp
                                 <tr>
                                     <td class="fw-semibold">{{ $st->full_name ?? ($st->first_name.' '.$st->last_name) }}</td>
@@ -100,7 +100,7 @@
                                     </td>
                                     <td class="text-end">
                                         <span class="text-muted">
-                                            {{ $deadline ? \Carbon\Carbon::parse($deadline)->format('M d, Y') : '—' }}
+                                            {{ $deadline ? $deadline->format('M d, Y') : '—' }}
                                         </span>
                                     </td>
                                 </tr>

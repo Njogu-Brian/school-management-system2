@@ -15,7 +15,7 @@ import { StatusBadge } from '@components/common/StatusBadge';
 import { Input } from '@components/common/Input';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { transportApi } from '@api/transport.api';
-import { Route } from '../types/transport.types';
+import { Route } from 'types/transport.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';

@@ -13,7 +13,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { communicationApi } from '@api/communication.api';
-import { Notification } from '../types/communication.types';
+import { Notification } from 'types/communication.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';

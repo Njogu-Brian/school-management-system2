@@ -88,6 +88,10 @@ class ApiAttendanceController extends Controller
         $user = $request->user();
         $isToday = Carbon::parse($date)->isToday();
 
+        if ($user && $user->hasRole('Academic Administrator')) {
+            return response()->json(['success' => false, 'message' => 'Academic administrators cannot mark attendance.'], 403);
+        }
+
         if (Carbon::parse($date)->isFuture()) {
             return response()->json(['success' => false, 'message' => 'Cannot mark attendance for a future date.'], 422);
         }

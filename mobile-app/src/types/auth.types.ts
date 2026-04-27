@@ -23,6 +23,8 @@ export interface User {
     // Role-specific data
     teacher_id?: number;
     student_id?: number;
+    /** Present for student role when API includes class scope */
+    class_id?: number;
     parent_id?: number;
     staff_id?: number;
 }

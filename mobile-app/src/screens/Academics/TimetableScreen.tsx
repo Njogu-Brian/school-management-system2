@@ -13,7 +13,7 @@ import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
-import { Timetable, TimetableSlot } from '../types/academics.types';
+import { Timetable, TimetableSlot } from 'types/academics.types';
 import { SPACING, FONT_SIZES, COLORS } from '@constants/theme';
 import { Palette } from '@styles/palette';
 
@@ -50,8 +50,8 @@ export const TimetableScreen: React.FC<TimetableScreenProps> = ({ navigation: _n
                 }
                 response = await academicsApi.getTeacherTimetable(staffPk, currentTerm);
             } else if (user?.role === 'student') {
-                // Load student timetable
-                response = await academicsApi.getStudentTimetable(user.id, currentTerm);
+                const studentPk = user.student_id ?? user.id;
+                response = await academicsApi.getStudentTimetable(studentPk, currentTerm);
             } else if (user?.role === 'parent') {
                 // For parents, we could load first child's timetable
                 // For now, show message

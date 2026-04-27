@@ -99,7 +99,7 @@ export const TeacherRequirementDetailScreen: React.FC = () => {
                 { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight, borderColor: isDark ? colors.borderDark : colors.borderLight },
             ]}>
                 <View style={{ flex: 1 }}>
-                    <Text style={[styles.title, { color: isDark ? colors.textDark : colors.textLight }]}>{item.name}</Text>
+                    <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{item.name}</Text>
                     {item.brand ? (
                         <Text style={[styles.sub, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Brand: {item.brand}</Text>
                     ) : null}
@@ -131,7 +131,7 @@ export const TeacherRequirementDetailScreen: React.FC = () => {
         return (
             <View style={[styles.center, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight, flex: 1 }]}>
                 <Icon name="error-outline" size={36} color={colors.primary} />
-                <Text style={{ color: isDark ? colors.textDark : colors.textLight, marginTop: 8, textAlign: 'center' }}>{error}</Text>
+                <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight, marginTop: 8, textAlign: 'center' }}>{error}</Text>
                 <TouchableOpacity style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => navigation.goBack()}>
                     <Text style={{ color: '#fff', fontWeight: '600' }}>Go back</Text>
                 </TouchableOpacity>
@@ -143,7 +143,7 @@ export const TeacherRequirementDetailScreen: React.FC = () => {
         <View style={{ flex: 1, backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }}>
             {data?.student ? (
                 <View style={[styles.header, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight, borderColor: isDark ? colors.borderDark : colors.borderLight }]}>
-                    <Text style={[styles.studentName, { color: isDark ? colors.textDark : colors.textLight }]}>{data.student.full_name}</Text>
+                    <Text style={[styles.studentName, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{data.student.full_name}</Text>
                     <Text style={[styles.sub, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                         {data.student.admission_number} • {data.student.class_name || 'No class'}
                     </Text>
@@ -169,36 +169,36 @@ export const TeacherRequirementDetailScreen: React.FC = () => {
             <Modal visible={!!selected} animationType="slide" transparent onRequestClose={() => setSelected(null)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}>
-                        <Text style={[styles.modalTitle, { color: isDark ? colors.textDark : colors.textLight }]}>
+                        <Text style={[styles.modalTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                             Receive: {selected?.name}
                         </Text>
                         <Text style={[styles.sub, { color: isDark ? colors.textSubDark : colors.textSubLight, marginBottom: SPACING.md }]}>
                             Currently: {selected?.quantity_collected}/{selected?.quantity_required} {selected?.unit || ''}
                         </Text>
 
-                        <Text style={[styles.label, { color: isDark ? colors.textDark : colors.textLight }]}>Quantity received</Text>
+                        <Text style={[styles.label, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Quantity received</Text>
                         <TextInput
                             value={qty}
                             onChangeText={setQty}
                             keyboardType="decimal-pad"
                             placeholder="e.g. 1"
                             placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
-                            style={[styles.input, { color: isDark ? colors.textDark : colors.textLight, borderColor: isDark ? colors.borderDark : colors.borderLight }]}
+                            style={[styles.input, { color: isDark ? colors.textMainDark : colors.textMainLight, borderColor: isDark ? colors.borderDark : colors.borderLight }]}
                         />
 
-                        <Text style={[styles.label, { color: isDark ? colors.textDark : colors.textLight }]}>Notes (optional)</Text>
+                        <Text style={[styles.label, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Notes (optional)</Text>
                         <TextInput
                             value={notes}
                             onChangeText={setNotes}
                             placeholder="Any comment"
                             placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
-                            style={[styles.input, { color: isDark ? colors.textDark : colors.textLight, borderColor: isDark ? colors.borderDark : colors.borderLight, minHeight: 60 }]}
+                            style={[styles.input, { color: isDark ? colors.textMainDark : colors.textMainLight, borderColor: isDark ? colors.borderDark : colors.borderLight, minHeight: 60 }]}
                             multiline
                         />
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={[styles.cancelBtn, { borderColor: isDark ? colors.borderDark : colors.borderLight }]} onPress={() => setSelected(null)} disabled={submitting}>
-                                <Text style={{ color: isDark ? colors.textDark : colors.textLight }}>Cancel</Text>
+                                <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight }}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.7 : 1 }]} onPress={submit} disabled={submitting}>
                                 <Text style={{ color: '#fff', fontWeight: '600' }}>{submitting ? 'Saving…' : 'Save'}</Text>

@@ -1,26 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    FlatList,
-    RefreshControl,
-    TouchableOpacity,
-    Alert,
-    Linking,
-} from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, RefreshControl, TouchableOpacity, Alert, Linking } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { studentsApi } from '@api/students.api';
 import { financeApi } from '@api/finance.api';
-import { Student } from '@types/student.types';
+import { Student } from 'types/student.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
 
 interface Props {
     navigation: { navigate: (name: string, params?: object) => void };
@@ -31,16 +22,19 @@ export const ParentPaymentsScreen: React.FC<Props> = ({ navigation }) => {
     const [rows, setRows] = useState<{ student: Student; balance: number }[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [listError, setListError] = useState<string | null>(null);
 
     const bg = isDark ? colors.backgroundDark : BRAND.bg;
     const textMain = isDark ? colors.textMainDark : BRAND.text;
     const textSub = isDark ? colors.textSubDark : BRAND.muted;
 
     const load = useCallback(async () => {
+        setListError(null);
         try {
             const listRes = await studentsApi.getStudents({ per_page: 100 });
             if (!listRes.success || !listRes.data?.data) {
                 setRows([]);
+                setListError(listRes.message || 'Could not load your children.');
                 return;
             }
             const students = listRes.data.data;
@@ -56,8 +50,8 @@ export const ParentPaymentsScreen: React.FC<Props> = ({ navigation }) => {
             }
             setRows(next);
         } catch (e: any) {
-            Alert.alert('Fees', e?.message || 'Could not load');
             setRows([]);
+            setListError(e?.message || 'Could not load fees.');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -92,6 +86,23 @@ export const ParentPaymentsScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
+            {listError ? (
+                <View style={{ paddingHorizontal: SPACING.xl, marginBottom: SPACING.sm }}>
+                    <LoadErrorBanner
+                        message={listError}
+                        onRetry={() => {
+                            setListError(null);
+                            setRefreshing(true);
+                            void load();
+                        }}
+                        surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                        borderColor={isDark ? colors.borderDark : BRAND.border}
+                        textColor={isDark ? colors.textMainDark : textMain}
+                        subColor={isDark ? colors.textSubDark : textSub}
+                        accentColor={colors.primary}
+                    />
+                </View>
+            ) : null}
             <Text style={[styles.title, { color: textMain }]}>Fees & pay</Text>
             <Text style={[styles.sub, { color: textSub }]}>
                 Outstanding per child. Tap Pay to open the school payment page in the browser.

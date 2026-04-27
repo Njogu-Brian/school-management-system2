@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { AppBranding } from '@types/branding.types';
+import type { AppBranding } from 'types/branding.types';
 
 export const brandingApi = {
     /** Public: school name and logo URL from portal settings (no auth). */

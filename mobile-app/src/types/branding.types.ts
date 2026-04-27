@@ -13,6 +13,13 @@ export interface PortalBrandColors {
     text_main_light?: string;
     text_sub_light?: string;
     accent_light?: string;
+    /** Dark theme overrides (optional — when portal supports them). */
+    background_dark?: string;
+    surface_dark?: string;
+    border_dark?: string;
+    text_main_dark?: string;
+    text_sub_dark?: string;
+    accent_dark?: string;
 }
 
 /** Response from GET /api/app-branding (portal Settings → General & Branding). */

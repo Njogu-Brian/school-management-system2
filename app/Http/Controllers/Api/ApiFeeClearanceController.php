@@ -206,7 +206,7 @@ class ApiFeeClearanceController extends Controller
         return [
             'status' => $snapshot->status,
             'computed_at' => $snapshot->computed_at?->toIso8601String(),
-            'final_clearance_deadline' => $snapshot->final_clearance_deadline?->toDateString(),
+            'final_clearance_deadline' => $snapshot->displayFinalClearanceDeadline()?->toDateString(),
         ];
     }
 

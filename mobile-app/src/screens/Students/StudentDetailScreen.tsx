@@ -20,7 +20,9 @@ import { Avatar } from '@components/common/Avatar';
 import { StatusBadge } from '@components/common/StatusBadge';
 import { studentsApi } from '@api/students.api';
 import { financeApi } from '@api/finance.api';
-import { Student } from '@types/student.types';
+import { academicsApi } from '@api/academics.api';
+import { Student } from 'types/student.types';
+import type { ReportCard } from 'types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
@@ -65,6 +67,8 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
     const [calMonth, setCalMonth] = useState(new Date().getMonth() + 1);
     const [calRows, setCalRows] = useState<CalDay[]>([]);
     const [loadingCal, setLoadingCal] = useState(false);
+    const [reportCards, setReportCards] = useState<ReportCard[]>([]);
+    const [loadingAcademics, setLoadingAcademics] = useState(false);
 
     const bg = isDark ? colors.backgroundDark : BRAND.bg;
 
@@ -128,6 +132,30 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
             loadCalendar();
         }
     }, [activeTab, student, loadCalendar]);
+
+    const loadReportCards = useCallback(async () => {
+        try {
+            setLoadingAcademics(true);
+            const res = await academicsApi.getReportCards({
+                student_id: studentId,
+                per_page: 15,
+                page: 1,
+            });
+            const raw = res.success && res.data ? res.data : null;
+            const list = raw && Array.isArray((raw as any).data) ? (raw as any).data : [];
+            setReportCards(list);
+        } catch {
+            setReportCards([]);
+        } finally {
+            setLoadingAcademics(false);
+        }
+    }, [studentId]);
+
+    useEffect(() => {
+        if (activeTab === 'academics' && student) {
+            void loadReportCards();
+        }
+    }, [activeTab, student, loadReportCards]);
 
     const tabs = useMemo(
         () =>
@@ -265,20 +293,20 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
                             key={tab.key}
                             style={[
                                 styles.tab,
-                                activeTab === tab.key && { borderBottomColor: BRAND.primary, borderBottomWidth: 2 },
+                                activeTab === tab.key && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
                             ]}
                             onPress={() => setActiveTab(tab.key)}
                         >
                             <Icon
                                 name={tab.icon}
                                 size={20}
-                                color={activeTab === tab.key ? BRAND.primary : isDark ? colors.textSubDark : colors.textSubLight}
+                                color={activeTab === tab.key ? colors.primary : isDark ? colors.textSubDark : colors.textSubLight}
                             />
                             <Text
                                 style={[
                                     styles.tabLabel,
                                     {
-                                        color: activeTab === tab.key ? BRAND.primary : isDark ? colors.textSubDark : colors.textSubLight,
+                                        color: activeTab === tab.key ? colors.primary : isDark ? colors.textSubDark : colors.textSubLight,
                                     },
                                 ]}
                             >
@@ -432,14 +460,85 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
                     )}
 
                     {activeTab === 'academics' && (
-                        <Card style={[styles.infoCard, { borderRadius: RADIUS.card }]}>
-                            <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
-                                Academics
-                            </Text>
-                            <Text style={[styles.placeholder, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
-                                Exam marks and report cards can be linked here in a future update. Use the Exams and Marks entry from the teacher dashboard for now.
-                            </Text>
-                        </Card>
+                        <View>
+                            <Card
+                                style={[
+                                    styles.infoCard,
+                                    { borderRadius: RADIUS.card, borderLeftWidth: 3, borderLeftColor: colors.primary },
+                                ]}
+                            >
+                                <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                    Academic performance
+                                </Text>
+                                <Text style={[styles.placeholder, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                    Latest report cards and subject breakdown (Stitch student academic admin pattern).
+                                </Text>
+                            </Card>
+
+                            {loadingAcademics ? (
+                                <ActivityIndicator color={colors.primary} style={{ marginVertical: SPACING.lg }} />
+                            ) : reportCards.length === 0 ? (
+                                <Card style={[styles.infoCard, { borderRadius: RADIUS.card }]}>
+                                    <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight }}>
+                                        No report cards on file for this learner yet.
+                                    </Text>
+                                </Card>
+                            ) : (
+                                reportCards.map((rc) => (
+                                    <TouchableOpacity
+                                        key={rc.id}
+                                        activeOpacity={0.85}
+                                        onPress={() => navigation.navigate('ReportCard', { reportCardId: rc.id })}
+                                    >
+                                        <Card style={[styles.infoCard, { borderRadius: RADIUS.card, marginBottom: SPACING.md }]}>
+                                            <View style={styles.rcHeader}>
+                                                <Text style={[styles.rcTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                                    Report · {rc.status === 'published' ? 'Published' : 'Draft'}
+                                                </Text>
+                                                <Icon name="chevron-right" size={22} color={colors.primary} />
+                                            </View>
+                                            <Text style={[styles.rcMeta, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                                Overall {Number(rc.overall_percentage).toFixed(1)}%
+                                                {rc.overall_grade ? ` · Grade ${rc.overall_grade}` : ''}
+                                                {rc.class_position ? ` · Class #${rc.class_position}` : ''}
+                                            </Text>
+                                            {(rc.subjects ?? []).slice(0, 4).map((sub) => {
+                                                const pct = sub.total_marks > 0 ? (sub.marks / sub.total_marks) * 100 : 0;
+                                                return (
+                                                    <View key={sub.subject_id} style={{ marginTop: SPACING.sm }}>
+                                                        <View style={styles.subRow}>
+                                                            <Text
+                                                                style={[
+                                                                    styles.subName,
+                                                                    { color: isDark ? colors.textMainDark : colors.textMainLight },
+                                                                ]}
+                                                                numberOfLines={1}
+                                                            >
+                                                                {sub.subject_name}
+                                                            </Text>
+                                                            <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, fontSize: FONT_SIZES.xs }}>
+                                                                {sub.grade} ({pct.toFixed(0)}%)
+                                                            </Text>
+                                                        </View>
+                                                        <View style={[styles.barTrack, { backgroundColor: isDark ? colors.borderDark : colors.borderLight }]}>
+                                                            <View
+                                                                style={[
+                                                                    styles.barFill,
+                                                                    {
+                                                                        width: `${Math.min(100, pct)}%`,
+                                                                        backgroundColor: colors.primary,
+                                                                    },
+                                                                ]}
+                                                            />
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })}
+                                        </Card>
+                                    </TouchableOpacity>
+                                ))
+                            )}
+                        </View>
                     )}
 
                     {activeTab === 'finance' && (
@@ -573,4 +672,11 @@ const styles = StyleSheet.create({
     calDay: { fontSize: FONT_SIZES.xs },
     calDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
     legend: { fontSize: FONT_SIZES.xs, marginTop: SPACING.md, lineHeight: 16 },
+    rcHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    rcTitle: { fontSize: FONT_SIZES.md, fontWeight: '700' },
+    rcMeta: { fontSize: FONT_SIZES.sm, marginTop: SPACING.xs },
+    subRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: SPACING.sm },
+    subName: { flex: 1, fontSize: FONT_SIZES.sm, fontWeight: '600' },
+    barTrack: { height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 4 },
+    barFill: { height: '100%', borderRadius: 3 },
 });

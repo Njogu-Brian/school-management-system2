@@ -7,8 +7,8 @@ import {
     Class,
     Stream,
     ClassSubject,
-} from '@types/student.types';
-import { ApiResponse, PaginatedResponse } from '@types/api.types';
+} from 'types/student.types';
+import { ApiResponse, PaginatedResponse } from 'types/api.types';
 
 export type StudentCategoryRow = { id: number; name: string; description?: string | null };
 

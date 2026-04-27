@@ -15,7 +15,7 @@ import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { tileColorForIndex, FINANCE_STAT_COLORS } from '@styles/sections/dashboard';
 import { financeApi } from '@api/finance.api';
-import { Payment } from '@types/finance.types';
+import { Payment } from 'types/finance.types';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface FinanceDashboardProps {

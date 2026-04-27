@@ -19,7 +19,7 @@ import { Card } from '@components/common/Card';
 import { Button } from '@components/common/Button';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { hrApi } from '@api/hr.api';
-import type { LeaveApplication } from '@types/hr.types';
+import type { LeaveApplication } from 'types/hr.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { canAccessLeaveManagement, canApproveLeaveRequests } from '@utils/staffHrAccess';

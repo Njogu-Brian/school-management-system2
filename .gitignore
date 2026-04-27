@@ -30,4 +30,9 @@ yarn-error.log
 /.zed
 .qodo
 
+# Local Stitch / design exports (reference only — keep on your machine, not in git)
+_stitch_edunexus_export/
+_stitch_edunexus_export_v2/
+_stitch_inventory/
+
 .git-commit-msg.tmp

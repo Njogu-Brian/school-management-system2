@@ -4,6 +4,7 @@ import {
     StyleSheet,
     TouchableOpacity,
     ViewStyle,
+    StyleProp,
     Platform,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
@@ -14,7 +15,7 @@ import { Palette } from '@styles/palette';
 interface CardProps {
     children: React.ReactNode;
     onPress?: () => void;
-    style?: ViewStyle;
+    style?: StyleProp<ViewStyle>;
     elevated?: boolean;
 }
 

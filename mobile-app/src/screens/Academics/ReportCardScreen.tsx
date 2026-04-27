@@ -13,7 +13,7 @@ import { Button } from '@components/common/Button';
 import { Card } from '@components/common/Card';
 import { LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
-import { ReportCard } from '../types/academics.types';
+import { ReportCard } from 'types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES, COLORS } from '@constants/theme';
 import { Palette } from '@styles/palette';
@@ -51,15 +51,11 @@ export const ReportCardScreen: React.FC<ReportCardScreenProps> = ({ navigation, 
         }
     };
 
-    const handleDownload = async () => {
-        try {
-            const response = await academicsApi.downloadReportCard(reportCardId);
-            if (response.success) {
-                Alert.alert('Success', 'Report card downloaded');
-            }
-        } catch (error: any) {
-            Alert.alert('Error', 'Failed to download report card');
-        }
+    const handleDownload = () => {
+        Alert.alert(
+            'Download PDF',
+            'Report card PDF download is not available in the mobile app yet. Please use the web portal to print or save the PDF.'
+        );
     };
 
     const getGradeColor = (grade: string) => {

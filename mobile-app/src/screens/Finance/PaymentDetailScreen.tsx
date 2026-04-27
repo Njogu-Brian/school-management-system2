@@ -15,10 +15,10 @@ import { WebView } from 'react-native-webview';
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { financeApi } from '@api/finance.api';
-import { Payment } from '@types/finance.types';
+import { Payment } from 'types/finance.types';
 import { formatters } from '@utils/formatters';
-import { SPACING, FONT_SIZES, COLORS } from '@constants/theme';
-import { BRAND, RADIUS } from '@constants/designTokens';
+import { SPACING, FONT_SIZES, COLORS, BORDER_RADIUS } from '@constants/theme';
+import { BRAND } from '@constants/designTokens';
 import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: SPACING.sm,
         paddingVertical: SPACING.md,
-        borderRadius: RADIUS.md,
+        borderRadius: BORDER_RADIUS.md,
     },
     btnText: { color: Palette.onPrimary, fontWeight: '600', fontSize: FONT_SIZES.md },
     btnTextOutline: { fontWeight: '600', fontSize: FONT_SIZES.md },

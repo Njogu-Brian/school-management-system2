@@ -1,12 +1,5 @@
-import React, { useMemo } from 'react';
-import {
-    Text,
-    StyleSheet,
-    SafeAreaView,
-    ScrollView,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, RefreshControl } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
@@ -19,6 +12,8 @@ import { DashboardHero, DashboardLineChart, DashboardBarChart, DashboardMenuGrid
 import type { DashboardMenuItem } from '@components/dashboard';
 import { tileColorForIndex } from '@styles/sections/dashboard';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
+import { dashboardApi, type DashboardStats } from '@api/dashboard.api';
 
 interface Props {
     navigation: { getParent: () => { navigate: (name: string, params?: object) => void } | null };
@@ -31,17 +26,52 @@ export const StudentHomeScreen: React.FC<Props> = ({ navigation }) => {
     const textMain = isDark ? colors.textMainDark : BRAND.text;
     const textSub = isDark ? colors.textSubDark : BRAND.muted;
 
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [statsLoadError, setStatsLoadError] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
+
     const parentNav = () => navigation.getParent();
 
-    const studentInfo = useMemo(
-        () => ({
-            className: 'Form 3A',
-            attendance: 92,
-            feeBalance: 15000,
-            pendingAssignments: 3,
-        }),
-        []
-    );
+    const load = useCallback(async () => {
+        try {
+            const res = await dashboardApi.getStats();
+            if (res.success && res.data) {
+                setStatsLoadError(null);
+                setStats(res.data);
+            } else {
+                setStats(null);
+                setStatsLoadError(res.message || 'Could not load your dashboard.');
+            }
+        } catch (e: any) {
+            setStats(null);
+            setStatsLoadError(e?.message || 'Could not load your dashboard.');
+        } finally {
+            setRefreshing(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        void load();
+    }, [load]);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        void load();
+    };
+
+    const className = stats?.class_name?.trim() || null;
+    const attendancePct = stats?.attendance_pct;
+    const feeBalance = typeof stats?.fee_balance === 'number' ? stats.fee_balance : null;
+    const pendingAssignments = stats?.pending_assignments ?? 0;
+    const linked = stats?.student_id != null;
+
+    const lineChart = stats?.charts?.line;
+    const barChart = stats?.charts?.bar;
+    const showLine = lineChart && lineChart.labels?.length > 0;
+    const showBar =
+        barChart &&
+        barChart.labels?.length > 0 &&
+        (barChart.values ?? []).some((v) => Number(v) > 0);
 
     const menuItems: DashboardMenuItem[] = useMemo(
         () => [
@@ -95,7 +125,13 @@ export const StudentHomeScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scroll}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
+                }
+            >
                 <DashboardHero
                     greeting={greeting}
                     userName={user?.name || 'Student'}
@@ -106,7 +142,25 @@ export const StudentHomeScreen: React.FC<Props> = ({ navigation }) => {
                 />
 
                 <View style={styles.pad}>
-                    <Text style={[styles.classTag, { color: textSub }]}>{studentInfo.className}</Text>
+                    {statsLoadError ? (
+                        <LoadErrorBanner
+                            message={statsLoadError}
+                            onRetry={() => {
+                                setStatsLoadError(null);
+                                setRefreshing(true);
+                                void load();
+                            }}
+                            surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                            borderColor={isDark ? colors.borderDark : BRAND.border}
+                            textColor={isDark ? colors.textMainDark : textMain}
+                            subColor={isDark ? colors.textSubDark : textSub}
+                            accentColor={colors.primary}
+                        />
+                    ) : null}
+
+                    <Text style={[styles.classTag, { color: textSub }]}>
+                        {className || (linked ? 'Class' : 'Account not linked to a learner profile')}
+                    </Text>
 
                     <View style={styles.kpiRow}>
                         <Card
@@ -117,7 +171,9 @@ export const StudentHomeScreen: React.FC<Props> = ({ navigation }) => {
                             }}
                         >
                             <Icon name="event-available" size={26} color={colors.success} />
-                            <Text style={[styles.kpiVal, { color: textMain }]}>{studentInfo.attendance}%</Text>
+                            <Text style={[styles.kpiVal, { color: textMain }]}>
+                                {attendancePct != null ? `${attendancePct}%` : '—'}
+                            </Text>
                             <Text style={[styles.kpiLbl, { color: textSub }]}>Attendance</Text>
                         </Card>
                         <Card
@@ -127,14 +183,14 @@ export const StudentHomeScreen: React.FC<Props> = ({ navigation }) => {
                                 borderColor: isDark ? colors.borderDark : BRAND.border,
                             }}
                         >
-                            <Icon name="payment" size={26} color={studentInfo.feeBalance > 0 ? colors.error : colors.success} />
+                            <Icon name="payment" size={26} color={(feeBalance ?? 0) > 0 ? colors.error : colors.success} />
                             <Text
                                 style={[
                                     styles.kpiVal,
-                                    { color: studentInfo.feeBalance > 0 ? colors.error : colors.success },
+                                    { color: (feeBalance ?? 0) > 0 ? colors.error : colors.success },
                                 ]}
                             >
-                                {formatters.formatCurrency(studentInfo.feeBalance)}
+                                {feeBalance != null ? formatters.formatCurrency(feeBalance) : '—'}
                             </Text>
                             <Text style={[styles.kpiLbl, { color: textSub }]}>Fee balance</Text>
                         </Card>
@@ -150,13 +206,26 @@ export const StudentHomeScreen: React.FC<Props> = ({ navigation }) => {
                         <View style={styles.noticeRow}>
                             <Icon name="assignment-late" size={22} color={colors.warning} />
                             <Text style={[styles.noticeText, { color: textSub }]}>
-                                {studentInfo.pendingAssignments} assignments due soon — open Homework when your school enables it.
+                                {!linked
+                                    ? 'Ask your school to link this login to your student record to see live attendance and fees.'
+                                    : pendingAssignments > 0
+                                      ? `${pendingAssignments} assignment${pendingAssignments === 1 ? '' : 's'} due soon — open Homework for details.`
+                                      : 'No pending assignments shown — open Homework when your school publishes tasks.'}
                             </Text>
                         </View>
                     </Card>
 
-                    <DashboardLineChart title="Attendance (sample weeks)" labels={['W1', 'W2', 'W3', 'W4']} data={[90, 92, 91, 93]} />
-                    <DashboardBarChart title="Subjects — average % (sample)" labels={['Math', 'Eng', 'Sci']} data={[78, 85, 82]} />
+                    {showLine ? (
+                        <DashboardLineChart title="Attendance (recent weeks)" labels={lineChart!.labels} data={lineChart!.values} />
+                    ) : null}
+                    {showBar ? (
+                        <DashboardBarChart title="Overview" labels={barChart!.labels} data={barChart!.values} />
+                    ) : null}
+                    {!statsLoadError && stats && linked && !showLine && !showBar ? (
+                        <Text style={[styles.chartsHint, { color: textSub }]}>
+                            Charts will appear when your school records more attendance data.
+                        </Text>
+                    ) : null}
 
                     <DashboardMenuGrid title="Go to" items={menuItems} />
                 </View>
@@ -189,4 +258,5 @@ const styles = StyleSheet.create({
     },
     noticeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
     noticeText: { flex: 1, fontSize: FONT_SIZES.sm, lineHeight: 20 },
+    chartsHint: { fontSize: FONT_SIZES.sm, lineHeight: 20, marginBottom: SPACING.md },
 });

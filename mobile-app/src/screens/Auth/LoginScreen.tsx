@@ -21,12 +21,12 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Button } from '@components/common/Button';
 import { Input } from '@components/common/Input';
 import { validators } from '@utils/validators';
-import { SPACING, FONT_SIZES, LOGIN_GRADIENT_LIGHT, LOGIN_GRADIENT_DARK, COLORS, SHADOWS } from '@constants/theme';
+import { SPACING, FONT_SIZES, LOGIN_GRADIENT_LIGHT, LOGIN_GRADIENT_DARK, COLORS, SHADOWS, BORDER_RADIUS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { Palette } from '@styles/palette';
 import { brandingApi } from '@api/branding.api';
 import { authApi } from '@api/auth.api';
-import type { AppBranding } from '@types/branding.types';
+import type { AppBranding } from 'types/branding.types';
 import {
     authenticateWithBiometrics,
     canUseBiometrics,
@@ -102,35 +102,65 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     const displayName = branding?.school_name?.trim() || 'School ERP';
     const showRemoteLogo = Boolean(branding?.logo_url && !logoLoadFailed);
+    const hasGoogleClientId =
+        Platform.OS === 'android'
+            ? Boolean(GOOGLE_ANDROID_CLIENT_ID)
+            : Platform.OS === 'ios'
+                ? Boolean(GOOGLE_IOS_CLIENT_ID)
+                : Boolean(GOOGLE_WEB_CLIENT_ID);
 
-    const [googleRequest, googleResponse, googlePromptAsync] = Google.useIdTokenAuthRequest({
-        androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
-        iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
-        webClientId: GOOGLE_WEB_CLIENT_ID || undefined,
-        selectAccount: true,
-    });
+    const GoogleButton = useMemo(() => {
+        const GoogleAuthButton: React.FC = () => {
+            const [, googleResponse, googlePromptAsync] = Google.useIdTokenAuthRequest({
+                androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+                iosClientId: GOOGLE_IOS_CLIENT_ID,
+                webClientId: GOOGLE_WEB_CLIENT_ID,
+                selectAccount: true,
+            });
 
-    useEffect(() => {
-        (async () => {
-            if (googleResponse?.type !== 'success') return;
-            const idToken = googleResponse?.params?.id_token;
-            if (!idToken) return;
-            setGoogleLoading(true);
-            try {
-                const res = await authApi.loginWithGoogle({ id_token: String(idToken) });
-                if (res.success && res.data) {
-                    await completeLogin(res.data);
-                } else {
-                    throw new Error(res.message || 'Google sign-in failed');
-                }
-            } catch (err: any) {
-                Alert.alert('Google sign-in failed', err.message || 'Please try again.');
-            } finally {
-                setGoogleLoading(false);
-            }
-        })();
+            useEffect(() => {
+                (async () => {
+                    if (googleResponse?.type !== 'success') return;
+                    const idToken = googleResponse?.params?.id_token;
+                    if (!idToken) return;
+                    setGoogleLoading(true);
+                    try {
+                        const res = await authApi.loginWithGoogle({ id_token: String(idToken) });
+                        if (res.success && res.data) {
+                            await completeLogin(res.data);
+                        } else {
+                            throw new Error(res.message || 'Google sign-in failed');
+                        }
+                    } catch (err: any) {
+                        Alert.alert('Google sign-in failed', err.message || 'Please try again.');
+                    } finally {
+                        setGoogleLoading(false);
+                    }
+                })();
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [googleResponse]);
+
+            return (
+                <Button
+                    title="Continue with Google"
+                    onPress={async () => {
+                        try {
+                            await googlePromptAsync();
+                        } catch {
+                            Alert.alert('Google sign-in', 'Could not open Google sign-in.');
+                        }
+                    }}
+                    loading={googleLoading}
+                    variant="outline"
+                    fullWidth
+                    style={styles.googleButton}
+                />
+            );
+        };
+
+        return GoogleAuthButton;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [googleResponse]);
+    }, [completeLogin, googleLoading]);
 
     const validate = (): boolean => {
         const newErrors: { identifier?: string; password?: string } = {};
@@ -369,21 +399,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                 fullWidth
                                 style={styles.loginButton}
                             />
-                            <Button
-                                title="Continue with Google"
-                                onPress={async () => {
-                                    try {
-                                        await googlePromptAsync();
-                                    } catch {
-                                        Alert.alert('Google sign-in', 'Could not open Google sign-in.');
-                                    }
-                                }}
-                                loading={googleLoading}
-                                disabled={!googleRequest}
-                                variant="outline"
-                                fullWidth
-                                style={styles.googleButton}
-                            />
+                            {hasGoogleClientId ? (
+                                <GoogleButton />
+                            ) : (
+                                <Button
+                                    title="Continue with Google"
+                                    onPress={() => {
+                                        Alert.alert(
+                                            'Google sign-in not configured',
+                                            'Missing Google OAuth client id for this platform. Set EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID (and iOS/web if needed) in mobile-app/.env, then restart the dev server and rebuild the app.',
+                                        );
+                                    }}
+                                    loading={false}
+                                    disabled
+                                    variant="outline"
+                                    fullWidth
+                                    style={styles.googleButton}
+                                />
+                            )}
                             {showBiometricButton ? (
                                 <Button
                                     title="Login with Biometrics"
@@ -549,7 +582,7 @@ const styles = StyleSheet.create({
         flex: 1,
         borderWidth: 1,
         borderColor: COLORS.primary,
-        borderRadius: 8,
+        borderRadius: BORDER_RADIUS.md,
         paddingVertical: SPACING.sm,
         alignItems: 'center',
     },

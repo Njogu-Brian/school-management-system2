@@ -80,7 +80,7 @@ export const TeacherRequirementsScreen: React.FC = () => {
                         </Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={[styles.name, { color: isDark ? colors.textDark : colors.textLight }]}>{item.full_name}</Text>
+                        <Text style={[styles.name, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{item.full_name}</Text>
                         <Text style={[styles.meta, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                             {item.admission_number}{item.class_name ? ` • ${item.class_name}` : ''}
                             {item.stream_name ? ` / ${item.stream_name}` : ''}
@@ -109,7 +109,7 @@ export const TeacherRequirementsScreen: React.FC = () => {
                     onChangeText={setSearch}
                     placeholder="Search by name or admission number"
                     placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
-                    style={[styles.searchInput, { color: isDark ? colors.textDark : colors.textLight }]}
+                    style={[styles.searchInput, { color: isDark ? colors.textMainDark : colors.textMainLight }]}
                     returnKeyType="search"
                     onSubmitEditing={() => load()}
                 />
@@ -127,7 +127,7 @@ export const TeacherRequirementsScreen: React.FC = () => {
             ) : error ? (
                 <View style={styles.center}>
                     <Icon name="error-outline" size={36} color={colors.primary} />
-                    <Text style={{ color: isDark ? colors.textDark : colors.textLight, marginTop: 8 }}>{error}</Text>
+                    <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight, marginTop: 8 }}>{error}</Text>
                     <TouchableOpacity style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => load()}>
                         <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
                     </TouchableOpacity>

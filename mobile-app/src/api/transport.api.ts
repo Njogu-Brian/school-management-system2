@@ -4,6 +4,7 @@ import {
     Route,
     DropPoint,
     Trip,
+    DriverTripDetail,
     StudentRouteAssignment,
     TransportFilters,
 } from '../types/transport.types';
@@ -69,29 +70,17 @@ export const transportApi = {
         return apiClient.delete<void>(`/drop-points/${id}`);
     },
 
-    // ========== Trips ==========
+    // ========== Driver trips (Laravel Trip templates + roster for date; driver = auth staff) ==========
     async getTrips(filters?: TransportFilters): Promise<ApiResponse<PaginatedResponse<Trip>>> {
-        return apiClient.get<PaginatedResponse<Trip>>('/trips', filters);
+        return apiClient.get<PaginatedResponse<Trip>>('/driver/trips', filters);
     },
 
-    async getTrip(id: number): Promise<ApiResponse<Trip>> {
-        return apiClient.get<Trip>(`/trips/${id}`);
+    async getTrip(id: number, params?: { date?: string }): Promise<ApiResponse<DriverTripDetail>> {
+        return apiClient.get<DriverTripDetail>(`/driver/trips/${id}`, params);
     },
 
     async createTrip(data: any): Promise<ApiResponse<Trip>> {
         return apiClient.post<Trip>('/trips', data);
-    },
-
-    async startTrip(id: number): Promise<ApiResponse<Trip>> {
-        return apiClient.post<Trip>(`/trips/${id}/start`);
-    },
-
-    async completeTrip(id: number, data: {
-        students_picked?: number;
-        students_dropped?: number;
-        notes?: string;
-    }): Promise<ApiResponse<Trip>> {
-        return apiClient.post<Trip>(`/trips/${id}/complete`, data);
     },
 
     async cancelTrip(id: number, reason: string): Promise<ApiResponse<Trip>> {

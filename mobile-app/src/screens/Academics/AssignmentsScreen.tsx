@@ -13,9 +13,10 @@ import {
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
-import { EmptyState, LoadingState } from '@components/common/EmptyState';
+import { EmptyState } from '@components/common/EmptyState';
+import { ListLoadingSkeleton } from '@components/common/ListLoadingSkeleton';
 import { academicsApi } from '@api/academics.api';
-import { Assignment } from '@types/academics.types';
+import { Assignment } from 'types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
@@ -161,7 +162,15 @@ export const AssignmentsScreen: React.FC<AssignmentsScreenProps> = ({ navigation
             <SafeAreaView
                 style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
             >
-                <LoadingState message="Loading assignments..." />
+                <View style={styles.header}>
+                    <Text style={[styles.headerTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                        {isTeacher ? 'My Assignments' : 'Homework'}
+                    </Text>
+                    {isTeacher ? <View style={{ width: 40 }} /> : null}
+                </View>
+                <View style={{ paddingHorizontal: SPACING.lg, flex: 1 }}>
+                    <ListLoadingSkeleton layout="default" />
+                </View>
             </SafeAreaView>
         );
     }

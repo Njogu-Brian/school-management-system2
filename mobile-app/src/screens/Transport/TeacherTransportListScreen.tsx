@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -159,7 +159,7 @@ export const TeacherTransportListScreen: React.FC = () => {
                 <View style={styles.row}>
                     <Icon name="directions-bus" size={22} color={colors.primary} />
                     <View style={{ flex: 1, marginLeft: SPACING.sm }}>
-                        <Text style={[styles.name, { color: isDark ? colors.textDark : colors.textLight }]}>{item.full_name}</Text>
+                        <Text style={[styles.name, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{item.full_name}</Text>
                         <Text style={[styles.meta, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                             {item.admission_number}{item.class_name ? ` • ${item.class_name}` : ''}{item.stream_name ? ` / ${item.stream_name}` : ''}
                         </Text>
@@ -168,13 +168,13 @@ export const TeacherTransportListScreen: React.FC = () => {
 
                 <View style={styles.legBox}>
                     <Text style={[styles.legLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Morning</Text>
-                    <Text style={[styles.legValue, { color: isDark ? colors.textDark : colors.textLight }]}>
+                    <Text style={[styles.legValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                         {formatLeg(item.morning)}
                     </Text>
                 </View>
                 <View style={styles.legBox}>
                     <Text style={[styles.legLabel, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Evening</Text>
-                    <Text style={[styles.legValue, { color: isDark ? colors.textDark : colors.textLight }]}>
+                    <Text style={[styles.legValue, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                         {pickupActive ? 'Picked by parent — evening trip skipped' : formatLeg(item.evening)}
                     </Text>
                 </View>
@@ -192,8 +192,8 @@ export const TeacherTransportListScreen: React.FC = () => {
                         </TouchableOpacity>
                     )}
                     <TouchableOpacity style={[styles.btn, { borderColor: isDark ? colors.borderDark : colors.borderLight }]} onPress={() => openReassign(item)}>
-                        <Icon name="swap-horiz" size={16} color={isDark ? colors.textDark : colors.textLight} />
-                        <Text style={[styles.btnText, { color: isDark ? colors.textDark : colors.textLight }]}>Change vehicle/trip</Text>
+                        <Icon name="swap-horiz" size={16} color={isDark ? colors.textMainDark : colors.textMainLight} />
+                        <Text style={[styles.btnText, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Change vehicle/trip</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -207,7 +207,7 @@ export const TeacherTransportListScreen: React.FC = () => {
             ) : error ? (
                 <View style={styles.center}>
                     <Icon name="error-outline" size={36} color={colors.primary} />
-                    <Text style={{ color: isDark ? colors.textDark : colors.textLight, marginTop: 8 }}>{error}</Text>
+                    <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight, marginTop: 8 }}>{error}</Text>
                     <TouchableOpacity onPress={() => load()} style={[styles.retryBtn, { backgroundColor: colors.primary }]}>
                         <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
                     </TouchableOpacity>
@@ -231,26 +231,26 @@ export const TeacherTransportListScreen: React.FC = () => {
             <Modal visible={!!pickupFor} transparent animationType="slide" onRequestClose={() => setPickupFor(null)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}>
-                        <Text style={[styles.modalTitle, { color: isDark ? colors.textDark : colors.textLight }]}>Mark as picked up by parent</Text>
+                        <Text style={[styles.modalTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Mark as picked up by parent</Text>
                         <Text style={[styles.meta, { color: isDark ? colors.textSubDark : colors.textSubLight, marginBottom: SPACING.md }]}>
                             {pickupFor?.full_name} — evening trip will be skipped for today.
                         </Text>
-                        <Text style={[styles.label, { color: isDark ? colors.textDark : colors.textLight }]}>Picked up by</Text>
+                        <Text style={[styles.label, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Picked up by</Text>
                         <TextInput
                             value={pickupName}
                             onChangeText={setPickupName}
-                            style={[styles.input, { color: isDark ? colors.textDark : colors.textLight, borderColor: isDark ? colors.borderDark : colors.borderLight }]}
+                            style={[styles.input, { color: isDark ? colors.textMainDark : colors.textMainLight, borderColor: isDark ? colors.borderDark : colors.borderLight }]}
                         />
-                        <Text style={[styles.label, { color: isDark ? colors.textDark : colors.textLight }]}>Notes</Text>
+                        <Text style={[styles.label, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Notes</Text>
                         <TextInput
                             value={pickupNotes}
                             onChangeText={setPickupNotes}
                             multiline
-                            style={[styles.input, { color: isDark ? colors.textDark : colors.textLight, borderColor: isDark ? colors.borderDark : colors.borderLight, minHeight: 60 }]}
+                            style={[styles.input, { color: isDark ? colors.textMainDark : colors.textMainLight, borderColor: isDark ? colors.borderDark : colors.borderLight, minHeight: 60 }]}
                         />
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={[styles.cancelBtn, { borderColor: isDark ? colors.borderDark : colors.borderLight }]} onPress={() => setPickupFor(null)} disabled={submitting}>
-                                <Text style={{ color: isDark ? colors.textDark : colors.textLight }}>Cancel</Text>
+                                <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight }}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.7 : 1 }]} onPress={confirmPickup} disabled={submitting}>
                                 <Text style={{ color: '#fff', fontWeight: '600' }}>{submitting ? 'Saving…' : 'Save'}</Text>
@@ -263,7 +263,7 @@ export const TeacherTransportListScreen: React.FC = () => {
             <Modal visible={!!reassignFor} transparent animationType="slide" onRequestClose={() => setReassignFor(null)}>
                 <View style={styles.modalBackdrop}>
                     <View style={[styles.modalCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight, maxHeight: '80%' }]}>
-                        <Text style={[styles.modalTitle, { color: isDark ? colors.textDark : colors.textLight }]}>Temporary vehicle / trip change</Text>
+                        <Text style={[styles.modalTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Temporary vehicle / trip change</Text>
                         <Text style={[styles.meta, { color: isDark ? colors.textSubDark : colors.textSubLight, marginBottom: SPACING.md }]}>
                             {reassignFor?.full_name} — applies to today ({date}).
                         </Text>
@@ -293,7 +293,7 @@ export const TeacherTransportListScreen: React.FC = () => {
                                         style={[styles.option, { borderColor: isDark ? colors.borderDark : colors.borderLight, backgroundColor: selectedVehicle === v.id ? colors.primary + '20' : 'transparent' }]}
                                         onPress={() => setSelectedVehicle(v.id)}
                                     >
-                                        <Text style={{ color: isDark ? colors.textDark : colors.textLight, fontWeight: '600' }}>{v.vehicle_number}</Text>
+                                        <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight, fontWeight: '600' }}>{v.vehicle_number}</Text>
                                         <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, fontSize: FONT_SIZES.sm }}>{v.driver_name || 'No driver'} • Capacity {v.capacity ?? '—'}</Text>
                                     </TouchableOpacity>
                                 ))
@@ -303,7 +303,7 @@ export const TeacherTransportListScreen: React.FC = () => {
                                         style={[styles.option, { borderColor: isDark ? colors.borderDark : colors.borderLight, backgroundColor: selectedTrip === t.id ? colors.primary + '20' : 'transparent' }]}
                                         onPress={() => setSelectedTrip(t.id)}
                                     >
-                                        <Text style={{ color: isDark ? colors.textDark : colors.textLight, fontWeight: '600' }}>{t.name || `Trip #${t.id}`}</Text>
+                                        <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight, fontWeight: '600' }}>{t.name || `Trip #${t.id}`}</Text>
                                         <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, fontSize: FONT_SIZES.sm }}>
                                             {t.direction ?? ''} • {t.departure_time ?? ''} • {t.vehicle?.vehicle_number ?? '—'}
                                         </Text>
@@ -311,15 +311,15 @@ export const TeacherTransportListScreen: React.FC = () => {
                                 ))}
                         </ScrollView>
 
-                        <Text style={[styles.label, { color: isDark ? colors.textDark : colors.textLight }]}>Reason (optional)</Text>
+                        <Text style={[styles.label, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Reason (optional)</Text>
                         <TextInput
                             value={reassignReason}
                             onChangeText={setReassignReason}
-                            style={[styles.input, { color: isDark ? colors.textDark : colors.textLight, borderColor: isDark ? colors.borderDark : colors.borderLight }]}
+                            style={[styles.input, { color: isDark ? colors.textMainDark : colors.textMainLight, borderColor: isDark ? colors.borderDark : colors.borderLight }]}
                         />
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={[styles.cancelBtn, { borderColor: isDark ? colors.borderDark : colors.borderLight }]} onPress={() => setReassignFor(null)} disabled={submitting}>
-                                <Text style={{ color: isDark ? colors.textDark : colors.textLight }}>Cancel</Text>
+                                <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight }}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.7 : 1 }]} onPress={saveReassign} disabled={submitting}>
                                 <Text style={{ color: '#fff', fontWeight: '600' }}>{submitting ? 'Saving…' : 'Apply today'}</Text>

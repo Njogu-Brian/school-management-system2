@@ -200,6 +200,10 @@ class ApiAcademicsController extends Controller
         $exam = Exam::findOrFail($data['exam_id']);
         $user = $request->user();
 
+        if ($user && $user->hasRole('Academic Administrator')) {
+            return response()->json(['success' => false, 'message' => 'Academic administrators cannot enter marks.'], 403);
+        }
+
         if ($user->hasTeacherLikeRole() && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
             $allowedClassrooms = $user->getDashboardClassroomIds();
             if (! in_array((int) $data['classroom_id'], $allowedClassrooms, true)) {
@@ -433,6 +437,10 @@ class ApiAcademicsController extends Controller
         $streamId = $request->filled('stream_id') ? (int) $request->input('stream_id') : null;
         $entries = $v['entries'] ?? [];
         $user = $request->user();
+
+        if ($user && $user->hasRole('Academic Administrator')) {
+            return response()->json(['success' => false, 'message' => 'Academic administrators cannot enter marks.'], 403);
+        }
 
         if (!$this->canAccessClassroom($user, $classroomId)) {
             return response()->json(['success' => false, 'message' => 'You do not have access to this classroom.'], 403);

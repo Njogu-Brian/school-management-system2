@@ -14,7 +14,7 @@ import { useAuth } from '@contexts/AuthContext';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { hrApi } from '@api/hr.api';
-import { Payroll } from '@types/hr.types';
+import { Payroll } from 'types/hr.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';

@@ -65,6 +65,23 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
             || \Illuminate\Support\Facades\DB::table('subject_teacher')->where('teacher_id', $this->id)->exists();
     }
 
+    /**
+     * Classroom IDs where this user is the homeroom/class teacher (via classrooms.class_teacher_id → staff.id).
+     *
+     * @return int[]
+     */
+    public function getClassTeacherClassroomIds(): array
+    {
+        if (! $this->staff) {
+            return [];
+        }
+
+        return \App\Models\Academics\Classroom::query()
+            ->where('class_teacher_id', $this->staff->id)
+            ->pluck('id')
+            ->toArray();
+    }
+
     public function isSeniorTeacherUser(): bool
     {
         return $this->hasAnyRole(['Senior Teacher', 'senior teacher', 'Senior teacher']);
@@ -269,12 +286,16 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
                 ->toArray();
         }
 
+        // Homeroom/class teacher assignments (classrooms.class_teacher_id)
+        $classTeacherClassroomIds = $this->getClassTeacherClassroomIds();
+
         // Merge and return unique IDs
         return array_values(array_unique(array_merge(
             $directClassroomIds,
             $subjectClassroomIds,
             $streamClassroomIds,
-            $streamFallbackClassroomIds
+            $streamFallbackClassroomIds,
+            $classTeacherClassroomIds
         )));
     }
 
@@ -376,8 +397,9 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         }
 
         $supervisedClassroomIds = $this->isSeniorTeacherUser() ? $this->getSupervisedClassroomIds() : [];
+        $classTeacherClassroomIds = $this->getClassTeacherClassroomIds();
 
-        $query->where(function ($outer) use ($streamAssignments, $assignedClassroomIds, $supervisedClassroomIds) {
+        $query->where(function ($outer) use ($streamAssignments, $assignedClassroomIds, $supervisedClassroomIds, $classTeacherClassroomIds) {
             $matchedAny = false;
 
             if (! empty($streamAssignments)) {
@@ -416,6 +438,11 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
                 $matchedAny = true;
             } elseif (! empty($assignedClassroomIds)) {
                 $outer->whereIn('classroom_id', $assignedClassroomIds);
+                $matchedAny = true;
+            }
+
+            if (! empty($classTeacherClassroomIds)) {
+                $outer->orWhereIn('classroom_id', $classTeacherClassroomIds);
                 $matchedAny = true;
             }
 

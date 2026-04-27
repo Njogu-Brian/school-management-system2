@@ -3,6 +3,7 @@ export enum UserRole {
     SUPER_ADMIN = 'super_admin',
     ADMIN = 'admin',
     SECRETARY = 'secretary',
+    ACADEMIC_ADMIN = 'academic_admin',
     TEACHER = 'teacher',
     SENIOR_TEACHER = 'senior_teacher',
     SUPERVISOR = 'supervisor',

@@ -9,7 +9,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import SmsRetriever from 'react-native-sms-retriever';
+import { getSmsRetriever } from '@utils/smsRetriever';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
 import { Button } from '@components/common/Button';
@@ -48,6 +48,7 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
 
     // Android: listen for incoming OTP SMS (SMS Retriever API; no SMS permission)
     useEffect(() => {
+        const SmsRetriever = getSmsRetriever();
         if (typeof SmsRetriever?.startSmsRetriever !== 'function') return;
 
         let mounted = true;
@@ -58,7 +59,7 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
                 const started = await SmsRetriever.startSmsRetriever();
                 if (!mounted || !started) return;
 
-                subscription = SmsRetriever.addSmsListener((event: { message?: string }) => {
+                const rawSub = SmsRetriever.addSmsListener((event: { message?: string }) => {
                     const msg = String(event?.message ?? '');
                     const m = msg.match(/\b(\d{6})\b/);
                     if (m?.[1]) {
@@ -66,6 +67,9 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
                         subscription?.remove?.();
                     }
                 });
+                if (rawSub && typeof rawSub === 'object' && 'remove' in rawSub) {
+                    subscription = rawSub as { remove: () => void };
+                }
             } catch {
                 // ignore (play services missing etc.)
             }
@@ -193,7 +197,9 @@ export const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({
                     {otp.map((digit, index) => (
                         <TextInput
                             key={index}
-                            ref={(ref) => (inputRefs.current[index] = ref)}
+                            ref={(ref) => {
+                                inputRefs.current[index] = ref;
+                            }}
                             style={[
                                 styles.otpInput,
                                 {

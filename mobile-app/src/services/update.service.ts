@@ -49,6 +49,10 @@ export async function checkForAppUpdate(options: CheckForUpdatesOptions = {}): P
         return false;
     }
 
+    if (!Updates.isEnabled) {
+        return false;
+    }
+
     try {
         const update = await Updates.checkForUpdateAsync();
         if (!update.isAvailable) {

@@ -13,7 +13,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { StatusBadge } from '@components/common/StatusBadge';
 import { financeApi } from '@api/finance.api';
-import { Invoice } from '@types/finance.types';
+import { Invoice } from 'types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';

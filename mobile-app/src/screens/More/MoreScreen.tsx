@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '@contexts/AuthContext';
 import { useTheme } from '@contexts/ThemeContext';
 import { canViewPayrollRecords, canAccessLeaveManagement } from '@utils/staffHrAccess';
+import { UserRole } from '@constants/roles';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -50,6 +51,7 @@ export const MoreScreen = () => {
     const navigation = useNavigation<any>();
     const showPayroll = canViewPayrollRecords(user);
     const showLeave = canAccessLeaveManagement(user);
+    const canViewStaffDirectory = user?.role !== UserRole.ACADEMIC_ADMIN;
 
     const handleLogout = async () => {
         await logout();
@@ -62,6 +64,22 @@ export const MoreScreen = () => {
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.section}>
                     <MoreItem
+                        icon="assignment"
+                        title="Academic Reports"
+                        onPress={() => {
+                            const parent = navigation.getParent();
+                            parent ? parent.navigate('More', { screen: 'AcademicReports' }) : navigation.navigate('AcademicReports');
+                        }}
+                    />
+                    <MoreItem
+                        icon="feedback"
+                        title="Feedback"
+                        onPress={() => {
+                            const parent = navigation.getParent();
+                            parent ? parent.navigate('More', { screen: 'Feedback' }) : navigation.navigate('Feedback');
+                        }}
+                    />
+                    <MoreItem
                         icon="assignment-turned-in"
                         title="Exams & enter results"
                         onPress={() => {
@@ -69,14 +87,16 @@ export const MoreScreen = () => {
                             parent ? parent.navigate('More', { screen: 'ExamsList' }) : navigation.navigate('ExamsList');
                         }}
                     />
-                    <MoreItem
-                        icon="people"
-                        title="Staff Directory"
-                        onPress={() => {
-                            const parent = navigation.getParent();
-                            parent ? parent.navigate('More', { screen: 'StaffDirectory' }) : navigation.navigate('StaffDirectory');
-                        }}
-                    />
+                    {canViewStaffDirectory ? (
+                        <MoreItem
+                            icon="people"
+                            title="Staff Directory"
+                            onPress={() => {
+                                const parent = navigation.getParent();
+                                parent ? parent.navigate('More', { screen: 'StaffDirectory' }) : navigation.navigate('StaffDirectory');
+                            }}
+                        />
+                    ) : null}
                     {showPayroll ? (
                         <MoreItem
                             icon="payments"

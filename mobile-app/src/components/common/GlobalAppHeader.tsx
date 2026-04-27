@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { useTheme } from '@contexts/ThemeContext';
 
 interface GlobalAppHeaderProps {
     title: string;
@@ -18,9 +19,12 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
     onSettings,
     showSettings = true,
 }) => {
+    const { colors } = useTheme();
+    const gradient: [string, string] = [colors.primaryDark, colors.primary];
+
     return (
-        <SafeAreaView edges={['top']} style={styles.safeArea}>
-            <LinearGradient colors={['#3B0056', '#5F2EEA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: colors.primaryDark }]}>
+            <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                 <View style={styles.row}>
                     <TouchableOpacity onPress={onBack} style={styles.iconButton} hitSlop={10}>
                         <Icon name="arrow-back" size={24} color="#fff" />
@@ -43,7 +47,7 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
 
 const styles = StyleSheet.create({
     safeArea: {
-        backgroundColor: '#3B0056',
+        // backgroundColor from theme
     },
     row: {
         height: 54,

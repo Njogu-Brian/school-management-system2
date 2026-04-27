@@ -7,7 +7,6 @@ import {
     SafeAreaView,
     TouchableOpacity,
     RefreshControl,
-    Alert,
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
@@ -21,6 +20,7 @@ import { tileColorForIndex, DASHBOARD_STAT_COLORS } from '@styles/sections/dashb
 import { BRAND } from '@constants/designTokens';
 import { dashboardApi, DashboardStats } from '@api/dashboard.api';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
 
 interface TeacherDashboardProps {
     navigation: any;
@@ -31,15 +31,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
     const { user } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
     const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [statsLoadError, setStatsLoadError] = useState<string | null>(null);
 
     const loadStats = useCallback(async () => {
         try {
             const res = await dashboardApi.getStats();
             if (res.success && res.data) {
+                setStatsLoadError(null);
                 setStats(res.data);
+            } else {
+                setStats(null);
+                setStatsLoadError(res.message || 'Could not load dashboard data.');
             }
         } catch (e: any) {
-            Alert.alert('Dashboard', e?.message || 'Could not load dashboard data.');
+            setStats(null);
+            setStatsLoadError(e?.message || 'Could not load dashboard data.');
         }
     }, []);
 
@@ -141,6 +147,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
                 />
 
                 <View style={styles.body}>
+                    {statsLoadError ? (
+                        <LoadErrorBanner
+                            message={statsLoadError}
+                            onRetry={() => {
+                                setStatsLoadError(null);
+                                void loadStats();
+                            }}
+                            surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                            borderColor={isDark ? colors.borderDark : BRAND.border}
+                            textColor={isDark ? colors.textMainDark : colors.textMainLight}
+                            subColor={isDark ? colors.textSubDark : colors.textSubLight}
+                            accentColor={colors.primary}
+                        />
+                    ) : null}
                     <View style={styles.kpiRow}>
                         <KpiChip label="Classes" value={myClasses} icon="class" color={DASHBOARD_STAT_COLORS[0]} />
                         <KpiChip label="Students" value={totalStudents} icon="people" color={DASHBOARD_STAT_COLORS[1]} />

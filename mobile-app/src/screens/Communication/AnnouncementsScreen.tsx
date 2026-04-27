@@ -12,7 +12,7 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { communicationApi } from '@api/communication.api';
-import { Announcement } from '../types/communication.types';
+import { Announcement } from 'types/communication.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
@@ -45,13 +45,14 @@ export const AnnouncementsScreen: React.FC<AnnouncementsScreenProps> = ({ naviga
                 });
 
                 if (response.success && response.data) {
+                    const pageData = response.data;
                     if (pageNum === 1) {
-                        setAnnouncements(response.data.data);
+                        setAnnouncements(pageData.data);
                     } else {
-                        setAnnouncements((prev) => [...prev, ...response.data.data]);
+                        setAnnouncements((prev) => [...prev, ...pageData.data]);
                     }
 
-                    setHasMore(response.data.current_page < response.data.last_page);
+                    setHasMore(pageData.current_page < pageData.last_page);
                     setPage(pageNum);
                 }
             } catch (error: any) {

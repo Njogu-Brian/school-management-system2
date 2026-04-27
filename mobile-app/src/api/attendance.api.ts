@@ -5,8 +5,8 @@ import {
     AttendanceFilters,
     AttendanceStats,
     AttendanceAnalytics,
-} from '@types/attendance.types';
-import { ApiResponse, PaginatedResponse } from '@types/api.types';
+} from 'types/attendance.types';
+import { ApiResponse, PaginatedResponse } from 'types/api.types';
 
 export const attendanceApi = {
     // Get attendance records with filters

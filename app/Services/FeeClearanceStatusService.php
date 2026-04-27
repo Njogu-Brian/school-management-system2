@@ -2,14 +2,12 @@
 
 namespace App\Services;
 
-use App\Models\{
-    FeePaymentPlan,
-    Invoice,
-    PaymentThreshold,
-    Student,
-    StudentTermFeeClearance,
-    Term
-};
+use App\Models\FeePaymentPlan;
+use App\Models\Invoice;
+use App\Models\PaymentThreshold;
+use App\Models\Student;
+use App\Models\StudentTermFeeClearance;
+use App\Models\Term;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -83,6 +81,12 @@ class FeeClearanceStatusService
             }
         }
 
+        // No outstanding fees — threshold deadline does not apply.
+        $clearanceDeadline = $finalDeadline?->toDateString();
+        if (in_array($reason, StudentTermFeeClearance::REASONS_NO_CLEARANCE_DEADLINE, true)) {
+            $clearanceDeadline = null;
+        }
+
         return [
             'status' => $status,
             'computed_at' => $asOf,
@@ -91,7 +95,7 @@ class FeeClearanceStatusService
             'has_valid_payment_plan' => (bool) $hasValidPlan,
             'payment_plan_id' => $paymentPlan?->id,
             'payment_plan_status' => $planStatus,
-            'final_clearance_deadline' => $finalDeadline?->toDateString(),
+            'final_clearance_deadline' => $clearanceDeadline,
             'reason_code' => $reason,
             'meta' => [
                 'total_fees' => round($totalFees, 2),

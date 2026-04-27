@@ -16,8 +16,8 @@ import { Button } from '@components/common/Button';
 import { LoadingState } from '@components/common/EmptyState';
 import { authApi } from '@api/auth.api';
 import { hrApi } from '@api/hr.api';
-import { User } from '@types/auth.types';
-import { Staff } from '@types/hr.types';
+import { User } from 'types/auth.types';
+import { Staff } from 'types/hr.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { layoutStyles } from '@styles/common';
@@ -126,7 +126,7 @@ export const MyProfileScreen: React.FC<MyProfileScreenProps> = ({ navigation }) 
                         <Avatar
                             name={displayName}
                             size={80}
-                            source={staff?.avatar ? { uri: staff.avatar } : user?.avatar ? { uri: user.avatar } : undefined}
+                            imageUrl={staff?.avatar || user?.avatar}
                         />
                         <View style={styles.avatarInfo}>
                             <Text style={[styles.name, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>{displayName}</Text>

@@ -15,7 +15,7 @@ import { Avatar } from '@components/common/Avatar';
 import { Card } from '@components/common/Card';
 import { LoadingState } from '@components/common/EmptyState';
 import { hrApi } from '@api/hr.api';
-import { Staff } from '@types/hr.types';
+import { Staff } from 'types/hr.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { Palette } from '@styles/palette';
@@ -97,7 +97,16 @@ export const StaffDetailScreen: React.FC<StaffDetailScreenProps> = ({ navigation
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
-                <Card style={[styles.profileCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}>
+                <Card
+                    style={[
+                        styles.profileCard,
+                        {
+                            backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
+                            borderLeftWidth: 3,
+                            borderLeftColor: colors.primary,
+                        },
+                    ]}
+                >
                     <View style={styles.profileHeader}>
                         <Avatar name={staff.full_name} imageUrl={staff.avatar} size={80} />
                         <View style={styles.profileInfo}>

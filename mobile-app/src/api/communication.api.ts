@@ -80,7 +80,7 @@ export const communicationApi = {
     },
 
     // ========== Notifications ==========
-    async getNotifications(filters?: { is_read?: boolean; category?: string }): Promise<ApiResponse<PaginatedResponse<Notification>>> {
+    async getNotifications(filters?: { is_read?: boolean; category?: string; per_page?: number; page?: number }): Promise<ApiResponse<PaginatedResponse<Notification>>> {
         return apiClient.get<PaginatedResponse<Notification>>('/notifications', filters);
     },
 

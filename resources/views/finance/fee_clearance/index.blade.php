@@ -220,7 +220,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        {{ $row->final_clearance_deadline ? \Carbon\Carbon::parse($row->final_clearance_deadline)->format('M d, Y') : '—' }}
+                                        {{ ($d = $row->displayFinalClearanceDeadline()) ? $d->format('M d, Y') : '—' }}
                                     </td>
                                     <td class="text-end small finance-muted">
                                         {{ $row->computed_at ? $row->computed_at->diffForHumans() : '—' }}

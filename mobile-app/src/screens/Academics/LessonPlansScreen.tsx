@@ -15,7 +15,7 @@ import { isTeacherRole } from '@utils/roleUtils';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
 import { academicsApi } from '@api/academics.api';
-import { LessonPlan } from '@types/academics.types';
+import { LessonPlan } from 'types/academics.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';

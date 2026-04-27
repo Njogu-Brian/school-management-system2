@@ -13,9 +13,9 @@ import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { LoadingState } from '@components/common/EmptyState';
 import { transportApi } from '@api/transport.api';
-import { Route, DropPoint } from '@types/transport.types';
+import { Route, DropPoint } from 'types/transport.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
-import { BRAND, RADIUS } from '@constants/designTokens';
+import { RADIUS } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -62,9 +62,11 @@ export const RouteDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         load();
     };
 
-    const bg = isDark ? colors.backgroundDark : BRAND.bg;
-    const textMain = isDark ? colors.textMainDark : BRAND.text;
-    const textSub = isDark ? colors.textSubDark : BRAND.muted;
+    const bg = isDark ? colors.backgroundDark : colors.backgroundLight;
+    const textMain = isDark ? colors.textMainDark : colors.textMainLight;
+    const textSub = isDark ? colors.textSubDark : colors.textSubLight;
+    const border = isDark ? colors.borderDark : colors.borderLight;
+    const surfaceMuted = isDark ? colors.accentDark : colors.accentLight;
 
     if (!routeId) {
         return (
@@ -104,7 +106,7 @@ export const RouteDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <SafeAreaView style={[layoutStyles.flex1, styles.container, { backgroundColor: bg }]}>
-            <View style={[styles.header, { borderBottomColor: isDark ? colors.borderDark : BRAND.border }]}>
+            <View style={[styles.header, { borderBottomColor: border }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
                     <Icon name="arrow-back" size={24} color={textMain} />
                 </TouchableOpacity>
@@ -123,6 +125,14 @@ export const RouteDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                 {data.description ? (
                     <Text style={[styles.desc, { color: textSub }]}>{data.description}</Text>
                 ) : null}
+
+                <View style={[styles.mapPlaceholder, { borderColor: border, backgroundColor: surfaceMuted }]}>
+                    <Icon name="map" size={36} color={colors.primary} />
+                    <Text style={[styles.mapLabel, { color: textSub }]}>Route overview</Text>
+                    <Text style={[styles.mapHint, { color: textSub }]}>
+                        Stop order below matches the live run sheet. Map integration optional.
+                    </Text>
+                </View>
 
                 <Card style={styles.card}>
                     <View style={styles.row}>
@@ -180,6 +190,15 @@ const styles = StyleSheet.create({
     },
     title: { flex: 1, fontSize: FONT_SIZES.lg, fontWeight: '700', textAlign: 'center', marginHorizontal: SPACING.sm },
     scroll: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
+    mapPlaceholder: {
+        borderWidth: 1,
+        borderRadius: RADIUS.card,
+        padding: SPACING.lg,
+        alignItems: 'center',
+        marginBottom: SPACING.lg,
+    },
+    mapLabel: { fontSize: FONT_SIZES.md, fontWeight: '700', marginTop: SPACING.sm },
+    mapHint: { fontSize: FONT_SIZES.xs, textAlign: 'center', marginTop: SPACING.xs, lineHeight: 18 },
     desc: { fontSize: FONT_SIZES.sm, marginBottom: SPACING.lg, lineHeight: 20 },
     card: { borderRadius: RADIUS.card, padding: SPACING.lg, marginBottom: SPACING.lg },
     row: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md },

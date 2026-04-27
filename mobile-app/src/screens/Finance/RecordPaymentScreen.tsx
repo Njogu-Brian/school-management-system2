@@ -20,8 +20,8 @@ import { Card } from '@components/common/Card';
 import { Avatar } from '@components/common/Avatar';
 import { financeApi } from '@api/finance.api';
 import { studentsApi } from '@api/students.api';
-import { Student } from '@types/student.types';
-import { Invoice } from '@types/finance.types';
+import { Student } from 'types/student.types';
+import { Invoice } from 'types/finance.types';
 import { formatters } from '@utils/formatters';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
@@ -29,6 +29,8 @@ import { layoutStyles } from '@styles/common';
 import { MpesaPromptModal } from '@components/MpesaPromptModal';
 import { canUseMpesaFinanceTools } from '@utils/financeRoles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LoadErrorBanner } from '@components/common/LoadErrorBanner';
+import type { ApiError } from 'types/api.types';
 
 interface RecordPaymentScreenProps {
     navigation: any;
@@ -50,6 +52,9 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
     const [notes, setNotes] = useState('');
     const [allocations, setAllocations] = useState<{ invoice_id: number; amount: number }[]>([]);
     const [loading, setLoading] = useState(false);
+    const [dataLoading, setDataLoading] = useState(!!studentId);
+    const [dataLoadError, setDataLoadError] = useState<string | null>(null);
+    const [submitError, setSubmitError] = useState<string | null>(null);
     const [errors, setErrors] = useState<any>({});
     const [mpesaOpen, setMpesaOpen] = useState(false);
 
@@ -68,6 +73,9 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
     }, [studentId]);
 
     const loadStudentData = async () => {
+        if (!studentId) return;
+        setDataLoading(true);
+        setDataLoadError(null);
         try {
             const [studentRes, invoicesRes] = await Promise.all([
                 studentsApi.getStudent(studentId),
@@ -76,13 +84,22 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
 
             if (studentRes.success && studentRes.data) {
                 setStudent(studentRes.data);
+            } else {
+                setStudent(null);
+                setDataLoadError(studentRes.message || 'Could not load student.');
             }
 
             if (invoicesRes.success && invoicesRes.data) {
                 setInvoices(invoicesRes.data.data.filter((inv: Invoice) => inv.balance > 0.009));
+            } else {
+                setInvoices([]);
             }
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to load student data');
+            setStudent(null);
+            setInvoices([]);
+            setDataLoadError(error?.message || 'Failed to load student data');
+        } finally {
+            setDataLoading(false);
         }
     };
 
@@ -121,6 +138,22 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
         return Object.keys(newErrors).length === 0;
     };
 
+    const mapServerErrors = (apiErr: ApiError) => {
+        const raw = apiErr.errors;
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+        setErrors((prev: Record<string, string>) => {
+            const next = { ...prev };
+            for (const [key, val] of Object.entries(raw)) {
+                if (Array.isArray(val) && val.length) {
+                    next[key] = String(val[0]);
+                } else if (typeof val === 'string') {
+                    next[key] = val;
+                }
+            }
+            return next;
+        });
+    };
+
     const openPaymentLinkForParent = async () => {
         if (!studentId) return;
         try {
@@ -139,6 +172,11 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
     };
 
     const handleSubmit = async () => {
+        if (!studentId) {
+            Alert.alert('Record payment', 'No student selected.');
+            return;
+        }
+        setSubmitError(null);
         if (!validate()) return;
 
         setLoading(true);
@@ -154,12 +192,18 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
             });
 
             if (response.success) {
-                Alert.alert('Success', 'Payment recorded successfully', [
+                Alert.alert('Success', response.message || 'Payment recorded successfully', [
                     { text: 'OK', onPress: () => navigation.goBack() },
                 ]);
+            } else {
+                setSubmitError(response.message || 'Could not record payment.');
             }
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to record payment');
+            const msg = error?.message || 'Failed to record payment';
+            setSubmitError(msg);
+            if (error?.errors) {
+                mapServerErrors(error as ApiError);
+            }
         } finally {
             setLoading(false);
         }
@@ -179,6 +223,43 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
                 keyboardVerticalOffset={0}
             >
                 <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                {!studentId ? (
+                    <Text style={[styles.missingStudent, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                        Open this screen from a student profile (Record payment) so the app knows which learner to credit.
+                    </Text>
+                ) : null}
+
+                {studentId && dataLoadError ? (
+                    <LoadErrorBanner
+                        message={dataLoadError}
+                        onRetry={loadStudentData}
+                        surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                        borderColor={isDark ? colors.borderDark : BRAND.border}
+                        textColor={isDark ? colors.textMainDark : colors.textMainLight}
+                        subColor={isDark ? colors.textSubDark : colors.textSubLight}
+                        accentColor={colors.primary}
+                    />
+                ) : null}
+
+                {submitError ? (
+                    <LoadErrorBanner
+                        message={submitError}
+                        onRetry={() => setSubmitError(null)}
+                        retryLabel="Dismiss"
+                        surfaceColor={isDark ? colors.surfaceDark : BRAND.surface}
+                        borderColor={isDark ? colors.error : BRAND.border}
+                        textColor={isDark ? colors.textMainDark : colors.textMainLight}
+                        subColor={isDark ? colors.textSubDark : colors.textSubLight}
+                        accentColor={colors.error}
+                    />
+                ) : null}
+
+                {dataLoading ? (
+                    <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, marginBottom: SPACING.md }}>
+                        Loading student…
+                    </Text>
+                ) : null}
+
                 {/* Student Info */}
                 {student && (
                     <Card style={styles.studentCard}>
@@ -234,7 +315,10 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
                     label="Amount *"
                     placeholder="Enter amount"
                     value={amount}
-                    onChangeText={setAmount}
+                    onChangeText={(v) => {
+                        setAmount(v);
+                        setSubmitError(null);
+                    }}
                     keyboardType="numeric"
                     error={errors.amount}
                     icon="attach-money"
@@ -341,6 +425,7 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
                     title="Record Payment"
                     onPress={handleSubmit}
                     loading={loading}
+                    disabled={dataLoading || !studentId || !student}
                     fullWidth
                     style={styles.submitButton}
                 />
@@ -474,5 +559,10 @@ const styles = StyleSheet.create({
     },
     submitButton: {
         marginTop: SPACING.md,
+    },
+    missingStudent: {
+        fontSize: FONT_SIZES.md,
+        lineHeight: 22,
+        marginBottom: SPACING.lg,
     },
 });

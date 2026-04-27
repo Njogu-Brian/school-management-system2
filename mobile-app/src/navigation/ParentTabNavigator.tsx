@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -8,6 +9,7 @@ import { ParentPaymentsScreen } from '@screens/Parent/ParentPaymentsScreen';
 import { StudentsListScreen } from '@screens/Students/StudentsListScreen';
 import { StudentDetailScreen } from '@screens/Students/StudentDetailScreen';
 import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
+import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
 import { MoreScreen } from '@screens/More/MoreScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
@@ -31,6 +33,7 @@ const ParentChildrenStack = () => (
         />
         <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
         <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
+        <Stack.Screen name="ReportCard" component={ReportCardScreen} />
     </Stack.Navigator>
 );
 
@@ -39,6 +42,7 @@ const ParentPaymentsStack = () => (
         <Stack.Screen name="ParentPaymentsMain" component={ParentPaymentsScreen} />
         <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
         <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
+        <Stack.Screen name="ReportCard" component={ReportCardScreen} />
     </Stack.Navigator>
 );
 

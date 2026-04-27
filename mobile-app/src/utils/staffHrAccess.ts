@@ -1,5 +1,5 @@
 import { UserRole } from '@constants/roles';
-import type { User } from '@types/auth.types';
+import type { User } from 'types/auth.types';
 
 /** Matches web `staff.*` middleware: Super Admin | Admin | Secretary */
 export function canManageStaff(user: User | null): boolean {

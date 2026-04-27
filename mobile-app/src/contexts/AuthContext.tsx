@@ -5,7 +5,7 @@ import {
     User,
     LoginCredentials,
     AuthState,
-} from '@types/auth.types';
+} from 'types/auth.types';
 import type { UserRole } from '@constants/roles';
 import {
     saveToken,
@@ -167,7 +167,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
     };
 
-    const logoutRef = useRef<() => Promise<void>>();
+    const logoutRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
     const logout = async () => {
         try {
