@@ -88,47 +88,48 @@ class FeePaymentPlanController extends Controller
                 ->values()
                 ->all();
 
-            $siblings = [];
+            // Build family roster (selected student + siblings) so UI always shows all students,
+            // even if one has 0 outstanding invoices.
+            $familyStudents = collect();
             if ($student->family_id) {
-                $siblings = Student::where('family_id', $student->family_id)
-                    ->where('id', '!=', $student->id)
+                $familyStudents = Student::where('family_id', $student->family_id)
                     ->where('archive', 0)
                     ->where('is_alumni', false)
                     ->orderBy('first_name')
-                    ->get()
-                    ->map(function ($s) {
-                        $totalBalance = Invoice::where('student_id', $s->id)->get()->sum(fn ($i) => max(0, (float) ($i->balance ?? (float)($i->total ?? 0) - (float)($i->paid_amount ?? 0))));
-                        return [
-                            'id' => $s->id,
-                            'name' => $s->full_name ?? trim(($s->first_name ?? '') . ' ' . ($s->last_name ?? '')),
-                            'admission_number' => $s->admission_number ?? '',
-                            'total_outstanding' => round($totalBalance, 2),
-                        ];
-                    })
-                    ->values()
-                    ->all();
+                    ->get();
+            } else {
+                $familyStudents = collect([$student]);
             }
 
-            // Group invoices by student for UI rendering (siblings + primary).
-            $byStudent = collect($invoices)
-                ->groupBy('student_id')
-                ->map(function ($rows, $sid) {
-                    $rows = collect($rows)->values();
-                    $name = (string) ($rows->first()['student_name'] ?? 'Student');
-                    $adm = (string) ($rows->first()['admission_number'] ?? '');
-                    $total = (float) $rows->sum('total');
-                    $balance = (float) $rows->sum('balance');
+            $siblings = $familyStudents
+                ->filter(fn ($s) => $s->id !== $student->id)
+                ->map(function ($s) use ($invoices) {
+                    $studentInvoices = collect($invoices)->where('student_id', $s->id)->values();
+                    $totalBalance = (float) $studentInvoices->sum('balance');
                     return [
-                        'student_id' => (int) $sid,
-                        'student_name' => $name,
-                        'admission_number' => $adm,
-                        'total_invoice_amount' => round($total, 2),
-                        'total_outstanding' => round($balance, 2),
-                        'invoices' => $rows->all(),
+                        'id' => $s->id,
+                        'name' => $s->full_name ?? trim(($s->first_name ?? '') . ' ' . ($s->last_name ?? '')),
+                        'admission_number' => $s->admission_number ?? '',
+                        'total_outstanding' => round($totalBalance, 2),
                     ];
                 })
                 ->values()
                 ->all();
+
+            // Group invoices by student for UI rendering (selected + siblings).
+            $byStudent = $familyStudents->map(function ($s) use ($invoices) {
+                $rows = collect($invoices)->where('student_id', $s->id)->values();
+                $total = (float) $rows->sum('total');
+                $balance = (float) $rows->sum('balance');
+                return [
+                    'student_id' => (int) $s->id,
+                    'student_name' => $s->full_name ?? trim(($s->first_name ?? '') . ' ' . ($s->last_name ?? '')),
+                    'admission_number' => $s->admission_number ?? '',
+                    'total_invoice_amount' => round($total, 2),
+                    'total_outstanding' => round($balance, 2),
+                    'invoices' => $rows->all(),
+                ];
+            })->values()->all();
 
             $combinedTotal = collect($byStudent)->sum('total_outstanding');
 

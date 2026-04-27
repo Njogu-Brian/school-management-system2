@@ -12,6 +12,15 @@
 
     <div class="finance-card finance-animate">
         <div class="finance-card-body">
+            <div class="alert alert-light border d-flex align-items-start gap-2 mb-3">
+                <div class="mt-1">
+                    <i class="bi bi-info-circle"></i>
+                </div>
+                <div>
+                    <div class="fw-semibold">Tip</div>
+                    <div class="small text-muted">Use the student search to pull all outstanding family invoices. The system will compute the combined total and you can adjust the schedule (monthly / weekly / custom).</div>
+                </div>
+            </div>
             @if (session('error'))
                 <div class="alert alert-danger">
                     {{ session('error') }}
@@ -59,9 +68,14 @@
 
                 <div class="row mb-3">
                     <div class="col-12">
-                        <div class="alert alert-info py-2 mb-0">
-                            <div class="fw-semibold">Family plan behavior</div>
-                            <div class="small">When the student has siblings, the system builds <span class="fw-semibold">one combined payment plan</span> for the whole family by combining all outstanding invoices.</div>
+                        <div class="alert alert-info border-0 mb-0" style="background: rgba(20,184,166,.12);">
+                            <div class="d-flex align-items-start gap-2">
+                                <div class="mt-1"><i class="bi bi-people"></i></div>
+                                <div>
+                                    <div class="fw-semibold">Family plan behavior</div>
+                                    <div class="small text-muted mb-0">When the student has siblings, the system builds <span class="fw-semibold">one combined payment plan</span> for the whole family by combining all outstanding invoices.</div>
+                                </div>
+                            </div>
                         </div>
                         <div id="siblings_preview" class="mt-3 d-none"></div>
                     </div>
@@ -379,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <div class="fw-semibold">${stu.student_name || 'Student'} ${adm}</div>
                                     <div class="small text-muted">Invoices total: KES ${total} · Outstanding: KES ${out}</div>
                                   </div>
-                                  <span class="badge bg-primary-subtle text-primary border">Included</span>
+                                  <span class="badge bg-light text-dark border">Student</span>
                                 </div>
                                 <div class="mt-2 small">${invBadges || '<span class="text-muted">No outstanding invoices</span>'}</div>
                               </div>
@@ -391,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     siblingsPreview.innerHTML = `
                       <div class="card border-0 shadow-sm">
                         <div class="card-body">
-                          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                             <div>
                               <div class="fw-semibold">Family invoices included in this plan</div>
                               <div class="small text-muted">The total amount will be set to the combined outstanding balance.</div>
