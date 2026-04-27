@@ -112,7 +112,7 @@
                                     <a href="{{ route('inventory.requirement-templates.edit', $template) }}" class="btn btn-sm btn-ghost-strong">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    <form action="{{ route('inventory.requirement-templates.destroy', $template) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                    <form action="{{ route('inventory.requirement-templates.destroy', ['requirement_template' => $template]) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this template?');">
                                         @csrf
                                         @method('DELETE')
                                         <button class="btn btn-sm btn-ghost-strong text-danger">

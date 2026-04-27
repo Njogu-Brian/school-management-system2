@@ -70,6 +70,11 @@ class RequirementTemplate extends Model
         )->withTimestamps();
     }
 
+    public function assignments()
+    {
+        return $this->hasMany(RequirementTemplateAssignment::class, 'requirement_template_id');
+    }
+
     /**
      * Get all classrooms (including the primary one if set)
      */

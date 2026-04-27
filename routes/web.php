@@ -1778,6 +1778,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         
         // Requirement Templates
         Route::resource('requirement-templates', \App\Http\Controllers\Inventory\RequirementTemplateController::class);
+        Route::resource('requirement-template-assignments', \App\Http\Controllers\Inventory\RequirementTemplateAssignmentController::class);
         
         // Student Requirements
         Route::get('student-requirements', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'index'])->name('student-requirements.index');

@@ -806,6 +806,10 @@ class="{{ $inventoryActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('inventory/requirement-templates*') ? 'active' : '' }}">
         <i class="bi bi-file-earmark-text"></i> Requirement Templates
     </a>
+    <a href="{{ route('inventory.requirement-template-assignments.index') }}"
+    class="sublink {{ Request::is('inventory/requirement-template-assignments*') ? 'active' : '' }}">
+        <i class="bi bi-diagram-3"></i> Requirement Assignments
+    </a>
     <a href="{{ route('inventory.student-requirements.index') }}" 
     class="sublink {{ Request::is('inventory/student-requirements*') ? 'active' : '' }}">
         <i class="bi bi-person-check"></i> Student Requirements
