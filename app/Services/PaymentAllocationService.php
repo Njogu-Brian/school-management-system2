@@ -459,10 +459,35 @@ class PaymentAllocationService
         }
 
         if ($remainingAmount <= 0) {
+            // After a successful payment, we may auto-create a plan for remaining balances once threshold is met.
+            $this->maybeAutoCreatePlanAfterPayment($payment);
             return $payment->fresh();
         }
 
-        return $this->autoAllocate($payment, $studentId);
+        $result = $this->autoAllocate($payment, $studentId);
+
+        // After auto-allocation to invoices, optionally create an installment plan for remaining balances.
+        $this->maybeAutoCreatePlanAfterPayment($payment);
+
+        return $result;
+    }
+
+    protected function maybeAutoCreatePlanAfterPayment(Payment $payment): void
+    {
+        try {
+            $student = $payment->student ?: Student::find($payment->student_id);
+            if (!$student) {
+                return;
+            }
+            $invoice = $payment->invoice_id ? \App\Models\Invoice::find($payment->invoice_id) : null;
+            app(\App\Services\AutoPaymentPlanService::class)->maybeCreateAfterPayment($student, $invoice);
+        } catch (\Throwable $e) {
+            Log::warning('Auto payment plan creation after payment failed', [
+                'payment_id' => $payment->id,
+                'student_id' => $payment->student_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

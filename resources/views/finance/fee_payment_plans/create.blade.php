@@ -59,8 +59,11 @@
 
                 <div class="row mb-3">
                     <div class="col-12">
-                        <p class="text-muted small mb-0">When the student has siblings, one combined payment plan is created for the family (all siblings’ invoices). Total amount = combined outstanding balance.</p>
-                        <div id="siblings_preview" class="mt-2 small text-muted d-none"></div>
+                        <div class="alert alert-info py-2 mb-0">
+                            <div class="fw-semibold">Family plan behavior</div>
+                            <div class="small">When the student has siblings, the system builds <span class="fw-semibold">one combined payment plan</span> for the whole family by combining all outstanding invoices.</div>
+                        </div>
+                        <div id="siblings_preview" class="mt-3 d-none"></div>
                     </div>
                 </div>
 
@@ -321,21 +324,92 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(r => r.json())
             .then(data => {
                 invoiceSelect.innerHTML = '<option value="">-- No invoice link --</option>';
-                (data.invoices || []).forEach(inv => {
-                    const opt = document.createElement('option');
-                    opt.value = inv.id;
-                    opt.textContent = `${inv.invoice_number || 'Inv'} - KES ${parseFloat(inv.total || 0).toFixed(2)} (balance: ${parseFloat(inv.balance || 0).toFixed(2)})`;
-                    invoiceSelect.appendChild(opt);
-                });
+
+                // Grouped select: invoices grouped by student (siblings).
+                const familyStudents = data.family_students || [];
+                if (familyStudents.length > 0) {
+                    familyStudents.forEach(stu => {
+                        const og = document.createElement('optgroup');
+                        const adm = stu.admission_number ? ` (${stu.admission_number})` : '';
+                        const outstanding = parseFloat(stu.total_outstanding || 0).toFixed(2);
+                        og.label = `${stu.student_name || 'Student'}${adm} — Outstanding: KES ${outstanding}`;
+                        (stu.invoices || []).forEach(inv => {
+                            const opt = document.createElement('option');
+                            opt.value = inv.id;
+                            opt.textContent = `${inv.invoice_number || 'Inv'} • total KES ${parseFloat(inv.total || 0).toFixed(2)} • balance KES ${parseFloat(inv.balance || 0).toFixed(2)}`;
+                            og.appendChild(opt);
+                        });
+                        invoiceSelect.appendChild(og);
+                    });
+                } else {
+                    (data.invoices || []).forEach(inv => {
+                        const opt = document.createElement('option');
+                        opt.value = inv.id;
+                        opt.textContent = `${inv.invoice_number || 'Inv'} - KES ${parseFloat(inv.total || 0).toFixed(2)} (balance: ${parseFloat(inv.balance || 0).toFixed(2)})`;
+                        invoiceSelect.appendChild(opt);
+                    });
+                }
+
                 if (data.combined_total != null && data.combined_total > 0) {
                     totalAmountInput.value = parseFloat(data.combined_total).toFixed(2);
                     recalcCustomInstallments(true);
                 }
-                if (data.siblings && data.siblings.length > 0) {
+
+                if (familyStudents.length > 0) {
                     siblingsPreview.classList.remove('d-none');
-                    siblingsPreview.innerHTML = 'One combined plan for family: ' + data.siblings.map(s => s.name + ' (KES ' + (s.total_outstanding || 0).toFixed(2) + ')').join(', ') + '. Total amount set above.';
+                    const combined = parseFloat(data.combined_total || 0).toFixed(2);
+
+                    const cards = familyStudents.map(stu => {
+                        const adm = stu.admission_number ? `<span class="text-muted">(${stu.admission_number})</span>` : '';
+                        const total = parseFloat(stu.total_invoice_amount || 0).toFixed(2);
+                        const out = parseFloat(stu.total_outstanding || 0).toFixed(2);
+                        const invBadges = (stu.invoices || []).map(inv => {
+                            const invNo = (inv.invoice_number || 'Inv');
+                            const invTotal = parseFloat(inv.total || 0).toFixed(2);
+                            const invBal = parseFloat(inv.balance || 0).toFixed(2);
+                            return `<span class="badge bg-light text-dark border me-1 mb-1">${invNo}: total ${invTotal}, bal ${invBal}</span>`;
+                        }).join('');
+
+                        return `
+                          <div class="col-lg-6">
+                            <div class="card border-0 shadow-sm h-100">
+                              <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                  <div>
+                                    <div class="fw-semibold">${stu.student_name || 'Student'} ${adm}</div>
+                                    <div class="small text-muted">Invoices total: KES ${total} · Outstanding: KES ${out}</div>
+                                  </div>
+                                  <span class="badge bg-primary-subtle text-primary border">Included</span>
+                                </div>
+                                <div class="mt-2 small">${invBadges || '<span class="text-muted">No outstanding invoices</span>'}</div>
+                              </div>
+                            </div>
+                          </div>
+                        `;
+                    }).join('');
+
+                    siblingsPreview.innerHTML = `
+                      <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                            <div>
+                              <div class="fw-semibold">Family invoices included in this plan</div>
+                              <div class="small text-muted">The total amount will be set to the combined outstanding balance.</div>
+                            </div>
+                            <div class="text-end">
+                              <div class="small text-muted">Combined outstanding</div>
+                              <div class="h5 mb-0">KES ${combined}</div>
+                            </div>
+                          </div>
+                          <div class="row g-3 mt-1">
+                            ${cards}
+                          </div>
+                        </div>
+                      </div>
+                    `;
                 } else {
                     siblingsPreview.classList.add('d-none');
+                    siblingsPreview.innerHTML = '';
                 }
             })
             .catch(() => {

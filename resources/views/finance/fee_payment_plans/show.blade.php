@@ -3,18 +3,41 @@
 @section('content')
 <div class="finance-page">
   <div class="finance-shell">
-    <div class="finance-card finance-animate mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2 p-3">
-        <h1 class="h4 mb-0">Payment Plan Details</h1>
-        <div class="d-flex flex-wrap gap-2">
-            <a href="{{ route('finance.fee-payment-plans.print', $feePaymentPlan) }}" target="_blank" class="btn btn-finance btn-finance-outline" title="Opens a printable page with letterhead and signature lines">
-                <i class="bi bi-printer"></i> Print agreement
-            </a>
-            <a href="{{ route('finance.fee-payment-plans.download-pdf', $feePaymentPlan) }}" class="btn btn-finance btn-finance-primary">
-                <i class="bi bi-file-pdf"></i> Download PDF
-            </a>
-            <a href="{{ route('finance.fee-payment-plans.index') }}" class="btn btn-finance btn-finance-outline">
-                <i class="bi bi-arrow-left"></i> Back
-            </a>
+    @php
+        $publicPlanUrl = url('/payment-plan/' . $feePaymentPlan->hashed_id);
+        $payNowUrl = null;
+        if ($feePaymentPlan->student && $feePaymentPlan->student->family_id) {
+            $link = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $feePaymentPlan->student->family_id, auth()->id(), 'payment_plan_show');
+            $payNowUrl = $link->getPaymentUrl();
+        }
+    @endphp
+
+    <div class="finance-card finance-animate mb-3 p-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <div>
+                <div class="text-muted small">Finance</div>
+                <h1 class="h4 mb-1">Payment Plan Details</h1>
+                <div class="small text-muted">View the plan schedule, covered invoices, and share payment links with parents.</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ $publicPlanUrl }}" target="_blank" class="btn btn-finance btn-finance-outline">
+                    <i class="bi bi-box-arrow-up-right"></i> Public view
+                </a>
+                @if($payNowUrl)
+                    <a href="{{ $payNowUrl }}" target="_blank" class="btn btn-finance btn-finance-primary">
+                        <i class="bi bi-credit-card"></i> Pay now
+                    </a>
+                @endif
+                <a href="{{ route('finance.fee-payment-plans.print', $feePaymentPlan) }}" target="_blank" class="btn btn-finance btn-finance-outline" title="Opens a printable page with letterhead and signature lines">
+                    <i class="bi bi-printer"></i> Print agreement
+                </a>
+                <a href="{{ route('finance.fee-payment-plans.download-pdf', $feePaymentPlan) }}" class="btn btn-finance btn-finance-primary">
+                    <i class="bi bi-file-pdf"></i> Download PDF
+                </a>
+                <a href="{{ route('finance.fee-payment-plans.index') }}" class="btn btn-finance btn-finance-outline">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+            </div>
         </div>
     </div>
 
@@ -25,45 +48,54 @@
                     <h5 class="mb-0">Plan Information</h5>
                 </div>
                 <div class="finance-card-body">
-                    <table class="table table-borderless">
-                        <tr>
-                            <th>Student:</th>
-                            <td>
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                        <div>
+                            <div class="text-muted small">Student</div>
+                            <div class="fw-semibold">
                                 <a href="{{ route('students.show', $feePaymentPlan->student) }}">{{ $feePaymentPlan->student->full_name }}</a>
-                                <a href="{{ route('finance.accountant-dashboard.student-history', $feePaymentPlan->student) }}" class="btn btn-sm btn-outline-primary ms-2">
+                            </div>
+                            <div class="mt-2">
+                                <a href="{{ route('finance.accountant-dashboard.student-history', $feePaymentPlan->student) }}" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-clock-history"></i> Payment History
                                 </a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>Total Amount:</th>
-                            <td>KES {{ number_format($feePaymentPlan->total_amount, 2) }}</td>
-                        </tr>
-                        <tr>
-                            <th>Installments:</th>
-                            <td>{{ $feePaymentPlan->installment_count }}</td>
-                        </tr>
-                        <tr>
-                            <th>Installment Amount:</th>
-                            <td>KES {{ number_format($feePaymentPlan->installment_amount, 2) }}</td>
-                        </tr>
-                        <tr>
-                            <th>Start Date:</th>
-                            <td>{{ $feePaymentPlan->start_date->format('M d, Y') }}</td>
-                        </tr>
-                        <tr>
-                            <th>End Date:</th>
-                            <td>{{ $feePaymentPlan->end_date->format('M d, Y') }}</td>
-                        </tr>
-                        <tr>
-                            <th>Status:</th>
-                            <td>
-                                <span class="badge bg-{{ $feePaymentPlan->status == 'active' ? 'success' : ($feePaymentPlan->status == 'completed' ? 'info' : 'secondary') }}">
-                                    {{ ucfirst($feePaymentPlan->status) }}
-                                </span>
-                            </td>
-                        </tr>
-                    </table>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="text-muted small">Status</div>
+                            <span class="badge bg-{{ $feePaymentPlan->status == 'active' ? 'success' : ($feePaymentPlan->status == 'completed' ? 'info' : 'secondary') }}">
+                                {{ ucfirst($feePaymentPlan->status) }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <div class="p-3 rounded border bg-light">
+                                <div class="text-muted small">Total amount</div>
+                                <div class="h5 mb-0">KES {{ number_format($feePaymentPlan->total_amount, 2) }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 rounded border bg-light">
+                                <div class="text-muted small">Installments</div>
+                                <div class="h5 mb-0">{{ $feePaymentPlan->installment_count }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 rounded border bg-light">
+                                <div class="text-muted small">Installment amount</div>
+                                <div class="h6 mb-0">KES {{ number_format($feePaymentPlan->installment_amount, 2) }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 rounded border bg-light">
+                                <div class="text-muted small">Period</div>
+                                <div class="small mb-0">
+                                    {{ $feePaymentPlan->start_date->format('M d, Y') }} → {{ $feePaymentPlan->end_date->format('M d, Y') }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

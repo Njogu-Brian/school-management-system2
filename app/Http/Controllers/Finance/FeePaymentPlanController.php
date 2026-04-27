@@ -53,6 +53,7 @@ class FeePaymentPlanController extends Controller
             $invoiceQuery = Invoice::query()
                 ->whereNull('reversed_at')
                 ->whereIn('status', ['unpaid', 'partial'])
+                ->with(['student'])
                 ->orderBy('due_date', 'desc');
 
             if ($familyId) {
@@ -61,12 +62,16 @@ class FeePaymentPlanController extends Controller
                 $invoiceQuery->where('student_id', $student->id);
             }
 
-            $invoices = $invoiceQuery->get()
+            $invoiceModels = $invoiceQuery->get();
+
+            $invoices = $invoiceModels
                 ->filter(fn ($inv) => (float) ($inv->balance ?? ((float) ($inv->total ?? 0) - (float) ($inv->paid_amount ?? 0))) > 0.009)
                 ->map(function ($inv) {
                     $total = (float) ($inv->total ?? 0);
                     $paid = (float) ($inv->paid_amount ?? 0);
                     $balance = isset($inv->balance) ? (float) $inv->balance : ($total - $paid);
+                    $stu = $inv->student;
+                    $studentName = $stu?->full_name ?? trim((string) (($stu->first_name ?? '') . ' ' . ($stu->last_name ?? '')));
                     return [
                         'id' => $inv->id,
                         'invoice_number' => $inv->invoice_number ?? 'Inv',
@@ -76,6 +81,8 @@ class FeePaymentPlanController extends Controller
                         'term' => $inv->term?->name ?? null,
                         'academic_year' => $inv->academicYear?->year ?? $inv->year ?? null,
                         'student_id' => $inv->student_id,
+                        'student_name' => $studentName,
+                        'admission_number' => $stu?->admission_number ?? '',
                     ];
                 })
                 ->values()
@@ -102,14 +109,33 @@ class FeePaymentPlanController extends Controller
                     ->all();
             }
 
-            $combinedTotal = collect($invoices)->sum('balance');
-            foreach ($siblings as $s) {
-                $combinedTotal += (float) ($s['total_outstanding'] ?? 0);
-            }
+            // Group invoices by student for UI rendering (siblings + primary).
+            $byStudent = collect($invoices)
+                ->groupBy('student_id')
+                ->map(function ($rows, $sid) {
+                    $rows = collect($rows)->values();
+                    $name = (string) ($rows->first()['student_name'] ?? 'Student');
+                    $adm = (string) ($rows->first()['admission_number'] ?? '');
+                    $total = (float) $rows->sum('total');
+                    $balance = (float) $rows->sum('balance');
+                    return [
+                        'student_id' => (int) $sid,
+                        'student_name' => $name,
+                        'admission_number' => $adm,
+                        'total_invoice_amount' => round($total, 2),
+                        'total_outstanding' => round($balance, 2),
+                        'invoices' => $rows->all(),
+                    ];
+                })
+                ->values()
+                ->all();
+
+            $combinedTotal = collect($byStudent)->sum('total_outstanding');
 
             return response()->json([
                 'invoices' => $invoices,
                 'siblings' => $siblings,
+                'family_students' => $byStudent,
                 'combined_total' => round($combinedTotal, 2),
             ]);
         } catch (\Throwable $e) {

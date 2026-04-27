@@ -337,6 +337,19 @@ class FeeReminderController extends Controller
             'pay_link' => $payLink ?? '',
         ];
 
+        // When sending invoice-based reminders, include an active payment plan link when available.
+        // This lets templates combine reminders + plan expectations in one message.
+        try {
+            $activePlan = \App\Models\FeePaymentPlan::where('student_id', $student->id)
+                ->whereIn('status', ['active', 'compliant', 'overdue', 'broken'])
+                ->latest()
+                ->first();
+            if ($activePlan) {
+                $variables['payment_plan_link'] = url('/payment-plan/' . $activePlan->hashed_id);
+            }
+        } catch (\Throwable) {
+        }
+
         if ($reminder->payment_plan_installment_id) {
             $installment = $reminder->paymentPlanInstallment;
             $plan = $reminder->paymentPlan;
