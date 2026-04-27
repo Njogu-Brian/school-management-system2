@@ -481,7 +481,10 @@ Route::middleware('auth')->group(function () {
 
         // Lesson Plans
         Route::resource('lesson-plans', LessonPlanController::class)->parameters(['lesson-plans' => 'lesson_plan']);
+        Route::get('lesson-plans-review-queue', [LessonPlanController::class, 'reviewQueue'])->name('lesson-plans.review-queue');
+        Route::get('lesson-plans-analytics', [LessonPlanController::class, 'analytics'])->name('lesson-plans.analytics');
         Route::post('lesson-plans/{lesson_plan}/approve', [LessonPlanController::class, 'approve'])->name('lesson-plans.approve');
+        Route::post('lesson-plans/{lesson_plan}/reject', [LessonPlanController::class, 'reject'])->name('lesson-plans.reject');
         Route::get('lesson-plans/{lesson_plan}/export-pdf', [LessonPlanController::class, 'exportPdf'])->name('lesson-plans.export-pdf');
         Route::get('lesson-plans/{lesson_plan}/export-excel', [LessonPlanController::class, 'exportExcel'])->name('lesson-plans.export-excel');
         Route::get('lesson-plans/{lesson_plan}/assign-homework', [LessonPlanController::class, 'assignHomeworkForm'])->name('lesson-plans.assign-homework');
@@ -532,6 +535,19 @@ Route::middleware('auth')->group(function () {
 
         // Timetable
         Route::get('timetable', [TimetableController::class, 'index'])->name('timetable.index');
+        Route::get('timetable/whole-school', [TimetableController::class, 'wholeSchool'])->name('timetable.whole-school');
+        Route::post('timetable/whole-school/feasibility', [TimetableController::class, 'wholeSchoolFeasibility'])->name('timetable.whole-school.feasibility');
+        Route::post('timetable/whole-school/generate', [TimetableController::class, 'wholeSchoolGenerate'])->name('timetable.whole-school.generate');
+        Route::post('timetable/whole-school/publish', [TimetableController::class, 'wholeSchoolPublish'])->name('timetable.whole-school.publish');
+        Route::get('timetable/whole-school/run/{run}', [TimetableController::class, 'wholeSchoolRunEditor'])->name('timetable.whole-school.run');
+        Route::post('timetable/whole-school/run/{run}/slot', [TimetableController::class, 'wholeSchoolRunUpdateSlot'])->name('timetable.whole-school.run.slot');
+        Route::post('timetable/whole-school/run/{run}/lock', [TimetableController::class, 'wholeSchoolRunToggleLock'])->name('timetable.whole-school.run.lock');
+        Route::post('timetable/whole-school/run/{run}/regenerate-stream', [TimetableController::class, 'wholeSchoolRunRegenerateStream'])->name('timetable.whole-school.run.regenerate-stream');
+        Route::get('timetable/whole-school/teacher-load', [TimetableController::class, 'wholeSchoolTeacherLoad'])->name('timetable.whole-school.teacher-load');
+        Route::get('timetable/whole-school/substitutions', [TimetableController::class, 'wholeSchoolSubstitutions'])->name('timetable.whole-school.substitutions');
+        Route::post('timetable/whole-school/substitutions', [TimetableController::class, 'wholeSchoolSubstitutionsStore'])->name('timetable.whole-school.substitutions.store');
+        Route::get('timetable/whole-school/replicate', [TimetableController::class, 'wholeSchoolReplicate'])->name('timetable.whole-school.replicate');
+        Route::post('timetable/whole-school/replicate', [TimetableController::class, 'wholeSchoolReplicateStore'])->name('timetable.whole-school.replicate.store');
         Route::get('timetable/classroom/{classroom}', [TimetableController::class, 'classroom'])->name('timetable.classroom');
         Route::get('timetable/classroom/{classroom}/edit', [TimetableController::class, 'edit'])->name('timetable.edit');
         Route::get('timetable/teacher/{teacher}', [TimetableController::class, 'teacher'])->name('timetable.teacher');

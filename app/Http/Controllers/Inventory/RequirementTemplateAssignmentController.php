@@ -37,6 +37,9 @@ class RequirementTemplateAssignmentController extends Controller
         if ($request->filled('student_type')) {
             $query->where('student_type', $request->student_type);
         }
+        if ($request->filled('category')) {
+            $query->whereHas('template.requirementType', fn ($q) => $q->where('category', $request->category));
+        }
 
         $assignments = $query
             ->orderByDesc('is_active')
@@ -46,12 +49,13 @@ class RequirementTemplateAssignmentController extends Controller
 
         $templates = RequirementTemplate::with('requirementType')->orderByDesc('id')->get();
         $requirementTypes = RequirementType::active()->orderBy('name')->get();
+        $categories = RequirementType::presetCategories();
         $classrooms = Classroom::orderBy('name')->get();
         $academicYears = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
 
         return view('inventory.requirement-template-assignments.index', compact(
-            'assignments', 'templates', 'requirementTypes', 'classrooms', 'academicYears', 'terms'
+            'assignments', 'templates', 'requirementTypes', 'categories', 'classrooms', 'academicYears', 'terms'
         ));
     }
 

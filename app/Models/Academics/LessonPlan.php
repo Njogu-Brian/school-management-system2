@@ -11,13 +11,20 @@ class LessonPlan extends Model
         'scheme_of_work_id',
         'subject_id',
         'classroom_id',
+        'timetable_id',
         'substrand_id',
         'academic_year_id',
         'term_id',
         'created_by',
+        'submission_status',
+        'submitted_at',
+        'is_late',
         'approved_by',
         'approved_at',
         'approval_notes',
+        'rejected_by',
+        'rejected_at',
+        'rejection_notes',
         'title',
         'lesson_number',
         'planned_date',
@@ -55,6 +62,10 @@ class LessonPlan extends Model
         'activities' => 'array',
         'attendance_data' => 'array',
         'assessment_results' => 'array',
+        'submitted_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
+        'is_late' => 'boolean',
     ];
 
     public function schemeOfWork()
@@ -70,6 +81,11 @@ class LessonPlan extends Model
     public function classroom()
     {
         return $this->belongsTo(Classroom::class);
+    }
+
+    public function timetable()
+    {
+        return $this->belongsTo(Timetable::class, 'timetable_id');
     }
 
     public function substrand()
@@ -95,6 +111,11 @@ class LessonPlan extends Model
     public function approver()
     {
         return $this->belongsTo(\App\Models\Staff::class, 'approved_by');
+    }
+
+    public function rejector()
+    {
+        return $this->belongsTo(\App\Models\Staff::class, 'rejected_by');
     }
 
     public function homework()

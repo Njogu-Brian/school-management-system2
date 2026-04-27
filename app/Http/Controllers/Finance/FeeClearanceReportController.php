@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\StudentTermFeeClearance;
 use App\Models\Term;
 use App\Services\FeeClearanceStatusService;
+use App\Services\AutoPaymentPlanService;
 use Illuminate\Http\Request;
 
 class FeeClearanceReportController extends Controller
@@ -116,6 +117,17 @@ class FeeClearanceReportController extends Controller
         $query->chunkById(250, function ($chunk) use ($term, &$count) {
             foreach ($chunk as $student) {
                 $this->service->upsertSnapshot($student, $term);
+                // If student meets threshold but still has outstanding balances, auto-create/sync a payment plan.
+                // Service is safe to call: it returns null when conditions aren't met.
+                try {
+                    app(AutoPaymentPlanService::class)->maybeCreateAfterPayment($student, null);
+                } catch (\Throwable $e) {
+                    \Log::warning('Auto payment plan after fee-clearance recompute failed', [
+                        'student_id' => $student->id,
+                        'term_id' => $term->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
                 $count++;
             }
         });

@@ -111,7 +111,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/assignments', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'store']);
     Route::get('/assignments/{id}', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'show']);
     Route::get('/lesson-plans', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'index']);
+    Route::post('/lesson-plans', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'store']);
+    Route::get('/lesson-plans/review-queue', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'reviewQueue']);
     Route::get('/lesson-plans/{id}', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'show']);
+    Route::put('/lesson-plans/{id}', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'update']);
+    Route::post('/lesson-plans/{id}/submit', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'submit']);
+    Route::post('/lesson-plans/{id}/approve', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'approve']);
+    Route::post('/lesson-plans/{id}/reject', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'reject']);
 
     Route::get('/exams', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'exams']);
     Route::get('/exams/{id}/marking-options', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examMarkingOptions']);

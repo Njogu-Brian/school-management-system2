@@ -12,12 +12,526 @@ use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Services\TimetableService;
 use App\Services\TimetableOptimizationService;
+use App\Services\Timetable\FeasibilityValidator;
+use App\Services\Timetable\WholeSchoolGenerator;
+use App\Models\Academics\TimetableGenerationRun;
+use App\Models\Academics\TimetableGeneratedSlot;
+use App\Models\Academics\TimetableLayoutPeriod;
+use App\Models\Academics\TimetableSlotLock;
+use App\Models\Academics\TimetableSlotOverride;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class TimetableController extends Controller
 {
+    public function wholeSchool(Request $request)
+    {
+        $years = AcademicYear::orderByDesc('year')->get();
+        $terms = Term::orderByDesc('start_date')->orderBy('name')->get();
+        $selectedYear = $request->filled('academic_year_id') ? AcademicYear::find($request->academic_year_id) : $years->first();
+        $selectedTerm = $request->filled('term_id') ? Term::find($request->term_id) : $terms->first();
+
+        $streams = \App\Models\Academics\Stream::with('classroom')->orderBy('name')->get();
+
+        return view('academics.timetable.whole_school', [
+            'years' => $years,
+            'terms' => $terms,
+            'selectedYear' => $selectedYear,
+            'selectedTerm' => $selectedTerm,
+            'streams' => $streams,
+            'report' => null,
+        ]);
+    }
+
+    public function wholeSchoolFeasibility(Request $request, FeasibilityValidator $validator)
+    {
+        $validated = $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'stream_ids' => 'nullable|array',
+            'stream_ids.*' => 'integer|exists:streams,id',
+        ]);
+
+        $report = $validator->validateWholeSchool(
+            (int) $validated['academic_year_id'],
+            (int) $validated['term_id'],
+            array_map('intval', $validated['stream_ids'] ?? [])
+        );
+
+        $years = AcademicYear::orderByDesc('year')->get();
+        $terms = Term::orderByDesc('start_date')->orderBy('name')->get();
+        $selectedYear = AcademicYear::find($validated['academic_year_id']);
+        $selectedTerm = Term::find($validated['term_id']);
+        $streams = \App\Models\Academics\Stream::with('classroom')->orderBy('name')->get();
+
+        return view('academics.timetable.whole_school', [
+            'years' => $years,
+            'terms' => $terms,
+            'selectedYear' => $selectedYear,
+            'selectedTerm' => $selectedTerm,
+            'streams' => $streams,
+            'report' => $report,
+        ]);
+    }
+
+    public function wholeSchoolGenerate(Request $request, WholeSchoolGenerator $generator, FeasibilityValidator $validator)
+    {
+        $validated = $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'stream_ids' => 'nullable|array',
+            'stream_ids.*' => 'integer|exists:streams,id',
+        ]);
+
+        $streamIds = array_map('intval', $validated['stream_ids'] ?? []);
+        $report = $validator->validateWholeSchool((int) $validated['academic_year_id'], (int) $validated['term_id'], $streamIds);
+        if (! $report['success']) {
+            return back()->with('error', 'Feasibility report has issues. Fix them before generation.')->withInput();
+        }
+
+        $run = $generator->generateDraft(
+            (int) $validated['academic_year_id'],
+            (int) $validated['term_id'],
+            $streamIds,
+            ['double_policy' => 'same_day_consecutive'],
+            Auth::id()
+        );
+
+        return redirect()
+            ->route('academics.timetable.whole-school')
+            ->with('success', 'Draft timetable generated. You can now publish it.')
+            ->with('generated_run_id', $run->id);
+    }
+
+    public function wholeSchoolPublish(Request $request)
+    {
+        $validated = $request->validate([
+            'run_id' => 'required|exists:timetable_generation_runs,id',
+        ]);
+
+        /** @var TimetableGenerationRun $run */
+        $run = TimetableGenerationRun::findOrFail((int) $validated['run_id']);
+
+        DB::transaction(function () use ($run) {
+            // Archive any previously published run for same term/year
+            TimetableGenerationRun::where('academic_year_id', $run->academic_year_id)
+                ->where('term_id', $run->term_id)
+                ->where('status', 'published')
+                ->update(['status' => 'archived']);
+
+            $run->status = 'published';
+            $run->save();
+
+            // Copy into existing `timetables` table (classroom-based). We map stream -> primary classroom_id.
+            $slots = TimetableGeneratedSlot::with(['stream', 'layoutPeriod'])
+                ->where('run_id', $run->id)
+                ->get();
+
+            $classroomIds = $slots->map(fn ($s) => (int) ($s->stream?->classroom_id ?? 0))->filter()->unique()->values()->all();
+            if ($classroomIds !== []) {
+                \App\Models\Academics\Timetable::whereIn('classroom_id', $classroomIds)
+                    ->where('academic_year_id', $run->academic_year_id)
+                    ->where('term_id', $run->term_id)
+                    ->delete();
+            }
+
+            foreach ($slots as $s) {
+                $classroomId = (int) ($s->stream?->classroom_id ?? 0);
+                if (! $classroomId) {
+                    continue;
+                }
+                $lp = $s->layoutPeriod;
+                if (! $lp) {
+                    continue;
+                }
+                if ($s->slot_type === 'break') {
+                    continue; // `timetables` stores lessons; breaks are implied by layout in views
+                }
+
+                // period number is derived from sort_order (1..N for lesson slots, skipping breaks). For compatibility, store sort_order+1.
+                $periodNum = (int) $lp->sort_order + 1;
+
+                \App\Models\Academics\Timetable::create([
+                    'classroom_id' => $classroomId,
+                    'academic_year_id' => $run->academic_year_id,
+                    'term_id' => $run->term_id,
+                    'day' => $s->day,
+                    'period' => $periodNum,
+                    'start_time' => $lp->start_time,
+                    'end_time' => $lp->end_time,
+                    'subject_id' => $s->subject_id ?? 1,
+                    'staff_id' => $s->staff_id,
+                    'room' => $s->room,
+                    'is_break' => false,
+                    'meta' => [
+                        'run_id' => $run->id,
+                        'stream_id' => $s->stream_id,
+                        'layout_period_id' => $s->layout_period_id,
+                        'slot_type' => $s->slot_type,
+                        'label' => $s->label,
+                    ],
+                ]);
+            }
+        });
+
+        return back()->with('success', 'Published timetable and copied into timetables.');
+    }
+
+    public function wholeSchoolRunEditor(Request $request, TimetableGenerationRun $run)
+    {
+        $streamId = (int) ($request->input('stream_id') ?? 0);
+        $stream = $streamId ? \App\Models\Academics\Stream::with('classroom')->find($streamId) : null;
+
+        $streams = \App\Models\Academics\Stream::with('classroom')->orderBy('name')->get();
+
+        $slots = collect();
+        $periods = collect();
+        if ($stream) {
+            $layout = \App\Models\Academics\TimetableStreamLayout::where('stream_id', $stream->id)
+                ->where('academic_year_id', $run->academic_year_id)
+                ->where('term_id', $run->term_id)
+                ->first();
+            if ($layout) {
+                $periods = TimetableLayoutPeriod::where('template_id', $layout->template_id)
+                    ->orderBy('day')->orderBy('sort_order')
+                    ->get();
+            }
+            $slots = TimetableGeneratedSlot::where('run_id', $run->id)
+                ->where('stream_id', $stream->id)
+                ->get()
+                ->keyBy('layout_period_id');
+        }
+
+        $locks = $stream
+            ? TimetableSlotLock::where('run_id', $run->id)->where('stream_id', $stream->id)->get()->keyBy('layout_period_id')
+            : collect();
+
+        $subjects = \App\Models\Academics\Subject::active()->orderBy('name')->get();
+        $teachers = \App\Models\Staff::orderBy('first_name')->get();
+
+        return view('academics.timetable.run_editor', compact('run', 'streams', 'stream', 'periods', 'slots', 'locks', 'subjects', 'teachers'));
+    }
+
+    public function wholeSchoolRunUpdateSlot(Request $request, TimetableGenerationRun $run)
+    {
+        $validated = $request->validate([
+            'stream_id' => 'required|exists:streams,id',
+            'layout_period_id' => 'required|exists:timetable_layout_periods,id',
+            'subject_id' => 'nullable|exists:subjects,id',
+            'staff_id' => 'nullable|exists:staff,id',
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        if ($run->status !== 'draft') {
+            return back()->with('error', 'Only draft runs can be edited.');
+        }
+
+        $slot = TimetableGeneratedSlot::where('run_id', $run->id)
+            ->where('stream_id', (int) $validated['stream_id'])
+            ->where('layout_period_id', (int) $validated['layout_period_id'])
+            ->firstOrFail();
+
+        // Basic clash check: no teacher double-book at same day+layout_period across all streams
+        if (! empty($validated['staff_id'])) {
+            $conflict = TimetableGeneratedSlot::where('run_id', $run->id)
+                ->where('day', $slot->day)
+                ->where('layout_period_id', (int) $validated['layout_period_id'])
+                ->where('staff_id', (int) $validated['staff_id'])
+                ->where('stream_id', '!=', (int) $validated['stream_id'])
+                ->exists();
+            if ($conflict) {
+                return back()->with('error', 'Teacher conflict: teacher already assigned in another stream at this time.');
+            }
+        }
+
+        $slot->update([
+            'subject_id' => $validated['subject_id'] ?? null,
+            'staff_id' => $validated['staff_id'] ?? null,
+            'slot_type' => 'lesson',
+            'label' => null,
+        ]);
+
+        // Save an override record (weekly override, no effective_date) as audit trail
+        TimetableSlotOverride::create([
+            'run_id' => $run->id,
+            'stream_id' => (int) $validated['stream_id'],
+            'layout_period_id' => (int) $validated['layout_period_id'],
+            'day' => $slot->day,
+            'effective_date' => null,
+            'slot_type' => 'lesson',
+            'subject_id' => $validated['subject_id'] ?? null,
+            'staff_id' => $validated['staff_id'] ?? null,
+            'label' => null,
+            'room' => null,
+            'reason' => $validated['reason'] ?? 'manual edit',
+            'created_by' => Auth::id(),
+        ]);
+
+        return back()->with('success', 'Slot updated.');
+    }
+
+    public function wholeSchoolRunToggleLock(Request $request, TimetableGenerationRun $run)
+    {
+        $validated = $request->validate([
+            'stream_id' => 'required|exists:streams,id',
+            'layout_period_id' => 'required|exists:timetable_layout_periods,id',
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        if ($run->status !== 'draft') {
+            return back()->with('error', 'Only draft runs can be edited.');
+        }
+
+        $slot = TimetableGeneratedSlot::where('run_id', $run->id)
+            ->where('stream_id', (int) $validated['stream_id'])
+            ->where('layout_period_id', (int) $validated['layout_period_id'])
+            ->firstOrFail();
+
+        $existing = TimetableSlotLock::where('run_id', $run->id)
+            ->where('stream_id', (int) $validated['stream_id'])
+            ->where('layout_period_id', (int) $validated['layout_period_id'])
+            ->first();
+
+        if ($existing) {
+            $existing->delete();
+            return back()->with('success', 'Slot unlocked.');
+        }
+
+        TimetableSlotLock::create([
+            'run_id' => $run->id,
+            'stream_id' => (int) $validated['stream_id'],
+            'layout_period_id' => (int) $validated['layout_period_id'],
+            'day' => $slot->day,
+            'locked_subject_id' => $slot->subject_id,
+            'locked_staff_id' => $slot->staff_id,
+            'locked_label' => $slot->label,
+            'locked_room' => $slot->room,
+            'reason' => $validated['reason'] ?? 'locked',
+            'locked_by' => Auth::id(),
+        ]);
+
+        return back()->with('success', 'Slot locked.');
+    }
+
+    public function wholeSchoolRunRegenerateStream(Request $request, TimetableGenerationRun $run, WholeSchoolGenerator $generator)
+    {
+        $validated = $request->validate([
+            'stream_id' => 'required|exists:streams,id',
+        ]);
+
+        $generator->regenerateStream($run, (int) $validated['stream_id']);
+
+        return back()->with('success', 'Stream regenerated (locks respected).');
+    }
+
+    public function wholeSchoolTeacherLoad(Request $request)
+    {
+        $years = AcademicYear::orderByDesc('year')->get();
+        $terms = Term::orderByDesc('start_date')->orderBy('name')->get();
+        $selectedYear = $request->filled('academic_year_id') ? AcademicYear::find($request->academic_year_id) : $years->first();
+        $selectedTerm = $request->filled('term_id') ? Term::find($request->term_id) : $terms->first();
+
+        $run = null;
+        if ($selectedYear && $selectedTerm) {
+            $run = TimetableGenerationRun::where('academic_year_id', $selectedYear->id)
+                ->where('term_id', $selectedTerm->id)
+                ->where('status', 'published')
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        $rows = collect();
+        if ($run) {
+            $defaultMax = (int) setting('max_lessons_per_teacher_per_week', 40);
+            $counts = TimetableGeneratedSlot::where('run_id', $run->id)
+                ->where('slot_type', 'lesson')
+                ->whereNotNull('staff_id')
+                ->selectRaw('staff_id, count(*) as c')
+                ->groupBy('staff_id')
+                ->get();
+
+            foreach ($counts as $c) {
+                $staff = \App\Models\Staff::find((int) $c->staff_id);
+                $cap = $defaultMax;
+                $rows->push([
+                    'staff_id' => (int) $c->staff_id,
+                    'teacher_name' => $staff?->full_name ?? ('Staff #'.$c->staff_id),
+                    'count' => (int) $c->c,
+                    'cap' => $cap,
+                    'ok' => (int) $c->c <= $cap,
+                ]);
+            }
+
+            $rows = $rows->sortByDesc(fn ($r) => ($r['count'] - $r['cap']))->values();
+        }
+
+        return view('academics.timetable.teacher_load', [
+            'years' => $years,
+            'terms' => $terms,
+            'selectedYear' => $selectedYear,
+            'selectedTerm' => $selectedTerm,
+            'run' => $run,
+            'rows' => $rows,
+        ]);
+    }
+
+    public function wholeSchoolSubstitutions(Request $request)
+    {
+        $streams = \App\Models\Academics\Stream::with('classroom')->orderBy('name')->get();
+        $periods = TimetableLayoutPeriod::orderBy('day')->orderBy('sort_order')->get();
+        $teachers = \App\Models\Staff::orderBy('first_name')->get();
+        $subjects = \App\Models\Academics\Subject::active()->orderBy('name')->get();
+
+        $overrides = TimetableSlotOverride::query()
+            ->whereNotNull('effective_date')
+            ->orderByDesc('effective_date')
+            ->limit(200)
+            ->get();
+
+        return view('academics.timetable.substitutions', compact('streams', 'periods', 'teachers', 'subjects', 'overrides'));
+    }
+
+    public function wholeSchoolSubstitutionsStore(Request $request)
+    {
+        $validated = $request->validate([
+            'stream_id' => 'required|exists:streams,id',
+            'layout_period_id' => 'required|exists:timetable_layout_periods,id',
+            'effective_date' => 'required|date',
+            'subject_id' => 'nullable|exists:subjects,id',
+            'staff_id' => 'nullable|exists:staff,id',
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        $period = TimetableLayoutPeriod::findOrFail((int) $validated['layout_period_id']);
+
+        TimetableSlotOverride::create([
+            'run_id' => null,
+            'stream_id' => (int) $validated['stream_id'],
+            'layout_period_id' => (int) $validated['layout_period_id'],
+            'day' => $period->day,
+            'effective_date' => $validated['effective_date'],
+            'slot_type' => 'lesson',
+            'subject_id' => $validated['subject_id'] ?? null,
+            'staff_id' => $validated['staff_id'] ?? null,
+            'label' => null,
+            'room' => null,
+            'reason' => $validated['reason'] ?? 'substitution',
+            'created_by' => Auth::id(),
+        ]);
+
+        return back()->with('success', 'Substitution saved. (Note: applying substitutions to published timetables is the next step.)');
+    }
+
+    public function wholeSchoolReplicate(Request $request)
+    {
+        $years = AcademicYear::orderByDesc('year')->get();
+        $terms = Term::orderByDesc('start_date')->orderBy('name')->get();
+        $selectedYear = $request->filled('academic_year_id') ? AcademicYear::find($request->academic_year_id) : $years->first();
+        $selectedTerm = $request->filled('term_id') ? Term::find($request->term_id) : $terms->first();
+        $streams = \App\Models\Academics\Stream::with('classroom')->orderBy('name')->get();
+
+        return view('academics.timetable.replicate', compact('years', 'terms', 'selectedYear', 'selectedTerm', 'streams'));
+    }
+
+    public function wholeSchoolReplicateStore(Request $request)
+    {
+        $validated = $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'source_stream_id' => 'required|exists:streams,id',
+            'target_stream_ids' => 'required|array|min:1',
+            'target_stream_ids.*' => 'integer|exists:streams,id',
+        ]);
+
+        $yearId = (int) $validated['academic_year_id'];
+        $termId = (int) $validated['term_id'];
+        $sourceId = (int) $validated['source_stream_id'];
+        $targets = array_values(array_unique(array_map('intval', $validated['target_stream_ids'])));
+
+        DB::transaction(function () use ($yearId, $termId, $sourceId, $targets) {
+            $srcLayout = \App\Models\Academics\TimetableStreamLayout::where('stream_id', $sourceId)
+                ->where('academic_year_id', $yearId)
+                ->where('term_id', $termId)
+                ->first();
+
+            foreach ($targets as $tid) {
+                if ($tid === $sourceId) continue;
+
+                if ($srcLayout) {
+                    \App\Models\Academics\TimetableStreamLayout::updateOrCreate(
+                        ['stream_id' => $tid, 'academic_year_id' => $yearId, 'term_id' => $termId],
+                        ['template_id' => $srcLayout->template_id, 'overrides' => $srcLayout->overrides]
+                    );
+                }
+
+                // Requirements
+                $reqs = \App\Models\Academics\TimetableStreamSubjectRequirement::where('stream_id', $sourceId)
+                    ->where('academic_year_id', $yearId)
+                    ->where('term_id', $termId)
+                    ->get();
+                foreach ($reqs as $r) {
+                    \App\Models\Academics\TimetableStreamSubjectRequirement::updateOrCreate(
+                        ['stream_id' => $tid, 'academic_year_id' => $yearId, 'term_id' => $termId, 'subject_id' => $r->subject_id],
+                        [
+                            'periods_per_week' => $r->periods_per_week,
+                            'allow_double' => $r->allow_double,
+                            'max_doubles_per_week' => $r->max_doubles_per_week,
+                            'meta' => $r->meta,
+                        ]
+                    );
+                }
+
+                // Teacher splits
+                $splits = \App\Models\Academics\TimetableStreamSubjectTeacher::where('stream_id', $sourceId)
+                    ->where('academic_year_id', $yearId)
+                    ->where('term_id', $termId)
+                    ->get();
+                foreach ($splits as $s) {
+                    \App\Models\Academics\TimetableStreamSubjectTeacher::updateOrCreate(
+                        [
+                            'stream_id' => $tid,
+                            'academic_year_id' => $yearId,
+                            'term_id' => $termId,
+                            'subject_id' => $s->subject_id,
+                            'staff_id' => $s->staff_id,
+                        ],
+                        ['periods_per_week' => $s->periods_per_week, 'meta' => $s->meta]
+                    );
+                }
+
+                // Activities
+                $actReqs = \App\Models\Academics\TimetableStreamActivityRequirement::where('stream_id', $sourceId)
+                    ->where('academic_year_id', $yearId)
+                    ->where('term_id', $termId)
+                    ->get();
+
+                foreach ($actReqs as $ar) {
+                    $new = \App\Models\Academics\TimetableStreamActivityRequirement::updateOrCreate(
+                        ['stream_id' => $tid, 'academic_year_id' => $yearId, 'term_id' => $termId, 'name' => $ar->name],
+                        [
+                            'periods_per_week' => $ar->periods_per_week,
+                            'is_teacher_assigned' => $ar->is_teacher_assigned,
+                            'meta' => $ar->meta,
+                        ]
+                    );
+
+                    if ($ar->is_teacher_assigned) {
+                        $tRows = \App\Models\Academics\TimetableStreamActivityTeacher::where('activity_requirement_id', $ar->id)->get();
+                        foreach ($tRows as $tr) {
+                            \App\Models\Academics\TimetableStreamActivityTeacher::updateOrCreate(
+                                ['activity_requirement_id' => $new->id, 'staff_id' => $tr->staff_id],
+                                ['periods_per_week' => $tr->periods_per_week, 'meta' => $tr->meta]
+                            );
+                        }
+                    }
+                }
+            }
+        });
+
+        return back()->with('success', 'Replication completed.');
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -319,7 +833,7 @@ class TimetableController extends Controller
                     // Initialize teacher count
                     if (!isset($teacherCounts[$teacherId])) {
                         $teacher = Staff::find($teacherId);
-                        $maxLessons = $teacher->max_lessons_per_week ?? $defaultMaxLessons;
+                        $maxLessons = $defaultMaxLessons;
                         $teacherCounts[$teacherId] = [
                             'teacher' => $teacher,
                             'current' => 0,
@@ -473,7 +987,7 @@ class TimetableController extends Controller
             // Check teacher lesson limit
             $teacher = Staff::find($validated['staff_id']);
             $defaultMaxLessons = (int) \App\Models\Setting::where('key', 'max_lessons_per_teacher_per_week')->value('value') ?? 40;
-            $maxLessons = $teacher->max_lessons_per_week ?? $defaultMaxLessons;
+            $maxLessons = $defaultMaxLessons;
             
             $currentLessons = Timetable::where('staff_id', $validated['staff_id'])
                 ->where('academic_year_id', $timetable->academic_year_id)
@@ -517,7 +1031,7 @@ class TimetableController extends Controller
                     
                     if (!isset($teacherCounts[$teacherId])) {
                         $teacher = Staff::find($teacherId);
-                        $maxLessons = $teacher->max_lessons_per_week ?? $defaultMaxLessons;
+                        $maxLessons = $defaultMaxLessons;
                         $teacherCounts[$teacherId] = [
                             'teacher_name' => $teacher->full_name ?? 'Unknown',
                             'current' => 0,

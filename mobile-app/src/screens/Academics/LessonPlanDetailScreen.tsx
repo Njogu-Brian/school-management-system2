@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
 import { academicsApi } from '@api/academics.api';
 import { LessonPlan } from 'types/academics.types';
 import { formatters } from '@utils/formatters';
+import { isSeniorTeacherRole } from '@utils/roleUtils';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
@@ -33,6 +35,7 @@ function bulletList(title: string, items: string[], textMain: string, textSub: s
 export const LessonPlanDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     const planId = route.params?.planId;
     const { isDark, colors } = useTheme();
+    const { user } = useAuth();
     const [plan, setPlan] = useState<LessonPlan | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -114,13 +117,65 @@ export const LessonPlanDetailScreen: React.FC<Props> = ({ navigation, route }) =
                             </Text>
                         ) : null}
                         <Text style={[styles.row, { color: textSub }]}>Status: {formatters.capitalize(plan.status)}</Text>
+                        {plan.is_late ? <Text style={[styles.row, { color: colors.warning }]}>Late submission</Text> : null}
+                        {plan.approval_notes ? <Text style={[styles.row, { color: textSub }]}>Approval notes: {plan.approval_notes}</Text> : null}
+                        {plan.rejection_notes ? <Text style={[styles.row, { color: colors.danger }]}>Rejection notes: {plan.rejection_notes}</Text> : null}
+
+                        {user?.role === 'teacher' && (plan.submission_status ?? plan.status) === 'draft' ? (
+                            <View style={styles.actions}>
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('LessonPlanEditor', { mode: 'edit', plan })}
+                                    style={[styles.actionBtn, { borderColor: isDark ? colors.borderDark : BRAND.border }]}
+                                >
+                                    <Text style={[styles.actionText, { color: colors.primary }]}>Edit</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={async () => {
+                                        setRefreshing(true);
+                                        try {
+                                            await academicsApi.submitLessonPlan(plan.id);
+                                            await load();
+                                        } finally {
+                                            setRefreshing(false);
+                                        }
+                                    }}
+                                    style={[styles.actionBtnPrimary, { backgroundColor: colors.primary }]}
+                                >
+                                    <Text style={[styles.actionTextPrimary, { color: '#fff' }]}>Submit</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : null}
+
+                        {(user?.role && (isSeniorTeacherRole(user.role) || user.role === 'academic_admin')) &&
+                        (plan.submission_status ?? plan.status) === 'submitted' ? (
+                            <View style={styles.actions}>
+                                <TouchableOpacity
+                                    onPress={async () => {
+                                        setRefreshing(true);
+                                        try {
+                                            await academicsApi.approveLessonPlan(plan.id);
+                                            await load();
+                                        } finally {
+                                            setRefreshing(false);
+                                        }
+                                    }}
+                                    style={[styles.actionBtnPrimary, { backgroundColor: colors.success }]}
+                                >
+                                    <Text style={[styles.actionTextPrimary, { color: '#fff' }]}>Approve</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('LessonPlanReject', { planId: plan.id })}
+                                    style={[styles.actionBtnPrimary, { backgroundColor: colors.danger }]}
+                                >
+                                    <Text style={[styles.actionTextPrimary, { color: '#fff' }]}>Reject</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : null}
+
                         {bulletList('Objectives', plan.objectives, textMain, textSub)}
                         {bulletList('Activities', plan.activities, textMain, textSub)}
                         {bulletList('Resources', plan.resources, textMain, textSub)}
                         {bulletList('Assessment', plan.assessment_methods, textMain, textSub)}
-                        <Text style={[styles.hint, { color: textSub }]}>
-                            Create and approve lesson plans in the web portal.
-                        </Text>
                     </>
                 ) : !error ? (
                     <Text style={{ color: textSub }}>No lesson plan.</Text>
@@ -147,4 +202,9 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', marginBottom: SPACING.sm },
     bullet: { fontSize: FONT_SIZES.sm, lineHeight: 22, marginBottom: 4 },
     hint: { fontSize: FONT_SIZES.xs, marginTop: SPACING.lg, lineHeight: 18 },
+    actions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md, marginBottom: SPACING.lg },
+    actionBtn: { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md, borderRadius: 12, borderWidth: 1, flex: 1, alignItems: 'center' },
+    actionBtnPrimary: { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md, borderRadius: 12, flex: 1, alignItems: 'center' },
+    actionText: { fontSize: FONT_SIZES.sm, fontWeight: '700' },
+    actionTextPrimary: { fontSize: FONT_SIZES.sm, fontWeight: '800' },
 });

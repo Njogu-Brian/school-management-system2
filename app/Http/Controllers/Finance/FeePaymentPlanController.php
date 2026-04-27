@@ -7,6 +7,7 @@ use App\Models\FeePaymentPlan;
 use App\Models\FeePaymentPlanInstallment;
 use App\Models\Student;
 use App\Models\Invoice;
+use App\Models\FeeReminder;
 use App\Services\PaymentPlanNotificationService;
 use App\Services\PaymentPlanSyncService;
 use App\Services\ReceiptService;
@@ -205,7 +206,8 @@ public function store(Request $request)
                 ]);
         }
 
-        // If there is already an active family plan, adjust it instead of creating a new one.
+        // If there is already an active family plan, we follow "new plan wins":
+        // cancel the old one and create a new plan with the new schedule.
         $existingPlan = null;
         if ($primaryStudent->family_id) {
             $existingPlan = FeePaymentPlan::query()
@@ -278,22 +280,24 @@ public function store(Request $request)
             $invoice = !empty($validated['invoice_id']) ? Invoice::find($validated['invoice_id']) : null;
 
             if ($existingPlan) {
-                // Sync invoices + totals, and reuse the existing plan (no duplicates for the same family).
-                $existingPlan->loadMissing('student');
-                $existingPlan->invoices()->sync($outstandingInvoiceIds);
-                if (!$existingPlan->invoice_id) {
-                    $existingPlan->invoice_id = $outstandingInvoiceIds[0] ?? null;
+                // Cancel old plan and its pending reminders so the new one is the source of truth.
+                $existingPlan->loadMissing(['installments']);
+
+                FeeReminder::query()
+                    ->where('payment_plan_id', $existingPlan->id)
+                    ->where('status', 'pending')
+                    ->update(['status' => 'cancelled']);
+
+                if ($existingPlan->installments->isNotEmpty()) {
+                    FeeReminder::query()
+                        ->whereIn('payment_plan_installment_id', $existingPlan->installments->pluck('id')->all())
+                        ->where('status', 'pending')
+                        ->update(['status' => 'cancelled']);
                 }
-                $existingPlan->notes = trim((string) ($validated['notes'] ?? $existingPlan->notes ?? ''));
+
+                $existingPlan->status = 'cancelled';
                 $existingPlan->updated_by = auth()->id();
                 $existingPlan->save();
-
-                $syncService->syncPlanFromInvoices($existingPlan);
-
-                DB::commit();
-
-                return redirect()->route('finance.fee-payment-plans.show', $existingPlan)
-                    ->with('success', 'Existing family payment plan updated to include all active invoices (no duplicate plan created).');
             }
 
             $plan = FeePaymentPlan::create([
@@ -366,7 +370,11 @@ public function store(Request $request)
 
             // Ensure plan is immediately synced to invoice balances.
             try {
-                $syncService->syncPlanFromInvoices($plan);
+                // For custom schedules we must not overwrite user-entered amounts immediately.
+                // Totals were computed from outstanding invoices already.
+                if ($scheduleType !== 'custom') {
+                    $syncService->syncPlanFromInvoices($plan);
+                }
             } catch (\Throwable $e) {
                 \Log::warning('Payment plan sync after create failed', ['plan_id' => $plan->id, 'error' => $e->getMessage()]);
             }

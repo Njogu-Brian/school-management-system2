@@ -178,7 +178,19 @@ export interface LessonPlan {
     assessment_methods: string[];
     date: string;
     duration_minutes: number;
-    status: 'draft' | 'approved' | 'completed';
+    status: 'draft' | 'submitted' | 'approved' | 'rejected' | 'planned' | 'in_progress' | 'completed' | 'cancelled';
+    submission_status?: 'draft' | 'submitted' | 'approved' | 'rejected';
+    submitted_at?: string | null;
+    is_late?: boolean;
+    approved_at?: string | null;
+    approved_by?: number | null;
+    approved_by_name?: string | null;
+    approval_notes?: string | null;
+    rejected_at?: string | null;
+    rejected_by?: number | null;
+    rejected_by_name?: string | null;
+    rejection_notes?: string | null;
+    timetable_id?: number | null;
     created_at: string;
     updated_at: string;
 }

@@ -164,9 +164,16 @@ class PaymentPlanSyncService
             $running += $amount;
 
             $inst->amount = $amount;
-            // If plan is now fully covered, mark as completed-like
+            // If this installment no longer needs to be paid (amount becomes 0), mark it paid to
+            // avoid reminders and ensure allocation logic skips it (status must match DB enum).
             if ($amount <= 0.009) {
-                $inst->status = 'completed';
+                $inst->amount = 0;
+                $inst->status = 'paid';
+                if ((float) ($inst->paid_amount ?? 0) < 0) {
+                    $inst->paid_amount = 0;
+                }
+            } elseif (!in_array($inst->status, ['pending', 'partial', 'overdue'], true)) {
+                $inst->status = 'pending';
             }
             $inst->save();
         }

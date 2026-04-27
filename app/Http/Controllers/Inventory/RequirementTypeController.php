@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\RequirementType;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class RequirementTypeController extends Controller
 {
@@ -19,7 +20,7 @@ class RequirementTypeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:requirement_types,name',
-            'category' => 'nullable|string|max:255',
+            'category' => ['required', Rule::in(array_keys(RequirementType::presetCategories()))],
             'description' => 'nullable|string',
         ]);
 
@@ -36,7 +37,7 @@ class RequirementTypeController extends Controller
         
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:requirement_types,name,' . $type->id,
-            'category' => 'nullable|string|max:255',
+            'category' => ['required', Rule::in(array_keys(RequirementType::presetCategories()))],
             'description' => 'nullable|string',
             'is_active' => 'boolean',
         ]);

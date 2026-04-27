@@ -53,6 +53,15 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-select">
+                            <option value="">All</option>
+                            @foreach($categories as $value => $label)
+                                <option value="{{ $value }}" @selected(request('category') === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="col-md-3 d-flex align-items-end gap-2">
                         <button class="btn btn-settings-primary w-100" type="submit"><i class="bi bi-funnel"></i> Apply</button>
                         <a href="{{ route('inventory.requirement-templates.index') }}" class="btn btn-ghost-strong"><i class="bi bi-x-circle"></i></a>

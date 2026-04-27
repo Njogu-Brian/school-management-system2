@@ -40,6 +40,10 @@ import { TeacherRequirementDetailScreen } from '@screens/Requirements/TeacherReq
 import { TeacherTransportListScreen } from '@screens/Transport/TeacherTransportListScreen';
 import { ExamDetailScreen } from '@screens/Academics/ExamDetailScreen';
 import { LessonPlanDetailScreen } from '@screens/Academics/LessonPlanDetailScreen';
+import { LessonPlanCreateFromTimetableScreen } from '@screens/Academics/LessonPlanCreateFromTimetableScreen';
+import { LessonPlanEditorScreen } from '@screens/Academics/LessonPlanEditorScreen';
+import { LessonPlanReviewQueueScreen } from '@screens/SeniorTeacher/LessonPlanReviewQueueScreen';
+import { LessonPlanRejectScreen } from '@screens/SeniorTeacher/LessonPlanRejectScreen';
 import { useTheme } from '@contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -142,6 +146,10 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
             <Stack.Screen name="CreateAssignment" component={CreateAssignmentScreen} />
             <Stack.Screen name="LessonPlanDetail" component={LessonPlanDetailScreen} />
+            <Stack.Screen name="LessonPlanCreateFromTimetable" component={LessonPlanCreateFromTimetableScreen} />
+            <Stack.Screen name="LessonPlanEditor" component={LessonPlanEditorScreen} />
+            <Stack.Screen name="LessonPlanReviewQueue" component={LessonPlanReviewQueueScreen} />
+            <Stack.Screen name="LessonPlanReject" component={LessonPlanRejectScreen} />
             <Stack.Screen name="TeacherRequirements" component={TeacherRequirementsScreen} />
             <Stack.Screen name="TeacherRequirementDetail" component={TeacherRequirementDetailScreen} />
         </Stack.Navigator>

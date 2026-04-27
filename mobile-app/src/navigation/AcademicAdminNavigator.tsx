@@ -15,6 +15,9 @@ import { TimetableScreen } from '@screens/Academics/TimetableScreen';
 import { ReportCardScreen } from '@screens/Academics/ReportCardScreen';
 import { AssignmentsScreen } from '@screens/Academics/AssignmentsScreen';
 import { AssignmentDetailScreen } from '@screens/Academics/AssignmentDetailScreen';
+import { LessonPlanDetailScreen } from '@screens/Academics/LessonPlanDetailScreen';
+import { LessonPlanReviewQueueScreen } from '@screens/SeniorTeacher/LessonPlanReviewQueueScreen';
+import { LessonPlanRejectScreen } from '@screens/SeniorTeacher/LessonPlanRejectScreen';
 
 import { MoreNavigator } from './MoreNavigator';
 
@@ -41,6 +44,9 @@ const AcademicAdminAcademicsNavigator = () => {
             <Stack.Screen name="Assignments" component={AssignmentsScreen} />
             <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
             <Stack.Screen name="ViewAssignment" component={AssignmentDetailScreen} />
+            <Stack.Screen name="LessonPlanReviewQueue" component={LessonPlanReviewQueueScreen} />
+            <Stack.Screen name="LessonPlanDetail" component={LessonPlanDetailScreen} />
+            <Stack.Screen name="LessonPlanReject" component={LessonPlanRejectScreen} />
         </Stack.Navigator>
     );
 };

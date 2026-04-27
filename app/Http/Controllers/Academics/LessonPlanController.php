@@ -271,13 +271,16 @@ class LessonPlanController extends Controller
     public function approve(Request $request, LessonPlan $lesson_plan)
     {
         // Check if supervisor can approve this lesson plan
-        if (is_supervisor() && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
-            $subordinateClassroomIds = get_subordinate_classroom_ids();
-            if (!in_array($lesson_plan->classroom_id, $subordinateClassroomIds)) {
-                abort(403, 'You can only approve lesson plans for your subordinates\' classes.');
+        if (!Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Director', 'Academic Administrator'])) {
+            $allowedIds = [];
+            if (Auth::user()->isSeniorTeacherUser()) {
+                $allowedIds = Auth::user()->getSupervisedClassroomIds();
+            } elseif (is_supervisor()) {
+                $allowedIds = get_subordinate_classroom_ids();
             }
-        } elseif (!Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
-            abort(403, 'You do not have permission to approve lesson plans.');
+            if (!in_array($lesson_plan->classroom_id, array_map('intval', $allowedIds), true)) {
+                abort(403, 'You can only approve lesson plans within your supervision scope.');
+            }
         }
 
         $request->validate([
@@ -285,12 +288,150 @@ class LessonPlanController extends Controller
         ]);
 
         $lesson_plan->update([
+            'submission_status' => 'approved',
             'approved_by' => Auth::user()->staff?->id,
             'approved_at' => now(),
             'approval_notes' => $request->approval_notes,
+            'rejected_by' => null,
+            'rejected_at' => null,
+            'rejection_notes' => null,
         ]);
 
         return back()->with('success', 'Lesson plan approved successfully.');
+    }
+
+    public function reject(Request $request, LessonPlan $lesson_plan)
+    {
+        if (!Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Director', 'Academic Administrator'])) {
+            $allowedIds = [];
+            if (Auth::user()->isSeniorTeacherUser()) {
+                $allowedIds = Auth::user()->getSupervisedClassroomIds();
+            } elseif (is_supervisor()) {
+                $allowedIds = get_subordinate_classroom_ids();
+            }
+            if (!in_array($lesson_plan->classroom_id, array_map('intval', $allowedIds), true)) {
+                abort(403, 'You can only reject lesson plans within your supervision scope.');
+            }
+        }
+
+        $request->validate([
+            'rejection_notes' => 'required|string|max:1000',
+        ]);
+
+        $lesson_plan->update([
+            'submission_status' => 'rejected',
+            'rejected_by' => Auth::user()->staff?->id,
+            'rejected_at' => now(),
+            'rejection_notes' => $request->rejection_notes,
+            'approved_by' => null,
+            'approved_at' => null,
+            'approval_notes' => null,
+        ]);
+
+        return back()->with('success', 'Lesson plan rejected.');
+    }
+
+    public function reviewQueue(Request $request)
+    {
+        $query = LessonPlan::with(['subject', 'classroom', 'academicYear', 'term', 'substrand', 'creator', 'approver', 'rejector'])
+            ->where('submission_status', 'submitted');
+
+        if (Auth::user()->hasAnyRole(['Admin', 'Super Admin', 'Director', 'Academic Administrator'])) {
+            // global scope
+        } elseif (Auth::user()->isSeniorTeacherUser()) {
+            $ids = array_map('intval', Auth::user()->getSupervisedClassroomIds());
+            $query->whereIn('classroom_id', $ids ?: [-1]);
+        } elseif (is_supervisor()) {
+            $ids = array_map('intval', get_subordinate_classroom_ids());
+            $query->whereIn('classroom_id', $ids ?: [-1]);
+        } else {
+            abort(403);
+        }
+
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', (int) $request->classroom_id);
+        }
+        if ($request->filled('subject_id')) {
+            $query->where('subject_id', (int) $request->subject_id);
+        }
+        if ($request->filled('date_from')) {
+            $query->whereDate('planned_date', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('planned_date', '<=', $request->date_to);
+        }
+
+        $lessonPlans = $query->orderBy('planned_date')->paginate(20)->withQueryString();
+        $classrooms = $this->getAccessibleClassrooms();
+        $subjects = Subject::active()->orderBy('name')->get();
+
+        return view('academics.lesson_plans.review_queue', compact('lessonPlans', 'classrooms', 'subjects'));
+    }
+
+    public function analytics(Request $request)
+    {
+        $days = (int) ($request->input('days', 7));
+        $days = max(3, min(30, $days));
+        $end = now()->startOfDay();
+        $start = $end->copy()->subDays($days - 1);
+
+        $teacherIds = \App\Models\Academics\Timetable::query()
+            ->whereNotNull('staff_id')
+            ->where('is_break', false)
+            ->distinct()
+            ->pluck('staff_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $rows = collect();
+        foreach ($teacherIds as $staffId) {
+            $expected = 0;
+            $cursor = $start->copy();
+            $occ = [];
+            while ($cursor->lte($end)) {
+                $occ[$cursor->dayName] = ($occ[$cursor->dayName] ?? 0) + 1;
+                $cursor->addDay();
+            }
+
+            $byDay = \App\Models\Academics\Timetable::query()
+                ->where('staff_id', $staffId)
+                ->where('is_break', false)
+                ->whereIn('day', array_keys($occ))
+                ->selectRaw('day, count(*) as c')
+                ->groupBy('day')
+                ->get();
+            foreach ($byDay as $r) {
+                $expected += (int) $r->c * (int) ($occ[(string) $r->day] ?? 0);
+            }
+            if ($expected <= 0) {
+                continue;
+            }
+
+            $submitted = LessonPlan::query()
+                ->where('created_by', $staffId)
+                ->whereBetween('planned_date', [$start->toDateString(), $end->toDateString()])
+                ->whereIn('submission_status', ['submitted', 'approved'])
+                ->count();
+
+            $staff = \App\Models\Staff::find($staffId);
+            $rows->push([
+                'staff_id' => $staffId,
+                'teacher_name' => $staff?->full_name ?? ('Staff #'.$staffId),
+                'expected' => $expected,
+                'submitted' => $submitted,
+                'consistency' => $expected ? round($submitted / $expected * 100, 1) : 0,
+            ]);
+        }
+
+        $rows = $rows->sortBy('consistency')->values();
+
+        return view('academics.lesson_plans.analytics', [
+            'rows' => $rows,
+            'days' => $days,
+            'start' => $start,
+            'end' => $end,
+        ]);
     }
 
     public function destroy(LessonPlan $lesson_plan)

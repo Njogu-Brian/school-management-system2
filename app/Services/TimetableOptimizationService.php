@@ -182,9 +182,8 @@ class TimetableOptimizationService
             ->get();
         
         foreach ($teachers as $teacher) {
-            // Check if teacher has custom limit (from staff meta or settings)
-            $customLimit = $teacher->meta()->where('key', 'max_lessons_per_week')->value('value');
-            $limits[$teacher->id] = $customLimit ? (int) $customLimit : $defaultMax;
+            // Global cap only (no per-teacher overrides)
+            $limits[$teacher->id] = $defaultMax;
         }
         
         return $limits;

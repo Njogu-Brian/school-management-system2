@@ -29,14 +29,19 @@ class RequirementTemplateController extends Controller
             $query->where('classroom_id', $request->classroom_id);
         }
 
+        if ($request->filled('category')) {
+            $query->whereHas('requirementType', fn ($q) => $q->where('category', $request->category));
+        }
+
         $templates = $query->orderBy('classroom_id')->orderBy('requirement_type_id')->paginate(30);
         $requirementTypes = RequirementType::active()->orderBy('name')->get();
+        $categories = RequirementType::presetCategories();
         $classrooms = Classroom::orderBy('name')->get();
         $academicYears = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
 
         return view('inventory.requirement-templates.index', compact(
-            'templates', 'requirementTypes', 'classrooms', 'academicYears', 'terms'
+            'templates', 'requirementTypes', 'categories', 'classrooms', 'academicYears', 'terms'
         ));
     }
 

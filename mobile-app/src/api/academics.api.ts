@@ -107,4 +107,56 @@ export const academicsApi = {
     async getLessonPlan(id: number): Promise<ApiResponse<LessonPlan>> {
         return apiClient.get<LessonPlan>(`/lesson-plans/${id}`);
     },
+
+    async createLessonPlan(data: {
+        timetable_id?: number | null;
+        planned_date: string;
+        title: string;
+        duration_minutes?: number | null;
+        learning_objectives?: string[] | null;
+        learning_resources?: string[] | null;
+        activities?: string[] | null;
+        substrand_id?: number | null;
+        lesson_number?: string | null;
+        // Fallback when no timetable_id is used
+        classroom_id?: number | null;
+        subject_id?: number | null;
+        term_id?: number | null;
+        academic_year_id?: number | null;
+    }): Promise<ApiResponse<LessonPlan>> {
+        return apiClient.post<LessonPlan>('/lesson-plans', data);
+    },
+
+    async updateLessonPlan(
+        id: number,
+        data: {
+            timetable_id?: number | null;
+            planned_date: string;
+            title: string;
+            duration_minutes?: number | null;
+            learning_objectives?: string[] | null;
+            learning_resources?: string[] | null;
+            activities?: string[] | null;
+            substrand_id?: number | null;
+            lesson_number?: string | null;
+        }
+    ): Promise<ApiResponse<LessonPlan>> {
+        return apiClient.put<LessonPlan>(`/lesson-plans/${id}`, data);
+    },
+
+    async submitLessonPlan(id: number): Promise<ApiResponse<LessonPlan>> {
+        return apiClient.post<LessonPlan>(`/lesson-plans/${id}/submit`);
+    },
+
+    async getLessonPlansReviewQueue(filters?: AcademicsFilters): Promise<ApiResponse<PaginatedResponse<LessonPlan>>> {
+        return apiClient.get<PaginatedResponse<LessonPlan>>('/lesson-plans/review-queue', filters);
+    },
+
+    async approveLessonPlan(id: number, approval_notes?: string): Promise<ApiResponse<LessonPlan>> {
+        return apiClient.post<LessonPlan>(`/lesson-plans/${id}/approve`, { approval_notes });
+    },
+
+    async rejectLessonPlan(id: number, rejection_notes: string): Promise<ApiResponse<LessonPlan>> {
+        return apiClient.post<LessonPlan>(`/lesson-plans/${id}/reject`, { rejection_notes });
+    },
 };

@@ -26,4 +26,16 @@ class RequirementType extends Model
             $q->where('is_active', true)->orWhereNull('is_active');
         });
     }
+
+    public static function presetCategories(): array
+    {
+        return [
+            'stationery' => 'Stationery',
+            'books' => 'Books',
+            'uniform' => 'Uniform',
+            'toiletries' => 'Toiletries',
+            'boarding' => 'Boarding',
+            'other' => 'Other',
+        ];
+    }
 }

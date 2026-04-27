@@ -30,7 +30,11 @@
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Category</label>
-                                <input type="text" name="category" class="form-control" placeholder="Stationery, Food, Assets" value="{{ old('category') }}">
+                                <select name="category" class="form-select" required>
+                                    @foreach(\App\Models\RequirementType::presetCategories() as $value => $label)
+                                        <option value="{{ $value }}" @selected(old('category', 'stationery') === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Description</label>
@@ -99,7 +103,11 @@
                                                         </div>
                                                         <div class="col-md-2">
                                                             <label class="form-label small text-muted">Category</label>
-                                                            <input type="text" name="category" class="form-control form-control-sm" value="{{ $type->category }}">
+                                                            <select name="category" class="form-select form-select-sm" required>
+                                                                @foreach(\App\Models\RequirementType::presetCategories() as $value => $label)
+                                                                    <option value="{{ $value }}" @selected($type->category === $value)>{{ $label }}</option>
+                                                                @endforeach
+                                                            </select>
                                                         </div>
                                                         <div class="col-md-4">
                                                             <label class="form-label small text-muted">Description</label>

@@ -1,0 +1,23 @@
+## Reduce EAS upload size / speed up archive
+.git
+.expo
+.eas
+
+node_modules
+dist
+docs
+
+# Android build outputs/caches (big + safe to exclude)
+android/.gradle
+android/build
+android/app/build
+android/app/.cxx
+android/.cxx
+
+**/*.log
+**/.DS_Store
+**/Thumbs.db
+
+# local env files (we use `eas.json` env + EAS secrets)
+.env
+.env.*

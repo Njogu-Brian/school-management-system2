@@ -13,7 +13,13 @@
         <h1 class="mb-1">Lesson Plans</h1>
         <p class="text-muted mb-0">Plan, track, and approve lessons.</p>
       </div>
-      <a href="{{ route('academics.lesson-plans.create') }}" class="btn btn-settings-primary"><i class="bi bi-plus-circle"></i> Create Lesson Plan</a>
+      <div class="d-flex gap-2 flex-wrap">
+        @if(auth()->user()?->isSeniorTeacherUser() || auth()->user()?->hasAnyRole(['Academic Administrator','Admin','Super Admin','Director']) || is_supervisor())
+          <a href="{{ route('academics.lesson-plans.review-queue') }}" class="btn btn-ghost-strong"><i class="bi bi-inboxes"></i> Review Queue</a>
+          <a href="{{ route('academics.lesson-plans.analytics') }}" class="btn btn-ghost-strong"><i class="bi bi-graph-up"></i> Analytics</a>
+        @endif
+        <a href="{{ route('academics.lesson-plans.create') }}" class="btn btn-settings-primary"><i class="bi bi-plus-circle"></i> Create Lesson Plan</a>
+      </div>
     </div>
 
     @if(session('success'))
@@ -89,9 +95,14 @@
                   <td>{{ $plan->planned_date->format('d M Y') }}</td>
                   <td><span class="pill-badge pill-{{ $plan->status == 'completed' ? 'success' : ($plan->status == 'in_progress' ? 'warning' : 'info') }}">{{ ucfirst($plan->status) }}</span></td>
                   <td>
-                    @if($plan->isApproved())
+                    @if(($plan->submission_status ?? 'draft') === 'approved' || $plan->isApproved())
                       <span class="pill-badge pill-success"><i class="bi bi-check-circle"></i> Approved</span>
                       <div class="small text-muted">{{ $plan->approved_at->format('d M Y') }}</div>
+                    @elseif(($plan->submission_status ?? 'draft') === 'rejected')
+                      <span class="pill-badge pill-danger"><i class="bi bi-x-circle"></i> Rejected</span>
+                      <div class="small text-muted">{{ optional($plan->rejected_at)->format('d M Y') }}</div>
+                    @elseif(($plan->submission_status ?? 'draft') === 'submitted')
+                      <span class="pill-badge pill-info"><i class="bi bi-send"></i> Submitted</span>
                     @else
                       <span class="pill-badge pill-warning"><i class="bi bi-clock"></i> Pending</span>
                     @endif

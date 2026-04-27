@@ -32,7 +32,7 @@ export const LessonPlansScreen: React.FC<LessonPlansScreenProps> = ({ navigation
     const [plans, setPlans] = useState<LessonPlan[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [filter, setFilter] = useState<'all' | 'draft' | 'approved' | 'completed'>('all');
+    const [filter, setFilter] = useState<'all' | 'draft' | 'submitted' | 'approved' | 'rejected'>('all');
 
     const fetchPlans = useCallback(async () => {
         try {
@@ -116,9 +116,12 @@ export const LessonPlansScreen: React.FC<LessonPlansScreenProps> = ({ navigation
                 <Text style={[styles.title, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                     Lesson Plans
                 </Text>
+                <TouchableOpacity onPress={() => navigation.navigate('LessonPlanCreateFromTimetable')} style={styles.addBtn}>
+                    <Icon name="add-circle-outline" size={26} color={colors.primary} />
+                </TouchableOpacity>
             </View>
             <View style={styles.filterRow}>
-                {(['all', 'draft', 'approved', 'completed'] as const).map((f) => (
+                {(['all', 'draft', 'submitted', 'approved', 'rejected'] as const).map((f) => (
                     <TouchableOpacity
                         key={f}
                         style={[styles.filterChip, filter === f && { backgroundColor: colors.primary }]}
@@ -156,6 +159,7 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
     backBtn: { marginRight: SPACING.sm },
     title: { fontSize: FONT_SIZES.xl, fontWeight: 'bold' },
+    addBtn: { marginLeft: 'auto' },
     filterRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: SPACING.md, gap: SPACING.sm, marginBottom: SPACING.md },
     filterChip: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs, borderRadius: 20 },
     filterText: { fontSize: FONT_SIZES.sm },

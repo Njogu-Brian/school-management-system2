@@ -160,6 +160,16 @@ class Invoice extends Model
                 'error' => $e->getMessage(),
             ]);
         }
+
+        // Keep fee payment plans aligned with invoice balance adjustments (family plans included).
+        try {
+            app(\App\Services\PaymentPlanSyncService::class)->syncPlansForInvoice($this);
+        } catch (\Throwable $e) {
+            \Log::warning('Payment plan sync after invoice recalc failed', [
+                'invoice_id' => $this->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

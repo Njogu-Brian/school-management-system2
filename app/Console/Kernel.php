@@ -14,6 +14,8 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\PurgeLocalStorageAndDocuments::class,
         \App\Console\Commands\RecomputeFeeClearances::class,
         \App\Console\Commands\SendTeacherClockAttendanceReminders::class,
+        \App\Console\Commands\SendUpcomingLessonPlanReminders::class,
+        \App\Console\Commands\RecomputeLessonPlanPace::class,
     ];
 
     protected function schedule(Schedule $schedule)
@@ -35,6 +37,18 @@ class Kernel extends ConsoleKernel
         // Daily 9am reminder to teachers missing clock-in/attendance (school days only).
         $schedule->command('reminders:teacher-clock-attendance')
             ->dailyAt('09:00')
+            ->weekdays()
+            ->withoutOverlapping();
+
+        // Upcoming lesson plan reminders (weekdays; prevents overlap/spam via cache).
+        $schedule->command('reminders:lesson-plans-upcoming --window=60')
+            ->hourly()
+            ->weekdays()
+            ->withoutOverlapping();
+
+        // Daily pace/consistency checks for lesson plans (weekdays).
+        $schedule->command('lesson-plans:recompute-pace --days=7 --threshold=0.6')
+            ->dailyAt('17:30')
             ->weekdays()
             ->withoutOverlapping();
 
