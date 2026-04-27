@@ -156,6 +156,15 @@ class FeePaymentPlanController extends Controller
 
 public function store(Request $request)
     {
+        \Log::info('Payment plan store called', [
+            'user_id' => auth()->id(),
+            'student_id' => $request->input('student_id'),
+            'schedule_type' => $request->input('schedule_type'),
+            'total_amount_client' => $request->input('total_amount'),
+            'invoice_id' => $request->input('invoice_id'),
+            'installments_count_client' => is_array($request->input('installments')) ? count((array) $request->input('installments')) : null,
+        ]);
+
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
             'invoice_id' => 'nullable|exists:invoices,id',
