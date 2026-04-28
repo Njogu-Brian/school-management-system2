@@ -25,6 +25,7 @@ class SchoolDayController extends Controller
             'school_day' => 'School Day',
             'holiday' => 'Holiday',
             'midterm_break' => 'Midterm Break',
+            'term_break' => 'Term Break',
             'weekend' => 'Weekend',
             'custom_off_day' => 'Custom Off Day',
         ];

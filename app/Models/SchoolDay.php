@@ -27,6 +27,7 @@ class SchoolDay extends Model
     const TYPE_MIDTERM_BREAK = 'midterm_break';
     const TYPE_WEEKEND = 'weekend';
     const TYPE_CUSTOM_OFF_DAY = 'custom_off_day';
+    const TYPE_TERM_BREAK = 'term_break';
 
     /**
      * Check if a date is a school day

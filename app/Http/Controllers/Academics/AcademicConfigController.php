@@ -328,7 +328,7 @@ class AcademicConfigController extends Controller
             SchoolDay::updateOrCreate(
                 ['date' => $cursor->toDateString()],
                 [
-                    'type' => SchoolDay::TYPE_HOLIDAY,
+                    'type' => SchoolDay::TYPE_TERM_BREAK,
                     'name' => $name,
                     'description' => 'Auto-generated between terms',
                     'is_custom' => true,
@@ -378,6 +378,11 @@ class AcademicConfigController extends Controller
     {
         $holidays = SchoolDay::whereYear('date', $year)
             ->where('type', SchoolDay::TYPE_HOLIDAY)
+            // Safety for legacy data where term breaks were stored as type=holiday.
+            ->where(function ($q) {
+                $q->whereNull('description')
+                    ->orWhere('description', '!=', 'Auto-generated between terms');
+            })
             ->get();
 
         $ay = AcademicYear::where('year', $year)->first();

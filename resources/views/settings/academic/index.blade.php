@@ -77,17 +77,23 @@
                                                                             @endif
                                                                             @php
                                                                                 // Count only actual holidays (exclude weekends and midterm breaks)
-                                                                                // Weekends should not be counted as holidays
-                                                                                $holidays = \App\Models\SchoolDay::whereBetween('date', [$term->opening_date, $term->closing_date])
-                                                                                    ->where('type', \App\Models\SchoolDay::TYPE_HOLIDAY)
-                                                                                    ->whereRaw('DAYOFWEEK(date) NOT IN (1, 7)') // Exclude Sundays (1) and Saturdays (7)
-                                                                                    ->orderBy('date')
-                                                                                    ->limit(3)
-                                                                                    ->get();
-                                                                                $holidayCount = \App\Models\SchoolDay::whereBetween('date', [$term->opening_date, $term->closing_date])
-                                                                                    ->where('type', \App\Models\SchoolDay::TYPE_HOLIDAY)
-                                                                                    ->whereRaw('DAYOFWEEK(date) NOT IN (1, 7)') // Exclude weekends from holiday count
-                                                                                    ->count();
+                                                                                    // Weekends should not be counted as holidays.
+                                                                                    // Inter-term breaks are tracked separately and should not count as holidays.
+                                                                                    $holidayQuery = \App\Models\SchoolDay::whereBetween('date', [$term->opening_date, $term->closing_date])
+                                                                                        ->where('type', \App\Models\SchoolDay::TYPE_HOLIDAY)
+                                                                                        ->whereRaw('DAYOFWEEK(date) NOT IN (1, 7)') // Exclude Sundays (1) and Saturdays (7)
+                                                                                        // Safety for legacy data where term breaks were stored as type=holiday.
+                                                                                        ->where(function ($q) {
+                                                                                            $q->whereNull('description')
+                                                                                                ->orWhere('description', '!=', 'Auto-generated between terms');
+                                                                                        });
+
+                                                                                    $holidays = (clone $holidayQuery)
+                                                                                        ->orderBy('date')
+                                                                                        ->limit(3)
+                                                                                        ->get();
+
+                                                                                    $holidayCount = (clone $holidayQuery)->count();
 
                                                                                 // Breaks between this term and the next one (in this academic year)
                                                                                 $nextTerm = $year->terms->first(function($t) use ($term) {

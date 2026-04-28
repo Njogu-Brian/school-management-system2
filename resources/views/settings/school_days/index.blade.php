@@ -121,7 +121,7 @@
                   <td class="fw-semibold">{{ $day->date->format('M d, Y') }}</td>
                   <td>{{ $day->date->format('l') }}</td>
                   <td>
-                    <span class="badge bg-{{ $day->type == 'school_day' ? 'success' : ($day->type == 'holiday' ? 'danger' : ($day->type == 'midterm_break' ? 'warning' : 'secondary')) }}">
+                    <span class="badge bg-{{ $day->type == 'school_day' ? 'success' : ($day->type == 'holiday' ? 'danger' : ($day->type == 'midterm_break' ? 'warning' : ($day->type == 'term_break' ? 'primary' : 'secondary'))) }}">
                       {{ $types[$day->type] ?? $day->type }}
                     </span>
                   </td>
