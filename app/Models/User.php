@@ -151,6 +151,19 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     }
 
     /**
+     * Classroom-level supervision assignments for this senior teacher.
+     */
+    public function supervisedClassrooms()
+    {
+        return $this->belongsToMany(
+            \App\Models\Academics\Classroom::class,
+            'senior_teacher_classroom_assignments',
+            'senior_teacher_id',
+            'classroom_id'
+        );
+    }
+
+    /**
      * Check if this user is a senior teacher supervising a specific classroom
      * (classroom must belong to the senior teacher's assigned campus).
      */
@@ -175,8 +188,22 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
      */
     public function getSupervisedClassroomIds(): array
     {
+        if (! $this->isSeniorTeacherUser()) {
+            return [];
+        }
+
+        // Prefer explicit classroom-level assignments if present.
+        $explicit = \App\Models\SeniorTeacherClassroomAssignment::query()
+            ->where('senior_teacher_id', $this->id)
+            ->pluck('classroom_id')
+            ->toArray();
+        if (! empty($explicit)) {
+            return array_values(array_unique(array_map('intval', $explicit)));
+        }
+
+        // Fallback to campus-wide supervision.
         $assignment = $this->campusAssignment;
-        if (!$assignment || ! $this->isSeniorTeacherUser()) {
+        if (!$assignment) {
             return [];
         }
         return \App\Models\Academics\Classroom::forCampus($assignment->campus)->pluck('id')->toArray();

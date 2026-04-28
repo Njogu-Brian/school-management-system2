@@ -4,49 +4,48 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
-use App\Models\User;
+use App\Models\Staff;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class AssignTeachersController extends Controller
 {
     public function index()
     {
-        // Get classrooms with their streams (primary + additional via pivot)
-        $classrooms = Classroom::with(['teachers', 'streams.teachers', 'primaryStreams.teachers'])->orderBy('name')->get();
-        
-        // For each classroom, merge primary and additional streams
-        foreach ($classrooms as $classroom) {
-            $allStreams = $classroom->primaryStreams->merge($classroom->streams)->unique('id');
-            $classroom->setRelation('streams', $allStreams);
-        }
-        
-        $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
-        
-        return view('academics.assign_teachers', compact('classrooms', 'teachers'));
+        $classrooms = Classroom::with('classTeacher')->orderBy('name')->get();
+
+        $teacherRoleNames = ['Teacher', 'teacher', 'Senior Teacher', 'senior teacher', 'Supervisor', 'supervisor'];
+        $staffTeachers = Staff::with('user')
+            ->whereHas('user.roles', fn ($q) => $q->whereIn('name', $teacherRoleNames))
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        return view('academics.assign_teachers', [
+            'classrooms' => $classrooms,
+            'staffTeachers' => $staffTeachers,
+        ]);
     }
 
     /**
-     * Assign teachers directly to a classroom (for classes without streams)
+     * Assign/clear class teacher for a classroom (classrooms.class_teacher_id → staff.id).
      */
-    public function assignToClassroom(Request $request, $id)
+    public function assignClassTeacher(Request $request, $id)
     {
         $classroom = Classroom::findOrFail($id);
-        
+
         $request->validate([
-            'teacher_ids' => 'nullable|array',
-            'teacher_ids.*' => 'exists:users,id',
+            'staff_id' => 'nullable|integer|exists:staff,id',
         ]);
 
-        $classroom->teachers()->sync($request->teacher_ids ?? []);
+        $classroom->class_teacher_id = $request->filled('staff_id') ? (int) $request->staff_id : null;
+        $classroom->save();
 
         return redirect()->route('academics.assign-teachers')
-            ->with('success', 'Teachers assigned to ' . $classroom->name . ' successfully.');
+            ->with('success', 'Class teacher updated for ' . $classroom->name . ' successfully.');
     }
 
     /**
-     * Remove all teachers assigned to classrooms (classroom_teacher) and streams (stream_teacher).
+     * Clear class teacher assignments for all classrooms.
      */
     public function clearAllAssignments(Request $request)
     {
@@ -54,21 +53,10 @@ class AssignTeachersController extends Controller
             'confirm_clear' => 'required|in:CLEARALL',
         ]);
 
-        Schema::disableForeignKeyConstraints();
-
-        try {
-            if (Schema::hasTable('classroom_teacher')) {
-                DB::table('classroom_teacher')->delete();
-            }
-            if (Schema::hasTable('stream_teacher')) {
-                DB::table('stream_teacher')->delete();
-            }
-        } finally {
-            Schema::enableForeignKeyConstraints();
-        }
+        Classroom::query()->update(['class_teacher_id' => null]);
 
         return redirect()
             ->route('academics.assign-teachers')
-            ->with('success', 'All classroom and stream teacher assignments have been cleared. You can assign teachers again.');
+            ->with('success', 'All class teacher assignments have been cleared. You can assign again.');
     }
 }

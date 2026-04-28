@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Student;   // ✅ import Student from App\Models
 use App\Models\User;      // ✅ import User from App\Models
+use App\Models\Staff;
 
 class Classroom extends Model
 {
@@ -75,6 +76,14 @@ class Classroom extends Model
     public function teachers()
     {
         return $this->belongsToMany(User::class, 'classroom_teacher', 'classroom_id', 'teacher_id');
+    }
+
+    /**
+     * Homeroom/class teacher for this classroom (staff record).
+     */
+    public function classTeacher()
+    {
+        return $this->belongsTo(Staff::class, 'class_teacher_id');
     }
 
     /**

@@ -172,7 +172,7 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
         <i class="bi bi-person-lines-fill"></i> Subject Teacher Map
     </a>
     <a href="{{ route('academics.assign-teachers') }}" class="{{ Request::is('academics/assign-teachers*') ? 'active' : '' }}">
-        <i class="bi bi-person-check"></i> Assign Teachers
+        <i class="bi bi-person-check"></i> Assign Class Teachers
     </a>
     <a href="{{ route('academics.promotions.index') }}" class="{{ Request::is('academics/promotions*') ? 'active' : '' }}">
         <i class="bi bi-arrow-up-circle"></i> Student Promotions

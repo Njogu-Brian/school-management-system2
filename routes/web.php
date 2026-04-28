@@ -433,7 +433,7 @@ Route::middleware('auth')->group(function () {
         // Teacher Assignments (classroom + stream pivots)
         Route::get('assign-teachers', [AssignTeachersController::class, 'index'])->name('assign-teachers');
         Route::post('assign-teachers/clear', [AssignTeachersController::class, 'clearAllAssignments'])->name('assign-teachers.clear');
-        Route::post('classrooms/{id}/assign-teachers', [AssignTeachersController::class, 'assignToClassroom'])->name('classrooms.assign-teachers');
+        Route::post('classrooms/{id}/assign-class-teacher', [AssignTeachersController::class, 'assignClassTeacher'])->name('classrooms.assign-class-teacher');
         
         // Student Promotions
         Route::get('promotions', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'index'])->name('promotions.index');
@@ -900,6 +900,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [SeniorTeacherAssignmentController::class, 'index'])->name('index');
             Route::get('/{id}/edit', [SeniorTeacherAssignmentController::class, 'edit'])->name('edit');
             Route::put('/{id}/campus', [SeniorTeacherAssignmentController::class, 'updateCampus'])->name('update_campus');
+            Route::put('/{id}/classrooms', [SeniorTeacherAssignmentController::class, 'updateClassrooms'])->name('update_classrooms');
         });
 
     // Supervisor routes (for supervisors to access their subordinates' data)

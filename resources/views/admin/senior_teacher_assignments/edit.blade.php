@@ -120,7 +120,7 @@
             <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
                 <div>
                     <h2 class="mb-0">
-                        <i class="bi bi-pencil-square me-2"></i>Manage Senior Teacher — Campus Only
+                        <i class="bi bi-pencil-square me-2"></i>Manage Senior Teacher — Campus & Classrooms
                     </h2>
                     <nav aria-label="breadcrumb">
                         <ol class="breadcrumb mb-0">
@@ -205,8 +205,64 @@
                     </div>
                 </form>
                 <p class="text-muted mt-3 mb-0">
-                    <i class="bi bi-info-circle me-1"></i>Each campus has one senior teacher. Supervision scope is the whole campus: all classrooms and staff on that campus.
+                    <i class="bi bi-info-circle me-1"></i>Campus is used for grouping. You can restrict supervision to specific classrooms below.
                 </p>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <div class="admin-card-header admin-card-header-primary">
+                <i class="bi bi-building me-2"></i>Supervised Classrooms (Optional)
+            </div>
+            <div class="admin-card-body">
+                <form action="{{ route('admin.senior_teacher_assignments.update_classrooms', $seniorTeacher->id) }}" method="POST">
+                    @csrf
+                    @method('PUT')
+
+                    <div class="alert alert-info border-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        If you select classrooms here, they will be used as the senior teacher's supervision scope.
+                        If you leave it empty, the system will fall back to the campus-wide scope.
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Select Classrooms</label>
+                            <div class="border rounded p-3" style="max-height: 380px; overflow-y: auto;">
+                                @forelse($allClassrooms as $c)
+                                    <div class="form-check d-flex align-items-center justify-content-between py-1">
+                                        <div>
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                name="classroom_ids[]"
+                                                value="{{ $c->id }}"
+                                                id="cls_{{ $c->id }}"
+                                                {{ in_array($c->id, $assignedClassroomIds ?? []) ? 'checked' : '' }}
+                                            >
+                                            <label class="form-check-label" for="cls_{{ $c->id }}">
+                                                <strong>{{ $c->name }}</strong>
+                                                <small class="text-muted">
+                                                    — {{ strtoupper($c->campus ?? 'N/A') }}
+                                                    @if($c->level_type) • {{ $c->level_type }} @endif
+                                                </small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <div class="text-muted">No classrooms found.</div>
+                                @endforelse
+                            </div>
+                            <small class="text-muted d-block mt-2">Tip: You can select multiple classes. Each classroom can only be assigned to one senior teacher.</small>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-admin-primary">
+                            <i class="bi bi-check-circle me-2"></i>Save Supervised Classrooms
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

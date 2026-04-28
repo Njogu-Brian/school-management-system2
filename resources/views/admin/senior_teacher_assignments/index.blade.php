@@ -223,7 +223,7 @@
                 <div>
                     <h6 class="fw-bold mb-2">About Senior Teacher Role</h6>
                     <p class="mb-0">
-                        Senior Teachers are assigned to one campus (Lower or Upper). Their supervisory scope is the whole campus: all classrooms and staff on that campus. No separate classroom or staff assignment is needed.
+                        Senior Teachers can be assigned to a campus for grouping, and can optionally be assigned to specific classrooms to define exact supervision scope.
                     </p>
                 </div>
             </div>

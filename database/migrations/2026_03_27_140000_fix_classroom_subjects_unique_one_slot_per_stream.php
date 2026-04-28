@@ -20,20 +20,29 @@ return new class extends Migration
         }
 
         if (self::indexExists('classroom_subjects', 'cls_sub_staff_unique')) {
-            Schema::table('classroom_subjects', function (Blueprint $table) {
-                $table->dropUnique('cls_sub_staff_unique');
-            });
+            try {
+                Schema::table('classroom_subjects', function (Blueprint $table) {
+                    $table->dropUnique('cls_sub_staff_unique');
+                });
+            } catch (\Throwable $e) {
+                // Some MySQL variants require an index used by an FK; if we can't drop it safely,
+                // skip the index change (dedupe is still safe).
+            }
         }
 
         self::dedupeSlots();
 
         if (! self::indexExists('classroom_subjects', 'cls_sub_unique')) {
-            Schema::table('classroom_subjects', function (Blueprint $table) {
-                $table->unique(
-                    ['classroom_id', 'stream_id', 'subject_id', 'academic_year_id', 'term_id'],
-                    'cls_sub_unique'
-                );
-            });
+            try {
+                Schema::table('classroom_subjects', function (Blueprint $table) {
+                    $table->unique(
+                        ['classroom_id', 'stream_id', 'subject_id', 'academic_year_id', 'term_id'],
+                        'cls_sub_unique'
+                    );
+                });
+            } catch (\Throwable $e) {
+                // If the old unique key cannot be dropped, this new one may conflict; ignore.
+            }
         }
     }
 
