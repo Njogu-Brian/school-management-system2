@@ -113,21 +113,24 @@
                     </div>
                 </div>
 
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Start Date <span class="text-danger">*</span></label>
+                        <input type="date" name="start_date" id="start_date" class="form-control @error('start_date') is-invalid @enderror"
+                               value="{{ old('start_date') }}" required>
+                        <small class="text-muted">For custom schedules, if left empty it will be set to the earliest installment date.</small>
+                        @error('start_date')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+
                 <div id="installment_schedule_block" class="row mb-3">
                     <div class="col-md-4">
                         <label class="form-label">Number of Installments <span class="text-danger">*</span></label>
                         <input type="number" name="installment_count" id="installment_count" class="form-control @error('installment_count') is-invalid @enderror" 
                                value="{{ old('installment_count', 3) }}" min="1" max="24">
                         @error('installment_count')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label">Start Date <span class="text-danger">*</span></label>
-                        <input type="date" name="start_date" id="start_date" class="form-control @error('start_date') is-invalid @enderror" 
-                               value="{{ old('start_date') }}" required>
-                        @error('start_date')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
@@ -283,6 +286,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function refreshScheduleVisibility() {
         const scheduleType = scheduleTypeSelect.value;
         if (scheduleType === 'custom') {
+            // Hide only the auto-generated schedule inputs, keep Start Date visible for browser validation.
             installmentScheduleBlock.classList.add('d-none');
             customInstallmentsBlock.classList.remove('d-none');
             if (installmentCountInput) installmentCountInput.removeAttribute('required');
@@ -376,6 +380,17 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(e) {
         setSubmittingUi(true);
         if (scheduleTypeSelect.value === 'custom') {
+            // If Start Date is empty, set it to the earliest custom installment due date.
+            if (!startDateInput.value) {
+                const dueDates = Array.from(customInstallmentsList.querySelectorAll('input[type="date"]'))
+                    .map(x => (x.value || '').trim())
+                    .filter(Boolean)
+                    .sort();
+                if (dueDates.length) {
+                    startDateInput.value = dueDates[0];
+                }
+            }
+
             // Re-index fields, then force last row to cover remainder.
             customInstallmentsList.querySelectorAll('.custom-installment-row').forEach(function(row, i) {
                 const due = row.querySelector('input[name*="[due_date]"]');
