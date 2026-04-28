@@ -277,7 +277,16 @@ public function store(Request $request)
 
         DB::beginTransaction();
         try {
+            // Resolve a "primary" invoice to stamp term/academic year on the plan.
+            // Without term_id, fee clearance snapshots can't detect the plan and the student remains "pending".
             $invoice = !empty($validated['invoice_id']) ? Invoice::find($validated['invoice_id']) : null;
+            if (!$invoice && !empty($outstandingInvoiceIds)) {
+                $invoice = Invoice::query()
+                    ->whereIn('id', $outstandingInvoiceIds)
+                    ->orderByDesc('due_date')
+                    ->orderByDesc('id')
+                    ->first();
+            }
 
             if ($existingPlan) {
                 // Cancel old plan and its pending reminders so the new one is the source of truth.
@@ -302,7 +311,7 @@ public function store(Request $request)
 
             $plan = FeePaymentPlan::create([
                 'student_id' => $primaryStudent->id,
-                'invoice_id' => $outstandingInvoiceIds[0] ?? ($validated['invoice_id'] ?? null),
+                'invoice_id' => $invoice?->id ?? ($outstandingInvoiceIds[0] ?? ($validated['invoice_id'] ?? null)),
                 'term_id' => $invoice?->term_id,
                 'academic_year_id' => $invoice?->academic_year_id,
                 'total_amount' => $totalAmount,

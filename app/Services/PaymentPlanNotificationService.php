@@ -118,7 +118,30 @@ class PaymentPlanNotificationService
     protected function sendSms(string $phone, string $message, $student): void
     {
         try {
-            $this->smsService->sendSMS($phone, $message, 'finance');
+            $resp = $this->smsService->sendSMS($phone, $message, $this->smsService->getFinanceSenderId());
+            $ok = is_array($resp)
+                ? (($resp['status'] ?? null) === 'success')
+                : true;
+            if (!$ok) {
+                CommunicationLog::create([
+                    'recipient_type' => 'student',
+                    'recipient_id' => $student->id,
+                    'contact' => $phone,
+                    'channel' => 'sms',
+                    'title' => 'Payment plan created',
+                    'message' => $message,
+                    'type' => 'sms',
+                    'status' => 'failed',
+                    'scope' => 'payment_plan',
+                    'sent_at' => now(),
+                ]);
+                \Log::warning('Payment plan SMS failed (provider response)', [
+                    'student_id' => $student->id,
+                    'phone' => $phone,
+                    'response' => $resp,
+                ]);
+                return;
+            }
             CommunicationLog::create([
                 'recipient_type' => 'student',
                 'recipient_id' => $student->id,
@@ -132,6 +155,20 @@ class PaymentPlanNotificationService
                 'sent_at' => now(),
             ]);
         } catch (\Throwable $e) {
+            try {
+                CommunicationLog::create([
+                    'recipient_type' => 'student',
+                    'recipient_id' => $student->id,
+                    'contact' => $phone,
+                    'channel' => 'sms',
+                    'title' => 'Payment plan created',
+                    'message' => $message,
+                    'type' => 'sms',
+                    'status' => 'failed',
+                    'scope' => 'payment_plan',
+                    'sent_at' => now(),
+                ]);
+            } catch (\Throwable $_) {}
             \Log::warning('Payment plan SMS failed', ['student_id' => $student->id, 'error' => $e->getMessage()]);
         }
     }
@@ -139,7 +176,28 @@ class PaymentPlanNotificationService
     protected function sendWhatsApp(string $phone, string $message, $student): void
     {
         try {
-            $this->whatsappService->sendMessage($phone, $message);
+            $resp = $this->whatsappService->sendMessage($phone, $message);
+            $ok = is_array($resp) ? (($resp['status'] ?? null) === 'success') : true;
+            if (!$ok) {
+                CommunicationLog::create([
+                    'recipient_type' => 'student',
+                    'recipient_id' => $student->id,
+                    'contact' => $phone,
+                    'channel' => 'whatsapp',
+                    'title' => 'Payment plan created',
+                    'message' => $message,
+                    'type' => 'whatsapp',
+                    'status' => 'failed',
+                    'scope' => 'payment_plan',
+                    'sent_at' => now(),
+                ]);
+                \Log::warning('Payment plan WhatsApp failed (provider response)', [
+                    'student_id' => $student->id,
+                    'phone' => $phone,
+                    'response' => $resp,
+                ]);
+                return;
+            }
             CommunicationLog::create([
                 'recipient_type' => 'student',
                 'recipient_id' => $student->id,
@@ -153,6 +211,20 @@ class PaymentPlanNotificationService
                 'sent_at' => now(),
             ]);
         } catch (\Throwable $e) {
+            try {
+                CommunicationLog::create([
+                    'recipient_type' => 'student',
+                    'recipient_id' => $student->id,
+                    'contact' => $phone,
+                    'channel' => 'whatsapp',
+                    'title' => 'Payment plan created',
+                    'message' => $message,
+                    'type' => 'whatsapp',
+                    'status' => 'failed',
+                    'scope' => 'payment_plan',
+                    'sent_at' => now(),
+                ]);
+            } catch (\Throwable $_) {}
             \Log::warning('Payment plan WhatsApp failed', ['student_id' => $student->id, 'error' => $e->getMessage()]);
         }
     }
