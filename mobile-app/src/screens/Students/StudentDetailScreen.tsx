@@ -31,6 +31,7 @@ import { MpesaPromptModal } from '@components/MpesaPromptModal';
 import { canUseMpesaFinanceTools } from '@utils/financeRoles';
 import { normalizeRole } from '@utils/roleUtils';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { FeeStatusBadge } from '@components/common/FeeStatusBadge';
 
 interface StudentDetailScreenProps {
     navigation: any;
@@ -283,6 +284,7 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
                                 {student.class_name ? ` · ${student.class_name}${student.stream_name ? ' ' + student.stream_name : ''}` : ''}
                             </Text>
                             <StatusBadge status={student.status} />
+                            <FeeStatusBadge fee_status={student.fee_status} outstanding_balance={student.outstanding_balance} />
                         </View>
                     </View>
                 </Card>
@@ -546,6 +548,7 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
                             <Text style={[styles.sectionTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                                 Finance
                             </Text>
+                            <FeeStatusBadge fee_status={student.fee_status} outstanding_balance={student.outstanding_balance} />
                             {feeBalance !== undefined && feeBalance !== null && (
                                 <View style={styles.financeRow}>
                                     <Text style={[styles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Outstanding</Text>

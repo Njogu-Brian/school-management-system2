@@ -16,6 +16,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@contexts/ThemeContext';
 import { SPACING, FONT_SIZES } from '@constants/theme';
+import { FeeStatusBadge } from '@components/common/FeeStatusBadge';
 import {
     teacherTransportApi,
     TeacherTransportStudent,
@@ -51,7 +52,16 @@ export const TeacherTransportListScreen: React.FC = () => {
             setError(null);
             const res = await teacherTransportApi.getStudents({ date });
             if (res.success && res.data) {
-                setStudents(res.data.students ?? []);
+                const rows = res.data.students ?? [];
+                setStudents(rows);
+                // Temporary: verify API is returning fee_status (remove once confirmed)
+                if (__DEV__) {
+                    const withFee = rows.filter((s) => !!(s as any).fee_status).length;
+                    const pending = rows.filter((s) => (s as any).fee_status === 'pending').length;
+                    const cleared = rows.filter((s) => (s as any).fee_status === 'cleared').length;
+                    // eslint-disable-next-line no-console
+                    console.log('[FeeStatus][Transport] rows=%d withFee=%d pending=%d cleared=%d sample=%o', rows.length, withFee, pending, cleared, rows[0]);
+                }
             } else {
                 setError(res.message || 'Unable to load transport list.');
             }
@@ -163,6 +173,7 @@ export const TeacherTransportListScreen: React.FC = () => {
                         <Text style={[styles.meta, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                             {item.admission_number}{item.class_name ? ` • ${item.class_name}` : ''}{item.stream_name ? ` / ${item.stream_name}` : ''}
                         </Text>
+                        <FeeStatusBadge fee_status={item.fee_status} outstanding_balance={item.outstanding_balance} compact />
                     </View>
                 </View>
 

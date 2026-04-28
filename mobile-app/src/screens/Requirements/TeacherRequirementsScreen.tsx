@@ -17,6 +17,7 @@ import {
     teacherRequirementsApi,
     RequirementStudent,
 } from '@api/teacherRequirements.api';
+import { FeeStatusBadge } from '@components/common/FeeStatusBadge';
 
 export const TeacherRequirementsScreen: React.FC = () => {
     const navigation = useNavigation<any>();
@@ -37,7 +38,16 @@ export const TeacherRequirementsScreen: React.FC = () => {
                 per_page: 30,
             });
             if (res.success && res.data) {
-                setStudents(res.data.data ?? []);
+                const rows = res.data.data ?? [];
+                setStudents(rows);
+                // Temporary: verify API is returning fee_status (remove once confirmed)
+                if (__DEV__) {
+                    const withFee = rows.filter((s) => !!(s as any).fee_status).length;
+                    const pending = rows.filter((s) => (s as any).fee_status === 'pending').length;
+                    const cleared = rows.filter((s) => (s as any).fee_status === 'cleared').length;
+                    // eslint-disable-next-line no-console
+                    console.log('[FeeStatus][Requirements] rows=%d withFee=%d pending=%d cleared=%d sample=%o', rows.length, withFee, pending, cleared, rows[0]);
+                }
             } else {
                 setError(res.message || 'Unable to load students.');
             }
@@ -85,6 +95,7 @@ export const TeacherRequirementsScreen: React.FC = () => {
                             {item.admission_number}{item.class_name ? ` • ${item.class_name}` : ''}
                             {item.stream_name ? ` / ${item.stream_name}` : ''}
                         </Text>
+                        <FeeStatusBadge fee_status={item.fee_status} outstanding_balance={item.outstanding_balance} compact />
                         {item.is_new_joiner ? (
                             <Text style={[styles.badge, { backgroundColor: '#FFE0B2', color: '#E65100' }]}>New joiner</Text>
                         ) : null}

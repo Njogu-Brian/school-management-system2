@@ -21,6 +21,7 @@ import { SPACING, FONT_SIZES, BORDER_RADIUS, COLORS } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import { Palette } from '@styles/palette';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { FeeStatusBadge } from '@components/common/FeeStatusBadge';
 
 type AttendanceStatus = 'unmarked' | 'present' | 'absent' | 'late';
 
@@ -310,21 +311,7 @@ export const MarkAttendanceScreen: React.FC<MarkAttendanceScreenProps> = ({ navi
                         <Text style={[styles.admissionNumber, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                             {item.admission_number}
                         </Text>
-                        {item.fee_status ? (
-                            <View style={[styles.feeBadge, {
-                                backgroundColor: item.fee_status === 'cleared' ? '#E8F5E9' : '#FFEBEE',
-                                borderColor: item.fee_status === 'cleared' ? '#2E7D32' : '#C62828',
-                            }]}>
-                                <Icon
-                                    name={item.fee_status === 'cleared' ? 'check-circle' : 'error'}
-                                    size={12}
-                                    color={item.fee_status === 'cleared' ? '#2E7D32' : '#C62828'}
-                                />
-                                <Text style={[styles.feeBadgeText, { color: item.fee_status === 'cleared' ? '#2E7D32' : '#C62828' }]}>
-                                    {item.fee_status === 'cleared' ? 'Fees cleared' : `Pending${item.outstanding_balance ? ` (${item.outstanding_balance.toFixed(0)})` : ''}`}
-                                </Text>
-                            </View>
-                        ) : null}
+                        <FeeStatusBadge fee_status={item.fee_status} outstanding_balance={item.outstanding_balance} />
                     </View>
                 </View>
 

@@ -10,6 +10,9 @@ export interface RequirementStudent {
     avatar?: string | null;
     is_new_joiner: boolean;
     can_teacher_receive: boolean;
+    /** Finance gate (server-computed). Do not expose raw balances beyond this badge unless authorized. */
+    fee_status?: 'cleared' | 'pending';
+    outstanding_balance?: number | null;
 }
 
 export interface RequirementItem {

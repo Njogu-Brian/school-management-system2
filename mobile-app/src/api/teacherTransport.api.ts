@@ -29,6 +29,9 @@ export interface TeacherTransportStudent {
     admission_number: string;
     class_name?: string | null;
     stream_name?: string | null;
+    /** Finance gate (server-computed). */
+    fee_status?: 'cleared' | 'pending';
+    outstanding_balance?: number | null;
     morning: TeacherTransportLeg | null;
     evening: TeacherTransportLeg | null;
     pickup: TeacherTransportPickup | null;
