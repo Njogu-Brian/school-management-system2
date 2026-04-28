@@ -144,6 +144,7 @@ class AcademicConfigController extends Controller
             SchoolDay::generateKenyanHolidays(Carbon::parse($term->opening_date)->year);
             $this->markInterTermBreaks($term);
             $this->markMidtermBreaks($term);
+            $this->removeInterTermBreakMarkersWithinTerms((int) $term->academic_year_id);
             $this->syncTermEvents($term);
             $this->syncHolidayEventsForYear((int) Carbon::parse($term->opening_date)->year);
         }
@@ -198,6 +199,7 @@ class AcademicConfigController extends Controller
             SchoolDay::generateKenyanHolidays(Carbon::parse($term->opening_date)->year);
             $this->markInterTermBreaks($term);
             $this->markMidtermBreaks($term);
+            $this->removeInterTermBreakMarkersWithinTerms((int) $term->academic_year_id);
             $this->syncTermEvents($term);
             $this->syncHolidayEventsForYear((int) Carbon::parse($term->opening_date)->year);
         }
@@ -273,6 +275,34 @@ class AcademicConfigController extends Controller
                 'Term Break',
                 $term->academic_year_id
             );
+        }
+    }
+
+    /**
+     * If term dates are edited after break generation, previously-generated break markers may now fall
+     * inside a term session window. Those must be removed; otherwise attendance is blocked.
+     */
+    private function removeInterTermBreakMarkersWithinTerms(int $academicYearId): void
+    {
+        $terms = Term::where('academic_year_id', $academicYearId)
+            ->whereNotNull('opening_date')
+            ->whereNotNull('closing_date')
+            ->get();
+
+        foreach ($terms as $t) {
+            $start = Carbon::parse($t->opening_date)->toDateString();
+            $end = Carbon::parse($t->closing_date)->toDateString();
+
+            SchoolDay::whereBetween('date', [$start, $end])
+                ->where(function ($q) {
+                    $q->where('type', SchoolDay::TYPE_TERM_BREAK)
+                        // Legacy: term breaks were stored as type=holiday with this description.
+                        ->orWhere(function ($qq) {
+                            $qq->where('type', SchoolDay::TYPE_HOLIDAY)
+                                ->where('description', 'Auto-generated between terms');
+                        });
+                })
+                ->delete();
         }
     }
 
