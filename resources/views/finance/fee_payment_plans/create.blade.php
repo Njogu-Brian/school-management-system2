@@ -36,6 +36,10 @@
                     </ul>
                 </div>
             @endif
+            <div id="payment_plan_js_error" class="alert alert-danger d-none">
+                <div class="fw-semibold mb-1">Page error</div>
+                <div class="small" id="payment_plan_js_error_msg"></div>
+            </div>
             <form action="{{ route('finance.fee-payment-plans.store') }}" method="POST">
                 @csrf
 
@@ -174,21 +178,89 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const startDateInput = document.getElementById('start_date');
-    const installmentCountInput = document.getElementById('installment_count');
-    const endDateInput = document.getElementById('end_date');
-    const scheduleTypeSelect = document.getElementById('schedule_type');
-    const installmentScheduleBlock = document.getElementById('installment_schedule_block');
-    const customInstallmentsBlock = document.getElementById('custom_installments_block');
-    const customInstallmentsList = document.getElementById('custom_installments_list');
-    const addCustomInstallmentBtn = document.getElementById('add_custom_installment');
-    const studentIdInput = document.getElementById('student_id');
-    const invoiceSelect = document.getElementById('invoice_id');
-    const siblingsPreview = document.getElementById('siblings_preview');
-    const totalAmountInput = document.getElementById('total_amount');
-    const customNotice = document.getElementById('custom_installments_notice');
-    const studentInvoicesUrlTemplate = '{{ route("finance.fee-payment-plans.student-invoices", ["student" => 0]) }}';
-    function studentInvoicesUrl(id) { return studentInvoicesUrlTemplate.replace(/\/0$/, '/' + id); }
+    const showJsError = (msg) => {
+        const wrap = document.getElementById('payment_plan_js_error');
+        const el = document.getElementById('payment_plan_js_error_msg');
+        if (wrap && el) {
+            el.textContent = msg;
+            wrap.classList.remove('d-none');
+        }
+    };
+
+    // Catch any runtime JS errors and show them on the page (prevents "silent" failures).
+    window.addEventListener('error', function(ev) {
+        try {
+            const msg = ev?.message ? `Payment plan page error: ${ev.message}` : 'Payment plan page error. Please refresh and try again.';
+            console.error('Payment plan window error:', ev?.error || ev);
+            showJsError(msg);
+        } catch (_) {}
+    });
+    window.addEventListener('unhandledrejection', function(ev) {
+        try {
+            const reason = ev?.reason;
+            const msg = reason?.message
+                ? `Payment plan page error: ${reason.message}`
+                : 'Payment plan page error. Please refresh and try again.';
+            console.error('Payment plan unhandled rejection:', reason);
+            showJsError(msg);
+        } catch (_) {}
+    });
+
+    try {
+        const startDateInput = document.getElementById('start_date');
+        const installmentCountInput = document.getElementById('installment_count');
+        const endDateInput = document.getElementById('end_date');
+        const scheduleTypeSelect = document.getElementById('schedule_type');
+        const installmentScheduleBlock = document.getElementById('installment_schedule_block');
+        const customInstallmentsBlock = document.getElementById('custom_installments_block');
+        const customInstallmentsList = document.getElementById('custom_installments_list');
+        const addCustomInstallmentBtn = document.getElementById('add_custom_installment');
+        const studentIdInput = document.getElementById('student_id');
+        const invoiceSelect = document.getElementById('invoice_id');
+        const siblingsPreview = document.getElementById('siblings_preview');
+        const totalAmountInput = document.getElementById('total_amount');
+        const customNotice = document.getElementById('custom_installments_notice');
+        const form = document.querySelector('form[action="{{ route('finance.fee-payment-plans.store') }}"]') || document.querySelector('form');
+        const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
+        const required = [
+            ['start_date', startDateInput],
+            ['installment_count', installmentCountInput],
+            ['end_date', endDateInput],
+            ['schedule_type', scheduleTypeSelect],
+            ['installment_schedule_block', installmentScheduleBlock],
+            ['custom_installments_block', customInstallmentsBlock],
+            ['custom_installments_list', customInstallmentsList],
+            ['add_custom_installment', addCustomInstallmentBtn],
+            ['student_id', studentIdInput],
+            ['invoice_id', invoiceSelect],
+            ['siblings_preview', siblingsPreview],
+            ['total_amount', totalAmountInput],
+            ['custom_installments_notice', customNotice],
+            ['form', form],
+        ];
+        const missing = required.filter(([, el]) => !el).map(([id]) => id);
+        if (missing.length) {
+            const msg = `Payment plan page failed to initialize (missing: ${missing.join(', ')}). Please refresh; if it persists contact support.`;
+            console.error(msg);
+            showJsError(msg);
+            return;
+        }
+
+        const studentInvoicesUrlTemplate = '{{ route("finance.fee-payment-plans.student-invoices", ["student" => 0]) }}';
+        function studentInvoicesUrl(id) { return studentInvoicesUrlTemplate.replace(/\/0$/, '/' + id); }
+
+        const setSubmittingUi = (isSubmitting) => {
+            if (!submitBtn) return;
+            if (isSubmitting) {
+                submitBtn.dataset.originalText = submitBtn.dataset.originalText || submitBtn.textContent;
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Creating...';
+            } else {
+                submitBtn.disabled = false;
+                if (submitBtn.dataset.originalText) submitBtn.textContent = submitBtn.dataset.originalText;
+            }
+        };
 
     function calculateEndDate() {
         const startDate = startDateInput.value;
@@ -301,12 +373,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    document.querySelector('form').addEventListener('submit', function(e) {
+    form.addEventListener('submit', function(e) {
+        setSubmittingUi(true);
         if (scheduleTypeSelect.value === 'custom') {
             // Re-index fields, then force last row to cover remainder.
             customInstallmentsList.querySelectorAll('.custom-installment-row').forEach(function(row, i) {
-                row.querySelector('input[name*="[due_date]"]').name = 'installments[' + i + '][due_date]';
-                row.querySelector('input[name*="[amount]"]').name = 'installments[' + i + '][amount]';
+                const due = row.querySelector('input[name*="[due_date]"]');
+                const amt = row.querySelector('input[name*="[amount]"]');
+                if (due) due.name = 'installments[' + i + '][due_date]';
+                if (amt) amt.name = 'installments[' + i + '][amount]';
             });
 
             recalcCustomInstallments(true);
@@ -325,6 +400,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 customNotice.classList.add('alert-warning');
                 customNotice.textContent = `Cannot submit: custom installments must equal the Total Amount (KES ${total.toFixed(2)}). Current sum: KES ${sum.toFixed(2)}.`;
             }
+        }
+
+        // If client-side validation blocked submit, restore the button.
+        if (e.defaultPrevented) {
+            setSubmittingUi(false);
         }
     });
 
@@ -450,6 +530,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (scheduleTypeSelect.value === 'custom') {
         customNotice.classList.remove('d-none');
         recalcCustomInstallments(true);
+    }
+    } catch (err) {
+        console.error('Payment plan create page JS crashed:', err);
+        showJsError(err?.message ? `Payment plan page error: ${err.message}` : 'Payment plan page error. Please refresh and try again.');
     }
 });
 </script>
