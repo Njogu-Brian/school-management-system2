@@ -8,6 +8,7 @@ use App\Models\StudentDailyPickup;
 use App\Models\Trip;
 use App\Models\TransportSpecialAssignment;
 use App\Models\Vehicle;
+use App\Services\ExpoPushService;
 use App\Services\TransportAssignmentService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -20,7 +21,10 @@ use Illuminate\Support\Facades\DB;
  */
 class ApiTeacherTransportController extends Controller
 {
-    public function __construct(private TransportAssignmentService $service) {}
+    public function __construct(
+        private TransportAssignmentService $service,
+        private ExpoPushService $push
+    ) {}
 
     public function students(Request $request)
     {
@@ -208,6 +212,51 @@ class ApiTeacherTransportController extends Controller
             'approved_by' => $user->id,
             'approved_at' => now(),
         ]);
+
+        // Notify the affected driver (if we can resolve one) about the change + reason.
+        // This relies on driver users having registered Expo device tokens.
+        try {
+            $tripId = $validated['trip_id'] ?? null;
+            $vehicleId = $validated['vehicle_id'] ?? null;
+            $trip = $tripId ? Trip::with('driver')->find($tripId) : null;
+            $driverStaff = $trip?->driver;
+
+            // If no trip is selected but a vehicle is, try to find a trip for that vehicle that has a driver.
+            if (! $driverStaff && $vehicleId) {
+                $fallbackTrip = Trip::with('driver')
+                    ->where('vehicle_id', $vehicleId)
+                    ->whereNotNull('driver_id')
+                    ->orderBy('id', 'desc')
+                    ->first();
+                $driverStaff = $fallbackTrip?->driver;
+            }
+
+            $driverUserId = $driverStaff?->user_id;
+            if ($driverUserId) {
+                $tokens = DB::table('user_device_tokens')
+                    ->where('user_id', (int) $driverUserId)
+                    ->pluck('token')
+                    ->filter(fn ($t) => is_string($t) && $t !== '')
+                    ->values()
+                    ->all();
+
+                $reason = $validated['reason'] ?? 'Temporary change';
+                $this->push->sendToTokens(
+                    $tokens,
+                    'Transport assignment updated',
+                    $student->full_name.' — '.$reason,
+                    [
+                        'type' => 'transport_reassign',
+                        'student_id' => $student->id,
+                        'trip_id' => $tripId,
+                        'vehicle_id' => $vehicleId,
+                        'date' => (string) ($validated['start_date'] ?? now()->toDateString()),
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            // Best-effort notification only; do not fail the request.
+        }
 
         return response()->json([
             'success' => true,

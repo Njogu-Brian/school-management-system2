@@ -46,6 +46,10 @@ export const TeacherTransportListScreen: React.FC = () => {
     const [selectedTrip, setSelectedTrip] = useState<number | null>(null);
     const [reassignReason, setReassignReason] = useState('');
 
+    const tripsForSelectedVehicle = selectedVehicle
+        ? trips.filter((t) => (t.vehicle?.id ?? null) === selectedVehicle)
+        : [];
+
     const load = useCallback(async (silent = false) => {
         try {
             if (!silent) setLoading(true);
@@ -130,12 +134,18 @@ export const TeacherTransportListScreen: React.FC = () => {
 
     const saveReassign = async () => {
         if (!reassignFor) return;
-        if (reassignMode === 'vehicle' && !selectedVehicle) {
-            Alert.alert('Select a vehicle', 'Please choose a vehicle for the temporary change.');
-            return;
-        }
-        if (reassignMode === 'trip' && !selectedTrip) {
-            Alert.alert('Select a trip', 'Please choose a trip for the temporary change.');
+        // Desired UX: pick Vehicle -> pick a Trip that belongs to that vehicle.
+        if (reassignMode === 'vehicle') {
+            if (!selectedVehicle) {
+                Alert.alert('Select a vehicle', 'Please choose a vehicle.');
+                return;
+            }
+            if (!selectedTrip) {
+                Alert.alert('Select a trip', 'Please choose a trip for the selected vehicle.');
+                return;
+            }
+        } else if (reassignMode === 'trip' && !selectedTrip) {
+            Alert.alert('Select a trip', 'Please choose a trip.');
             return;
         }
         try {
@@ -144,9 +154,11 @@ export const TeacherTransportListScreen: React.FC = () => {
                 student_id: reassignFor.id,
                 start_date: date,
                 end_date: date,
-                mode: reassignMode,
-                vehicle_id: reassignMode === 'vehicle' ? selectedVehicle! : undefined,
-                trip_id: reassignMode === 'trip' ? selectedTrip! : undefined,
+                // If user selected a specific trip, that is the most precise assignment.
+                // We still send vehicle_id when available for easier auditing.
+                mode: selectedTrip ? 'trip' : reassignMode,
+                vehicle_id: selectedVehicle ?? undefined,
+                trip_id: selectedTrip ?? undefined,
                 reason: reassignReason.trim() || undefined,
             });
             if (res.success) {
@@ -164,6 +176,9 @@ export const TeacherTransportListScreen: React.FC = () => {
 
     const renderItem = ({ item }: { item: TeacherTransportStudent }) => {
         const pickupActive = !!item.pickup;
+        const morningOwn = item.morning?.type === 'own_means';
+        const eveningOwn = item.evening?.type === 'own_means';
+        const bothOwn = morningOwn && eveningOwn;
         return (
             <View style={[styles.card, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight, borderColor: isDark ? colors.borderDark : colors.borderLight }]}>
                 <View style={styles.row}>
@@ -191,21 +206,30 @@ export const TeacherTransportListScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.actionRow}>
-                    {pickupActive ? (
-                        <TouchableOpacity style={[styles.btn, { borderColor: colors.primary }]} onPress={() => undoPickup(item)}>
-                            <Icon name="undo" size={16} color={colors.primary} />
-                            <Text style={[styles.btnText, { color: colors.primary }]}>Undo pickup</Text>
-                        </TouchableOpacity>
+                    {bothOwn ? (
+                        <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, fontSize: FONT_SIZES.sm }}>
+                            Own means — no transport actions for today
+                        </Text>
                     ) : (
-                        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => setPickupFor(item)}>
-                            <Icon name="person" size={16} color="#fff" />
-                            <Text style={[styles.btnText, { color: '#fff' }]}>Collected by parent</Text>
-                        </TouchableOpacity>
+                        <>
+                            {/* Pickup is only meaningful if the evening leg is not own means */}
+                            {eveningOwn ? null : pickupActive ? (
+                                <TouchableOpacity style={[styles.btn, { borderColor: colors.primary }]} onPress={() => undoPickup(item)}>
+                                    <Icon name="undo" size={16} color={colors.primary} />
+                                    <Text style={[styles.btnText, { color: colors.primary }]}>Undo pickup</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => setPickupFor(item)}>
+                                    <Icon name="person" size={16} color="#fff" />
+                                    <Text style={[styles.btnText, { color: '#fff' }]}>Collected by parent</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity style={[styles.btn, { borderColor: isDark ? colors.borderDark : colors.borderLight }]} onPress={() => openReassign(item)}>
+                                <Icon name="swap-horiz" size={16} color={isDark ? colors.textMainDark : colors.textMainLight} />
+                                <Text style={[styles.btnText, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Change vehicle/trip</Text>
+                            </TouchableOpacity>
+                        </>
                     )}
-                    <TouchableOpacity style={[styles.btn, { borderColor: isDark ? colors.borderDark : colors.borderLight }]} onPress={() => openReassign(item)}>
-                        <Icon name="swap-horiz" size={16} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                        <Text style={[styles.btnText, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>Change vehicle/trip</Text>
-                    </TouchableOpacity>
                 </View>
             </View>
         );
@@ -298,16 +322,49 @@ export const TeacherTransportListScreen: React.FC = () => {
 
                         <ScrollView style={{ maxHeight: 220 }}>
                             {reassignMode === 'vehicle'
-                                ? vehicles.map((v) => (
-                                    <TouchableOpacity
-                                        key={v.id}
-                                        style={[styles.option, { borderColor: isDark ? colors.borderDark : colors.borderLight, backgroundColor: selectedVehicle === v.id ? colors.primary + '20' : 'transparent' }]}
-                                        onPress={() => setSelectedVehicle(v.id)}
-                                    >
-                                        <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight, fontWeight: '600' }}>{v.vehicle_number}</Text>
-                                        <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, fontSize: FONT_SIZES.sm }}>{v.driver_name || 'No driver'} • Capacity {v.capacity ?? '—'}</Text>
-                                    </TouchableOpacity>
-                                ))
+                                ? (
+                                    <>
+                                        {vehicles.map((v) => (
+                                            <TouchableOpacity
+                                                key={v.id}
+                                                style={[styles.option, { borderColor: isDark ? colors.borderDark : colors.borderLight, backgroundColor: selectedVehicle === v.id ? colors.primary + '20' : 'transparent' }]}
+                                                onPress={() => {
+                                                    setSelectedVehicle(v.id);
+                                                    setSelectedTrip(null);
+                                                }}
+                                            >
+                                                <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight, fontWeight: '600' }}>{v.vehicle_number}</Text>
+                                                <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, fontSize: FONT_SIZES.sm }}>{v.driver_name || 'No driver'} • Capacity {v.capacity ?? '—'}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+
+                                        {selectedVehicle ? (
+                                            <>
+                                                <Text style={[styles.label, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                                    Trips for selected vehicle
+                                                </Text>
+                                                {tripsForSelectedVehicle.length === 0 ? (
+                                                    <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, fontSize: FONT_SIZES.sm }}>
+                                                        No trips found for this vehicle.
+                                                    </Text>
+                                                ) : (
+                                                    tripsForSelectedVehicle.map((t) => (
+                                                        <TouchableOpacity
+                                                            key={t.id}
+                                                            style={[styles.option, { borderColor: isDark ? colors.borderDark : colors.borderLight, backgroundColor: selectedTrip === t.id ? colors.primary + '20' : 'transparent' }]}
+                                                            onPress={() => setSelectedTrip(t.id)}
+                                                        >
+                                                            <Text style={{ color: isDark ? colors.textMainDark : colors.textMainLight, fontWeight: '600' }}>{t.name || `Trip #${t.id}`}</Text>
+                                                            <Text style={{ color: isDark ? colors.textSubDark : colors.textSubLight, fontSize: FONT_SIZES.sm }}>
+                                                                {t.direction ?? ''} • {t.departure_time ?? ''}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))
+                                                )}
+                                            </>
+                                        ) : null}
+                                    </>
+                                )
                                 : trips.map((t) => (
                                     <TouchableOpacity
                                         key={t.id}

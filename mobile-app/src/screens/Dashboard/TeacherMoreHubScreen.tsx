@@ -31,6 +31,7 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
         { title: 'Clock in / out', icon: 'access-time', screen: 'TeacherClock' },
         { title: 'Transport list', icon: 'directions-bus', screen: 'TeacherTransport' },
         { title: 'Diary', icon: 'book', screen: 'Diary' },
+        { title: 'Lesson plans', icon: 'menu-book', screen: 'LessonPlans' },
         { title: 'Lesson plan review', icon: 'inbox', screen: 'LessonPlanReviewQueue', seniorOnly: true },
         { title: 'Notifications', icon: 'notifications', screen: 'Notifications' },
         { title: 'Settings', icon: 'settings', screen: 'Settings' },
