@@ -68,57 +68,75 @@
               <thead class="table-light">
                 <tr>
                   <th>Classroom</th>
+                  <th>Stream</th>
                   <th>Current Class Teacher</th>
                   <th class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 @foreach($classrooms as $classroom)
-                  <tr>
-                    <td class="fw-semibold">{{ $classroom->name }}</td>
-                    <td>
-                      @if($classroom->classTeacher)
-                        <span class="pill-badge pill-success">{{ $classroom->classTeacher->full_name }}</span>
-                      @else
-                        <span class="text-muted">Unassigned</span>
-                      @endif
-                    </td>
-                    <td class="text-end">
-                      <button type="button" class="btn btn-sm btn-ghost-strong" data-bs-toggle="modal" data-bs-target="#assignClassTeacherModal{{ $classroom->id }}">
-                        <i class="bi bi-pencil"></i> Assign
-                      </button>
-                    </td>
-                  </tr>
+                  @php
+                    $streams = $classroom->allStreams();
+                    $rows = $streams->isEmpty() ? collect([(object) ['id' => null, 'name' => '— No streams —']]) : $streams;
+                  @endphp
 
-                  <div class="modal fade" id="assignClassTeacherModal{{ $classroom->id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                      <div class="modal-content settings-card mb-0">
-                        <div class="modal-header border-0 pb-0">
-                          <h5 class="modal-title">Assign Class Teacher — {{ $classroom->name }}</h5>
-                          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  @foreach($rows as $stream)
+                    @php
+                      $key = $classroom->id . ':' . (($stream->id ?? null) === null ? 'null' : $stream->id);
+                      $assignedStaffId = $assignmentMap[$key] ?? null;
+                      $assignedStaff = $assignedStaffId ? $staffTeachers->firstWhere('id', $assignedStaffId) : null;
+                      $modalId = 'assignClassTeacherModal' . $classroom->id . '_' . (($stream->id ?? null) === null ? 'null' : $stream->id);
+                    @endphp
+                    <tr>
+                      <td class="fw-semibold">{{ $classroom->name }}</td>
+                      <td>{{ $stream->name ?? '—' }}</td>
+                      <td>
+                        @if($assignedStaff)
+                          <span class="pill-badge pill-success">{{ $assignedStaff->full_name }}</span>
+                        @else
+                          <span class="text-muted">Unassigned</span>
+                        @endif
+                      </td>
+                      <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-ghost-strong" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
+                          <i class="bi bi-pencil"></i> Assign
+                        </button>
+                      </td>
+                    </tr>
+
+                    <div class="modal fade" id="{{ $modalId }}" tabindex="-1">
+                      <div class="modal-dialog">
+                        <div class="modal-content settings-card mb-0">
+                          <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title">Assign Class Teacher — {{ $classroom->name }} @if(($stream->id ?? null) !== null) ({{ $stream->name }}) @endif</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                          </div>
+                          <form action="{{ route('academics.classrooms.assign-class-teacher', $classroom->id) }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="stream_id" value="{{ $stream->id ?? '' }}">
+                            <div class="modal-body">
+                              <label class="form-label">Select Staff (Teacher)</label>
+                              <select name="staff_id" class="form-select">
+                                <option value="">— Unassigned —</option>
+                                @foreach($staffTeachers as $st)
+                                  <option value="{{ $st->id }}" @selected((string) $assignedStaffId === (string) $st->id)>
+                                    {{ $st->full_name }}
+                                  </option>
+                                @endforeach
+                              </select>
+                              <small class="text-muted">
+                                If the classroom has streams, each stream can have its own class teacher (streams are treated as separate classes).
+                              </small>
+                            </div>
+                            <div class="modal-footer border-0 pt-0">
+                              <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
+                              <button type="submit" class="btn btn-settings-primary">Save</button>
+                            </div>
+                          </form>
                         </div>
-                        <form action="{{ route('academics.classrooms.assign-class-teacher', $classroom->id) }}" method="POST">
-                          @csrf
-                          <div class="modal-body">
-                            <label class="form-label">Select Staff (Teacher)</label>
-                            <select name="staff_id" class="form-select">
-                              <option value="">— Unassigned —</option>
-                              @foreach($staffTeachers as $st)
-                                <option value="{{ $st->id }}" @selected((string) $classroom->class_teacher_id === (string) $st->id)>
-                                  {{ $st->full_name }}
-                                </option>
-                              @endforeach
-                            </select>
-                            <small class="text-muted">This sets the class teacher for homeroom duties (attendance, diary, requirements visibility).</small>
-                          </div>
-                          <div class="modal-footer border-0 pt-0">
-                            <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-settings-primary">Save</button>
-                          </div>
-                        </form>
                       </div>
                     </div>
-                  </div>
+                  @endforeach
                 @endforeach
               </tbody>
             </table>

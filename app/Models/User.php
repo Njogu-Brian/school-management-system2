@@ -66,20 +66,50 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     }
 
     /**
-     * Classroom IDs where this user is the homeroom/class teacher (via classrooms.class_teacher_id → staff.id).
+     * Class-teacher assignments (homeroom) for this user.
+     * Streams are treated as separate classes when present.
      *
-     * @return int[]
+     * @return array<int, object{classroom_id:int, stream_id:?int}>
      */
-    public function getClassTeacherClassroomIds(): array
+    public function getClassTeacherAssignments(): array
     {
         if (! $this->staff) {
             return [];
         }
 
-        return \App\Models\Academics\Classroom::query()
-            ->where('class_teacher_id', $this->staff->id)
-            ->pluck('id')
-            ->toArray();
+        $rows = \Illuminate\Support\Facades\DB::table('class_teacher_assignments')
+            ->where('staff_id', $this->staff->id)
+            ->get(['classroom_id', 'stream_id']);
+
+        return $rows
+            ->map(fn ($r) => (object) [
+                'classroom_id' => (int) $r->classroom_id,
+                'stream_id' => $r->stream_id !== null ? (int) $r->stream_id : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return int[]
+     */
+    public function getClassTeacherClassroomIds(): array
+    {
+        return array_values(array_unique(array_map(
+            fn ($a) => (int) $a->classroom_id,
+            $this->getClassTeacherAssignments()
+        )));
+    }
+
+    /**
+     * @return int[]
+     */
+    public function getClassTeacherStreamIds(): array
+    {
+        return array_values(array_unique(array_values(array_filter(array_map(
+            fn ($a) => $a->stream_id === null ? null : (int) $a->stream_id,
+            $this->getClassTeacherAssignments()
+        ), fn ($v) => $v !== null))));
     }
 
     public function isSeniorTeacherUser(): bool
@@ -355,7 +385,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
      */
     public function getEffectiveStreamIds(): array
     {
-        $assigned = $this->getAssignedStreamIds();
+        $assigned = array_values(array_unique(array_merge($this->getAssignedStreamIds(), $this->getClassTeacherStreamIds())));
         if ($this->isSeniorTeacherUser()) {
             $supervised = $this->getSupervisedStreamIds();
             return array_values(array_unique(array_merge($assigned, $supervised)));
@@ -424,9 +454,9 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         }
 
         $supervisedClassroomIds = $this->isSeniorTeacherUser() ? $this->getSupervisedClassroomIds() : [];
-        $classTeacherClassroomIds = $this->getClassTeacherClassroomIds();
+        $classTeacherAssignments = $this->getClassTeacherAssignments();
 
-        $query->where(function ($outer) use ($streamAssignments, $assignedClassroomIds, $supervisedClassroomIds, $classTeacherClassroomIds) {
+        $query->where(function ($outer) use ($streamAssignments, $assignedClassroomIds, $supervisedClassroomIds, $classTeacherAssignments) {
             $matchedAny = false;
 
             if (! empty($streamAssignments)) {
@@ -468,8 +498,15 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
                 $matchedAny = true;
             }
 
-            if (! empty($classTeacherClassroomIds)) {
-                $outer->orWhereIn('classroom_id', $classTeacherClassroomIds);
+            if (! empty($classTeacherAssignments)) {
+                foreach ($classTeacherAssignments as $a) {
+                    $outer->orWhere(function ($subQ) use ($a) {
+                        $subQ->where('classroom_id', (int) $a->classroom_id);
+                        if ($a->stream_id !== null) {
+                            $subQ->where('stream_id', (int) $a->stream_id);
+                        }
+                    });
+                }
                 $matchedAny = true;
             }
 

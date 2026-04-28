@@ -5,13 +5,15 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
 use App\Models\Staff;
+use App\Models\ClassTeacherAssignment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AssignTeachersController extends Controller
 {
     public function index()
     {
-        $classrooms = Classroom::with('classTeacher')->orderBy('name')->get();
+        $classrooms = Classroom::with(['primaryStreams', 'streams'])->orderBy('name')->get();
 
         $teacherRoleNames = ['Teacher', 'teacher', 'Senior Teacher', 'senior teacher', 'Supervisor', 'supervisor'];
         $staffTeachers = Staff::with('user')
@@ -20,14 +22,22 @@ class AssignTeachersController extends Controller
             ->orderBy('last_name')
             ->get();
 
+        $assignments = DB::table('class_teacher_assignments')->get(['classroom_id', 'stream_id', 'staff_id']);
+        $assignmentMap = [];
+        foreach ($assignments as $a) {
+            $key = (int) $a->classroom_id . ':' . ($a->stream_id === null ? 'null' : (int) $a->stream_id);
+            $assignmentMap[$key] = (int) $a->staff_id;
+        }
+
         return view('academics.assign_teachers', [
             'classrooms' => $classrooms,
             'staffTeachers' => $staffTeachers,
+            'assignmentMap' => $assignmentMap,
         ]);
     }
 
     /**
-     * Assign/clear class teacher for a classroom (classrooms.class_teacher_id → staff.id).
+     * Assign/clear class teacher for a classroom or classroom-stream.
      */
     public function assignClassTeacher(Request $request, $id)
     {
@@ -35,10 +45,22 @@ class AssignTeachersController extends Controller
 
         $request->validate([
             'staff_id' => 'nullable|integer|exists:staff,id',
+            'stream_id' => 'nullable|integer|exists:streams,id',
         ]);
 
-        $classroom->class_teacher_id = $request->filled('staff_id') ? (int) $request->staff_id : null;
-        $classroom->save();
+        $streamId = $request->filled('stream_id') ? (int) $request->stream_id : null;
+
+        if (! $request->filled('staff_id')) {
+            ClassTeacherAssignment::query()
+                ->where('classroom_id', $classroom->id)
+                ->when($streamId === null, fn ($q) => $q->whereNull('stream_id'), fn ($q) => $q->where('stream_id', $streamId))
+                ->delete();
+        } else {
+            ClassTeacherAssignment::updateOrCreate(
+                ['classroom_id' => $classroom->id, 'stream_id' => $streamId],
+                ['staff_id' => (int) $request->staff_id]
+            );
+        }
 
         return redirect()->route('academics.assign-teachers')
             ->with('success', 'Class teacher updated for ' . $classroom->name . ' successfully.');
@@ -53,7 +75,7 @@ class AssignTeachersController extends Controller
             'confirm_clear' => 'required|in:CLEARALL',
         ]);
 
-        Classroom::query()->update(['class_teacher_id' => null]);
+        DB::table('class_teacher_assignments')->delete();
 
         return redirect()
             ->route('academics.assign-teachers')
