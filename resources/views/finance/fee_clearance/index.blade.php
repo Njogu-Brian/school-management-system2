@@ -15,6 +15,15 @@
             <a href="{{ route('finance.payment-thresholds.index', array_filter(['term_id' => $term?->id])) }}" class="btn btn-finance btn-finance-outline">
                 <i class="bi bi-sliders"></i> Payment thresholds
             </a>
+            @if($term)
+                <a
+                    href="{{ route('finance.fee-clearance.export-pdf', request()->only(['term_id','classroom_id','status','reason_code','search'])) }}"
+                    class="btn btn-finance btn-finance-outline"
+                    title="Export fee clearance status as PDF"
+                >
+                    <i class="bi bi-file-pdf"></i> Export PDF (by class)
+                </a>
+            @endif
             <form method="POST" action="{{ route('finance.fee-clearance.recompute') }}" class="d-inline" onsubmit="return confirm('Recompute clearance snapshots now?');">
                 @csrf
                 <input type="hidden" name="term_id" value="{{ $term?->id }}">

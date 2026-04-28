@@ -11,6 +11,7 @@ use App\Models\StudentTermFeeClearance;
 use App\Models\Term;
 use App\Services\FeeClearanceStatusService;
 use App\Services\AutoPaymentPlanService;
+use App\Services\PDFExportService;
 use Illuminate\Http\Request;
 
 class FeeClearanceReportController extends Controller
@@ -90,6 +91,72 @@ class FeeClearanceReportController extends Controller
             'counts' => $counts,
             'filters' => $filters,
             'paymentThresholdsCount' => $paymentThresholdsCount,
+        ]);
+    }
+
+    /**
+     * Export fee clearance (pending/cleared) as PDF, grouped by class/stream (one group per page).
+     * Sorted by student first name within each class/stream.
+     */
+    public function exportPdfByClass(Request $request)
+    {
+        $terms = Term::orderByDesc('id')->with('academicYear')->get();
+        $term = $this->resolveTerm($request, $terms);
+
+        if (!$term) {
+            return back()->with('error', 'No term found. Set a current term or pass term_id.');
+        }
+
+        $classroomId = (int) $request->get('classroom_id') ?: null;
+        $this->ensureSnapshotsForTerm($term, $classroomId);
+
+        $query = StudentTermFeeClearance::query()
+            ->where('term_id', $term->id)
+            ->with(['student.classroom', 'student.stream'])
+            ->whereHas('student', function ($q) use ($classroomId) {
+                $q->where('archive', 0)->where('is_alumni', false);
+                if ($classroomId) {
+                    $q->where('classroom_id', $classroomId);
+                }
+            })
+            ->orderByRaw("CASE WHEN status = 'cleared' THEN 0 ELSE 1 END") // stable grouping; not required but helps readability if printing subsets
+            ->orderBy('student_id');
+
+        $snapshots = $query->get();
+
+        $rows = $snapshots->map(function (StudentTermFeeClearance $snap) {
+            $st = $snap->student;
+            return [
+                'student_id' => $snap->student_id,
+                'admission_number' => $st?->admission_number,
+                'first_name' => $st?->first_name ?? '',
+                'middle_name' => $st?->middle_name ?? '',
+                'last_name' => $st?->last_name ?? '',
+                'full_name' => $st?->full_name ?? trim(($st?->first_name ?? '') . ' ' . ($st?->last_name ?? '')),
+                'classroom' => $st?->classroom?->name ?? 'N/A',
+                'stream' => $st?->stream?->name ?? 'General',
+                'status' => $snap->status === 'cleared' ? 'cleared' : 'pending',
+            ];
+        })->filter(fn ($r) => !empty($r['student_id']));
+
+        $grouped = $rows
+            ->sortBy([
+                fn ($r) => strtolower((string) $r['classroom']),
+                fn ($r) => strtolower((string) $r['stream']),
+                fn ($r) => strtolower((string) $r['first_name']),
+                fn ($r) => strtolower((string) $r['middle_name']),
+                fn ($r) => strtolower((string) $r['last_name']),
+            ])
+            ->groupBy(fn ($r) => ($r['classroom'] ?? 'N/A') . ' | ' . ($r['stream'] ?? 'General'));
+
+        $pdfService = new PDFExportService();
+        return $pdfService->generatePDF('finance.fee_clearance.pdf_by_class', [
+            'term' => $term,
+            'groups' => $grouped,
+        ], [
+            'filename' => 'fee_clearance_status_by_class_' . $term->id . '_' . now()->format('Y-m-d_His') . '.pdf',
+            'stream' => false,
+            'orientation' => 'portrait',
         ]);
     }
 

@@ -1487,6 +1487,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Fee Clearance (Cleared / Pending) report
         Route::get('fee-clearance', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'index'])->name('fee-clearance.index');
         Route::post('fee-clearance/recompute', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'recompute'])->name('fee-clearance.recompute');
+        Route::get('fee-clearance/export-pdf', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'exportPdfByClass'])->name('fee-clearance.export-pdf');
 
         Route::resource('payment-thresholds', PaymentThresholdController::class)
             ->parameters(['payment-thresholds' => 'payment_threshold'])
