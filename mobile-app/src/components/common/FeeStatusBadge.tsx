@@ -8,7 +8,7 @@ export const FeeStatusBadge: React.FC<{
     fee_status?: FeeStatus | null;
     outstanding_balance?: number | null;
     compact?: boolean;
-}> = ({ fee_status, outstanding_balance, compact }) => {
+}> = ({ fee_status, outstanding_balance: _outstanding_balance, compact }) => {
     if (!fee_status) return null;
     const cleared = fee_status === 'cleared';
 
@@ -16,9 +16,9 @@ export const FeeStatusBadge: React.FC<{
     const border = cleared ? '#2E7D32' : '#C62828';
     const fg = cleared ? '#2E7D32' : '#C62828';
 
-    const label = cleared
-        ? 'Fees cleared'
-        : `Pending${outstanding_balance ? ` (${Number(outstanding_balance).toFixed(0)})` : ''}`;
+    // Important: Teachers/drivers must not see any fee amounts here. The server decides
+    // pending vs cleared (thresholds, plans, deadlines). UI only displays the status.
+    const label = cleared ? 'Cleared' : 'Pending';
 
     return (
         <View
