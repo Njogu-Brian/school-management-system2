@@ -148,6 +148,7 @@ class AcademicPermissionsSeeder extends Seeder
         $superAdmin = Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => $guard]);
         $secretary = Role::firstOrCreate(['name' => 'Secretary', 'guard_name' => $guard]);
         $seniorTeacher = Role::firstOrCreate(['name' => 'Senior Teacher', 'guard_name' => $guard]);
+        $deputySeniorTeacher = Role::firstOrCreate(['name' => 'Deputy Senior Teacher', 'guard_name' => $guard]);
         $accountant = Role::firstOrCreate(['name' => 'Accountant', 'guard_name' => $guard]);
         $parent = Role::firstOrCreate(['name' => 'Parent', 'guard_name' => $guard]);
         $student = Role::firstOrCreate(['name' => 'Student', 'guard_name' => $guard]);
@@ -324,6 +325,7 @@ class AcademicPermissionsSeeder extends Seeder
         // Assign permissions
         $teacher->givePermissionTo($teacherPermissions);
         $seniorTeacher->givePermissionTo($seniorTeacherPermissions);
+        $deputySeniorTeacher->givePermissionTo($seniorTeacherPermissions);
         $admin->givePermissionTo($adminPermissions);
         $secretary->givePermissionTo($adminPermissions);
         $parent->givePermissionTo($parentPermissions);

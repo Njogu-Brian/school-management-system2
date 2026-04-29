@@ -50,13 +50,13 @@ class AttendanceController extends Controller
 
         $user = auth()->user();
         
-        // If user is a teacher or senior teacher, restrict to assigned classes/streams
-        $isTeacher = $user->hasRole('teacher') || $user->hasRole('Teacher') || $user->hasRole('Senior Teacher');
+        // Teaching roles are classroom-scoped; academic administrators are read-only viewers.
+        $isTeacher = $user->hasTeacherLikeRole();
         $canUnmark = $user->hasAnyRole(['Super Admin', 'Admin']); // Only admin can unmark from this form
 
         if ($isTeacher) {
             // For Senior Teachers, include both assigned and supervised classrooms
-            $assignedClassIds = $user->hasRole('Senior Teacher')
+            $assignedClassIds = $user->isSeniorTeacherUser()
                 ? array_unique(array_merge(
                     $user->getAssignedClassroomIds(),
                     $user->getSupervisedClassroomIds()
@@ -73,7 +73,7 @@ class AttendanceController extends Controller
             // If a class is selected, check if teacher is assigned to it (or supervises it for Senior Teachers)
             if ($selectedClass) {
                 $hasAccess = $user->isAssignedToClassroom($selectedClass);
-                if (!$hasAccess && $user->hasRole('Senior Teacher')) {
+                if (!$hasAccess && ($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser())) {
                     $hasAccess = in_array($selectedClass, $user->getSupervisedClassroomIds());
                 }
                 if (!$hasAccess) {
@@ -87,7 +87,7 @@ class AttendanceController extends Controller
                 ? Stream::where('classroom_id', $selectedClass)
                     ->when(!empty($assignedStreamIds), fn($q) => $q->whereIn('id', $assignedStreamIds))
                     ->pluck('name', 'id')
-                : (empty($assignedStreamIds) && $user->hasRole('Senior Teacher')
+                : (empty($assignedStreamIds) && ($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser())
                     ? Stream::whereIn('classroom_id', $assignedClassIds)->pluck('name', 'id')
                     : Stream::whereIn('id', $assignedStreamIds)->pluck('name', 'id'));
         } else {
@@ -110,7 +110,7 @@ class AttendanceController extends Controller
         
         if ($isTeacher) {
             $streamAssignments = $user->getStreamAssignments();
-            $assignedClassIds = $user->hasRole('Senior Teacher')
+            $assignedClassIds = $user->isSeniorTeacherUser()
                 ? array_unique(array_merge(
                     $user->getAssignedClassroomIds(),
                     $user->getSupervisedClassroomIds()
@@ -222,16 +222,21 @@ public function mark(Request $request)
     $selectedClass = $request->input('class');
     $selectedStream = $request->input('stream');
     
-    // If user is a teacher or senior teacher, validate they're assigned/supervise the class/stream
-    $isTeacher = $user->hasRole('teacher') || $user->hasRole('Teacher') || $user->hasRole('Senior Teacher');
+    // Academic administrators are monitoring-only and cannot mark/edit attendance.
+    if ($user->isAcademicAdministratorUser()) {
+        return back()->with('error', 'Academic administrators can view attendance reports but cannot mark attendance.');
+    }
+
+    // Teaching leadership and teachers can mark based on classroom scope.
+    $isTeacher = $user->hasTeacherLikeRole();
     if ($isTeacher) {
         $hasClassAccess = $selectedClass && ($user->isAssignedToClassroom($selectedClass)
-            || ($user->hasRole('Senior Teacher') && in_array($selectedClass, $user->getSupervisedClassroomIds(), true)));
+            || (($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser()) && in_array($selectedClass, $user->getSupervisedClassroomIds(), true)));
         if ($selectedClass && !$hasClassAccess) {
             return back()->with('error', 'You are not assigned to this class.');
         }
         $hasStreamAccess = !$selectedStream || $user->isAssignedToStream($selectedStream)
-            || ($user->hasRole('Senior Teacher') && $user->isSupervisingStream($selectedStream));
+            || (($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser()) && $user->isSupervisingStream($selectedStream));
         if ($selectedStream && !$hasStreamAccess) {
             return back()->with('error', 'You are not assigned to this stream.');
         }
@@ -492,10 +497,10 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         $studentId      = $request->get('student_id');
 
         $user = auth()->user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        $isTeacher = $user->hasTeacherLikeRole();
         // For Senior Teachers, include both assigned and supervised classrooms
         $assignedClassIds = $isTeacher 
-            ? ($user->hasRole('Senior Teacher')
+            ? ($user->isSeniorTeacherUser()
                 ? array_unique(array_merge(
                     $user->getAssignedClassroomIds(),
                     $user->getSupervisedClassroomIds()
@@ -873,9 +878,9 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     {
         $attendance = Attendance::with('student.classroom', 'student.stream', 'reasonCode', 'markedBy')->findOrFail($id);
         
-        // Check permissions - only Senior Teachers and Admins can edit
+        // Check permissions - only senior teaching leadership and admins can edit
         $user = auth()->user();
-        if (!$user->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher'])) {
+        if (!$user->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher', 'Deputy Senior Teacher'])) {
             return redirect()->route('attendance.records')
                 ->with('error', 'You do not have permission to edit attendance records.');
         }
@@ -890,9 +895,9 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     {
         $attendance = Attendance::with('student')->findOrFail($id);
         
-        // Check permissions - only Senior Teachers and Admins can update
+        // Check permissions - only senior teaching leadership and admins can update
         $user = auth()->user();
-        if (!$user->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher'])) {
+        if (!$user->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher', 'Deputy Senior Teacher'])) {
             return redirect()->route('attendance.records')
                 ->with('error', 'You do not have permission to update attendance records.');
         }

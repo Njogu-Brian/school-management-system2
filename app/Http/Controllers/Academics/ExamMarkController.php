@@ -422,8 +422,9 @@ class ExamMarkController extends Controller
             // 1. Teacher is directly assigned to the classroom (can enter marks for any subject), OR
             // 2. Teacher teaches this specific subject in this classroom, OR
             // 3. Senior Teacher supervises this classroom (can enter marks for any subject)
-            $isSupervised = $user->isSeniorTeacherUser() && in_array($v['classroom_id'], $user->getSupervisedClassroomIds(), true);
-            if (!$isDirectlyAssigned && !$hasSubjectAccess && !$isSupervised) {
+            $isLeadershipScope = ($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser())
+                && $user->canTeacherAccessClassroom((int) $v['classroom_id']);
+            if (!$isDirectlyAssigned && !$hasSubjectAccess && !$isLeadershipScope) {
                 return back()
                     ->withInput()
                     ->with('error', 'You do not have access to enter marks for this subject in this classroom.');
@@ -485,8 +486,9 @@ class ExamMarkController extends Controller
             // 1. Teacher is directly assigned to the classroom (can enter marks for any subject), OR
             // 2. Teacher teaches this specific subject in this classroom, OR
             // 3. Senior Teacher supervises this classroom
-            $isSupervised = $user->isSeniorTeacherUser() && in_array($classId, $user->getSupervisedClassroomIds(), true);
-            if (!$isDirectlyAssigned && !$hasSubjectAccess && !$isSupervised) {
+            $isLeadershipScope = ($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser())
+                && $user->canTeacherAccessClassroom((int) $classId);
+            if (!$isDirectlyAssigned && !$hasSubjectAccess && !$isLeadershipScope) {
                 abort(403, 'You do not have access to enter marks for this subject in this classroom.');
             }
         }
@@ -563,7 +565,7 @@ class ExamMarkController extends Controller
                 
                 // If no subject-specific assignment, check direct class assignment or senior teacher supervision
                 $isDirectOrSupervised = $user->isAssignedToClassroom($data['classroom_id'])
-                    || ($user->isSeniorTeacherUser() && in_array($data['classroom_id'], $user->getSupervisedClassroomIds(), true));
+                    || (($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser()) && $user->canTeacherAccessClassroom((int) $data['classroom_id']));
                 if (!$hasSubjectAccess && !$isDirectOrSupervised) {
                     return back()
                         ->withInput()
@@ -571,7 +573,7 @@ class ExamMarkController extends Controller
                 }
             } else {
                 $canAccess = $user->isAssignedToClassroom($data['classroom_id'])
-                    || ($user->isSeniorTeacherUser() && in_array($data['classroom_id'], $user->getSupervisedClassroomIds(), true));
+                    || (($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser()) && $user->canTeacherAccessClassroom((int) $data['classroom_id']));
                 if (!$canAccess) {
                     abort(403, 'You do not have access to enter marks.');
                 }
@@ -688,7 +690,7 @@ class ExamMarkController extends Controller
                         ->where('subject_id', $exam_mark->subject_id)
                         ->exists();
                     
-                    if (!$hasAccess) {
+                    if (!$hasAccess && !((Auth::user()->isSeniorTeacherUser() || Auth::user()->isDeputySeniorTeacherUser()) && Auth::user()->canTeacherAccessClassroom((int) $exam->classroom_id))) {
                         abort(403, 'You do not have access to edit this mark.');
                     }
                 }
@@ -719,7 +721,7 @@ class ExamMarkController extends Controller
                         ->where('subject_id', $exam_mark->subject_id)
                         ->exists();
                     
-                    if (!$hasAccess) {
+                    if (!$hasAccess && !((Auth::user()->isSeniorTeacherUser() || Auth::user()->isDeputySeniorTeacherUser()) && Auth::user()->canTeacherAccessClassroom((int) $exam->classroom_id))) {
                         abort(403, 'You do not have access to update this mark.');
                     }
                 }

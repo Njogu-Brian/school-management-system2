@@ -321,7 +321,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('attendance')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Deputy Senior Teacher|Academic Administrator|Supervisor')
         ->group(function () {
             Route::get('/mark',          [AttendanceController::class, 'markForm'])->name('attendance.mark.form');
             Route::post('/mark',         [AttendanceController::class, 'mark'])->name('attendance.mark');
@@ -1400,6 +1400,25 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::put('payments/{payment}/update-shared-allocations', [PaymentController::class, 'updateSharedAllocations'])->name('payments.update-shared-allocations');
         Route::delete('payments/{payment}/reverse', [PaymentController::class, 'reverse'])->name('payments.reverse');
         Route::post('payments/{payment}/transfer', [PaymentController::class, 'transfer'])->name('payments.transfer');
+
+        // Expense Management
+        Route::get('expenses/reports', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'index'])->name('expenses.reports.index');
+        Route::get('expenses/reports/export-csv', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportCsv'])->name('expenses.reports.export-csv');
+        Route::get('expenses/reports/export-pdf', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportPdf'])->name('expenses.reports.export-pdf');
+        Route::resource('expenses', \App\Http\Controllers\Finance\ExpenseController::class);
+        Route::post('expenses/{expense}/submit', [\App\Http\Controllers\Finance\ExpenseController::class, 'submit'])->name('expenses.submit');
+        Route::post('expenses/{expense}/approvals', [\App\Http\Controllers\Finance\ExpenseApprovalController::class, 'store'])->name('expenses.approvals.store');
+
+        Route::get('payment-vouchers', [\App\Http\Controllers\Finance\PaymentVoucherController::class, 'index'])->name('payment-vouchers.index');
+        Route::post('payment-vouchers', [\App\Http\Controllers\Finance\PaymentVoucherController::class, 'store'])->name('payment-vouchers.store');
+        Route::get('payment-vouchers/{paymentVoucher}', [\App\Http\Controllers\Finance\PaymentVoucherController::class, 'show'])->name('payment-vouchers.show');
+        Route::post('payment-vouchers/{paymentVoucher}/pay', [\App\Http\Controllers\Finance\PaymentVoucherController::class, 'pay'])->name('payment-vouchers.pay');
+
+        Route::get('expense-categories', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'index'])->name('expense-categories.index');
+        Route::post('expense-categories', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'store'])->name('expense-categories.store');
+        Route::put('expense-categories/{expenseCategory}', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'update'])->name('expense-categories.update');
+
+        Route::resource('vendors', \App\Http\Controllers\Finance\VendorController::class)->except(['show', 'destroy']);
         
         // Bank Accounts
         Route::resource('bank-accounts', BankAccountController::class)->parameters(['bank-accounts' => 'bankAccount']);

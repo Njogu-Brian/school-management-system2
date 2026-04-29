@@ -42,7 +42,16 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
      */
     public static function teacherLikeRoleNames(): array
     {
-        return ['Teacher', 'Senior Teacher', 'Supervisor', 'teacher', 'senior teacher', 'supervisor'];
+        return [
+            'Teacher',
+            'Senior Teacher',
+            'Deputy Senior Teacher',
+            'Supervisor',
+            'teacher',
+            'senior teacher',
+            'deputy senior teacher',
+            'supervisor',
+        ];
     }
 
     public function hasTeacherLikeRole(): bool
@@ -117,6 +126,16 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         return $this->hasAnyRole(['Senior Teacher', 'senior teacher', 'Senior teacher']);
     }
 
+    public function isDeputySeniorTeacherUser(): bool
+    {
+        return $this->hasAnyRole(['Deputy Senior Teacher', 'deputy senior teacher', 'Deputy senior teacher']);
+    }
+
+    public function isAcademicAdministratorUser(): bool
+    {
+        return $this->hasAnyRole(['Academic Administrator', 'academic administrator', 'Academic administrator']);
+    }
+
     /**
      * Classrooms for dashboards, KPIs, and exam scope (assigned + supervised campus for senior teachers).
      *
@@ -145,11 +164,14 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
             return false;
         }
         $cid = (int) $classroomId;
+        if ($this->isSeniorTeacherUser()) {
+            return true;
+        }
         $assigned = array_map('intval', $this->getAssignedClassroomIds());
         if (in_array($cid, $assigned, true)) {
             return true;
         }
-        if ($this->isSeniorTeacherUser()) {
+        if ($this->isDeputySeniorTeacherUser()) {
             return in_array($cid, array_map('intval', $this->getSupervisedClassroomIds()), true);
         }
 
@@ -218,7 +240,11 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
      */
     public function getSupervisedClassroomIds(): array
     {
-        if (! $this->isSeniorTeacherUser()) {
+        if ($this->isSeniorTeacherUser()) {
+            return \App\Models\Academics\Classroom::query()->pluck('id')->map(fn ($id) => (int) $id)->all();
+        }
+
+        if (! $this->isDeputySeniorTeacherUser()) {
             return [];
         }
 
@@ -386,7 +412,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     public function getEffectiveStreamIds(): array
     {
         $assigned = array_values(array_unique(array_merge($this->getAssignedStreamIds(), $this->getClassTeacherStreamIds())));
-        if ($this->isSeniorTeacherUser()) {
+        if ($this->isSeniorTeacherUser() || $this->isDeputySeniorTeacherUser()) {
             $supervised = $this->getSupervisedStreamIds();
             return array_values(array_unique(array_merge($assigned, $supervised)));
         }
@@ -453,7 +479,9 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
             $assignedClassroomIds = $this->getAssignedClassroomIds();
         }
 
-        $supervisedClassroomIds = $this->isSeniorTeacherUser() ? $this->getSupervisedClassroomIds() : [];
+        $supervisedClassroomIds = ($this->isSeniorTeacherUser() || $this->isDeputySeniorTeacherUser())
+            ? $this->getSupervisedClassroomIds()
+            : [];
         $classTeacherAssignments = $this->getClassTeacherAssignments();
 
         $query->where(function ($outer) use ($streamAssignments, $assignedClassroomIds, $supervisedClassroomIds, $classTeacherAssignments) {

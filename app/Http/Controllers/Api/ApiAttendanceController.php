@@ -88,7 +88,7 @@ class ApiAttendanceController extends Controller
         $user = $request->user();
         $isToday = Carbon::parse($date)->isToday();
 
-        if ($user && $user->hasRole('Academic Administrator')) {
+        if ($user && $user->isAcademicAdministratorUser()) {
             return response()->json(['success' => false, 'message' => 'Academic administrators cannot mark attendance.'], 403);
         }
 
