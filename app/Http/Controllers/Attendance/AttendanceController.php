@@ -328,7 +328,7 @@ public function mark(Request $request)
                 if (!$student || !$student->parent) continue;
 
                 $humanDate = 'today';
-                $reasonForNotification = $presetReason ?? $attendance->reason ?? 'Not specified';
+                $reasonForNotification = $presetReason ?? $attendance->reason ?? null;
                 $statusForNotification = $status;
 
                 if ($status === 'absent') {
@@ -428,12 +428,15 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         ?? $student->parent->guardian_name
         ?? 'Parent';
     
+    $normalizedReason = trim((string) ($reason ?? ''));
+    $hasReason = $normalizedReason !== '' && strtolower($normalizedReason) !== 'not specified';
+
     // Support both {key} and {{key}} placeholders
     $replacements = [
         // Seeder format ({{key}})
         '{{student_name}}' => $student->full_name,
         '{{attendance_status}}' => $status ?? 'absent',
-        '{{attendance_reason}}' => $reason ?? 'Not specified',
+        '{{attendance_reason}}' => $hasReason ? $normalizedReason : '',
         '{{attendance_date}}' => $humanDate,
         '{{parent_name}}' => $parentName,
         '{{school_name}}' => $schoolName,
@@ -443,14 +446,21 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         '{admission_no}' => $student->admission_number ?? '',
         '{date}' => $humanDate,
         '{parent_name}' => $parentName,
-        '{reason}' => $reason ?? '',
-        '{attendance_reason}' => $reason ?? '',
+        '{reason}' => $hasReason ? $normalizedReason : '',
+        '{attendance_reason}' => $hasReason ? $normalizedReason : '',
     ];
 
     $result = $content;
     foreach ($replacements as $key => $value) {
         $result = str_replace($key, $value, $result);
     }
+
+    // If no reason was provided, remove the entire "Reason: ..." line from the message.
+    if (! $hasReason) {
+        $result = preg_replace('/^\h*Reason\s*:\h*.*(\R|$)/mi', '', $result) ?? $result;
+        $result = preg_replace('/\n{3,}/', "\n\n", $result) ?? $result;
+    }
+
     return $result;
 }
 
