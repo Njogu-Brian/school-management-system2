@@ -6,6 +6,18 @@
     @php
         $publicPlanUrl = url('/payment-plan/' . $feePaymentPlan->hashed_id);
         $payNowUrl = null;
+        $installmentDisplay = 'KES ' . number_format((float) $feePaymentPlan->installment_amount, 2);
+        if ($feePaymentPlan->relationLoaded('installments') && $feePaymentPlan->installments->isNotEmpty()) {
+            $distinctAmounts = $feePaymentPlan->installments
+                ->map(fn ($inst) => round((float) $inst->amount, 2))
+                ->unique()
+                ->values();
+            if ($distinctAmounts->count() > 1) {
+                $installmentDisplay = 'Variable (see schedule)';
+            } elseif ($distinctAmounts->count() === 1) {
+                $installmentDisplay = 'KES ' . number_format((float) $distinctAmounts->first(), 2);
+            }
+        }
         if ($feePaymentPlan->student && $feePaymentPlan->student->family_id) {
             $link = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $feePaymentPlan->student->family_id, auth()->id(), 'payment_plan_show');
             $payNowUrl = $link->getPaymentUrl();
@@ -84,7 +96,7 @@
                         <div class="col-6">
                             <div class="p-3 rounded border bg-light">
                                 <div class="text-muted small">Installment amount</div>
-                                <div class="h6 mb-0">KES {{ number_format($feePaymentPlan->installment_amount, 2) }}</div>
+                                <div class="h6 mb-0">{{ $installmentDisplay }}</div>
                             </div>
                         </div>
                         <div class="col-6">

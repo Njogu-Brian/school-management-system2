@@ -5,6 +5,18 @@
     $schoolName = $schoolSettings['name'] ?? config('app.name');
     $invoice = $plan->invoice;
     $balance = $invoice ? (float) $invoice->balance : 0;
+    $installmentLine = ($plan->installment_count ?? 0) . ' × Ksh ' . number_format((float) ($plan->installment_amount ?? 0), 2);
+    if ($plan->installments && $plan->installments->isNotEmpty()) {
+        $distinctAmounts = $plan->installments
+            ->map(fn ($inst) => round((float) ($inst->amount ?? 0), 2))
+            ->unique()
+            ->values();
+        if ($distinctAmounts->count() > 1) {
+            $installmentLine = ($plan->installment_count ?? 0) . ' (variable by schedule)';
+        } elseif ($distinctAmounts->count() === 1) {
+            $installmentLine = ($plan->installment_count ?? 0) . ' × Ksh ' . number_format((float) $distinctAmounts->first(), 2);
+        }
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -115,7 +127,7 @@
             </div>
             <div class="detail-row">
                 <span class="detail-label">Installments</span>
-                <span class="detail-value">{{ $plan->installment_count ?? 0 }} × Ksh {{ number_format($plan->installment_amount ?? 0, 2) }}</span>
+                <span class="detail-value">{{ $installmentLine }}</span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">Status</span>

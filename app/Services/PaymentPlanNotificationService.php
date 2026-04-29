@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\FeePaymentPlan;
 use App\Models\CommunicationTemplate;
 use App\Models\CommunicationLog;
-use App\Models\PaymentLink;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\GenericMail;
 
@@ -21,7 +20,7 @@ class PaymentPlanNotificationService
 
     public function notifyParentOnPlanCreated(FeePaymentPlan $plan): void
     {
-        $plan->load(['student.parent', 'student.classroom', 'invoice']);
+        $plan->load(['student.parent', 'student.classroom', 'invoice', 'installments']);
         $student = $plan->student;
         $parent = $student->parent ?? null;
 
@@ -56,38 +55,51 @@ class PaymentPlanNotificationService
         }
         $student = $plan->student;
         $studentName = $student->full_name ?? trim($student->first_name . ' ' . $student->last_name);
-        $installmentAmount = number_format((float) $plan->installment_amount, 2);
         $total = number_format((float) $plan->total_amount, 2);
-        $count = $plan->installment_count;
+        $count = $extra['installment_count'] ?? (string) $plan->installment_count;
+        $installmentSummary = $extra['installment_summary'] ?? ('KES ' . number_format((float) $plan->installment_amount, 2));
         $start = $plan->start_date->format('d M Y');
         $end = $plan->end_date->format('d M Y');
         $link = url('/payment-plan/' . $plan->hashed_id);
-        $payLink = $extra['pay_link'] ?? null;
         $schoolName = setting('school_name', config('app.name'));
-        $payLine = $payLink ? "\nPay now: {$payLink}\n(Click the link to pay)\n" : "";
-        return "Dear Parent/Guardian,\n\nA payment plan has been created for {$studentName}.\n\nTotal: KES {$total} in {$count} installments of KES {$installmentAmount}.\nPeriod: {$start} to {$end}.\n\nView your plan: {$link}{$payLine}\nRegards,\n{$schoolName}";
+        return "Dear Parent/Guardian,\n\nA payment plan has been created for {$studentName}.\n\nTotal: KES {$total}.\nInstallments: {$count} ({$installmentSummary}).\nPeriod: {$start} to {$end}.\n\nView your plan: {$link}\n\nRegards,\n{$schoolName}";
     }
 
     protected function planExtra(FeePaymentPlan $plan): array
     {
         $link = url('/payment-plan/' . $plan->hashed_id);
-        $payLink = null;
-        if ($plan->student && $plan->student->family_id) {
-            $pl = PaymentLink::getOrCreateFamilyLink((int) $plan->student->family_id, auth()->id(), 'payment_plan');
-            $payLink = $pl->getPaymentUrl();
-        } elseif ($plan->student) {
-            $existing = PaymentLink::active()
-                ->where('student_id', $plan->student->id)
-                ->whereNull('family_id')
-                ->first();
-            $payLink = $existing?->getPaymentUrl();
+        $installments = $plan->relationLoaded('installments')
+            ? $plan->installments
+            : $plan->installments()->orderBy('installment_number')->get();
+        $installmentCount = (int) ($installments->count() > 0 ? $installments->count() : $plan->installment_count);
+        $installmentAmountText = number_format((float) $plan->installment_amount, 2);
+        $summary = 'KES ' . number_format((float) $plan->installment_amount, 2) . ' each';
+        if ($installments->isNotEmpty()) {
+            $distinctAmounts = $installments
+                ->map(fn ($inst) => round((float) $inst->amount, 2))
+                ->unique()
+                ->values();
+            if ($distinctAmounts->count() === 1) {
+                $installmentAmountText = number_format((float) $distinctAmounts->first(), 2);
+            } else {
+                $installmentAmountText = 'Variable';
+            }
+            $parts = $installments
+                ->sortBy('installment_number')
+                ->map(function ($inst) {
+                    $due = $inst->due_date ? $inst->due_date->format('d M Y') : 'N/A';
+                    return "{$due}: KES " . number_format((float) $inst->amount, 2);
+                })
+                ->values()
+                ->all();
+            $summary = implode('; ', $parts);
         }
         return [
             'total_amount' => number_format((float) $plan->total_amount, 2),
-            'installment_count' => (string) $plan->installment_count,
-            'installment_amount' => number_format((float) $plan->installment_amount, 2),
+            'installment_count' => (string) $installmentCount,
+            'installment_amount' => $installmentAmountText,
+            'installment_summary' => $summary,
             'payment_plan_link' => $link,
-            'pay_link' => $payLink ?? '',
             'start_date' => $plan->start_date->format('d M Y'),
             'end_date' => $plan->end_date->format('d M Y'),
         ];

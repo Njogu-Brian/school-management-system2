@@ -334,17 +334,24 @@ public function store(Request $request)
             if ($scheduleType === 'custom' && !empty($validated['installments'])) {
                 $customInstallments = collect($validated['installments'])->sortBy('due_date')->values();
                 $num = 0;
+                $customSum = 0.0;
                 foreach ($customInstallments as $row) {
                     $num++;
+                    $amount = (float) ($row['amount'] ?? 0);
+                    $customSum += $amount;
                     FeePaymentPlanInstallment::create([
                         'payment_plan_id' => $plan->id,
                         'installment_number' => $num,
-                        'amount' => (float) ($row['amount'] ?? 0),
+                        'amount' => $amount,
                         'due_date' => $row['due_date'],
                         'status' => 'pending',
                     ]);
                 }
-                $plan->update(['installment_count' => $num]);
+                $plan->update([
+                    'installment_count' => $num,
+                    // Keep header values aligned with custom rows; notifications read row-level schedule.
+                    'installment_amount' => $num > 0 ? round($customSum / $num, 2) : 0,
+                ]);
             } else {
                 $currentDate = $startDate->copy();
                 for ($i = 1; $i <= $installmentCount; $i++) {
