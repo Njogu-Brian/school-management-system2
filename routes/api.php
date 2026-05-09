@@ -68,6 +68,25 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payments', [\App\Http\Controllers\Api\ApiPaymentController::class, 'index']);
     Route::get('/payments/{id}', [\App\Http\Controllers\Api\ApiPaymentController::class, 'show']);
     Route::post('/payments', [\App\Http\Controllers\Api\ApiPaymentController::class, 'store']);
+    Route::prefix('jenga')->group(function () {
+        Route::post('/token', [\App\Http\Controllers\Api\ApiJengaController::class, 'token']);
+        Route::get('/accounts/{countryCode}/{accountNumber}/inquiry', [\App\Http\Controllers\Api\ApiJengaController::class, 'accountInquiry']);
+        Route::get('/accounts/{countryCode}/{accountId}/balance', [\App\Http\Controllers\Api\ApiJengaController::class, 'accountBalance']);
+        Route::get('/accounts/{countryCode}/{accountNumber}/mini-statement', [\App\Http\Controllers\Api\ApiJengaController::class, 'miniStatement']);
+        Route::post('/accounts/full-statement', [\App\Http\Controllers\Api\ApiJengaController::class, 'fullStatement']);
+
+        Route::post('/collect/stk-ussd-push', [\App\Http\Controllers\Api\ApiJengaController::class, 'stkUssdPush']);
+
+        Route::post('/disburse/mobile-wallet', [\App\Http\Controllers\Api\ApiJengaController::class, 'disburseMobile']);
+        Route::post('/disburse/within-equity', [\App\Http\Controllers\Api\ApiJengaController::class, 'disburseWithinEquity']);
+        Route::post('/disburse/rtgs', [\App\Http\Controllers\Api\ApiJengaController::class, 'disburseRtgs']);
+        Route::get('/disburse/rtgs/payment-purposes', [\App\Http\Controllers\Api\ApiJengaController::class, 'rtgsPaymentPurposes']);
+
+        Route::get('/queries/transactions/{reference}', [\App\Http\Controllers\Api\ApiJengaController::class, 'queryTransactionDetails']);
+        Route::get('/queries/billers', [\App\Http\Controllers\Api\ApiJengaController::class, 'billers']);
+        Route::get('/queries/merchants', [\App\Http\Controllers\Api\ApiJengaController::class, 'merchants']);
+        Route::post('/signed-proxy', [\App\Http\Controllers\Api\ApiJengaController::class, 'signedProxy']);
+    });
 
     Route::get('/finance/transactions', [\App\Http\Controllers\Api\ApiFinanceTransactionsController::class, 'index']);
     Route::post('/finance/transactions/mark-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkMarkAsSwimming']);
