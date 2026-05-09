@@ -197,10 +197,11 @@
         $dueLine = max(0, round($net - (float) $paidLine, 2));
         $sumPaidLines += (float) $paidLine;
         $sumDue += $dueLine;
+        $vhName = $item->custom_votehead_name ?: ($item->votehead->name ?? 'Unknown');
       @endphp
       <tr>
         <td class="center">{{ $i + 1 }}</td>
-        <td>{{ $item->votehead->name ?? 'Unknown' }}</td>
+        <td>{{ $vhName }}</td>
         <td class="right">{{ number_format($item->amount, 2) }}</td>
         <td class="right">{{ $disc > 0 ? number_format($disc, 2) : '—' }}</td>
         <td class="right">{{ number_format($paidLine, 2) }}</td>

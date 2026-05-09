@@ -105,30 +105,6 @@ class UniformFeeService
     }
 
     /**
-     * Find existing votehead by name (case-insensitive) or create it.
-     */
-    public static function findOrCreateVotehead(string $voteheadName): Votehead
-    {
-        $name = trim($voteheadName);
-        if ($name === '') {
-            throw new \InvalidArgumentException('Votehead name is required.');
-        }
-
-        $existing = Votehead::whereRaw('LOWER(name) = ?', [strtolower($name)])->first();
-        if ($existing) {
-            return $existing;
-        }
-
-        return Votehead::create([
-            'name' => $name,
-            'is_active' => true,
-            'is_mandatory' => false,
-            'is_optional' => true,
-            'charge_type' => 'per_student',
-        ]);
-    }
-
-    /**
      * Add or update a custom line item on an invoice.
      */
     public static function addCustomItem(Invoice $invoice, string $voteheadName, float $amount): InvoiceItem
@@ -138,30 +114,33 @@ class UniformFeeService
         }
 
         return DB::transaction(function () use ($invoice, $voteheadName, $amount) {
-            $votehead = self::findOrCreateVotehead($voteheadName);
+            $name = trim((string) $voteheadName);
+            if ($name === '') {
+                throw new \InvalidArgumentException('Votehead name is required.');
+            }
 
+            // Custom invoice lines must NOT create new Votehead records.
+            // Store the label directly on invoice_items.custom_votehead_name and keep votehead_id NULL.
             $item = InvoiceItem::where('invoice_id', $invoice->id)
-                ->where('votehead_id', $votehead->id)
+                ->whereNull('votehead_id')
+                ->where('source', self::SOURCE_CUSTOM)
+                ->whereRaw('LOWER(custom_votehead_name) = ?', [strtolower($name)])
                 ->first();
 
             if ($item) {
-                $voteheadCode = strtoupper((string) optional($item->votehead)->code);
-                $isLegacyUniformLine = $voteheadCode === 'UNIFORM';
-                if (!self::isManagedCustomItem($item) && !$isLegacyUniformLine) {
-                    throw new \RuntimeException('This votehead already exists on the invoice as a posted fee item. Edit that line directly or choose another custom votehead name.');
-                }
-
                 $item->update([
                     'amount' => $amount,
                     'original_amount' => $item->original_amount ?? $amount,
                     'status' => 'active',
                     'source' => self::SOURCE_CUSTOM,
+                    'custom_votehead_name' => $name,
                     'discount_amount' => 0,
                 ]);
             } else {
                 $item = InvoiceItem::create([
                     'invoice_id' => $invoice->id,
-                    'votehead_id' => $votehead->id,
+                    'votehead_id' => null,
+                    'custom_votehead_name' => $name,
                     'amount' => $amount,
                     'original_amount' => $amount,
                     'discount_amount' => 0,
@@ -192,10 +171,15 @@ class UniformFeeService
         }
 
         return DB::transaction(function () use ($item, $voteheadName, $newAmount) {
-            $votehead = self::findOrCreateVotehead($voteheadName);
+            $name = trim((string) $voteheadName);
+            if ($name === '') {
+                throw new \InvalidArgumentException('Votehead name is required.');
+            }
 
             $duplicateItem = InvoiceItem::where('invoice_id', $item->invoice_id)
-                ->where('votehead_id', $votehead->id)
+                ->whereNull('votehead_id')
+                ->where('source', self::SOURCE_CUSTOM)
+                ->whereRaw('LOWER(custom_votehead_name) = ?', [strtolower($name)])
                 ->where('id', '!=', $item->id)
                 ->first();
             if ($duplicateItem) {
@@ -203,7 +187,8 @@ class UniformFeeService
             }
 
             $item->update([
-                'votehead_id' => $votehead->id,
+                'votehead_id' => null,
+                'custom_votehead_name' => $name,
                 'amount' => $newAmount,
                 'original_amount' => $item->original_amount ?? $newAmount,
                 'source' => self::SOURCE_CUSTOM,

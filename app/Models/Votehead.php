@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\{FeeCharge, OptionalFee, InvoiceItem, FeeConcession, Student, InvoiceItem as InvoiceItemModel};
+use App\Models\{FeeCharge, OptionalFee, InvoiceItem, FeeConcession, Student, InvoiceItem as InvoiceItemModel, Invoice};
 
 class Votehead extends Model
 {
@@ -136,9 +136,14 @@ class Votehead extends Model
                     return false;
                 }
                 
-                // If preferred_term is set, only charge in that term
+                // If preferred_term is set, charge in that term for continuing students.
+                // However, if a student joins AFTER the preferred term, they must still be charged
+                // once in the same academic year on their first term of enrollment.
                 if ($this->preferred_term !== null) {
-                    return $term == $this->preferred_term;
+                    if ($term == $this->preferred_term) {
+                        return true;
+                    }
+                    return $this->shouldChargeOnceAnnuallyOutsidePreferredTerm($student, $year, $term);
                 }
                 
                 // No preferred term - charge in any term (but only once per year)
@@ -158,5 +163,38 @@ class Votehead extends Model
                 // Can charge every term
                 return true;
         }
+    }
+
+    /**
+     * Once-annually + preferred term:
+     * - Preferred term is the default charge term
+     * - BUT if student enrolls after preferred term, charge them in their first active term of that year
+     */
+    private function shouldChargeOnceAnnuallyOutsidePreferredTerm(Student $student, int $year, int $term): bool
+    {
+        $preferred = (int) $this->preferred_term;
+
+        // Only consider charging outside preferred term if we're AFTER it.
+        if ($term <= $preferred) {
+            return false;
+        }
+
+        // If enrollment term/year are explicitly set, only charge on that first enrollment term.
+        if ($student->enrollment_year !== null && $student->enrollment_term !== null) {
+            return ((int) $student->enrollment_year === (int) $year) && ((int) $student->enrollment_term === (int) $term);
+        }
+
+        // Fallback: treat as a "late joiner" only if they are newly admitted in this year and
+        // they have no invoice in any earlier term of this year (meaning this is their first billing term).
+        if (!$student->isNewlyAdmitted($year)) {
+            return false;
+        }
+
+        $hasEarlierInvoiceThisYear = Invoice::where('student_id', $student->id)
+            ->where('year', $year)
+            ->where('term', '<', $term)
+            ->exists();
+
+        return !$hasEarlierInvoiceThisYear;
     }
 }

@@ -197,7 +197,7 @@
                             @foreach($invoices as $invoice)
                                 @foreach($invoice->items as $item)
                                     <option value="{{ $item->id }}" data-invoice-id="{{ $invoice->id }}">
-                                        {{ $invoice->invoice_number }} - {{ $item->votehead->name ?? 'Votehead' }} (Ksh {{ number_format($item->amount, 2) }})
+                                        {{ $invoice->invoice_number }} - {{ $item->custom_votehead_name ?: ($item->votehead->name ?? 'Votehead') }} (Ksh {{ number_format($item->amount, 2) }})
                                     </option>
                                 @endforeach
                             @endforeach

@@ -12,6 +12,21 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class JournalController extends Controller
 {
+    private function standardVoteheadsQuery()
+    {
+        // "Standard voteheads" = voteheads that belong to the school's fee system,
+        // not one-off custom invoice lines (which should not be stored as voteheads).
+        // Heuristic: include voteheads that are mandatory OR appear in fee structures OR optional fees.
+        return Votehead::query()
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->where('is_mandatory', true)
+                    ->orWhereHas('feeCharges')
+                    ->orWhereHas('optionalFees');
+            })
+            ->orderBy('name');
+    }
+
     public function index(Request $request)
     {
         // Optimize journal query - limit eager loading
@@ -84,7 +99,7 @@ class JournalController extends Controller
             ->get();
         
         // Load voteheads for import form
-        $voteheads = Votehead::orderBy('name')->get();
+        $voteheads = $this->standardVoteheadsQuery()->get();
         
         // Get current year and term for import form defaults
         $currentYear = now()->year;
@@ -97,7 +112,7 @@ class JournalController extends Controller
     public function create()
     {
         return view('finance.journals.create', [
-            'voteheads'=> \App\Models\Votehead::orderBy('name')->get(),
+            'voteheads'=> $this->standardVoteheadsQuery()->get(),
         ]);
     }
     
@@ -122,8 +137,8 @@ class JournalController extends Controller
             ]);
         }
         
-        // Get voteheads from invoice items (not balance, but actual invoice items)
-        $voteheads = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+        // Invoice items map (for "current amount" hinting)
+        $invoiceVoteheads = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
             ->where('status', 'active')
             ->with('votehead:id,name')
             ->get()
@@ -136,9 +151,22 @@ class JournalController extends Controller
             })
             ->unique('id')
             ->values();
+
+        $invoiceAmounts = $invoiceVoteheads->keyBy('id')->map(fn ($v) => (float) ($v['amount'] ?? 0));
+
+        // Return ALL standard voteheads (excluding custom ones) whether or not present on invoice
+        $all = $this->standardVoteheadsQuery()->get(['id', 'name'])->map(function ($vh) use ($invoiceAmounts) {
+            $amt = (float) ($invoiceAmounts[$vh->id] ?? 0);
+            return [
+                'id' => $vh->id,
+                'name' => $vh->name,
+                'amount' => $amt,
+                'in_invoice' => $invoiceAmounts->has($vh->id),
+            ];
+        })->values();
         
         return response()->json([
-            'voteheads' => $voteheads,
+            'voteheads' => $all,
             'invoice_id' => $invoice->id,
             'invoice_number' => $invoice->invoice_number,
         ]);

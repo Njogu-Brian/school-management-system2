@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const yearInput = document.querySelector('input[name="year"]');
     const termSelect = document.querySelector('select[name="term"]');
     
-    // Function to load voteheads from invoice
+    // Function to load voteheads (ALL standard voteheads; show current amounts if present on invoice)
     function loadVoteheadsFromInvoice() {
         const studentId = studentIdInput.value;
         const year = yearInput.value;
@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
         voteheadSelect.innerHTML = '<option value="">Loading voteheads...</option>';
         voteheadHelp.textContent = 'Loading voteheads from invoice...';
         
-        // Fetch voteheads from invoice
+        // Fetch voteheads (server returns all standard voteheads; and invoice existence)
         fetch(`{{ route('finance.journals.get-invoice-voteheads') }}?student_id=${studentId}&year=${year}&term=${term}`)
             .then(response => response.json())
             .then(data => {
@@ -142,11 +142,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     data.voteheads.forEach(vh => {
                         const option = document.createElement('option');
                         option.value = vh.id;
-                        option.textContent = `${vh.name} (Current: Ksh ${parseFloat(vh.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+                        const current = parseFloat(vh.amount || 0);
+                        const label = `${vh.name}${vh.in_invoice ? ` (Current: Ksh ${current.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})})` : ' (Not on invoice yet)'}`;
+                        option.textContent = label;
                         voteheadSelect.appendChild(option);
                     });
                     voteheadSelect.disabled = false;
-                    voteheadHelp.textContent = `Found ${data.voteheads.length} votehead(s) in invoice`;
+                    voteheadHelp.textContent = `Loaded ${data.voteheads.length} votehead(s). You can select any standard votehead (even if not yet on the invoice).`;
                 } else {
                     voteheadSelect.innerHTML = '<option value="">No invoice found or no voteheads in invoice</option>';
                     voteheadSelect.disabled = true;

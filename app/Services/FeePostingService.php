@@ -1402,6 +1402,13 @@ class FeePostingService
                 if ($votehead->charge_type === 'once') {
                     return $charge->term == $term;
                 }
+
+                // For once_annually fees, include the charge row in ANY term.
+                // Whether it actually applies in this term is decided by Votehead::canChargeForStudent(),
+                // which handles preferred_term and late-joiner charging.
+                if ($votehead->charge_type === 'once_annually') {
+                    return true;
+                }
                 
                 // If charge is for a different term, skip unless it's once_annually with preferred_term
                 if ($charge->term != $term) {

@@ -141,23 +141,26 @@ class InvoiceController extends Controller
             foreach ($students as $student) {
                 $itemsToInsert = [];
 
-                foreach ($structure->charges->where('term', $request->term) as $charge) {
+                // Include:
+                // - normal term charges for this term
+                // - once_annually charges (even if stored on a different term) so late joiners can still be billed
+                foreach ($structure->charges as $charge) {
                     $votehead = $charge->votehead;
 
                     if (!$votehead->is_mandatory) continue;
+
+                    // Term filter:
+                    // - per_student / per_family: only charge rows for the current term
+                    // - once: only charge rows for the current term (admission-only)
+                    // - once_annually: include in any term; Votehead::canChargeForStudent enforces preferred_term/late-joiner behavior
+                    if ($votehead->charge_type !== 'once_annually' && (int) $charge->term !== (int) $request->term) {
+                        continue;
+                    }
 
                     // Use Votehead model's canChargeForStudent method which handles:
                     // - preferred_term for once_annually fees
                     // - once-only fees for new students only
                     if (!$votehead->canChargeForStudent($student, $request->year, $request->term)) {
-                        continue;
-                    }
-                    
-                    // Also check preferred_term for once_annually fees
-                    if ($votehead->charge_type === 'once_annually' && 
-                        $votehead->preferred_term !== null && 
-                        $votehead->preferred_term != $request->term) {
-                        // Skip if not the preferred term (unless already handled by canChargeForStudent)
                         continue;
                     }
 

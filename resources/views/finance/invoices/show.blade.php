@@ -322,17 +322,18 @@
                             $paid = $item->getAllocatedAmount() ?? 0;
                             $balance = $afterDiscount - $paid;
                             $isManagedCustomItem = in_array(($item->source ?? ''), \App\Services\UniformFeeService::managedSources(), true);
+                            $displayVoteheadName = $item->custom_votehead_name ?: ($item->votehead->name ?? 'Unknown');
                         @endphp
                         <tr id="item-{{ $item->id }}">
                             <td>{{ $lineNumber }}</td>
                             <td id="voteheadCell{{ $item->id }}">
-                                <span class="votehead-display">{{ $item->votehead->name ?? 'Unknown' }}</span>
+                                <span class="votehead-display">{{ $displayVoteheadName }}</span>
                                 @if($isManagedCustomItem)
                                 <div class="votehead-edit-form" style="display: none;">
                                     <input type="text"
                                            class="form-control form-control-sm"
                                            id="newVotehead{{ $item->id }}"
-                                           value="{{ $item->votehead->name ?? '' }}"
+                                           value="{{ $displayVoteheadName }}"
                                            maxlength="255"
                                            style="width: 220px; display: inline-block;">
                                 </div>
@@ -392,7 +393,7 @@
                                     @if($isManagedCustomItem)
                                     <button type="button" 
                                             class="btn btn-sm btn-finance btn-finance-outline"
-                                            onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($item->votehead->name ?? 'Uniform') }}', true)">
+                                            onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($displayVoteheadName) }}', true)">
                                         <i class="bi bi-pencil"></i> Edit
                                     </button>
                                     <form action="{{ route('finance.invoices.custom-items.remove', ['invoice' => $invoice, 'item' => $item]) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove this custom line from this invoice?');">
@@ -403,7 +404,7 @@
                                     @else
                                     <button type="button" 
                                             class="btn btn-sm btn-finance btn-finance-outline"
-                                            onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($item->votehead->name ?? 'Item') }}', false)">
+                                            onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($displayVoteheadName) }}', false)">
                                         <i class="bi bi-pencil"></i> Edit
                                     </button>
                                     @endif
@@ -452,12 +453,13 @@
                         @php
                             $item = $data;
                             $discount = $item->discount_amount ?? 0;
+                            $discountVoteheadName = $item->custom_votehead_name ?: ($item->votehead->name ?? 'Unknown');
                         @endphp
                         <tr class="table-success">
                             <td>{{ $lineNumber }}</td>
                             <td>
                                 <i class="bi bi-percent text-success"></i> 
-                                <strong>Discount - {{ $item->votehead->name ?? 'Unknown' }}</strong>
+                                <strong>Discount - {{ $discountVoteheadName }}</strong>
                             </td>
                             <td class="text-end">
                                 <span class="text-muted">—</span>
