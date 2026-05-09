@@ -14,6 +14,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             Comprehensive2025Seeder::class,
+            ExpenseCategorySeeder::class,
+            ExpensePermissionSeeder::class,
         ]);
     }
 }
