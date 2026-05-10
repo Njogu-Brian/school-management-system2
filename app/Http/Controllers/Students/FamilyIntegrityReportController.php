@@ -7,6 +7,7 @@ use App\Models\ParentInfo;
 use App\Models\Student;
 use App\Services\PhoneNumberService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class FamilyIntegrityReportController extends Controller
@@ -27,12 +28,12 @@ class FamilyIntegrityReportController extends Controller
     {
         $dupLimit = min(100, max(10, (int) $request->input('dup_limit', 40)));
 
-        $duplicatePhoneGroups = $this->buildDuplicatePhoneGroups($dupLimit);
-        $duplicateEmailGroups = $this->buildDuplicateEmailGroups($dupLimit);
+        $phoneRaw = $this->buildDuplicatePhoneGroups($dupLimit);
+        $emailRaw = $this->buildDuplicateEmailGroups($dupLimit);
+        $duplicateContactGroups = $this->mergeDuplicateGroupsByStudentSet(array_merge($phoneRaw, $emailRaw));
 
         return view('families.integrity_report', [
-            'duplicatePhoneGroups' => $duplicatePhoneGroups,
-            'duplicateEmailGroups' => $duplicateEmailGroups,
+            'duplicateContactGroups' => $duplicateContactGroups,
             'dupLimit' => $dupLimit,
         ]);
     }
@@ -307,6 +308,62 @@ class FamilyIntegrityReportController extends Controller
         }
 
         return $out;
+    }
+
+    /**
+     * Merge duplicate-contact groups that reference the same active students (e.g. same siblings flagged for
+     * duplicate father phone and duplicate mother phone appear as one card).
+     *
+     * @param  list<array<string, mixed>>  $groups
+     * @return list<array{reasons: list<array{field: string, value: string, count_parents_db: int}>, students: Collection, distinct_parent_rows: int, family_summary: string}>
+     */
+    protected function mergeDuplicateGroupsByStudentSet(array $groups): array
+    {
+        $buckets = [];
+
+        foreach ($groups as $g) {
+            /** @var Collection<int, Student> $students */
+            $students = $g['students'];
+            $studentKey = $students->pluck('id')->sort()->values()->implode(',');
+
+            $norm = isset($g['normalized']) ? (string) $g['normalized'] : strtolower(trim((string) ($g['value'] ?? '')));
+            $reasonSig = ($g['field'] ?? '').'|'.$norm;
+
+            if (! isset($buckets[$studentKey])) {
+                $buckets[$studentKey] = [
+                    'students' => $students,
+                    'reasons' => [],
+                    'reason_sigs' => [],
+                    'distinct_parent_rows' => (int) ($g['distinct_parent_rows'] ?? 0),
+                    'family_summary' => (string) ($g['family_summary'] ?? ''),
+                ];
+            }
+
+            $bucket = &$buckets[$studentKey];
+            $bucket['distinct_parent_rows'] = max($bucket['distinct_parent_rows'], (int) ($g['distinct_parent_rows'] ?? 0));
+
+            if (! isset($bucket['reason_sigs'][$reasonSig])) {
+                $bucket['reason_sigs'][$reasonSig] = true;
+                $bucket['reasons'][] = [
+                    'field' => (string) ($g['field'] ?? ''),
+                    'value' => (string) ($g['value'] ?? ''),
+                    'count_parents_db' => (int) ($g['count_parents_db'] ?? 0),
+                ];
+            }
+
+            unset($bucket);
+        }
+
+        return collect($buckets)
+            ->values()
+            ->map(function (array $b) {
+                unset($b['reason_sigs']);
+
+                return $b;
+            })
+            ->sortByDesc(fn (array $b) => $b['students']->count())
+            ->values()
+            ->all();
     }
 
     /**

@@ -61,8 +61,7 @@
           <h1 class="mb-1">Family integrity report</h1>
           <p class="text-muted mb-2 mb-md-0">Find duplicate parent phones/emails and link siblings safely. Missing contacts live on a separate page.</p>
           <div class="d-flex flex-wrap gap-2">
-            <span class="pill-badge pill-secondary">{{ count($duplicatePhoneGroups) }} phone groups</span>
-            <span class="pill-badge pill-secondary">{{ count($duplicateEmailGroups) }} email groups</span>
+            <span class="pill-badge pill-secondary">{{ count($duplicateContactGroups) }} duplicate groups</span>
             @if(Route::has('families.integrity-report.missing-contacts'))
               <a href="{{ route('families.integrity-report.missing-contacts') }}" class="pill-badge pill-warning text-decoration-none">Missing contacts →</a>
             @endif
@@ -85,34 +84,48 @@
         <i class="bi bi-info-circle flex-shrink-0 mt-1"></i>
         <div class="small">
           <strong class="d-block mb-1">How linking works</strong>
-          Duplicate sections list <strong>active students only</strong> (archived are hidden). A group appears only when at least <strong>two different parent rows</strong> are still in use among those students — duplicate database rows that no longer have active students attached are hidden. “Link selected as siblings” merges families, then <strong>combines parent rows</strong> when they share the same phone digits or email: the system keeps the richest record, merges missing fields (longer text wins on conflicts), repoints every student to one parent row, and deletes the extras.
+          This report lists <strong>active students only</strong> (archived are hidden). A group appears only when at least <strong>two different parent rows</strong> are still in use among those students — duplicate database rows that no longer have active students attached are hidden. If the <strong>same students</strong> match several duplicate checks (e.g. father phone + mother phone, or phone + email), those are shown as <strong>one card</strong> with every matching contact listed. “Link selected as siblings” merges families, then <strong>combines parent rows</strong> when they share the same phone digits or email: the system keeps the richest record, merges missing fields (longer text wins on conflicts), repoints every student to one parent row, and deletes the extras.
         </div>
       </div>
     </div>
 
-    {{-- Duplicate phones --}}
+    {{-- Phones & emails merged when the same active students are involved --}}
     <div class="settings-card mb-4">
       <div class="card-header d-flex flex-wrap align-items-center gap-2 justify-content-between">
         <div class="d-flex align-items-center gap-2">
-          <span class="text-primary"><i class="bi bi-telephone-fill fs-5"></i></span>
+          <span class="text-primary"><i class="bi bi-person-vcard fs-5"></i></span>
           <div>
-            <h5 class="mb-0 integrity-section-title">Duplicate phone numbers</h5>
-            <p class="text-muted small mb-0">Same stored number on multiple parent rows (grouped by column).</p>
+            <h5 class="mb-0 integrity-section-title">Duplicate parent contacts</h5>
+            <p class="text-muted small mb-0">Phones and emails (father/mother/guardian). One card per sibling set; father/mother duplicates and phone/email duplicates are combined when the student list matches.</p>
           </div>
         </div>
       </div>
       <div class="card-body">
-        @forelse($duplicatePhoneGroups as $group)
+        @forelse($duplicateContactGroups as $group)
           <div class="integrity-subcard p-3 mb-3">
             <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
-              <div class="d-flex flex-wrap align-items-center gap-2">
-                <span class="fw-semibold text-capitalize">{{ str_replace('_', ' ', $group['field']) }}</span>
-                <code class="small px-2 py-1 rounded bg-light">{{ $group['value'] }}</code>
-                <span class="badge rounded-pill bg-secondary">{{ $group['count_parents_db'] }} rows in DB</span>
-                <span class="badge rounded-pill bg-primary">{{ $group['distinct_parent_rows'] }} parent IDs (students)</span>
-                <span class="badge rounded-pill bg-warning text-dark">{{ $group['students']->count() }} students</span>
+              <div class="flex-grow-1 min-w-0">
+                @foreach($group['reasons'] as $r)
+                  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                    @if(str_contains($r['field'], 'email'))
+                      <span class="text-primary" title="Email"><i class="bi bi-envelope-fill"></i></span>
+                    @else
+                      <span class="text-primary" title="Phone"><i class="bi bi-telephone-fill"></i></span>
+                    @endif
+                    <span class="fw-semibold text-capitalize">{{ str_replace('_', ' ', $r['field']) }}</span>
+                    <code class="small px-2 py-1 rounded bg-light">{{ $r['value'] }}</code>
+                    <span class="badge rounded-pill bg-secondary">{{ $r['count_parents_db'] }} rows in DB</span>
+                  </div>
+                @endforeach
+                <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                  <span class="badge rounded-pill bg-primary">{{ $group['distinct_parent_rows'] }} parent IDs (students)</span>
+                  <span class="badge rounded-pill bg-warning text-dark">{{ $group['students']->count() }} students</span>
+                  @if(count($group['reasons']) > 1)
+                    <span class="badge rounded-pill bg-info text-dark">{{ count($group['reasons']) }} duplicate checks merged</span>
+                  @endif
+                </div>
               </div>
-              <span class="small text-muted">{{ $group['family_summary'] }}</span>
+              <span class="small text-muted align-self-start">{{ $group['family_summary'] }}</span>
             </div>
             @if($group['students']->count() > 40)
               <div class="alert alert-warning py-2 small mb-2 mb-0">More than 40 students — uncheck rows and link in batches (max 40 per submit).</div>
@@ -166,86 +179,7 @@
             </form>
           </div>
         @empty
-          <p class="text-muted mb-0">No duplicate phone groups (within limits).</p>
-        @endforelse
-      </div>
-    </div>
-
-    {{-- Duplicate emails --}}
-    <div class="settings-card mb-4">
-      <div class="card-header d-flex flex-wrap align-items-center gap-2">
-        <span class="text-primary"><i class="bi bi-envelope-fill fs-5"></i></span>
-        <div>
-          <h5 class="mb-0 integrity-section-title">Duplicate email addresses</h5>
-          <p class="text-muted small mb-0">Compared case-insensitive after trim.</p>
-        </div>
-      </div>
-      <div class="card-body">
-        @forelse($duplicateEmailGroups as $group)
-          <div class="integrity-subcard p-3 mb-3">
-            <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
-              <div class="d-flex flex-wrap align-items-center gap-2">
-                <span class="fw-semibold text-capitalize">{{ str_replace('_', ' ', $group['field']) }}</span>
-                <code class="small px-2 py-1 rounded bg-light">{{ $group['value'] }}</code>
-                <span class="badge rounded-pill bg-secondary">{{ $group['count_parents_db'] }} rows in DB</span>
-                <span class="badge rounded-pill bg-primary">{{ $group['distinct_parent_rows'] }} parent IDs (students)</span>
-                <span class="badge rounded-pill bg-warning text-dark">{{ $group['students']->count() }} students</span>
-              </div>
-              <span class="small text-muted">{{ $group['family_summary'] }}</span>
-            </div>
-            @if($group['students']->count() > 40)
-              <div class="alert alert-warning py-2 small mb-2 mb-0">More than 40 students — uncheck rows and link in batches (max 40 per submit).</div>
-            @endif
-            <form method="POST" action="{{ route('families.link.store') }}" class="duplicate-link-form mt-3"
-                  onsubmit="return confirm('Link the selected students as siblings?');">
-              @csrf
-              <input type="hidden" name="link_context" value="integrity_report">
-              @foreach(['dup_limit','page'] as $qk)
-                @if(request()->filled($qk))
-                  <input type="hidden" name="{{ $qk }}" value="{{ request($qk) }}">
-                @endif
-              @endforeach
-              <div class="table-responsive">
-                <table class="table table-sm table-modern align-middle mb-2">
-                  <thead class="table-light">
-                    <tr>
-                      <th style="width:36px;"></th>
-                      <th>Admission</th>
-                      <th>Student</th>
-                      <th>Class</th>
-                      <th>Parent row</th>
-                      <th class="text-end">Open</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @foreach($group['students'] as $stu)
-                      <tr>
-                        <td>
-                          <input class="form-check-input stu-chk" type="checkbox" name="student_ids[]" value="{{ $stu->id }}" checked>
-                        </td>
-                        <td class="fw-semibold">{{ $stu->admission_number }}</td>
-                        <td>{{ $stu->full_name }}</td>
-                        <td>{{ $stu->classroom->name ?? '—' }}</td>
-                        <td class="small text-muted font-monospace">#{{ $stu->parent_id }}</td>
-                        <td class="text-end">
-                          @if(Route::has('students.show'))
-                            <a href="{{ route('students.show', $stu->id) }}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener">Profile</a>
-                          @endif
-                        </td>
-                      </tr>
-                    @endforeach
-                  </tbody>
-                </table>
-              </div>
-              <div class="duplicate-actions">
-                <button type="submit" class="btn btn-settings-primary btn-sm link-submit">
-                  <i class="bi bi-link-45deg"></i> Link selected as siblings
-                </button>
-              </div>
-            </form>
-          </div>
-        @empty
-          <p class="text-muted mb-0">No duplicate email groups (within limits).</p>
+          <p class="text-muted mb-0">No duplicate contact groups (within limits).</p>
         @endforelse
       </div>
     </div>
@@ -257,7 +191,7 @@
       <div class="card-body">
         <form method="GET" action="{{ route('families.integrity-report') }}" class="row g-3 align-items-end">
           <div class="col-md-4">
-            <label class="form-label small text-muted">Max duplicate groups per section</label>
+            <label class="form-label small text-muted">Max raw duplicate lookups (phones & emails each)</label>
             <input type="number" name="dup_limit" class="form-control" min="10" max="100" value="{{ $dupLimit }}">
           </div>
           <div class="col-md-4">
