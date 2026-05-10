@@ -169,11 +169,16 @@ class FamilyIntegrityReportController extends Controller
                 $seenValueField[$key] = true;
 
                 $parentIds = ParentInfo::query()->where($field, $value)->pluck('id');
-                $students = Student::withArchived()
+                $students = Student::query()
+                    ->where('archive', 0)
                     ->whereIn('parent_id', $parentIds)
                     ->with(['classroom', 'parent'])
                     ->orderBy('admission_number')
                     ->get();
+
+                if ($students->isEmpty()) {
+                    continue;
+                }
 
                 $out[] = [
                     'field' => $field,
@@ -229,11 +234,16 @@ class FamilyIntegrityReportController extends Controller
                     ->whereRaw('LOWER(TRIM(`'.$field.'`)) = ?', [$norm])
                     ->pluck('id');
 
-                $students = Student::withArchived()
+                $students = Student::query()
+                    ->where('archive', 0)
                     ->whereIn('parent_id', $parentIds)
                     ->with(['classroom', 'parent'])
                     ->orderBy('admission_number')
                     ->get();
+
+                if ($students->isEmpty()) {
+                    continue;
+                }
 
                 $sampleValue = ParentInfo::query()
                     ->whereIn('id', $parentIds)

@@ -69,7 +69,7 @@
         <i class="bi bi-info-circle flex-shrink-0 mt-1"></i>
         <div class="small">
           <strong class="d-block mb-1">How linking works</strong>
-          “Link selected as siblings” posts to the same merge flow as <em>Families → Link students</em> (combines families and consolidates duplicate parent rows when contacts match). Pick 2–40 students per submit.
+          Duplicate sections list <strong>active students only</strong> (archived are hidden). “Link selected as siblings” merges families, then <strong>combines parent rows</strong> when they share the same phone digits or email: the system keeps the richest record, merges missing fields (longer text wins on conflicts), repoints every student to one parent row, and deletes the extras. After you refresh, resolved duplicate groups disappear from this report.
         </div>
       </div>
     </div>
@@ -103,6 +103,12 @@
             <form method="POST" action="{{ route('families.link.store') }}" class="duplicate-link-form mt-3"
                   onsubmit="return confirm('Link the selected students as siblings?');">
               @csrf
+              <input type="hidden" name="link_context" value="integrity_report">
+              @foreach(['dup_limit','missing_per_page','page'] as $qk)
+                @if(request()->filled($qk))
+                  <input type="hidden" name="{{ $qk }}" value="{{ request($qk) }}">
+                @endif
+              @endforeach
               <div class="table-responsive">
                 <table class="table table-sm table-modern align-middle mb-2">
                   <thead class="table-light">
@@ -173,6 +179,12 @@
             <form method="POST" action="{{ route('families.link.store') }}" class="duplicate-link-form mt-3"
                   onsubmit="return confirm('Link the selected students as siblings?');">
               @csrf
+              <input type="hidden" name="link_context" value="integrity_report">
+              @foreach(['dup_limit','missing_per_page','page'] as $qk)
+                @if(request()->filled($qk))
+                  <input type="hidden" name="{{ $qk }}" value="{{ request($qk) }}">
+                @endif
+              @endforeach
               <div class="table-responsive">
                 <table class="table table-sm table-modern align-middle mb-2">
                   <thead class="table-light">

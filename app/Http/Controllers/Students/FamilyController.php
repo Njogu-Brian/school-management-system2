@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Students;
 
 use App\Http\Controllers\Controller;
 use App\Models\Family;
+use App\Models\ParentInfo;
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -97,63 +99,231 @@ class FamilyController extends Controller
     }
 
     /**
-     * Consolidate duplicate parent_info records for siblings with identical contact details.
-     * When siblings share the same father/mother phone and names but have different parent_id,
-     * updates all to use the canonical (lowest) parent_id and deletes orphaned parent_info.
+     * Merge duplicate parent_info rows for students in the same family when they share a contact
+     * (same phone digits or same email). Chooses the richest row as canonical, merges non-empty fields
+     * (prefers longer text on conflicts), repoints all dependents, then deletes unused rows.
      */
-    private function consolidateSiblingParentsInFamily(int $familyId): void
+    private function consolidateDuplicateParentsInFamily(int $familyId): void
     {
-        $siblings = DB::table('students')
-            ->leftJoin('parent_info', 'students.parent_id', '=', 'parent_info.id')
-            ->where('students.family_id', $familyId)
-            ->select(
-                'students.id as student_id',
-                'students.parent_id',
-                'parent_info.father_phone',
-                'parent_info.mother_phone',
-                'parent_info.guardian_phone',
-                'parent_info.father_name',
-                'parent_info.mother_name'
-            )
-            ->get();
+        $parentIds = Student::query()
+            ->where('family_id', $familyId)
+            ->whereNotNull('parent_id')
+            ->distinct()
+            ->pluck('parent_id');
 
-        $parentIds = $siblings->pluck('parent_id')->unique()->filter()->values();
         if ($parentIds->count() < 2) {
             return;
         }
 
-        $normalize = fn ($v) => trim((string) ($v ?? ''));
-        $signatures = $siblings->map(fn ($s) => implode('|', [
-            $normalize($s->father_phone),
-            $normalize($s->mother_phone),
-            $normalize($s->guardian_phone),
-            $normalize($s->father_name),
-            $normalize($s->mother_name),
-        ]));
-        if ($signatures->unique()->count() > 1) {
-            return; // Different contact details - do not consolidate
-        }
-
-        $canonicalParentId = $parentIds->min();
-        $toRemove = $parentIds->filter(fn ($id) => $id != $canonicalParentId)->values();
-        $studentsToUpdate = $siblings->whereIn('parent_id', $toRemove->toArray())->pluck('student_id')->toArray();
-
-        if (empty($studentsToUpdate)) {
+        /** @var Collection<int, ParentInfo> $parents */
+        $parents = ParentInfo::query()->whereIn('id', $parentIds)->get()->keyBy('id');
+        if ($parents->count() < 2) {
             return;
         }
 
-        DB::table('students')->whereIn('id', $studentsToUpdate)->update(['parent_id' => $canonicalParentId]);
-        DB::table('users')->whereIn('parent_id', $toRemove->toArray())->update(['parent_id' => $canonicalParentId]);
-        DB::table('pos_orders')->whereIn('parent_id', $toRemove->toArray())->update(['parent_id' => $canonicalParentId]);
+        $ids = $parents->keys()->values()->all();
+        $adj = [];
+        foreach ($ids as $id) {
+            $adj[$id] = [];
+        }
 
-        foreach ($toRemove as $pid) {
-            $stillUsed = DB::table('students')->where('parent_id', $pid)->exists()
-                || DB::table('users')->where('parent_id', $pid)->exists()
-                || DB::table('pos_orders')->where('parent_id', $pid)->exists();
-            if (!$stillUsed) {
-                DB::table('parent_info')->where('id', $pid)->delete();
+        foreach ($ids as $id1) {
+            foreach ($ids as $id2) {
+                if ($id1 >= $id2) {
+                    continue;
+                }
+                $p1 = $parents->get($id1);
+                $p2 = $parents->get($id2);
+                if ($p1 && $p2 && $this->parentsShareAnyContact($p1, $p2)) {
+                    $adj[$id1][] = $id2;
+                    $adj[$id2][] = $id1;
+                }
             }
         }
+
+        $visited = [];
+        foreach ($ids as $startId) {
+            if (isset($visited[$startId])) {
+                continue;
+            }
+            $stack = [$startId];
+            $comp = [];
+            while ($stack !== []) {
+                $cur = array_pop($stack);
+                if (isset($visited[$cur])) {
+                    continue;
+                }
+                $visited[$cur] = true;
+                $comp[] = $cur;
+                foreach ($adj[$cur] as $nbr) {
+                    if (! isset($visited[$nbr])) {
+                        $stack[] = $nbr;
+                    }
+                }
+            }
+
+            if (count($comp) < 2) {
+                continue;
+            }
+
+            $cluster = collect($comp)->map(fn ($id) => $parents->get($id))->filter();
+            $winner = $this->pickCanonicalParent($cluster);
+            $losers = $cluster->filter(fn (ParentInfo $p) => $p->id !== $winner->id);
+            $merged = $this->mergeParentAttributes($winner, $losers);
+
+            $winner->fill($merged);
+            $winner->save();
+
+            $removeIds = $losers->pluck('id')->values()->all();
+            if ($removeIds === []) {
+                continue;
+            }
+
+            DB::table('students')->whereIn('parent_id', $removeIds)->update(['parent_id' => $winner->id]);
+            DB::table('users')->whereIn('parent_id', $removeIds)->update(['parent_id' => $winner->id]);
+            DB::table('pos_orders')->whereIn('parent_id', $removeIds)->update(['parent_id' => $winner->id]);
+
+            foreach ($removeIds as $pid) {
+                $stillUsed = DB::table('students')->where('parent_id', $pid)->exists()
+                    || DB::table('users')->where('parent_id', $pid)->exists()
+                    || DB::table('pos_orders')->where('parent_id', $pid)->exists();
+                if (! $stillUsed) {
+                    DB::table('parent_info')->where('id', $pid)->delete();
+                }
+            }
+        }
+    }
+
+    private function parentsShareAnyContact(ParentInfo $a, ParentInfo $b): bool
+    {
+        $ka = $this->parentContactKeys($a);
+        $kb = $this->parentContactKeys($b);
+        foreach ($ka as $token => $_) {
+            if (isset($kb[$token])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function parentContactKeys(ParentInfo $p): array
+    {
+        $keys = [];
+        foreach (['father_phone', 'mother_phone', 'guardian_phone', 'father_whatsapp', 'mother_whatsapp', 'guardian_whatsapp'] as $field) {
+            $digits = $this->phoneDigitCore($p->getAttribute($field));
+            if ($digits !== null) {
+                $keys['p:'.$digits] = true;
+            }
+        }
+        foreach (['father_email', 'mother_email', 'guardian_email'] as $field) {
+            $e = strtolower(trim((string) ($p->getAttribute($field) ?? '')));
+            if ($e !== '') {
+                $keys['e:'.$e] = true;
+            }
+        }
+
+        return $keys;
+    }
+
+    private function phoneDigitCore(?string $value): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $value);
+        if ($digits === '') {
+            return null;
+        }
+
+        return strlen($digits) >= 9 ? $digits : null;
+    }
+
+    /**
+     * @param  Collection<int, ParentInfo>  $cluster
+     */
+    private function pickCanonicalParent(Collection $cluster): ParentInfo
+    {
+        return $cluster->sort(function (ParentInfo $a, ParentInfo $b) {
+            $sa = $this->parentNonEmptyFieldCount($a);
+            $sb = $this->parentNonEmptyFieldCount($b);
+            if ($sa !== $sb) {
+                return $sb <=> $sa;
+            }
+
+            return $a->id <=> $b->id;
+        })->first();
+    }
+
+    private function parentNonEmptyFieldCount(ParentInfo $p): int
+    {
+        $n = 0;
+        foreach ($p->getFillable() as $field) {
+            if (filled(trim((string) ($p->getAttribute($field) ?? '')))) {
+                $n++;
+            }
+        }
+
+        return $n;
+    }
+
+    /**
+     * @param  Collection<int, ParentInfo>  $losers
+     * @return array<string, mixed>
+     */
+    private function mergeParentAttributes(ParentInfo $winner, Collection $losers): array
+    {
+        $fields = $winner->getFillable();
+        $attrs = [];
+        foreach ($fields as $field) {
+            $attrs[$field] = $winner->getAttribute($field);
+        }
+
+        foreach ($losers as $loser) {
+            foreach ($fields as $field) {
+                $incoming = $loser->getAttribute($field);
+                if ($incoming === null || trim((string) $incoming) === '') {
+                    continue;
+                }
+                $incomingStr = trim((string) $incoming);
+                $current = $attrs[$field] ?? null;
+                $currentStr = trim((string) ($current ?? ''));
+
+                if ($currentStr === '') {
+                    $attrs[$field] = $incomingStr;
+
+                    continue;
+                }
+
+                if ($this->fieldValuesEquivalent($field, $currentStr, $incomingStr)) {
+                    continue;
+                }
+
+                if ($field === 'school_notifications_muted_parent') {
+                    continue;
+                }
+
+                if (strlen($incomingStr) > strlen($currentStr)) {
+                    $attrs[$field] = $incomingStr;
+                }
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function fieldValuesEquivalent(string $field, string $a, string $b): bool
+    {
+        if (str_ends_with($field, '_email')) {
+            return strtolower($a) === strtolower($b);
+        }
+        if (str_contains($field, 'phone') || str_contains($field, 'whatsapp')) {
+            return $this->phoneDigitCore($a) !== null
+                && $this->phoneDigitCore($b) !== null
+                && $this->phoneDigitCore($a) === $this->phoneDigitCore($b);
+        }
+
+        return $a === $b;
     }
 
     /**
@@ -408,7 +578,7 @@ class FamilyController extends Controller
     }
 
     /**
-     * Link 2-4 students as siblings (creates family if needed)
+     * Link multiple students as siblings (creates or merges families as needed).
      *
      * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
@@ -469,26 +639,38 @@ class FamilyController extends Controller
             // Link selected students to the chosen family
             Student::whereIn('id', $students->pluck('id'))->update(['family_id' => $family->id]);
 
-            // Consolidate duplicate parent records: if siblings have same contact details but different parent_id, use one
-            $this->consolidateSiblingParentsInFamily($family->id);
-
-            // Merge other families into the chosen one
+            // Merge other families into the chosen one (must happen before parent consolidation)
             foreach ($familiesToMerge as $familyId) {
                 if ($familyId == $family->id) {
                     continue;
                 }
                 $oldFamily = Family::find($familyId);
-            if ($oldFamily) {
-                Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
-                $oldFamily->delete();
+                if ($oldFamily) {
+                    Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
+                    $oldFamily->delete();
+                }
             }
-        }
+
+            // Merge duplicate parent_info rows that share a phone/email into one record (rich-field merge)
+            $this->consolidateDuplicateParentsInFamily($family->id);
+            ensure_family_payment_link($family->id);
 
             return $family;
         });
 
+        $successMsg = 'Students linked as siblings. Duplicate parent contacts were merged where possible.';
+        if ($request->input('link_context') === 'integrity_report') {
+            $qs = array_filter([
+                'dup_limit' => $request->input('dup_limit'),
+                'missing_per_page' => $request->input('missing_per_page'),
+                'page' => $request->input('page'),
+            ], fn ($v) => $v !== null && $v !== '');
+
+            return redirect()->route('families.integrity-report', $qs)->with('success', $successMsg);
+        }
+
         return redirect()->route('families.manage', $family)
-            ->with('success', 'Students linked as siblings successfully.');
+            ->with('success', $successMsg);
     }
 
     /**
@@ -568,7 +750,7 @@ class FamilyController extends Controller
             $student->update(['family_id' => $family->id]);
         }
 
-        $this->consolidateSiblingParentsInFamily($family->id);
+        $this->consolidateDuplicateParentsInFamily($family->id);
         ensure_family_payment_link($family->id);
 
         return back()->with('success', 'Student linked to family as sibling.');
