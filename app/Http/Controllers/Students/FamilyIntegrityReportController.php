@@ -27,14 +27,33 @@ class FamilyIntegrityReportController extends Controller
     public function index(Request $request)
     {
         $dupLimit = min(100, max(10, (int) $request->input('dup_limit', 40)));
+        $q = trim((string) $request->input('q', ''));
 
         $phoneRaw = $this->buildDuplicatePhoneGroups($dupLimit);
         $emailRaw = $this->buildDuplicateEmailGroups($dupLimit);
         $duplicateContactGroups = $this->mergeDuplicateGroupsByStudentSet(array_merge($phoneRaw, $emailRaw));
 
+        if ($q !== '') {
+            $needle = mb_strtolower($q);
+            $duplicateContactGroups = array_values(array_filter(
+                $duplicateContactGroups,
+                function (array $group) use ($needle) {
+                    foreach ($group['students'] as $stu) {
+                        $blob = mb_strtolower(trim(($stu->first_name ?? '').' '.($stu->last_name ?? '').' '.($stu->admission_number ?? '')));
+                        if (str_contains($blob, $needle)) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+            ));
+        }
+
         return view('families.integrity_report', [
             'duplicateContactGroups' => $duplicateContactGroups,
             'dupLimit' => $dupLimit,
+            'q' => $q,
         ]);
     }
 
@@ -45,14 +64,23 @@ class FamilyIntegrityReportController extends Controller
     {
         $perBoth = min(100, max(5, (int) $request->input('per_both', 25)));
         $perOne = min(100, max(5, (int) $request->input('per_one', 25)));
+        $q = trim((string) $request->input('q', ''));
 
-        $phoneBlankFather = fn ($q) => $q->whereNull('father_phone')->orWhere('father_phone', '=', '');
-        $phoneBlankMother = fn ($q) => $q->whereNull('mother_phone')->orWhere('mother_phone', '=', '');
+        $phoneBlankFather = fn ($qq) => $qq->whereNull('father_phone')->orWhere('father_phone', '=', '');
+        $phoneBlankMother = fn ($qq) => $qq->whereNull('mother_phone')->orWhere('mother_phone', '=', '');
 
         $missingBoth = Student::query()
             ->where('archive', 0)
-            ->whereHas('parent', function ($q) use ($phoneBlankFather, $phoneBlankMother) {
-                $q->where(fn ($qq) => $phoneBlankFather($qq))
+            ->when($q !== '', function ($rel) use ($q) {
+                $term = '%'.addcslashes($q, '%_\\').'%';
+                $rel->where(function ($qq) use ($term) {
+                    $qq->where('first_name', 'like', $term)
+                        ->orWhere('last_name', 'like', $term)
+                        ->orWhere('admission_number', 'like', $term);
+                });
+            })
+            ->whereHas('parent', function ($pq) use ($phoneBlankFather, $phoneBlankMother) {
+                $pq->where(fn ($qq) => $phoneBlankFather($qq))
                     ->where(fn ($qq) => $phoneBlankMother($qq));
             })
             ->with(['parent', 'classroom'])
@@ -63,8 +91,16 @@ class FamilyIntegrityReportController extends Controller
 
         $missingOne = Student::query()
             ->where('archive', 0)
-            ->whereHas('parent', function ($q) use ($phoneBlankFather, $phoneBlankMother) {
-                $q->where(function ($qq) use ($phoneBlankFather, $phoneBlankMother) {
+            ->when($q !== '', function ($rel) use ($q) {
+                $term = '%'.addcslashes($q, '%_\\').'%';
+                $rel->where(function ($qq) use ($term) {
+                    $qq->where('first_name', 'like', $term)
+                        ->orWhere('last_name', 'like', $term)
+                        ->orWhere('admission_number', 'like', $term);
+                });
+            })
+            ->whereHas('parent', function ($pq) use ($phoneBlankFather, $phoneBlankMother) {
+                $pq->where(function ($qq) use ($phoneBlankFather, $phoneBlankMother) {
                     $qq->where(fn ($a) => $phoneBlankFather($a)->where(fn ($b) => $b->whereNotNull('mother_phone')->where('mother_phone', '!=', '')))
                         ->orWhere(fn ($a) => $phoneBlankMother($a)->where(fn ($b) => $b->whereNotNull('father_phone')->where('father_phone', '!=', '')));
                 });
@@ -80,6 +116,7 @@ class FamilyIntegrityReportController extends Controller
             'missingOne' => $missingOne,
             'perBoth' => $perBoth,
             'perOne' => $perOne,
+            'q' => $q,
             'countryCodes' => $this->countryDialCodesForSelect(),
         ]);
     }
@@ -97,6 +134,7 @@ class FamilyIntegrityReportController extends Controller
             'ret_one_page' => 'nullable|integer|min:1|max:5000',
             'ret_per_both' => 'nullable|integer|min:5|max:100',
             'ret_per_one' => 'nullable|integer|min:5|max:100',
+            'ret_q' => 'nullable|string|max:120',
             'father_name' => 'nullable|string|max:255',
             'mother_name' => 'nullable|string|max:255',
             'father_email' => 'nullable|email|max:255',
@@ -220,6 +258,7 @@ class FamilyIntegrityReportController extends Controller
             'one_page' => $request->input('ret_one_page'),
             'per_both' => $request->input('ret_per_both'),
             'per_one' => $request->input('ret_per_one'),
+            'q' => $request->input('ret_q'),
         ], fn ($v) => $v !== null && $v !== '');
 
         return redirect()->route($route, $qs);

@@ -2,6 +2,7 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('families.partials.families_hub_styles')
     <style>
       .integrity-report .integrity-hero-icon {
         width: 48px;
@@ -51,7 +52,7 @@
 @endpush
 
 @section('content')
-<div class="settings-page integrity-report">
+<div class="settings-page integrity-report families-hub">
   <div class="settings-shell">
     <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">
       <div class="d-flex gap-3 align-items-start">
@@ -68,7 +69,7 @@
           </div>
         </div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="d-flex gap-2 flex-wrap stack-buttons-sm">
         <a href="{{ route('families.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Families</a>
         @if(Route::has('families.integrity-report.missing-contacts'))
           <a href="{{ route('families.integrity-report.missing-contacts') }}" class="btn btn-settings-primary"><i class="bi bi-person-lines-fill"></i> Missing contacts</a>
@@ -78,6 +79,33 @@
     </div>
 
     @include('students.partials.alerts')
+
+    <div class="settings-card mb-4 families-search-panel families-hero-card">
+      <div class="card-header border-0 pb-0">
+        <h5 class="mb-1"><i class="bi bi-search me-1 text-primary"></i> Find student in duplicate groups</h5>
+        <p class="text-muted small mb-0">Narrows the list below by name or admission number (does not change how duplicates are detected).</p>
+      </div>
+      <div class="card-body pt-3">
+        <form method="GET" action="{{ route('families.integrity-report') }}" class="row g-2 align-items-end">
+          <input type="hidden" name="dup_limit" value="{{ $dupLimit }}">
+          <div class="col-12 col-md-6 col-lg-5">
+            <label class="form-label small text-muted mb-1">Student search</label>
+            <div class="input-group">
+              <span class="input-group-text bg-body-secondary"><i class="bi bi-person"></i></span>
+              <input type="text" name="q" class="form-control" value="{{ $q }}" maxlength="120" placeholder="e.g. Wangari or RKS231" autocomplete="off">
+            </div>
+          </div>
+          <div class="col-6 col-md-3 col-lg-2">
+            <button type="submit" class="btn btn-settings-primary w-100"><i class="bi bi-funnel"></i> Filter</button>
+          </div>
+          @if(filled($q))
+            <div class="col-6 col-md-3 col-lg-2">
+              <a href="{{ route('families.integrity-report', ['dup_limit' => $dupLimit]) }}" class="btn btn-outline-secondary w-100">Clear</a>
+            </div>
+          @endif
+        </form>
+      </div>
+    </div>
 
     <div class="alert alert-soft border-0 mb-4">
       <div class="d-flex gap-2">
@@ -134,12 +162,12 @@
                   onsubmit="return confirm('Link the selected students as siblings?');">
               @csrf
               <input type="hidden" name="link_context" value="integrity_report">
-              @foreach(['dup_limit','page'] as $qk)
+              @foreach(['dup_limit','page','q'] as $qk)
                 @if(request()->filled($qk))
                   <input type="hidden" name="{{ $qk }}" value="{{ request($qk) }}">
                 @endif
               @endforeach
-              <div class="table-responsive">
+              <div class="table-responsive table-card-wrap">
                 <table class="table table-sm table-modern align-middle mb-2">
                   <thead class="table-light">
                     <tr>
@@ -190,6 +218,9 @@
       </div>
       <div class="card-body">
         <form method="GET" action="{{ route('families.integrity-report') }}" class="row g-3 align-items-end">
+          @if(filled($q))
+            <input type="hidden" name="q" value="{{ $q }}">
+          @endif
           <div class="col-md-4">
             <label class="form-label small text-muted">Max raw duplicate lookups (phones & emails each)</label>
             <input type="number" name="dup_limit" class="form-control" min="10" max="100" value="{{ $dupLimit }}">

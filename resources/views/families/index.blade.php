@@ -2,10 +2,11 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('families.partials.families_hub_styles')
 @endpush
 
 @section('content')
-<div class="settings-page">
+<div class="settings-page families-hub">
   <div class="settings-shell">
     <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">
       <div>
@@ -13,7 +14,7 @@
         <h1 class="mb-1">Families (Siblings)</h1>
         <p class="text-muted mb-0">Manage sibling links and guardian details for billing/discounts.</p>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="d-flex gap-2 flex-wrap stack-buttons-sm">
         @if(Route::has('families.populate-preview'))
           <a href="{{ route('families.populate-preview') }}" class="btn btn-ghost-strong btn-sm">
             <i class="bi bi-arrow-clockwise"></i> Fix Blank Fields
@@ -48,29 +49,29 @@
 
     @include('students.partials.alerts')
 
-    <div class="settings-card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="settings-card mb-3 families-search-panel families-hero-card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 border-0 pb-0">
         <div>
-          <h5 class="mb-0">Filters</h5>
-          <p class="text-muted small mb-0">Search by guardian name, phone, or email.</p>
+          <h5 class="mb-0"><i class="bi bi-search me-1 text-primary"></i> Filters</h5>
+          <p class="text-muted small mb-0">Guardian details or any linked student’s name or admission number.</p>
         </div>
         <span class="pill-badge pill-secondary">Live query</span>
       </div>
-      <div class="card-body">
+      <div class="card-body pt-3">
         <form method="GET" action="{{ route('families.index') }}" class="row g-2 align-items-end">
-          <div class="col-md-6">
-            <label class="form-label">Search</label>
+          <div class="col-12 col-lg-7">
+            <label class="form-label small text-muted">Search</label>
             <div class="input-group">
-              <span class="input-group-text"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control" name="q" value="{{ $q }}" placeholder="Guardian name, phone, or email">
+              <span class="input-group-text bg-body-secondary"><i class="bi bi-search"></i></span>
+              <input type="text" class="form-control" name="q" value="{{ $q }}" maxlength="200" placeholder="Guardian, student name, or admission #" autocomplete="off">
             </div>
           </div>
-          <div class="col-md-2">
+          <div class="col-6 col-md-4 col-lg-2">
             <button type="submit" class="btn btn-settings-primary w-100"><i class="bi bi-funnel"></i> Search</button>
           </div>
           @if($q)
-          <div class="col-md-2">
-            <a href="{{ route('families.index') }}" class="btn btn-ghost-strong w-100"><i class="bi bi-x"></i> Clear</a>
+          <div class="col-6 col-md-4 col-lg-2">
+            <a href="{{ route('families.index') }}" class="btn btn-outline-secondary w-100"><i class="bi bi-x-lg"></i> Clear</a>
           </div>
           @endif
         </form>
@@ -83,7 +84,7 @@
         @csrf
       @endif
         <div class="card-body p-0">
-          <div class="table-responsive">
+          <div class="table-responsive table-card-wrap">
             <table class="table table-modern align-middle mb-0">
               <thead class="table-light">
                 <tr>

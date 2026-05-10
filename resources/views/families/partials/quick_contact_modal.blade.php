@@ -67,8 +67,13 @@
         <input type="hidden" name="ret_one_page" id="quick_ret_one_page" value="">
         <input type="hidden" name="ret_per_both" id="quick_ret_per_both" value="">
         <input type="hidden" name="ret_per_one" id="quick_ret_per_one" value="">
+        <input type="hidden" name="ret_q" id="quick_ret_q" value="">
         <div class="modal-body">
-          <p class="small text-muted mb-3">Only <strong>blank</strong> fields on this parent record are saved (same rules as full student edit). Use country code + local digits for phones and WhatsApp.</p>
+          <p class="small text-muted mb-2">Only <strong>blank</strong> fields on this parent record are saved (same rules as full student edit). Use country code + local digits for phones and WhatsApp.</p>
+          <div class="alert alert-soft border py-2 small mb-3 mb-md-4">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Siblings:</strong> Changes apply to <strong>this student’s parent row only</strong> (see Parent row # on the student profile). Linked siblings see the update automatically only if they share that same parent row. If each sibling still has a separate parent record, edit each row—or link/consolidate from the duplicate report—until they share one.
+          </div>
 
           <fieldset class="quick-slot-card mb-3" id="quick_father_fs">
             <legend class="float-none w-auto px-0 mb-2 fs-6 fw-semibold text-uppercase small text-muted">Father</legend>
@@ -171,6 +176,8 @@
   const lbl = document.getElementById('quickContactStudentLabel');
   const fatherFs = document.getElementById('quick_father_fs');
   const motherFs = document.getElementById('quick_mother_fs');
+  /** Survives form.reset() / modal lifecycle so POST always includes student_id */
+  let pendingQuickStudentId = null;
 
   const sel = {
     father_cc: document.getElementById('quick_father_cc'),
@@ -215,18 +222,35 @@
     fs.disabled = !show;
   }
 
+  if (form && sid) {
+    form.addEventListener('submit', function () {
+      if (pendingQuickStudentId !== null && pendingQuickStudentId !== '') {
+        sid.value = pendingQuickStudentId;
+      }
+      sid.removeAttribute('disabled');
+    });
+  }
+
   document.querySelectorAll('.quick-contact-open').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      if (!sid || !form || !lbl) return;
       var payload = {};
       try {
         payload = JSON.parse(btn.getAttribute('data-payload') || '{}');
       } catch (e) {
-        payload = { force_all: true };
+        payload = {};
       }
-      if (!payload || typeof payload !== 'object') payload = { force_all: true };
+      if (!payload || typeof payload !== 'object') payload = {};
 
-      sid.value = payload.student_id || '';
+      var fallbackId = btn.getAttribute('data-student-id');
+      var rawId = payload.student_id !== undefined && payload.student_id !== null ? payload.student_id : fallbackId;
+      pendingQuickStudentId = rawId !== undefined && rawId !== null && rawId !== '' ? String(rawId) : null;
+
+      sid.value = pendingQuickStudentId || '';
       lbl.textContent = payload.label || '';
+
+      var parseFailed = Object.keys(payload).length === 0 && !fallbackId;
+      var forceAll = parseFailed || payload.force_all === true;
 
       setHidden('quick_return_route', payload.return_route || 'families.integrity-report.missing-contacts');
       setHidden('quick_ret_dup_limit', payload.ret_dup_limit);
@@ -234,8 +258,8 @@
       setHidden('quick_ret_one_page', payload.ret_one_page);
       setHidden('quick_ret_per_both', payload.ret_per_both);
       setHidden('quick_ret_per_one', payload.ret_per_one);
+      setHidden('quick_ret_q', payload.ret_q);
 
-      var forceAll = payload.force_all === true;
       function empt(k) { return forceAll || payload[k] === true; }
 
       var fRows = [
@@ -287,6 +311,8 @@
 
   modalEl.addEventListener('hidden.bs.modal', function () {
     if (!form) return;
+    pendingQuickStudentId = null;
+    if (sid) sid.value = '';
     form.reset();
     sectionVisible(fatherFs, true);
     sectionVisible(motherFs, true);

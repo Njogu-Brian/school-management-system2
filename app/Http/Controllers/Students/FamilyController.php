@@ -544,14 +544,23 @@ class FamilyController extends Controller
      */
     public function index(Request $request)
     {
-        $q = trim((string)$request->input('q', ''));
+        $q = trim((string) $request->input('q', ''));
         $families = Family::query()
             ->with(['students.parent']) // Load students and their parents
-            ->when($q, function($f) use ($q){
-                $searchTerm = '%' . addcslashes($q, '%_\\') . '%';
-                $f->where('guardian_name','like', $searchTerm)
-                  ->orWhere('phone','like', $searchTerm)
-                  ->orWhere('email','like', $searchTerm);
+            ->when($q !== '', function ($familyQuery) use ($q) {
+                $searchTerm = '%'.addcslashes($q, '%_\\').'%';
+                $familyQuery->where(function ($w) use ($searchTerm) {
+                    $w->where('guardian_name', 'like', $searchTerm)
+                        ->orWhere('phone', 'like', $searchTerm)
+                        ->orWhere('email', 'like', $searchTerm)
+                        ->orWhereHas('students', function ($sq) use ($searchTerm) {
+                            $sq->where(function ($st) use ($searchTerm) {
+                                $st->where('first_name', 'like', $searchTerm)
+                                    ->orWhere('last_name', 'like', $searchTerm)
+                                    ->orWhere('admission_number', 'like', $searchTerm);
+                            });
+                        });
+                });
             })
             ->withCount('students')
             ->orderByDesc('students_count')
@@ -663,6 +672,7 @@ class FamilyController extends Controller
             $qs = array_filter([
                 'dup_limit' => $request->input('dup_limit'),
                 'page' => $request->input('page'),
+                'q' => $request->input('q'),
             ], fn ($v) => $v !== null && $v !== '');
 
             return redirect()->route('families.integrity-report', $qs)->with('success', $successMsg);

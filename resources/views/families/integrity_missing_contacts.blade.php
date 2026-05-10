@@ -2,6 +2,7 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('families.partials.families_hub_styles')
     <style>
       .integrity-missing .integrity-hero-icon {
         width: 48px;
@@ -72,6 +73,7 @@
           'ret_one_page' => request('one_page'),
           'ret_per_both' => $perBoth,
           'ret_per_one' => $perOne,
+          'ret_q' => request('q'),
       ];
   };
 
@@ -82,7 +84,7 @@
   };
 @endphp
 
-<div class="settings-page integrity-missing">
+<div class="settings-page integrity-missing families-hub">
   <div class="settings-shell">
     <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">
       <div class="d-flex gap-3 align-items-start">
@@ -101,13 +103,45 @@
           </div>
         </div>
       </div>
-      <div class="d-flex gap-2 flex-wrap integrity-actions-row">
+      <div class="d-flex gap-2 flex-wrap integrity-actions-row stack-buttons-sm">
         <a href="{{ route('families.integrity-report') }}" class="btn btn-ghost-strong"><i class="bi bi-shield-exclamation"></i> Duplicate report</a>
         <a href="{{ route('families.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Families</a>
       </div>
     </div>
 
     @include('students.partials.alerts')
+
+    <div class="settings-card mb-4 families-search-panel families-hero-card">
+      <div class="card-header border-0 pb-0">
+        <h5 class="mb-1"><i class="bi bi-search me-1 text-primary"></i> Search & pagination</h5>
+        <p class="text-muted small mb-0">Match student first name, last name, or admission number.</p>
+      </div>
+      <div class="card-body pt-3">
+        <form method="GET" action="{{ route('families.integrity-report.missing-contacts') }}" class="row g-3 align-items-end">
+          <div class="col-12 col-lg-5">
+            <label class="form-label small text-muted mb-1">Student search</label>
+            <div class="input-group">
+              <span class="input-group-text bg-body-secondary"><i class="bi bi-person-lines-fill"></i></span>
+              <input type="text" name="q" class="form-control" value="{{ $q }}" maxlength="120" placeholder="e.g. Trisha or RKS231" autocomplete="off">
+            </div>
+          </div>
+          <div class="col-6 col-md-4 col-lg-2">
+            <label class="form-label small text-muted mb-1">Both missing / page</label>
+            <input type="number" name="per_both" class="form-control" min="5" max="100" value="{{ $perBoth }}">
+          </div>
+          <div class="col-6 col-md-4 col-lg-2">
+            <label class="form-label small text-muted mb-1">One missing / page</label>
+            <input type="number" name="per_one" class="form-control" min="5" max="100" value="{{ $perOne }}">
+          </div>
+          <div class="col-12 col-md-4 col-lg-3 d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-settings-primary flex-grow-1"><i class="bi bi-arrow-clockwise"></i> Apply</button>
+            @if(filled($q))
+              <a href="{{ route('families.integrity-report.missing-contacts', request()->except(['q', 'page', 'both_page', 'one_page'])) }}" class="btn btn-outline-secondary">Clear search</a>
+            @endif
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div class="settings-card mb-4">
       <div class="card-header">
@@ -117,7 +151,7 @@
       <div class="card-body">
         @forelse($missingBoth as $stu)
           @if($loop->first)
-            <div class="table-responsive mb-3">
+            <div class="table-responsive mb-3 table-card-wrap">
               <table class="table table-modern align-middle mb-0">
                 <thead class="table-light">
                   <tr>
@@ -154,7 +188,8 @@
                         @if(Route::has('families.integrity-report.quick-parent-phones'))
                           <button type="button"
                                   class="btn btn-sm btn-settings-primary quick-contact-open"
-                                  data-payload="{{ e(json_encode($qp, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)) }}">
+                                  data-student-id="{{ $stu->id }}"
+                                  data-payload='@json($qp)'>
                             <i class="bi bi-lightning-charge"></i> Quick edit
                           </button>
                         @endif
@@ -186,7 +221,7 @@
       <div class="card-body">
         @forelse($missingOne as $stu)
           @if($loop->first)
-            <div class="table-responsive mb-3">
+            <div class="table-responsive mb-3 table-card-wrap">
               <table class="table table-modern align-middle mb-0">
                 <thead class="table-light">
                   <tr>
@@ -226,7 +261,8 @@
                         @if(Route::has('families.integrity-report.quick-parent-phones'))
                           <button type="button"
                                   class="btn btn-sm btn-settings-primary quick-contact-open"
-                                  data-payload="{{ e(json_encode($qp, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)) }}">
+                                  data-student-id="{{ $stu->id }}"
+                                  data-payload='@json($qp)'>
                             <i class="bi bi-lightning-charge"></i> Quick edit
                           </button>
                         @endif
@@ -250,26 +286,6 @@
       </div>
     </div>
 
-    <div class="settings-card mb-4">
-      <div class="card-header">
-        <h6 class="mb-0"><i class="bi bi-sliders me-1"></i> Pagination</h6>
-      </div>
-      <div class="card-body">
-        <form method="GET" action="{{ route('families.integrity-report.missing-contacts') }}" class="row g-3 align-items-end">
-          <div class="col-md-4">
-            <label class="form-label small text-muted">“Both missing” per page</label>
-            <input type="number" name="per_both" class="form-control" min="5" max="100" value="{{ $perBoth }}">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label small text-muted">“One missing” per page</label>
-            <input type="number" name="per_one" class="form-control" min="5" max="100" value="{{ $perOne }}">
-          </div>
-          <div class="col-md-4">
-            <button type="submit" class="btn btn-settings-primary w-100 w-md-auto"><i class="bi bi-arrow-clockwise"></i> Apply</button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
 </div>
 

@@ -2,10 +2,11 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('families.partials.families_hub_styles')
 @endpush
 
 @section('content')
-<div class="settings-page">
+<div class="settings-page families-hub">
   <div class="settings-shell">
     <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">
       <div>
@@ -13,7 +14,7 @@
         <h1 class="mb-1">Link Students as Siblings</h1>
         <p class="text-muted mb-0">Create or extend a family by linking 2-4 students (2 required).</p>
       </div>
-      <a href="{{ route('families.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
+      <a href="{{ route('families.index') }}" class="btn btn-ghost-strong w-100 w-sm-auto"><i class="bi bi-arrow-left"></i> Back</a>
     </div>
 
     @include('students.partials.alerts')
