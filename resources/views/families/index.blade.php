@@ -34,6 +34,11 @@
           <i class="bi bi-shield-exclamation"></i> Integrity report
         </a>
         @endif
+        @if(Route::has('families.integrity-report.missing-contacts'))
+        <a href="{{ route('families.integrity-report.missing-contacts') }}" class="btn btn-ghost-strong">
+          <i class="bi bi-person-lines-fill"></i> Missing contacts
+        </a>
+        @endif
       </div>
     </div>
 

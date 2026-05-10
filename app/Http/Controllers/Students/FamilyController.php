@@ -662,7 +662,6 @@ class FamilyController extends Controller
         if ($request->input('link_context') === 'integrity_report') {
             $qs = array_filter([
                 'dup_limit' => $request->input('dup_limit'),
-                'missing_per_page' => $request->input('missing_per_page'),
                 'page' => $request->input('page'),
             ], fn ($v) => $v !== null && $v !== '');
 

@@ -1175,6 +1175,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     //families
     Route::prefix('families')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {
         Route::middleware('role:Super Admin|Admin|Secretary')->group(function () {
+            Route::get('/integrity-report/missing-contacts', [FamilyIntegrityReportController::class, 'missingContacts'])->name('families.integrity-report.missing-contacts');
             Route::get('/integrity-report', [FamilyIntegrityReportController::class, 'index'])->name('families.integrity-report');
             Route::post('/integrity-report/quick-parent-phones', [FamilyIntegrityReportController::class, 'quickUpdateParentPhones'])->name('families.integrity-report.quick-parent-phones');
         });
