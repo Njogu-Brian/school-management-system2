@@ -221,6 +221,8 @@ public function mark(Request $request)
     $user = auth()->user();
     $selectedClass = $request->input('class');
     $selectedStream = $request->input('stream');
+    $selectedClassId = $selectedClass !== null && $selectedClass !== '' ? (int) $selectedClass : null;
+    $selectedStreamId = $selectedStream !== null && $selectedStream !== '' ? (int) $selectedStream : null;
     
     // Academic administrators are monitoring-only and cannot mark/edit attendance.
     if ($user->isAcademicAdministratorUser()) {
@@ -230,14 +232,20 @@ public function mark(Request $request)
     // Teaching leadership and teachers can mark based on classroom scope.
     $isTeacher = $user->hasTeacherLikeRole();
     if ($isTeacher) {
-        $hasClassAccess = $selectedClass && ($user->isAssignedToClassroom($selectedClass)
-            || (($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser()) && in_array($selectedClass, $user->getSupervisedClassroomIds(), true)));
-        if ($selectedClass && !$hasClassAccess) {
+        $hasClassAccess = $selectedClassId !== null && (
+            $user->isAssignedToClassroom($selectedClassId)
+            || (
+                ($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser())
+                && in_array($selectedClassId, array_map('intval', $user->getSupervisedClassroomIds()), true)
+            )
+        );
+        if ($selectedClassId !== null && ! $hasClassAccess) {
             return back()->with('error', 'You are not assigned to this class.');
         }
-        $hasStreamAccess = !$selectedStream || $user->isAssignedToStream($selectedStream)
-            || (($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser()) && $user->isSupervisingStream($selectedStream));
-        if ($selectedStream && !$hasStreamAccess) {
+        $hasStreamAccess = $selectedStreamId === null
+            || $user->isAssignedToStream($selectedStreamId)
+            || (($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser()) && $user->isSupervisingStream($selectedStreamId));
+        if ($selectedStreamId !== null && ! $hasStreamAccess) {
             return back()->with('error', 'You are not assigned to this stream.');
         }
     }
