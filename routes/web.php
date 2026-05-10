@@ -43,6 +43,7 @@ use App\Http\Controllers\Students\FamilyUpdateController;
 use App\Http\Controllers\Students\ParentInfoController;
 use App\Http\Controllers\Students\OnlineAdmissionController;
 use App\Http\Controllers\Students\FamilyController;
+use App\Http\Controllers\Students\FamilyIntegrityReportController;
 use App\Http\Controllers\Students\MedicalRecordController;
 use App\Http\Controllers\Students\DisciplinaryRecordController;
 use App\Http\Controllers\Students\ExtracurricularActivityController;
@@ -1173,6 +1174,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     
     //families
     Route::prefix('families')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {
+        Route::middleware('role:Super Admin|Admin|Secretary')->group(function () {
+            Route::get('/integrity-report', [FamilyIntegrityReportController::class, 'index'])->name('families.integrity-report');
+            Route::post('/integrity-report/quick-parent-phones', [FamilyIntegrityReportController::class, 'quickUpdateParentPhones'])->name('families.integrity-report.quick-parent-phones');
+        });
         Route::get('/',                [FamilyController::class,'index'])->name('families.index');
         Route::get('/populate-preview', [FamilyController::class,'populatePreview'])->name('families.populate-preview');
         Route::post('/populate-all',   [FamilyController::class,'populateFromPreview'])->name('families.populate'); // fix blank fields (with optional resolutions)

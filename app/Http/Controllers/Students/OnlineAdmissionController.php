@@ -12,6 +12,9 @@ use App\Models\StudentCategory;
 use App\Models\Trip;
 use App\Models\DropOffPoint;
 use App\Models\CommunicationTemplate;
+use App\Models\Setting;
+use App\Services\FamilyLinkingService;
+use App\Services\PhoneNumberService;
 use App\Services\TransportFeeService;
 use App\Services\SMSService;
 use App\Mail\GenericMail;
@@ -366,6 +369,22 @@ class OnlineAdmissionController extends Controller
             ? \Carbon\Carbon::parse($validated['admission_date'])->toDateString()
             : now()->toDateString();
 
+        if ($admission->dob) {
+            $duplicate = Student::query()
+                ->where('archive', 0)
+                ->where('first_name', trim((string) $admission->first_name))
+                ->where('last_name', trim((string) $admission->last_name))
+                ->whereDate('dob', $admission->dob)
+                ->first();
+            if ($duplicate) {
+                return redirect()->back()->with(
+                    'error',
+                    'An active student already exists with the same name and date of birth (Admission #: '.$duplicate->admission_number.'). '
+                    .'Use that record or archive it before enrolling this application again.'
+                );
+            }
+        }
+
         DB::transaction(function () use ($admission, $validated, $admissionDate) {
             // Require stream if classroom has streams (primary + pivot)
             $classroom = Classroom::withCount(['streams', 'primaryStreams'])->find($validated['classroom_id']);
@@ -376,8 +395,25 @@ class OnlineAdmissionController extends Controller
                 ]);
             }
 
-            // Create parent info
-            $parent = ParentInfo::create([
+            $phoneSvc = app(PhoneNumberService::class);
+            foreach ([
+                ['value' => $admission->father_phone, 'cc' => $admission->father_phone_country_code ?? '+254', 'label' => 'Father phone'],
+                ['value' => $admission->mother_phone, 'cc' => $admission->mother_phone_country_code ?? '+254', 'label' => 'Mother phone'],
+                ['value' => $admission->guardian_phone, 'cc' => $admission->guardian_phone_country_code ?? '+254', 'label' => 'Guardian phone'],
+            ] as $rule) {
+                if (empty($rule['value'])) {
+                    continue;
+                }
+                $res = $phoneSvc->validateLocalDigitsLength($rule['value'], $rule['cc']);
+                if (! $res['ok']) {
+                    throw new \RuntimeException(
+                        $rule['label'].' must be '.$res['min'].'-'.$res['max'].' digits for '.$res['code'].' (you entered '.$res['digits'].').'
+                    );
+                }
+            }
+
+            // Create (or reuse) parent info
+            $parentData = [
                 'father_name' => $admission->father_name,
                 'father_phone' => $this->formatPhoneWithCode($admission->father_phone, $admission->father_phone_country_code ?? '+254'),
                 'father_phone_country_code' => $admission->father_phone_country_code ?? '+254',
@@ -397,7 +433,10 @@ class OnlineAdmissionController extends Controller
                 'guardian_phone_country_code' => $admission->guardian_phone_country_code ?? '+254',
                 'guardian_relationship' => $admission->guardian_relationship,
                 'marital_status' => $admission->marital_status,
-            ]);
+            ];
+            $linker = app(FamilyLinkingService::class);
+            $matched = $linker->findMatchingParent($parentData);
+            $parent = $matched ?: ParentInfo::create($parentData);
 
             // Generate admission number
             $admissionNumber = $this->generateNextAdmissionNumber();
@@ -462,6 +501,9 @@ class OnlineAdmissionController extends Controller
                 'enrollment_term' => $enrollmentTerm,
             ]);
 
+            // If we reused an existing parent contact, ensure siblings are linked under one family.
+            $linker->ensureFamilyForStudentFromParent($student, $parent);
+
             if (!empty($validated['transport_fee_amount'])) {
                 $transportYear = $enrollmentYear ?? (get_current_academic_year() ?? (int) date('Y'));
                 $transportTerm = $enrollmentTerm ?? (get_current_term_number() ?? 1);
@@ -517,7 +559,7 @@ class OnlineAdmissionController extends Controller
     /**
      * Transfer from waiting list to admitted
      */
-    public function transferFromWaitlist(OnlineAdmission $admission)
+    public function transferFromWaitlist(Request $request, OnlineAdmission $admission)
     {
         if ($admission->application_status !== 'waitlisted') {
             return redirect()->back()->with('error', 'This application is not on the waiting list.');
@@ -527,16 +569,7 @@ class OnlineAdmissionController extends Controller
             return redirect()->back()->with('error', 'This application has already been processed.');
         }
 
-        // Approve the admission (same as approve method)
-        $this->approve($admission);
-
-        // Reorder remaining waitlist
-        OnlineAdmission::where('application_status', 'waitlisted')
-            ->where('waitlist_position', '>', $admission->waitlist_position)
-            ->decrement('waitlist_position');
-
-        return redirect()->route('online-admissions.index')
-            ->with('success', 'Student transferred from waiting list and enrolled successfully.');
+        return $this->approve($request, $admission);
     }
 
     /**
@@ -572,25 +605,16 @@ class OnlineAdmissionController extends Controller
     }
 
     /**
-     * Generate next admission number with RKS prefix
+     * Next admission number — must match StudentController / API so there is a single series.
      */
     private function generateNextAdmissionNumber(): string
     {
-        $lastNumber = Student::max('admission_number');
-        
-        if (!$lastNumber) {
-            return 'RKS001';
-        }
-        
-        // Extract numeric part from admission number (handles RKS724, 724, RKS 724, etc.)
-        if (preg_match('/(\d+)/', $lastNumber, $matches)) {
-            $numericPart = (int) $matches[1];
-            $nextNumber = $numericPart + 1;
-            return 'RKS' . $nextNumber;
-        }
-        
-        // Fallback if no number found
-        return 'RKS001';
+        // One series across the whole system (no padding, e.g. RKS77, RKS729)
+        $prefix = Setting::get('student_id_prefix', 'RKS');
+        $start = Setting::getInt('student_id_start', 1);
+        $counter = Setting::incrementValue('student_id_counter', 1, $start);
+
+        return $prefix.(string) $counter;
     }
 
     /**

@@ -32,6 +32,8 @@ use App\Exports\StudentTemplateExport;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Storage;
 use App\Models\ActivityLog;
+use App\Services\FamilyLinkingService;
+use App\Services\PhoneNumberService;
 
 class StudentController extends Controller
 {
@@ -528,6 +530,30 @@ class StudentController extends Controller
             $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
             $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
             $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
+
+            // Enforce country-specific local length (where we know it)
+            $phoneSvc = app(PhoneNumberService::class);
+            foreach ([
+                ['field' => 'father_phone', 'cc' => $fatherCountryCode, 'label' => 'Father phone'],
+                ['field' => 'father_whatsapp', 'cc' => $fatherCountryCode, 'label' => 'Father WhatsApp'],
+                ['field' => 'mother_phone', 'cc' => $motherCountryCode, 'label' => 'Mother phone'],
+                ['field' => 'mother_whatsapp', 'cc' => $motherCountryCode, 'label' => 'Mother WhatsApp'],
+                ['field' => 'guardian_phone', 'cc' => $guardianCountryCode, 'label' => 'Guardian phone'],
+                ['field' => 'guardian_whatsapp', 'cc' => $guardianCountryCode, 'label' => 'Guardian WhatsApp'],
+            ] as $rule) {
+                $v = $request->input($rule['field']);
+                if ($v === null || trim((string) $v) === '') {
+                    continue;
+                }
+                $res = $phoneSvc->validateLocalDigitsLength($v, $rule['cc']);
+                if (! $res['ok']) {
+                    return back()->withInput()->with(
+                        'error',
+                        $rule['label'].' must be '.$res['min'].'-'.$res['max'].' digits for '.$res['code'].' (you entered '.$res['digits'].').'
+                    );
+                }
+            }
+
             $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode);
             $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode);
             $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode);
@@ -591,7 +617,14 @@ class StudentController extends Controller
                 if (!$parentName || !$parentPhone) {
                     return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
                 }
-                $parent = ParentInfo::create($parentData);
+                // If contact details match an existing parent, reuse it and link as siblings via Family ID.
+                $linker = app(FamilyLinkingService::class);
+                $matched = $linker->findMatchingParent($parentData);
+                if ($matched) {
+                    $parent = $matched;
+                } else {
+                    $parent = ParentInfo::create($parentData);
+                }
             }
 
             $parent->forceFill(['school_notifications_muted_parent' => $muteVal])->save();
@@ -662,6 +695,11 @@ class StudentController extends Controller
                     'emergency_contact_phone' => $emergencyPhone,
                 ]
             ));
+
+            // If we reused an existing parent (matched contact), ensure siblings are linked by family_id.
+            if (! $ref) {
+                app(FamilyLinkingService::class)->ensureFamilyForStudentFromParent($student, $parent);
+            }
             $this->logPhoneNormalization(Student::class, $student->id, 'emergency_contact_phone', $request->emergency_contact_phone, $emergencyPhone, $request->input('emergency_contact_country_code', '+254'), 'student_create', $userId);
             
             // Handle photo upload
@@ -1097,6 +1135,30 @@ class StudentController extends Controller
             $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
             $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
             $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
+
+            // Enforce country-specific local length (where we know it)
+            $phoneSvc = app(PhoneNumberService::class);
+            foreach ([
+                ['field' => 'father_phone', 'cc' => $fatherCountryCode, 'label' => 'Father phone'],
+                ['field' => 'father_whatsapp', 'cc' => $fatherCountryCode, 'label' => 'Father WhatsApp'],
+                ['field' => 'mother_phone', 'cc' => $motherCountryCode, 'label' => 'Mother phone'],
+                ['field' => 'mother_whatsapp', 'cc' => $motherCountryCode, 'label' => 'Mother WhatsApp'],
+                ['field' => 'guardian_phone', 'cc' => $guardianCountryCode, 'label' => 'Guardian phone'],
+                ['field' => 'guardian_whatsapp', 'cc' => $guardianCountryCode, 'label' => 'Guardian WhatsApp'],
+            ] as $rule) {
+                $v = $request->input($rule['field']);
+                if ($v === null || trim((string) $v) === '') {
+                    continue;
+                }
+                $res = $phoneSvc->validateLocalDigitsLength($v, $rule['cc']);
+                if (! $res['ok']) {
+                    return back()->withInput()->with(
+                        'error',
+                        $rule['label'].' must be '.$res['min'].'-'.$res['max'].' digits for '.$res['code'].' (you entered '.$res['digits'].').'
+                    );
+                }
+            }
+
             $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode);
             $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode);
             $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode);
@@ -1451,10 +1513,11 @@ class StudentController extends Controller
      */
     private function generateNextAdmissionNumber()
     {
-        $prefix = Setting::get('student_id_prefix', 'ADM');
-        $start = Setting::getInt('student_id_start', 1000);
+        // One series across the whole system (no padding, e.g. RKS77, RKS729)
+        $prefix = Setting::get('student_id_prefix', 'RKS');
+        $start = Setting::getInt('student_id_start', 1);
         $counter = Setting::incrementValue('student_id_counter', 1, $start);
-        return $prefix . str_pad($counter, 4, '0', STR_PAD_LEFT);
+        return $prefix . (string) $counter;
     }
 
     /**

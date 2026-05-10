@@ -29,6 +29,11 @@
         <a href="{{ route('families.link') }}" class="btn btn-settings-primary">
           <i class="bi bi-link-45deg"></i> Link Two Students
         </a>
+        @if(Route::has('families.integrity-report'))
+        <a href="{{ route('families.integrity-report') }}" class="btn btn-ghost-strong">
+          <i class="bi bi-shield-exclamation"></i> Integrity report
+        </a>
+        @endif
       </div>
     </div>
 

@@ -417,7 +417,7 @@ class FamilyController extends Controller
     {
         $data = $request->validate([
             // New multi-select flow
-            'student_ids' => 'required_without_all:student_a_id,student_b_id|array|min:2|max:4',
+            'student_ids' => 'required_without_all:student_a_id,student_b_id|array|min:2|max:40',
             'student_ids.*' => 'distinct|exists:students,id',
             // Backward compatibility for old two-field form
             'student_a_id' => 'required_without:student_ids|exists:students,id',

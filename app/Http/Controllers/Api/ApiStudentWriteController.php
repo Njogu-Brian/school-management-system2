@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Models\Student;
 use App\Models\ActivityLog;
 use App\Models\StudentCategory;
+use App\Services\FamilyLinkingService;
 use App\Services\PhoneNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -172,7 +173,9 @@ class ApiStudentWriteController extends Controller
                     'mother_phone_country_code' => $motherCountryCode,
                     'guardian_phone_country_code' => $guardianCountryCode,
                 ];
-                $parent = ParentInfo::create($parentData);
+                $linker = app(FamilyLinkingService::class);
+                $matched = $linker->findMatchingParent($parentData);
+                $parent = $matched ?: ParentInfo::create($parentData);
 
                 $admissionNumber = $this->generateNextAdmissionNumber();
 
@@ -218,6 +221,9 @@ class ApiStudentWriteController extends Controller
                     'drop_off_point' => $dropOffPointLabel,
                     'emergency_contact_phone' => $emergencyPhone,
                 ]));
+
+                // Auto-link siblings when parent contact already exists.
+                $linker->ensureFamilyForStudentFromParent($student, $parent);
 
                 if ($request->hasFile('photo')) {
                     $student->photo_path = $request->file('photo')->store('students/photos', config('filesystems.public_disk', 'public'));
@@ -449,11 +455,12 @@ class ApiStudentWriteController extends Controller
 
     protected function generateNextAdmissionNumber(): string
     {
-        $prefix = Setting::get('student_id_prefix', 'ADM');
-        $start = Setting::getInt('student_id_start', 1000);
+        // One series across the whole system (no padding, e.g. RKS77, RKS729)
+        $prefix = Setting::get('student_id_prefix', 'RKS');
+        $start = Setting::getInt('student_id_start', 1);
         $counter = Setting::incrementValue('student_id_counter', 1, $start);
 
-        return $prefix.str_pad((string) $counter, 4, '0', STR_PAD_LEFT);
+        return $prefix.(string) $counter;
     }
 
     protected function handleParentIdUploads(ParentInfo $parent, Request $request): void

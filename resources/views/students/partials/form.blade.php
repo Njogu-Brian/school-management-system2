@@ -165,8 +165,20 @@
       <input type="text" name="emergency_contact_name" value="{{ old('emergency_contact_name', $s->emergency_contact_name ?? '') }}" class="form-control">
     </div>
     <div class="col-md-6">
-      <label class="form-label">Emergency Phone (with country code)</label>
-      <input type="text" name="emergency_contact_phone" value="{{ old('emergency_contact_phone', $s->emergency_contact_phone ?? '') }}" class="form-control" placeholder="+2547XXXXXXXX">
+      <label class="form-label">Emergency Phone</label>
+      <div class="input-group">
+        @php
+          $emergencyCountryCode = old('emergency_contact_country_code', '+254');
+          $emergencyLocalPhone = extract_local_phone(old('emergency_contact_phone', $s->emergency_contact_phone ?? ''), $emergencyCountryCode);
+        @endphp
+        <select name="emergency_contact_country_code" class="form-select" style="max-width:170px">
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected($emergencyCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
+          @endforeach
+        </select>
+        <input type="text" name="emergency_contact_phone" value="{{ old('emergency_contact_phone', $emergencyLocalPhone) }}" class="form-control" placeholder="Digits only">
+      </div>
+      <div class="form-text">Pick the country code first; then enter the local digits only.</div>
     </div>
   </div>
 

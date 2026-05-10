@@ -99,7 +99,10 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     </a>
     @endif
     <a href="{{ route('student-categories.index') }}" class="{{ Request::is('student-categories*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Student Categories</a>
-    <a href="{{ route('families.index') }}" class="{{ Request::is('families*') ? 'active' : '' }}"><i class="bi bi-people"></i> Families (Siblings)</a>
+    <a href="{{ route('families.index') }}" class="{{ Request::is('families*') && !Request::is('families/integrity-report') ? 'active' : '' }}"><i class="bi bi-people"></i> Families (Siblings)</a>
+    @if(Route::has('families.integrity-report'))
+    <a href="{{ route('families.integrity-report') }}" class="{{ Request::is('families/integrity-report') ? 'active' : '' }}"><i class="bi bi-shield-exclamation"></i> Family integrity report</a>
+    @endif
     <a href="{{ route('family-update.admin.index') }}" class="{{ Request::is('admin/family-update*') ? 'active' : '' }}"><i class="bi bi-link-45deg"></i> Profile Update Links</a>
     <a href="{{ route('online-admissions.index') }}" class="{{ Request::is('online-admissions*') && !Request::is('online-admissions/apply*') ? 'active' : '' }}">
         <i class="bi bi-globe"></i> Online Admissions
