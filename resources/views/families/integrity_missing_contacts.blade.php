@@ -49,17 +49,50 @@
 @php
   $ccOpts = $countryCodes ?? [['code' => '+254', 'label' => 'Kenya (+254)']];
 
-  $quickPayload = function ($stu) use ($perBoth, $perOne) {
+  $localDigitsFromE164 = function (?string $e164, ?string $countryCode): string {
+      $e164 = trim((string) $e164);
+      if ($e164 === '') {
+          return '';
+      }
+      $cc = trim((string) $countryCode);
+      if ($cc === '') {
+          $cc = '+254';
+      }
+      $ccDigits = preg_replace('/\\D+/', '', $cc);
+      $digits = preg_replace('/\\D+/', '', $e164);
+      if ($digits === '') {
+          return '';
+      }
+      // If stored as +<cc><local>, remove cc to show local digits.
+      if ($ccDigits !== '' && str_starts_with($digits, $ccDigits)) {
+          $digits = substr($digits, strlen($ccDigits));
+      }
+      $digits = ltrim($digits, '0');
+
+      return $digits;
+  };
+
+  $quickPayload = function ($stu) use ($perBoth, $perOne, $localDigitsFromE164) {
       $p = $stu->parent;
       $fatherCc = $p->father_phone_country_code ?? '+254';
       $motherCc = $p->mother_phone_country_code ?? '+254';
+      $fatherWaCc = $p->father_whatsapp_country_code ?? $fatherCc;
+      $motherWaCc = $p->mother_whatsapp_country_code ?? $motherCc;
       return [
           'student_id' => $stu->id,
           'label' => $stu->admission_number.' — '.$stu->full_name,
           'father_cc' => $fatherCc,
           'mother_cc' => $motherCc,
-          'father_wa_cc' => $p->father_whatsapp_country_code ?? $fatherCc,
-          'mother_wa_cc' => $p->mother_whatsapp_country_code ?? $motherCc,
+          'father_wa_cc' => $fatherWaCc,
+          'mother_wa_cc' => $motherWaCc,
+          'father_name' => (string) ($p->father_name ?? ''),
+          'mother_name' => (string) ($p->mother_name ?? ''),
+          'father_email' => (string) ($p->father_email ?? ''),
+          'mother_email' => (string) ($p->mother_email ?? ''),
+          'father_phone_local' => $localDigitsFromE164($p->father_phone ?? null, $fatherCc),
+          'mother_phone_local' => $localDigitsFromE164($p->mother_phone ?? null, $motherCc),
+          'father_whatsapp_local' => $localDigitsFromE164($p->father_whatsapp ?? null, $fatherWaCc),
+          'mother_whatsapp_local' => $localDigitsFromE164($p->mother_whatsapp ?? null, $motherWaCc),
           'father_name_empty' => ! filled($p->father_name ?? null),
           'father_phone_empty' => ! filled($p->father_phone ?? null),
           'father_whatsapp_empty' => ! filled($p->father_whatsapp ?? null),

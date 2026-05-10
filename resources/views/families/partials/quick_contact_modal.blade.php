@@ -1,10 +1,10 @@
 @push('styles')
 <style>
   .modal-quick-contact .modal-content {
-    border: 1px solid rgba(var(--bs-body-color-rgb), 0.18);
+    border: 1px solid color-mix(in srgb, var(--settings-primary) 18%, rgba(var(--bs-body-color-rgb), 0.18) 82%);
   }
   .modal-quick-contact .modal-header {
-    background: var(--bs-primary);
+    background: linear-gradient(135deg, var(--settings-primary) 0%, var(--settings-accent) 100%);
     color: #fff;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   }
@@ -16,19 +16,20 @@
     opacity: 0.9;
   }
   .modal-quick-contact .modal-footer {
-    background: var(--bs-light);
-    border-top: 1px solid var(--bs-border-color);
+    background: color-mix(in srgb, var(--settings-primary) 4%, var(--bs-body-bg) 96%);
+    border-top: 1px solid var(--settings-border);
     gap: 0.5rem;
   }
   .theme-dark .modal-quick-contact .modal-footer {
     background: rgba(var(--bs-body-color-rgb), 0.06);
   }
   .modal-quick-contact .btn-save-quick {
-    background: var(--bs-primary);
-    border-color: var(--bs-primary);
+    background: linear-gradient(135deg, var(--settings-primary), var(--settings-accent));
+    border: none;
     color: #fff;
     font-weight: 600;
     min-width: 8rem;
+    box-shadow: 0 12px 24px rgba(20, 184, 166, 0.25);
   }
   .modal-quick-contact .btn-save-quick:hover,
   .modal-quick-contact .btn-save-quick:focus {
@@ -37,12 +38,19 @@
   }
   .modal-quick-contact .quick-slot-card {
     border-radius: 0.65rem;
-    border: 1px solid var(--bs-border-color);
+    border: 1px solid var(--settings-border);
     padding: 0.85rem 1rem;
-    background: rgba(var(--bs-primary-rgb), 0.04);
+    background: color-mix(in srgb, var(--settings-primary) 4%, var(--bs-body-bg) 96%);
   }
   .theme-dark .modal-quick-contact .quick-slot-card {
     background: rgba(var(--bs-body-color-rgb), 0.06);
+  }
+  .modal-quick-contact [data-quick-row].quick-row-filled {
+    opacity: 0.72;
+  }
+  .modal-quick-contact [data-quick-row].quick-row-filled .form-control,
+  .modal-quick-contact [data-quick-row].quick-row-filled .form-select {
+    background-color: color-mix(in srgb, var(--settings-primary) 3%, var(--bs-body-bg) 97%);
   }
 </style>
 @endpush
@@ -204,13 +212,14 @@
     quick_mother_wa_cc: 'mother_whatsapp_country_code',
   };
 
-  function rowVisible(rowEl, show) {
+  function rowEditable(rowEl, editable) {
     if (!rowEl) return;
-    rowEl.style.display = show ? '' : 'none';
+    rowEl.style.display = '';
+    rowEl.classList.toggle('quick-row-filled', !editable);
     rowEl.querySelectorAll('input,select,textarea').forEach(function (node) {
-      node.disabled = !show;
+      node.disabled = !editable;
       if (node.tagName === 'SELECT') {
-        if (show && selectNames[node.id]) node.setAttribute('name', selectNames[node.id]);
+        if (editable && selectNames[node.id]) node.setAttribute('name', selectNames[node.id]);
         else node.removeAttribute('name');
       }
     });
@@ -262,43 +271,29 @@
 
       function empt(k) { return forceAll || payload[k] === true; }
 
-      var fRows = [
-        ['father_name', empt('father_name_empty')],
-        ['father_phone', empt('father_phone_empty')],
-        ['father_whatsapp', empt('father_whatsapp_empty')],
-        ['father_email', empt('father_email_empty')],
+      // Prefill existing values (if present) and disable rows that already have data,
+      // while keeping them visible so staff can confirm what's already set.
+      var fields = [
+        { row: 'father_name', editable: empt('father_name_empty'), el: 'quick_father_name', val: payload.father_name || '' },
+        { row: 'father_phone', editable: empt('father_phone_empty'), el: 'quick_father_phone', val: payload.father_phone_local || '' },
+        { row: 'father_whatsapp', editable: empt('father_whatsapp_empty'), el: 'quick_father_whatsapp', val: payload.father_whatsapp_local || '' },
+        { row: 'father_email', editable: empt('father_email_empty'), el: 'quick_father_email', val: payload.father_email || '' },
+        { row: 'mother_name', editable: empt('mother_name_empty'), el: 'quick_mother_name', val: payload.mother_name || '' },
+        { row: 'mother_phone', editable: empt('mother_phone_empty'), el: 'quick_mother_phone', val: payload.mother_phone_local || '' },
+        { row: 'mother_whatsapp', editable: empt('mother_whatsapp_empty'), el: 'quick_mother_whatsapp', val: payload.mother_whatsapp_local || '' },
+        { row: 'mother_email', editable: empt('mother_email_empty'), el: 'quick_mother_email', val: payload.mother_email || '' },
       ];
-      var mRows = [
-        ['mother_name', empt('mother_name_empty')],
-        ['mother_phone', empt('mother_phone_empty')],
-        ['mother_whatsapp', empt('mother_whatsapp_empty')],
-        ['mother_email', empt('mother_email_empty')],
-      ];
 
-      fRows.forEach(function (item) {
-        rowVisible(document.querySelector('#quick_father_fs [data-quick-row="' + item[0] + '"]'), item[1]);
-      });
-      mRows.forEach(function (item) {
-        rowVisible(document.querySelector('#quick_mother_fs [data-quick-row="' + item[0] + '"]'), item[1]);
+      fields.forEach(function (f) {
+        var rowEl = document.querySelector('[data-quick-row="' + f.row + '"]');
+        rowEditable(rowEl, !!f.editable);
+        var input = document.getElementById(f.el);
+        if (input) input.value = f.val || '';
       });
 
-      var showF = fRows.some(function (x) { return x[1]; });
-      var showM = mRows.some(function (x) { return x[1]; });
-      if (!showF && !showM) {
-        showF = showM = true;
-        fRows.forEach(function (item) {
-          rowVisible(document.querySelector('#quick_father_fs [data-quick-row="' + item[0] + '"]'), true);
-        });
-        mRows.forEach(function (item) {
-          rowVisible(document.querySelector('#quick_mother_fs [data-quick-row="' + item[0] + '"]'), true);
-        });
-      }
-      sectionVisible(fatherFs, showF);
-      sectionVisible(motherFs, showM);
-
-      form.querySelectorAll('input[type=text],input[type=email],input[type=tel]').forEach(function (inp) {
-        if (inp.id && inp.id.indexOf('quick_') === 0 && inp.type !== 'hidden') inp.value = '';
-      });
+      // Always show both sections for verification (even if only one side has blanks).
+      sectionVisible(fatherFs, true);
+      sectionVisible(motherFs, true);
 
       setSelectValue(sel.father_cc, payload.father_cc || '+254');
       setSelectValue(sel.father_wa_cc, payload.father_wa_cc || payload.father_cc || '+254');
@@ -317,10 +312,10 @@
     sectionVisible(fatherFs, true);
     sectionVisible(motherFs, true);
     ['father_name','father_phone','father_whatsapp','father_email'].forEach(function (key) {
-      rowVisible(document.querySelector('#quick_father_fs [data-quick-row="' + key + '"]'), true);
+      rowEditable(document.querySelector('#quick_father_fs [data-quick-row="' + key + '"]'), true);
     });
     ['mother_name','mother_phone','mother_whatsapp','mother_email'].forEach(function (key) {
-      rowVisible(document.querySelector('#quick_mother_fs [data-quick-row="' + key + '"]'), true);
+      rowEditable(document.querySelector('#quick_mother_fs [data-quick-row="' + key + '"]'), true);
     });
   });
 })();
