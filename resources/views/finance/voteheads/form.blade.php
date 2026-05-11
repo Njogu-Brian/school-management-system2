@@ -25,6 +25,21 @@
     </div>
 
     <div class="col-md-12">
+        <div class="form-check">
+            <input type="hidden" name="is_activity_fee" value="0">
+            <input
+                type="checkbox"
+                name="is_activity_fee"
+                value="1"
+                class="form-check-input"
+                id="is_activity_fee"
+                {{ old('is_activity_fee', $votehead->is_activity_fee ?? false) ? 'checked' : '' }}>
+            <label class="form-check-label" for="is_activity_fee">Activity fee (optional programme)</label>
+        </div>
+        <small class="text-muted d-block mt-1">When enabled, students with a <strong>billed optional fee</strong> for this votehead in the current year and term appear on the activity roster, printable lists, and activity attendance (separate from swimming).</small>
+    </div>
+
+    <div class="col-md-12">
         <label for="charge_type" class="finance-form-label">Charge Type <span class="text-danger">*</span></label>
         <select name="charge_type" class="finance-form-select" id="charge_type" required>
             <option value="">-- Select Charge Type --</option>

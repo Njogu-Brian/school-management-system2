@@ -96,6 +96,7 @@ use App\Http\Controllers\Swimming\SwimmingAttendanceController;
 use App\Http\Controllers\Swimming\SwimmingWalletController;
 use App\Http\Controllers\Swimming\SwimmingReportController;
 use App\Http\Controllers\Swimming\SwimmingSettingsController;
+use App\Http\Controllers\Activities\ActivityFeeController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -410,6 +411,26 @@ Route::middleware('auth')->group(function () {
                 Route::get('/', [SwimmingSettingsController::class, 'index'])->name('swimming.settings.index');
                 Route::post('/', [SwimmingSettingsController::class, 'update'])->name('swimming.settings.update');
             });
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Activity fees (optional voteheads): rosters from billed optional fees,
+    | printable lists, simple attendance (not wallet-based like swimming).
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('activity-fees')->group(function () {
+        Route::middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor')->group(function () {
+            Route::get('/', [ActivityFeeController::class, 'index'])->name('activity-fees.index');
+            Route::get('/{votehead}', [ActivityFeeController::class, 'show'])->name('activity-fees.show');
+            Route::get('/{votehead}/print', [ActivityFeeController::class, 'printRoster'])->name('activity-fees.print');
+            Route::get('/{votehead}/attendance', [ActivityFeeController::class, 'attendance'])->name('activity-fees.attendance');
+            Route::post('/{votehead}/attendance', [ActivityFeeController::class, 'attendanceStore'])->name('activity-fees.attendance.store');
+        });
+
+        Route::middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Supervisor')->group(function () {
+            Route::get('/{votehead}/records', [ActivityFeeController::class, 'records'])->name('activity-fees.records');
+        });
     });
 
     /*

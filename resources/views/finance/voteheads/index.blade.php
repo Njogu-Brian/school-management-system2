@@ -24,6 +24,7 @@
                         <th>Name</th>
                         <th>Description</th>
                         <th>Mandatory</th>
+                        <th>Activity fee</th>
                         <th>Charge Frequency</th>
                             <th class="text-end">Actions</th>
                     </tr>
@@ -38,6 +39,13 @@
                                         <span class="badge bg-success">Yes</span>
                                 @else
                                         <span class="badge bg-secondary">No</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($votehead->is_activity_fee ?? false)
+                                    <span class="badge bg-primary">Yes</span>
+                                @else
+                                    <span class="badge bg-light text-muted border">No</span>
                                 @endif
                             </td>
                             <td>
@@ -74,7 +82,7 @@
                         </tr>
                     @empty
                         <tr>
-                                <td colspan="5" class="text-center py-4">
+                                <td colspan="6" class="text-center py-4">
                                     <h5 class="mb-1">No voteheads found</h5>
                                     <p class="text-muted mb-3">Create your first votehead to get started</p>
                                     <a href="{{ route('finance.voteheads.create') }}" class="btn btn-primary">

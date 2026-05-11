@@ -2,6 +2,7 @@
 @php
   $attActive = Request::is('attendance*');
   $swimmingActive = Request::is('swimming*');
+  $activityFeesActive = Request::is('activity-fees*');
   $marksActive = Request::is('exam-marks*') || Request::is('academics/exams/grading*');
   $examReportsActive = Request::is('academics/exam-reports*');
   $reportsActive = Request::is('academics/report_cards*');
@@ -240,6 +241,18 @@
     <a href="{{ route('swimming.attendance.index') }}"
        class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}">
       <i class="bi bi-file-earmark-text"></i> Reports
+    </a>
+  </div>
+
+  <a href="#activityFeesMenuSt" data-bs-toggle="collapse"
+     aria-expanded="{{ $activityFeesActive ? 'true' : 'false' }}"
+     class="{{ $activityFeesActive ? 'parent-active' : '' }}">
+    <i class="bi bi-trophy"></i> Activity fees
+  </a>
+  <div class="collapse {{ $activityFeesActive ? 'show' : '' }}" id="activityFeesMenuSt">
+    <a href="{{ route('activity-fees.index') }}"
+       class="sublink {{ Request::is('activity-fees*') ? 'active' : '' }}">
+      <i class="bi bi-people"></i> Rosters & attendance
     </a>
   </div>
 

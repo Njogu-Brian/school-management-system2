@@ -38,6 +38,7 @@ class VoteheadController extends Controller
             'is_mandatory' => $request->boolean('is_mandatory'),
             'charge_type' => $request->charge_type,
             'preferred_term' => $request->charge_type === 'once_annually' ? $request->preferred_term : null,
+            'is_activity_fee' => $request->boolean('is_activity_fee'),
         ]);
 
         return redirect()->route('finance.voteheads.index')->with('success', 'Votehead created successfully.');
@@ -59,6 +60,7 @@ class VoteheadController extends Controller
             'is_mandatory' => $request->boolean('is_mandatory'),
             'charge_type' => $request->charge_type,
             'preferred_term' => $request->charge_type === 'once_annually' ? $request->preferred_term : null,
+            'is_activity_fee' => $request->boolean('is_activity_fee'),
         ]);
 
         return redirect()->route('finance.voteheads.index')->with('success', 'Votehead updated successfully.');

@@ -502,6 +502,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     {{-- Swimming Management (Payment Related) --}}
     @php
         $swimmingActive = Request::is('swimming*');
+        $activityFeesActive = Request::is('activity-fees*');
     @endphp
     <a href="#swimmingMenu" data-bs-toggle="collapse" aria-expanded="{{ $swimmingActive ? 'true' : 'false' }}" class="{{ $swimmingActive ? 'parent-active' : '' }}"><i class="bi bi-water"></i> Swimming Management</a>
     <div class="collapse {{ $swimmingActive ? 'show' : '' }}" id="swimmingMenu" style="padding-left: 20px;">
@@ -510,6 +511,11 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('swimming.attendance.create') }}" class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
         <a href="{{ route('swimming.attendance.index') }}" class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-journal-text"></i> View Records & Reports</a>
         <a href="{{ route('swimming.settings.index') }}" class="sublink {{ Request::is('swimming/settings*') ? 'active' : '' }}"><i class="bi bi-gear"></i> Settings</a>
+    </div>
+
+    <a href="#activityFeesMenu" data-bs-toggle="collapse" aria-expanded="{{ $activityFeesActive ? 'true' : 'false' }}" class="{{ $activityFeesActive ? 'parent-active' : '' }}"><i class="bi bi-trophy"></i> Activity fees</a>
+    <div class="collapse {{ $activityFeesActive ? 'show' : '' }}" id="activityFeesMenu" style="padding-left: 20px;">
+        <a href="{{ route('activity-fees.index') }}" class="sublink {{ Request::is('activity-fees') && !Request::is('activity-fees/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Activities & rosters</a>
     </div>
     
     {{-- Legacy Imports (Payment Related) --}}

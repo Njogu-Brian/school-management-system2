@@ -21,12 +21,14 @@ class Votehead extends Model
         'preferred_term', // For once_annually: which term to charge (1, 2, or 3)
         'is_optional',
         'is_active',
+        'is_activity_fee',
     ];
 
     protected $casts = [
         'is_mandatory' => 'boolean',
         'is_optional' => 'boolean',
         'is_active' => 'boolean',
+        'is_activity_fee' => 'boolean',
     ];
 
     protected static function boot()
@@ -87,6 +89,16 @@ class Votehead extends Model
     public function feeConcessions(): HasMany
     {
         return $this->hasMany(FeeConcession::class);
+    }
+
+    public function activityFeeAttendances(): HasMany
+    {
+        return $this->hasMany(ActivityFeeAttendance::class);
+    }
+
+    public function scopeActivityFees($query)
+    {
+        return $query->where('is_activity_fee', true)->where('is_active', true);
     }
 
     public function scopeActive($query)
