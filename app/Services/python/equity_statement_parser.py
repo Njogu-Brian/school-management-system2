@@ -47,6 +47,98 @@ def _parse_money(s: str):
     except Exception:
         return None
 
+def _strip_trailing_foreign_txn_starters(body: str, ref: str | None) -> str:
+    """
+    Equity PDFs often place the next row's APP/... lead-in lines inside the previous block
+    (same block ends at the next date-pair line). Drop continuation lines that start a new
+    APP/ lead-in but do not contain this row's transaction reference. (Do not treat USSD/ as
+    foreign: it often continues the same MPESA transaction.)
+    """
+    if not body or not ref:
+        return body
+    ru = ref.upper()
+    lines = body.split("\n")
+    out = []
+    main_money_line_seen = False
+    # Only APP/... lead-ins are safe to drop here: USSD/ often continues the same MPESA row as the ref line.
+    starter = re.compile(r"^\s*APP/", re.I)
+    for ln in lines:
+        s = ln.strip()
+        if not main_money_line_seen and len(re.findall(r"\b[\d,]+\.\d{2}\b", s)) >= 2:
+            main_money_line_seen = True
+        if main_money_line_seen:
+            if starter.match(s) and ru not in s.upper():
+                break
+        out.append(ln)
+    return "\n".join(out).strip()
+
+
+def _strip_orphan_lines_after_charge(body: str, ref: str | None) -> str:
+    """
+    After an SMS/charge line, Equity sometimes merges the next transaction's phone / gateway tokens
+    (no date line yet). Drop those trailing lines once we've seen CHARGE, unless the line still
+    contains this row's reference.
+    """
+    if not body or not ref:
+        return body
+    if not re.search(r"\b(CHARGE|SMS\s+CHARGE)\b", body, re.I):
+        return body
+    ref_pat = re.compile(r"\b" + re.escape(str(ref)) + r"\b", re.I)
+    lines = body.split("\n")
+    out = []
+    seen_charge = False
+    for ln in lines:
+        s = ln.strip()
+        if not seen_charge:
+            out.append(ln)
+            if re.search(r"\b(CHARGE|SMS\s+CHARGE)\b", s, re.I):
+                seen_charge = True
+            continue
+        if ref_pat.search(s):
+            out.append(ln)
+            continue
+        if re.match(r"^(2547\d{8}|07\d{8}|00[a-zA-Z0-9]{4,})", s):
+            break
+        out.append(ln)
+    return "\n".join(out).strip()
+
+
+def _relocate_masked_card_preamble_rows(transactions: list) -> list:
+    """
+    When two date-pairs share the same calendar day, narrative lines (e.g. merchant + masked card)
+    can end up merged into the preceding SMS/charge row. If the next row is a BY:/... deposit,
+    move that preamble onto the deposit row.
+    """
+    if not transactions:
+        return transactions
+    for i in range(len(transactions) - 1):
+        cur = transactions[i]
+        nxt = transactions[i + 1]
+        if (cur.get("tran_date") or "") != (nxt.get("tran_date") or ""):
+            continue
+        curp = (cur.get("particulars") or "").strip()
+        nxp = (nxt.get("particulars") or "").strip()
+        if not curp or not nxp:
+            continue
+        if not re.match(r"^BY\s*:", nxp, re.I):
+            continue
+        if not re.search(r"\b(CHARGE|SMS\s+CHARGE)\b", curp, re.I):
+            continue
+        m = re.search(
+            r"^(.*?)\s+(CHICKEN[\w\s\-/]{3,120}?627851X{4,}\d*)\s*$",
+            curp,
+            flags=re.I,
+        )
+        if not m:
+            continue
+        head, tail = m.group(1).strip(), m.group(2).strip()
+        if not tail:
+            continue
+        cur["particulars"] = _norm_spaces(head)
+        nxt["particulars"] = _norm_spaces(tail + " " + nxt["particulars"])
+    return transactions
+
+
 def _is_phone_like(token: str) -> bool:
     t = (token or "").strip()
     # Kenya MSISDN patterns observed in statements: 2547XXXXXXXX / 07XXXXXXXX
@@ -240,6 +332,9 @@ def parse_equity_transactions_from_text(full_text: str):
                 numeric_candidates.sort()
                 ref = numeric_candidates[0][2]
 
+        body = _strip_trailing_foreign_txn_starters(body, ref)
+        body = _strip_orphan_lines_after_charge(body, ref)
+
         # Extract phone number (optional) with a strict heuristic to avoid cross-row carryover:
         # - Prefer a phone-like token very early in the body (typical "2547..." remittance prefix)
         # - Else accept MPESA/USSD patterns that explicitly encode a phone.
@@ -303,6 +398,7 @@ def parse_equity_transactions_from_text(full_text: str):
             "source": "equity_text_blocks",
         })
 
+    transactions = _relocate_masked_card_preamble_rows(transactions)
     return transactions
 
 
