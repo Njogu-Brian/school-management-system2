@@ -6349,6 +6349,14 @@ class BankStatementController extends Controller
         $statementPath = $validated['statement_file_path'];
         $reason = $validated['reversal_reason'] ?? 'Force reparse bank statement (parser correction)';
 
+        // Safety: Do not proceed if the PDF is missing (would delete data without being able to reparse).
+        if (! storage_private()->exists($statementPath)) {
+            return redirect()->back()->with(
+                'error',
+                'Cannot force reparse because the original PDF file is missing from storage. Please re-upload the statement PDF first.'
+            );
+        }
+
         $existingTxns = BankStatementTransaction::where('statement_file_path', $statementPath)->get();
         if ($existingTxns->isEmpty()) {
             return redirect()->back()->with('error', 'Statement not found or has no transactions.');

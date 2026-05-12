@@ -121,9 +121,15 @@ def parse_equity_transactions_from_text(full_text: str):
     cleaned = "\n".join(cleaned_lines)
 
     # Identify transaction starts: two dates (Tran Date + Value Date).
-    # Some PDFs lose newlines, so do NOT require line start anchoring.
-    start_re = re.compile(r"(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})\s+")
-    starts = list(start_re.finditer(cleaned))
+    # Prefer strict line-start anchoring (most Equity PDFs extract with newlines).
+    # Fallback to a looser scan only if no anchored matches are found.
+    start_re_anchored = re.compile(r"(?m)^(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})\s+")
+    starts = list(start_re_anchored.finditer(cleaned))
+    start_re = start_re_anchored
+    if not starts:
+        start_re_loose = re.compile(r"(?:^|[\s])(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})\s+")
+        starts = list(start_re_loose.finditer(cleaned))
+        start_re = start_re_loose
     if not starts:
         return []
 
@@ -173,6 +179,42 @@ def parse_equity_transactions_from_text(full_text: str):
         # Compute body once (block without the leading two dates). Used by multiple extractors.
         body = start_re.sub("", block, count=1).strip()
 
+        # Some Equity extracts split the narrative onto the line BEFORE the (date date ref) line.
+        # Example:
+        #   APP/KENNETH MUIGAI ...
+        #   05/05/2026 05/05/2026 54335793 ...
+        # In that case, this block's body may be just the ref token. Recover narrative from the
+        # tail of the previous block.
+        body_norm = _norm_spaces(body)
+        looks_like_ref_only = (
+            bool(re.fullmatch(r"(S\d{8,11}|\d{6,15})", body_norm, flags=re.IGNORECASE))
+            or (body_norm and not re.search(r"[A-Za-z]", body_norm) and re.fullmatch(r"\d{6,15}(\s+\d{6,15})*", body_norm))
+        )
+        if looks_like_ref_only and idx > 0:
+            prev_start = starts[idx - 1].start()
+            prev_end = block_start
+            prev_block = cleaned[prev_start:prev_end].strip()
+            prev_body = start_re.sub("", prev_block, count=1).strip()
+            tail_lines = []
+            for ln in prev_body.split("\n"):
+                lns = ln.strip()
+                if not lns:
+                    continue
+                # skip lines that are only money tokens
+                if re.fullmatch(r"(?:[\d,]+\.\d{2}\s+)*[\d,]+\.\d{2}", lns):
+                    continue
+                # skip lines that start with dates (would indicate we didn't split right)
+                if re.match(r"^\d{2}/\d{2}/\d{4}\s+\d{2}/\d{2}/\d{4}\b", lns):
+                    continue
+                # keep narrative-like lines (must contain letters)
+                if re.search(r"[A-Za-z]", lns):
+                    tail_lines.append(lns)
+
+            # Use last 2 narrative lines from previous block
+            if tail_lines:
+                recovered = _norm_spaces(" ".join(tail_lines[-2:]))
+                body = _norm_spaces(recovered + " " + body_norm)
+
         # Extract reference candidates from the block.
         # Prefer explicit S######## reference, else numeric ref near the end with realistic length.
         s_ref = re.search(r"\b(S\d{8,11})\b", block, flags=re.IGNORECASE)
@@ -215,16 +257,16 @@ def parse_equity_transactions_from_text(full_text: str):
                 if ref_pos == -1 or mpesa_phone.start() < ref_pos:
                     phone = mpesa_phone.group(1)
 
-        # Particulars: everything after the two dates up to (but excluding) the last two money values.
-        # Remove the leading dates.
+        # Particulars: everything after the two dates, minus the txn amount + running balance tokens.
+        # IMPORTANT: Do NOT truncate at the amount token because Equity extracts often place the amount
+        # immediately after the reference number on the first line, with the narration continuing on
+        # subsequent lines. Instead remove the money tokens and keep the rest.
         particulars = body
-        # Remove trailing money tokens (txn amount + running balance) and any residue.
-        # Do it by chopping at the first occurrence of the txn amount token from the end.
-        # Use the raw token string for safer cut.
         txn_raw = money_vals[-2][1]
-        cut_idx = particulars.rfind(txn_raw)
-        if cut_idx != -1:
-            particulars = particulars[:cut_idx].strip()
+        bal_raw = money_vals[-1][1]
+        for raw in [bal_raw, txn_raw]:
+            if raw:
+                particulars = re.sub(r"\b" + re.escape(raw) + r"\b", " ", particulars)
         particulars = _norm_spaces(particulars)
 
         # Infer credit/debit from running balance delta when possible.
