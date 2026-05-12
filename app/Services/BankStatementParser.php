@@ -1269,32 +1269,39 @@ class BankStatementParser
         if (empty($description)) {
             return null;
         }
-        
-        // Kenyan phone number patterns: 254XXXXXXXXX, 07XXXXXXXX, +254XXXXXXXXX
-        $patterns = [
-            '/254\d{9}/',           // 254XXXXXXXXX
-            '/\+254\d{9}/',         // +254XXXXXXXXX
-            '/0[17]\d{8}/',          // 07XXXXXXXX or 01XXXXXXXX
-            '/\b(\d{10,12})\b/',     // 10-12 digit numbers (fallback)
-        ];
-        
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $description, $matches)) {
-                $phone = $matches[0];
-                // Normalize to 254 format
-                if (strpos($phone, '0') === 0 && strlen($phone) === 10) {
-                    $phone = '254' . substr($phone, 1);
-                } elseif (strpos($phone, '+') === 0) {
-                    $phone = substr($phone, 1);
-                }
-                
-                // Validate it's a reasonable phone number (9-12 digits after country code)
-                if (preg_match('/^254\d{9}$/', $phone)) {
-                    return $phone;
-                }
-            }
+
+        // Prefer real MSISDN shapes first. Equity statements often include 0120263… till / account
+        // tokens: the old pattern 0[17]\d{8} matched "0120263149" inside 0120263149140 and produced
+        // bogus 254120263149 (01 + 20263149 normalized).
+        if (preg_match('/\b2547\d{8}\b/', $description, $m)) {
+            return $m[0];
         }
-        
+        if (preg_match('/\b2549\d{8}\b/', $description, $m)) {
+            return $m[0];
+        }
+        if (preg_match('/\b2541\d{8}\b/', $description, $m)) {
+            return $m[0];
+        }
+        if (preg_match('/\b07\d{8}\b/', $description, $m)) {
+            return '254' . substr($m[0], 1);
+        }
+        if (preg_match('/\+2547\d{8}\b/', $description, $m)) {
+            return substr($m[0], 1);
+        }
+        if (preg_match('/\+2549\d{8}\b/', $description, $m)) {
+            return substr($m[0], 1);
+        }
+        if (preg_match('/\+2541\d{8}\b/', $description, $m)) {
+            return substr($m[0], 1);
+        }
+
+        // APP/MPESA/2547… or 12-digit MSISDN embedded without leading 0
+        if (preg_match('/(?:APP|USSD)\/MPESA\/(2547\d{8}|07\d{8})\b/i', $description, $m)) {
+            $p = $m[1];
+
+            return str_starts_with($p, '07') ? ('254' . substr($p, 1)) : $p;
+        }
+
         return null;
     }
     
