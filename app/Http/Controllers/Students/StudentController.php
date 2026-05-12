@@ -1514,10 +1514,33 @@ class StudentController extends Controller
     private function generateNextAdmissionNumber()
     {
         // One series across the whole system (no padding, e.g. RKS77, RKS729)
-        $prefix = Setting::get('student_id_prefix', 'RKS');
+        // This must never return an admission number that already exists (counter can drift after restores/imports).
+        $prefix = (string) Setting::get('student_id_prefix', 'RKS');
         $start = Setting::getInt('student_id_start', 1);
-        $counter = Setting::incrementValue('student_id_counter', 1, $start);
-        return $prefix . (string) $counter;
+
+        $prefixLen = strlen($prefix);
+        $maxNumeric = (int) \App\Models\Student::query()
+            ->whereNotNull('admission_number')
+            ->where('admission_number', 'like', $prefix.'%')
+            ->selectRaw('MAX(CAST(SUBSTRING(admission_number, ?) AS UNSIGNED)) as m', [$prefixLen + 1])
+            ->value('m');
+
+        $currentCounter = Setting::getInt('student_id_counter', $start);
+        if ($maxNumeric > 0 && $currentCounter < $maxNumeric) {
+            // Ensure next increment cannot collide with historical admissions.
+            Setting::setInt('student_id_counter', $maxNumeric);
+        }
+
+        for ($i = 0; $i < 20; $i++) {
+            $counter = Setting::incrementValue('student_id_counter', 1, max($start, $maxNumeric));
+            $candidate = $prefix.(string) $counter;
+            if (! \App\Models\Student::query()->where('admission_number', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        // Fallback: extremely unlikely unless the counter is being raced hard.
+        return $prefix.(string) (time());
     }
 
     /**
