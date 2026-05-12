@@ -32,6 +32,237 @@ def debug_log(message):
     if PARSE_DEBUG:
         print(message, file=sys.stderr)
 
+def _norm_spaces(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip())
+
+def _parse_money(s: str):
+    """Parse KES-like amount token e.g. 17,500.00 or 2.26 into float."""
+    if not s:
+        return None
+    s = str(s).strip()
+    if not re.match(r"^[\d,]+\.\d{2}$", s):
+        return None
+    try:
+        return round(float(s.replace(",", "")), 2)
+    except Exception:
+        return None
+
+def _is_phone_like(token: str) -> bool:
+    t = (token or "").strip()
+    # Kenya MSISDN patterns observed in statements: 2547XXXXXXXX / 07XXXXXXXX
+    if re.fullmatch(r"2547\d{8}", t):
+        return True
+    if re.fullmatch(r"07\d{8}", t):
+        return True
+    # Some extractions drop leading 0 and keep 9 digits
+    if re.fullmatch(r"7\d{8}", t):
+        return True
+    return False
+
+def _extract_opening_balance(text: str):
+    # Example: "Opening Balance Total Debits Total Credits Closing Balance"
+    #          "162,556.91 750,765.41 611,298.37 23,089.87"
+    m = re.search(r"OPENING\s+BALANCE.*?\n\s*([\d,]+\.\d{2})", text, flags=re.IGNORECASE | re.DOTALL)
+    if not m:
+        return None
+    return _parse_money(m.group(1))
+
+def parse_equity_transactions_from_text(full_text: str):
+    """
+    Parse Equity Internet Banking statement text by transaction blocks.
+
+    Equity format (observed):
+      TranDate ValueDate Narrative ... TransactionReference ... Amount RunningBalance ...
+    The PDF extraction frequently splits narrative across multiple lines; the safest parsing unit is
+    "a block starting with two dates" until the next such block.
+    """
+    if not full_text:
+        return []
+
+    text = full_text.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Drop repeated table headers/footers to reduce false positives.
+    # We'll still keep balances/amounts lines as they are used for inference.
+    blacklist_lines = [
+        "Transaction",
+        "Date Value Date Narrative Transaction",
+        "Reference",
+        "Customer",
+        "Reference Debit Credit Running",
+        "Balance",
+        "Cheque Number",
+        "Remarks",
+        "Page ",
+        "-- ",
+        "----- End of Statement -----",
+        "This statement has been generated from Equity Internet Banking",
+        "IMPORTANT NOTICE",
+        # Summary footer
+        "Opening Balance",
+        "Total Debits",
+        "Total Credits",
+        "Closing Balance",
+        "----- End of Statement",
+        "Summary",
+    ]
+    cleaned_lines = []
+    for ln in text.split("\n"):
+        lns = ln.strip()
+        if not lns:
+            continue
+        up = lns.upper()
+        if any(k.upper() in up for k in blacklist_lines):
+            continue
+        # Skip pure summary totals rows (typically 3-4 money values only)
+        # Example: "162,556.91 750,765.41 611,298.37 23,089.87"
+        if re.fullmatch(r"(?:[\d,]+\.\d{2}\s+){2,}[\d,]+\.\d{2}", lns):
+            continue
+        cleaned_lines.append(lns)
+    cleaned = "\n".join(cleaned_lines)
+
+    # Identify transaction starts: two dates (Tran Date + Value Date).
+    # Some PDFs lose newlines, so do NOT require line start anchoring.
+    start_re = re.compile(r"(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})\s+")
+    starts = list(start_re.finditer(cleaned))
+    if not starts:
+        return []
+
+    opening_balance = _extract_opening_balance(text)  # from original text (may be in filtered portion)
+    prev_balance = opening_balance
+
+    transactions = []
+    for idx, m in enumerate(starts):
+        block_start = m.start()
+        block_end = starts[idx + 1].start() if idx + 1 < len(starts) else len(cleaned)
+        block = cleaned[block_start:block_end].strip()
+
+        # Defensive: cut off any statement summary/footer accidentally captured in the last block.
+        footer_markers = [
+            "OPENING BALANCE",
+            "TOTAL DEBITS",
+            "TOTAL CREDITS",
+            "CLOSING BALANCE",
+            "----- END OF STATEMENT",
+            "END OF STATEMENT",
+            "SUMMARY",
+            "IMPORTANT NOTICE",
+        ]
+        block_upper = block.upper()
+        cut_positions = [block_upper.find(mk) for mk in footer_markers if block_upper.find(mk) != -1]
+        if cut_positions:
+            block = block[: min(cut_positions)].strip()
+            if not block:
+                continue
+
+        # Parse dates
+        tran_date = parse_date(m.group(1))
+        value_date = parse_date(m.group(2)) or tran_date
+        if not tran_date:
+            continue
+
+        # Collect all money tokens in order of appearance; last is usually running balance.
+        money_tokens = re.findall(r"\b[\d,]+\.\d{2}\b", block)
+        money_vals = [(_parse_money(t), t) for t in money_tokens]
+        money_vals = [(v, raw) for (v, raw) in money_vals if v is not None]
+        if len(money_vals) < 2:
+            # Without both txn amount and running balance, we can't reliably infer.
+            continue
+        running_balance = money_vals[-1][0]
+        txn_amount = money_vals[-2][0]
+
+        # Compute body once (block without the leading two dates). Used by multiple extractors.
+        body = start_re.sub("", block, count=1).strip()
+
+        # Extract reference candidates from the block.
+        # Prefer explicit S######## reference, else numeric ref near the end with realistic length.
+        s_ref = re.search(r"\b(S\d{8,11})\b", block, flags=re.IGNORECASE)
+        ref = s_ref.group(1).upper() if s_ref else None
+        if not ref:
+            numeric_candidates = []
+            for mm in re.finditer(r"\b\d{7,15}\b", block):
+                token = mm.group(0)
+                if token == "0120263149140" or token.startswith("0120263"):
+                    continue
+                if token.startswith("2547") or _is_phone_like(token):
+                    continue
+                # Score: prefer shorter refs (7-9 digits), but allow longer if needed
+                ln = len(token)
+                if 7 <= ln <= 9:
+                    score = 0
+                elif 10 <= ln <= 12:
+                    score = 1
+                else:
+                    score = 2
+                numeric_candidates.append((score, -mm.start(), token))
+            if numeric_candidates:
+                numeric_candidates.sort()
+                ref = numeric_candidates[0][2]
+
+        # Extract phone number (optional) with a strict heuristic to avoid cross-row carryover:
+        # - Prefer a phone-like token very early in the body (typical "2547..." remittance prefix)
+        # - Else accept MPESA/USSD patterns that explicitly encode a phone.
+        # Additionally, only accept a phone token that appears BEFORE the chosen reference token inside this block.
+        phone = None
+        ref_pos = body.upper().find(ref.upper()) if ref else -1
+        early = body[:80]
+        early_phone = re.search(r"\b(2547\d{8}|07\d{8})\b", early)
+        if early_phone:
+            if ref_pos == -1 or early_phone.start() < ref_pos:
+                phone = early_phone.group(1)
+        else:
+            mpesa_phone = re.search(r"(?:APP|USSD)/MPESA/(\d{12}|07\d{8})", block, flags=re.IGNORECASE)
+            if mpesa_phone:
+                if ref_pos == -1 or mpesa_phone.start() < ref_pos:
+                    phone = mpesa_phone.group(1)
+
+        # Particulars: everything after the two dates up to (but excluding) the last two money values.
+        # Remove the leading dates.
+        particulars = body
+        # Remove trailing money tokens (txn amount + running balance) and any residue.
+        # Do it by chopping at the first occurrence of the txn amount token from the end.
+        # Use the raw token string for safer cut.
+        txn_raw = money_vals[-2][1]
+        cut_idx = particulars.rfind(txn_raw)
+        if cut_idx != -1:
+            particulars = particulars[:cut_idx].strip()
+        particulars = _norm_spaces(particulars)
+
+        # Infer credit/debit from running balance delta when possible.
+        credit = 0.0
+        debit = 0.0
+        if prev_balance is not None and running_balance is not None and txn_amount is not None:
+            delta = round(running_balance - prev_balance, 2)
+            if abs(delta - txn_amount) <= 0.06:
+                credit = txn_amount
+            elif abs(delta + txn_amount) <= 0.06:
+                debit = txn_amount
+            else:
+                # Fallback: treat as credit unless the particulars strongly indicates a charge/reversal.
+                up = (particulars or "").upper()
+                if any(k in up for k in ["CHARGE", "REVERS", "FEE"]):
+                    debit = txn_amount
+                else:
+                    credit = txn_amount
+        else:
+            credit = txn_amount
+
+        prev_balance = running_balance
+
+        # Normalize: if inferred debit, keep credit as 0 and vice versa.
+        transactions.append({
+            "tran_date": tran_date,
+            "value_date": value_date,
+            "particulars": particulars,
+            "credit": round(credit, 2),
+            "debit": round(debit, 2),
+            "balance": running_balance,
+            "transaction_code": ref,
+            "phone_number_extracted": phone,
+            "source": "equity_text_blocks",
+        })
+
+    return transactions
+
 
 def extract_text_from_pdf_pdfplumber(pdf_path):
     """Extract text and tables from PDF using pdfplumber"""
@@ -2038,70 +2269,54 @@ def main():
                 page_texts = [page.get('text') or '' for page in pages]
                 transactions = parse_paybill_from_text(page_texts)
         else:
-            text_transactions = []
-            table_transactions = []
+            # Equity statements are notoriously difficult to extract as clean tables (pdfplumber often merges rows),
+            # which leads to wrong phone/reference carryover and missing rows. Prefer text-block parsing.
+            full_text = "\n".join([(p.get("text") or "") for p in pages if (p.get("text") or "").strip()])
+            transactions = parse_equity_transactions_from_text(full_text)
 
-            # Text-based extraction per page
-            last_balance = None
-            for page in pages:
-                page_number = page.get('page_number')
-                page_text = page.get('text') or ""
-                if page_text and len(page_text) > 50:
-                    detected, last_balance = detect_table_rows(
-                        page_text,
-                        page_number=page_number,
-                        initial_balance=last_balance,
-                    )
-                    text_transactions.extend(detected)
+            # Fallback: retain the legacy methods if block parsing fails for a new/unknown layout.
+            if not transactions:
+                text_transactions = []
+                table_transactions = []
 
-            # Table extraction per page
-            for page in pages:
-                page_number = page.get('page_number')
-                tables = page.get('tables', [])
-                for table_index, table in enumerate(tables):
-                    if isinstance(table, dict):
-                        rows = table.get('rows') or []
-                        header_row = table.get('header')
-                        table_page = table.get('page_number', page_number)
-                    else:
-                        rows = table or []
-                        header_row = table[0] if table else None
-                        table_page = page_number
-
-                    if not rows:
-                        continue
-
-                    table_transactions.extend(
-                        parse_bank_table(
-                            rows,
-                            header_row,
-                            page_number=table_page,
-                            table_index=table_index
+                last_balance = None
+                for page in pages:
+                    page_number = page.get('page_number')
+                    page_text = page.get('text') or ""
+                    if page_text and len(page_text) > 50:
+                        detected, last_balance = detect_table_rows(
+                            page_text,
+                            page_number=page_number,
+                            initial_balance=last_balance,
                         )
-                    )
+                        text_transactions.extend(detected)
 
-            transactions = list(text_transactions)
+                for page in pages:
+                    page_number = page.get('page_number')
+                    tables = page.get('tables', [])
+                    for table_index, table in enumerate(tables):
+                        if isinstance(table, dict):
+                            rows = table.get('rows') or []
+                            header_row = table.get('header')
+                            table_page = table.get('page_number', page_number)
+                        else:
+                            rows = table or []
+                            header_row = table[0] if table else None
+                            table_page = page_number
 
-            if table_transactions:
-                table_has_complete = all(
-                    len(t.get('particulars', '')) > 15 and not t.get('particulars', '').startswith('---')
-                    for t in table_transactions[:10]
-                )
+                        if not rows:
+                            continue
 
-                if table_has_complete and len(table_transactions) > len(text_transactions):
-                    transactions = table_transactions
-                elif not text_transactions:
-                    transactions = table_transactions
-                else:
-                    seen_keys = {
-                        (t.get('tran_date'), t.get('credit'), t.get('debit'), t.get('particulars'))
-                        for t in transactions
-                    }
-                    for entry in table_transactions:
-                        key = (entry.get('tran_date'), entry.get('credit'), entry.get('debit'), entry.get('particulars'))
-                        if key not in seen_keys:
-                            transactions.append(entry)
-                            seen_keys.add(key)
+                        table_transactions.extend(
+                            parse_bank_table(
+                                rows,
+                                header_row,
+                                page_number=table_page,
+                                table_index=table_index
+                            )
+                        )
+
+                transactions = list(text_transactions) or table_transactions
     
     # Fallback to OCR if pdfplumber didn't work or returned little content
     if not transactions and OCR_AVAILABLE:

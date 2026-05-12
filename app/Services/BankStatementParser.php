@@ -95,6 +95,7 @@ class BankStatementParser
         $matched = 0;
         $unmatched = 0;
         $duplicates = 0;
+        $updatedExisting = 0;
         $linkedToExistingPayment = 0;
         
         foreach ($transactions as $txnData) {
@@ -123,6 +124,26 @@ class BankStatementParser
                         ->where('is_duplicate', false)
                         ->first();
                     if ($existingByRef) {
+                        // If this is a re-parse of the SAME statement file, update the existing row in-place.
+                        // This enables "reparse" without having to delete old rows (and avoids duplicate skipping
+                        // locking you into previously mis-parsed descriptions/phones).
+                        if ($existingByRef->statement_file_path === $pdfPath && !$existingByRef->payment_created) {
+                            $existingByRef->update([
+                                'bank_account_id' => $bankAccountId,
+                                'bank_type' => $bankType,
+                                'transaction_date' => $transactionDate,
+                                'amount' => $amount,
+                                'transaction_type' => $transactionType,
+                                'description' => $particulars,
+                                'phone_number' => $phoneNumber,
+                                'payer_name' => $payerName,
+                                'raw_data' => $txnData,
+                            ]);
+                            $updatedExisting++;
+                            $created[] = $existingByRef->id;
+                            continue;
+                        }
+
                         $duplicates++;
                         continue;
                     }
@@ -309,6 +330,9 @@ class BankStatementParser
         // Build success message
         $msgParts = [];
         $msgParts[] = sprintf('Parsed %d transactions', count($transactions));
+        if ($updatedExisting > 0) {
+            $msgParts[] = sprintf('%d updated (reparse)', $updatedExisting);
+        }
         if ($duplicates > 0) {
             $msgParts[] = sprintf('%d duplicates (skipped)', $duplicates);
         }
