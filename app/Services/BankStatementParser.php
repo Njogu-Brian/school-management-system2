@@ -118,17 +118,21 @@ class BankStatementParser
             // IMPORTANT: avoid creating duplicates when a Payment already exists and is already linked elsewhere.
             // This happens frequently for Equity statements when older imports used phone-like refs and later re-imports use real Transaction Reference.
             if ($transactionCode) {
-                // Equity transaction references are expected to be unique; prefer skipping on ref alone.
+                // Equity: the bank often reuses the same "Transaction Reference" for two lines on the same date
+                // (e.g. main credit/debit + SMS/charge line). In-place reparse must match the FULL line, not ref alone,
+                // otherwise the second line overwrites the first and rows disappear (e.g. 39 instead of 54).
                 if ($bankType === 'equity') {
-                    $existingByRef = BankStatementTransaction::where('reference_number', $transactionCode)
+                    $existingSameLine = BankStatementTransaction::where('reference_number', $transactionCode)
                         ->where('is_duplicate', false)
+                        ->where('statement_file_path', $pdfPath)
+                        ->whereDate('transaction_date', $transactionDate)
+                        ->where('amount', $amount)
+                        ->where('transaction_type', $transactionType)
                         ->first();
-                    if ($existingByRef) {
-                        // If this is a re-parse of the SAME statement file, update the existing row in-place.
-                        // This enables "reparse" without having to delete old rows (and avoids duplicate skipping
-                        // locking you into previously mis-parsed descriptions/phones).
-                        if ($existingByRef->statement_file_path === $pdfPath && !$existingByRef->payment_created) {
-                            $existingByRef->update([
+
+                    if ($existingSameLine) {
+                        if (! $existingSameLine->payment_created) {
+                            $existingSameLine->update([
                                 'bank_account_id' => $bankAccountId,
                                 'bank_type' => $bankType,
                                 'transaction_date' => $transactionDate,
@@ -140,11 +144,28 @@ class BankStatementParser
                                 'raw_data' => $txnData,
                             ]);
                             $updatedExisting++;
-                            $created[] = $existingByRef->id;
+                            $created[] = $existingSameLine->id;
+
                             continue;
                         }
 
                         $duplicates++;
+
+                        continue;
+                    }
+
+                    // Same reference already stored on a different statement file → treat as duplicate import.
+                    $existingOtherStatement = BankStatementTransaction::where('reference_number', $transactionCode)
+                        ->where('is_duplicate', false)
+                        ->where(function ($q) use ($pdfPath) {
+                            $q->where('statement_file_path', '!=', $pdfPath)
+                                ->orWhereNull('statement_file_path');
+                        })
+                        ->exists();
+
+                    if ($existingOtherStatement) {
+                        $duplicates++;
+
                         continue;
                     }
                 }
