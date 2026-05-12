@@ -2,20 +2,29 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('invoice_items', function (Blueprint $table) {
-            // Drop FK first so we can make votehead_id nullable
-            try {
-                $table->dropForeign(['votehead_id']);
-            } catch (\Throwable $e) {
-                // ignore if missing
-            }
-        });
+        // Drop FK first so we can make votehead_id nullable.
+        // NOTE: wrapping Blueprint operations in try/catch does NOT reliably catch SQL errors because the SQL executes
+        // after the closure returns. So we check information_schema and drop via raw SQL if present.
+        $fk = DB::selectOne(
+            "SELECT CONSTRAINT_NAME AS name
+             FROM information_schema.KEY_COLUMN_USAGE
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = 'invoice_items'
+               AND COLUMN_NAME = 'votehead_id'
+               AND REFERENCED_TABLE_NAME IS NOT NULL
+             LIMIT 1"
+        );
+
+        if (!empty($fk?->name)) {
+            DB::statement("ALTER TABLE `invoice_items` DROP FOREIGN KEY `{$fk->name}`");
+        }
 
         Schema::table('invoice_items', function (Blueprint $table) {
             if (!Schema::hasColumn('invoice_items', 'custom_votehead_name')) {
@@ -33,13 +42,19 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('invoice_items', function (Blueprint $table) {
-            try {
-                $table->dropForeign(['votehead_id']);
-            } catch (\Throwable $e) {
-                // ignore
-            }
-        });
+        $fk = DB::selectOne(
+            "SELECT CONSTRAINT_NAME AS name
+             FROM information_schema.KEY_COLUMN_USAGE
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = 'invoice_items'
+               AND COLUMN_NAME = 'votehead_id'
+               AND REFERENCED_TABLE_NAME IS NOT NULL
+             LIMIT 1"
+        );
+
+        if (!empty($fk?->name)) {
+            DB::statement("ALTER TABLE `invoice_items` DROP FOREIGN KEY `{$fk->name}`");
+        }
 
         Schema::table('invoice_items', function (Blueprint $table) {
             if (Schema::hasColumn('invoice_items', 'custom_votehead_name')) {
