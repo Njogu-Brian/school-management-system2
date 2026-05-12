@@ -1467,6 +1467,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/statements', [\App\Http\Controllers\Finance\BankStatementController::class, 'statements'])->name('statements');
             Route::get('/', [\App\Http\Controllers\Finance\BankStatementController::class, 'index'])->name('index');
             Route::get('/create', [\App\Http\Controllers\Finance\BankStatementController::class, 'create'])->name('create');
+            Route::post('/force-reparse-statement', [\App\Http\Controllers\Finance\BankStatementController::class, 'forceReparseStatement'])->name('force-reparse-statement');
             Route::get('/search-payments-for-link', [\App\Http\Controllers\Finance\BankStatementController::class, 'searchPaymentsForLink'])->name('search-payments-for-link');
             Route::get('/student/{student}/balance', [\App\Http\Controllers\Finance\BankStatementController::class, 'getStudentBalance'])->name('student-balance');
             Route::post('/', [\App\Http\Controllers\Finance\BankStatementController::class, 'store'])->name('store');

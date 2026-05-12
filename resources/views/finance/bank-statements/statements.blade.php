@@ -239,6 +239,14 @@
                                    class="btn btn-finance btn-finance-primary btn-sm">
                                     <i class="bi bi-list-ul"></i> View Transactions
                                 </a>
+                                <form action="{{ route('finance.bank-statements.force-reparse-statement') }}" method="POST"
+                                      onsubmit="return confirm('FORCE REPARSE will reverse ALL payments linked to this statement, delete ALL existing parsed transactions for this statement, then re-import from the PDF. This will require re-confirmation/collection again. Continue?');">
+                                    @csrf
+                                    <input type="hidden" name="statement_file_path" value="{{ $statement->statement_file_path }}">
+                                    <button type="submit" class="btn btn-finance btn-finance-warning btn-sm w-100">
+                                        <i class="bi bi-arrow-repeat"></i> Force Reparse (Reverse + Reset All)
+                                    </button>
+                                </form>
                                 @if($firstTransaction)
                                     <form action="{{ route('finance.bank-statements.destroy', $firstTransaction) }}" method="POST"
                                           onsubmit="return confirm('Delete this statement file and remove all transactions that are not linked to an active payment? Linked/confirmed transactions will be preserved.');">

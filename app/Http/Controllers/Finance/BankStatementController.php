@@ -6327,4 +6327,161 @@ class BankStatementController extends Controller
             ->route('finance.bank-statements.index')
             ->with('success', $msg);
     }
+
+    /**
+     * Force reparse a statement file:
+     * - Reverse ALL non-reversed payments linked to this statement (direct, linked ids, or transaction_code match)
+     * - Delete all existing statement transactions for this statement_file_path
+     * - Re-run parsing to recreate fresh transactions
+     * - Unarchive all recreated transactions to allow reassignment/collection
+     *
+     * WARNING: This is a destructive workflow intended for correcting parser mistakes.
+     */
+    public function forceReparseStatement(Request $request)
+    {
+        $this->assertFinanceApiAccess($request);
+
+        $validated = $request->validate([
+            'statement_file_path' => 'required|string',
+            'reversal_reason' => 'nullable|string|max:500',
+        ]);
+
+        $statementPath = $validated['statement_file_path'];
+        $reason = $validated['reversal_reason'] ?? 'Force reparse bank statement (parser correction)';
+
+        $existingTxns = BankStatementTransaction::where('statement_file_path', $statementPath)->get();
+        if ($existingTxns->isEmpty()) {
+            return redirect()->back()->with('error', 'Statement not found or has no transactions.');
+        }
+
+        $bankType = $existingTxns->first()->bank_type ?? null;
+        $bankAccountId = $existingTxns->first()->bank_account_id ?? null;
+
+        $result = DB::transaction(function () use ($existingTxns, $statementPath, $reason) {
+            $paymentIds = collect();
+
+            // 1) Directly linked payments via payment_id
+            $paymentIds = $paymentIds->merge($existingTxns->pluck('payment_id')->filter());
+
+            // 2) Linked payment IDs stored on the transaction (shared collections)
+            if (Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids')) {
+                foreach ($existingTxns as $t) {
+                    $ids = $t->linked_payment_ids;
+                    if (is_string($ids)) {
+                        $ids = json_decode($ids, true);
+                    }
+                    if (is_array($ids)) {
+                        $paymentIds = $paymentIds->merge(collect($ids)->filter());
+                    }
+                }
+            }
+
+            // 3) Any active payments by transaction code for each reference_number (shared/suffixed codes)
+            $refs = $existingTxns->pluck('reference_number')->filter()->unique()->values();
+            if ($refs->isNotEmpty()) {
+                $paymentsByRef = Payment::query()
+                    ->where('reversed', false)
+                    ->whereNull('deleted_at')
+                    ->where(function ($q) use ($refs) {
+                        foreach ($refs as $ref) {
+                            $q->orWhere('transaction_code', $ref)
+                              ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                        }
+                    })
+                    ->pluck('id');
+                $paymentIds = $paymentIds->merge($paymentsByRef);
+            }
+
+            $paymentIds = $paymentIds->map(fn ($v) => (int) $v)->filter()->unique()->values();
+            $reversedCount = 0;
+
+            foreach ($paymentIds as $pid) {
+                $payment = Payment::with(['allocations.invoiceItem.invoice'])->find($pid);
+                if (! $payment) {
+                    continue;
+                }
+                if ($payment->reversed) {
+                    continue;
+                }
+
+                // Reverse allocations and mark payment reversed (mirrors PaymentController::reverse).
+                $invoiceIds = collect();
+                foreach ($payment->allocations as $allocation) {
+                    if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
+                        $invoiceIds->push($allocation->invoiceItem->invoice_id);
+                    }
+                    $allocation->delete();
+                }
+
+                $oldValues = [
+                    'reversed' => false,
+                    'amount' => $payment->amount,
+                    'allocated_amount' => $payment->allocated_amount,
+                ];
+
+                $payment->update([
+                    'reversed' => true,
+                    'reversed_by' => auth()->id(),
+                    'reversed_at' => now(),
+                    'reversal_reason' => $reason,
+                    'allocated_amount' => 0,
+                ]);
+                $payment->increment('version');
+                $payment->updateAllocationTotals();
+
+                try {
+                    \App\Services\FinancialAuditService::logPaymentReversal($payment, $oldValues);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to log payment reversal audit (force reparse)', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+
+                // Recalculate affected invoices
+                $invoices = \App\Models\Invoice::whereIn('id', $invoiceIds->unique())->get();
+                foreach ($invoices as $invoice) {
+                    \App\Services\InvoiceService::recalc($invoice);
+                }
+
+                $reversedCount++;
+            }
+
+            // Detach payments from statement transactions (safe even if we delete right after).
+            BankStatementTransaction::where('statement_file_path', $statementPath)->update([
+                'payment_created' => false,
+                'payment_id' => null,
+            ]);
+
+            // Delete ALL transactions for this statement (fresh re-import).
+            $deletedCount = BankStatementTransaction::where('statement_file_path', $statementPath)->delete();
+
+            return [
+                'reversed_payments' => $reversedCount,
+                'deleted_transactions' => $deletedCount,
+            ];
+        });
+
+        // Re-run parse after clearing old rows
+        $parse = $this->parser->parseStatement($statementPath, $bankAccountId, $bankType);
+        if (!($parse['success'] ?? false)) {
+            return redirect()
+                ->route('finance.bank-statements.statements')
+                ->with('error', 'Force reparse reversed payments and cleared old rows, but parsing failed: ' . ($parse['message'] ?? 'Unknown error'));
+        }
+
+        // Unarchive ALL recreated transactions so they can be reassigned/collected again
+        BankStatementTransaction::where('statement_file_path', $statementPath)->update([
+            'is_archived' => false,
+            'archived_at' => null,
+            'archived_by' => null,
+        ]);
+
+        $msg = "Force reparse complete. Reversed {$result['reversed_payments']} payment(s), cleared {$result['deleted_transactions']} old transaction(s). ";
+        $msg .= ($parse['message'] ?? 'Statement reparsed.');
+
+        return redirect()
+            ->route('finance.bank-statements.index', ['statement_file' => $statementPath])
+            ->with('success', $msg);
+    }
 }
