@@ -142,6 +142,35 @@ def _relocate_masked_card_preamble_rows(transactions: list) -> list:
     return transactions
 
 
+def _dedupe_narrative_tokens(narrative: str) -> str:
+    """
+    Keep first occurrence of certain noisy tokens that frequently repeat when we
+    pull preamble lines forward (e.g. UE... ids, 2547... phones).
+    """
+    if not narrative:
+        return narrative
+    tokens = narrative.split()
+    seen_ue = set()
+    seen_phone = set()
+    out = []
+    for t in tokens:
+        if re.fullmatch(r"UE[0-9A-Z]{6,}", t, flags=re.IGNORECASE):
+            key = t.upper()
+            if key in seen_ue:
+                continue
+            seen_ue.add(key)
+            out.append(t)
+            continue
+        if re.fullmatch(r"2547\d{8}", t):
+            if t in seen_phone:
+                continue
+            seen_phone.add(t)
+            out.append(t)
+            continue
+        out.append(t)
+    return _norm_spaces(" ".join(out))
+
+
 def _is_phone_like(token: str) -> bool:
     t = (token or "").strip()
     # Kenya MSISDN patterns observed in statements: 2547XXXXXXXX / 07XXXXXXXX
@@ -281,6 +310,37 @@ def parse_equity_transactions_from_text(full_text: str):
         # In that case, this block's body may be just the ref token. Recover narrative from the
         # tail of the previous block.
         body_norm = _norm_spaces(body)
+
+        # Also: some statements place reference-adjacent preamble lines (e.g. 2547... UE...) BETWEEN two date-pair rows.
+        # Those lines belong to the NEXT row but are captured inside the previous block. Pull them forward.
+        if idx > 0:
+            prev_start = starts[idx - 1].start()
+            prev_end = block_start
+            prev_block = cleaned[prev_start:prev_end].strip()
+            prev_body_raw = start_re.sub("", prev_block, count=1).strip()
+            carry = []
+            for ln in prev_body_raw.split("\n"):
+                lns = ln.strip()
+                if not lns:
+                    continue
+                # skip money-only or date lines
+                if re.fullmatch(r"(?:[\d,]+\.\d{2}\s+)*[\d,]+\.\d{2}", lns):
+                    continue
+                # skip any line that contains money tokens (it's part of the previous transaction row)
+                if re.search(r"\b[\d,]+\.\d{2}\b", lns):
+                    continue
+                if re.match(r"^\d{2}/\d{2}/\d{4}\s+\d{2}/\d{2}/\d{4}\b", lns):
+                    continue
+                # keep only preamble-like lines (avoid gateway 00k... blobs)
+                if re.search(r"\b2547\d{8}\b", lns) or re.search(r"\bUE[0-9A-Z]{6,}\b", lns, flags=re.IGNORECASE) or re.search(r"\b0120263\d{6,}\b", lns):
+                    if re.search(r"\b00k[0-9A-Za-z]{4,}\b", lns):
+                        continue
+                    carry.append(lns)
+            if carry:
+                carry_txt = _norm_spaces(" ".join(carry[-3:]))
+                if carry_txt and carry_txt not in body_norm:
+                    body = _norm_spaces(carry_txt + " " + body_norm)
+                    body_norm = _norm_spaces(body)
         looks_like_ref_only = (
             bool(re.fullmatch(r"(S\d{8,11}|\d{6,15})", body_norm, flags=re.IGNORECASE))
             or (body_norm and not re.search(r"[A-Za-z]", body_norm) and re.fullmatch(r"\d{6,15}(\s+\d{6,15})*", body_norm))
@@ -418,7 +478,7 @@ def parse_equity_transactions_from_text(full_text: str):
             elif pos == 0:
                 # Some rows start with the ref token (e.g. CHARGE lines). Remove the ref and keep the rest.
                 narrative = re.sub(r"^\s*" + re.escape(ref) + r"\b[\s/:-]*", "", full, flags=re.IGNORECASE)
-        t["particulars"] = _norm_spaces(narrative)
+        t["particulars"] = _dedupe_narrative_tokens(_norm_spaces(narrative))
         t.pop("particulars_full", None)
     return transactions
 
