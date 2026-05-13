@@ -111,13 +111,16 @@ def _relocate_masked_card_preamble_rows(transactions: list) -> list:
     """
     if not transactions:
         return transactions
+    # Work on the pre-narrative field when available.
+    field = "particulars_full" if (transactions and isinstance(transactions[0], dict) and "particulars_full" in transactions[0]) else "particulars"
+
     for i in range(len(transactions) - 1):
         cur = transactions[i]
         nxt = transactions[i + 1]
         if (cur.get("tran_date") or "") != (nxt.get("tran_date") or ""):
             continue
-        curp = (cur.get("particulars") or "").strip()
-        nxp = (nxt.get("particulars") or "").strip()
+        curp = (cur.get(field) or "").strip()
+        nxp = (nxt.get(field) or "").strip()
         if not curp or not nxp:
             continue
         if not re.match(r"^BY\s*:", nxp, re.I):
@@ -134,8 +137,8 @@ def _relocate_masked_card_preamble_rows(transactions: list) -> list:
         head, tail = m.group(1).strip(), m.group(2).strip()
         if not tail:
             continue
-        cur["particulars"] = _norm_spaces(head)
-        nxt["particulars"] = _norm_spaces(tail + " " + nxt["particulars"])
+        cur[field] = _norm_spaces(head)
+        nxt[field] = _norm_spaces(tail + " " + nxp)
     return transactions
 
 
@@ -352,17 +355,17 @@ def parse_equity_transactions_from_text(full_text: str):
                 if ref_pos == -1 or mpesa_phone.start() < ref_pos:
                     phone = mpesa_phone.group(1)
 
-        # Particulars: everything after the two dates, minus the txn amount + running balance tokens.
+        # Particulars (full, pre-narrative): everything after the two dates, minus the txn amount + running balance tokens.
         # IMPORTANT: Do NOT truncate at the amount token because Equity extracts often place the amount
         # immediately after the reference number on the first line, with the narration continuing on
         # subsequent lines. Instead remove the money tokens and keep the rest.
-        particulars = body
+        particulars_full = body
         txn_raw = money_vals[-2][1]
         bal_raw = money_vals[-1][1]
         for raw in [bal_raw, txn_raw]:
             if raw:
-                particulars = re.sub(r"\b" + re.escape(raw) + r"\b", " ", particulars)
-        particulars = _norm_spaces(particulars)
+                particulars_full = re.sub(r"\b" + re.escape(raw) + r"\b", " ", particulars_full)
+        particulars_full = _norm_spaces(particulars_full)
 
         # Infer credit/debit from running balance delta when possible.
         credit = 0.0
@@ -389,7 +392,8 @@ def parse_equity_transactions_from_text(full_text: str):
         transactions.append({
             "tran_date": tran_date,
             "value_date": value_date,
-            "particulars": particulars,
+            # Temporarily keep the full text; we'll convert to narrative-only after cross-row relocation.
+            "particulars_full": particulars_full,
             "credit": round(credit, 2),
             "debit": round(debit, 2),
             "balance": running_balance,
@@ -399,6 +403,23 @@ def parse_equity_transactions_from_text(full_text: str):
         })
 
     transactions = _relocate_masked_card_preamble_rows(transactions)
+
+    # Convert particulars_full -> narrative-only "particulars" (statement Narrative column).
+    for t in transactions:
+        full = _norm_spaces(str(t.get("particulars_full") or ""))
+        ref = str(t.get("transaction_code") or "").strip()
+        narrative = full
+        if ref:
+            up = full.upper()
+            ref_up = ref.upper()
+            pos = up.find(ref_up)
+            if pos > 0:
+                narrative = full[:pos]
+            elif pos == 0:
+                # Some rows start with the ref token (e.g. CHARGE lines). Remove the ref and keep the rest.
+                narrative = re.sub(r"^\s*" + re.escape(ref) + r"\b[\s/:-]*", "", full, flags=re.IGNORECASE)
+        t["particulars"] = _norm_spaces(narrative)
+        t.pop("particulars_full", None)
     return transactions
 
 
