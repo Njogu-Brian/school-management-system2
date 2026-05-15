@@ -43,7 +43,7 @@ class AttendanceController extends Controller
     {
         $selectedClass  = $request->get('class');
         $selectedStream = $request->get('stream');
-        $selectedDate   = $request->get('date', Carbon::today()->toDateString());
+        $selectedDate   = Carbon::parse($request->input('date') ?: Carbon::today())->toDateString();
         $q              = trim((string)$request->get('q'));
         $selectedCampus = $request->get('campus'); // upper|lower|null
         $markedFilter   = $request->get('marked_filter', 'all'); // all|marked|unmarked
@@ -199,8 +199,7 @@ class AttendanceController extends Controller
     // -------------------- MARK ATTENDANCE --------------------
 public function mark(Request $request)
 {
-    $dateIn = $request->input('date', now()->toDateString());
-    $date   = Carbon::parse($dateIn)->toDateString();
+    $date = Carbon::parse($request->input('date') ?: now())->toDateString();
 
     if (Carbon::parse($date)->isFuture()) {
         return back()->with('error', 'You cannot mark attendance for a future date.');
