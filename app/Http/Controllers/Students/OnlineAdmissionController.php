@@ -569,6 +569,21 @@ class OnlineAdmissionController extends Controller
             return redirect()->back()->with('error', 'This application has already been processed.');
         }
 
+        if ($request->input('drop_off_point_id') === 'other') {
+            $request->merge(['drop_off_point_id' => null]);
+        }
+
+        $streamId = $request->input('stream_id');
+        if ($streamId === '' || $streamId === null || !is_numeric($streamId) || (int) $streamId < 1) {
+            $request->merge(['stream_id' => null]);
+        }
+
+        $request->merge([
+            'classroom_id' => $request->input('classroom_id') ?: $admission->classroom_id ?: $admission->preferred_classroom_id,
+            'stream_id' => $request->input('stream_id') ?: $admission->stream_id,
+            'residential_area' => $request->input('residential_area') ?: $admission->residential_area,
+        ]);
+
         return $this->approve($request, $admission);
     }
 

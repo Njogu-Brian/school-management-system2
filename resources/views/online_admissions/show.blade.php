@@ -189,14 +189,20 @@
                   <option value="rejected" @selected($admission->application_status=='rejected')>Rejected</option>
                   <option value="waitlisted" @selected($admission->application_status=='waitlisted')>Waitlisted</option>
                 </select>
-                <small class="text-muted">To enroll, use "Approve and Enroll" below.</small>
+                <small class="text-muted">
+                  @if($admission->application_status === 'waitlisted')
+                    To enroll, complete the form below and use "Transfer from Waitlist &amp; Enroll".
+                  @else
+                    To enroll, use "Approve and Enroll" below.
+                  @endif
+                </small>
               </div>
               <div class="mb-3">
                 <label class="form-label">Assign Classroom</label>
                 <select name="classroom_id" class="form-select" id="statusClassroomId">
                   <option value="">Select Classroom</option>
                   @foreach($classrooms as $classroom)
-                    <option value="{{ $classroom->id }}" @selected($admission->classroom_id==$classroom->id)>{{ $classroom->name }}</option>
+                    <option value="{{ $classroom->id }}" @selected(old('classroom_id', $admission->classroom_id ?? $admission->preferred_classroom_id)==$classroom->id)>{{ $classroom->name }}</option>
                   @endforeach
                 </select>
               </div>
@@ -219,15 +225,17 @@
             <hr>
 
             <div class="d-grid gap-2">
-              @if($admission->application_status === 'waitlisted')
-                <form action="{{ route('online-admissions.transfer', $admission) }}" method="POST" onsubmit="return confirm('Transfer from waiting list and enroll?')">
-                  @csrf
-                  <button type="submit" class="btn btn-success w-100">
-                    <i class="bi bi-arrow-up-circle"></i> Transfer from Waitlist
-                  </button>
-                </form>
-              @else
-                <form action="{{ route('online-admissions.approve', $admission) }}" method="POST" onsubmit="return confirm('Approve and enroll this student?')">
+              @php
+                $isWaitlisted = $admission->application_status === 'waitlisted';
+                $enrollFormAction = $isWaitlisted
+                  ? route('online-admissions.transfer', $admission)
+                  : route('online-admissions.approve', $admission);
+                $enrollConfirmMessage = $isWaitlisted
+                  ? 'Transfer from waiting list and enroll this student?'
+                  : 'Approve and enroll this student?';
+                $assignedClassroomId = $admission->classroom_id ?? $admission->preferred_classroom_id;
+              @endphp
+                <form action="{{ $enrollFormAction }}" method="POST" onsubmit="return confirm(@json($enrollConfirmMessage))">
                   @csrf
                   <div class="mb-3">
                     <label class="form-label">Enroll In</label>
@@ -250,7 +258,7 @@
                     <select name="classroom_id" class="form-select" required id="approveClassroomId">
                       <option value="">Select Classroom</option>
                       @foreach($classrooms as $classroom)
-                        <option value="{{ $classroom->id }}" @selected($admission->classroom_id==$classroom->id)>{{ $classroom->name }}</option>
+                        <option value="{{ $classroom->id }}" @selected(old('classroom_id', $assignedClassroomId)==$classroom->id)>{{ $classroom->name }}</option>
                       @endforeach
                     </select>
                   </div>
@@ -339,10 +347,13 @@
                     <div class="form-text">Added to the student's invoice on approval.</div>
                   </div>
                   <button type="submit" class="btn btn-success w-100">
-                    <i class="bi bi-check-circle"></i> Approve & Enroll
+                    @if($isWaitlisted)
+                      <i class="bi bi-arrow-up-circle"></i> Transfer from Waitlist & Enroll
+                    @else
+                      <i class="bi bi-check-circle"></i> Approve & Enroll
+                    @endif
                   </button>
                 </form>
-              @endif
               <form action="{{ route('online-admissions.waitlist', $admission) }}" method="POST" onsubmit="return confirm('Add to waiting list?')">
                 @csrf
                 <button type="submit" class="btn btn-warning w-100">

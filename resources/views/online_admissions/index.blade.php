@@ -182,12 +182,9 @@
                       </a>
                       @if(!$admission->enrolled)
                         @if($admission->application_status === 'waitlisted')
-                          <form action="{{ route('online-admissions.transfer', $admission) }}" method="POST" class="d-inline" onsubmit="return confirm('Transfer this student from waiting list to admitted?')">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-ghost-strong text-success" title="Transfer from Waitlist">
-                              <i class="bi bi-arrow-up-circle"></i>
-                            </button>
-                          </form>
+                          <a href="{{ route('online-admissions.show', $admission) }}" class="btn btn-sm btn-ghost-strong text-success" title="Open application to transfer from waitlist and enroll">
+                            <i class="bi bi-arrow-up-circle"></i>
+                          </a>
                         @else
                           <form action="{{ route('online-admissions.approve', $admission) }}" method="POST" class="d-inline" onsubmit="return confirm('Approve and enroll this student?')">
                             @csrf
