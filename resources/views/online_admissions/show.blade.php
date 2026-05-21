@@ -309,7 +309,7 @@
                     <select name="category_id" class="form-select" required>
                       <option value="">Select Category</option>
                       @foreach($categories as $category)
-                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                        <option value="{{ $category->id }}" @selected(old('category_id')==$category->id)>{{ $category->name }}</option>
                       @endforeach
                     </select>
                   </div>
@@ -318,7 +318,7 @@
                     <select name="trip_id" class="form-select">
                       <option value="">—</option>
                       @foreach($trips as $trip)
-                        <option value="{{ $trip->id }}" @selected($admission->trip_id==$trip->id)>{{ $trip->name }}</option>
+                        <option value="{{ $trip->id }}" @selected(old('trip_id', $admission->trip_id)==$trip->id)>{{ $trip->name }}</option>
                       @endforeach
                     </select>
                   </div>
@@ -327,15 +327,15 @@
                     <select name="drop_off_point_id" id="admin_drop_off_point_id" class="form-select">
                       <option value="">—</option>
                       @foreach($dropOffPoints as $point)
-                        <option value="{{ $point->id }}" @selected($admission->drop_off_point_id==$point->id)>{{ $point->name }}</option>
+                        <option value="{{ $point->id }}" @selected(old('drop_off_point_id', $admission->drop_off_point_id)==$point->id)>{{ $point->name }}</option>
                       @endforeach
                       <option value="other">Other (specify)</option>
                     </select>
-                    <input type="text" class="form-control mt-2" name="drop_off_point_other" id="admin_drop_off_point_other" value="{{ $admission->drop_off_point_other }}" placeholder="Custom drop-off point">
+                    <input type="text" class="form-control mt-2" name="drop_off_point_other" id="admin_drop_off_point_other" value="{{ old('drop_off_point_other', $admission->drop_off_point_other) }}" placeholder="Custom drop-off point">
                   </div>
                   <div class="mb-3">
                     <label class="form-label">Transport Fee (this term)</label>
-                    <input type="number" step="0.01" name="transport_fee_amount" class="form-control" placeholder="0.00">
+                    <input type="number" step="0.01" name="transport_fee_amount" class="form-control" placeholder="0.00" value="{{ old('transport_fee_amount') }}">
                     <div class="form-text">Added to the student's invoice on approval.</div>
                   </div>
                   <button type="submit" class="btn btn-success w-100">
