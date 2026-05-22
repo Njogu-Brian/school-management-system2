@@ -350,6 +350,56 @@ if (!function_exists('ensure_family_payment_link')) {
 }
 
 /**
+ * Academic year to use when generating a public statement link for a student.
+ */
+if (!function_exists('resolve_statement_year_for_student')) {
+    function resolve_statement_year_for_student(\App\Models\Student $student): int
+    {
+        $invoiceYears = \App\Models\Invoice::where('student_id', $student->id)
+            ->with('academicYear:id,year')
+            ->get(['id', 'year', 'academic_year_id'])
+            ->map(fn ($invoice) => $invoice->year ?: optional($invoice->academicYear)->year);
+
+        $legacyYears = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
+            ->pluck('academic_year');
+
+        return (int) ($invoiceYears->merge($legacyYears)->filter()->max() ?: now()->year);
+    }
+}
+
+/**
+ * Parent-facing statement URL (no login). Uses StatementLink → /statement/{token}.
+ */
+if (!function_exists('get_public_student_statement_url')) {
+    function get_public_student_statement_url(\App\Models\Student $student, ?int $year = null, $term = null): string
+    {
+        if (!$student->id) {
+            return '';
+        }
+
+        try {
+            $year = $year ?? resolve_statement_year_for_student($student);
+            $link = \App\Http\Controllers\Finance\StudentStatementController::getOrCreateStatementLink(
+                'student',
+                (int) $student->id,
+                $year,
+                $term,
+                \Illuminate\Support\Facades\Auth::id()
+            );
+
+            return $link->getUrl();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to create public statement URL', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return '';
+        }
+    }
+}
+
+/**
  * Replace placeholders in messages (single, canonical version)
  */
 if (!function_exists('replace_placeholders')) {
@@ -477,10 +527,12 @@ if (!function_exists('replace_placeholders')) {
             $replacements['{{payment_plan_link}}'] = $paymentLinkUrl;
             $replacements['{payment_plan_link}'] = $paymentLinkUrl;
 
-            // Finance portal link (student statement)
-            $financePortalLink = $entity->id ? url('/finance/student-statements/' . $entity->id) : '';
+            // Public statement link (no login required)
+            $financePortalLink = get_public_student_statement_url($entity);
             $replacements['{{finance_portal_link}}'] = $financePortalLink;
             $replacements['{finance_portal_link}'] = $financePortalLink;
+            $replacements['{{statement_link}}'] = $financePortalLink;
+            $replacements['{statement_link}'] = $financePortalLink;
 
             // Swimming balance (amount owed when balance < 0)
             if ($entity->id && class_exists(\App\Models\SwimmingWallet::class)) {

@@ -90,6 +90,21 @@ class HelpersTest extends TestCase
     }
 
     /** @test */
+    public function replace_placeholders_uses_public_statement_link_for_students()
+    {
+        $student = $this->createStudent([
+            'first_name' => 'Link',
+            'last_name' => 'Test',
+        ]);
+
+        $message = replace_placeholders('Statement: {finance_portal_link}', $student);
+
+        $this->assertNotSame('Statement: ', $message);
+        $this->assertStringContainsString('/statement/', $message);
+        $this->assertStringNotContainsString('/finance/student-statements/', $message);
+    }
+
+    /** @test */
     public function replace_placeholders_replaces_staff_placeholders()
     {
         $staff = Staff::factory()->create([

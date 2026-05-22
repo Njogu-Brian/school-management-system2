@@ -68,7 +68,7 @@ class ScheduledFeeCommunicationController extends Controller
             ['key' => 'total_amount', 'value' => 'Total invoice amount'],
             ['key' => 'due_date', 'value' => 'Due date'],
             ['key' => 'invoice_link', 'value' => 'Public pay link (mobile-friendly; invoice breakdown + M-PESA)'],
-            ['key' => 'finance_portal_link', 'value' => 'Student statement link (finance portal)'],
+            ['key' => 'finance_portal_link', 'value' => 'Public student statement link (no login)'],
             ['key' => 'swimming_balance', 'value' => 'Swimming wallet balance (when applicable)'],
             ['key' => 'payment_plan_link', 'value' => 'Payment plan link'],
             ['key' => 'pay_link', 'value' => 'Unified Pay Now link (family link for siblings; click to pay)'],
@@ -474,7 +474,7 @@ class ScheduledFeeCommunicationController extends Controller
                 'stream_id' => $entity->stream_id,
                 'parent_contact' => $contact,
                 'fee_balance' => number_format($balance, 2),
-                'statement_url' => url('/finance/student-statements/' . $entity->id),
+                'statement_url' => get_public_student_statement_url($entity),
                 'personalized_message' => $message !== '' ? replace_placeholders($message, $entity) : '',
                 'email_subject' => $subject,
             ];

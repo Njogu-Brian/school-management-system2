@@ -321,7 +321,7 @@ class FeeReminderController extends Controller
         $parentName = $parent ? ($parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent') : 'Parent';
         $currentTerm = Term::where('is_current', true)->first();
         $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
-        $financePortalLink = url('/finance/student-statements/' . $student->id);
+        $financePortalLink = get_public_student_statement_url($student);
         $payLink = null;
         if ($student->family_id) {
             $payLink = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $student->family_id, auth()->id(), 'fee_reminder')->getPaymentUrl();

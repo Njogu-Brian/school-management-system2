@@ -2053,7 +2053,7 @@ class PaymentController extends Controller
         
         // Prepare template variables
         $balance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
-        $statementLink = url('/finance/student-statements/' . $student->id);
+        $statementLink = get_public_student_statement_url($student);
         
         $variables = [
             'parent_name' => $parent->father_name ?? $parent->mother_name ?? 'Parent',
