@@ -325,6 +325,14 @@
               <li class="nav-item" role="presentation">
                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#finance" type="button">Financial</button>
               </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#communications" type="button">
+                  Communications
+                  @if(($communicationUpcoming['fee_reminders'] ?? collect())->isNotEmpty() || ($communicationUpcoming['scheduled_fee_communications'] ?? collect())->isNotEmpty())
+                    <span class="badge bg-warning text-dark ms-1">{{ ($communicationUpcoming['fee_reminders'] ?? collect())->count() + ($communicationUpcoming['scheduled_fee_communications'] ?? collect())->count() }}</span>
+                  @endif
+                </button>
+              </li>
             </ul>
             <div class="tab-content">
           <div class="tab-pane fade show active" id="medical" role="tabpanel">
@@ -583,6 +591,7 @@
                 </div>
               </div>
             </div>
+            @include('students.partials.communications_tab')
         </div>
       </div>
     </div>

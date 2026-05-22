@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\CommunicationLog;
 use App\Models\Student;
+use App\Services\CommunicationPauseService;
 use App\Services\WhatsAppService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -116,6 +117,14 @@ class BulkSendWhatsAppMessages implements ShouldQueue
      */
     public function handle(WhatsAppService $whatsAppService): void
     {
+        if (CommunicationPauseService::isPaused()) {
+            CommunicationPauseService::pauseBulkProgress($this->trackingId, 'whatsapp', [
+                'total' => count($this->recipients),
+            ]);
+
+            return;
+        }
+
         $totalRecipients = count($this->recipients);
         $sentCount = 0;
         $skippedCount = 0;

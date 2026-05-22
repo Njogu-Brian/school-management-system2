@@ -6,6 +6,7 @@ use App\Models\ScheduledCommunication;
 use App\Models\CommunicationLog;
 use App\Models\CommunicationTemplate;
 use App\Services\CommunicationHelperService;
+use App\Services\CommunicationPauseService;
 use App\Services\SMSService;
 use App\Services\WhatsAppService;
 use Illuminate\Bus\Queueable;
@@ -26,6 +27,10 @@ class SendScheduledCommunicationsJob implements ShouldQueue
 
     public function handle(SMSService $smsService, WhatsAppService $whatsAppService)
     {
+        if (CommunicationPauseService::isPaused()) {
+            return;
+        }
+
         $now = now();
         $pending = ScheduledCommunication::where('status', 'pending')
             ->where('send_at', '<=', $now)

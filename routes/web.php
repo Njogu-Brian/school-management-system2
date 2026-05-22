@@ -1289,6 +1289,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
         Route::get('conversations',  [CommunicationController::class, 'conversations'])->name('communication.conversations');
 
+        // Queues & pause/resume
+        Route::get('queues', [CommunicationController::class, 'queues'])->name('communication.queues');
+        Route::post('queues/resume', [CommunicationController::class, 'resumePausedCommunications'])->name('communication.resume');
+
         // Pending Jobs
         Route::get('pending-jobs', [CommunicationController::class, 'pendingJobs'])->name('communication.pending-jobs');
         Route::post('pending-jobs/{id}/cancel', [CommunicationController::class, 'cancelJob'])->name('communication.pending-jobs.cancel');

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CommunicationLog;
+use App\Services\CommunicationPauseService;
 use App\Services\SMSService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -47,6 +48,16 @@ class BulkSendSMS implements ShouldQueue
 
     public function handle(SMSService $smsService): void
     {
+        if (CommunicationPauseService::isPaused()) {
+            CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
+                'total' => count($this->recipients),
+                'message' => 'Paused: insufficient SMS credits. Resume from Communication → Queues.',
+            ]);
+            Log::info('Bulk SMS job deferred: communications paused', ['tracking_id' => $this->trackingId]);
+
+            return;
+        }
+
         $totalRecipients = count($this->recipients);
         $sentCount = 0;
         $failedCount = 0;
@@ -89,6 +100,18 @@ class BulkSendSMS implements ShouldQueue
         ]);
 
         foreach ($this->recipients as $item) {
+            if (CommunicationPauseService::isPaused()) {
+                CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
+                    'processed' => $processed,
+                    'sent' => $sentCount,
+                    'failed' => $failedCount,
+                    'total' => $totalRecipients,
+                ]);
+                Log::info('Bulk SMS job stopped mid-run: communications paused', ['tracking_id' => $this->trackingId]);
+
+                return;
+            }
+
             $phone = $item['phone'] ?? null;
             $entityData = $item['entity'] ?? $item;
             if (!$phone) {
@@ -114,6 +137,37 @@ class BulkSendSMS implements ShouldQueue
 
                 $personalized = replace_placeholders($this->message, $entity);
                 $response = $smsService->sendSMS($phone, $personalized, $chosenSender);
+
+                if (data_get($response, 'error_code') === 'INSUFFICIENT_CREDITS') {
+                    CommunicationPauseService::pauseDueToInsufficientCredits(
+                        (float) data_get($response, 'balance', 0),
+                        'BulkSendSMS'
+                    );
+                    CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
+                        'processed' => $processed,
+                        'sent' => $sentCount,
+                        'failed' => $failedCount,
+                        'total' => $totalRecipients,
+                    ]);
+                    CommunicationLog::create([
+                        'recipient_type' => $this->target,
+                        'recipient_id' => $recipientId,
+                        'contact' => $phone,
+                        'channel' => 'sms',
+                        'title' => $this->title,
+                        'message' => $personalized,
+                        'type' => 'sms',
+                        'status' => 'failed',
+                        'response' => $response,
+                        'scope' => 'sms',
+                        'sent_at' => now(),
+                        'tracking_id' => $this->trackingId,
+                        'error_code' => 'INSUFFICIENT_CREDITS',
+                    ]);
+                    Log::warning('Bulk SMS halted: insufficient credits', ['tracking_id' => $this->trackingId]);
+
+                    return;
+                }
 
                 $status = 'sent';
                 if (strtolower(data_get($response, 'status', 'sent')) !== 'success'

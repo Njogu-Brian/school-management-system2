@@ -9,6 +9,7 @@ use App\Models\ScheduledFeeCommunication;
 use App\Models\Student;
 use App\Models\StudentTermFeeClearance;
 use App\Models\Term;
+use App\Services\CommunicationPauseService;
 use App\Services\FeeReminderAutomationSettings;
 use App\Services\SMSService;
 use App\Models\CommunicationTemplate;
@@ -120,6 +121,14 @@ class FeeReminderController extends Controller
      */
     protected function sendReminder(FeeReminder $reminder)
     {
+        if (CommunicationPauseService::isPaused()) {
+            if ($reminder->status === 'pending') {
+                $reminder->update(['status' => 'paused']);
+            }
+
+            return;
+        }
+
         $student = $reminder->student;
         if (!$student) {
             return;

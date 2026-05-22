@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\ScheduledFeeCommunication;
+use App\Services\CommunicationPauseService;
 use App\Models\CommunicationTemplate;
 use App\Services\CommunicationHelperService;
 use Illuminate\Bus\Queueable;
@@ -25,6 +26,12 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
 
     public function handle(): void
     {
+        if (CommunicationPauseService::isPaused()) {
+            Log::info('ProcessScheduledFeeCommunicationsJob skipped: communications paused');
+
+            return;
+        }
+
         $pending = ScheduledFeeCommunication::pending()
             ->due()
             ->get();

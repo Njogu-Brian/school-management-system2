@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\CommunicationLog;
+use App\Models\FeeReminder;
 use App\Models\ScheduledCommunication;
+use App\Models\ScheduledFeeCommunication;
+use App\Services\CommunicationPauseService;
 use App\Models\CommunicationTemplate;
 use App\Models\Student;
 use App\Models\Staff;
@@ -449,7 +452,8 @@ class CommunicationController extends Controller
         if ($failedCount > 0) {
             $hasInsufficientCredits = collect($failures)->contains('insufficient_credits', true);
             if ($hasInsufficientCredits) {
-                $withData['error'] = 'SMS could not be sent: insufficient SMS credits. Please top up your SMS balance. See Communication → Logs for details.';
+                \App\Services\CommunicationPauseService::pauseDueToInsufficientCredits(0, 'CommunicationController::sendSMS');
+                $withData['error'] = 'SMS could not be sent: insufficient SMS credits. All scheduled communications are now paused. Top up credits, then resume from Communication → Queues.';
             } else {
                 $withData['error'] = 'Some sends failed. Sample: ' . json_encode(array_diff_key($failures[0] ?? [], ['insufficient_credits' => true]));
             }
@@ -1096,6 +1100,66 @@ class CommunicationController extends Controller
         return view('communication.logs_scheduled', [
             'logs' => $scheduled,
         ]);
+    }
+
+    /**
+     * Upcoming scheduled communications, paused items, and queue overview.
+     */
+    public function queues(Request $request)
+    {
+        abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
+
+        $paused = CommunicationPauseService::isPaused();
+        $pauseMeta = CommunicationPauseService::getMeta();
+
+        $scheduledFee = ScheduledFeeCommunication::with(['template', 'createdBy'])
+            ->whereIn('status', ['pending', 'active', 'paused'])
+            ->orderByRaw('COALESCE(recurrence_next_at, send_at) ASC')
+            ->limit(50)
+            ->get();
+
+        $scheduledComms = ScheduledCommunication::with('template')
+            ->whereIn('status', ['pending', 'paused'])
+            ->where('send_at', '>=', now()->subDay())
+            ->orderBy('send_at')
+            ->limit(50)
+            ->get();
+
+        $feeReminders = FeeReminder::with('student')
+            ->whereIn('status', ['pending', 'paused'])
+            ->orderBy('due_date')
+            ->limit(50)
+            ->get();
+
+        $queueJobs = \DB::table('jobs')->where('queue', 'default')->orderByDesc('created_at')->limit(20)->get();
+
+        return view('communication.queues', compact(
+            'paused',
+            'pauseMeta',
+            'scheduledFee',
+            'scheduledComms',
+            'feeReminders',
+            'queueJobs'
+        ));
+    }
+
+    public function resumePausedCommunications(Request $request)
+    {
+        abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
+
+        if (!CommunicationPauseService::isPaused()) {
+            return back()->with('info', 'Communications are not paused.');
+        }
+
+        $counts = CommunicationPauseService::resume(auth()->id());
+        $msg = sprintf(
+            'Communications resumed. Restored: %d scheduled fee message(s), %d scheduled communication(s), %d fee reminder(s).',
+            $counts['scheduled_fee'],
+            $counts['scheduled'],
+            $counts['fee_reminders']
+        );
+
+        return redirect()->route('communication.queues')->with('success', $msg);
     }
 
     /* ========== RECIPIENT BUILDER ========== */

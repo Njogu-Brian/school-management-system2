@@ -2089,7 +2089,11 @@ class StudentController extends Controller
             ensure_family_payment_link($student->family_id);
         }
 
-        return view('students.show', compact('student'));
+        $commService = app(\App\Services\StudentCommunicationService::class);
+        $communicationHistory = $commService->sentHistoryForStudent($student);
+        $communicationUpcoming = $commService->upcomingForStudent($student);
+
+        return view('students.show', compact('student', 'communicationHistory', 'communicationUpcoming'));
     }
 
     public function getStreams(Request $request)

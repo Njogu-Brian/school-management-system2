@@ -963,6 +963,12 @@ if (!function_exists('flash_sms_credit_warning')) {
     function flash_sms_credit_warning(\Throwable $e): void
     {
         if ($e instanceof \App\Exceptions\InsufficientSmsCreditsException) {
+            if (class_exists(\App\Services\CommunicationPauseService::class)) {
+                \App\Services\CommunicationPauseService::pauseDueToInsufficientCredits(
+                    (float) ($e->getBalance() ?? 0),
+                    'flash_sms_credit_warning'
+                );
+            }
             session()->flash('warning', $e->getPublicMessage());
             return;
         }

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Http\Controllers\Finance\FeeReminderController;
+use App\Services\CommunicationPauseService;
 use App\Services\FeeReminderAutomationSettings;
 use App\Services\SMSService;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,6 +16,10 @@ class SendFeeRemindersJob implements ShouldQueue
 
     public function handle(): void
     {
+        if (CommunicationPauseService::isPaused()) {
+            return;
+        }
+
         $cfg = FeeReminderAutomationSettings::load();
         if (!$cfg->enabled) {
             return;

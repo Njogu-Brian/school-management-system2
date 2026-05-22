@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CommunicationLog;
 use App\Exceptions\InsufficientSmsCreditsException;
+use App\Services\CommunicationPauseService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\GenericMail;
@@ -49,6 +50,8 @@ class CommunicationService
                     'error_code'     => 'INSUFFICIENT_CREDITS',
                     'payment_id'     => $paymentId,
                 ]);
+
+                CommunicationPauseService::pauseDueToInsufficientCredits($balance, 'CommunicationService::sendSMS');
 
                 throw new InsufficientSmsCreditsException($balance);
             }

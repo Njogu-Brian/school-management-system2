@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CommunicationLog;
+use App\Services\CommunicationPauseService;
 use App\Mail\GenericMail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -48,6 +49,14 @@ class BulkSendEmail implements ShouldQueue
 
     public function handle(): void
     {
+        if (CommunicationPauseService::isPaused()) {
+            CommunicationPauseService::pauseBulkProgress($this->trackingId, 'email', [
+                'total' => count($this->recipients),
+            ]);
+
+            return;
+        }
+
         $totalRecipients = count($this->recipients);
         $sentCount = 0;
         $failedCount = 0;
