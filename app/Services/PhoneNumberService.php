@@ -38,8 +38,12 @@ class PhoneNumberService
     public function validateLocalDigitsLength(?string $localDigits, ?string $countryCode): array
     {
         $countryCode = $this->normalizeCountryCode($countryCode);
-        $digits = preg_replace('/\D+/', '', (string) $localDigits);
-        $digits = ltrim($digits, '0'); // user may type leading 0 locally
+        // Accept either local-only (703214471) or full international (+254703214471)
+        $digits = $this->extractLocalNumber($localDigits, $countryCode);
+        if ($digits === null || $digits === '') {
+            $digits = preg_replace('/\D+/', '', (string) $localDigits);
+            $digits = ltrim($digits, '0'); // user may type leading 0 locally
+        }
         $len = strlen($digits);
 
         $rule = $this->localLengthRules()[$countryCode] ?? ['min' => 4, 'max' => 15];
