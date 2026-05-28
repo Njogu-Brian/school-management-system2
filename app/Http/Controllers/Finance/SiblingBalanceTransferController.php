@@ -19,7 +19,11 @@ class SiblingBalanceTransferController extends Controller
         $from = Student::withArchived()->findOrFail((int) $validated['from_student_id']);
         $to = Student::withArchived()->findOrFail((int) $validated['to_student_id']);
 
-        $result = $service->transferOutstandingBalance($from, $to, auth()->id());
+        try {
+            $result = $service->transferOutstandingBalance($from, $to, auth()->id());
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', 'Balance transferred successfully (Ksh ' . number_format((float) ($result['transferred_amount'] ?? 0), 2) . ').');
     }

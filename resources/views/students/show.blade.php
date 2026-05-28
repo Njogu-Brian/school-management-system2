@@ -18,21 +18,20 @@
       <div class="d-flex gap-2 flex-wrap">
         <a href="{{ url()->previous() ?: route('students.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
         @php
-          $activeSiblingsForTransfer = collect();
-          if ($student->archive && $student->family_id) {
-            $activeSiblingsForTransfer = \App\Models\Student::withArchived()
-              ->withoutGlobalScope('active')
-              ->where('family_id', $student->family_id)
-              ->where('id', '!=', $student->id)
-              ->where('archive', 0)
-              ->where('is_alumni', false)
-              ->orderBy('first_name')
-              ->get();
+          $user = auth()->user();
+          $showBalanceTransfer = false;
+          if ($student->archive && $user) {
+            // Avoid hiding the button due to role-name mismatches; route middleware will still enforce access.
+            if (!method_exists($user, 'hasRole')) {
+              $showBalanceTransfer = true;
+            } else {
+              $showBalanceTransfer = !$user->hasRole('Student') && !$user->hasRole('Parent');
+            }
           }
         @endphp
-        @if($student->archive && $activeSiblingsForTransfer->isNotEmpty() && auth()->user() && (auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin') || auth()->user()->hasRole('Finance Officer') || auth()->user()->hasRole('Accountant')))
+        @if($showBalanceTransfer)
           <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#siblingBalanceTransferModal">
-            <i class="bi bi-arrow-left-right"></i> Transfer fee balance to sibling
+            <i class="bi bi-arrow-left-right"></i> Transfer fee balance
           </button>
         @endif
         @if(!$student->is_alumni && $student->classroom_id)
@@ -616,8 +615,8 @@
   </div>
 </div>
 
-{{-- Sibling Balance Transfer Modal (archived student -> active sibling) --}}
-@if($student->archive && isset($activeSiblingsForTransfer) && $activeSiblingsForTransfer->isNotEmpty())
+{{-- Balance Transfer Modal (archived student -> any active student) --}}
+@if($student->archive && auth()->user())
 <div class="modal fade" id="siblingBalanceTransferModal" tabindex="-1" aria-labelledby="siblingBalanceTransferModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -632,7 +631,7 @@
           <div class="alert alert-warning mb-3">
             <div class="fw-semibold mb-1">This will move the outstanding invoice balance.</div>
             <div class="small">
-              The archived student’s invoice items will be reduced until their balance is cleared, and an equivalent charge will be added to the selected sibling’s current term invoice.
+              The archived student’s invoice items will be reduced until their balance is cleared, and an equivalent charge will be added to the selected student’s current term invoice.
             </div>
           </div>
 
@@ -642,14 +641,16 @@
           </div>
 
           <div class="mb-3">
-            <label class="form-label">To (active sibling) <span class="text-danger">*</span></label>
-            <select name="to_student_id" class="form-select" required>
-              <option value="">-- Select sibling --</option>
-              @foreach($activeSiblingsForTransfer as $sib)
-                <option value="{{ $sib->id }}">{{ $sib->full_name }} ({{ $sib->admission_number }})</option>
-              @endforeach
-            </select>
-            <div class="form-text">Only active (non-archived) siblings in the same family are shown.</div>
+            <label class="form-label">To (active student) <span class="text-danger">*</span></label>
+            @include('partials.student_live_search', [
+              'hiddenInputId' => 'balanceTransferToStudentId',
+              'hiddenInputName' => 'to_student_id',
+              'displayInputId' => 'balanceTransferToStudentSearch',
+              'resultsId' => 'balanceTransferToStudentResults',
+              'placeholder' => 'Type name or admission #',
+              'includeAlumniArchived' => false,
+            ])
+            <div class="form-text">Search and select any active student.</div>
           </div>
         </div>
         <div class="modal-footer">

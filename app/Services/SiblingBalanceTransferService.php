@@ -27,10 +27,6 @@ class SiblingBalanceTransferService
             throw new \InvalidArgumentException('Cannot transfer balance to the same student.');
         }
 
-        if (!$fromStudent->family_id || (int) $fromStudent->family_id !== (int) $toStudent->family_id) {
-            throw new \InvalidArgumentException('Students must belong to the same family to transfer balance.');
-        }
-
         if (!$fromStudent->archive) {
             throw new \InvalidArgumentException('Source student must be archived to transfer their balance.');
         }
@@ -99,7 +95,7 @@ class SiblingBalanceTransferService
                     InvoiceService::updateItemAmount(
                         $item->fresh(),
                         (float) $newAmount,
-                        'Sibling fee balance transfer',
+                        'Fee balance transfer',
                         'Transferred to ' . $toStudent->full_name . ' (' . ($toStudent->admission_number ?? ('ID ' . $toStudent->id)) . ')'
                     );
 
@@ -119,8 +115,8 @@ class SiblingBalanceTransferService
 
             // Add transferred balance as a new charge on TO student's current term invoice.
             $votehead = Votehead::firstOrCreate(
-                ['code' => 'SIBLING_BAL'],
-                ['name' => 'Sibling Balance Transfer', 'is_active' => true]
+                ['code' => 'BAL_TRF'],
+                ['name' => 'Balance Transfer', 'is_active' => true]
             );
 
             $toInvoice = InvoiceService::ensure($toStudent->id, $year, $term);
@@ -132,7 +128,7 @@ class SiblingBalanceTransferService
                 'discount_amount' => 0,
                 'original_amount' => $transferred,
                 'status' => 'active',
-                'source' => 'sibling_balance_transfer',
+                'source' => 'balance_transfer',
                 'effective_date' => now()->toDateString(),
                 'posted_at' => now(),
             ]);
@@ -147,7 +143,7 @@ class SiblingBalanceTransferService
                     'to_student_id' => $toStudent->id,
                     'amount' => $transferred,
                     'actor_id' => $actorId,
-                ], ['sibling_balance_transfer']);
+                ], ['balance_transfer']);
             }
 
             return [
