@@ -17,6 +17,24 @@
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a href="{{ url()->previous() ?: route('students.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
+        @php
+          $activeSiblingsForTransfer = collect();
+          if ($student->archive && $student->family_id) {
+            $activeSiblingsForTransfer = \App\Models\Student::withArchived()
+              ->withoutGlobalScope('active')
+              ->where('family_id', $student->family_id)
+              ->where('id', '!=', $student->id)
+              ->where('archive', 0)
+              ->where('is_alumni', false)
+              ->orderBy('first_name')
+              ->get();
+          }
+        @endphp
+        @if($student->archive && $activeSiblingsForTransfer->isNotEmpty() && auth()->user() && (auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin') || auth()->user()->hasRole('Finance Officer') || auth()->user()->hasRole('Accountant')))
+          <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#siblingBalanceTransferModal">
+            <i class="bi bi-arrow-left-right"></i> Transfer fee balance to sibling
+          </button>
+        @endif
         @if(!$student->is_alumni && $student->classroom_id)
           <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#demoteStudentModal">
             <i class="bi bi-arrow-down-circle"></i> Demote
@@ -597,6 +615,54 @@
     </div>
   </div>
 </div>
+
+{{-- Sibling Balance Transfer Modal (archived student -> active sibling) --}}
+@if($student->archive && isset($activeSiblingsForTransfer) && $activeSiblingsForTransfer->isNotEmpty())
+<div class="modal fade" id="siblingBalanceTransferModal" tabindex="-1" aria-labelledby="siblingBalanceTransferModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST" action="{{ route('finance.sibling-balance-transfer.store') }}">
+        @csrf
+        <input type="hidden" name="from_student_id" value="{{ $student->id }}">
+        <div class="modal-header">
+          <h5 class="modal-title" id="siblingBalanceTransferModalLabel">Transfer fee balance</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning mb-3">
+            <div class="fw-semibold mb-1">This will move the outstanding invoice balance.</div>
+            <div class="small">
+              The archived student’s invoice items will be reduced until their balance is cleared, and an equivalent charge will be added to the selected sibling’s current term invoice.
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">From (archived student)</label>
+            <input class="form-control" value="{{ $student->full_name }} ({{ $student->admission_number }})" disabled>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">To (active sibling) <span class="text-danger">*</span></label>
+            <select name="to_student_id" class="form-select" required>
+              <option value="">-- Select sibling --</option>
+              @foreach($activeSiblingsForTransfer as $sib)
+                <option value="{{ $sib->id }}">{{ $sib->full_name }} ({{ $sib->admission_number }})</option>
+              @endforeach
+            </select>
+            <div class="form-text">Only active (non-archived) siblings in the same family are shown.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-settings-primary">
+            <i class="bi bi-arrow-left-right"></i> Transfer balance
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+@endif
 
 {{-- Demote Student Modal --}}
 @if(!$student->is_alumni && $student->classroom_id)

@@ -1434,6 +1434,25 @@ const linkPaymentsBaseUrl = '{{ route("finance.bank-statements.search-payments-f
 let linkPaymentAccumulated = []; // accumulated payments when adding multiple students
 let linkPaymentSelectionOrder = []; // payment ids in the order the user checked them (first selected = first)
 
+function getLinkPaymentTargetAmount() {
+    const modal = document.getElementById('linkToExistingPaymentsModal');
+    if (!modal) return 0;
+    const txAmount = parseFloat(modal.getAttribute('data-transaction-amount') || 0) || 0;
+    const remainingAmount = parseFloat(modal.getAttribute('data-remaining-amount') || 0) || 0;
+    return (remainingAmount > 0.01 ? remainingAmount : txAmount);
+}
+
+function getLinkPaymentSelectedTotal(exceptIds) {
+    const exclude = new Set((exceptIds || []).map(String));
+    let total = 0;
+    document.querySelectorAll('.link-payment-cb').forEach(function(cb) {
+        if (cb.checked && !exclude.has(String(cb.value))) {
+            total += parseFloat(cb.getAttribute('data-amount') || 0) || 0;
+        }
+    });
+    return total;
+}
+
 function renderLinkPaymentList(payments) {
     linkPaymentSelectionOrder = []; // reset when list is re-rendered
     const resultsEl = document.getElementById('linkPaymentResults');
@@ -1466,10 +1485,36 @@ function renderLinkPaymentList(payments) {
         cb.addEventListener('change', function() {
             const id = cb.value;
             if (cb.checked) {
+                // Prevent selecting amounts above target (including shared-receipt groups)
+                const summaryEl = document.getElementById('linkPaymentAmountSummary');
+                const base = (cb.getAttribute('data-shared-receipt') || '').trim();
+                const group = base
+                    ? Array.from(document.querySelectorAll('.link-payment-cb')).filter(function(el) {
+                        return (el.getAttribute('data-shared-receipt') || '').trim() === base;
+                    })
+                    : [cb];
+                const groupIds = group.map(function(el) { return String(el.value); });
+                const target = getLinkPaymentTargetAmount();
+                const currentTotal = getLinkPaymentSelectedTotal(groupIds); // exclude group (will be (re)checked below)
+                const groupAmount = group.reduce(function(sum, el) {
+                    return sum + (parseFloat(el.getAttribute('data-amount') || 0) || 0);
+                }, 0);
+                if (target > 0.01 && (currentTotal + groupAmount) - target > 0.01) {
+                    // Revert this selection (and any group auto-selection), and show reason
+                    group.forEach(function(el) { el.checked = false; });
+                    linkPaymentSelectionOrder = linkPaymentSelectionOrder.filter(function(pid) { return groupIds.indexOf(String(pid)) === -1; });
+                    if (summaryEl) {
+                        summaryEl.classList.add('text-danger');
+                        summaryEl.textContent = 'Selected total cannot exceed required amount (Ksh ' + target.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ').';
+                        summaryEl.title = 'Uncheck another payment first, then select again.';
+                    }
+                    updateLinkPaymentForm();
+                    return;
+                }
+
                 if (linkPaymentSelectionOrder.indexOf(id) === -1) {
                     linkPaymentSelectionOrder.push(id);
                 }
-                const base = (cb.getAttribute('data-shared-receipt') || '').trim();
                 if (base) {
                     const sameReceipt = Array.from(document.querySelectorAll('.link-payment-cb')).filter(function(el) {
                         return (el.getAttribute('data-shared-receipt') || '').trim() === base;
