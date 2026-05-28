@@ -62,6 +62,34 @@ class ParentInfo extends Model
     }
 
     /**
+     * Father/mother SMS recipients for automated school notifications (guardian excluded).
+     *
+     * @return list<array{slot:string, name:?string, phone:string}>
+     */
+    public function schoolNotificationSmsRecipients(): array
+    {
+        $out = [];
+
+        if ($this->school_notifications_muted_parent !== 'father' && filled($this->father_phone)) {
+            $out[] = ['slot' => 'father', 'name' => $this->father_name ?: null, 'phone' => $this->father_phone];
+        }
+        if ($this->school_notifications_muted_parent !== 'mother' && filled($this->mother_phone)) {
+            $out[] = ['slot' => 'mother', 'name' => $this->mother_name ?: null, 'phone' => $this->mother_phone];
+        }
+
+        // De-dupe by phone, keep first entry's name/slot
+        $seen = [];
+        $unique = [];
+        foreach ($out as $r) {
+            if (isset($seen[$r['phone']])) continue;
+            $seen[$r['phone']] = true;
+            $unique[] = $r;
+        }
+
+        return $unique;
+    }
+
+    /**
      * @return list<string>
      */
     public function schoolNotificationEmails(): array
@@ -75,6 +103,31 @@ class ParentInfo extends Model
         }
 
         return array_values(array_unique(array_filter([$father, $mother])));
+    }
+
+    /**
+     * @return list<array{slot:string, name:?string, email:string}>
+     */
+    public function schoolNotificationEmailRecipients(): array
+    {
+        $out = [];
+
+        if ($this->school_notifications_muted_parent !== 'father' && filled($this->father_email)) {
+            $out[] = ['slot' => 'father', 'name' => $this->father_name ?: null, 'email' => $this->father_email];
+        }
+        if ($this->school_notifications_muted_parent !== 'mother' && filled($this->mother_email)) {
+            $out[] = ['slot' => 'mother', 'name' => $this->mother_name ?: null, 'email' => $this->mother_email];
+        }
+
+        $seen = [];
+        $unique = [];
+        foreach ($out as $r) {
+            if (isset($seen[$r['email']])) continue;
+            $seen[$r['email']] = true;
+            $unique[] = $r;
+        }
+
+        return $unique;
     }
 
     /**
@@ -93,6 +146,34 @@ class ParentInfo extends Model
         }
 
         return array_values(array_unique(array_filter([$father, $mother])));
+    }
+
+    /**
+     * @return list<array{slot:string, name:?string, phone:string}>
+     */
+    public function schoolNotificationWhatsAppRecipients(): array
+    {
+        $out = [];
+
+        $father = ! empty($this->father_whatsapp) ? $this->father_whatsapp : ($this->father_phone ?: null);
+        $mother = ! empty($this->mother_whatsapp) ? $this->mother_whatsapp : ($this->mother_phone ?: null);
+
+        if ($this->school_notifications_muted_parent !== 'father' && filled($father)) {
+            $out[] = ['slot' => 'father', 'name' => $this->father_name ?: null, 'phone' => $father];
+        }
+        if ($this->school_notifications_muted_parent !== 'mother' && filled($mother)) {
+            $out[] = ['slot' => 'mother', 'name' => $this->mother_name ?: null, 'phone' => $mother];
+        }
+
+        $seen = [];
+        $unique = [];
+        foreach ($out as $r) {
+            if (isset($seen[$r['phone']])) continue;
+            $seen[$r['phone']] = true;
+            $unique[] = $r;
+        }
+
+        return $unique;
     }
 
     /**

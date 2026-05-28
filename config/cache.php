@@ -15,7 +15,9 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'database'),
+    // Safer default for environments where MySQL may be down during queue work.
+    // Use CACHE_STORE=database explicitly if you intend to depend on DB cache.
+    'default' => env('CACHE_STORE', 'file'),
 
     /*
     |--------------------------------------------------------------------------

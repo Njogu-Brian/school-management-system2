@@ -286,9 +286,19 @@ class BulkSendPaymentNotifications implements ShouldQueue
 
         $receiptLink = url('/receipt/' . $payment->public_token);
 
-        // Get parent name and greeting
-        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? null;
-        $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+        // Build recipients so greeting name matches the phone/email used (father/mother only, never guardian)
+        $smsRecipients = method_exists($parent, 'schoolNotificationSmsRecipients')
+            ? $parent->schoolNotificationSmsRecipients()
+            : array_map(fn ($p) => ['slot' => 'parent', 'name' => null, 'phone' => $p], $parent->schoolNotificationSmsPhones());
+        $emailRecipients = method_exists($parent, 'schoolNotificationEmailRecipients')
+            ? $parent->schoolNotificationEmailRecipients()
+            : array_map(fn ($e) => ['slot' => 'parent', 'name' => null, 'email' => $e], $parent->schoolNotificationEmails());
+        $whatsappRecipients = method_exists($parent, 'schoolNotificationWhatsAppRecipients')
+            ? $parent->schoolNotificationWhatsAppRecipients()
+            : array_map(fn ($p) => ['slot' => 'parent', 'name' => null, 'phone' => $p], $parent->schoolNotificationWhatsAppNumbers());
+
+        $defaultParentName = $parent->father_name ?? $parent->mother_name ?? null;
+        $defaultGreeting = $defaultParentName ? "Dear {$defaultParentName}" : "Dear Parent";
 
         // Calculate outstanding balance
         $outstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
@@ -297,8 +307,8 @@ class BulkSendPaymentNotifications implements ShouldQueue
         $schoolName = DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
 
         $variables = [
-            'parent_name' => $parentName ?? 'Parent',
-            'greeting' => $greeting,
+            'parent_name' => $defaultParentName ?? 'Parent',
+            'greeting' => $defaultGreeting,
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
             'admission_number' => $student->admission_number,
             'amount' => 'Ksh ' . number_format($payment->amount, 2),
@@ -343,7 +353,15 @@ class BulkSendPaymentNotifications implements ShouldQueue
             $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
             $smsService = app(\App\Services\SMSService::class);
             $financeSenderId = $smsService->getFinanceSenderId();
-            foreach ($parent->schoolNotificationSmsPhones() as $parentPhone) {
+            foreach ($smsRecipients as $r) {
+                $parentPhone = $r['phone'] ?? null;
+                if (!$parentPhone) continue;
+                $parentName = $r['name'] ?? null;
+                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                $vars = $variables;
+                $vars['parent_name'] = $parentName ?? 'Parent';
+                $vars['greeting'] = $greeting;
+                $smsMessage = $replacePlaceholders($smsTemplate->content, $vars);
                 $commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
             }
         } elseif ($channel === 'email') {
@@ -363,11 +381,18 @@ class BulkSendPaymentNotifications implements ShouldQueue
                 );
             }
 
-            $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-            $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
             $receiptService = app(\App\Services\ReceiptService::class);
             $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
-            foreach ($parent->schoolNotificationEmails() as $parentEmail) {
+            foreach ($emailRecipients as $r) {
+                $parentEmail = $r['email'] ?? null;
+                if (!$parentEmail) continue;
+                $parentName = $r['name'] ?? null;
+                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                $vars = $variables;
+                $vars['parent_name'] = $parentName ?? 'Parent';
+                $vars['greeting'] = $greeting;
+                $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $vars);
+                $emailContent = $replacePlaceholders($emailTemplate->content, $vars);
                 $commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
             }
         } elseif ($channel === 'whatsapp') {
@@ -389,7 +414,16 @@ class BulkSendPaymentNotifications implements ShouldQueue
 
             $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
             $whatsappService = app(\App\Services\WhatsAppService::class);
-            foreach ($parent->schoolNotificationWhatsAppNumbers() as $whatsappPhone) {
+            foreach ($whatsappRecipients as $r) {
+                $whatsappPhone = $r['phone'] ?? null;
+                if (!$whatsappPhone) continue;
+                $parentName = $r['name'] ?? null;
+                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                $vars = $variables;
+                $vars['parent_name'] = $parentName ?? 'Parent';
+                $vars['greeting'] = $greeting;
+                $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $vars);
+
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
 
                 $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';

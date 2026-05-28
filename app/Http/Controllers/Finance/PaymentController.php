@@ -562,6 +562,23 @@ class PaymentController extends Controller
         $payment->load(['student.parent', 'paymentMethod']);
         $student = $payment->student;
         $profileUpdateLink = $this->getProfileUpdateLinkForStudent($student);
+
+        // If this payment is part of a shared receipt (siblings), send ONE combined notification only.
+        $sharedReceiptNumber = $payment->shared_receipt_number;
+        $sharedPayments = collect();
+        if ($sharedReceiptNumber) {
+            $sharedPayments = \App\Models\Payment::with(['student'])
+                ->where('shared_receipt_number', $sharedReceiptNumber)
+                ->where('reversed', false)
+                ->orderBy('id')
+                ->get();
+
+            $leader = $sharedPayments->first();
+            if ($leader && (int) $leader->id !== (int) $payment->id) {
+                // Only leader sends the combined message to avoid duplicates.
+                return;
+            }
+        }
         
         // Get parent (family) contact info - payment received goes to both parents only, never guardian
         $parent = $student->parent;
@@ -571,12 +588,19 @@ class PaymentController extends Controller
             return;
         }
         
-        // Collect parent contacts from father and mother only (never guardian); respect notification preferences
-        $parentPhones = $parent->schoolNotificationSmsPhones();
-        $parentEmails = $parent->schoolNotificationEmails();
-        $parentWhatsappNumbers = $parent->schoolNotificationWhatsAppNumbers();
+        // Collect parent contacts from father and mother only (never guardian); respect notification preferences.
+        // Use recipient pairs to keep greeting name aligned with phone/email.
+        $smsRecipients = method_exists($parent, 'schoolNotificationSmsRecipients')
+            ? $parent->schoolNotificationSmsRecipients()
+            : array_map(fn ($p) => ['slot' => 'parent', 'name' => null, 'phone' => $p], $parent->schoolNotificationSmsPhones());
+        $emailRecipients = method_exists($parent, 'schoolNotificationEmailRecipients')
+            ? $parent->schoolNotificationEmailRecipients()
+            : array_map(fn ($e) => ['slot' => 'parent', 'name' => null, 'email' => $e], $parent->schoolNotificationEmails());
+        $whatsappRecipients = method_exists($parent, 'schoolNotificationWhatsAppRecipients')
+            ? $parent->schoolNotificationWhatsAppRecipients()
+            : array_map(fn ($p) => ['slot' => 'parent', 'name' => null, 'phone' => $p], $parent->schoolNotificationWhatsAppNumbers());
         
-        if (empty($parentPhones) && empty($parentEmails)) {
+        if (empty($smsRecipients) && empty($emailRecipients) && empty($whatsappRecipients)) {
             Log::info('No parent contact info found for payment notification (father/mother only)', ['payment_id' => $payment->id]);
             return;
         }
@@ -638,11 +662,9 @@ class PaymentController extends Controller
             $receiptLink = 'Contact school for receipt details';
         }
         
-        // Get parent name for greeting - father or mother only (never guardian)
-        $parentName = $parent->father_name ?? $parent->mother_name ?? null;
-        
-        // Create greeting: "Dear Parent" when name is unknown, "Dear [Name]" when name is known
-        $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+        // Default greeting (may be overridden per recipient)
+        $defaultParentName = $parent->father_name ?? $parent->mother_name ?? null;
+        $defaultGreeting = $defaultParentName ? "Dear {$defaultParentName}" : "Dear Parent";
         
         // Calculate outstanding balance for the student (after this payment)
         // Refresh payment to ensure allocations are loaded
@@ -700,12 +722,43 @@ class PaymentController extends Controller
         $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
         
         $displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number;
+
+        $combined = false;
+        $totalAmount = (float) $payment->amount;
+        $studentLabel = $student->full_name ?? $student->first_name . ' ' . $student->last_name;
+        $admissionLabel = $student->admission_number;
+        $breakdown = '';
+
+        if ($sharedPayments->count() > 1) {
+            $combined = true;
+            $totalAmount = (float) $sharedPayments->sum('amount');
+            $names = $sharedPayments
+                ->map(fn ($p) => $p->student?->full_name ?? trim(($p->student?->first_name ?? '') . ' ' . ($p->student?->last_name ?? '')))
+                ->filter()
+                ->values();
+            $studentLabel = $names->implode(' & ');
+            $admissionLabel = $sharedPayments
+                ->map(fn ($p) => $p->student?->admission_number)
+                ->filter()
+                ->values()
+                ->implode(', ');
+
+            $breakdown = $sharedPayments->map(function ($p) {
+                $s = $p->student;
+                $nm = $s?->full_name ?? trim(($s?->first_name ?? '') . ' ' . ($s?->last_name ?? ''));
+                $adm = $s?->admission_number ? " ({$s->admission_number})" : '';
+                $amt = 'Ksh ' . number_format((float) ($p->amount ?? 0), 2);
+                return "- {$nm}{$adm}: {$amt}";
+            })->implode("\n");
+        }
+
         $variables = [
-            'parent_name' => $parentName ?? 'Parent', // Keep for backward compatibility
-            'greeting' => $greeting, // New greeting variable: "Dear Parent" or "Dear [Name]"
-            'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
-            'admission_number' => $student->admission_number,
-            'amount' => 'Ksh ' . number_format($payment->amount, 2),
+            'parent_name' => $defaultParentName ?? 'Parent', // Backward compatibility
+            'greeting' => $defaultGreeting, // Default greeting
+            'student_name' => $studentLabel,
+            'admission_number' => $admissionLabel,
+            // For combined sibling receipts this is the TOTAL amount received.
+            'amount' => 'Ksh ' . number_format($totalAmount, 2),
             'receipt_number' => $displayReceiptNumber,
             'transaction_code' => $payment->transaction_code,
             'payment_date' => $payment->payment_date->format('d M Y'),
@@ -715,6 +768,8 @@ class PaymentController extends Controller
             'outstanding_amount' => 'Ksh ' . number_format($outstandingBalance, 2),
             'carried_forward' => number_format($carriedForward, 2),
             'school_name' => $schoolName,
+            // Extra vars for templates that support it:
+            'students_breakdown' => $breakdown,
         ];
         
         // Replace placeholders
@@ -726,14 +781,24 @@ class PaymentController extends Controller
         };
         
         // Send SMS to each parent phone (father and mother only, never guardian)
-        $smsVariables = $variables;
-        $smsVariables['profile_update_link'] = '';
-        $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
-        $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
         $smsService = app(\App\Services\SMSService::class);
         $financeSenderId = $smsService->getFinanceSenderId();
-        foreach ($parentPhones as $parentPhone) {
+        foreach ($smsRecipients as $r) {
+            $parentPhone = $r['phone'] ?? null;
+            if (!$parentPhone) continue;
             try {
+                $parentName = $r['name'] ?? null;
+                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                $smsVariables = $variables;
+                $smsVariables['parent_name'] = $parentName ?? 'Parent';
+                $smsVariables['greeting'] = $greeting;
+                $smsVariables['profile_update_link'] = '';
+                $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
+                $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
+                if ($combined && $breakdown) {
+                    $smsMessage .= "\n\nBreakdown:\n{$breakdown}";
+                }
+
                 Log::info('Attempting to send payment SMS', [
                     'payment_id' => $payment->id,
                     'phone' => $parentPhone,
@@ -750,26 +815,38 @@ class PaymentController extends Controller
                 flash_sms_credit_warning($e);
             }
         }
-        if (empty($parentPhones)) {
+        if (empty($smsRecipients)) {
             Log::info('Payment SMS skipped - no parent phone', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
 
         // Send email to each parent email (father and mother only)
-        $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-        $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
-        if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
-            $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
-        }
         $pdfPath = null;
-        if (!empty($parentEmails)) {
+        if (!empty($emailRecipients)) {
             try {
                 $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
             } catch (\Exception $e) {
                 Log::warning('Receipt PDF generation failed for email', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
             }
         }
-        foreach ($parentEmails as $parentEmail) {
+        foreach ($emailRecipients as $r) {
+            $parentEmail = $r['email'] ?? null;
+            if (!$parentEmail) continue;
             try {
+                $parentName = $r['name'] ?? null;
+                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                $emailVars = $variables;
+                $emailVars['parent_name'] = $parentName ?? 'Parent';
+                $emailVars['greeting'] = $greeting;
+
+                $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $emailVars);
+                $emailContent = $replacePlaceholders($emailTemplate->content, $emailVars);
+                if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
+                    $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
+                }
+                if ($combined && $breakdown && stripos($emailContent, 'Breakdown') === false) {
+                    $emailContent .= "<p><strong>Breakdown:</strong><br>" . nl2br(e($breakdown)) . "</p>";
+                }
+
                 Log::info('Attempting to send payment email', ['payment_id' => $payment->id, 'email' => $parentEmail]);
                 $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
                 Log::info('Payment email sent successfully', ['payment_id' => $payment->id, 'email' => $parentEmail]);
@@ -781,7 +858,7 @@ class PaymentController extends Controller
                 ]);
             }
         }
-        if (empty($parentEmails)) {
+        if (empty($emailRecipients)) {
             Log::info('Payment email skipped - no parent email', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
 
@@ -800,12 +877,24 @@ class PaymentController extends Controller
                 ]
             );
         }
-        $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
-        if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
-            $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";
-        }
-        foreach ($parentWhatsappNumbers as $whatsappPhone) {
+        foreach ($whatsappRecipients as $r) {
+            $whatsappPhone = $r['phone'] ?? null;
+            if (!$whatsappPhone) continue;
             try {
+                $parentName = $r['name'] ?? null;
+                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                $waVars = $variables;
+                $waVars['parent_name'] = $parentName ?? 'Parent';
+                $waVars['greeting'] = $greeting;
+
+                $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $waVars);
+                if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
+                    $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";
+                }
+                if ($combined && $breakdown) {
+                    $whatsappMessage .= "\n\nBreakdown:\n{$breakdown}";
+                }
+
                 $whatsappService = app(\App\Services\WhatsAppService::class);
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
                 $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
@@ -855,7 +944,7 @@ class PaymentController extends Controller
                 ]);
             }
         }
-        if (empty($parentWhatsappNumbers)) {
+        if (empty($whatsappRecipients)) {
             Log::info('Payment WhatsApp skipped - no parent WhatsApp/phone', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
     }
@@ -3369,6 +3458,18 @@ class PaymentController extends Controller
             return;
         }
 
+        // For shared/sibling receipts, only leader payment should send (avoid duplicates).
+        $sharedReceiptNumber = $payment->shared_receipt_number;
+        if ($sharedReceiptNumber) {
+            $leaderId = \App\Models\Payment::where('shared_receipt_number', $sharedReceiptNumber)
+                ->where('reversed', false)
+                ->orderBy('id')
+                ->value('id');
+            if ($leaderId && (int) $leaderId !== (int) $payment->id) {
+                return;
+            }
+        }
+
         // Get receipt link
         if (!$payment->public_token) {
             $payment->public_token = Payment::generatePublicToken();
@@ -3386,9 +3487,8 @@ class PaymentController extends Controller
             $receiptLink = 'Contact school for receipt details';
         }
 
-        // Get parent name and greeting
-        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? null;
-        $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+        $defaultParentName = $parent->father_name ?? $parent->mother_name ?? null;
+        $defaultGreeting = $defaultParentName ? "Dear {$defaultParentName}" : "Dear Parent";
 
         // Calculate outstanding balance
         $outstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
@@ -3397,12 +3497,40 @@ class PaymentController extends Controller
         $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
 
         $displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number;
+
+        $sharedPayments = collect();
+        $combined = false;
+        $totalAmount = (float) $payment->amount;
+        $studentLabel = $student->full_name ?? $student->first_name . ' ' . $student->last_name;
+        $admissionLabel = $student->admission_number;
+        $breakdown = '';
+        if ($sharedReceiptNumber) {
+            $sharedPayments = \App\Models\Payment::with('student')
+                ->where('shared_receipt_number', $sharedReceiptNumber)
+                ->where('reversed', false)
+                ->orderBy('id')
+                ->get();
+            if ($sharedPayments->count() > 1) {
+                $combined = true;
+                $totalAmount = (float) $sharedPayments->sum('amount');
+                $studentLabel = $sharedPayments->map(fn ($p) => $p->student?->full_name)->filter()->implode(' & ');
+                $admissionLabel = $sharedPayments->map(fn ($p) => $p->student?->admission_number)->filter()->implode(', ');
+                $breakdown = $sharedPayments->map(function ($p) {
+                    $s = $p->student;
+                    $nm = $s?->full_name ?? trim(($s?->first_name ?? '') . ' ' . ($s?->last_name ?? ''));
+                    $adm = $s?->admission_number ? " ({$s->admission_number})" : '';
+                    $amt = 'Ksh ' . number_format((float) ($p->amount ?? 0), 2);
+                    return "- {$nm}{$adm}: {$amt}";
+                })->implode("\n");
+            }
+        }
+
         $variables = [
-            'parent_name' => $parentName ?? 'Parent',
-            'greeting' => $greeting,
-            'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
-            'admission_number' => $student->admission_number,
-            'amount' => 'Ksh ' . number_format($payment->amount, 2),
+            'parent_name' => $defaultParentName ?? 'Parent',
+            'greeting' => $defaultGreeting,
+            'student_name' => $studentLabel,
+            'admission_number' => $admissionLabel,
+            'amount' => 'Ksh ' . number_format($totalAmount, 2),
             'receipt_number' => $displayReceiptNumber,
             'transaction_code' => $payment->transaction_code,
             'payment_date' => $payment->payment_date->format('d M Y'),
@@ -3412,6 +3540,7 @@ class PaymentController extends Controller
             'outstanding_amount' => 'Ksh ' . number_format($outstandingBalance, 2),
             'carried_forward' => number_format($carriedForward, 2),
             'school_name' => $schoolName,
+            'students_breakdown' => $breakdown,
         ];
 
         $replacePlaceholders = function($text, $vars) {
@@ -3423,8 +3552,10 @@ class PaymentController extends Controller
 
         // Send via specific channel
         if ($channel === 'sms') {
-            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
-            if ($parentPhone) {
+            $recipients = method_exists($parent, 'schoolNotificationSmsRecipients')
+                ? $parent->schoolNotificationSmsRecipients()
+                : array_map(fn ($p) => ['slot' => 'parent', 'name' => null, 'phone' => $p], $parent->schoolNotificationSmsPhones());
+            if (!empty($recipients)) {
                 $smsTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_sms')
                     ->orWhere('code', 'finance_payment_received_sms')
                     ->first();
@@ -3441,17 +3572,30 @@ class PaymentController extends Controller
                     );
                 }
 
-                $smsVariables = $variables;
-                $smsVariables['profile_update_link'] = '';
-                $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
-                $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
                 $smsService = app(\App\Services\SMSService::class);
                 $financeSenderId = $smsService->getFinanceSenderId();
-                $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
+                foreach ($recipients as $r) {
+                    $parentPhone = $r['phone'] ?? null;
+                    if (!$parentPhone) continue;
+                    $parentName = $r['name'] ?? null;
+                    $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                    $smsVariables = $variables;
+                    $smsVariables['parent_name'] = $parentName ?? 'Parent';
+                    $smsVariables['greeting'] = $greeting;
+                    $smsVariables['profile_update_link'] = '';
+                    $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
+                    $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
+                    if ($combined && $breakdown) {
+                        $smsMessage .= "\n\nBreakdown:\n{$breakdown}";
+                    }
+                    $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
+                }
             }
         } elseif ($channel === 'email') {
-            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
-            if ($parentEmail) {
+            $recipients = method_exists($parent, 'schoolNotificationEmailRecipients')
+                ? $parent->schoolNotificationEmailRecipients()
+                : array_map(fn ($e) => ['slot' => 'parent', 'name' => null, 'email' => $e], $parent->schoolNotificationEmails());
+            if (!empty($recipients)) {
                 $emailTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_email')
                     ->orWhere('code', 'finance_payment_received_email')
                     ->first();
@@ -3468,19 +3612,32 @@ class PaymentController extends Controller
                     );
                 }
 
-                $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-                $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
-                if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
-                    $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
-                }
                 $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
-                $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
+                foreach ($recipients as $r) {
+                    $parentEmail = $r['email'] ?? null;
+                    if (!$parentEmail) continue;
+                    $parentName = $r['name'] ?? null;
+                    $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                    $emailVars = $variables;
+                    $emailVars['parent_name'] = $parentName ?? 'Parent';
+                    $emailVars['greeting'] = $greeting;
+                    $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $emailVars);
+                    $emailContent = $replacePlaceholders($emailTemplate->content, $emailVars);
+                    if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
+                        $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
+                    }
+                    if ($combined && $breakdown && stripos($emailContent, 'Breakdown') === false) {
+                        $emailContent .= "<p><strong>Breakdown:</strong><br>" . nl2br(e($breakdown)) . "</p>";
+                    }
+                    $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
+                }
             }
         } elseif ($channel === 'whatsapp') {
-            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? null;
-            
-            if ($whatsappPhone) {
+            $recipients = method_exists($parent, 'schoolNotificationWhatsAppRecipients')
+                ? $parent->schoolNotificationWhatsAppRecipients()
+                : array_map(fn ($p) => ['slot' => 'parent', 'name' => null, 'phone' => $p], $parent->schoolNotificationWhatsAppNumbers());
+
+            if (!empty($recipients)) {
                 $whatsappTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_whatsapp')
                     ->orWhere('code', 'finance_payment_received_whatsapp')
                     ->first();
@@ -3497,34 +3654,46 @@ class PaymentController extends Controller
                     );
                 }
 
-                $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
-                if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
-                    $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";
-                }
                 $whatsappService = app(\App\Services\WhatsAppService::class);
-                $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
-                
-                $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
-                
-                \App\Models\CommunicationLog::create([
-                    'recipient_type' => 'parent',
-                    'recipient_id'   => $parent->id ?? null,
-                    'contact'        => $whatsappPhone,
-                    'channel'        => 'whatsapp',
-                    'title'          => $whatsappTemplate->subject ?? $whatsappTemplate->title,
-                    'message'        => $whatsappMessage,
-                    'type'           => 'whatsapp',
-                    'status'         => $status,
-                    'response'       => $response,
-                    'scope'          => 'whatsapp',
-                    'sent_at'        => now(),
-                    'payment_id'     => $payment->id,
-                    'provider_id'    => data_get($response, 'body.data.id') 
-                                        ?? data_get($response, 'body.data.message.id')
-                                        ?? data_get($response, 'body.messageId')
-                                        ?? data_get($response, 'body.id'),
-                    'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
-                ]);
+                foreach ($recipients as $r) {
+                    $whatsappPhone = $r['phone'] ?? null;
+                    if (!$whatsappPhone) continue;
+                    $parentName = $r['name'] ?? null;
+                    $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+                    $waVars = $variables;
+                    $waVars['parent_name'] = $parentName ?? 'Parent';
+                    $waVars['greeting'] = $greeting;
+                    $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $waVars);
+                    if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
+                        $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";
+                    }
+                    if ($combined && $breakdown) {
+                        $whatsappMessage .= "\n\nBreakdown:\n{$breakdown}";
+                    }
+                    $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
+
+                    $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
+
+                    \App\Models\CommunicationLog::create([
+                        'recipient_type' => 'parent',
+                        'recipient_id'   => $parent->id ?? null,
+                        'contact'        => $whatsappPhone,
+                        'channel'        => 'whatsapp',
+                        'title'          => $whatsappTemplate->subject ?? $whatsappTemplate->title,
+                        'message'        => $whatsappMessage,
+                        'type'           => 'whatsapp',
+                        'status'         => $status,
+                        'response'       => $response,
+                        'scope'          => 'whatsapp',
+                        'sent_at'        => now(),
+                        'payment_id'     => $payment->id,
+                        'provider_id'    => data_get($response, 'body.data.id')
+                                            ?? data_get($response, 'body.data.message.id')
+                                            ?? data_get($response, 'body.messageId')
+                                            ?? data_get($response, 'body.id'),
+                        'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
+                    ]);
+                }
             }
         }
     }

@@ -70,6 +70,7 @@ class ProcessSiblingPaymentsJob implements ShouldQueue
                 }
 
                 try {
+                    // For shared/sibling allocations, only send ONE combined notification (handled inside sendPaymentNotifications).
                     $paymentController->sendPaymentNotifications($payment);
                 } catch (\Exception $e) {
                     Log::warning('Payment notification failed for main payment', [
@@ -117,16 +118,6 @@ class ProcessSiblingPaymentsJob implements ShouldQueue
                     try {
                         // Generate receipt for sibling payment
                         $receiptService->generateReceipt($siblingPayment, ['save' => true]);
-
-                        // Send notifications for sibling payment
-                        try {
-                            $paymentController->sendPaymentNotifications($siblingPayment);
-                        } catch (\Exception $e) {
-                            Log::warning('Payment notification failed for sibling payment', [
-                                'payment_id' => $siblingPayment->id,
-                                'error' => $e->getMessage()
-                            ]);
-                        }
                     } catch (\Exception $e) {
                         Log::warning('Receipt generation failed for sibling payment', [
                             'payment_id' => $siblingPayment->id,
