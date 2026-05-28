@@ -116,10 +116,11 @@
                                 <th>Status</th>
                                 <th>Message preview</th>
                                 <th>Sent at</th>
+                                <th style="width:1%;">View</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($campaignLogs as $log)
+                            @foreach($campaignLogs as $i => $log)
                                 @php
                                     $statusCls = match(strtolower($log->status ?? '')) {
                                         'sent' => 'bg-success-subtle text-success',
@@ -132,6 +133,15 @@
                                     <td><span class="pill-badge {{ $statusCls }}">{{ ucfirst($log->status ?? '-') }}</span></td>
                                     <td><small class="text-muted">{{ Str::limit(strip_tags($log->message ?? '-'), 60) }}</small></td>
                                     <td><small>{{ $log->sent_at?->format('M d, H:i') ?? $log->created_at?->format('M d, H:i') ?? '-' }}</small></td>
+                                    <td>
+                                        <button type="button"
+                                                class="btn btn-sm btn-ghost-strong js-open-message"
+                                                data-index="{{ $i }}"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#messageViewerModal">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -139,6 +149,121 @@
                 </div>
             </div>
         </div>
+
+        {{-- Message viewer (one at a time) --}}
+        <div class="modal fade" id="messageViewerModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Message</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                            <span class="text-muted small">To:</span>
+                            <strong id="mvContact">-</strong>
+                            <span class="ms-2 pill-badge" id="mvStatus">-</span>
+                            <span class="ms-auto text-muted small" id="mvSentAt">-</span>
+                        </div>
+                        <div class="border rounded p-3 bg-body-tertiary">
+                            <div class="small" id="mvMessage" style="white-space: pre-wrap;"></div>
+                        </div>
+                        <div class="text-muted small mt-2" id="mvCounter">-</div>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-between">
+                        <div class="text-muted small">Tip: use ← / → keys</div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-secondary" id="mvPrevBtn">
+                                <i class="bi bi-chevron-left"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-settings-primary" id="mvNextBtn">
+                                Next <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @php
+            $mvLogs = $campaignLogs->values()->map(function ($log) {
+                $status = $log->status ?? '-';
+                $sentAt = $log->sent_at?->format('M d, Y H:i')
+                    ?? $log->created_at?->format('M d, Y H:i')
+                    ?? '-';
+                return [
+                    'contact' => (string) ($log->contact ?? '-'),
+                    'status' => (string) $status,
+                    'message' => (string) ($log->message ?? '-'),
+                    'sent_at' => (string) $sentAt,
+                ];
+            });
+        @endphp
+        <script>
+            (function () {
+                const logs = @json($mvLogs);
+                if (!Array.isArray(logs) || logs.length === 0) return;
+
+                let currentIndex = 0;
+
+                const elContact = document.getElementById('mvContact');
+                const elStatus = document.getElementById('mvStatus');
+                const elSentAt = document.getElementById('mvSentAt');
+                const elMessage = document.getElementById('mvMessage');
+                const elCounter = document.getElementById('mvCounter');
+                const btnPrev = document.getElementById('mvPrevBtn');
+                const btnNext = document.getElementById('mvNextBtn');
+                const modalEl = document.getElementById('messageViewerModal');
+
+                function statusClass(status) {
+                    const s = String(status || '').toLowerCase();
+                    if (s === 'sent') return 'bg-success-subtle text-success';
+                    if (s === 'failed') return 'bg-danger-subtle text-danger';
+                    return 'bg-secondary-subtle text-secondary';
+                }
+
+                function render(idx) {
+                    const i = Math.max(0, Math.min(idx, logs.length - 1));
+                    currentIndex = i;
+                    const item = logs[i] || {};
+
+                    if (elContact) elContact.textContent = item.contact ?? '-';
+                    if (elSentAt) elSentAt.textContent = item.sent_at ?? '-';
+                    if (elMessage) elMessage.textContent = item.message ?? '-';
+
+                    if (elStatus) {
+                        elStatus.className = 'pill-badge ' + statusClass(item.status);
+                        elStatus.textContent = (item.status ?? '-');
+                    }
+
+                    if (elCounter) elCounter.textContent = `Message ${i + 1} of ${logs.length}`;
+                    if (btnPrev) btnPrev.disabled = i <= 0;
+                    if (btnNext) btnNext.disabled = i >= logs.length - 1;
+                }
+
+                function prev() { render(currentIndex - 1); }
+                function next() { render(currentIndex + 1); }
+
+                document.querySelectorAll('.js-open-message').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const idx = Number(btn.getAttribute('data-index') || 0);
+                        render(idx);
+                    });
+                });
+
+                if (btnPrev) btnPrev.addEventListener('click', prev);
+                if (btnNext) btnNext.addEventListener('click', next);
+
+                document.addEventListener('keydown', (e) => {
+                    if (!modalEl || !modalEl.classList.contains('show')) return;
+                    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+                    if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+                });
+
+                // Default initial render
+                render(0);
+            })();
+        </script>
         @endif
     </div>
 </div>
