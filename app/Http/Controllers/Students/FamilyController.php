@@ -656,6 +656,29 @@ class FamilyController extends Controller
                 $oldFamily = Family::find($familyId);
                 if ($oldFamily) {
                     Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
+                    // Keep all finance + link references consistent when merging families.
+                    // Without this, invoices/payment_links/discounts may still point to a removed family.
+                    foreach ([
+                        'invoices',
+                        'payments',
+                        'payment_links',
+                        'fee_concessions',
+                        'family_update_links',
+                        'family_receipt_links',
+                        'family_update_audits',
+                        'bank_statement_transactions',
+                    ] as $table) {
+                        try {
+                            if (\Illuminate\Support\Facades\Schema::hasTable($table)
+                                && \Illuminate\Support\Facades\Schema::hasColumn($table, 'family_id')) {
+                                DB::table($table)
+                                    ->where('family_id', $oldFamily->id)
+                                    ->update(['family_id' => $family->id]);
+                            }
+                        } catch (\Throwable) {
+                        }
+                    }
+
                     $oldFamily->delete();
                 }
             }

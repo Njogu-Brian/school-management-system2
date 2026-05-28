@@ -394,6 +394,17 @@ class Student extends Model
     }
 
     /**
+     * Route-model binding should allow archived & alumni students too.
+     * Otherwise nested resources (medical, disciplinary, academic history, etc.)
+     * can 404/500 due to the global "active" scope.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $field = $field ?: $this->getRouteKeyName();
+        return static::withArchived()->where($field, $value)->firstOrFail();
+    }
+
+    /**
      * Get total outstanding balance including balance brought forward from legacy data.
      * 
      * @return float Total outstanding balance

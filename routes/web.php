@@ -1089,10 +1089,12 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     // Archived list must be defined before the resource route to avoid being captured by /students/{student}
     Route::get('/students/archived', [StudentController::class, 'archived'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.archived');
+
+    Route::get('/students/alumni', [StudentController::class, 'alumni'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.alumni');
     
-    // Alumni and Archived students comprehensive view
-    Route::get('/students/alumni-and-archived', [StudentController::class, 'alumniAndArchived'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.alumni-and-archived');
+    // Note: legacy "alumni-and-archived" combined view removed in favor of separate lists:
+    // /students/alumni and /students/archived
 
     // Parents contact list (child, class, admission, father/mother name, phone, email, whatsapp)
     Route::get('/students/parents-contact', [StudentController::class, 'parentsContact'])

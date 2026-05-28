@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Family extends Model
 {
     use \App\Models\Concerns\NormalizesNameAttributes;
+    use SoftDeletes;
 
     protected static array $sentenceCaseNameAttributes = [
         'guardian_name',

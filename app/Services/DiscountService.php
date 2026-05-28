@@ -20,7 +20,18 @@ class DiscountService
     public function applyDiscountsToInvoice(Invoice $invoice, bool $forceReapply = false): Invoice
     {
         return DB::transaction(function () use ($invoice, $forceReapply) {
+            // Student may be archived/alumni and excluded by Student global scopes.
+            // Always resolve using withArchived when available so invoice views work for all statuses.
             $student = $invoice->student;
+            if (! $student && $invoice->student_id) {
+                try {
+                    $student = Student::withArchived()->find($invoice->student_id);
+                } catch (\Throwable) {
+                    $student = null;
+                }
+            }
+            $studentId = $student?->id ?? (int) ($invoice->student_id ?? 0);
+            $familyId = $student?->family_id ?? $invoice->family_id;
             
             // Get term number from term_id relationship if term integer is not set
             $termNumber = $invoice->term;
@@ -45,11 +56,13 @@ class DiscountService
             }
             
             // Get applicable concessions for this student
-            $concessions = FeeConcession::where(function ($q) use ($student) {
-                $q->where('student_id', $student->id)
-                  ->orWhere(function ($sq) use ($student) {
-                      if ($student->family_id) {
-                          $sq->where('family_id', $student->family_id)
+            $concessions = FeeConcession::where(function ($q) use ($studentId, $familyId) {
+                if ($studentId) {
+                    $q->where('student_id', $studentId);
+                }
+                $q->orWhere(function ($sq) use ($familyId) {
+                      if ($familyId) {
+                          $sq->where('family_id', $familyId)
                             ->where('scope', 'family');
                       }
                   });

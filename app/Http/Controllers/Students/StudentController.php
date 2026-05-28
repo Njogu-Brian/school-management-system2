@@ -199,79 +199,73 @@ class StudentController extends Controller
     public function archived(Request $request)
     {
         $perPage = (int) $request->input('per_page', 20);
-        $students = Student::withArchived()
+        $query = Student::withArchived()
             ->where('archive', 1)
             ->where('is_alumni', false)
             ->with(['parent','classroom','stream','category'])
-            ->orderByDesc('archived_at')
-            ->paginate($perPage)
-            ->withQueryString();
+            ->orderByDesc('archived_at');
+
+        // Filters (match students list behavior)
+        if ($request->filled('name')) {
+            $searchTerm = '%' . addcslashes($request->name, '%_\\') . '%';
+            $query->where(fn ($q) => $q->where('first_name', 'like', $searchTerm)
+                ->orWhere('middle_name', 'like', $searchTerm)
+                ->orWhere('last_name', 'like', $searchTerm));
+        }
+        if ($request->filled('admission_number')) {
+            $searchTerm = '%' . addcslashes($request->admission_number, '%_\\') . '%';
+            $query->where('admission_number', 'like', $searchTerm);
+        }
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
+        }
+
+        $students = $query->paginate($perPage)->withQueryString();
 
         return view('students.archived', compact('students'));
     }
 
     /**
-     * Alumni and archived students listing with comprehensive view
+     * Alumni students listing (separate from archived)
      */
-    public function alumniAndArchived(Request $request)
+    public function alumni(Request $request)
     {
         $perPage = (int) $request->input('per_page', 20);
-        $type = $request->input('type', 'all'); // all, alumni, archived
-        
+
         $query = Student::withArchived()
-            ->where(function($q) use ($type) {
-                if ($type === 'alumni') {
-                    $q->where('is_alumni', true);
-                } elseif ($type === 'archived') {
-                    $q->where('archive', 1)->where('is_alumni', false);
-                } else {
-                    // Show both alumni and archived
-                    $q->where(function($subQ) {
-                        $subQ->where('is_alumni', true)
-                             ->orWhere('archive', 1);
-                    });
-                }
-            })
-            ->with(['parent','classroom','stream','category']);
+            ->where('is_alumni', true)
+            ->with(['parent', 'classroom', 'stream', 'category'])
+            ->orderByDesc('alumni_date')
+            ->orderByDesc('updated_at');
 
-        // Apply filters
         if ($request->filled('name')) {
-            $name = $request->name;
-            $searchTerm = '%' . addcslashes($name, '%_\\') . '%';
-            $query->where(function($q) use ($searchTerm) {
-                $q->where('first_name', 'like', $searchTerm)
-                  ->orWhere('middle_name', 'like', $searchTerm)
-                  ->orWhere('last_name', 'like', $searchTerm);
-            });
+            $searchTerm = '%' . addcslashes($request->name, '%_\\') . '%';
+            $query->where(fn ($q) => $q->where('first_name', 'like', $searchTerm)
+                ->orWhere('middle_name', 'like', $searchTerm)
+                ->orWhere('last_name', 'like', $searchTerm));
         }
-
         if ($request->filled('admission_number')) {
             $searchTerm = '%' . addcslashes($request->admission_number, '%_\\') . '%';
             $query->where('admission_number', 'like', $searchTerm);
         }
-
         if ($request->filled('classroom_id')) {
             $query->where('classroom_id', $request->classroom_id);
         }
-
         if ($request->filled('stream_id')) {
             $query->where('stream_id', $request->stream_id);
         }
 
-        // Order by: alumni_date for alumni, archived_at for archived
-        $students = $query->orderByRaw('CASE 
-            WHEN is_alumni = 1 THEN alumni_date 
-            WHEN archive = 1 THEN archived_at 
-            ELSE created_at 
-        END DESC')
-        ->paginate($perPage)
-        ->withQueryString();
-
+        $students = $query->paginate($perPage)->withQueryString();
         $classrooms = Classroom::orderBy('name')->get();
         $streams = Stream::orderBy('name')->get();
 
-        return view('students.alumni_and_archived', compact('students', 'type', 'classrooms', 'streams'));
+        return view('students.alumni', compact('students', 'classrooms', 'streams'));
     }
+
+    // Legacy alumni+archived combined listing removed (use `alumni()` and `archived()`).
 
     /**
      * Get student details for AJAX modal view

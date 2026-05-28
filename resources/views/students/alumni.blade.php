@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Archived Students')
+@section('page-title', 'Alumni Students')
 
 @push('styles')
     @include('settings.partials.styles')
@@ -9,22 +9,21 @@
 @section('content')
 <div class="settings-page">
   <div class="settings-shell">
-    @include('students.partials.breadcrumbs', ['trail' => ['Archived' => null]])
+    @include('students.partials.breadcrumbs', ['trail' => ['Alumni' => null]])
 
-    {{-- Hero header to match other modules --}}
     <div class="hero-card mb-3">
       <div class="hero-details">
         <div class="hero-info">
           <div class="crumb text-light">Students</div>
-          <h1 class="mb-1 text-white">Archived Students</h1>
-          <p class="mb-0 text-light">Finance stays intact; restore to reactivate.</p>
+          <h1 class="mb-1 text-white">Alumni Students</h1>
+          <p class="mb-0 text-light">Graduated students. Records remain accessible (finance, attendance, academics, communication, medical).</p>
         </div>
         <div class="hero-actions d-flex gap-2 flex-wrap">
           <a href="{{ route('students.index') }}" class="btn btn-ghost-light">
             <i class="bi bi-arrow-left"></i> Back to Students
           </a>
           @if(Route::has('students.export'))
-          <a href="{{ route('students.export', request()->query()) }}" class="btn btn-ghost-light">
+          <a href="{{ route('students.export', array_merge(request()->query(), ['showArchived' => 1])) }}" class="btn btn-ghost-light">
             <i class="bi bi-download"></i> Export CSV
           </a>
           @endif
@@ -62,7 +61,7 @@
             <label class="form-label">Class</label>
             <select name="classroom_id" class="form-select">
               <option value="">All Classes</option>
-              @foreach(\App\Models\Academics\Classroom::orderBy('name')->get() as $classroom)
+              @foreach($classrooms as $classroom)
                 <option value="{{ $classroom->id }}" {{ request('classroom_id') == $classroom->id ? 'selected' : '' }}>{{ $classroom->name }}</option>
               @endforeach
             </select>
@@ -71,14 +70,14 @@
             <label class="form-label">Stream</label>
             <select name="stream_id" class="form-select">
               <option value="">All Streams</option>
-              @foreach(\App\Models\Academics\Stream::orderBy('name')->get() as $stream)
+              @foreach($streams as $stream)
                 <option value="{{ $stream->id }}" {{ request('stream_id') == $stream->id ? 'selected' : '' }}>{{ $stream->name }}</option>
               @endforeach
             </select>
           </div>
           <div class="col-12 d-flex align-items-end gap-2 flex-wrap">
             <button type="submit" class="btn btn-settings-primary"><i class="bi bi-funnel"></i> Apply</button>
-            <a href="{{ route('students.archived') }}" class="btn btn-ghost-strong">Clear</a>
+            <a href="{{ route('students.alumni') }}" class="btn btn-ghost-strong">Clear</a>
           </div>
         </form>
       </div>
@@ -87,8 +86,8 @@
     <div class="settings-card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>
-          <h5 class="mb-0">Archived List</h5>
-          <p class="text-muted small mb-0">Click a student to view profile.</p>
+          <h5 class="mb-0">Alumni List</h5>
+          <p class="text-muted small mb-0">Click a student to view full profile and records.</p>
         </div>
         <span class="pill-badge pill-secondary">{{ $students->total() }} students</span>
       </div>
@@ -101,8 +100,7 @@
                 <th>Student</th>
                 <th>Class</th>
                 <th>Stream</th>
-                <th>Archived</th>
-                <th>Reason</th>
+                <th>Alumni Date</th>
                 <th class="text-end">Actions</th>
               </tr>
             </thead>
@@ -125,36 +123,30 @@
                       </a>
                       <div class="text-muted small">
                         <span class="me-2">{{ $s->category->name ?? '—' }}</span>
-                        <span class="pill-badge pill-danger pill-sm">Archived</span>
+                        <span class="pill-badge pill-primary pill-sm"><i class="bi bi-mortarboard me-1"></i>Alumni</span>
+                        @if($s->archive)
+                          <span class="pill-badge pill-danger pill-sm ms-1"><i class="bi bi-archive me-1"></i>Archived</span>
+                        @endif
                       </div>
                     </div>
                   </div>
                 </td>
                 <td>{{ $s->classroom->name ?? '—' }}</td>
                 <td>{{ $s->stream->name ?? '—' }}</td>
-                <td>{{ $s->archived_at?->format('M d, Y H:i') ?? '—' }}</td>
-                <td>{{ $s->archived_reason ?? '—' }}</td>
+                <td>{{ $s->alumni_date?->format('M d, Y') ?? '—' }}</td>
                 <td class="text-end">
-                  <div class="d-flex gap-2 justify-content-end">
-                    <a href="{{ route('students.show', $s->id) }}" class="btn btn-ghost-strong btn-sm">
-                      <i class="bi bi-eye"></i>
-                    </a>
-                    <form action="{{ route('students.restore', $s->id) }}" method="POST" class="d-inline">
-                      @csrf
-                      <button type="submit" class="btn btn-success btn-sm">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
-                      </button>
-                    </form>
-                  </div>
+                  <a href="{{ route('students.show', $s->id) }}" class="btn btn-ghost-strong btn-sm">
+                    <i class="bi bi-eye"></i> View
+                  </a>
                 </td>
               </tr>
             @empty
               <tr>
-                <td colspan="7" class="text-center py-5">
+                <td colspan="6" class="text-center py-5">
                   <div class="empty-state">
-                    <i class="bi bi-archive display-4 text-muted mb-3 d-block"></i>
-                    <h6 class="fw-semibold mb-1">No archived students</h6>
-                    <p class="text-muted small mb-0">Archived students will appear here.</p>
+                    <i class="bi bi-mortarboard display-4 text-muted mb-3 d-block"></i>
+                    <h6 class="fw-semibold mb-1">No alumni students</h6>
+                    <p class="text-muted small mb-0">Students will appear here when they are marked as alumni.</p>
                   </div>
                 </td>
               </tr>
@@ -175,3 +167,4 @@
   </div>
 </div>
 @endsection
+

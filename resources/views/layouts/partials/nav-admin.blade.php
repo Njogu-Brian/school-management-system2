@@ -88,14 +88,14 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     <a href="{{ route('students.bulk.assign-categories') }}" class="{{ Request::is('students/bulk-assign-categories*') ? 'active' : '' }}"><i class="bi bi-tag"></i> Assign Categories</a>
     <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') && !Request::is('students/update-import*') ? 'active' : '' }}">Bulk Upload</a>
     <a href="{{ route('students.update-import') }}" class="{{ Request::is('students/update-import*') ? 'active' : '' }}"><i class="bi bi-arrow-repeat"></i> Update Import</a>
-    @if(Route::has('students.alumni-and-archived'))
-    <a href="{{ route('students.alumni-and-archived') }}" class="{{ Request::is('students/alumni-and-archived*') ? 'active' : '' }}">
-        <i class="bi bi-archive"></i> Alumni & Archived
+    @if(Route::has('students.archived'))
+    <a href="{{ route('students.archived') }}" class="{{ Request::is('students/archived*') ? 'active' : '' }}">
+        <i class="bi bi-archive-fill"></i> Archived Only
     </a>
     @endif
-    @if(Route::has('students.archived'))
-    <a href="{{ route('students.archived') }}" class="{{ Request::is('students/archived*') && !Request::is('students/alumni-and-archived*') ? 'active' : '' }}">
-        <i class="bi bi-archive-fill"></i> Archived Only
+    @if(Route::has('students.alumni'))
+    <a href="{{ route('students.alumni') }}" class="{{ Request::is('students/alumni*') ? 'active' : '' }}">
+        <i class="bi bi-mortarboard"></i> Alumni Only
     </a>
     @endif
     <a href="{{ route('student-categories.index') }}" class="{{ Request::is('student-categories*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Student Categories</a>
