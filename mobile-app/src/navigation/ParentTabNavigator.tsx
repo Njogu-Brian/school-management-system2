@@ -14,6 +14,7 @@ import { MoreScreen } from '@screens/More/MoreScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getDefaultTabScreenOptions } from './tabBarConfig';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -59,21 +60,7 @@ export const ParentTabNavigator: React.FC = () => {
     const insets = useSafeAreaInsets();
 
     return (
-        <Tab.Navigator
-            screenOptions={{
-                headerShown: false,
-                tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                tabBarStyle: {
-                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                    borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                    height: 56 + insets.bottom,
-                    paddingTop: 6,
-                    paddingBottom: Math.max(insets.bottom, 6),
-                },
-                tabBarItemStyle: { paddingVertical: 0 },
-            }}
-        >
+        <Tab.Navigator screenOptions={getDefaultTabScreenOptions(insets, colors, isDark, colors.primary)}>
             <Tab.Screen
                 name="ParentHomeTab"
                 component={ParentHomeStack}

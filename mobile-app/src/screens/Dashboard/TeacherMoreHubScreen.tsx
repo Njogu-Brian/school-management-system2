@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
-import { isSeniorTeacherRole } from '@utils/roleUtils';
+import { canViewTeamClockHistory, isSeniorTeacherRole } from '@utils/roleUtils';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -12,6 +12,7 @@ interface Item {
     icon: string;
     screen: string;
     seniorOnly?: boolean;
+    teamClockOnly?: boolean;
 }
 
 interface Props {
@@ -22,6 +23,7 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
     const { user, logout } = useAuth();
     const isSenior = user?.role ? isSeniorTeacherRole(user.role) : false;
+    const showTeamClock = canViewTeamClockHistory(user?.role);
 
     const items: Item[] = [
         { title: 'My profile', icon: 'person', screen: 'MyProfile' },
@@ -29,6 +31,7 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
         { title: 'My salary / payslips', icon: 'payments', screen: 'MySalary' },
         { title: 'Leave & apply', icon: 'event-busy', screen: 'Leave' },
         { title: 'Clock in / out', icon: 'access-time', screen: 'TeacherClock' },
+        { title: 'Team clock history', icon: 'history', screen: 'StaffClockTeam', teamClockOnly: true },
         { title: 'Transport list', icon: 'directions-bus', screen: 'TeacherTransport' },
         { title: 'Diary', icon: 'book', screen: 'Diary' },
         { title: 'Lesson plans', icon: 'menu-book', screen: 'LessonPlans' },
@@ -50,7 +53,7 @@ export const TeacherMoreHubScreen: React.FC<Props> = ({ navigation }) => {
         <SafeAreaView style={[styles.root, { backgroundColor: bg }]}>
             <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
                 {items
-                    .filter((i) => !i.seniorOnly || isSenior)
+                    .filter((i) => (!i.seniorOnly || isSenior) && (!i.teamClockOnly || showTeamClock))
                     .map((i) => (
                         <TouchableOpacity
                             key={i.screen}

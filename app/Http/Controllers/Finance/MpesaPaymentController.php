@@ -318,7 +318,7 @@ class MpesaPaymentController extends Controller
             }
 
             $amount = (float) $request->amount;
-            $familyId = $student->family_id;
+            $familyId = $student->family?->id;
 
             // One link per family (like profile-update): reuse same URL for all parents
             $paymentLink = null;

@@ -13,6 +13,7 @@ import { StudentTabNavigator } from './StudentTabNavigator';
 import { DriverTabNavigator } from './DriverTabNavigator';
 import { useTheme } from '@contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getDefaultTabScreenOptions } from './tabBarConfig';
 
 const Tab = createBottomTabNavigator();
 
@@ -34,19 +35,7 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
     ) {
         return (
             <Tab.Navigator
-                screenOptions={{
-                    headerShown: false,
-                    tabBarActiveTintColor: colors.primary,
-                    tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                    tabBarStyle: {
-                        backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                        borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                        height: 56 + insets.bottom,
-                        paddingTop: 6,
-                        paddingBottom: Math.max(insets.bottom, 6),
-                    },
-                    tabBarItemStyle: { paddingVertical: 0 },
-                }}
+                screenOptions={getDefaultTabScreenOptions(insets, colors, isDark, colors.primary)}
             >
                 <Tab.Screen
                     name="Dashboard"

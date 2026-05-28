@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Staff;
 use App\Models\StaffAttendance;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ApiStaffClockController extends Controller
 {
@@ -133,8 +136,8 @@ class ApiStaffClockController extends Controller
         }
 
         $staffId = (int) $request->user()->staff->id;
-        $limit = (int) $request->input('limit', 14);
-        $limit = max(1, min(60, $limit));
+        $limit = (int) $request->input('limit', 90);
+        $limit = max(1, min(180, $limit));
 
         $rows = StaffAttendance::where('staff_id', $staffId)
             ->orderByDesc('date')
@@ -143,18 +146,129 @@ class ApiStaffClockController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $rows->map(function (StaffAttendance $record) {
-                return [
-                    'id' => $record->id,
-                    'date' => $record->date ? Carbon::parse($record->date)->toDateString() : null,
-                    'status' => $record->status,
-                    'check_in_time' => $record->check_in_time ? Carbon::parse($record->check_in_time)->format('H:i:s') : null,
-                    'check_out_time' => $record->check_out_time ? Carbon::parse($record->check_out_time)->format('H:i:s') : null,
-                    'check_in_distance_meters' => $record->check_in_distance_meters,
-                    'check_out_distance_meters' => $record->check_out_distance_meters,
-                ];
-            })->values(),
+            'data' => $this->mapClockHistoryRows($rows),
         ]);
+    }
+
+    /**
+     * Staff roster for clock history (admins: all active staff; supervisors: subordinates).
+     */
+    public function clockRoster(Request $request)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        $isAdmin = $user->hasAnyRole(['Admin', 'Super Admin', 'admin', 'super admin']);
+        $myStaff = $user->staff;
+        $subordinateIds = $myStaff ? $this->subordinateStaffIdsFor($myStaff->id) : [];
+
+        if (! $isAdmin && $subordinateIds === []) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to view team clock history.'], 403);
+        }
+
+        $query = Staff::query()->where('employment_status', 'active')->orderBy('first_name')->orderBy('last_name');
+
+        if (! $isAdmin) {
+            $query->whereIn('id', $subordinateIds);
+        }
+
+        $rows = $query->get(['id', 'staff_id', 'first_name', 'last_name']);
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows->map(fn (Staff $s) => [
+                'id' => $s->id,
+                'staff_id' => $s->staff_id,
+                'full_name' => $s->full_name,
+            ])->values(),
+        ]);
+    }
+
+    /**
+     * Clock in/out history for a staff member (self, admin, or supervisor of subordinate).
+     */
+    public function staffHistory(Request $request)
+    {
+        $user = $request->user();
+        if (! $user || ! $user->staff) {
+            return response()->json(['success' => false, 'message' => 'No staff profile linked to this account.'], 422);
+        }
+
+        $validated = $request->validate([
+            'staff_id' => 'required|integer|exists:staff,id',
+            'limit' => 'nullable|integer|min:1|max:180',
+        ]);
+
+        $targetStaffId = (int) $validated['staff_id'];
+        $myStaffId = (int) $user->staff->id;
+        $isAdmin = $user->hasAnyRole(['Admin', 'Super Admin', 'admin', 'super admin']);
+        $subordinateIds = $this->subordinateStaffIdsFor($myStaffId);
+
+        $allowed = $isAdmin
+            || $targetStaffId === $myStaffId
+            || in_array($targetStaffId, $subordinateIds, true);
+
+        if (! $allowed) {
+            return response()->json(['success' => false, 'message' => 'You cannot view clock history for this staff member.'], 403);
+        }
+
+        $limit = (int) ($validated['limit'] ?? 90);
+        $limit = max(1, min(180, $limit));
+
+        $rows = StaffAttendance::where('staff_id', $targetStaffId)
+            ->orderByDesc('date')
+            ->limit($limit)
+            ->get();
+
+        $target = Staff::find($targetStaffId);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'staff' => $target ? [
+                    'id' => $target->id,
+                    'full_name' => $target->full_name,
+                ] : null,
+                'history' => $this->mapClockHistoryRows($rows),
+            ],
+        ]);
+    }
+
+    /**
+     * @return int[]
+     */
+    private function subordinateStaffIdsFor(int $supervisorStaffId): array
+    {
+        $ids = Staff::where('supervisor_id', $supervisorStaffId)->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if (Schema::hasTable('staff_supervisor')) {
+            $pivotIds = DB::table('staff_supervisor')
+                ->where('supervisor_staff_id', $supervisorStaffId)
+                ->pluck('staff_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $ids = array_merge($ids, $pivotIds);
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function mapClockHistoryRows($rows): array
+    {
+        return $rows->map(function (StaffAttendance $record) {
+            return [
+                'id' => $record->id,
+                'staff_id' => $record->staff_id,
+                'date' => $record->date ? Carbon::parse($record->date)->toDateString() : null,
+                'status' => $record->status,
+                'check_in_time' => $record->check_in_time ? Carbon::parse($record->check_in_time)->format('H:i:s') : null,
+                'check_out_time' => $record->check_out_time ? Carbon::parse($record->check_out_time)->format('H:i:s') : null,
+                'check_in_distance_meters' => $record->check_in_distance_meters,
+                'check_out_distance_meters' => $record->check_out_distance_meters,
+            ];
+        })->values()->all();
     }
 
     public function clockIn(Request $request)

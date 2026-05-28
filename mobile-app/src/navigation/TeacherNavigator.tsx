@@ -9,6 +9,7 @@ import { StudentsListScreen } from '@screens/Students/StudentsListScreen';
 import { StudentDetailScreen } from '@screens/Students/StudentDetailScreen';
 import { MarkAttendanceScreen } from '@screens/Attendance/MarkAttendanceScreen';
 import { TeacherClockScreen } from '@screens/Attendance/TeacherClockScreen';
+import { StaffClockTeamScreen } from '@screens/Attendance/StaffClockTeamScreen';
 import { AttendanceRecordsScreen } from '@screens/Attendance/AttendanceRecordsScreen';
 import { TimetableScreen } from '@screens/Academics/TimetableScreen';
 import { AssignmentsScreen } from '@screens/Academics/AssignmentsScreen';
@@ -46,6 +47,7 @@ import { LessonPlanReviewQueueScreen } from '@screens/SeniorTeacher/LessonPlanRe
 import { LessonPlanRejectScreen } from '@screens/SeniorTeacher/LessonPlanRejectScreen';
 import { useTheme } from '@contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getDefaultTabScreenOptions } from './tabBarConfig';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -55,19 +57,7 @@ function TeacherTabs() {
     const insets = useSafeAreaInsets();
     return (
         <Tab.Navigator
-            screenOptions={{
-                headerShown: false,
-                tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                tabBarStyle: {
-                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                    borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                    height: 56 + insets.bottom,
-                    paddingTop: 6,
-                    paddingBottom: Math.max(insets.bottom, 6),
-                },
-                tabBarItemStyle: { paddingVertical: 0 },
-            }}
+            screenOptions={getDefaultTabScreenOptions(insets, colors, isDark, colors.primary)}
         >
             <Tab.Screen
                 name="Home"
@@ -118,6 +108,7 @@ export const TeacherNavigator = () => {
             <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
             <Stack.Screen name="TeacherClock" component={TeacherClockScreen} />
+            <Stack.Screen name="StaffClockTeam" component={StaffClockTeamScreen} />
             <Stack.Screen name="AttendanceRecords" component={AttendanceRecordsScreen} />
             <Stack.Screen name="Timetable" component={TimetableScreen} />
             <Stack.Screen name="Assignments" component={AssignmentsScreen} />

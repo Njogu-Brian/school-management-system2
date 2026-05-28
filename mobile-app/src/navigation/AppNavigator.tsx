@@ -44,6 +44,7 @@ const ROUTE_TITLES: Record<string, string> = {
     Attendance: 'Attendance',
     MarkAttendance: 'Mark attendance',
     TeacherClock: 'Teacher clock',
+    StaffClockTeam: 'Staff clock history',
     AttendanceRecords: 'Attendance records',
     AttendanceAnalytics: 'Attendance analytics',
     Finance: 'Finance',

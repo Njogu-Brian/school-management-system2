@@ -121,6 +121,8 @@ class StaffController extends Controller
         'job_title_id'      => 'nullable|exists:job_titles,id',
         'staff_category_id' => 'nullable|exists:staff_categories,id',
         'supervisor_id'     => 'nullable|exists:staff,id',
+        'supervisor_ids'    => 'nullable|array',
+        'supervisor_ids.*'  => 'exists:staff,id',
         'spatie_role_id'    => 'nullable|exists:roles,id',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'residential_address' => 'nullable|string|max:255',
@@ -187,6 +189,7 @@ class StaffController extends Controller
         }
 
         $staff = Staff::create($staffData);
+        $this->syncStaffSupervisorsFromRequest($staff, $request);
         $userId = auth()->id();
         $this->logPhoneNormalization(Staff::class, $staff->id, 'phone_number', $request->phone_number, $staffData['phone_number'] ?? null, '+254', 'staff_create', $userId);
         $this->logPhoneNormalization(Staff::class, $staff->id, 'emergency_contact_phone', $request->emergency_contact_phone, $staffData['emergency_contact_phone'] ?? null, '+254', 'staff_create', $userId);
@@ -349,7 +352,7 @@ class StaffController extends Controller
 
     public function edit($id)
     {
-        $staff        = Staff::with('meta', 'user.roles', 'statutoryExemptions')->findOrFail($id);
+        $staff        = Staff::with('meta', 'user.roles', 'statutoryExemptions', 'supervisors')->findOrFail($id);
         $supervisors  = Staff::where('id', '!=', $id)->get();
         $categories   = StaffCategory::all();
         $departments  = Department::all();
@@ -381,6 +384,8 @@ class StaffController extends Controller
             'job_title_id'      => 'nullable|exists:job_titles,id',
             'staff_category_id' => 'nullable|exists:staff_categories,id',
             'supervisor_id'     => 'nullable|exists:staff,id',
+            'supervisor_ids'    => 'nullable|array',
+            'supervisor_ids.*'  => 'exists:staff,id',
             'spatie_role_id'    => 'nullable|exists:roles,id',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'residential_address' => 'nullable|string|max:255',
@@ -452,6 +457,7 @@ class StaffController extends Controller
             }
 
             $staff->update($staffData);
+            $this->syncStaffSupervisorsFromRequest($staff, $request);
             $userId = auth()->id();
             $this->logPhoneNormalization(Staff::class, $staff->id, 'phone_number', $staff->getOriginal('phone_number'), $staffData['phone_number'] ?? null, '+254', 'staff_update', $userId);
             $this->logPhoneNormalization(Staff::class, $staff->id, 'emergency_contact_phone', $staff->getOriginal('emergency_contact_phone'), $staffData['emergency_contact_phone'] ?? null, '+254', 'staff_update', $userId);
@@ -1112,14 +1118,45 @@ class StaffController extends Controller
             }
         }
 
-        $updated = Staff::whereIn('id', $staffIds)
-            ->where('id', '!=', $supervisor->id) // Prevent self-supervision
-            ->update(['supervisor_id' => $request->supervisor_id]);
+        $updated = 0;
+        foreach ($staffIds as $staffId) {
+            if ((int) $staffId === (int) $supervisor->id) {
+                continue;
+            }
+            $staff = Staff::find($staffId);
+            if (! $staff) {
+                continue;
+            }
+            if (! $staff->supervisor_id) {
+                $staff->update(['supervisor_id' => $supervisor->id]);
+            }
+            if (\Illuminate\Support\Facades\Schema::hasTable('staff_supervisor')) {
+                $staff->supervisors()->syncWithoutDetaching([$supervisor->id]);
+            }
+            $updated++;
+        }
 
         if ($updated > 0) {
             return back()->with('success', "Successfully assigned {$supervisor->full_name} as supervisor to {$updated} staff member(s).");
         }
 
         return back()->with('error', 'No staff members were updated.');
+    }
+
+    /**
+     * @param  \Illuminate\Http\Request  $request
+     */
+    protected function syncStaffSupervisorsFromRequest(Staff $staff, $request): void
+    {
+        $ids = $request->input('supervisor_ids', []);
+        if (! is_array($ids)) {
+            $ids = [];
+        }
+        if ($request->filled('supervisor_id')) {
+            $ids[] = (int) $request->supervisor_id;
+        }
+        if ($ids !== [] || $request->has('supervisor_ids') || $request->filled('supervisor_id')) {
+            $staff->syncSupervisorAssignments($ids);
+        }
     }
 }

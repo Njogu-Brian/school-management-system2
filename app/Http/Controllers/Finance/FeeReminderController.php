@@ -333,7 +333,8 @@ class FeeReminderController extends Controller
         $financePortalLink = get_public_student_statement_url($student);
         $payLink = null;
         if ($student->family_id) {
-            $payLink = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $student->family_id, auth()->id(), 'fee_reminder')->getPaymentUrl();
+            $familyPayLink = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $student->family_id, auth()->id(), 'fee_reminder');
+            $payLink = $familyPayLink?->getPaymentUrl();
         }
 
         $variables = [
@@ -370,7 +371,8 @@ class FeeReminderController extends Controller
                 $variables['remaining_balance'] = number_format($remainingBalance, 2);
                 $variables['payment_plan_link'] = url('/payment-plan/' . $plan->hashed_id);
                 if ($student->family_id) {
-                    $variables['pay_link'] = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $student->family_id, auth()->id(), 'payment_plan_reminder')->getPaymentUrl();
+                    $familyPayLink = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $student->family_id, auth()->id(), 'payment_plan_reminder');
+                    $variables['pay_link'] = $familyPayLink?->getPaymentUrl() ?? '';
                 }
             }
         }

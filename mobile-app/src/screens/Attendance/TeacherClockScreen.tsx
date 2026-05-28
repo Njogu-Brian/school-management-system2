@@ -5,6 +5,8 @@ import * as Location from 'expo-location';
 import { Card } from '@components/common/Card';
 import { Button } from '@components/common/Button';
 import { useTheme } from '@contexts/ThemeContext';
+import { useAuth } from '@contexts/AuthContext';
+import { canViewTeamClockHistory } from '@utils/roleUtils';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { StaffClockHistoryItem, staffClockApi } from '@api/staffClock.api';
 
@@ -13,8 +15,14 @@ type ClockStatus = {
     checkOutTime: string | null;
 };
 
-export const TeacherClockScreen: React.FC = () => {
+interface TeacherClockScreenProps {
+    navigation?: { navigate: (screen: string) => void };
+}
+
+export const TeacherClockScreen: React.FC<TeacherClockScreenProps> = ({ navigation }) => {
     const { isDark, colors } = useTheme();
+    const { user } = useAuth();
+    const showTeamClockLink = canViewTeamClockHistory(user?.role);
     const [loading, setLoading] = useState(false);
     const [busyAction, setBusyAction] = useState<'in' | 'out' | null>(null);
     const [radius, setRadius] = useState(100);
@@ -49,7 +57,7 @@ export const TeacherClockScreen: React.FC = () => {
                 setClockStatus({ checkInTime: null, checkOutTime: null });
             }
 
-            const historyRes = await staffClockApi.getClockHistory(14);
+            const historyRes = await staffClockApi.getClockHistory(90);
             if (historyRes.success && historyRes.data) {
                 setHistory(historyRes.data);
             } else {
@@ -164,6 +172,15 @@ export const TeacherClockScreen: React.FC = () => {
                         style={styles.action}
                     />
                     <Button title="Refresh" onPress={loadData} variant="outline" fullWidth style={styles.action} loading={loading} />
+                    {showTeamClockLink && navigation ? (
+                        <Button
+                            title="View team clock history"
+                            onPress={() => navigation.navigate('StaffClockTeam')}
+                            variant="outline"
+                            fullWidth
+                            style={styles.action}
+                        />
+                    ) : null}
                 </Card>
 
                 <Card style={styles.section}>

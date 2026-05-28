@@ -220,8 +220,12 @@ class PaymentLink extends Model
      * Get or create an active family payment link (student_id null, family_id set).
      * Reuses an existing active link for the family. Used by receipt pay-now and payment plan.
      */
-    public static function getOrCreateFamilyLink(int $familyId, $createdBy = null, string $source = 'unified'): self
+    public static function getOrCreateFamilyLink(int $familyId, $createdBy = null, string $source = 'unified'): ?self
     {
+        if (!Family::where('id', $familyId)->exists()) {
+            return null;
+        }
+
         $existing = self::where('family_id', $familyId)
             ->whereNull('student_id')
             ->where('status', 'active')

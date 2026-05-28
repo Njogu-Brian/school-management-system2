@@ -1,6 +1,7 @@
 import { Alert, Linking, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';
+import { brandingApi } from '@api/branding.api';
 
 interface CheckForUpdatesOptions {
     silent?: boolean;
@@ -8,34 +9,53 @@ interface CheckForUpdatesOptions {
 }
 
 function isExpoGoEnvironment(): boolean {
-    // Do not read Updates.* here — accessing expo-updates before native init crashes
-    // (IllegalStateException: UpdatesController.instance was called before the module was initialized).
     return Constants.appOwnership === 'expo';
 }
 
-async function openStorePage(): Promise<void> {
-    const androidStoreUrl = 'market://details?id=com.schoolerp';
-    const androidFallbackUrl = 'https://play.google.com/store/apps/details?id=com.schoolerp';
-    const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-    const iosAppId = extra?.IOS_APP_STORE_ID?.trim();
-    const iosStoreUrl = iosAppId ? `itms-apps://itunes.apple.com/app/id${iosAppId}` : '';
-    const iosFallbackUrl = iosAppId ? `https://apps.apple.com/app/id${iosAppId}` : '';
+async function openApkDownloadUrl(url: string): Promise<void> {
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+        throw new Error('Could not open the download link.');
+    }
+    await Linking.openURL(url);
+}
 
+async function promptApkDownload(reason: string): Promise<boolean> {
     try {
-        if (Platform.OS === 'android') {
-            const canOpenMarket = await Linking.canOpenURL(androidStoreUrl);
-            await Linking.openURL(canOpenMarket ? androidStoreUrl : androidFallbackUrl);
-            return;
+        const branding = await brandingApi.getBranding();
+        const apkUrl = branding?.android_apk_download_url?.trim();
+        if (!apkUrl) {
+            Alert.alert(
+                'Install update manually',
+                `${reason}\n\nAsk your administrator to set MOBILE_APP_DOWNLOAD_URL on the server, or distribute a new APK.`,
+            );
+            return false;
         }
 
-        if (!iosStoreUrl || !iosFallbackUrl) {
-            return;
-        }
-
-        const canOpenIosStore = await Linking.canOpenURL(iosStoreUrl);
-        await Linking.openURL(canOpenIosStore ? iosStoreUrl : iosFallbackUrl);
+        return new Promise((resolve) => {
+            Alert.alert(
+                'New app version required',
+                `${reason}\n\nDownload the latest APK from your school and install it (you may need to allow installs from this browser).`,
+                [
+                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                    {
+                        text: 'Download APK',
+                        onPress: async () => {
+                            try {
+                                await openApkDownloadUrl(apkUrl);
+                                resolve(true);
+                            } catch (e: any) {
+                                Alert.alert('Download failed', e?.message || 'Could not open download link.');
+                                resolve(false);
+                            }
+                        },
+                    },
+                ],
+            );
+        });
     } catch {
-        // Keep this silent; caller already handles no-update / error messaging.
+        Alert.alert('Update unavailable', reason);
+        return false;
     }
 }
 
@@ -44,12 +64,17 @@ export async function checkForAppUpdate(options: CheckForUpdatesOptions = {}): P
 
     if (__DEV__ || isExpoGoEnvironment()) {
         if (showNoUpdateMessage) {
-            Alert.alert('Updates', 'Updates are checked in production builds.');
+            Alert.alert('Updates', 'Updates are checked in production builds installed from a release APK.');
         }
         return false;
     }
 
     if (!Updates.isEnabled) {
+        if (showNoUpdateMessage) {
+            await promptApkDownload(
+                'This build does not support in-app (OTA) updates. Use a release APK built with EAS, or download the latest APK.',
+            );
+        }
         return false;
     }
 
@@ -57,7 +82,7 @@ export async function checkForAppUpdate(options: CheckForUpdatesOptions = {}): P
         const update = await Updates.checkForUpdateAsync();
         if (!update.isAvailable) {
             if (showNoUpdateMessage) {
-                Alert.alert('Up to date', 'You are already on the latest version.');
+                Alert.alert('Up to date', 'You already have the latest app update.');
             }
             return false;
         }
@@ -68,7 +93,7 @@ export async function checkForAppUpdate(options: CheckForUpdatesOptions = {}): P
 
         Alert.alert(
             'Update available',
-            'A new version is ready. Update now to get the latest fixes and improvements.',
+            'A new version is ready. Tap Update now to download and apply it (no new APK install needed).',
             [
                 { text: 'Later', style: 'cancel' },
                 {
@@ -77,17 +102,27 @@ export async function checkForAppUpdate(options: CheckForUpdatesOptions = {}): P
                         try {
                             await Updates.fetchUpdateAsync();
                             await Updates.reloadAsync();
-                        } catch {
-                            await openStorePage();
+                        } catch (err: any) {
+                            const msg = err?.message || 'Could not apply the update.';
+                            if (Platform.OS === 'android') {
+                                await promptApkDownload(`${msg} You can install the latest APK instead.`);
+                            } else {
+                                Alert.alert('Update failed', msg);
+                            }
                         }
                     },
                 },
-            ]
+            ],
         );
         return true;
-    } catch {
+    } catch (err: any) {
         if (!silent && showNoUpdateMessage) {
-            Alert.alert('Update check failed', 'Could not check for updates right now.');
+            const msg = err?.message || 'Could not check for updates right now.';
+            if (Platform.OS === 'android') {
+                await promptApkDownload(msg);
+            } else {
+                Alert.alert('Update check failed', msg);
+            }
         }
         return false;
     }

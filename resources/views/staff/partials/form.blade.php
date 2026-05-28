@@ -144,16 +144,26 @@
               @endforeach
             </select>
           </div>
-          <div class="col-md-3">
-            <label class="form-label">Supervisor</label>
-            <select name="supervisor_id" class="form-select">
-              <option value="">—</option>
+          <div class="col-md-6">
+            <label class="form-label">Supervisors</label>
+            @php
+              $selectedSupervisorIds = old('supervisor_ids', isset($staff)
+                ? array_values(array_unique(array_filter(array_merge(
+                    $staff->supervisor_id ? [(int) $staff->supervisor_id] : [],
+                    $staff->relationLoaded('supervisors')
+                      ? $staff->supervisors->pluck('id')->map(fn ($id) => (int) $id)->all()
+                      : $staff->supervisors()->pluck('staff_supervisor.supervisor_staff_id')->map(fn ($id) => (int) $id)->all()
+                  ))))
+                : []);
+            @endphp
+            <select name="supervisor_ids[]" class="form-select" multiple size="4">
               @foreach(\App\Models\Staff::orderBy('first_name')->get() as $sp)
                 @if(!isset($staff) || $sp->id != $staff->id)
-                  <option value="{{ $sp->id }}" @selected(old('supervisor_id', $staff->supervisor_id ?? '')==$sp->id)>{{ $sp->full_name }}</option>
+                  <option value="{{ $sp->id }}" @selected(in_array($sp->id, $selectedSupervisorIds, true))>{{ $sp->full_name }}</option>
                 @endif
               @endforeach
             </select>
+            <small class="text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select more than one. The first selected is the primary supervisor.</small>
           </div>
 
           {{-- Employment Information --}}

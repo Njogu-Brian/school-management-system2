@@ -169,6 +169,7 @@ export const AdminDashboard = () => {
             { id: 'reqs', title: 'Requirements', icon: 'inventory-2', to: ['More', 'TeacherRequirements'] as const },
             { id: 'transport', title: 'Transport', icon: 'directions-bus', to: ['More', 'RoutesList'] as const },
             { id: 'leave', title: 'Leave', icon: 'event-busy', to: ['More', 'LeaveManagement'] as const },
+            { id: 'staff-clock', title: 'Staff clock history', icon: 'history', to: ['More', 'StaffClockTeam'] as const },
             { id: 'payroll', title: 'Payroll', icon: 'account-balance-wallet', to: ['More', 'PayrollRecords'] as const },
             { id: 'announcements', title: 'Announcements', icon: 'campaign', to: ['More', 'Announcements'] as const },
             { id: 'notifications', title: 'Notifications', icon: 'notifications', to: ['More', 'Notifications'] as const },

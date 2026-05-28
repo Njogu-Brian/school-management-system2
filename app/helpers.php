@@ -162,9 +162,14 @@ if (!function_exists('get_or_create_payment_link_for_student')) {
         $UNLIMITED_USES = 999999;
 
         // Siblings share one link: prefer family link (student_id null, family_id set)
-        if ($student->family_id) {
+        $familyId = $student->family_id;
+        $familyExists = $familyId
+            && class_exists(\App\Models\Family::class)
+            && \App\Models\Family::where('id', $familyId)->exists();
+
+        if ($familyExists) {
             $familyLink = \App\Models\PaymentLink::active()
-                ->where('family_id', $student->family_id)
+                ->where('family_id', $familyId)
                 ->whereNull('student_id')
                 ->first();
 
@@ -175,7 +180,7 @@ if (!function_exists('get_or_create_payment_link_for_student')) {
             // Create one family link for all siblings; amount = total family balance
             $familyTotalBalance = 0;
             if (class_exists(\App\Models\Invoice::class) && class_exists(\App\Models\Student::class)) {
-                $siblingIds = \App\Models\Student::where('family_id', $student->family_id)->pluck('id');
+                $siblingIds = \App\Models\Student::where('family_id', $familyId)->pluck('id');
                 $familyTotalBalance = \App\Models\Invoice::whereIn('student_id', $siblingIds)
                     ->get()
                     ->sum(fn($inv) => max(0, (float) $inv->balance));
@@ -185,11 +190,11 @@ if (!function_exists('get_or_create_payment_link_for_student')) {
             $link = \App\Models\PaymentLink::create([
                 'student_id' => null,
                 'invoice_id' => null,
-                'family_id' => $student->family_id,
+                'family_id' => $familyId,
                 'amount' => $familyTotalBalance,
                 'currency' => 'KES',
                 'description' => 'Pay fee balance - All children',
-                'account_reference' => 'FAM-' . $student->family_id,
+                'account_reference' => 'FAM-' . $familyId,
                 'status' => 'active',
                 'expires_at' => null,
                 'max_uses' => $UNLIMITED_USES,
@@ -303,6 +308,10 @@ if (!function_exists('ensure_family_payment_link')) {
     function ensure_family_payment_link($familyId)
     {
         if (!$familyId || !class_exists(\App\Models\PaymentLink::class) || !class_exists(\App\Models\Student::class)) {
+            return null;
+        }
+
+        if (!class_exists(\App\Models\Family::class) || !\App\Models\Family::where('id', $familyId)->exists()) {
             return null;
         }
 
@@ -655,7 +664,17 @@ if (!function_exists('is_supervisor')) {
         $staff = $user->staff ?? null;
         if (!$staff) return false;
         
-        return $staff->subordinates()->exists();
+        if ($staff->subordinates()->exists()) {
+            return true;
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('staff_supervisor')) {
+            return \Illuminate\Support\Facades\DB::table('staff_supervisor')
+                ->where('supervisor_staff_id', $staff->id)
+                ->exists();
+        }
+
+        return false;
     }
 }
 
@@ -671,7 +690,17 @@ if (!function_exists('get_subordinate_staff_ids')) {
         $staff = $user->staff ?? null;
         if (!$staff) return [];
         
-        return $staff->subordinates()->pluck('id')->toArray();
+        $ids = $staff->subordinates()->pluck('id')->toArray();
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('staff_supervisor')) {
+            $pivotIds = \Illuminate\Support\Facades\DB::table('staff_supervisor')
+                ->where('supervisor_staff_id', $staff->id)
+                ->pluck('staff_id')
+                ->toArray();
+            $ids = array_merge($ids, $pivotIds);
+        }
+
+        return array_values(array_unique(array_map('intval', $ids)));
     }
 }
 

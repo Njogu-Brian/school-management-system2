@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '@contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getDefaultTabScreenOptions } from './tabBarConfig';
 import { DriverHomeScreen } from '@screens/Transport/DriverHomeScreen';
 import { DriverActiveTripScreen } from '@screens/Transport/DriverActiveTripScreen';
 import { RoutesListScreen } from '@screens/Transport/RoutesListScreen';
@@ -43,21 +44,7 @@ export const DriverTabNavigator: React.FC = () => {
     const insets = useSafeAreaInsets();
 
     return (
-        <Tab.Navigator
-            screenOptions={{
-                headerShown: false,
-                tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                tabBarStyle: {
-                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                    borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                    height: 56 + insets.bottom,
-                    paddingTop: 6,
-                    paddingBottom: Math.max(insets.bottom, 6),
-                },
-                tabBarItemStyle: { paddingVertical: 0 },
-            }}
-        >
+        <Tab.Navigator screenOptions={getDefaultTabScreenOptions(insets, colors, isDark, colors.primary)}>
             <Tab.Screen
                 name="DriverHomeTab"
                 component={DriverHomeStack}

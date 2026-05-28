@@ -46,6 +46,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/staff-attendance/geofence', [ApiStaffClockController::class, 'updateGeofence']);
     Route::get('/staff-attendance/me/today', [ApiStaffClockController::class, 'today']);
     Route::get('/staff-attendance/me/history', [ApiStaffClockController::class, 'history']);
+    Route::get('/staff-attendance/clock-roster', [ApiStaffClockController::class, 'clockRoster']);
+    Route::get('/staff-attendance/staff/history', [ApiStaffClockController::class, 'staffHistory']);
     Route::post('/staff-attendance/clock-in', [ApiStaffClockController::class, 'clockIn']);
     Route::post('/staff-attendance/clock-out', [ApiStaffClockController::class, 'clockOut']);
 

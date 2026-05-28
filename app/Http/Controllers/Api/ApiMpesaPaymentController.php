@@ -151,8 +151,8 @@ class ApiMpesaPaymentController extends Controller
             abort(403, 'You do not have permission to load payment links.');
         }
 
-        if ($student->family_id) {
-            $link = ensure_family_payment_link($student->family_id);
+        if ($student->family) {
+            $link = ensure_family_payment_link($student->family->id);
         } else {
             $link = PaymentLink::active()
                 ->where('student_id', $student->id)

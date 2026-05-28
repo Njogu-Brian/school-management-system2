@@ -41,3 +41,22 @@ export function isSeniorTeacherRole(role: string): boolean {
     const r = normalizeRole(role);
     return r === UserRole.SENIOR_TEACHER || r === UserRole.SUPERVISOR;
 }
+
+/** Fee amounts: senior teachers and super admins only (class teachers see cleared/pending). */
+export function canViewStudentFeeAmounts(role: string | undefined): boolean {
+    if (!role) return false;
+    const r = normalizeRole(role);
+    return r === UserRole.SUPER_ADMIN || r === UserRole.SENIOR_TEACHER;
+}
+
+/** View clock in/out history for other staff (admin: all; supervisor/senior: team). */
+export function canViewTeamClockHistory(role: string | undefined): boolean {
+    if (!role) return false;
+    const r = normalizeRole(role);
+    return (
+        r === UserRole.SUPER_ADMIN ||
+        r === UserRole.ADMIN ||
+        r === UserRole.SUPERVISOR ||
+        r === UserRole.SENIOR_TEACHER
+    );
+}

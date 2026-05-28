@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useRef, ReactNode } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { authApi } from '@api/auth.api';
 import { apiClient } from '@api/client';
 import {
@@ -14,8 +15,10 @@ import {
     getUser,
     clearAuthData,
     saveRememberMe,
+    getRememberMe,
 } from '@utils/storage';
 import { normalizeRole } from '@utils/roleUtils';
+import { isSessionExpired, startSession, touchSession } from '@utils/session';
 
 function normalizeUserRole(u: any): User {
     if (!u) return u;
@@ -53,9 +56,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
             const token = await getToken();
 
+            if (token) {
+                const rememberMe = await getRememberMe();
+                if (await isSessionExpired(rememberMe)) {
+                    await clearAuthData();
+                    setState({
+                        isAuthenticated: false,
+                        user: null,
+                        token: null,
+                        loading: false,
+                        error: null,
+                    });
+                    return;
+                }
+                await touchSession();
+            }
+
             // Restore session whenever a token exists — validate with the API (not gated on "remember me").
-            // Previously we only called getProfile when remember===true, which left tokens in storage but
-            // set isAuthenticated false after restart, or caused confusing 401s when the UI thought the user was logged in.
             if (token) {
                 try {
                     const response = await authApi.getProfile();
@@ -126,6 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 await saveToken(token);
                 await saveUser(user);
                 await saveRememberMe(credentials.remember || false);
+                await startSession();
 
                 setState({
                     isAuthenticated: true,
@@ -157,6 +175,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await saveToken(payload.token);
         await saveUser(user);
         await saveRememberMe(true);
+        await startSession();
 
         setState({
             isAuthenticated: true,
@@ -205,6 +224,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
         return () => apiClient.setOnUnauthorized(null);
     }, []);
+
+    useEffect(() => {
+        const onAppStateChange = async (nextState: AppStateStatus) => {
+            if (nextState !== 'active') return;
+            const token = await getToken();
+            if (!token) return;
+            const rememberMe = await getRememberMe();
+            if (await isSessionExpired(rememberMe)) {
+                await logoutRef.current?.();
+            } else {
+                await touchSession();
+            }
+        };
+        const sub = AppState.addEventListener('change', onAppStateChange);
+        return () => sub.remove();
+    }, []);
+
+    useEffect(() => {
+        if (!state.isAuthenticated) return;
+        const interval = setInterval(async () => {
+            const rememberMe = await getRememberMe();
+            if (await isSessionExpired(rememberMe)) {
+                await logoutRef.current?.();
+            }
+        }, 60_000);
+        return () => clearInterval(interval);
+    }, [state.isAuthenticated]);
 
     const value: AuthContextType = {
         ...state,

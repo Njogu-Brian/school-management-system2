@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -238,7 +238,7 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
         );
     };
 
-    const renderFilterCard = () => (
+    const renderFilterCard = useCallback(() => (
         <View style={[styles.filterCard, { backgroundColor: surface, borderColor: border }]}>
             {listError ? (
                 <LoadErrorBanner
@@ -372,7 +372,31 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
                 ) : null}
             </View>
         </View>
-    );
+    ), [
+        listError,
+        applied,
+        scope,
+        classes,
+        streams,
+        selectedClassId,
+        selectedStreamId,
+        searchQuery,
+        classesError,
+        streamsError,
+        hideAdminActions,
+        isDark,
+        colors,
+        surface,
+        border,
+        textMain,
+        textSub,
+        fetchStudents,
+        loadClasses,
+        loadStreamsForClass,
+        navigation,
+    ]);
+
+    const listHeader = useMemo(() => renderFilterCard(), [renderFilterCard]);
 
     return (
         <SafeAreaView
@@ -382,8 +406,10 @@ export const StudentsListScreen: React.FC<StudentsListScreenProps> = ({ navigati
                 data={applied ? students : []}
                 renderItem={renderStudentCard}
                 keyExtractor={(item) => item.id.toString()}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
                 contentContainerStyle={{ paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: SPACING.xl }}
-                ListHeaderComponent={renderFilterCard}
+                ListHeaderComponent={listHeader}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}

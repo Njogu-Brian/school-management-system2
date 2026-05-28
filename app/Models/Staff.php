@@ -86,6 +86,44 @@ class Staff extends Model
     public function user(){ return $this->belongsTo(User::class); }
     public function supervisor(){ return $this->belongsTo(Staff::class, 'supervisor_id'); }
     public function subordinates(){ return $this->hasMany(Staff::class, 'supervisor_id'); }
+
+    /** Additional supervisors beyond the primary supervisor_id. */
+    public function supervisors()
+    {
+        return $this->belongsToMany(
+            Staff::class,
+            'staff_supervisor',
+            'staff_id',
+            'supervisor_staff_id'
+        )->withTimestamps();
+    }
+
+    /** Staff members who list this staff as a supervisor (primary or additional). */
+    public function supervisedStaff()
+    {
+        return $this->belongsToMany(
+            Staff::class,
+            'staff_supervisor',
+            'supervisor_staff_id',
+            'staff_id'
+        )->withTimestamps();
+    }
+
+    /**
+     * Sync supervisor assignments (primary + additional).
+     *
+     * @param  int[]  $supervisorIds
+     */
+    public function syncSupervisorAssignments(array $supervisorIds): void
+    {
+        $supervisorIds = array_values(array_unique(array_filter(array_map('intval', $supervisorIds))));
+        $supervisorIds = array_values(array_filter($supervisorIds, fn ($id) => $id !== (int) $this->id));
+
+        $this->supervisor_id = $supervisorIds[0] ?? null;
+        $this->save();
+
+        $this->supervisors()->sync($supervisorIds);
+    }
     public function meta(){ return $this->hasMany(StaffMeta::class); }
 
     public function category(){ return $this->belongsTo(StaffCategory::class, 'staff_category_id'); }

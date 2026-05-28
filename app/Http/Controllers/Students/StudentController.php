@@ -2085,8 +2085,8 @@ class StudentController extends Controller
             $student->family->load('updateLink');
         }
 
-        if ($student->family_id) {
-            ensure_family_payment_link($student->family_id);
+        if ($student->family) {
+            ensure_family_payment_link($student->family->id);
         }
 
         $commService = app(\App\Services\StudentCommunicationService::class);

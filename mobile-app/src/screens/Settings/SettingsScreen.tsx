@@ -21,7 +21,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { checkForAppUpdate } from '@services/update.service';
-import { authenticateWithBiometrics, canUseBiometrics, getBiometricAuthBundle, getBiometricEnabled, setBiometricEnabled } from '@utils/biometrics';
+import {
+    authenticateWithBiometrics,
+    canUseBiometrics,
+    clearBiometricFailureCount,
+    getBiometricAuthBundle,
+    getBiometricEnabled,
+    saveBiometricAuthBundle,
+    setBiometricEnabled,
+} from '@utils/biometrics';
+import { getToken } from '@utils/storage';
 import { authApi } from '@api/auth.api';
 import { staffClockApi } from '@api/staffClock.api';
 import * as Location from 'expo-location';
@@ -132,11 +141,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) =>
                         await setBiometricEnabled(true);
                         setBiometrics((prev) => ({ ...prev, enabled: true }));
 
-                        const creds = await getBiometricAuthBundle();
-                        if (!creds) {
+                        const token = await getToken();
+                        if (token) {
+                            await saveBiometricAuthBundle(token);
+                            await clearBiometricFailureCount();
+                            Alert.alert('Biometrics enabled', 'You can sign in with biometrics on this device after signing out.');
+                        } else {
                             Alert.alert(
                                 'Biometrics enabled',
-                                'Biometric sign-in is enabled. To use it on the login screen, sign out and sign in once with your password to securely save credentials.'
+                                'Sign in once with your password to save credentials for biometric sign-in.',
                             );
                         }
                         return;

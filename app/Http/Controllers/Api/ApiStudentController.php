@@ -61,7 +61,7 @@ class ApiStudentController extends Controller
 
         $paginated = $query->orderBy('first_name')->paginate($perPage);
 
-        $data = $paginated->getCollection()->map(fn($s) => $this->formatStudent($s))->values();
+        $data = $paginated->getCollection()->map(fn ($s) => $this->formatStudent($s, $user))->values();
 
         return response()->json([
             'success' => true,
@@ -97,7 +97,7 @@ class ApiStudentController extends Controller
             }
         }
 
-        return response()->json(['success' => true, 'data' => $this->formatStudent($student)]);
+        return response()->json(['success' => true, 'data' => $this->formatStudent($student, $user)]);
     }
 
     /**
@@ -142,18 +142,22 @@ class ApiStudentController extends Controller
         $attending = $num + $late;
         $attendancePct = $expectedSchoolDays > 0 ? round(100 * $attending / $expectedSchoolDays, 1) : null;
 
-        $feesBalance = (float) StudentBalanceService::getTotalOutstandingBalance($student);
+        $data = [
+            'attendance_percentage' => $attendancePct,
+            'expected_school_days' => $expectedSchoolDays,
+            'attendance_records_count' => $records->count(),
+            'attendance_days_marked' => $records->count(),
+            'exam_average' => null,
+        ];
+
+        if ($user && $user->canViewStudentFeeAmounts()) {
+            $feesBalance = (float) StudentBalanceService::getTotalOutstandingBalance($student);
+            $data['fees_balance'] = round($feesBalance, 2);
+        }
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'attendance_percentage' => $attendancePct,
-                'expected_school_days' => $expectedSchoolDays,
-                'attendance_records_count' => $records->count(),
-                'attendance_days_marked' => $records->count(),
-                'fees_balance' => round($feesBalance, 2),
-                'exam_average' => null,
-            ],
+            'data' => $data,
         ]);
     }
 
@@ -200,8 +204,9 @@ class ApiStudentController extends Controller
         return response()->json(['success' => true, 'data' => $rows]);
     }
 
-    protected function formatStudent(Student $s): array
+    protected function formatStudent(Student $s, ?\App\Models\User $user = null): array
     {
+        $user = $user ?? auth()->user();
         $fullName = trim(($s->first_name ?? '') . ' ' . ($s->middle_name ?? '') . ' ' . ($s->last_name ?? ''));
         $parent = $s->parent;
 
@@ -288,7 +293,7 @@ class ApiStudentController extends Controller
             'admission_date' => $s->admission_date ? $s->admission_date->format('Y-m-d') : null,
             'enrollment_year' => $s->enrollment_year ?? null,
             'fee_status' => $feeInfo['status'],
-            'outstanding_balance' => $feeInfo['balance'],
+            'outstanding_balance' => ($user && $user->canViewStudentFeeAmounts()) ? $feeInfo['balance'] : null,
             'parent' => $parent ? [
                 'father_name' => $parent->father_name,
                 'mother_name' => $parent->mother_name,

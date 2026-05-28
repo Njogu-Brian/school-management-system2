@@ -34,8 +34,7 @@ export default {
     updates: {
       url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
       enabled: updatesEnabledInThisBinary,
-      checkAutomatically:
-        process.env.EXPO_PUBLIC_UPDATES_ON_LOAD === '1' ? 'ON_LOAD' : 'NEVER',
+      checkAutomatically: updatesEnabledInThisBinary ? 'ON_LOAD' : 'NEVER',
       fallbackToCacheTimeout: 0,
     },
     runtimeVersion: process.env.EXPO_RUNTIME_VERSION || '1.0.0',

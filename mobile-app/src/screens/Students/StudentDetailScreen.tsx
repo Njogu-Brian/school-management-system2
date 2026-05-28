@@ -29,7 +29,7 @@ import { BRAND, RADIUS } from '@constants/designTokens';
 import { layoutStyles } from '@styles/common';
 import { MpesaPromptModal } from '@components/MpesaPromptModal';
 import { canUseMpesaFinanceTools } from '@utils/financeRoles';
-import { normalizeRole } from '@utils/roleUtils';
+import { canViewStudentFeeAmounts, normalizeRole } from '@utils/roleUtils';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { FeeStatusBadge } from '@components/common/FeeStatusBadge';
 
@@ -49,11 +49,15 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
     const canManageStudents = !!(user && MANAGER_ROLES.includes(user.role));
     const canFinanceMpesa = canUseMpesaFinanceTools(user);
     const userRoleNorm = user?.role ? normalizeRole(user.role) : '';
-    /** Class teachers only — hide student finance tab; senior teachers, admins, finance, parents keep it. */
-    const showFinanceTabOnStudent = userRoleNorm !== UserRole.TEACHER;
     const isParentUser = !!(
         user && (user.role === UserRole.PARENT || user.role === UserRole.GUARDIAN)
     );
+    const mayViewFeeAmounts = canViewStudentFeeAmounts(user?.role);
+    /** Finance tab: parents/guardians and roles that may view fee amounts; class teachers/supervisors use status badge only. */
+    const showFinanceTabOnStudent =
+        isParentUser ||
+        mayViewFeeAmounts ||
+        [UserRole.ADMIN, UserRole.SECRETARY, UserRole.FINANCE, UserRole.ACCOUNTANT].includes(userRoleNorm as UserRole);
     const [mpesaOpen, setMpesaOpen] = useState(false);
 
     const [student, setStudent] = useState<Student | null>(null);
@@ -549,7 +553,7 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
                                 Finance
                             </Text>
                             <FeeStatusBadge fee_status={student.fee_status} outstanding_balance={student.outstanding_balance} />
-                            {feeBalance !== undefined && feeBalance !== null && (
+                            {mayViewFeeAmounts && feeBalance !== undefined && feeBalance !== null && (
                                 <View style={styles.financeRow}>
                                     <Text style={[styles.label, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>Outstanding</Text>
                                     <Text style={[styles.balanceAmount, { color: feeBalance > 0 ? colors.error : colors.success }]}>

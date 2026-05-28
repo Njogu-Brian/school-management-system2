@@ -14,7 +14,8 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
         "EXPO_PUBLIC_WEB_BASE_URL": "https://erp.royalkingsschools.sc.ke",
         "EXPO_PUBLIC_API_TIMEOUT": "30000",
-        "EXPO_PUBLIC_UPDATES_ENABLED": "1"
+        "EXPO_PUBLIC_UPDATES_ENABLED": "1",
+        "EXPO_PUBLIC_UPDATES_ON_LOAD": "1"
       }
     },
     "preview": {
@@ -27,7 +28,8 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
         "EXPO_PUBLIC_WEB_BASE_URL": "https://erp.royalkingsschools.sc.ke",
         "EXPO_PUBLIC_API_TIMEOUT": "30000",
-        "EXPO_PUBLIC_UPDATES_ENABLED": "1"
+        "EXPO_PUBLIC_UPDATES_ENABLED": "1",
+        "EXPO_PUBLIC_UPDATES_ON_LOAD": "1"
       }
     },
     "production": {
@@ -39,7 +41,8 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
         "EXPO_PUBLIC_WEB_BASE_URL": "https://erp.royalkingsschools.sc.ke",
         "EXPO_PUBLIC_API_TIMEOUT": "30000",
-        "EXPO_PUBLIC_UPDATES_ENABLED": "1"
+        "EXPO_PUBLIC_UPDATES_ENABLED": "1",
+        "EXPO_PUBLIC_UPDATES_ON_LOAD": "1"
       }
     }
   }

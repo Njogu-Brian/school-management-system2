@@ -29,13 +29,17 @@ import { authApi } from '@api/auth.api';
 import type { AppBranding } from 'types/branding.types';
 import {
     authenticateWithBiometrics,
+    BIOMETRIC_MAX_FAILURES,
     canUseBiometrics,
+    clearBiometricFailureCount,
     getBiometricAuthBundle,
     getBiometricEnabled,
+    getBiometricFailureCount,
+    incrementBiometricFailureCount,
+    isBiometricLoginLocked,
     saveBiometricAuthBundle,
-    setBiometricEnabled,
 } from '@utils/biometrics';
-import { getToken } from '@utils/storage';
+import { getToken, saveToken } from '@utils/storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID } from '@utils/env';
@@ -59,6 +63,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
     const [showBiometricButton, setShowBiometricButton] = useState(false);
+    const [biometricLocked, setBiometricLocked] = useState(false);
     const [branding, setBranding] = useState<AppBranding | null>(null);
     const [logoLoadFailed, setLogoLoadFailed] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
@@ -196,8 +201,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 const token = await getToken();
                 if (token) {
                     await saveBiometricAuthBundle(token);
-                    setShowBiometricButton(true);
                 }
+                await clearBiometricFailureCount();
+                setBiometricLocked(false);
                 setShowBiometricButton(true);
             }
         } catch (err: any) {
@@ -222,18 +228,49 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     };
 
     const handleBiometricLogin = async () => {
-        const success = await authenticateWithBiometrics('Authenticate to sign in');
-        if (!success) return;
-        const bundle = await getBiometricAuthBundle();
-        if (!bundle?.token) {
-            Alert.alert('Biometric login', 'No saved biometric session found. Login once with password.');
-            await setBiometricEnabled(false);
-            setShowBiometricButton(false);
+        if (await isBiometricLoginLocked()) {
+            Alert.alert(
+                'Biometric sign-in locked',
+                `After ${BIOMETRIC_MAX_FAILURES} failed attempts, sign in with your password. You can try biometrics again after a successful password login.`,
+            );
             return;
         }
+
+        const success = await authenticateWithBiometrics('Authenticate to sign in');
+        if (!success) {
+            const failures = await incrementBiometricFailureCount();
+            if (failures >= BIOMETRIC_MAX_FAILURES) {
+                setBiometricLocked(true);
+                setShowBiometricButton(false);
+                Alert.alert(
+                    'Biometric sign-in locked',
+                    'Too many failed attempts. Please sign in with your work email and password.',
+                );
+            }
+            return;
+        }
+
+        const bundle = await getBiometricAuthBundle();
+        if (!bundle?.token) {
+            Alert.alert('Biometric login', 'No saved session found. Sign in once with your password while biometrics are enabled in Settings.');
+            return;
+        }
+
         try {
-            await authApi.getProfile(); // validate token in secure store
+            await saveToken(bundle.token);
+            const response = await authApi.getProfile();
+            if (!response.success || !response.data) {
+                throw new Error(response.message || 'Session expired');
+            }
+            await clearBiometricFailureCount();
+            setBiometricLocked(false);
+            await completeLogin({ token: bundle.token, user: response.data });
         } catch (err: any) {
+            const failures = await incrementBiometricFailureCount();
+            if (failures >= BIOMETRIC_MAX_FAILURES) {
+                setBiometricLocked(true);
+                setShowBiometricButton(false);
+            }
             Alert.alert('Biometric login failed', err.message || 'Please sign in with password.');
         }
     };
@@ -426,6 +463,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                                     style={styles.biometricButton}
                                 />
                             ) : null}
+                            {biometricLocked ? (
+                                <Text style={[styles.biometricHint, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                    Biometric sign-in is temporarily locked. Use your password below.
+                                </Text>
+                            ) : null}
                             {Platform.OS === 'android' && branding?.android_apk_download_url ? (
                                 <TouchableOpacity
                                     style={styles.apkLink}
@@ -445,12 +487,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     useEffect(() => {
         (async () => {
-            const [enabled, available, creds] = await Promise.all([
+            const [enabled, available, creds, locked, failures] = await Promise.all([
                 getBiometricEnabled(),
                 canUseBiometrics(),
                 getBiometricAuthBundle(),
+                isBiometricLoginLocked(),
+                getBiometricFailureCount(),
             ]);
-            setShowBiometricButton(enabled && available && !!creds?.token);
+            setBiometricLocked(locked || failures >= BIOMETRIC_MAX_FAILURES);
+            setShowBiometricButton(
+                enabled && available && !!creds?.token && failures < BIOMETRIC_MAX_FAILURES && !locked,
+            );
         })();
     }, []);
 
@@ -631,6 +678,11 @@ const styles = StyleSheet.create({
     },
     biometricButton: {
         marginTop: SPACING.sm,
+    },
+    biometricHint: {
+        marginTop: SPACING.sm,
+        fontSize: FONT_SIZES.xs,
+        textAlign: 'center',
     },
     apkLink: {
         marginTop: SPACING.md,

@@ -10,6 +10,7 @@ import { StudentResultsScreen } from '@screens/Student/StudentResultsScreen';
 import { AnnouncementsScreen } from '@screens/Communication/AnnouncementsScreen';
 import { NotificationsScreen } from '@screens/Communication/NotificationsScreen';
 import { MoreScreen } from '@screens/More/MoreScreen';
+import { getDefaultTabScreenOptions } from './tabBarConfig';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -45,21 +46,7 @@ export const StudentTabNavigator: React.FC = () => {
     const insets = useSafeAreaInsets();
 
     return (
-        <Tab.Navigator
-            screenOptions={{
-                headerShown: false,
-                tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                tabBarStyle: {
-                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                    borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                    height: 56 + insets.bottom,
-                    paddingTop: 6,
-                    paddingBottom: Math.max(insets.bottom, 6),
-                },
-                tabBarItemStyle: { paddingVertical: 0 },
-            }}
-        >
+        <Tab.Navigator screenOptions={getDefaultTabScreenOptions(insets, colors, isDark, colors.primary)}>
             <Tab.Screen
                 name="StudentHomeTab"
                 component={StudentHomeStack}

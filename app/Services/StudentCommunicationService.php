@@ -190,11 +190,12 @@ class StudentCommunicationService
 
         if ($student->family_id && class_exists(\App\Models\PaymentLink::class)) {
             try {
-                $extra['pay_link'] = \App\Models\PaymentLink::getOrCreateFamilyLink(
+                $familyPayLink = \App\Models\PaymentLink::getOrCreateFamilyLink(
                     (int) $student->family_id,
                     auth()->id(),
                     'fee_reminder'
-                )->getPaymentUrl();
+                );
+                $extra['pay_link'] = $familyPayLink?->getPaymentUrl() ?? '';
             } catch (\Throwable $e) {
                 $extra['pay_link'] = '';
             }

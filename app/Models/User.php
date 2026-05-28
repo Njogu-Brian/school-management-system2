@@ -126,6 +126,21 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         return $this->hasAnyRole(['Senior Teacher', 'senior teacher', 'Senior teacher']);
     }
 
+    /**
+     * Whether this user may see student fee amounts (not just cleared/pending).
+     */
+    public function canViewStudentFeeAmounts(): bool
+    {
+        return $this->hasAnyRole([
+            'Super Admin',
+            'super admin',
+            'Super admin',
+            'Senior Teacher',
+            'senior teacher',
+            'Senior teacher',
+        ]);
+    }
+
     public function isDeputySeniorTeacherUser(): bool
     {
         return $this->hasAnyRole(['Deputy Senior Teacher', 'deputy senior teacher', 'Deputy senior teacher']);
@@ -293,6 +308,13 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         // Include staff who have this senior teacher as supervisor ("supervised by" assignment)
         if ($this->staff) {
             $subordinateIds = \App\Models\Staff::where('supervisor_id', $this->staff->id)->pluck('id')->toArray();
+            if (\Illuminate\Support\Facades\Schema::hasTable('staff_supervisor')) {
+                $pivotIds = \Illuminate\Support\Facades\DB::table('staff_supervisor')
+                    ->where('supervisor_staff_id', $this->staff->id)
+                    ->pluck('staff_id')
+                    ->toArray();
+                $subordinateIds = array_merge($subordinateIds, $pivotIds);
+            }
             $ids = array_merge($ids, $subordinateIds);
         }
 

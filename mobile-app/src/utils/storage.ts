@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { User } from 'types/auth.types';
+import { clearSessionTimestamps } from '@utils/session';
 
 const ASYNC_KEYS = {
     TOKEN: '@school_erp_token',
@@ -113,6 +114,7 @@ export const clearAuthData = async (): Promise<void> => {
             clearToken(),
             clearUser(),
             AsyncStorage.removeItem(ASYNC_KEYS.REMEMBER_ME),
+            clearSessionTimestamps(),
         ]);
     } catch (error) {
         console.error('Error clearing auth data:', error);

@@ -1542,7 +1542,9 @@ class StudentStatementController extends Controller
         $paymentLinkUrl = null;
         if ($student->family_id) {
             $paymentLink = \App\Models\PaymentLink::getOrCreateFamilyLink($student->family_id, null, 'statement_public');
-            $paymentLinkUrl = route('payment.link.show', $paymentLink->hashed_id);
+            if ($paymentLink) {
+                $paymentLinkUrl = route('payment.link.show', $paymentLink->hashed_id);
+            }
         }
         $updateLinkUrl = ($student->family && $student->family->updateLink && $student->family->updateLink->is_active)
             ? route('family-update.form', $student->family->updateLink->token)

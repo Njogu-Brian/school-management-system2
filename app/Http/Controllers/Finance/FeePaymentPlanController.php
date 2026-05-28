@@ -487,7 +487,9 @@ public function store(Request $request)
         if ($plan->student) {
             if ($plan->student->family_id) {
                 $link = \App\Models\PaymentLink::getOrCreateFamilyLink($plan->student->family_id, null, 'payment_plan');
-                $payNowUrl = route('payment.link.show', $link->hashed_id);
+                if ($link) {
+                    $payNowUrl = route('payment.link.show', $link->hashed_id);
+                }
             } else {
                 $existing = \App\Models\PaymentLink::where('student_id', $plan->student->id)
                     ->where('status', 'active')

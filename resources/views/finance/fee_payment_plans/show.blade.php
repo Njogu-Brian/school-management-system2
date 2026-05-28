@@ -20,7 +20,7 @@
         }
         if ($feePaymentPlan->student && $feePaymentPlan->student->family_id) {
             $link = \App\Models\PaymentLink::getOrCreateFamilyLink((int) $feePaymentPlan->student->family_id, auth()->id(), 'payment_plan_show');
-            $payNowUrl = $link->getPaymentUrl();
+            $payNowUrl = $link?->getPaymentUrl();
         }
     @endphp
 

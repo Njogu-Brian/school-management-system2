@@ -20,6 +20,7 @@ import { LessonPlanReviewQueueScreen } from '@screens/SeniorTeacher/LessonPlanRe
 import { LessonPlanRejectScreen } from '@screens/SeniorTeacher/LessonPlanRejectScreen';
 
 import { MoreNavigator } from './MoreNavigator';
+import { getDefaultTabScreenOptions } from './tabBarConfig';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -56,21 +57,7 @@ export const AcademicAdminNavigator = () => {
     const insets = useSafeAreaInsets();
 
     return (
-        <Tab.Navigator
-            screenOptions={{
-                headerShown: false,
-                tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                tabBarStyle: {
-                    backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                    borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                    height: 56 + insets.bottom,
-                    paddingTop: 6,
-                    paddingBottom: Math.max(insets.bottom, 6),
-                },
-                tabBarItemStyle: { paddingVertical: 0 },
-            }}
-        >
+        <Tab.Navigator screenOptions={getDefaultTabScreenOptions(insets, colors, isDark, colors.primary)}>
             <Tab.Screen
                 name="Dashboard"
                 component={AdminDashboard}

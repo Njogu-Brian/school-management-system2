@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL, API_TIMEOUT } from '@utils/env';
 import { getToken, clearToken } from '@utils/storage';
+import { touchSession } from '@utils/session';
 import { ApiError, ApiResponse } from 'types/api.types';
 
 type UnauthorizedCallback = () => void | Promise<void>;
@@ -57,6 +58,9 @@ class ApiClient {
         // Response interceptor - handle errors
         this.client.interceptors.response.use(
             (response) => {
+                if (response.status >= 200 && response.status < 300) {
+                    void touchSession();
+                }
                 return response;
             },
             async (error: AxiosError) => {

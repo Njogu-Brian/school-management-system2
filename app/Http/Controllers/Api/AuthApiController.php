@@ -43,13 +43,15 @@ class AuthApiController extends Controller
         // Revoke other tokens for this user (single device) or keep many - we'll keep one per login
         $user->tokens()->delete();
 
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        $expiresAt = now()->addDays(7);
+        $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
 
         return response()->json([
             'success' => true,
             'data' => [
                 'token' => $token,
                 'user' => $this->formatUserForApi($user),
+                'expires_at' => $expiresAt->toIso8601String(),
             ],
         ]);
     }
@@ -104,13 +106,15 @@ class AuthApiController extends Controller
 
         $user->load('roles', 'roles.permissions', 'staff');
         $user->tokens()->delete();
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        $expiresAt = now()->addDays(7);
+        $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
 
         return response()->json([
             'success' => true,
             'data' => [
                 'token' => $token,
                 'user' => $this->formatUserForApi($user),
+                'expires_at' => $expiresAt->toIso8601String(),
             ],
         ]);
     }
@@ -188,13 +192,15 @@ class AuthApiController extends Controller
 
         $user->load('roles', 'roles.permissions', 'staff');
         $user->tokens()->delete();
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        $expiresAt = now()->addDays(7);
+        $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
 
         return response()->json([
             'success' => true,
             'data' => [
                 'token' => $token,
                 'user' => $this->formatUserForApi($user),
+                'expires_at' => $expiresAt->toIso8601String(),
             ],
         ]);
     }

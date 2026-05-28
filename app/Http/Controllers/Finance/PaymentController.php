@@ -2453,7 +2453,11 @@ class PaymentController extends Controller
         }
         // Family: use unified family link (allows paying all siblings)
         $link = \App\Models\PaymentLink::getOrCreateFamilyLink($familyId, $payment->created_by ?? null, 'receipt_pay_now');
-        return redirect()->route('payment.link.show', $link->hashed_id);
+        if ($link) {
+            return redirect()->route('payment.link.show', $link->hashed_id);
+        }
+
+        return redirect()->to('/receipt/' . $token)->with('error', 'Family payment link is unavailable. Please contact the school office.');
     }
 
     /**

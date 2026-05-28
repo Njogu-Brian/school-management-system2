@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useAuth } from '@contexts/AuthContext';
+import { canViewStudentFeeAmounts } from '@utils/roleUtils';
 
 type FeeStatus = 'cleared' | 'pending';
 
@@ -8,7 +10,10 @@ export const FeeStatusBadge: React.FC<{
     fee_status?: FeeStatus | null;
     outstanding_balance?: number | null;
     compact?: boolean;
-}> = ({ fee_status, outstanding_balance: _outstanding_balance, compact }) => {
+}> = ({ fee_status, outstanding_balance, compact }) => {
+    const { user } = useAuth();
+    const mayShowAmount = canViewStudentFeeAmounts(user?.role);
+
     if (!fee_status) return null;
     const cleared = fee_status === 'cleared';
 
@@ -16,9 +21,12 @@ export const FeeStatusBadge: React.FC<{
     const border = cleared ? '#2E7D32' : '#C62828';
     const fg = cleared ? '#2E7D32' : '#C62828';
 
-    // Important: Teachers/drivers must not see any fee amounts here. The server decides
-    // pending vs cleared (thresholds, plans, deadlines). UI only displays the status.
-    const label = cleared ? 'Cleared' : 'Pending';
+    // Class teachers / supervisors: status only. Senior teachers & super admins may see amounts.
+    const label = cleared
+        ? 'Cleared'
+        : mayShowAmount && outstanding_balance != null && outstanding_balance > 0
+          ? `Pending (${Number(outstanding_balance).toFixed(0)})`
+          : 'Pending';
 
     return (
         <View

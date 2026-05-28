@@ -21,12 +21,19 @@ export interface StaffTodayClock {
 
 export interface StaffClockHistoryItem {
     id: number;
+    staff_id?: number;
     date: string | null;
     status: string;
     check_in_time: string | null;
     check_out_time: string | null;
     check_in_distance_meters: number | null;
     check_out_distance_meters: number | null;
+}
+
+export interface StaffClockRosterItem {
+    id: number;
+    staff_id: string;
+    full_name: string;
 }
 
 interface ClockPayload {
@@ -52,8 +59,18 @@ export const staffClockApi = {
         return apiClient.get<StaffTodayClock | null>('/staff-attendance/me/today');
     },
 
-    async getClockHistory(limit = 14): Promise<ApiResponse<StaffClockHistoryItem[]>> {
+    async getClockHistory(limit = 90): Promise<ApiResponse<StaffClockHistoryItem[]>> {
         return apiClient.get<StaffClockHistoryItem[]>('/staff-attendance/me/history', { limit });
+    },
+
+    async getClockRoster(): Promise<ApiResponse<StaffClockRosterItem[]>> {
+        return apiClient.get<StaffClockRosterItem[]>('/staff-attendance/clock-roster');
+    },
+
+    async getStaffClockHistory(staffId: number, limit = 90): Promise<
+        ApiResponse<{ staff: { id: number; full_name: string } | null; history: StaffClockHistoryItem[] }>
+    > {
+        return apiClient.get('/staff-attendance/staff/history', { staff_id: staffId, limit });
     },
 
     async clockIn(payload: ClockPayload): Promise<ApiResponse<{ check_in_time: string; distance_meters: number }>> {
