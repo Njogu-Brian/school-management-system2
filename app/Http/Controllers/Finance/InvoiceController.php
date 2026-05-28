@@ -249,6 +249,9 @@ class InvoiceController extends Controller
         if (! $student) {
             abort(404, 'Invoice student not found.');
         }
+
+        // Make Blade usage `$invoice->student` safe for archived/alumni records.
+        $invoice->setRelation('student', $student);
         $termNumber = $invoice->term;
         if (!$termNumber && $invoice->term_id && $invoice->term) {
             if (preg_match('/\d+/', $invoice->term->name, $matches)) {

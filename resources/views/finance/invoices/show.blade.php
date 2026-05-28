@@ -14,7 +14,7 @@
     @include('finance.partials.header', [
         'title' => 'Invoice: ' . $invoice->invoice_number,
         'icon' => 'bi bi-file-text',
-        'subtitle' => $invoice->student->full_name ? 'For ' . $invoice->student->full_name : 'Invoice details',
+        'subtitle' => $invoice->student?->full_name ? 'For ' . $invoice->student->full_name : 'Invoice details',
         'actions' => $payNowBtn . '<a href="' . route('finance.invoices.print_single', $invoice) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'invoice\', [' . $invoice->id . '], {channel:\'sms\', message:\'Please find your invoice link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
