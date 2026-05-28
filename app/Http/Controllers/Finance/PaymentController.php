@@ -2342,6 +2342,17 @@ class PaymentController extends Controller
         ]);
 
         $student = $payment->student;
+        if (!$student && $payment->student_id) {
+            // Payment receipts should remain viewable even if the Student is archived/alumni
+            // and therefore hidden by model global scopes.
+            $student = \App\Models\Student::withoutGlobalScopes()
+                ->with(['classroom', 'family.updateLink'])
+                ->find($payment->student_id);
+        }
+
+        if (!$student) {
+            abort(404, 'Student record not found for this receipt.');
+        }
 
         // Ensure student has a family (create if doesn't exist)
         if (!$student->family_id) {
@@ -2424,8 +2435,12 @@ class PaymentController extends Controller
         $payment = Payment::where('public_token', $token)->whereRaw('LENGTH(public_token) = 10')->firstOrFail();
         $payment->load('student');
         $student = $payment->student;
+        if (!$student && $payment->student_id) {
+            // Keep "Pay now" working even if Student is hidden by global scopes (archived/alumni).
+            $student = \App\Models\Student::withoutGlobalScopes()->find($payment->student_id);
+        }
         if (!$student) {
-            return redirect()->to('/receipt/' . $token)->with('error', 'Student not found.');
+            return redirect()->to('/receipt/' . $token)->with('error', 'Student record not found for this receipt.');
         }
         $familyId = $student->family_id;
         if (!$familyId) {
