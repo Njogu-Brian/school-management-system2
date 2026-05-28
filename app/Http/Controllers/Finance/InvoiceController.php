@@ -242,6 +242,13 @@ class InvoiceController extends Controller
         
         // Get applied discounts for display
         $student = $invoice->student;
+        if (! $student && $invoice->student_id) {
+            // Student relation is scoped to active students; invoices must remain viewable for archived/alumni.
+            $student = \App\Models\Student::withArchived()->find($invoice->student_id);
+        }
+        if (! $student) {
+            abort(404, 'Invoice student not found.');
+        }
         $termNumber = $invoice->term;
         if (!$termNumber && $invoice->term_id && $invoice->term) {
             if (preg_match('/\d+/', $invoice->term->name, $matches)) {
