@@ -138,7 +138,9 @@ class Invoice extends Model
         }
         
         // Update status
-        if ($this->balance <= 0 && $this->paid_amount > 0) {
+        // Note: invoices can be "cleared" by adjustments (e.g. credit notes / item reductions)
+        // even when no payments exist. Treat any zero balance invoice as paid.
+        if ($this->balance <= 0) {
             $this->status = 'paid';
         } elseif ($this->paid_amount > 0) {
             $this->status = 'partial';

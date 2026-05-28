@@ -1530,6 +1530,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('student-statements/{student}/entries', [StudentStatementController::class, 'storeEntry'])->name('student-statements.entries.store');
         Route::get('student-statements/{student}/print', [StudentStatementController::class, 'print'])->name('student-statements.print');
         Route::get('student-statements/{student}/export', [StudentStatementController::class, 'export'])->name('student-statements.export');
+
+        // Sibling balance transfer (when an archived student leaves with arrears)
+        Route::post('sibling-balance-transfer', [\App\Http\Controllers\Finance\SiblingBalanceTransferController::class, 'store'])
+            ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')
+            ->name('sibling-balance-transfer.store');
         
         // Fee Balance Report (with attendance tracking)
         Route::get('fee-balances', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'index'])->name('fee-balances.index');

@@ -1502,6 +1502,8 @@ class BankStatementController extends Controller
 
         // Exclude payments already linked to a bank statement transaction (payment_id or in linked_payment_ids)
         $linkedByPaymentId = BankStatementTransaction::whereNotNull('payment_id')->pluck('payment_id')->toArray();
+        // Also exclude payments referenced as duplicates on statement transactions
+        $linkedByDuplicateOfPaymentId = BankStatementTransaction::whereNotNull('duplicate_of_payment_id')->pluck('duplicate_of_payment_id')->toArray();
         $linkedByLinkedIds = BankStatementTransaction::whereNotNull('linked_payment_ids')
             ->get()
             ->pluck('linked_payment_ids')
@@ -1510,7 +1512,7 @@ class BankStatementController extends Controller
             ->filter()
             ->values()
             ->toArray();
-        $alreadyLinkedPaymentIds = array_unique(array_merge($linkedByPaymentId, $linkedByLinkedIds));
+        $alreadyLinkedPaymentIds = array_unique(array_merge($linkedByPaymentId, $linkedByDuplicateOfPaymentId, $linkedByLinkedIds));
 
         $query = Payment::with('student')
             ->where(function ($qry) {
