@@ -29,5 +29,30 @@ export const queryKeys = {
     attendanceTrend: (id: number) => [...queryKeys.students.all, 'attendance-trend', id] as const,
     statement: (id: number, year: number) =>
       [...queryKeys.students.all, 'statement', id, year] as const,
+    academicSummary: (id: number, scope?: { termId?: number; academicYearId?: number }) =>
+      [...queryKeys.students.all, 'academic-summary', id, scope ?? {}] as const,
+    assessmentHistory: (
+      id: number,
+      filters?: {
+        category?: string;
+        subjectId?: number | null;
+        termId?: number | null;
+        academicYearId?: number | null;
+      },
+    ) => [...queryKeys.students.all, 'assessment-history', id, filters ?? {}] as const,
+    reportCards: (id: number) => [...queryKeys.students.all, 'report-cards', id] as const,
+    reportCardDetail: (id: number) => [...queryKeys.students.all, 'report-card', id] as const,
+  },
+  settings: {
+    all: ['settings'] as const,
+    school: () => [...queryKeys.settings.all, 'school'] as const,
+    academicYears: () => [...queryKeys.settings.all, 'academic-years'] as const,
+    terms: (academicYearId?: number) =>
+      [...queryKeys.settings.all, 'terms', academicYearId ?? 'all'] as const,
+    classes: () => [...queryKeys.settings.all, 'classes'] as const,
+    streams: (classId: number) => [...queryKeys.settings.all, 'streams', classId] as const,
+    subjects: () => [...queryKeys.settings.all, 'subjects'] as const,
+    grading: () => [...queryKeys.settings.all, 'grading'] as const,
+    roles: () => [...queryKeys.settings.all, 'roles'] as const,
   },
 };

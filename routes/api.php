@@ -56,6 +56,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/students', [\App\Http\Controllers\Api\ApiStudentController::class, 'index']);
     Route::post('/students', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'store']);
     Route::get('/students/{id}/stats', [\App\Http\Controllers\Api\ApiStudentController::class, 'stats']);
+    Route::get('/students/{student}/assessment-history', [\App\Http\Controllers\Api\ApiStudentAssessmentController::class, 'assessmentHistory']);
+    Route::get('/students/{student}/academic-summary', [\App\Http\Controllers\Api\ApiStudentAssessmentController::class, 'academicSummary']);
     Route::get('/students/{id}/attendance-calendar', [\App\Http\Controllers\Api\ApiStudentController::class, 'attendanceCalendar']);
     Route::get('/students/{id}/statement', [\App\Http\Controllers\Api\ApiStudentStatementController::class, 'show']);
     Route::get('/students/{id}/profile-update-link', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'profileUpdateLink']);
@@ -210,4 +212,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/report-cards', [\App\Http\Controllers\Api\ApiReportCardController::class, 'index']);
     Route::get('/report-cards/{id}', [\App\Http\Controllers\Api\ApiReportCardController::class, 'show']);
+
+    Route::prefix('settings')->group(function () {
+        $hub = \App\Http\Controllers\Api\ApiSettingsHubController::class;
+        Route::get('/school', [$hub, 'school']);
+        Route::get('/academic-years', [$hub, 'academicYears']);
+        Route::get('/terms', [$hub, 'terms']);
+        Route::get('/classes', [$hub, 'classes']);
+        Route::get('/classes/{classId}/streams', [$hub, 'streams']);
+        Route::get('/subjects', [$hub, 'subjects']);
+        Route::get('/grading', [$hub, 'gradingSchemes']);
+        Route::get('/roles', [$hub, 'roles']);
+    });
 });

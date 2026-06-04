@@ -74,4 +74,4 @@ export interface StudentTimelineEvent {
   kind: 'payment' | 'invoice' | 'enrollment' | 'update' | 'other';
 }
 
-export type Student360TabId = 'overview' | 'attendance' | 'fees' | 'family';
+export type Student360TabId = 'overview' | 'attendance' | 'academics' | 'fees' | 'family';

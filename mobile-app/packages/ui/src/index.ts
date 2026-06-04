@@ -7,3 +7,4 @@ export * from './dashboard';
 export * from './approvals';
 export * from './students';
 export * from './student360';
+export * from './settings';

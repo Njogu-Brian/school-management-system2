@@ -10,3 +10,5 @@ export * from './dashboard';
 export * from './approval';
 export * from './student';
 export * from './student360';
+export * from './studentAcademics';
+export * from './settings';

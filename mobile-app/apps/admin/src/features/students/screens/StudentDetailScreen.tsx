@@ -7,8 +7,8 @@ import {
   type StudentDetail,
   type StudentSummary,
 } from '@erp/core';
-import { ScreenContainer, Student360Layout, type Student360TabId } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
+import { ScreenContainer, Student360Layout, type Student360TabId } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from '@erp/ui';
@@ -16,11 +16,12 @@ import type { StudentsStackParamList } from '../../../navigation/studentsStackTy
 import { AttendanceTab } from '../student360/tabs/AttendanceTab';
 import { FamilyTab } from '../student360/tabs/FamilyTab';
 import { FeesTab } from '../student360/tabs/FeesTab';
+import { AcademicsTab } from '../student360/tabs/AcademicsTab';
 import { OverviewTab } from '../student360/tabs/OverviewTab';
 
 type Props = StackScreenProps<StudentsStackParamList, 'StudentDetail'>;
 
-const TABS: Array<{ id: Student360TabId; label: string }> = [
+const BASE_TABS: Array<{ id: Student360TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'attendance', label: 'Attendance' },
   { id: 'fees', label: 'Fees' },
@@ -45,9 +46,10 @@ function summaryAsDetail(summary: StudentSummary): StudentDetail {
   };
 }
 
-export const StudentDetailScreen: React.FC<Props> = ({ route }) => {
+export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { studentId, summary } = route.params;
   const canViewFees = useCan('finance.view');
+  const canViewAcademics = useCan('academics.view');
   const { colors, spacing } = useTheme();
   const [activeTab, setActiveTab] = useState<Student360TabId>('overview');
 
@@ -57,6 +59,14 @@ export const StudentDetailScreen: React.FC<Props> = ({ route }) => {
   const attendanceQuery = useStudentAttendanceTrend(studentId, {
     enabled: activeTab === 'attendance' || activeTab === 'overview',
   });
+
+  const tabs = useMemo(() => {
+    const list = [...BASE_TABS];
+    if (canViewAcademics) {
+      list.splice(2, 0, { id: 'academics', label: 'Academics' });
+    }
+    return list;
+  }, [canViewAcademics]);
 
   const student = detailQuery.data ?? (summary ? summaryAsDetail(summary) : undefined);
 
@@ -148,6 +158,18 @@ export const StudentDetailScreen: React.FC<Props> = ({ route }) => {
             trend={attendanceQuery.trend}
           />
         );
+      case 'academics':
+        return (
+          <AcademicsTab
+            studentId={studentId}
+            onOpenReportCard={(reportCardId) =>
+              navigation.navigate('ReportCardDetail', {
+                reportCardId,
+                studentName: student.fullName,
+              })
+            }
+          />
+        );
       case 'fees':
         return (
           <FeesTab
@@ -173,7 +195,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route }) => {
     <ScreenContainer style={styles.flex}>
       <Student360Layout
         header={header}
-        tabs={TABS}
+        tabs={tabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
       >

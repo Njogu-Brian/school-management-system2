@@ -6,4 +6,8 @@ export type StudentsStackParamList = {
     studentId: number;
     summary?: StudentSummary;
   };
+  ReportCardDetail: {
+    reportCardId: number;
+    studentName?: string;
+  };
 };

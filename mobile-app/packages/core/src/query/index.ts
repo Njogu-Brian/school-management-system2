@@ -11,3 +11,5 @@ export * from './hooks/useApprovalActions';
 export * from './hooks/useStudentList';
 export * from './hooks/useStudentDetail';
 export * from './hooks/useStudent360';
+export * from './hooks/useStudentAcademics';
+export * from './hooks/useSettingsHub';
