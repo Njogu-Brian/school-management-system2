@@ -16,6 +16,7 @@ class SystemLogController extends Controller
     public function index(Request $request)
     {
         $levelFilter = $request->input('level', 'all');
+        $categoryFilter = $request->input('category', 'all');
         $search = $request->input('search', '');
         $dateFilter = $request->input('date', '');
 
@@ -25,12 +26,14 @@ class SystemLogController extends Controller
             return view('system-logs.index', [
                 'logs' => collect(),
                 'levels' => $this->getLogLevels(),
+                'categories' => $this->getLogCategories(),
                 'error' => 'No log files found. With LOG_CHANNEL=daily, logs are stored as storage/logs/laravel-YYYY-MM-DD.log.',
                 'logFiles' => [],
+                'configuredLogLevel' => config('logging.channels.daily.level', config('logging.level', 'debug')),
             ]);
         }
 
-        $logs = $this->collectLogsFromFiles($logFiles, $levelFilter, $search, $dateFilter);
+        $logs = $this->collectLogsFromFiles($logFiles, $levelFilter, $search, $dateFilter, $categoryFilter);
 
         $perPage = 50;
         $currentPage = (int) $request->input('page', 1);
@@ -40,13 +43,16 @@ class SystemLogController extends Controller
         return view('system-logs.index', [
             'logs' => $paginatedLogs,
             'levels' => $this->getLogLevels(),
+            'categories' => $this->getLogCategories(),
             'currentLevel' => $levelFilter,
+            'currentCategory' => $categoryFilter,
             'currentSearch' => $search,
             'currentDate' => $dateFilter,
             'currentPage' => $currentPage,
             'totalPages' => (int) ceil($total / $perPage),
             'total' => $total,
             'logFiles' => array_map('basename', $logFiles),
+            'configuredLogLevel' => config('logging.channels.daily.level', config('logging.level', 'debug')),
         ]);
     }
 
@@ -96,12 +102,13 @@ class SystemLogController extends Controller
         array $filePaths,
         string $levelFilter = 'all',
         string $search = '',
-        string $dateFilter = ''
+        string $dateFilter = '',
+        string $categoryFilter = 'all'
     ): Collection {
         $logs = collect();
 
         foreach ($filePaths as $path) {
-            $logs = $logs->merge($this->parseLogFile($path, $levelFilter, $search, $dateFilter));
+            $logs = $logs->merge($this->parseLogFile($path, $levelFilter, $search, $dateFilter, $categoryFilter));
         }
 
         return $logs
@@ -109,15 +116,20 @@ class SystemLogController extends Controller
             ->values();
     }
 
-    protected function parseLogFile($filePath, $levelFilter = 'all', $search = '', $dateFilter = '')
-    {
+    protected function parseLogFile(
+        $filePath,
+        $levelFilter = 'all',
+        $search = '',
+        $dateFilter = '',
+        $categoryFilter = 'all'
+    ) {
         try {
             $fileSize = filesize($filePath);
             if ($fileSize === false || $fileSize === 0) {
                 return collect();
             }
 
-            $maxBytes = 100 * 1024;
+            $maxBytes = 300 * 1024;
 
             if ($fileSize > $maxBytes) {
                 $handle = fopen($filePath, 'r');
@@ -146,16 +158,18 @@ class SystemLogController extends Controller
             if (preg_match('/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (.+?)\.(.+?): (.+)$/', $line, $matches)) {
                 if ($currentLog) {
                     $currentLog['stack'] = trim(implode("\n", $buffer));
-                    if ($this->shouldIncludeLog($currentLog, $levelFilter, $search, $dateFilter)) {
+                    if ($this->shouldIncludeLog($currentLog, $levelFilter, $search, $dateFilter, $categoryFilter)) {
                         $logs->push($currentLog);
                     }
                 }
 
+                $message = trim($matches[4]);
                 $currentLog = [
                     'timestamp' => $matches[1],
                     'environment' => $matches[2],
                     'level' => strtoupper(trim($matches[3])),
-                    'message' => trim($matches[4]),
+                    'message' => $message,
+                    'category' => $this->categorizeLogMessage($message),
                     'stack' => '',
                 ];
                 $buffer = [];
@@ -168,7 +182,7 @@ class SystemLogController extends Controller
 
         if ($currentLog) {
             $currentLog['stack'] = trim(implode("\n", $buffer));
-            if ($this->shouldIncludeLog($currentLog, $levelFilter, $search, $dateFilter)) {
+            if ($this->shouldIncludeLog($currentLog, $levelFilter, $search, $dateFilter, $categoryFilter)) {
                 $logs->push($currentLog);
             }
         }
@@ -176,9 +190,13 @@ class SystemLogController extends Controller
         return $logs->reverse()->values();
     }
 
-    protected function shouldIncludeLog($log, $levelFilter, $search, $dateFilter)
+    protected function shouldIncludeLog($log, $levelFilter, $search, $dateFilter, $categoryFilter = 'all')
     {
         if ($levelFilter !== 'all' && strtolower($log['level']) !== strtolower($levelFilter)) {
+            return false;
+        }
+
+        if ($categoryFilter !== 'all' && ($log['category'] ?? 'system') !== $categoryFilter) {
             return false;
         }
 
@@ -212,6 +230,72 @@ class SystemLogController extends Controller
             'info' => 'Info',
             'debug' => 'Debug',
         ];
+    }
+
+    protected function getLogCategories(): array
+    {
+        return [
+            'all' => 'All categories',
+            'sms_credits' => 'SMS — insufficient credits',
+            'sms' => 'SMS — other',
+            'whatsapp' => 'WhatsApp',
+            'communications' => 'Communications pause/resume',
+            'queue' => 'Queue & scheduler',
+            'payment' => 'Payments & M-Pesa',
+            'database' => 'Database',
+            'system' => 'System / other',
+        ];
+    }
+
+    protected function categorizeLogMessage(string $message): string
+    {
+        $m = strtolower($message);
+
+        if (str_contains($m, 'insufficient credits')
+            || str_contains($m, 'insufficient sms')
+            || str_contains($m, 'sms sending blocked')) {
+            return 'sms_credits';
+        }
+
+        if (str_contains($m, 'communications paused')
+            || str_contains($m, 'communications resumed')
+            || str_contains($m, 'communications are paused')) {
+            return 'communications';
+        }
+
+        if (str_contains($m, 'whatsapp')) {
+            return 'whatsapp';
+        }
+
+        if (str_contains($m, 'sms')
+            || str_contains($m, 'bulk sms')
+            || str_contains($m, 'dlr')) {
+            return 'sms';
+        }
+
+        if (str_contains($m, 'scheduled command')
+            || str_contains($m, 'queue:work')
+            || str_contains($m, 'bulk send')
+            || str_contains($m, 'job deferred')
+            || str_contains($m, 'job halted')) {
+            return 'queue';
+        }
+
+        if (str_contains($m, 'mpesa')
+            || str_contains($m, 'm-pesa')
+            || str_contains($m, 'payment')
+            || str_contains($m, 'stk')) {
+            return 'payment';
+        }
+
+        if (str_contains($m, 'sqlstate')
+            || str_contains($m, 'mysql')
+            || str_contains($m, 'database')
+            || str_contains($m, 'connection refused')) {
+            return 'database';
+        }
+
+        return 'system';
     }
 
     public function clear()

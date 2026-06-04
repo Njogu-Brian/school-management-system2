@@ -1767,7 +1767,8 @@ class MpesaPaymentController extends Controller
                     );
                     if (is_array($result) && isset($result['error_code']) && $result['error_code'] === 'INSUFFICIENT_CREDITS') {
                         $balance = $result['balance'] ?? 0;
-                        session()->flash('warning', 'Payment link was created and sent via other channels, but SMS could not be sent: insufficient SMS credits (balance: ' . $balance . '). Please top up your SMS balance.');
+                        \App\Services\CommunicationPauseService::pauseDueToInsufficientCredits((float) $balance, 'MpesaPaymentController::paymentLink');
+                        session()->flash('warning', 'Payment link was created, but SMS is paused: insufficient credits (balance: ' . $balance . '). Top up, then resume from Communication → Queues.');
                     }
                 } catch (\Exception $e) {
                     Log::warning('SMS send failed', ['phone' => $contact['phone'], 'error' => $e->getMessage()]);

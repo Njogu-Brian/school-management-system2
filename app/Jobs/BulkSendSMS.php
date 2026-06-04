@@ -49,6 +49,15 @@ class BulkSendSMS implements ShouldQueue
     public function handle(SMSService $smsService): void
     {
         if (CommunicationPauseService::isPaused()) {
+            CommunicationPauseService::registerPausedBulkSmsJob(
+                $this->trackingId,
+                $this->recipients,
+                $this->message,
+                $this->title,
+                $this->target,
+                $this->senderId,
+                $this->userId
+            );
             CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
                 'total' => count($this->recipients),
                 'message' => 'Paused: insufficient SMS credits. Resume from Communication → Queues.',
@@ -101,6 +110,15 @@ class BulkSendSMS implements ShouldQueue
 
         foreach ($this->recipients as $item) {
             if (CommunicationPauseService::isPaused()) {
+                CommunicationPauseService::registerPausedBulkSmsJob(
+                    $this->trackingId,
+                    $this->recipients,
+                    $this->message,
+                    $this->title,
+                    $this->target,
+                    $this->senderId,
+                    $this->userId
+                );
                 CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
                     'processed' => $processed,
                     'sent' => $sentCount,
@@ -154,6 +172,15 @@ class BulkSendSMS implements ShouldQueue
                         (float) data_get($response, 'balance', 0),
                         'BulkSendSMS'
                     );
+                    CommunicationPauseService::registerPausedBulkSmsJob(
+                        $this->trackingId,
+                        $this->recipients,
+                        $this->message,
+                        $this->title,
+                        $this->target,
+                        $this->senderId,
+                        $this->userId
+                    );
                     CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
                         'processed' => $processed,
                         'sent' => $sentCount,
@@ -168,7 +195,7 @@ class BulkSendSMS implements ShouldQueue
                         'title' => $this->title,
                         'message' => $personalized,
                         'type' => 'sms',
-                        'status' => 'failed',
+                        'status' => 'paused',
                         'response' => $response,
                         'scope' => 'sms',
                         'sent_at' => now(),

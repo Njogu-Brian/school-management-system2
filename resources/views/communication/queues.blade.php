@@ -28,6 +28,12 @@
                         <h5 class="text-warning mb-1"><i class="bi bi-pause-circle"></i> Communications paused</h5>
                         <p class="mb-0 text-muted">
                             Insufficient SMS credits detected. Scheduled fee messages, reminders, and bulk SMS jobs are on hold (not cancelled).
+                            @if(($pausedSmsCount ?? 0) > 0)
+                                <strong>{{ $pausedSmsCount }}</strong> individual SMS message(s) will be retried on resume.
+                            @endif
+                            @if(($pausedBulkSmsCount ?? 0) > 0)
+                                <strong>{{ $pausedBulkSmsCount }}</strong> bulk SMS job(s) will continue from where they stopped.
+                            @endif
                             @if($pauseMeta && isset($pauseMeta['paused_at']))
                                 Paused {{ \Carbon\Carbon::parse($pauseMeta['paused_at'])->diffForHumans() }}.
                             @endif

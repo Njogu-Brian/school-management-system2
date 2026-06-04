@@ -50,9 +50,9 @@
             <div class="alert alert-secondary py-2 small mb-0 mt-3">
                 <i class="bi bi-file-earmark-text"></i>
                 Reading: {{ implode(', ', $logFiles) }}.
-                @if(($currentLevel ?? 'all') === 'all' && config('logging.channels.daily.level', config('logging.level')) === 'warning')
-                    Only <strong>warning</strong> and above are logged (<code>LOG_LEVEL=warning</code>).
-                @endif
+                @php $cfgLevel = $configuredLogLevel ?? config('logging.level', 'debug'); @endphp
+                Server writes <strong>{{ $cfgLevel }}</strong> level and above to disk (<code>LOG_LEVEL</code> in <code>.env</code>).
+                Use <code>info</code> to capture routine events; use <code>warning</code> on small disks.
             </div>
         @endif
 
@@ -62,7 +62,7 @@
             </div>
             <div class="card-body">
                 <form method="GET" action="{{ route('system-logs.index') }}" class="row g-3 align-items-end">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">Log Level</label>
                         <select name="level" class="form-select">
                             @foreach($levels as $value => $label)
@@ -73,10 +73,20 @@
                         </select>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-select">
+                            @foreach(($categories ?? []) as $value => $label)
+                                <option value="{{ $value }}" {{ ($currentCategory ?? 'all') == $value ? 'selected' : '' }}>
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <label class="form-label">Date</label>
                         <input type="date" name="date" class="form-control" value="{{ $currentDate ?? '' }}">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Search</label>
                         <input type="text" name="search" class="form-control" value="{{ $currentSearch ?? '' }}" placeholder="Search messages and stack traces">
                     </div>
@@ -115,6 +125,7 @@
                                 <tr>
                                     <th style="width: 180px;">Timestamp</th>
                                     <th style="width: 100px;">Level</th>
+                                    <th style="width: 140px;">Category</th>
                                     <th>Message</th>
                                     <th style="width: 100px;">Actions</th>
                                 </tr>
@@ -141,7 +152,15 @@
                                             <span class="badge bg-{{ $color }}">{{ $log['level'] }}</span>
                                         </td>
                                         <td>
-                                            <div class="log-message" style="max-width: 600px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            @php
+                                                $catLabels = $categories ?? [];
+                                                $cat = $log['category'] ?? 'system';
+                                                $catLabel = $catLabels[$cat] ?? ucfirst(str_replace('_', ' ', $cat));
+                                            @endphp
+                                            <span class="badge bg-light text-dark border" title="{{ $catLabel }}">{{ $cat }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="log-message" style="max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                                 {{ $log['message'] }}
                                             </div>
                                             @if(!empty($log['stack']))

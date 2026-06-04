@@ -48,7 +48,7 @@ class CommunicationService
                     'title'          => $title ?? 'SMS Notification',
                     'message'        => $message,
                     'type'           => 'sms',
-                    'status'         => 'failed',
+                    'status'         => 'paused',
                     'response'       => $result,
                     'scope'          => 'sms',
                     'sent_at'        => now(),

@@ -389,8 +389,11 @@ class CommunicationController extends Controller
                 }
                 $response = $smsService->sendSMS($phone, $personalized, $chosenSender);
 
+                $insufficient = is_array($response) && ($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS';
                 $status = 'sent';
-                if (strtolower(data_get($response, 'status', 'sent')) !== 'success'
+                if ($insufficient) {
+                    $status = 'paused';
+                } elseif (strtolower(data_get($response, 'status', 'sent')) !== 'success'
                     && strtolower(data_get($response, 'status', 'sent')) !== 'sent') {
                     $status = 'failed';
                 }
@@ -398,12 +401,18 @@ class CommunicationController extends Controller
                 $reason = null;
                 if ($status !== 'sent') {
                     $reason = is_array($response) ? json_encode($response) : (string) $response;
-                    $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'failed', 'reason' => $reason];
+                    $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => $status, 'reason' => $reason];
                     $failures[] = [
                         'phone' => $phone,
                         'reason' => $response,
-                        'insufficient_credits' => (is_array($response) && ($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS'),
+                        'insufficient_credits' => $insufficient,
                     ];
+                    if ($insufficient) {
+                        CommunicationPauseService::pauseDueToInsufficientCredits(
+                            (float) ($response['balance'] ?? 0),
+                            'CommunicationController::sendSMS'
+                        );
+                    }
                 } else {
                     $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'sent'];
                 }
@@ -428,6 +437,7 @@ class CommunicationController extends Controller
                                         ?? data_get($response,'message_id')
                                         ?? data_get($response,'MessageID'),
                     'provider_status'=> strtolower(data_get($response,'status','sent')),
+                    'error_code'     => $insufficient ? 'INSUFFICIENT_CREDITS' : null,
                 ]);
             } catch (\Throwable $e) {
                 $failedCount++;
@@ -1159,13 +1169,18 @@ class CommunicationController extends Controller
 
         $queueJobs = \DB::table('jobs')->where('queue', 'default')->orderByDesc('created_at')->limit(20)->get();
 
+        $pausedSmsCount = CommunicationPauseService::countPausedSmsLogs();
+        $pausedBulkSmsCount = count($pauseMeta['paused_bulk_sms'] ?? []);
+
         return view('communication.queues', compact(
             'paused',
             'pauseMeta',
             'scheduledFee',
             'scheduledComms',
             'feeReminders',
-            'queueJobs'
+            'queueJobs',
+            'pausedSmsCount',
+            'pausedBulkSmsCount'
         ));
     }
 
@@ -1177,12 +1192,19 @@ class CommunicationController extends Controller
             return back()->with('info', 'Communications are not paused.');
         }
 
-        $counts = CommunicationPauseService::resume(auth()->id());
+        try {
+            $counts = CommunicationPauseService::resume(auth()->id());
+        } catch (\RuntimeException $e) {
+            return redirect()->route('communication.queues')->with('error', $e->getMessage());
+        }
+
         $msg = sprintf(
-            'Communications resumed. Restored: %d scheduled fee message(s), %d scheduled communication(s), %d fee reminder(s).',
+            'Communications resumed. Restored: %d scheduled fee message(s), %d scheduled communication(s), %d fee reminder(s). Retried %d paused SMS. Re-queued %d bulk SMS job(s).',
             $counts['scheduled_fee'],
             $counts['scheduled'],
-            $counts['fee_reminders']
+            $counts['fee_reminders'],
+            $counts['sms_resent'],
+            $counts['bulk_jobs_redispatched']
         );
 
         return redirect()->route('communication.queues')->with('success', $msg);
