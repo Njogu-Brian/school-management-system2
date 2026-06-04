@@ -227,22 +227,21 @@ class PaymentController extends Controller
             }
         }
 
-        $message = "Dear Parent,\n\n";
+        $messageTemplate = "Dear {{parent_name}},\n\n";
         if ($student) {
-            $message .= "Payment confirmed for {$student->first_name} {$student->last_name}:\n\n";
+            $messageTemplate .= "Payment confirmed for {$student->first_name} {$student->last_name}:\n\n";
         }
-        $message .= $orderSummary;
-        $message .= "\n\nThank you for your purchase!";
+        $messageTemplate .= $orderSummary;
+        $messageTemplate .= "\n\nThank you for your purchase!";
 
-        // Send SMS
-        if ($parent->phone) {
-            $commService->sendSMS('parent', $parent->id, $parent->phone, $message, 'Order Payment Confirmation');
-        }
-
-        // Send Email
-        if ($parent->email) {
-            $htmlMessage = nl2br($message);
-            $commService->sendEmail('parent', $parent->id, $parent->email, 'Order Payment Confirmation - ' . $order->order_number, $htmlMessage);
+        if ($student) {
+            $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+            $parentNotify->sendSmsTemplateToStudentParents($student, $messageTemplate, 'Order Payment Confirmation');
+            $parentNotify->sendEmailTemplateToStudentParents(
+                $student,
+                'Order Payment Confirmation - ' . $order->order_number,
+                $messageTemplate
+            );
         }
 
         \App\Models\ActivityLog::log('create', $order, "Payment confirmation sent for order {$order->order_number}");

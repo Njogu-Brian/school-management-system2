@@ -387,14 +387,20 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
         );
     }
 
-    $message = $tpl
+    $messageTemplate = $tpl
         ? $this->applyPlaceholders($tpl->content, $student, $humanDate, $status, $reason)
-        : "Your child {$student->full_name} was marked {$status} on {$humanDate}. Reason: {$reason}";
+        : "Dear {{parent_name}}, your child {$student->full_name} was marked {$status} on {$humanDate}. Reason: {$reason}";
 
-    // Never send attendance notifications to guardian; guardians are reached via manual number entry only
-    $phones = $student->parent->schoolNotificationSmsPhones();
-
-    foreach ($phones as $phone) {
+    $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+    foreach ($parentNotify->smsRecipients($student->parent) as $r) {
+        $phone = $r['phone'] ?? null;
+        if (! $phone) {
+            continue;
+        }
+        $message = personalize_message_for_parent_recipient($messageTemplate, $student, $r);
+        if ($message === null) {
+            continue;
+        }
         try {
             $response = $this->smsService->sendSMS($phone, $message);
 
@@ -434,12 +440,6 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     // Get school name
     $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
     
-    $parentName = $student->parent->primary_contact_name 
-        ?? $student->parent->father_name
-        ?? $student->parent->mother_name
-        ?? $student->parent->guardian_name
-        ?? 'Parent';
-    
     $normalizedReason = trim((string) ($reason ?? ''));
     $hasReason = $normalizedReason !== '' && strtolower($normalizedReason) !== 'not specified';
 
@@ -450,14 +450,12 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         '{{attendance_status}}' => $status ?? 'absent',
         '{{attendance_reason}}' => $hasReason ? $normalizedReason : '',
         '{{attendance_date}}' => $humanDate,
-        '{{parent_name}}' => $parentName,
         '{{school_name}}' => $schoolName,
         // Legacy format ({key})
         '{student_name}' => $student->full_name,
         '{class}' => $student->classroom->name ?? '',
         '{admission_no}' => $student->admission_number ?? '',
         '{date}' => $humanDate,
-        '{parent_name}' => $parentName,
         '{reason}' => $hasReason ? $normalizedReason : '',
         '{attendance_reason}' => $hasReason ? $normalizedReason : '',
     ];
@@ -849,22 +847,20 @@ private function applyPlaceholders(string $content, Student $student, string $hu
                 
                 // Get school name
                 $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
-                $parentName = $student->parent->primary_contact_name 
-                    ?? $student->parent->father_name
-                    ?? $student->parent->mother_name
-                    ?? $student->parent->guardian_name
-                    ?? 'Parent';
-                
-                // Replace placeholders
-                $message = $template->content ?? "Alert: {$student->full_name} has been absent for {$consecutive} consecutive day(s). Please contact the school.";
-                $message = str_replace('{{parent_name}}', $parentName, $message);
-                $message = str_replace('{{student_name}}', $student->full_name, $message);
-                $message = str_replace('{{school_name}}', $schoolName, $message);
-                
-                // Never send attendance notifications to guardian; guardians are reached via manual number entry only
-                $phones = $student->parent->schoolNotificationSmsPhones();
+                $messageTemplate = $template->content ?? "Dear {{parent_name}}, {{student_name}} has been absent for {$consecutive} consecutive day(s). Please contact the school.";
+                $messageTemplate = str_replace('{{student_name}}', $student->full_name, $messageTemplate);
+                $messageTemplate = str_replace('{{school_name}}', $schoolName, $messageTemplate);
 
-                foreach ($phones as $phone) {
+                $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+                foreach ($parentNotify->smsRecipients($student->parent) as $r) {
+                    $phone = $r['phone'] ?? null;
+                    if (! $phone) {
+                        continue;
+                    }
+                    $message = personalize_message_for_parent_recipient($messageTemplate, $student, $r);
+                    if ($message === null) {
+                        continue;
+                    }
                     try {
                         $this->smsService->sendSMS($phone, $message);
                         $notified++;

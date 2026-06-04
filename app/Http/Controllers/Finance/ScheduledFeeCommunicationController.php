@@ -444,19 +444,21 @@ class ScheduledFeeCommunicationController extends Controller
         // Dedupe by contact+student_id to avoid showing same pair twice
         $seen = [];
         $pairs = [];
-        foreach ($allPairs as [$contact, $entity]) {
+        foreach ($allPairs as $pair) {
+            [$contact, $entity] = array_pad($pair, 3, null);
             if (!$entity instanceof Student) {
                 continue;
             }
             $key = $contact . '-' . $entity->id;
             if (!isset($seen[$key])) {
                 $seen[$key] = true;
-                $pairs[] = [$contact, $entity];
+                $pairs[] = $pair;
             }
         }
 
         $recipients = [];
-        foreach ($pairs as [$contact, $entity]) {
+        foreach ($pairs as $pair) {
+            [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
             if (!$entity instanceof Student) {
                 continue;
             }
@@ -475,7 +477,7 @@ class ScheduledFeeCommunicationController extends Controller
                 'parent_contact' => $contact,
                 'fee_balance' => number_format($balance, 2),
                 'statement_url' => get_public_student_statement_url($entity),
-                'personalized_message' => $message !== '' ? replace_placeholders($message, $entity) : '',
+                'personalized_message' => $message !== '' ? (personalize_message_for_parent_recipient($message, $entity, $parentMeta) ?? '') : '',
                 'email_subject' => $subject,
             ];
         }

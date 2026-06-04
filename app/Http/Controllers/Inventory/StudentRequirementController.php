@@ -513,42 +513,27 @@ class StudentRequirementController extends Controller
             $smsMessage .= "Some items pending. Check WhatsApp/Email for details. Thank you.";
         }
 
-        // Send SMS - simple notification
-        if ($parent->getPrimaryContactPhoneAttribute()) {
-            try {
-                $this->comm->sendSMS(
-                    'parent',
-                    $parent->id,
-                    $parent->getPrimaryContactPhoneAttribute(),
-                    $smsMessage,
-                    'Requirements Received'
-                );
-            } catch (\Exception $e) {
-                Log::error('Failed to send SMS for requirements', [
-                    'student_id' => $student->id,
-                    'error' => $e->getMessage()
-                ]);
-            }
-        }
+        $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+        $parentNotify->sendSmsTemplateToStudentParents($student, 'Dear {{parent_name}}, ' . $smsMessage, 'Requirements Received');
 
-        // Send WhatsApp - detailed message
-        $whatsappNumber = $parent->father_whatsapp 
-            ?? $parent->mother_whatsapp 
-            ?? $parent->guardian_whatsapp 
-            ?? null;
-            
-        if ($whatsappNumber) {
+        foreach ($parentNotify->whatsappRecipients($parent) as $r) {
+            $phone = $r['phone'] ?? null;
+            if (! $phone) {
+                continue;
+            }
+            $waBody = personalize_message_for_parent_recipient($detailedMessage, $student, $r);
+            if ($waBody === null) {
+                continue;
+            }
             try {
-                $result = $this->whatsappService->sendMessage($whatsappNumber, $detailedMessage);
-                
-                // Log WhatsApp communication
+                $result = $this->whatsappService->sendMessage($phone, $waBody);
                 CommunicationLog::create([
                     'recipient_type' => 'parent',
                     'recipient_id' => $parent->id,
-                    'contact' => $whatsappNumber,
+                    'contact' => $phone,
                     'channel' => 'whatsapp',
                     'title' => 'Requirements Collection Update',
-                    'message' => $detailedMessage,
+                    'message' => $waBody,
                     'type' => 'requirements',
                     'status' => ($result['status'] ?? 'error') === 'success' ? 'sent' : 'failed',
                     'response' => $result,
@@ -558,28 +543,16 @@ class StudentRequirementController extends Controller
             } catch (\Exception $e) {
                 Log::error('Failed to send WhatsApp for requirements', [
                     'student_id' => $student->id,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
 
-        // Send Email - detailed message
-        if ($parent->getPrimaryContactEmailAttribute()) {
-            try {
-                $this->comm->sendEmail(
-                    'parent',
-                    $parent->id,
-                    $parent->getPrimaryContactEmailAttribute(),
-                    'Requirements Collection Update',
-                    nl2br($detailedMessage)
-                );
-            } catch (\Exception $e) {
-                Log::error('Failed to send Email for requirements', [
-                    'student_id' => $student->id,
-                    'error' => $e->getMessage()
-                ]);
-            }
-        }
+        $parentNotify->sendEmailTemplateToStudentParents(
+            $student,
+            'Requirements Collection Update',
+            $detailedMessage
+        );
 
         // Mark as notified
         $requirements->each(function($req) {

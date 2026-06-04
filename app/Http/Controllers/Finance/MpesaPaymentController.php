@@ -1483,26 +1483,23 @@ class MpesaPaymentController extends Controller
             $student = $paymentLink->student;
             $parent = $student->family;
 
-            $message = "Dear Parent,\n\n";
-            $message .= "Please pay KES " . number_format($paymentLink->amount, 2) . " ";
-            $message .= "for {$student->first_name} {$student->last_name}.\n\n";
-            $message .= "Pay here: " . $paymentLink->getShortUrl() . "\n\n";
+            $messageTemplate = "Dear {{parent_name}},\n\n";
+            $messageTemplate .= "Please pay KES " . number_format($paymentLink->amount, 2) . " ";
+            $messageTemplate .= "for {$student->first_name} {$student->last_name}.\n\n";
+            $messageTemplate .= "Pay here: " . $paymentLink->getShortUrl() . "\n\n";
             if ($paymentLink->expires_at) {
-                $message .= "Link expires: " . $paymentLink->expires_at->format('d M Y') . "\n";
+                $messageTemplate .= "Link expires: " . $paymentLink->expires_at->format('d M Y') . "\n";
             }
-            $message .= "\nThank you.";
+            $messageTemplate .= "\nThank you.";
 
-            $commService = app(\App\Services\CommunicationService::class);
+            $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
             $sent = [];
 
-            if (in_array('sms', $request->channels) && $parent->phone) {
-                $commService->sendSMS('parent', $parent->id, $parent->phone, $message, 'Payment Link');
+            if (in_array('sms', $request->channels) && $parentNotify->sendSmsTemplateToStudentParents($student, $messageTemplate, 'Payment Link') > 0) {
                 $sent[] = 'SMS';
             }
 
-            if (in_array('email', $request->channels) && $parent->primary_email) {
-                $htmlMessage = nl2br($message);
-                $commService->sendEmail('parent', $parent->id, $parent->primary_email, 'School Fee Payment Link', $htmlMessage);
+            if (in_array('email', $request->channels) && $parentNotify->sendEmailTemplateToStudentParents($student, 'School Fee Payment Link', $messageTemplate) > 0) {
                 $sent[] = 'Email';
             }
 
@@ -1632,12 +1629,68 @@ class MpesaPaymentController extends Controller
         $amountFormatted = number_format($paymentLink->amount, 2);
         $linkUrl = $paymentLink->getPaymentUrl();
 
-        // Prepare parent contacts
-        $contacts = [];
-        
-        // Parent info (ParentInfo model via student->parent relation)
         $parentInfo = $student->parent ?? null;
-        
+        $extra = [
+            'amount' => $amountFormatted,
+            'payment_link' => $linkUrl,
+            'student_name' => $studentName,
+        ];
+
+        if ($parentInfo && ! in_array('primary', $parents, true)) {
+            $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+            $slots = array_values(array_intersect(['father', 'mother'], $parents));
+
+            if (in_array('sms', $channels)) {
+                $smsTpl = 'Dear {{parent_name}}, Pay KES {{amount}} for {{student_name}}. Click: {{payment_link}} - Royal Kings School';
+                foreach ($slots as $slot) {
+                    foreach ($parentNotify->smsRecipients($parentInfo) as $r) {
+                        if (($r['slot'] ?? '') !== $slot) {
+                            continue;
+                        }
+                        $msg = personalize_message_for_parent_recipient($smsTpl, $student, $r);
+                        if ($msg === null) {
+                            continue;
+                        }
+                        try {
+                            $this->smsService->sendSMS($r['phone'], $msg, 'RKS_FINANCE');
+                        } catch (\Exception $e) {
+                            Log::warning('SMS send failed', ['phone' => $r['phone'], 'error' => $e->getMessage()]);
+                            flash_sms_credit_warning($e);
+                        }
+                    }
+                }
+            }
+            if (in_array('email', $channels)) {
+                $emailBodyTpl = "<p>Dear {{parent_name}},</p><p>A payment link has been generated for <strong>{{student_name}}</strong> (Admission: {$student->admission_number}).</p><p><strong>Amount:</strong> KES {{amount}}</p><p><strong>Description:</strong> {$paymentLink->description}</p><p><a href='{{payment_link}}'>Pay Now</a></p>";
+                $parentNotify->sendEmailTemplateToStudentParents($student, "Payment Link - {$studentName}", $emailBodyTpl, null, $extra);
+            }
+            if (in_array('whatsapp', $channels)) {
+                $waTpl = "Dear {{parent_name}}, Pay *KES {{amount}}* for *{{student_name}}*. Click: {{payment_link}}";
+                $parentNotify->sendWhatsAppTemplateToStudentParents($student, $waTpl, 'Payment Link', null, $extra);
+            }
+
+            return;
+        }
+
+        if ($parentInfo && in_array('primary', $parents, true)) {
+            $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+            $smsTpl = 'Dear {{parent_name}}, Pay KES {{amount}} for {{student_name}}. Click: {{payment_link}} - Royal Kings School';
+            if (in_array('sms', $channels)) {
+                $parentNotify->sendSmsTemplateToStudentParents($student, $smsTpl, 'Payment Link', 'RKS_FINANCE', null, $extra);
+            }
+            if (in_array('email', $channels)) {
+                $parentNotify->sendEmailTemplateToStudentParents($student, "Payment Link - {$studentName}", 'Dear {{parent_name}}, payment link for {{student_name}}: {{payment_link}}', null, $extra);
+            }
+            if (in_array('whatsapp', $channels)) {
+                $parentNotify->sendWhatsAppTemplateToStudentParents($student, $smsTpl, 'Payment Link', null, $extra);
+            }
+
+            return;
+        }
+
+        // Legacy fallback when no ParentInfo record
+        $contacts = [];
+
         if (in_array('father', $parents)) {
             // Try to get WhatsApp number from ParentInfo, fallback to family phone
             $phone = $family->father_phone;

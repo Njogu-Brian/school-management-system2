@@ -2029,36 +2029,18 @@ class StudentController extends Controller
             return $text;
         };
         
-        // Send SMS
+        $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+        unset($variables['parent_name']);
+
         if ($smsTemplate) {
-            $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
-            // Never send to guardian when selecting parents/students; guardians are reached via manual number entry only
-            foreach ([$parent->primary_contact_phone ?? $parent->father_phone, $parent->mother_phone] as $phone) {
-                if ($phone) {
-                    try {
-                        $this->smsService->sendSMS($phone, $smsMessage);
-                    } catch (\Throwable $e) {
-                        Log::error("Admission SMS sending failed to $phone: " . $e->getMessage());
-                    }
-                }
-            }
+            $smsBody = $replacePlaceholders($smsTemplate->content, $variables);
+            $parentNotify->sendSmsTemplateToStudentParents($student, $smsBody, $smsTemplate->title ?? 'Admission');
         }
-        
-        // Send Email
+
         if ($emailTemplate) {
-            $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-            $body = $replacePlaceholders($emailTemplate->content, $variables);
-            
-            // Never send to guardian when selecting parents/students; guardians are reached via manual number entry only
-            foreach ([$parent->primary_contact_email ?? $parent->father_email, $parent->mother_email] as $email) {
-                if ($email) {
-                    try {
-                        Mail::to($email)->send(new GenericMail($subject, $body));
-                    } catch (\Throwable $e) {
-                        Log::error("Admission email sending failed to $email: " . $e->getMessage());
-                    }
-                }
-            }
+            $subjectTpl = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+            $bodyTpl = $replacePlaceholders($emailTemplate->content, $variables);
+            $parentNotify->sendEmailTemplateToStudentParents($student, $subjectTpl, $bodyTpl);
         }
     }
 

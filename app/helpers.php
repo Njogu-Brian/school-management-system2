@@ -615,6 +615,82 @@ if (!function_exists('replace_placeholders')) {
 }
 
 /**
+ * Normalize phone/email for matching parent notification contacts.
+ */
+if (!function_exists('normalize_contact_for_parent_match')) {
+    function normalize_contact_for_parent_match(?string $contact): string
+    {
+        if ($contact === null || $contact === '') {
+            return '';
+        }
+
+        if (str_contains($contact, '@')) {
+            return strtolower(trim($contact));
+        }
+
+        $digits = preg_replace('/\D+/', '', $contact) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+
+        if (str_starts_with($digits, '254') && strlen($digits) >= 12) {
+            return substr($digits, -9);
+        }
+        if (str_starts_with($digits, '0') && strlen($digits) >= 10) {
+            return substr($digits, -9);
+        }
+
+        return strlen($digits) >= 9 ? substr($digits, -9) : $digits;
+    }
+}
+
+/**
+ * Extra placeholders for a specific father/mother school-notification recipient.
+ *
+ * @return array<string, string>
+ */
+if (!function_exists('parent_recipient_placeholder_extra')) {
+    function parent_recipient_placeholder_extra(string $parentName, ?\App\Models\ParentInfo $parent = null, ?string $slot = null): array
+    {
+        $extra = [
+            'parent_name' => $parentName,
+            'greeting' => "Dear {$parentName}",
+        ];
+
+        if ($parent) {
+            $extra['father_name'] = ($slot === 'father') ? $parentName : (string) ($parent->father_name ?? '');
+            $extra['mother_name'] = ($slot === 'mother') ? $parentName : (string) ($parent->mother_name ?? '');
+        }
+
+        return $extra;
+    }
+}
+
+/**
+ * Personalize a message for one parent slot.
+ * Uses the slot's own name for {{parent_name}}/{{greeting}} when set; otherwise "Parent" so templates
+ * like "Dear Parent, {{student_name}}" still work (e.g. Dear Parent, Hailey Moraa Kamau).
+ */
+if (!function_exists('personalize_message_for_parent_recipient')) {
+    function personalize_message_for_parent_recipient(string $message, $entity, ?array $parentMeta): ?string
+    {
+        if ($entity === null) {
+            return null;
+        }
+
+        $name = is_array($parentMeta) ? trim((string) ($parentMeta['name'] ?? '')) : '';
+        if ($name === '') {
+            $name = 'Parent';
+        }
+
+        $parent = ($entity instanceof \App\Models\Student) ? $entity->parent : null;
+        $slot = is_array($parentMeta) ? ($parentMeta['slot'] ?? null) : null;
+
+        return replace_placeholders($message, $entity, parent_recipient_placeholder_extra($name, $parent, $slot));
+    }
+}
+
+/**
  * Common placeholder list for help text
  */
 if (!function_exists('available_placeholders')) {

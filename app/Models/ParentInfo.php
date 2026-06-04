@@ -177,6 +177,40 @@ class ParentInfo extends Model
     }
 
     /**
+     * Resolve father/mother recipient row for a contact (respects do-not-notify preference).
+     *
+     * @return array{slot:string, name:?string, phone?:string, email?:string}|null
+     */
+    public function findSchoolNotificationRecipientByContact(string $channel, string $contact): ?array
+    {
+        $needle = normalize_contact_for_parent_match($contact);
+        if ($needle === '') {
+            return null;
+        }
+
+        $recipients = match ($channel) {
+            'email' => $this->schoolNotificationEmailRecipients(),
+            'whatsapp' => $this->schoolNotificationWhatsAppRecipients(),
+            default => $this->schoolNotificationSmsRecipients(),
+        };
+
+        foreach ($recipients as $r) {
+            $field = $channel === 'email' ? 'email' : 'phone';
+            $candidate = normalize_contact_for_parent_match($r[$field] ?? '');
+            if ($candidate !== '' && $candidate === $needle) {
+                return $r;
+            }
+        }
+
+        return null;
+    }
+
+    public function contactAllowedForSchoolNotification(string $channel, string $contact): bool
+    {
+        return $this->findSchoolNotificationRecipientByContact($channel, $contact) !== null;
+    }
+
+    /**
      * Ensure at most one parent is muted and the other has at least one contact (phone, WhatsApp, or email).
      *
      * @param  array<string, mixed>  $parentRow  Attributes after the intended save (father_*, mother_*).

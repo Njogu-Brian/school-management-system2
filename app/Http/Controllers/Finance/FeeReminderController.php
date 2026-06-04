@@ -144,7 +144,7 @@ class FeeReminderController extends Controller
         }
 
         $parent = $student->parent ?? null;
-        $variables = $this->buildReminderVariables($reminder, $student, $parent);
+        $baseVariables = $this->buildReminderVariables($reminder, $student, $parent);
 
         $replacePlaceholders = function ($text, $vars) {
             foreach ($vars as $key => $value) {
@@ -157,17 +157,26 @@ class FeeReminderController extends Controller
 
         foreach ($channels as $channel) {
             if ($channel === 'email') {
-                $emails = $parent ? $parent->schoolNotificationEmails() : [];
+                $emailRecipients = $parent ? $parent->schoolNotificationEmailRecipients() : [];
                 $emailTemplate = $this->communicationTemplateForReminder($reminder, 'email');
-                foreach ($emails as $email) {
+                foreach ($emailRecipients as $r) {
+                    $parentName = trim((string) ($r['name'] ?? ''));
+                    if ($parentName === '') {
+                        $parentName = 'Parent';
+                    }
+                    $email = $r['email'] ?? null;
+                    if (! $email) {
+                        continue;
+                    }
                     try {
-                        if ($emailTemplate && !$reminder->message) {
-                            $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-                            $message = $replacePlaceholders($emailTemplate->content, $variables);
+                        $vars = array_merge($baseVariables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
+                        if ($emailTemplate && ! $reminder->message) {
+                            $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $vars);
+                            $message = $replacePlaceholders($emailTemplate->content, $vars);
                         } else {
                             $subject = 'Fee Payment Reminder';
                             $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
-                            $message = $replacePlaceholders($message, $variables);
+                            $message = $replacePlaceholders($message, $vars);
                         }
                         Mail::to($email)->send(new GenericMail($subject, $message));
                     } catch (\Exception $e) {
@@ -182,18 +191,30 @@ class FeeReminderController extends Controller
             }
 
             if ($channel === 'sms') {
-                $phones = $parent ? $parent->schoolNotificationSmsPhones() : [];
-                if (empty($phones) && $student->phone_number) {
-                    $phones = [$student->phone_number];
+                $smsRecipients = $parent ? $parent->schoolNotificationSmsRecipients() : [];
+                if (empty($smsRecipients) && $student->phone_number) {
+                    $smsRecipients = [['slot' => 'student', 'name' => null, 'phone' => $student->phone_number]];
                 }
                 $smsTemplate = $this->communicationTemplateForReminder($reminder, 'sms');
-                foreach ($phones as $phone) {
+                foreach ($smsRecipients as $r) {
+                    $phone = $r['phone'] ?? null;
+                    if (! $phone) {
+                        continue;
+                    }
+                    $parentName = trim((string) ($r['name'] ?? ''));
+                    if ($parentName === '' && ($r['slot'] ?? '') !== 'student') {
+                        $parentName = 'Parent';
+                    }
                     try {
-                        if ($smsTemplate && !$reminder->message) {
-                            $message = $replacePlaceholders($smsTemplate->content, $variables);
+                        $vars = $baseVariables;
+                        if ($parentName !== '') {
+                            $vars = array_merge($vars, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
+                        }
+                        if ($smsTemplate && ! $reminder->message) {
+                            $message = $replacePlaceholders($smsTemplate->content, $vars);
                         } else {
                             $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
-                            $message = $replacePlaceholders($message, $variables);
+                            $message = $replacePlaceholders($message, $vars);
                         }
                         $this->smsService->sendSMS($phone, $message, $this->smsService->getFinanceSenderId());
                     } catch (\Exception $e) {
@@ -208,19 +229,31 @@ class FeeReminderController extends Controller
             }
 
             if ($channel === 'whatsapp') {
-                $whatsappPhones = $parent ? $parent->schoolNotificationWhatsAppNumbers() : [];
-                if (empty($whatsappPhones) && !empty($student->phone_number)) {
-                    $whatsappPhones = [$student->phone_number];
+                $whatsappRecipients = $parent ? $parent->schoolNotificationWhatsAppRecipients() : [];
+                if (empty($whatsappRecipients) && ! empty($student->phone_number)) {
+                    $whatsappRecipients = [['slot' => 'student', 'name' => null, 'phone' => $student->phone_number]];
                 }
                 $waTemplate = $this->communicationTemplateForReminder($reminder, 'whatsapp');
                 $whatsappService = app(\App\Services\WhatsAppService::class);
-                foreach ($whatsappPhones as $whatsappPhone) {
+                foreach ($whatsappRecipients as $r) {
+                    $whatsappPhone = $r['phone'] ?? null;
+                    if (! $whatsappPhone) {
+                        continue;
+                    }
+                    $parentName = trim((string) ($r['name'] ?? ''));
+                    if ($parentName === '' && ($r['slot'] ?? '') !== 'student') {
+                        $parentName = 'Parent';
+                    }
                     try {
-                        if ($waTemplate && !$reminder->message) {
-                            $message = $replacePlaceholders($waTemplate->content, $variables);
+                        $vars = $baseVariables;
+                        if ($parentName !== '') {
+                            $vars = array_merge($vars, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
+                        }
+                        if ($waTemplate && ! $reminder->message) {
+                            $message = $replacePlaceholders($waTemplate->content, $vars);
                         } else {
                             $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
-                            $message = $replacePlaceholders($message, $variables);
+                            $message = $replacePlaceholders($message, $vars);
                         }
                         $whatsappService->sendMessage($whatsappPhone, $message);
                     } catch (\Exception $e) {
@@ -327,7 +360,7 @@ class FeeReminderController extends Controller
     protected function buildReminderVariables(FeeReminder $reminder, Student $student, $parent): array
     {
         $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
-        $parentName = $parent ? ($parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent') : 'Parent';
+        $parentName = 'Parent';
         $currentTerm = Term::where('is_current', true)->first();
         $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
         $financePortalLink = get_public_student_statement_url($student);

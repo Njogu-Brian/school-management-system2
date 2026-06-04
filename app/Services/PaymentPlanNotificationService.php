@@ -28,27 +28,42 @@ class PaymentPlanNotificationService
             return;
         }
 
-        $message = $this->buildMessage($plan);
         [$emailSubject, $emailBody] = $this->buildEmailSubjectAndBody($plan);
+        $extra = $this->planExtra($plan);
 
-        // SMS / WhatsApp / email – father & mother only; respect school notification preferences
-        foreach ($parent->schoolNotificationSmsPhones() as $phone) {
-            $this->sendSms($phone, $message, $student);
+        foreach ($parent->schoolNotificationSmsRecipients() as $r) {
+            $name = trim((string) ($r['name'] ?? ''));
+            $phone = $r['phone'] ?? null;
+            if ($name === '' || ! $phone) {
+                continue;
+            }
+            $this->sendSms($phone, $this->buildMessage($plan, array_merge($extra, parent_recipient_placeholder_extra($name, $parent, $r['slot'] ?? null))), $student);
         }
 
-        $waMessage = $this->buildWhatsAppMessage($plan);
-        foreach ($parent->schoolNotificationWhatsAppNumbers() as $waPhone) {
-            $this->sendWhatsApp($waPhone, $waMessage, $student);
+        foreach ($parent->schoolNotificationWhatsAppRecipients() as $r) {
+            $name = trim((string) ($r['name'] ?? ''));
+            $phone = $r['phone'] ?? null;
+            if ($name === '' || ! $phone) {
+                continue;
+            }
+            $this->sendWhatsApp($phone, $this->buildWhatsAppMessage($plan, array_merge($extra, parent_recipient_placeholder_extra($name, $parent, $r['slot'] ?? null))), $student);
         }
 
-        foreach ($parent->schoolNotificationEmails() as $email) {
-            $this->sendEmail($email, $emailSubject, $emailBody, $student);
+        foreach ($parent->schoolNotificationEmailRecipients() as $r) {
+            $name = trim((string) ($r['name'] ?? ''));
+            $email = $r['email'] ?? null;
+            if ($name === '' || ! $email) {
+                continue;
+            }
+            $slotExtra = parent_recipient_placeholder_extra($name, $parent, $r['slot'] ?? null);
+            [, $body] = $this->buildEmailSubjectAndBody($plan, array_merge($extra, $slotExtra));
+            $this->sendEmail($email, $emailSubject, $body, $student);
         }
     }
 
-    protected function buildMessage(FeePaymentPlan $plan): string
+    protected function buildMessage(FeePaymentPlan $plan, array $extra = []): string
     {
-        $extra = $this->planExtra($plan);
+        $extra = array_merge($this->planExtra($plan), $extra);
         $template = CommunicationTemplate::where('code', 'payment_plan_created_sms')->first();
         if ($template && $template->content) {
             return replace_placeholders($template->content, $plan->student, $extra);
@@ -105,9 +120,9 @@ class PaymentPlanNotificationService
         ];
     }
 
-    protected function buildWhatsAppMessage(FeePaymentPlan $plan): string
+    protected function buildWhatsAppMessage(FeePaymentPlan $plan, array $extra = []): string
     {
-        $extra = $this->planExtra($plan);
+        $extra = array_merge($this->planExtra($plan), $extra);
         $template = CommunicationTemplate::where('code', 'payment_plan_created_whatsapp')->first();
         if ($template && $template->content) {
             return replace_placeholders($template->content, $plan->student, $extra);
@@ -115,9 +130,9 @@ class PaymentPlanNotificationService
         return $this->buildMessage($plan);
     }
 
-    protected function buildEmailSubjectAndBody(FeePaymentPlan $plan): array
+    protected function buildEmailSubjectAndBody(FeePaymentPlan $plan, array $extra = []): array
     {
-        $extra = $this->planExtra($plan);
+        $extra = array_merge($this->planExtra($plan), $extra);
         $template = CommunicationTemplate::where('code', 'payment_plan_created_email')->first();
         if ($template && $template->content) {
             $subject = str_replace(['{{student_name}}'], [$plan->student->full_name ?? $plan->student->first_name . ' ' . $plan->student->last_name], $template->subject ?? 'Payment plan created');

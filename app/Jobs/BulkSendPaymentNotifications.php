@@ -356,11 +356,11 @@ class BulkSendPaymentNotifications implements ShouldQueue
             foreach ($smsRecipients as $r) {
                 $parentPhone = $r['phone'] ?? null;
                 if (!$parentPhone) continue;
-                $parentName = $r['name'] ?? null;
-                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                $vars = $variables;
-                $vars['parent_name'] = $parentName ?? 'Parent';
-                $vars['greeting'] = $greeting;
+                $parentName = trim((string) ($r['name'] ?? ''));
+                if ($parentName === '') {
+                    $parentName = 'Parent';
+                }
+                $vars = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
                 $smsMessage = $replacePlaceholders($smsTemplate->content, $vars);
                 $commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
             }
@@ -386,11 +386,11 @@ class BulkSendPaymentNotifications implements ShouldQueue
             foreach ($emailRecipients as $r) {
                 $parentEmail = $r['email'] ?? null;
                 if (!$parentEmail) continue;
-                $parentName = $r['name'] ?? null;
-                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                $vars = $variables;
-                $vars['parent_name'] = $parentName ?? 'Parent';
-                $vars['greeting'] = $greeting;
+                $parentName = trim((string) ($r['name'] ?? ''));
+                if ($parentName === '') {
+                    $parentName = 'Parent';
+                }
+                $vars = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
                 $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $vars);
                 $emailContent = $replacePlaceholders($emailTemplate->content, $vars);
                 $commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
@@ -412,16 +412,15 @@ class BulkSendPaymentNotifications implements ShouldQueue
                 );
             }
 
-            $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
             $whatsappService = app(\App\Services\WhatsAppService::class);
             foreach ($whatsappRecipients as $r) {
                 $whatsappPhone = $r['phone'] ?? null;
                 if (!$whatsappPhone) continue;
-                $parentName = $r['name'] ?? null;
-                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                $vars = $variables;
-                $vars['parent_name'] = $parentName ?? 'Parent';
-                $vars['greeting'] = $greeting;
+                $parentName = trim((string) ($r['name'] ?? ''));
+                if ($parentName === '') {
+                    $parentName = 'Parent';
+                }
+                $vars = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
                 $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $vars);
 
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);

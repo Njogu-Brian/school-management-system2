@@ -192,16 +192,22 @@ class ApiAttendanceController extends Controller
             }
 
             $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
-            $parentName = $student->parent->primary_contact_name ?? $student->parent->father_name ?? $student->parent->mother_name ?? 'Parent';
-            $message = str_replace(
-                ['{{student_name}}', '{{attendance_status}}', '{{attendance_date}}', '{{parent_name}}', '{{school_name}}'],
-                [$student->full_name, 'absent', 'today', $parentName, $schoolName],
+            $messageTemplate = str_replace(
+                ['{{student_name}}', '{{attendance_status}}', '{{attendance_date}}', '{{school_name}}'],
+                [$student->full_name, 'absent', 'today', $schoolName],
                 $tpl->content ?? ''
             );
 
-            $phones = $student->parent->schoolNotificationSmsPhones();
-
-            foreach ($phones as $phone) {
+            $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+            foreach ($parentNotify->smsRecipients($student->parent) as $r) {
+                $phone = $r['phone'] ?? null;
+                if (! $phone) {
+                    continue;
+                }
+                $message = personalize_message_for_parent_recipient($messageTemplate, $student, $r);
+                if ($message === null) {
+                    continue;
+                }
                 $this->smsService->sendSMS($phone, $message);
                 CommunicationLog::create([
                     'recipient_type' => 'parent',

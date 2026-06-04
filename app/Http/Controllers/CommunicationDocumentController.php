@@ -123,32 +123,33 @@ class CommunicationDocumentController extends Controller
                 $studentName = $student->full_name ?? $student->first_name . ' ' . $student->last_name;
                 $useTemplate = $template !== null;
 
-                foreach (CommunicationHelperService::expandRecipientsToPairs($recipients) as [$contact, $entity]) {
-                    // Prepare personalized body for each recipient
+                foreach (CommunicationHelperService::expandRecipientsToPairs($recipients) as $pair) {
+                    [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
                     if ($useTemplate) {
-                        $parentName = (is_object($entity) && $entity->parent)
-                            ? ($entity->parent->father_name ?? $entity->parent->mother_name ?? 'Parent')
-                            : 'Parent';
-                        
-                        $variables = [
-                            'parent_name' => $parentName,
+                        $baseVars = [
                             'student_name' => $studentName,
                             'finance_portal_link' => $viewLink,
                             'school_name' => $schoolName,
                         ];
-                        
-                        // Replace placeholders in template content (create a copy to avoid modifying original)
                         $templateContent = $template->content;
                         $templateSubject = $template->subject ?? $subject;
-                        foreach ($variables as $key => $value) {
+                        foreach ($baseVars as $key => $value) {
                             $templateContent = str_replace('{{' . $key . '}}', $value, $templateContent);
                             $templateSubject = str_replace('{{' . $key . '}}', $value, $templateSubject);
                         }
-                        
-                        $body = $templateContent . "\n\n" . $viewLink;
-                        $finalSubject = $channel === 'email' ? $templateSubject : $subject;
+                        $body = personalize_message_for_parent_recipient($templateContent, $entity instanceof \App\Models\Student ? $entity : $student, $parentMeta);
+                        if ($body === null) {
+                            continue;
+                        }
+                        $body .= "\n\n" . $viewLink;
+                        $finalSubject = $channel === 'email'
+                            ? (personalize_message_for_parent_recipient($templateSubject, $entity instanceof \App\Models\Student ? $entity : $student, $parentMeta) ?? $subject)
+                            : $subject;
                     } else {
-                        $body = trim($message . "\n\n" . $viewLink);
+                        $body = personalize_message_for_parent_recipient(trim($message . "\n\n" . $viewLink), $entity instanceof \App\Models\Student ? $entity : $student, $parentMeta);
+                        if ($body === null) {
+                            continue;
+                        }
                         $finalSubject = $subject;
                     }
                     try {

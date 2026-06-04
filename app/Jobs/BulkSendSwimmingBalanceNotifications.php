@@ -311,16 +311,13 @@ class BulkSendSwimmingBalanceNotifications implements ShouldQueue
      */
     protected function checkContactAvailable($parent, string $channel): bool
     {
-        if ($channel === 'sms') {
-            return !empty($parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null);
-        } elseif ($channel === 'email') {
-            return !empty($parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null);
-        } elseif ($channel === 'whatsapp') {
-            return !empty($parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null);
-        }
-        
-        return false;
+        $notify = app(\App\Services\ParentSchoolNotificationService::class);
+
+        return match ($channel) {
+            'email' => ! empty($notify->emailRecipients($parent)),
+            'whatsapp' => ! empty($notify->whatsappRecipients($parent)),
+            default => ! empty($notify->smsRecipients($parent)),
+        };
     }
 
     /**
@@ -335,16 +332,8 @@ class BulkSendSwimmingBalanceNotifications implements ShouldQueue
     ): void {
         $balance = abs((float) $wallet->balance);
         $paymentLinkUrl = $paymentLink->getPaymentUrl();
-
-        // Get parent name and greeting
-        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? null;
-        $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-
         $schoolName = DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
-
-        $variables = [
-            'parent_name' => $parentName ?? 'Parent',
-            'greeting' => $greeting,
+        $extra = [
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
             'admission_number' => $student->admission_number,
             'balance' => 'Ksh ' . number_format($balance, 2),
@@ -352,109 +341,64 @@ class BulkSendSwimmingBalanceNotifications implements ShouldQueue
             'school_name' => $schoolName,
         ];
 
-        $replacePlaceholders = function($text, $vars) {
-            foreach ($vars as $key => $value) {
-                $text = str_replace('{{' . $key . '}}', $value, $text);
-            }
-            return $text;
-        };
+        $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
 
-        // Get services
-        $commService = app(CommunicationService::class);
-
-        // Send via specific channel
         if ($channel === 'sms') {
-            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
-            if ($parentPhone) {
-                $smsTemplate = CommunicationTemplate::where('code', 'swimming_balance_sms')
-                    ->first();
-                
-                if (!$smsTemplate) {
-                    $smsTemplate = CommunicationTemplate::firstOrCreate(
-                        ['code' => 'swimming_balance_sms'],
-                        [
-                            'title' => 'Swimming Balance SMS',
-                            'type' => 'sms',
-                            'subject' => null,
-                            'content' => "{{greeting}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of {{balance}}.\n\nPay now: {{payment_link}}\n\nThank you.\n{{school_name}}",
-                        ]
-                    );
-                }
-
-                $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
-                $smsService = app(\App\Services\SMSService::class);
-                $financeSenderId = $smsService->getFinanceSenderId();
-                $commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId);
-            }
+            $smsTemplate = CommunicationTemplate::where('code', 'swimming_balance_sms')->first()
+                ?? CommunicationTemplate::firstOrCreate(
+                    ['code' => 'swimming_balance_sms'],
+                    [
+                        'title' => 'Swimming Balance SMS',
+                        'type' => 'sms',
+                        'subject' => null,
+                        'content' => "Dear {{parent_name}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of {{balance}}.\n\nPay now: {{payment_link}}\n\nThank you.\n{{school_name}}",
+                    ]
+                );
+            $financeSenderId = app(\App\Services\SMSService::class)->getFinanceSenderId();
+            $parentNotify->sendSmsTemplateToStudentParents(
+                $student,
+                $smsTemplate->content,
+                $smsTemplate->subject ?? $smsTemplate->title,
+                $financeSenderId,
+                null,
+                $extra
+            );
         } elseif ($channel === 'email') {
-            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
-            if ($parentEmail) {
-                $emailTemplate = CommunicationTemplate::where('code', 'swimming_balance_email')
-                    ->first();
-                
-                if (!$emailTemplate) {
-                    $emailTemplate = CommunicationTemplate::firstOrCreate(
-                        ['code' => 'swimming_balance_email'],
-                        [
-                            'title' => 'Swimming Balance Email',
-                            'type' => 'email',
-                            'subject' => 'Outstanding Swimming Balance – {{student_name}}',
-                            'content' => "{{greeting}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of {{balance}}.\n\nPlease make payment using the link below:\n{{payment_link}}\n\nThank you for your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
-                        ]
-                    );
-                }
-
-                $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-                $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
-                // Convert newlines to HTML breaks for email
-                $emailContent = nl2br($emailContent);
-                $commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent);
-            }
+            $emailTemplate = CommunicationTemplate::where('code', 'swimming_balance_email')->first()
+                ?? CommunicationTemplate::firstOrCreate(
+                    ['code' => 'swimming_balance_email'],
+                    [
+                        'title' => 'Swimming Balance Email',
+                        'type' => 'email',
+                        'subject' => 'Outstanding Swimming Balance – {{student_name}}',
+                        'content' => "Dear {{parent_name}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of {{balance}}.\n\nPlease make payment using the link below:\n{{payment_link}}\n\nThank you.\n{{school_name}} Finance Office",
+                    ]
+                );
+            $parentNotify->sendEmailTemplateToStudentParents(
+                $student,
+                $emailTemplate->subject ?? $emailTemplate->title,
+                $emailTemplate->content,
+                null,
+                $extra
+            );
         } elseif ($channel === 'whatsapp') {
-            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
-            
-            if ($whatsappPhone) {
-                $whatsappTemplate = CommunicationTemplate::where('code', 'swimming_balance_whatsapp')
-                    ->first();
-                
-                if (!$whatsappTemplate) {
-                    $whatsappTemplate = CommunicationTemplate::firstOrCreate(
-                        ['code' => 'swimming_balance_whatsapp'],
-                        [
-                            'title' => 'Swimming Balance WhatsApp',
-                            'type' => 'whatsapp',
-                            'subject' => null,
-                            'content' => "{{greeting}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of *{{balance}}*.\n\nPay now: {{payment_link}}\n\nThank you.\n{{school_name}}",
-                        ]
-                    );
-                }
-
-                $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
-                $whatsappService = app(\App\Services\WhatsAppService::class);
-                $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
-                
-                $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
-                
-                CommunicationLog::create([
-                    'recipient_type' => 'parent',
-                    'recipient_id'   => $parent->id ?? null,
-                    'contact'        => $whatsappPhone,
-                    'channel'        => 'whatsapp',
-                    'title'          => $whatsappTemplate->subject ?? $whatsappTemplate->title,
-                    'message'        => $whatsappMessage,
-                    'type'           => 'whatsapp',
-                    'status'         => $status,
-                    'response'       => $response,
-                    'scope'          => 'whatsapp',
-                    'sent_at'        => now(),
-                    'provider_id'    => data_get($response, 'body.data.id') 
-                                        ?? data_get($response, 'body.data.message.id')
-                                        ?? data_get($response, 'body.messageId')
-                                        ?? data_get($response, 'body.id'),
-                    'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
-                ]);
-            }
+            $whatsappTemplate = CommunicationTemplate::where('code', 'swimming_balance_whatsapp')->first()
+                ?? CommunicationTemplate::firstOrCreate(
+                    ['code' => 'swimming_balance_whatsapp'],
+                    [
+                        'title' => 'Swimming Balance WhatsApp',
+                        'type' => 'whatsapp',
+                        'subject' => null,
+                        'content' => "Dear {{parent_name}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of *{{balance}}*.\n\nPay now: {{payment_link}}\n\nThank you.\n{{school_name}}",
+                    ]
+                );
+            $parentNotify->sendWhatsAppTemplateToStudentParents(
+                $student,
+                $whatsappTemplate->content,
+                $whatsappTemplate->title ?? null,
+                null,
+                $extra
+            );
         }
     }
 

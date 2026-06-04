@@ -245,8 +245,18 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     $entity = is_array($entityData) ? (object)$entityData : $entityData;
                 }
                 
-                // Replace placeholders
-                $personalized = replace_placeholders($this->message, $entity);
+                if (! empty($item['message'])) {
+                    $personalized = $item['message'];
+                } elseif (! empty($item['parent_name'])) {
+                    $parent = ($entity instanceof \App\Models\Student) ? $entity->parent : null;
+                    $personalized = replace_placeholders(
+                        $this->message,
+                        $entity,
+                        parent_recipient_placeholder_extra((string) $item['parent_name'], $parent, $item['parent_slot'] ?? null)
+                    );
+                } else {
+                    $personalized = replace_placeholders($this->message, $entity);
+                }
                 $finalMessage = $this->mediaUrl ? ($personalized . "\n\nMedia: " . $this->mediaUrl) : $personalized;
 
                 // Send message

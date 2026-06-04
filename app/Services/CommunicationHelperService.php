@@ -45,14 +45,7 @@ class CommunicationHelperService
                     ->get()
                     ->each(function ($s) use (&$out, $type) {
                         if ($s->parent) {
-                            // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
-                            $contacts = self::parentContactsForSchoolNotifications($s->parent, $type);
-                            foreach ($contacts as $c) {
-                                if ($c) {
-                                    if (!isset($out[$c])) $out[$c] = [];
-                                    if (!in_array($s, $out[$c], true)) $out[$c][] = $s;
-                                }
-                            }
+                            self::attachParentRecipient($out, $s->parent, $type, $s);
                         }
                     });
             }
@@ -65,11 +58,7 @@ class CommunicationHelperService
                 ->where('is_alumni', false)
                 ->find($data['student_id']);
             if ($student && $student->parent) {
-                // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
-                $contacts = self::parentContactsForSchoolNotifications($student->parent, $type);
-                foreach ($contacts as $c) {
-                    if ($c) $out[$c] = [$student];
-                }
+                self::attachParentRecipient($out, $student->parent, $type, $student);
             }
         }
 
@@ -84,14 +73,7 @@ class CommunicationHelperService
                 ->get()
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
-                        // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
-                        $contacts = self::parentContactsForSchoolNotifications($s->parent, $type);
-                        foreach ($contacts as $c) {
-                            if ($c) {
-                                if (!isset($out[$c])) $out[$c] = [];
-                                if (!in_array($s, $out[$c], true)) $out[$c][] = $s;
-                            }
-                        }
+                        self::attachParentRecipient($out, $s->parent, $type, $s);
                     }
                 });
         }
@@ -106,14 +88,7 @@ class CommunicationHelperService
                 ->get()
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
-                        // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
-                        $contacts = self::parentContactsForSchoolNotifications($s->parent, $type);
-                        foreach ($contacts as $c) {
-                            if ($c) {
-                                if (!isset($out[$c])) $out[$c] = [];
-                                if (!in_array($s, $out[$c], true)) $out[$c][] = $s;
-                            }
-                        }
+                        self::attachParentRecipient($out, $s->parent, $type, $s);
                     }
                 });
         }
@@ -155,9 +130,12 @@ class CommunicationHelperService
         }
         if (!empty($excludeIds)) {
             $out = array_map(function ($entities) use ($excludeIds) {
-                $list = is_array($entities) ? $entities : [$entities];
-                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || !in_array((int) $e->id, $excludeIds, true));
-                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                $filtered = array_filter(
+                    self::entitiesFromOutValue($entities),
+                    fn ($e) => ! ($e instanceof Student) || ! in_array((int) $e->id, $excludeIds, true)
+                );
+
+                return self::rebuildOutValue($entities, $filtered);
             }, $out);
             $out = array_filter($out);
         }
@@ -186,9 +164,12 @@ class CommunicationHelperService
                 ->flip()
                 ->all();
             $out = array_map(function ($entities) use ($studentIdsWithBalance) {
-                $list = is_array($entities) ? $entities : [$entities];
-                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($studentIdsWithBalance[$e->id]));
-                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                $filtered = array_filter(
+                    self::entitiesFromOutValue($entities),
+                    fn ($e) => ! ($e instanceof Student) || isset($studentIdsWithBalance[$e->id])
+                );
+
+                return self::rebuildOutValue($entities, $filtered);
             }, $out);
             $out = array_filter($out);
         }
@@ -204,9 +185,12 @@ class CommunicationHelperService
                 ->flip()
                 ->all();
             $out = array_map(function ($entities) use ($studentIdsWithUpcoming) {
-                $list = is_array($entities) ? $entities : [$entities];
-                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($studentIdsWithUpcoming[$e->id]));
-                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                $filtered = array_filter(
+                    self::entitiesFromOutValue($entities),
+                    fn ($e) => ! ($e instanceof Student) || isset($studentIdsWithUpcoming[$e->id])
+                );
+
+                return self::rebuildOutValue($entities, $filtered);
             }, $out);
             $out = array_filter($out);
         }
@@ -218,9 +202,12 @@ class CommunicationHelperService
                 ->flip()
                 ->all();
             $out = array_map(function ($entities) use ($studentIdsWithSwimmingBalance) {
-                $list = is_array($entities) ? $entities : [$entities];
-                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($studentIdsWithSwimmingBalance[$e->id]));
-                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                $filtered = array_filter(
+                    self::entitiesFromOutValue($entities),
+                    fn ($e) => ! ($e instanceof Student) || isset($studentIdsWithSwimmingBalance[$e->id])
+                );
+
+                return self::rebuildOutValue($entities, $filtered);
             }, $out);
             $out = array_filter($out);
         }
@@ -230,13 +217,16 @@ class CommunicationHelperService
             $min = (float) $data['fee_balance_min'];
             if ($min > 0) {
                 $out = array_map(function ($entities) use ($min) {
-                    $list = is_array($entities) ? $entities : [$entities];
-                    $filtered = array_filter($list, function ($e) use ($min) {
-                        if (!($e instanceof Student)) return true;
+                    $filtered = array_filter(self::entitiesFromOutValue($entities), function ($e) use ($min) {
+                        if (! ($e instanceof Student)) {
+                            return true;
+                        }
                         $balance = StudentBalanceService::getTotalOutstandingBalance($e, false);
+
                         return $balance >= $min;
                     });
-                    return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+
+                    return self::rebuildOutValue($entities, $filtered);
                 }, $out);
                 $out = array_filter($out);
             }
@@ -248,20 +238,27 @@ class CommunicationHelperService
             if ($percentMin > 0) {
                 $currentTermId = get_current_term_id();
                 $out = array_map(function ($entities) use ($percentMin, $currentTermId) {
-                    $list = is_array($entities) ? $entities : [$entities];
-                    $filtered = array_filter($list, function ($e) use ($percentMin, $currentTermId) {
-                        if (!($e instanceof Student)) return true;
+                    $filtered = array_filter(self::entitiesFromOutValue($entities), function ($e) use ($percentMin, $currentTermId) {
+                        if (! ($e instanceof Student)) {
+                            return true;
+                        }
                         $outstanding = StudentBalanceService::getTotalOutstandingBalance($e, false);
-                        if ($outstanding <= 0) return false;
+                        if ($outstanding <= 0) {
+                            return false;
+                        }
                         $termTotal = Invoice::where('student_id', $e->id)
                             ->where('status', '!=', 'reversed')
                             ->when($currentTermId, fn ($q) => $q->where('term_id', $currentTermId))
                             ->sum('total');
-                        if ($termTotal <= 0) return false;
+                        if ($termTotal <= 0) {
+                            return false;
+                        }
                         $percent = ($outstanding / $termTotal) * 100;
+
                         return $percent >= $percentMin;
                     });
-                    return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+
+                    return self::rebuildOutValue($entities, $filtered);
                 }, $out);
                 $out = array_filter($out);
             }
@@ -272,13 +269,16 @@ class CommunicationHelperService
             $min = (float) $data['swimming_balance_min'];
             if ($min > 0) {
                 $out = array_map(function ($entities) use ($min) {
-                    $list = is_array($entities) ? $entities : [$entities];
-                    $filtered = array_filter($list, function ($e) use ($min) {
-                        if (!($e instanceof Student)) return true;
+                    $filtered = array_filter(self::entitiesFromOutValue($entities), function ($e) use ($min) {
+                        if (! ($e instanceof Student)) {
+                            return true;
+                        }
                         $wallet = SwimmingWallet::getOrCreateForStudent($e->id);
+
                         return $wallet->balance < 0 && abs((float) $wallet->balance) >= $min;
                     });
-                    return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+
+                    return self::rebuildOutValue($entities, $filtered);
                 }, $out);
                 $out = array_filter($out);
             }
@@ -319,9 +319,12 @@ class CommunicationHelperService
             $unpaidStudentIds = $priorInvoiceStudentIds + $carryForwardStudentIds;
 
             $out = array_map(function ($entities) use ($unpaidStudentIds) {
-                $list = is_array($entities) ? $entities : [$entities];
-                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($unpaidStudentIds[$e->id]));
-                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                $filtered = array_filter(
+                    self::entitiesFromOutValue($entities),
+                    fn ($e) => ! ($e instanceof Student) || isset($unpaidStudentIds[$e->id])
+                );
+
+                return self::rebuildOutValue($entities, $filtered);
             }, $out);
             $out = array_filter($out);
         }
@@ -331,13 +334,16 @@ class CommunicationHelperService
             $min = (float) $data['prior_term_balance_min'];
             if ($min > 0) {
                 $out = array_map(function ($entities) use ($min) {
-                    $list = is_array($entities) ? $entities : [$entities];
-                    $filtered = array_filter($list, function ($e) use ($min) {
-                        if (!($e instanceof Student)) return true;
+                    $filtered = array_filter(self::entitiesFromOutValue($entities), function ($e) use ($min) {
+                        if (! ($e instanceof Student)) {
+                            return true;
+                        }
                         $balance = StudentBalanceService::getOutstandingPriorTermArrears($e);
+
                         return $balance >= $min;
                     });
-                    return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+
+                    return self::rebuildOutValue($entities, $filtered);
                 }, $out);
                 $out = array_filter($out);
             }
@@ -346,19 +352,19 @@ class CommunicationHelperService
         // Exclude students in staff category (children whose student category name is "Staff")
         if (!empty($data['exclude_staff'])) {
             $out = array_map(function ($entities) {
-                $list = is_array($entities) ? $entities : [$entities];
                 $filtered = [];
-                foreach ($list as $e) {
-                    if (!($e instanceof Student)) {
+                foreach (self::entitiesFromOutValue($entities) as $e) {
+                    if (! ($e instanceof Student)) {
                         $filtered[] = $e;
                     } else {
                         $e->loadMissing('category');
-                        if (!$e->category || strtolower($e->category->name) !== 'staff') {
+                        if (! $e->category || strtolower($e->category->name) !== 'staff') {
                             $filtered[] = $e;
                         }
                     }
                 }
-                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? $filtered : null);
+
+                return self::rebuildOutValue($entities, $filtered);
             }, $out);
             $out = array_filter($out);
         }
@@ -391,31 +397,102 @@ class CommunicationHelperService
     public static function expandRecipientsToPairs(array $rawRecipients): array
     {
         $pairs = [];
-        foreach ($rawRecipients as $contact => $entityOrEntities) {
-            $entities = is_array($entityOrEntities) ? $entityOrEntities : [$entityOrEntities];
+        foreach ($rawRecipients as $key => $entityOrBundle) {
+            if (is_array($entityOrBundle) && array_key_exists('entities', $entityOrBundle)) {
+                $contact = $entityOrBundle['contact'] ?? (is_string($key) && str_contains($key, '::') ? explode('::', $key, 2)[0] : $key);
+                $parentMeta = [
+                    'name' => $entityOrBundle['parent_name'] ?? null,
+                    'slot' => $entityOrBundle['parent_slot'] ?? null,
+                ];
+                foreach ($entityOrBundle['entities'] as $entity) {
+                    $pairs[] = [$contact, $entity, $parentMeta];
+                }
+                continue;
+            }
+
+            $contact = is_string($key) && str_contains($key, '::') ? explode('::', $key, 2)[0] : $key;
+            $entities = is_array($entityOrBundle) ? $entityOrBundle : [$entityOrBundle];
             foreach ($entities as $entity) {
-                $pairs[] = [$contact, $entity];
+                $pairs[] = [$contact, $entity, null];
             }
         }
+
         return $pairs;
     }
 
     /**
-     * Father/mother contacts for bulk communications, respecting parent notification preferences.
+     * @return list<\App\Models\Student|mixed>
+     */
+    private static function entitiesFromOutValue(mixed $value): array
+    {
+        if (is_array($value) && array_key_exists('entities', $value)) {
+            return $value['entities'];
+        }
+
+        return is_array($value) ? $value : [$value];
+    }
+
+    private static function rebuildOutValue(mixed $original, array $filteredEntities): mixed
+    {
+        if ($filteredEntities === []) {
+            return null;
+        }
+
+        if (is_array($original) && array_key_exists('entities', $original)) {
+            $original['entities'] = array_values($filteredEntities);
+
+            return $original;
+        }
+
+        return count($filteredEntities) === 1 ? reset($filteredEntities) : array_values($filteredEntities);
+    }
+
+    /**
+     * @param  array<string, mixed>  $out
+     */
+    private static function attachParentRecipient(array &$out, $parent, string $type, Student $student): void
+    {
+        if (! $parent) {
+            return;
+        }
+
+        foreach (self::parentRecipientsForSchoolNotifications($parent, $type) as $r) {
+            $contact = $r['phone'] ?? $r['email'] ?? null;
+            if (! $contact) {
+                continue;
+            }
+
+            $bundleKey = $contact . '::' . ($r['slot'] ?? 'parent');
+            if (! isset($out[$bundleKey])) {
+                $out[$bundleKey] = [
+                    'contact' => $contact,
+                    'entities' => [],
+                    'parent_name' => trim((string) ($r['name'] ?? '')) ?: null,
+                    'parent_slot' => $r['slot'] ?? null,
+                ];
+            }
+            if (! in_array($student, $out[$bundleKey]['entities'], true)) {
+                $out[$bundleKey]['entities'][] = $student;
+            }
+        }
+    }
+
+    /**
+     * Father/mother recipients for bulk communications (name + contact per slot).
      *
      * @param  \App\Models\ParentInfo  $parent
-     * @return list<string>
+     * @return list<array{slot:string, name:?string, phone?:string, email?:string}>
      */
-    private static function parentContactsForSchoolNotifications($parent, string $type): array
+    private static function parentRecipientsForSchoolNotifications($parent, string $type): array
     {
         if (! $parent) {
             return [];
         }
 
         return match ($type) {
-            'email' => $parent->schoolNotificationEmails(),
-            'whatsapp' => $parent->schoolNotificationWhatsAppNumbers(),
-            default => $parent->schoolNotificationSmsPhones(),
+            'email' => $parent->schoolNotificationEmailRecipients(),
+            'whatsapp' => $parent->schoolNotificationWhatsAppRecipients(),
+            default => $parent->schoolNotificationSmsRecipients(),
         };
     }
 }

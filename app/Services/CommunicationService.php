@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CommunicationLog;
+use App\Models\ParentInfo;
 use App\Exceptions\InsufficientSmsCreditsException;
 use App\Services\CommunicationPauseService;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +25,10 @@ class CommunicationService
 
     public function sendSMS($recipientType, $recipientId, $phone, $message, $title = null, $senderId = null, $paymentId = null): array
     {
+        if ($blocked = $this->blockedParentSchoolNotification('sms', $recipientType, $recipientId, $phone, $message, $title, $paymentId)) {
+            return $blocked;
+        }
+
         try {
             $result = $this->smsService->sendSMS($phone, $message, $senderId);
 
@@ -199,6 +204,10 @@ class CommunicationService
 
     public function sendEmail($recipientType, $recipientId, $email, $subject, $htmlMessage, $attachmentPath = null)
     {
+        if ($this->blockedParentSchoolNotification('email', $recipientType, $recipientId, $email, $htmlMessage, $subject)) {
+            return;
+        }
+
         try {
             // GenericMail expects relative path from storage/app/public, not full path
             $relativeAttachmentPath = null;
@@ -250,6 +259,10 @@ class CommunicationService
 
     public function sendWhatsApp($recipientType, $recipientId, $phone, $message, $title = null, $paymentId = null)
     {
+        if ($this->blockedParentSchoolNotification('whatsapp', $recipientType, $recipientId, $phone, $message, $title, $paymentId)) {
+            return;
+        }
+
         try {
             $result = $this->whatsAppService->sendMessage($phone, $message);
             
@@ -301,5 +314,91 @@ class CommunicationService
             
             throw $e; // Re-throw to allow caller to handle
         }
+    }
+
+    /**
+     * Block parent-targeted sends when contact is muted, guardian-only, or not on the allowed list.
+     *
+     * @return array<string, mixed>|null  SMS skip payload, or null to proceed
+     */
+    protected function blockedParentSchoolNotification(
+        string $channel,
+        $recipientType,
+        $recipientId,
+        string $contact,
+        string $message,
+        ?string $title = null,
+        ?int $paymentId = null,
+    ): ?array {
+        if ($recipientType !== 'parent' || ! $recipientId) {
+            return null;
+        }
+
+        $parent = ParentInfo::find($recipientId);
+        if (! $parent) {
+            return $this->logSkippedParentNotification($channel, $recipientId, $contact, $message, $title, $paymentId, 'parent_not_found');
+        }
+
+        if (! $parent->contactAllowedForSchoolNotification($channel, $contact)) {
+            return $this->logSkippedParentNotification(
+                $channel,
+                $recipientId,
+                $contact,
+                $message,
+                $title,
+                $paymentId,
+                'muted_or_disallowed_contact'
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function logSkippedParentNotification(
+        string $channel,
+        int $recipientId,
+        string $contact,
+        string $message,
+        ?string $title,
+        ?int $paymentId,
+        string $reason,
+    ): ?array {
+        Log::info('Skipped parent school notification', [
+            'parent_id' => $recipientId,
+            'channel' => $channel,
+            'contact' => $contact,
+            'reason' => $reason,
+        ]);
+
+        CommunicationLog::create([
+            'recipient_type' => 'parent',
+            'recipient_id' => $recipientId,
+            'contact' => $contact,
+            'channel' => $channel,
+            'title' => $title ?? 'Notification',
+            'message' => $message,
+            'type' => $channel,
+            'status' => 'skipped',
+            'response' => ['reason' => $reason],
+            'scope' => $channel,
+            'sent_at' => now(),
+            'payment_id' => $paymentId,
+        ]);
+
+        if ($channel === 'sms') {
+            return [
+                'success' => false,
+                'status' => 'skipped',
+                'provider_status' => 'skipped',
+                'status_code' => null,
+                'result' => ['reason' => $reason],
+                'error' => $reason,
+            ];
+        }
+
+        return ['skipped' => true, 'reason' => $reason];
     }
 }

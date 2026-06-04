@@ -174,9 +174,11 @@ class StudentCommunicationService
     protected function reminderExtraPlaceholders(FeeReminder $reminder, Student $student): array
     {
         $parent = $student->parent;
-        $parentName = $parent
-            ? ($parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent')
-            : 'Parent';
+        $parentName = 'Parent';
+        if ($parent) {
+            $firstRecipient = $parent->schoolNotificationSmsRecipients()[0] ?? null;
+            $parentName = trim((string) ($firstRecipient['name'] ?? '')) ?: 'Parent';
+        }
         $currentTerm = Term::where('is_current', true)->first();
         $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
 

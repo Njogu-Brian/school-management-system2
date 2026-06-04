@@ -836,77 +836,23 @@ class OnlineAdmissionController extends Controller
         // Initialize SMS service
         $smsService = app(SMSService::class);
         
-        // Send SMS
+        unset($variables['parent_name']);
+        $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+
         if ($smsTemplate) {
-            $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
-            foreach ([$parent->primary_contact_phone ?? $parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
-                if ($phone) {
-                    try {
-                        $smsService->sendSMS($phone, $smsMessage);
-                    } catch (\Throwable $e) {
-                        Log::error("Admission SMS sending failed to $phone: " . $e->getMessage());
-                    }
-                }
-            }
+            $smsBody = $replacePlaceholders($smsTemplate->content, $variables);
+            $parentNotify->sendSmsTemplateToStudentParents($student, $smsBody, $smsTemplate->title ?? 'Admission');
         }
-        
-        // Send Email
+
         if ($emailTemplate) {
-            $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-            $body = $replacePlaceholders($emailTemplate->content, $variables);
-            
-            foreach ([$parent->primary_contact_email ?? $parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
-                if ($email) {
-                    try {
-                        Mail::to($email)->send(new GenericMail($subject, $body));
-                    } catch (\Throwable $e) {
-                        Log::error("Admission email sending failed to $email: " . $e->getMessage());
-                    }
-                }
-            }
+            $subjectTpl = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+            $bodyTpl = $replacePlaceholders($emailTemplate->content, $variables);
+            $parentNotify->sendEmailTemplateToStudentParents($student, $subjectTpl, $bodyTpl);
         }
-        
-        // Send WhatsApp (if template exists and WhatsApp is configured)
-        // Prioritize WhatsApp fields, fallback to father/mother phone
+
         if ($whatsappTemplate) {
-            $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
-            
-            // Build list with WhatsApp fields first, then phone fallbacks
-            $whatsappContacts = [];
-            
-            // Father: WhatsApp first, then phone
-            if (!empty($parent->father_whatsapp)) {
-                $whatsappContacts[] = $parent->father_whatsapp;
-            } elseif (!empty($parent->father_phone)) {
-                $whatsappContacts[] = $parent->father_phone;
-            }
-            
-            // Mother: WhatsApp first, then phone
-            if (!empty($parent->mother_whatsapp)) {
-                $whatsappContacts[] = $parent->mother_whatsapp;
-            } elseif (!empty($parent->mother_phone)) {
-                $whatsappContacts[] = $parent->mother_phone;
-            }
-            
-            // Guardian: WhatsApp first, then phone (only if father/mother not available)
-            if (empty($whatsappContacts)) {
-                if (!empty($parent->guardian_whatsapp)) {
-                    $whatsappContacts[] = $parent->guardian_whatsapp;
-                } elseif (!empty($parent->guardian_phone)) {
-                    $whatsappContacts[] = $parent->guardian_phone;
-                }
-            }
-            
-            foreach ($whatsappContacts as $whatsapp) {
-                if ($whatsapp) {
-                    try {
-                        // Use SMS service for WhatsApp as it might handle WhatsApp API
-                        $smsService->sendSMS($whatsapp, $whatsappMessage);
-                    } catch (\Throwable $e) {
-                        Log::error("Admission WhatsApp sending failed to $whatsapp: " . $e->getMessage());
-                    }
-                }
-            }
+            $waBody = $replacePlaceholders($whatsappTemplate->content, $variables);
+            $parentNotify->sendWhatsAppTemplateToStudentParents($student, $waBody, $whatsappTemplate->title ?? 'Admission');
         }
     }
 }

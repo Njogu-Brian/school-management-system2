@@ -225,15 +225,19 @@ class ReportCardController extends Controller
         if ($notify && !empty($report_card->public_token)) {
             try {
                 $report_card->loadMissing(['student.parent']);
-                $parent = $report_card->student?->parent;
-                $phone = $parent?->primary_contact_phone;
-                if ($parent && $phone) {
+                $student = $report_card->student;
+                $parent = $student?->parent;
+                if ($parent && $student) {
                     $url = route('academics.report_cards.public', $report_card->public_token);
-                    $studentName = $report_card->student?->name ?? 'your child';
+                    $studentName = $student->name ?? 'your child';
                     $term = $report_card->term?->name ?? '';
                     $year = $report_card->academicYear?->year ?? '';
-                    $msg = "Dear Parent,\n\n{$studentName}'s report card is now available (Term {$term} {$year}).\nView: {$url}\n\nThank you.";
-                    app(CommunicationService::class)->sendSMS('parent', $parent->id, $phone, $msg, 'Report Card Published');
+                    $template = "Dear {{parent_name}},\n\n{$studentName}'s report card is now available (Term {$term} {$year}).\nView: {$url}\n\nThank you.";
+                    app(\App\Services\ParentSchoolNotificationService::class)->sendSmsTemplateToStudentParents(
+                        $student,
+                        $template,
+                        'Report Card Published'
+                    );
                 }
             } catch (\Throwable $e) {
                 // best-effort; do not block publishing

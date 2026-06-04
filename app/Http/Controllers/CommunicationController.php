@@ -316,7 +316,8 @@ class CommunicationController extends Controller
         $recipients = [];
         $skipped = [];
         $reportRowsSkipped = [];
-        foreach ($this->expandRecipientsToPairs($rawRecipients) as [$phone, $entity]) {
+        foreach ($this->expandRecipientsToPairs($rawRecipients) as $pair) {
+            [$phone, $entity, $parentMeta] = array_pad($pair, 3, null);
             $normalized = $this->normalizeKenyanPhone($phone);
             if (!$normalized) {
                 $label = $this->formatSkippedRecipientLabel($phone, $entity);
@@ -324,7 +325,7 @@ class CommunicationController extends Controller
                 $reportRowsSkipped[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'skipped', 'reason' => 'Invalid/non-Kenyan number'];
                 continue;
             }
-            $recipients[] = [$normalized, $entity];
+            $recipients[] = [$normalized, $entity, $parentMeta];
         }
         $title = 'SMS';
         if (!empty($data['template_id'])) {
@@ -337,9 +338,17 @@ class CommunicationController extends Controller
         if ($useQueue) {
             $trackingId = 'sms_bulk_' . uniqid() . '_' . time();
             $recipientsData = [];
-            foreach ($recipients as [$phone, $entity]) {
+            foreach ($recipients as $recipientRow) {
+                [$phone, $entity, $parentMeta] = array_pad($recipientRow, 3, null);
+                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                if ($personalized === null) {
+                    continue;
+                }
                 $recipientsData[] = [
                     'phone' => $phone,
+                    'message' => $personalized,
+                    'parent_name' => $parentMeta['name'] ?? null,
+                    'parent_slot' => $parentMeta['slot'] ?? null,
                     'entity' => [
                         'id' => $entity->id ?? null,
                         'classroom_id' => $entity->classroom_id ?? null,
@@ -371,9 +380,13 @@ class CommunicationController extends Controller
         $failedCount = 0;
         $failures = [];
         $reportRows = [];
-        foreach ($recipients as [$phone, $entity]) {
+        foreach ($recipients as $recipientRow) {
+            [$phone, $entity, $parentMeta] = array_pad($recipientRow, 3, null);
             try {
-                $personalized = replace_placeholders($message, $entity);
+                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                if ($personalized === null) {
+                    continue;
+                }
                 $response = $smsService->sendSMS($phone, $personalized, $chosenSender);
 
                 $status = 'sent';
@@ -557,14 +570,15 @@ class CommunicationController extends Controller
         $skipped = [];
         $reportRowsSkipped = [];
         $recipients = [];
-        foreach ($this->expandRecipientsToPairs($rawRecipients) as [$phone, $entity]) {
+        foreach ($this->expandRecipientsToPairs($rawRecipients) as $pair) {
+            [$phone, $entity, $parentMeta] = array_pad($pair, 3, null);
             $normalized = $this->normalizeKenyanPhone($phone);
             if (!$normalized) {
                 $skipped[] = $this->formatSkippedRecipientLabel($phone, $entity);
                 $reportRowsSkipped[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'skipped', 'reason' => 'Invalid/non-Kenyan number'];
                 continue;
             }
-            $recipients[] = [$normalized, $entity];
+            $recipients[] = [$normalized, $entity, $parentMeta];
         }
         
         // For bulk sends (>10 recipients), use queue job for reliability
@@ -577,9 +591,17 @@ class CommunicationController extends Controller
             
             // Prepare recipients data (serialize entities) - list of [phone, entityData] for sibling support
             $recipientsData = [];
-            foreach ($recipients as [$phone, $entity]) {
+            foreach ($recipients as $recipientRow) {
+                [$phone, $entity, $parentMeta] = array_pad($recipientRow, 3, null);
+                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                if ($personalized === null) {
+                    continue;
+                }
                 $recipientsData[] = [
                     'phone' => $phone,
+                    'message' => $personalized,
+                    'parent_name' => $parentMeta['name'] ?? null,
+                    'parent_slot' => $parentMeta['slot'] ?? null,
                     'entity' => [
                         'id' => $entity->id ?? null,
                         'classroom_id' => $entity->classroom_id ?? null,
@@ -622,7 +644,8 @@ class CommunicationController extends Controller
         $totalRecipients = count($recipients);
         
         $index = 0;
-        foreach ($recipients as [$phone, $entity]) {
+        foreach ($recipients as $recipientRow) {
+            [$phone, $entity, $parentMeta] = array_pad($recipientRow, 3, null);
             $index++;
             try {
                 // Calculate delay needed since last message (skip delay for first message)
@@ -638,7 +661,10 @@ class CommunicationController extends Controller
                     }
                 }
                 
-                $personalized = replace_placeholders($message, $entity);
+                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                if ($personalized === null) {
+                    continue;
+                }
                 $finalMessage = $mediaUrl ? ($personalized . "\n\nMedia: " . $mediaUrl) : $personalized;
                 $response = $whatsAppService->sendMessage($phone, $finalMessage);
 

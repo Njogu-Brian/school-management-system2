@@ -787,11 +787,12 @@ class PaymentController extends Controller
             $parentPhone = $r['phone'] ?? null;
             if (!$parentPhone) continue;
             try {
-                $parentName = $r['name'] ?? null;
-                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                $smsVariables = $variables;
-                $smsVariables['parent_name'] = $parentName ?? 'Parent';
-                $smsVariables['greeting'] = $greeting;
+                $parentName = trim((string) ($r['name'] ?? ''));
+                if ($parentName === '') {
+                    $parentName = 'Parent';
+                }
+                $greeting = "Dear {$parentName}";
+                $smsVariables = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
                 $smsVariables['profile_update_link'] = '';
                 $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
                 $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
@@ -832,11 +833,11 @@ class PaymentController extends Controller
             $parentEmail = $r['email'] ?? null;
             if (!$parentEmail) continue;
             try {
-                $parentName = $r['name'] ?? null;
-                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                $emailVars = $variables;
-                $emailVars['parent_name'] = $parentName ?? 'Parent';
-                $emailVars['greeting'] = $greeting;
+                $parentName = trim((string) ($r['name'] ?? ''));
+                if ($parentName === '') {
+                    $parentName = 'Parent';
+                }
+                $emailVars = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
 
                 $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $emailVars);
                 $emailContent = $replacePlaceholders($emailTemplate->content, $emailVars);
@@ -881,11 +882,11 @@ class PaymentController extends Controller
             $whatsappPhone = $r['phone'] ?? null;
             if (!$whatsappPhone) continue;
             try {
-                $parentName = $r['name'] ?? null;
-                $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                $waVars = $variables;
-                $waVars['parent_name'] = $parentName ?? 'Parent';
-                $waVars['greeting'] = $greeting;
+                $parentName = trim((string) ($r['name'] ?? ''));
+                if ($parentName === '') {
+                    $parentName = 'Parent';
+                }
+                $waVars = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
 
                 $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $waVars);
                 if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
@@ -3577,11 +3578,11 @@ class PaymentController extends Controller
                 foreach ($recipients as $r) {
                     $parentPhone = $r['phone'] ?? null;
                     if (!$parentPhone) continue;
-                    $parentName = $r['name'] ?? null;
-                    $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                    $smsVariables = $variables;
-                    $smsVariables['parent_name'] = $parentName ?? 'Parent';
-                    $smsVariables['greeting'] = $greeting;
+                    $parentName = trim((string) ($r['name'] ?? ''));
+                    if ($parentName === '') {
+                        $parentName = 'Parent';
+                    }
+                    $smsVariables = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
                     $smsVariables['profile_update_link'] = '';
                     $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
                     $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
@@ -3616,11 +3617,11 @@ class PaymentController extends Controller
                 foreach ($recipients as $r) {
                     $parentEmail = $r['email'] ?? null;
                     if (!$parentEmail) continue;
-                    $parentName = $r['name'] ?? null;
-                    $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                    $emailVars = $variables;
-                    $emailVars['parent_name'] = $parentName ?? 'Parent';
-                    $emailVars['greeting'] = $greeting;
+                    $parentName = trim((string) ($r['name'] ?? ''));
+                    if ($parentName === '') {
+                        $parentName = 'Parent';
+                    }
+                    $emailVars = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
                     $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $emailVars);
                     $emailContent = $replacePlaceholders($emailTemplate->content, $emailVars);
                     if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
@@ -3658,11 +3659,11 @@ class PaymentController extends Controller
                 foreach ($recipients as $r) {
                     $whatsappPhone = $r['phone'] ?? null;
                     if (!$whatsappPhone) continue;
-                    $parentName = $r['name'] ?? null;
-                    $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
-                    $waVars = $variables;
-                    $waVars['parent_name'] = $parentName ?? 'Parent';
-                    $waVars['greeting'] = $greeting;
+                    $parentName = trim((string) ($r['name'] ?? ''));
+                    if ($parentName === '') {
+                        $parentName = 'Parent';
+                    }
+                    $waVars = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
                     $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $waVars);
                     if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
                         $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";

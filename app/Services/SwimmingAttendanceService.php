@@ -642,96 +642,36 @@ class SwimmingAttendanceService
                 $sessionCount = count($attendances);
                 $amountFormatted = number_format($totalAmount, 2);
                 
-                // Get parent contact info
-                $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
-                $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
-                $parentWhatsApp = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp ?? $parentPhone ?? null;
-                
-                // Build attendance dates list
-                $dates = $attendances->map(function($att) {
+                $dates = $attendances->map(function ($att) {
                     return $att->attendance_date->format('d M Y');
                 })->unique()->sort()->implode(', ');
-                
-                // SMS message
-                if (in_array('sms', $channels) && $parentPhone) {
-                    try {
-                        $smsMessage = "Dear Parent,\n\n";
-                        $smsMessage .= "Your child {$studentName} ({$student->admission_number}) has {$sessionCount} unpaid swimming session(s).\n\n";
-                        $smsMessage .= "Total Amount: KES {$amountFormatted}\n";
-                        $smsMessage .= "Dates: {$dates}\n\n";
-                        $smsMessage .= "Please make payment to credit your child's swimming wallet. Thank you.\n\n";
-                        $smsMessage .= "Royal Kings School";
-                        
-                        $commService->sendSMS('parent', $parent->id, $parentPhone, $smsMessage, 'Swimming Payment Reminder', 'RKS_FINANCE');
-                        $sent++;
-                    } catch (\Exception $e) {
-                        $failed++;
-                        Log::error('Failed to send swimming payment reminder SMS', [
-                            'parent_id' => $parent->id,
-                            'student_id' => $student->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
+
+                $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+                $smsTemplate = "Dear {{parent_name}},\n\nYour child {$studentName} ({$student->admission_number}) has {$sessionCount} unpaid swimming session(s).\n\nTotal Amount: KES {$amountFormatted}\nDates: {$dates}\n\nPlease make payment to credit your child's swimming wallet. Thank you.\n\nRoyal Kings School";
+                $emailBody = "<p>Dear {{parent_name}},</p><p>Your child <strong>{$studentName}</strong> (Admission: {$student->admission_number}) has <strong>{$sessionCount}</strong> unpaid swimming session(s).</p><p><strong>Total Amount Due:</strong> KES {$amountFormatted}</p><p><strong>Session Dates:</strong> {$dates}</p><p>Please make payment to credit your child's swimming wallet.</p><p>Royal Kings School</p>";
+                $waTemplate = $smsTemplate . "\n\nYou can pay via bank transfer (mark as swimming), M-PESA (mark as swimming), or at the finance office.";
+
+                if (in_array('sms', $channels)) {
+                    $sent += $parentNotify->sendSmsTemplateToStudentParents($student, $smsTemplate, 'Swimming Payment Reminder', 'RKS_FINANCE');
                 }
-                
-                // Email message
-                if (in_array('email', $channels) && $parentEmail) {
-                    try {
-                        $emailSubject = "Swimming Payment Reminder - {$studentName}";
-                        $emailContent = "<p>Dear Parent,</p>";
-                        $emailContent .= "<p>Your child <strong>{$studentName}</strong> (Admission: {$student->admission_number}) has <strong>{$sessionCount}</strong> unpaid swimming session(s).</p>";
-                        $emailContent .= "<p><strong>Total Amount Due:</strong> KES {$amountFormatted}</p>";
-                        $emailContent .= "<p><strong>Session Dates:</strong> {$dates}</p>";
-                        $emailContent .= "<p>Please make payment to credit your child's swimming wallet. You can make payments through:</p>";
-                        $emailContent .= "<ul>";
-                        $emailContent .= "<li>Bank transfer/deposit (mark transaction as swimming)</li>";
-                        $emailContent .= "<li>M-PESA payment (mark as swimming)</li>";
-                        $emailContent .= "<li>Direct payment at the finance office</li>";
-                        $emailContent .= "</ul>";
-                        $emailContent .= "<p>Thank you for your continued support.</p>";
-                        $emailContent .= "<p>Royal Kings School</p>";
-                        
-                        $commService->sendEmail('parent', $parent->id, $parentEmail, $emailSubject, $emailContent);
-                        $sent++;
-                    } catch (\Exception $e) {
-                        $failed++;
-                        Log::error('Failed to send swimming payment reminder email', [
-                            'parent_id' => $parent->id,
-                            'student_id' => $student->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
+                if (in_array('email', $channels)) {
+                    $sent += $parentNotify->sendEmailTemplateToStudentParents(
+                        $student,
+                        "Swimming Payment Reminder - {$studentName}",
+                        $emailBody
+                    );
                 }
-                
-                // WhatsApp message
-                if (in_array('whatsapp', $channels) && $parentWhatsApp) {
-                    try {
-                        $whatsappMessage = "Dear Parent,\n\n";
-                        $whatsappMessage .= "Your child {$studentName} ({$student->admission_number}) has {$sessionCount} unpaid swimming session(s).\n\n";
-                        $whatsappMessage .= "Total Amount: KES {$amountFormatted}\n";
-                        $whatsappMessage .= "Dates: {$dates}\n\n";
-                        $whatsappMessage .= "Please make payment to credit your child's swimming wallet. You can make payments through:\n";
-                        $whatsappMessage .= "• Bank transfer/deposit (mark transaction as swimming)\n";
-                        $whatsappMessage .= "• M-PESA payment (mark as swimming)\n";
-                        $whatsappMessage .= "• Direct payment at the finance office\n\n";
-                        $whatsappMessage .= "Thank you for your continued support.\n\n";
-                        $whatsappMessage .= "Royal Kings School";
-                        
-                        $commService->sendWhatsApp('parent', $parent->id, $parentWhatsApp, $whatsappMessage, 'Swimming Payment Reminder');
-                        $sent++;
-                    } catch (\Exception $e) {
-                        $failed++;
-                        Log::error('Failed to send swimming payment reminder WhatsApp', [
-                            'parent_id' => $parent->id,
-                            'student_id' => $student->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
+                if (in_array('whatsapp', $channels)) {
+                    $sent += $parentNotify->sendWhatsAppTemplateToStudentParents($student, $waTemplate, 'Swimming Payment Reminder');
                 }
-                
-                if (!in_array('sms', $channels) && !in_array('email', $channels) && !in_array('whatsapp', $channels)) {
+
+                if (! in_array('sms', $channels) && ! in_array('email', $channels) && ! in_array('whatsapp', $channels)) {
                     $failed++;
-                } elseif (!$parentPhone && !$parentEmail && !$parentWhatsApp) {
+                } elseif (
+                    empty($parentNotify->smsRecipients($parent))
+                    && empty($parentNotify->emailRecipients($parent))
+                    && empty($parentNotify->whatsappRecipients($parent))
+                ) {
                     $failed++;
                 }
                 

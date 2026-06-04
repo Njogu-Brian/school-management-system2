@@ -130,8 +130,12 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                 continue;
             }
 
-            foreach ($pairs as [$contact, $entity]) {
-                $personalized = replace_placeholders($template->content, $entity);
+            foreach ($pairs as $pair) {
+                [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
+                $personalized = personalize_message_for_parent_recipient($template->content, $entity, $parentMeta);
+                if ($personalized === null) {
+                    continue;
+                }
 
                 try {
                     $logChannel = $item->type;

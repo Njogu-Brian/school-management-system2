@@ -298,22 +298,21 @@ class PosService
                 $orderSummary .= "\n⚠️ Please complete payment to confirm your order.";
             }
 
-            $message = "Dear Parent,\n\n";
+            $messageTemplate = "Dear {{parent_name}},\n\n";
             if ($student) {
-                $message .= "Order placed for {$student->first_name} {$student->last_name}:\n\n";
+                $messageTemplate .= "Order placed for {$student->first_name} {$student->last_name}:\n\n";
             }
-            $message .= $orderSummary;
-            $message .= "\n\nThank you for your order!";
+            $messageTemplate .= $orderSummary;
+            $messageTemplate .= "\n\nThank you for your order!";
 
-            // Send SMS
-            if ($parent->phone) {
-                $commService->sendSMS('parent', $parent->id, $parent->phone, $message, 'Order Confirmation');
-            }
-
-            // Send Email
-            if ($parent->email) {
-                $htmlMessage = nl2br($message);
-                $commService->sendEmail('parent', $parent->id, $parent->email, 'Order Confirmation - ' . $order->order_number, $htmlMessage);
+            if ($student) {
+                $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
+                $parentNotify->sendSmsTemplateToStudentParents($student, $messageTemplate, 'Order Confirmation');
+                $parentNotify->sendEmailTemplateToStudentParents(
+                    $student,
+                    'Order Confirmation - ' . $order->order_number,
+                    $messageTemplate
+                );
             }
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Failed to send order confirmation', [

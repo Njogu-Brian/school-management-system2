@@ -96,8 +96,8 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
 
             // Sort by class, then stream, then student name (A–Z) for consistent sending order
             usort($pairs, function ($a, $b) {
-                [$contactA, $entityA] = $a;
-                [$contactB, $entityB] = $b;
+                [$contactA, $entityA] = array_pad($a, 3, null);
+                [$contactB, $entityB] = array_pad($b, 3, null);
 
                 $classA = '';
                 $streamA = '';
@@ -131,14 +131,29 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                 $title = $subject;
 
                 $recipientsData = [];
-                foreach ($pairs as [$contact, $entity]) {
+                foreach ($pairs as $pair) {
+                    [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
+                    $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                    if ($personalized === null) {
+                        continue;
+                    }
                     $entityData = $this->entityToArray($entity);
                     if ($channel === 'email') {
-                        $recipientsData[] = ['email' => $contact, 'entity' => $entityData];
+                        $recipientsData[] = [
+                            'email' => $contact,
+                            'entity' => $entityData,
+                            'message' => $personalized,
+                            'parent_name' => $parentMeta['name'] ?? null,
+                        ];
                     } else {
                         $normalized = $this->normalizeKenyanPhone($contact);
                         if ($normalized) {
-                            $recipientsData[] = ['phone' => $normalized, 'entity' => $entityData];
+                            $recipientsData[] = [
+                                'phone' => $normalized,
+                                'entity' => $entityData,
+                                'message' => $personalized,
+                                'parent_name' => $parentMeta['name'] ?? null,
+                            ];
                         } else {
                             Log::warning('ProcessScheduledFeeCommunicationsJob: skipped invalid phone', ['contact' => $contact, 'channel' => $channel]);
                         }
@@ -150,16 +165,20 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                     if ($channel === 'email') {
                         BulkSendEmail::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, $item->created_by);
                     } elseif ($channel === 'whatsapp') {
-                        BulkSendWhatsAppMessages::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, true, $item->created_by);
+                        BulkSendWhatsAppMessages::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, false, $item->created_by);
                     } else {
                         BulkSendSMS::dispatch($trackingId, $recipientsData, $message, $title, $item->target, 'finance', $item->created_by);
                     }
                     Log::info('ProcessScheduledFeeCommunicationsJob: bulk job dispatched', ['item_id' => $item->id, 'channel' => $channel, 'count' => count($recipientsData)]);
                 }
             } else {
-                foreach ($pairs as [$contact, $entity]) {
+                foreach ($pairs as $pair) {
+                    [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
                     try {
-                        $personalized = replace_placeholders($message, $entity);
+                        $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                        if ($personalized === null) {
+                            continue;
+                        }
                         if ($channel === 'email') {
                             Mail::to($contact)->send(new GenericMail($subject, $personalized));
                         } elseif ($channel === 'whatsapp') {
