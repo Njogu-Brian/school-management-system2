@@ -102,6 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/classes', [\App\Http\Controllers\Api\ApiClassroomController::class, 'index']);
     Route::get('/classes/{classId}/streams', [\App\Http\Controllers\Api\ApiClassroomController::class, 'streams']);
     Route::get('/classes/{classId}/subjects', [\App\Http\Controllers\Api\ApiClassroomController::class, 'subjects']);
+    Route::get('/staff/filter-options', [\App\Http\Controllers\Api\ApiStaffController::class, 'filterOptions']);
     Route::get('/staff', [\App\Http\Controllers\Api\ApiStaffController::class, 'index']);
     Route::get('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'show']);
     Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);

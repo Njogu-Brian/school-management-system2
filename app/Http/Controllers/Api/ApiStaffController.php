@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\Staff;
+use App\Models\StaffCategory;
 use App\Models\SalaryStructure;
 use App\Services\PhoneNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class ApiStaffController extends Controller
 {
@@ -56,7 +59,7 @@ class ApiStaffController extends Controller
 
         $perPage = (int) $request->input('per_page', 20);
 
-        $query = Staff::with(['supervisor', 'category', 'department', 'jobTitle'])
+        $query = Staff::with(['supervisor', 'category', 'department', 'jobTitle', 'user.roles'])
             ->where('status', 'active');
 
         if ($request->filled('search') || $request->filled('q')) {
@@ -72,6 +75,22 @@ class ApiStaffController extends Controller
         }
         if ($request->filled('department_id')) {
             $query->where('department_id', $request->department_id);
+        }
+        if ($request->filled('staff_category_id')) {
+            $query->where('staff_category_id', $request->staff_category_id);
+        }
+        if ($request->filled('employment_status')) {
+            $query->where('employment_status', $request->employment_status);
+        }
+        if ($request->filled('gender')) {
+            $gender = strtolower(trim((string) $request->gender));
+            $query->whereRaw('LOWER(gender) = ?', [$gender]);
+        }
+        if ($request->filled('role')) {
+            $roleName = trim((string) $request->role);
+            $query->whereHas('user.roles', function ($q) use ($roleName) {
+                $q->where('name', $roleName);
+            });
         }
 
         $paginated = $query->orderBy('first_name')->paginate($perPage);
@@ -92,11 +111,55 @@ class ApiStaffController extends Controller
         ]);
     }
 
+    /**
+     * Filter options for staff directory (departments, categories, roles, enums).
+     */
+    public function filterOptions(Request $request)
+    {
+        $this->assertStaffReadAccess($request);
+
+        $departments = Department::orderBy('name')->get(['id', 'name'])->map(fn ($d) => [
+            'id' => $d->id,
+            'name' => $d->name,
+        ])->values();
+
+        $categories = StaffCategory::orderBy('name')->get(['id', 'name'])->map(fn ($c) => [
+            'id' => $c->id,
+            'name' => $c->name,
+        ])->values();
+
+        $roles = Role::query()
+            ->where('guard_name', 'web')
+            ->orderBy('name')
+            ->pluck('name')
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'departments' => $departments,
+                'categories' => $categories,
+                'roles' => $roles,
+                'employment_statuses' => [
+                    ['value' => 'active', 'label' => 'Active'],
+                    ['value' => 'on_leave', 'label' => 'On leave'],
+                    ['value' => 'suspended', 'label' => 'Suspended'],
+                    ['value' => 'terminated', 'label' => 'Terminated'],
+                ],
+                'genders' => [
+                    ['value' => 'male', 'label' => 'Male'],
+                    ['value' => 'female', 'label' => 'Female'],
+                    ['value' => 'other', 'label' => 'Other'],
+                ],
+            ],
+        ]);
+    }
+
     public function show(Request $request, $id)
     {
         $this->assertCanViewStaffRecord($request, (int) $id);
 
-        $staff = Staff::with(['supervisor', 'category', 'department', 'jobTitle', 'statutoryExemptions'])
+        $staff = Staff::with(['supervisor', 'category', 'department', 'jobTitle', 'statutoryExemptions', 'user.roles'])
             ->findOrFail($id);
 
         return response()->json(['success' => true, 'data' => $this->formatStaffDetail($staff)]);
@@ -299,6 +362,10 @@ class ApiStaffController extends Controller
 
     protected function formatStaff(Staff $s): array
     {
+        $systemRole = $s->relationLoaded('user') && $s->user
+            ? $s->user->roles->first()?->name
+            : null;
+
         return [
             'id' => $s->id,
             'staff_id' => $s->staff_id ?? '',
@@ -312,9 +379,15 @@ class ApiStaffController extends Controller
             'phone' => $s->phone_number,
             'phone_number' => $s->phone_number,
             'designation' => $s->jobTitle->name ?? null,
-            'role' => $s->jobTitle->name ?? null,
-            'department' => $s->department->name ?? null,
             'job_title' => $s->jobTitle->name ?? null,
+            'role' => $systemRole,
+            'system_role' => $systemRole,
+            'department' => $s->department->name ?? null,
+            'department_id' => $s->department_id,
+            'staff_category_id' => $s->staff_category_id,
+            'staff_category' => $s->category?->name,
+            'employment_status' => $s->employment_status,
+            'gender' => $s->gender,
             'status' => $s->status ?? 'active',
             'avatar' => $s->photo_url,
             'created_at' => $s->created_at->toIso8601String(),

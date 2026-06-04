@@ -12,3 +12,4 @@ export * from './student';
 export * from './student360';
 export * from './studentAcademics';
 export * from './settings';
+export * from './staff';

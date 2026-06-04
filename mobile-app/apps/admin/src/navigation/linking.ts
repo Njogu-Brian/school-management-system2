@@ -15,7 +15,13 @@ export const linking: LinkingOptions<DrawerParamList> = {
           Dashboard: 'dashboard',
           Students: 'students',
           Finance: 'finance',
-          People: 'people',
+          People: {
+            path: 'people',
+            screens: {
+              StaffRegistry: '',
+              StaffDetail: ':staffId',
+            },
+          },
         },
       },
       Admissions: 'admissions',

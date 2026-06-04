@@ -1,5 +1,6 @@
 import type { ApprovalListFilters } from '../types/approval';
 import type { DashboardStatsFilters } from '../types/dashboard';
+import type { StaffListFilters } from '../types/staff';
 import type { StudentListFilters } from '../types/student';
 
 /** Centralized TanStack Query keys for cache identity and invalidation. */
@@ -42,6 +43,13 @@ export const queryKeys = {
     ) => [...queryKeys.students.all, 'assessment-history', id, filters ?? {}] as const,
     reportCards: (id: number) => [...queryKeys.students.all, 'report-cards', id] as const,
     reportCardDetail: (id: number) => [...queryKeys.students.all, 'report-card', id] as const,
+  },
+  staff: {
+    all: ['staff'] as const,
+    list: (filters?: StaffListFilters) =>
+      [...queryKeys.staff.all, 'list', filters ?? {}] as const,
+    detail: (id: number) => [...queryKeys.staff.all, 'detail', id] as const,
+    filterOptions: () => [...queryKeys.staff.all, 'filter-options'] as const,
   },
   settings: {
     all: ['settings'] as const,

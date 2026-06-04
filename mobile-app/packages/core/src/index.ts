@@ -9,3 +9,4 @@ export * from './rbac';
 export * from './query';
 export * from './approvals';
 export * from './students';
+export * from './staff';
