@@ -10,3 +10,4 @@ export * from './hooks/useApprovalDetail';
 export * from './hooks/useApprovalActions';
 export * from './hooks/useStudentList';
 export * from './hooks/useStudentDetail';
+export * from './hooks/useStudent360';

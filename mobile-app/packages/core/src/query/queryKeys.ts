@@ -23,5 +23,11 @@ export const queryKeys = {
     detail: (id: number) => [...queryKeys.students.all, 'detail', id] as const,
     classrooms: () => [...queryKeys.students.all, 'classrooms'] as const,
     streams: (classId: number) => [...queryKeys.students.all, 'streams', classId] as const,
+    stats: (id: number) => [...queryKeys.students.all, 'stats', id] as const,
+    attendanceCalendar: (id: number, year: number, month: number) =>
+      [...queryKeys.students.all, 'attendance', id, year, month] as const,
+    attendanceTrend: (id: number) => [...queryKeys.students.all, 'attendance-trend', id] as const,
+    statement: (id: number, year: number) =>
+      [...queryKeys.students.all, 'statement', id, year] as const,
   },
 };

@@ -6,3 +6,4 @@ export * from './rbac';
 export * from './dashboard';
 export * from './approvals';
 export * from './students';
+export * from './student360';

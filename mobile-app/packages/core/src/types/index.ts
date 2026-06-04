@@ -9,3 +9,4 @@ export * from './session';
 export * from './dashboard';
 export * from './approval';
 export * from './student';
+export * from './student360';

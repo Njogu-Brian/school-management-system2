@@ -26,8 +26,35 @@ export interface StudentRecord {
   residential_area?: string | null;
   religion?: string | null;
   nemis_number?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  guardians?: StudentGuardianRecord[];
+  parent?: StudentParentBlock | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface StudentGuardianRecord {
+  id: number;
+  name: string;
+  full_name?: string;
+  relationship: string;
+  phone: string;
+  email?: string;
+  is_primary?: boolean;
+}
+
+export interface StudentParentBlock {
+  father_name?: string | null;
+  mother_name?: string | null;
+  father_phone?: string | null;
+  mother_phone?: string | null;
+  father_email?: string | null;
+  mother_email?: string | null;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  guardian_email?: string | null;
+  guardian_relationship?: string | null;
 }
 
 export interface ClassroomRecord {
@@ -70,6 +97,36 @@ export interface StudentDetail extends StudentSummary {
   category: string | null;
   nemisNumber: string | null;
   outstandingBalance: number | null;
+  parent: StudentParentInfo | null;
+  guardians: StudentGuardianContact[];
+  emergencyContact: StudentEmergencyContact;
+}
+
+export interface StudentGuardianContact {
+  id: number;
+  name: string;
+  relationship: string;
+  phone: string;
+  email?: string;
+  isPrimary: boolean;
+}
+
+export interface StudentParentInfo {
+  fatherName?: string | null;
+  motherName?: string | null;
+  fatherPhone?: string | null;
+  motherPhone?: string | null;
+  fatherEmail?: string | null;
+  motherEmail?: string | null;
+  guardianName?: string | null;
+  guardianPhone?: string | null;
+  guardianEmail?: string | null;
+  guardianRelationship?: string | null;
+}
+
+export interface StudentEmergencyContact {
+  name: string | null;
+  phone: string | null;
 }
 
 export type StudentEnrollmentStatusFilter = 'all' | 'active' | 'fee_pending' | 'fee_cleared';

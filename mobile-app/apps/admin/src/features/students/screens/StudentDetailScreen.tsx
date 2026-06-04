@@ -1,24 +1,31 @@
-import { useStudentDetail, type StudentDetail, type StudentSummary } from '@erp/core';
 import {
-  ScreenContainer,
-  StudentStatusBadge,
-  useTheme,
-} from '@erp/ui';
+  useCan,
+  useStudentAttendanceTrend,
+  useStudentDetail,
+  useStudentStatement,
+  useStudentStats,
+  type StudentDetail,
+  type StudentSummary,
+} from '@erp/core';
+import { ScreenContainer, Student360Layout, type Student360TabId } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { useTheme } from '@erp/ui';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
+import { AttendanceTab } from '../student360/tabs/AttendanceTab';
+import { FamilyTab } from '../student360/tabs/FamilyTab';
+import { FeesTab } from '../student360/tabs/FeesTab';
+import { OverviewTab } from '../student360/tabs/OverviewTab';
 
 type Props = StackScreenProps<StudentsStackParamList, 'StudentDetail'>;
+
+const TABS: Array<{ id: Student360TabId; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'attendance', label: 'Attendance' },
+  { id: 'fees', label: 'Fees' },
+  { id: 'family', label: 'Family' },
+];
 
 function summaryAsDetail(summary: StudentSummary): StudentDetail {
   return {
@@ -32,37 +39,67 @@ function summaryAsDetail(summary: StudentSummary): StudentDetail {
     category: null,
     nemisNumber: null,
     outstandingBalance: null,
+    parent: null,
+    guardians: [],
+    emergencyContact: { name: null, phone: null },
   };
 }
 
-function DetailField({ label, value }: { label: string; value: string }) {
-  const { palette, fontSizes, spacing } = useTheme();
-  return (
-    <View style={[styles.field, { borderBottomColor: palette.border, paddingVertical: spacing.sm }]}>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>
-        {label}
-      </Text>
-      <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, marginTop: 2 }}>{value}</Text>
-    </View>
-  );
-}
-
-/**
- * Student profile shell — routing + header fields only (no 360 / Family / Fees / Academics tabs).
- */
 export const StudentDetailScreen: React.FC<Props> = ({ route }) => {
   const { studentId, summary } = route.params;
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const canViewFees = useCan('finance.view');
+  const { colors, spacing } = useTheme();
+  const [activeTab, setActiveTab] = useState<Student360TabId>('overview');
 
-  const query = useStudentDetail(studentId);
-  const student = query.data ?? (summary ? summaryAsDetail(summary) : undefined);
+  const detailQuery = useStudentDetail(studentId);
+  const statsQuery = useStudentStats(studentId);
+  const statementQuery = useStudentStatement(studentId, undefined, { enabled: canViewFees });
+  const attendanceQuery = useStudentAttendanceTrend(studentId, {
+    enabled: activeTab === 'attendance' || activeTab === 'overview',
+  });
 
-  const classLine = useMemo(
-    () => [student?.className, student?.streamName].filter(Boolean).join(' · ') || '—',
-    [student],
+  const student = detailQuery.data ?? (summary ? summaryAsDetail(summary) : undefined);
+
+  const header = useMemo(() => {
+    if (!student) return null;
+    const classLabel = [student.className, student.streamName].filter(Boolean).join(' · ') || '—';
+    return {
+      fullName: student.fullName,
+      admissionNumber: student.admissionNumber,
+      classLabel,
+      avatarUrl: student.avatarUrl,
+      enrollmentStatus: student.enrollmentStatus,
+      feeStatus: student.feeStatus,
+    };
+  }, [student]);
+
+  const statement = statementQuery.data;
+  const invoices = useMemo(
+    () =>
+      (statement?.transactions ?? [])
+        .filter((t) => t.type === 'invoice')
+        .map((t) => ({
+          id: t.id,
+          date: t.date,
+          reference: t.reference,
+          amount: t.debit,
+        })),
+    [statement],
+  );
+  const payments = useMemo(
+    () =>
+      (statement?.transactions ?? [])
+        .filter((t) => t.type === 'payment')
+        .map((t) => ({
+          id: t.id,
+          date: t.date,
+          reference: t.reference,
+          amount: t.credit,
+        })),
+    [statement],
   );
 
-  if (query.isLoading && !student) {
+  if (detailQuery.isLoading && !student) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
         <ActivityIndicator color={colors.primary} />
@@ -70,12 +107,12 @@ export const StudentDetailScreen: React.FC<Props> = ({ route }) => {
     );
   }
 
-  if (!student) {
+  if (!student || !header) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
         <Text style={{ color: colors.error }}>Student not found.</Text>
-        {query.isError ? (
-          <Pressable onPress={() => void query.refetch()} style={{ marginTop: spacing.sm }}>
+        {detailQuery.isError ? (
+          <Pressable onPress={() => void detailQuery.refetch()} style={{ marginTop: spacing.sm }}>
             <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
           </Pressable>
         ) : null}
@@ -83,78 +120,65 @@ export const StudentDetailScreen: React.FC<Props> = ({ route }) => {
     );
   }
 
+  const tabContent = (() => {
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <OverviewTab
+            student={student}
+            attendancePct={statsQuery.data?.attendance_percentage}
+            feeBalance={statsQuery.data?.fees_balance}
+            canViewFees={canViewFees}
+            statementLoading={statementQuery.isLoading}
+            statement={statement ?? null}
+          />
+        );
+      case 'attendance':
+        return (
+          <AttendanceTab
+            isLoading={attendanceQuery.isLoading}
+            isError={attendanceQuery.isError}
+            onRetry={attendanceQuery.refetch}
+            present={attendanceQuery.summary.present}
+            absent={attendanceQuery.summary.absent}
+            late={attendanceQuery.summary.late}
+            percentage={
+              statsQuery.data?.attendance_percentage ?? attendanceQuery.summary.percentage
+            }
+            trend={attendanceQuery.trend}
+          />
+        );
+      case 'fees':
+        return (
+          <FeesTab
+            canViewFees={canViewFees}
+            isLoading={statementQuery.isLoading}
+            isError={statementQuery.isError}
+            onRetry={() => void statementQuery.refetch()}
+            closingBalance={statement?.closing_balance}
+            totalInvoiced={statement?.total_invoiced}
+            totalPaid={statement?.total_paid}
+            invoices={invoices}
+            payments={payments}
+          />
+        );
+      case 'family':
+        return <FamilyTab student={student} />;
+      default:
+        return null;
+    }
+  })();
+
   return (
     <ScreenContainer style={styles.flex}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-        <View
-          style={[
-            styles.hero,
-            {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-            },
-            shadows.sm,
-          ]}
-        >
-          {student.avatarUrl ? (
-            <Image source={{ uri: student.avatarUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPh, { backgroundColor: palette.accent }]}>
-              <Ionicons name="person" size={40} color={colors.primary} />
-            </View>
-          )}
-          <Text style={[styles.name, { color: palette.textPrimary, fontSize: fontSizes.xl }]}>
-            {student.fullName}
-          </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-            {student.admissionNumber}
-          </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 4 }}>
-            {classLine}
-          </Text>
-          <View style={[styles.badges, { marginTop: spacing.sm, gap: spacing.xs }]}>
-            <StudentStatusBadge kind="enrollment" enrollmentStatus={student.enrollmentStatus} />
-            {student.feeStatus ? (
-              <StudentStatusBadge kind="fee" feeStatus={student.feeStatus} />
-            ) : null}
-          </View>
-        </View>
-
-        <Text
-          style={[
-            styles.section,
-            { color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.lg },
-          ]}
-        >
-          Profile
-        </Text>
-        <DetailField label="Gender" value={student.gender} />
-        <DetailField label="Date of birth" value={student.dateOfBirth ?? '—'} />
-        <DetailField label="Admission date" value={student.admissionDate ?? '—'} />
-        <DetailField label="Phone" value={student.phone ?? '—'} />
-        <DetailField label="Email" value={student.email ?? '—'} />
-        <DetailField label="Address" value={student.address ?? '—'} />
-        <DetailField label="NEMIS" value={student.nemisNumber ?? '—'} />
-
-        <View
-          style={[
-            styles.note,
-            {
-              backgroundColor: `${colors.primary}10`,
-              borderColor: `${colors.primary}33`,
-              borderRadius: radius.md,
-              marginTop: spacing.lg,
-              padding: spacing.md,
-            },
-          ]}
-        >
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-            Student 360 tabs (Family, Fees, Academics) will be added in a later sprint.
-          </Text>
-        </View>
-      </ScrollView>
+      <Student360Layout
+        header={header}
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      >
+        {tabContent}
+      </Student360Layout>
     </ScreenContainer>
   );
 };
@@ -162,15 +186,4 @@ export const StudentDetailScreen: React.FC<Props> = ({ route }) => {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  hero: {
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  avatar: { width: 80, height: 80, borderRadius: 40, marginBottom: 12 },
-  avatarPh: { alignItems: 'center', justifyContent: 'center' },
-  name: { fontWeight: '700', textAlign: 'center' },
-  badges: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
-  section: { fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
-  field: { borderBottomWidth: StyleSheet.hairlineWidth },
-  note: { borderWidth: 1 },
 });

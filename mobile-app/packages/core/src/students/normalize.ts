@@ -5,6 +5,7 @@ import type {
   StudentRecord,
   StudentSummary,
 } from '../types/student';
+import { mapEmergencyContact, mapGuardians, mapParentBlock } from './family';
 
 export function toStudentSummary(
   raw: StudentRecord,
@@ -43,6 +44,9 @@ export function toStudentDetail(raw: StudentRecord, gradeLevel?: number | string
     category: raw.category ?? null,
     nemisNumber: raw.nemis_number ?? null,
     outstandingBalance: raw.outstanding_balance ?? null,
+    parent: mapParentBlock(raw.parent),
+    guardians: mapGuardians(raw.guardians),
+    emergencyContact: mapEmergencyContact(raw),
   };
 }
 

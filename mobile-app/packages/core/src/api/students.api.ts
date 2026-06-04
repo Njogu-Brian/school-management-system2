@@ -1,4 +1,9 @@
 import type {
+  AttendanceCalendarDay,
+  StudentStatementRecord,
+  StudentStatsRecord,
+} from '../types/student360';
+import type {
   ClassroomRecord,
   StreamRecord,
   StudentListQueryParams,
@@ -36,5 +41,28 @@ export const studentsApi = {
 
   listStreams(classId: number): Promise<ApiResponse<StreamRecord[]>> {
     return apiClient.get<StreamRecord[]>(`/classes/${classId}/streams`);
+  },
+
+  getStats(studentId: number): Promise<ApiResponse<StudentStatsRecord>> {
+    return apiClient.get<StudentStatsRecord>(`/students/${studentId}/stats`);
+  },
+
+  getAttendanceCalendar(
+    studentId: number,
+    year: number,
+    month: number,
+  ): Promise<ApiResponse<AttendanceCalendarDay[]>> {
+    return apiClient.get<AttendanceCalendarDay[]>(`/students/${studentId}/attendance-calendar`, {
+      year,
+      month,
+    });
+  },
+
+  getStatement(
+    studentId: number,
+    year?: number,
+  ): Promise<ApiResponse<StudentStatementRecord>> {
+    const params = year != null ? { year } : undefined;
+    return apiClient.get<StudentStatementRecord>(`/students/${studentId}/statement`, params);
   },
 };
