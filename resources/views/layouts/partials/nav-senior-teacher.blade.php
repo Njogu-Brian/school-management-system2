@@ -156,11 +156,75 @@
     </div>
   @endif
 
-  {{-- Exam Reports & Analysis (assigned + supervised classes) --}}
-  <a href="{{ route('academics.exam-reports.class-sheet') }}"
-     class="{{ $examReportsActive ? 'active' : '' }}">
-    <i class="bi bi-table"></i> Exam Reports &amp; Analysis
-  </a>
+  {{-- Exams --}}
+  @php
+    $examsActive = Request::is('academics/exams*')
+      || Request::is('academics/exam-types*')
+      || Request::is('academics/exam-grades*')
+      || Request::is('academics/exam-marks*')
+      || Request::is('academics/exams/results*')
+      || Request::is('academics/exams/grading*')
+      || Request::is('academics/exam-reports*')
+      || Request::is('academics/exams/timetable*');
+  @endphp
+
+  @if (can_access('exams.view') || can_access('exams.create') || can_access('exams.edit') || can_access('exams.delete') || can_access('exam_types.view'))
+    <a href="#examsMenuSt" data-bs-toggle="collapse"
+       aria-expanded="{{ $examsActive ? 'true' : 'false' }}"
+       class="{{ $examsActive ? 'parent-active' : '' }}">
+      <i class="bi bi-file-earmark-text"></i> Exams
+    </a>
+    <div class="collapse {{ $examsActive ? 'show' : '' }}" id="examsMenuSt">
+      @if (can_access('exam_types.view') && Route::has('academics.exams.types.index'))
+        <a href="{{ route('academics.exams.types.index') }}"
+           class="sublink {{ Request::is('academics/exam-types*') ? 'active' : '' }}">
+          <i class="bi bi-sliders2"></i> Exam Types
+        </a>
+      @endif
+
+      @if (can_access('exams.view') && Route::has('academics.exams.index'))
+        <a href="{{ route('academics.exams.index') }}"
+           class="sublink {{ Request::is('academics/exams') && !Request::is('academics/exams/*') ? 'active' : '' }}">
+          <i class="bi bi-journal-check"></i> Manage Exams
+        </a>
+      @endif
+
+      @if (can_access('exams.view') && Route::has('academics.exams.grading.index'))
+        <a href="{{ route('academics.exams.grading.index') }}"
+           class="sublink {{ Request::is('academics/exams/grading*') ? 'active' : '' }}">
+          <i class="bi bi-ui-radios-grid"></i> Class grading schemes
+        </a>
+      @endif
+
+      @if (can_access('exam_marks.create') && Route::has('academics.exam-marks.bulk.form'))
+        <a href="{{ route('academics.exam-marks.bulk.form') }}"
+           class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}">
+          <i class="bi bi-pencil-square"></i> Enter Marks
+        </a>
+      @endif
+
+      @if (can_access('exams.view') && Route::has('academics.exams.results.index'))
+        <a href="{{ route('academics.exams.results.index') }}"
+           class="sublink {{ Request::is('academics/exams/results*') ? 'active' : '' }}">
+          <i class="bi bi-bar-chart"></i> Exam Results
+        </a>
+      @endif
+
+      @if (can_access('exams.view') && Route::has('academics.exam-reports.class-sheet'))
+        <a href="{{ route('academics.exam-reports.class-sheet') }}"
+           class="sublink {{ Request::is('academics/exam-reports*') ? 'active' : '' }}">
+          <i class="bi bi-table"></i> Exam Reports &amp; Analysis
+        </a>
+      @endif
+
+      @if (can_access('exams.view') && Route::has('academics.exams.timetable'))
+        <a href="{{ route('academics.exams.timetable') }}"
+           class="sublink {{ Request::is('academics/exams/timetable*') ? 'active' : '' }}">
+          <i class="bi bi-printer"></i> Exam Timetable
+        </a>
+      @endif
+    </div>
+  @endif
 
   {{-- Report Cards --}}
   @if (can_access('report_cards.view') || can_access('report_card_skills.edit') || can_access('report_cards.remarks.edit'))

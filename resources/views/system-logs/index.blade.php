@@ -46,6 +46,16 @@
             </div>
         @endif
 
+        @if(!empty($logFiles ?? []))
+            <div class="alert alert-secondary py-2 small mb-0 mt-3">
+                <i class="bi bi-file-earmark-text"></i>
+                Reading: {{ implode(', ', $logFiles) }}.
+                @if(($currentLevel ?? 'all') === 'all' && config('logging.channels.daily.level', config('logging.level')) === 'warning')
+                    Only <strong>warning</strong> and above are logged (<code>LOG_LEVEL=warning</code>).
+                @endif
+            </div>
+        @endif
+
         <div class="settings-card mb-3">
             <div class="card-header">
                 <h5 class="mb-0">Filters</h5>
@@ -94,6 +104,9 @@
                     <div class="text-center py-5">
                         <i class="bi bi-inbox fs-1 text-muted"></i>
                         <p class="text-muted mt-3">No log entries found matching your filters.</p>
+                        @if(!empty($logFiles ?? []))
+                            <p class="text-muted small">Log files are present but empty or filtered out. Try date <strong>{{ date('Y-m-d') }}</strong>, level <strong>All</strong>, or lower <code>LOG_LEVEL</code> temporarily for more detail.</p>
+                        @endif
                     </div>
                 @else
                     <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Storage;
 
 class SystemLogController extends Controller
 {
@@ -15,28 +15,25 @@ class SystemLogController extends Controller
 
     public function index(Request $request)
     {
-        $logFile = storage_path('logs/laravel.log');
-        
-        // Check if log file exists
-        if (!File::exists($logFile)) {
-            return view('system-logs.index', [
-                'logs' => collect(),
-                'levels' => $this->getLogLevels(),
-                'error' => 'Log file not found. No errors have been logged yet.'
-            ]);
-        }
-
-        // Get log level filter
         $levelFilter = $request->input('level', 'all');
         $search = $request->input('search', '');
         $dateFilter = $request->input('date', '');
 
-        // Read log file
-        $logs = $this->parseLogFile($logFile, $levelFilter, $search, $dateFilter);
+        $logFiles = $this->resolveLogFilePaths($dateFilter);
 
-        // Paginate manually
+        if ($logFiles === []) {
+            return view('system-logs.index', [
+                'logs' => collect(),
+                'levels' => $this->getLogLevels(),
+                'error' => 'No log files found. With LOG_CHANNEL=daily, logs are stored as storage/logs/laravel-YYYY-MM-DD.log.',
+                'logFiles' => [],
+            ]);
+        }
+
+        $logs = $this->collectLogsFromFiles($logFiles, $levelFilter, $search, $dateFilter);
+
         $perPage = 50;
-        $currentPage = $request->input('page', 1);
+        $currentPage = (int) $request->input('page', 1);
         $total = $logs->count();
         $paginatedLogs = $logs->slice(($currentPage - 1) * $perPage, $perPage)->values();
 
@@ -47,27 +44,87 @@ class SystemLogController extends Controller
             'currentSearch' => $search,
             'currentDate' => $dateFilter,
             'currentPage' => $currentPage,
-            'totalPages' => ceil($total / $perPage),
+            'totalPages' => (int) ceil($total / $perPage),
             'total' => $total,
+            'logFiles' => array_map('basename', $logFiles),
         ]);
+    }
+
+    /**
+     * Resolve Laravel log files (single + daily rotation).
+     *
+     * @return list<string> Absolute paths, newest first.
+     */
+    protected function resolveLogFilePaths(string $dateFilter = ''): array
+    {
+        $logsDir = storage_path('logs');
+
+        if ($dateFilter !== '') {
+            $dated = $logsDir . '/laravel-' . $dateFilter . '.log';
+            if (File::exists($dated) && filesize($dated) > 0) {
+                return [$dated];
+            }
+
+            return [];
+        }
+
+        $paths = [];
+
+        $dailyFiles = glob($logsDir . '/laravel-*.log') ?: [];
+        rsort($dailyFiles, SORT_STRING);
+
+        $retentionDays = (int) config('logging.channels.daily.days', 14);
+        if ($retentionDays < 1) {
+            $retentionDays = 14;
+        }
+
+        foreach (array_slice($dailyFiles, 0, $retentionDays) as $file) {
+            if (filesize($file) > 0) {
+                $paths[] = $file;
+            }
+        }
+
+        $single = $logsDir . '/laravel.log';
+        if (File::exists($single) && filesize($single) > 0 && ! in_array($single, $paths, true)) {
+            $paths[] = $single;
+        }
+
+        return $paths;
+    }
+
+    protected function collectLogsFromFiles(
+        array $filePaths,
+        string $levelFilter = 'all',
+        string $search = '',
+        string $dateFilter = ''
+    ): Collection {
+        $logs = collect();
+
+        foreach ($filePaths as $path) {
+            $logs = $logs->merge($this->parseLogFile($path, $levelFilter, $search, $dateFilter));
+        }
+
+        return $logs
+            ->sortByDesc('timestamp')
+            ->values();
     }
 
     protected function parseLogFile($filePath, $levelFilter = 'all', $search = '', $dateFilter = '')
     {
         try {
-            // For large log files on production, only read the last 100KB to prevent memory issues
-            // This should contain roughly the last 500-1000 log entries
             $fileSize = filesize($filePath);
-            $maxBytes = 100 * 1024; // 100KB
-            
+            if ($fileSize === false || $fileSize === 0) {
+                return collect();
+            }
+
+            $maxBytes = 100 * 1024;
+
             if ($fileSize > $maxBytes) {
-                // Read from the end of the file
                 $handle = fopen($filePath, 'r');
                 fseek($handle, -$maxBytes, SEEK_END);
                 $content = fread($handle, $maxBytes);
                 fclose($handle);
-                
-                // Find the first complete line (skip partial line at start)
+
                 $firstNewline = strpos($content, "\n");
                 if ($firstNewline !== false) {
                     $content = substr($content, $firstNewline + 1);
@@ -80,15 +137,13 @@ class SystemLogController extends Controller
         }
 
         $lines = explode("\n", $content);
-        
+
         $logs = collect();
         $currentLog = null;
         $buffer = [];
 
         foreach ($lines as $line) {
-            // Laravel log format: [2024-01-01 12:00:00] local.ERROR: message
             if (preg_match('/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (.+?)\.(.+?): (.+)$/', $line, $matches)) {
-                // Save previous log if exists
                 if ($currentLog) {
                     $currentLog['stack'] = trim(implode("\n", $buffer));
                     if ($this->shouldIncludeLog($currentLog, $levelFilter, $search, $dateFilter)) {
@@ -96,7 +151,6 @@ class SystemLogController extends Controller
                     }
                 }
 
-                // Start new log entry
                 $currentLog = [
                     'timestamp' => $matches[1],
                     'environment' => $matches[2],
@@ -106,14 +160,12 @@ class SystemLogController extends Controller
                 ];
                 $buffer = [];
             } elseif ($currentLog) {
-                // Continue building stack trace (skip empty lines at start of buffer)
-                if (!empty(trim($line)) || !empty($buffer)) {
+                if (! empty(trim($line)) || ! empty($buffer)) {
                     $buffer[] = $line;
                 }
             }
         }
 
-        // Don't forget the last log
         if ($currentLog) {
             $currentLog['stack'] = trim(implode("\n", $buffer));
             if ($this->shouldIncludeLog($currentLog, $levelFilter, $search, $dateFilter)) {
@@ -121,29 +173,25 @@ class SystemLogController extends Controller
             }
         }
 
-        // Reverse to show newest first
         return $logs->reverse()->values();
     }
 
     protected function shouldIncludeLog($log, $levelFilter, $search, $dateFilter)
     {
-        // Filter by level
         if ($levelFilter !== 'all' && strtolower($log['level']) !== strtolower($levelFilter)) {
             return false;
         }
 
-        // Filter by date
-        if ($dateFilter && !str_starts_with($log['timestamp'], $dateFilter)) {
+        if ($dateFilter && ! str_starts_with($log['timestamp'], $dateFilter)) {
             return false;
         }
 
-        // Filter by search
         if ($search) {
             $searchLower = strtolower($search);
             $messageLower = strtolower($log['message']);
             $stackLower = strtolower($log['stack']);
-            
-            if (strpos($messageLower, $searchLower) === false && 
+
+            if (strpos($messageLower, $searchLower) === false &&
                 strpos($stackLower, $searchLower) === false) {
                 return false;
             }
@@ -168,24 +216,49 @@ class SystemLogController extends Controller
 
     public function clear()
     {
-        $logFile = storage_path('logs/laravel.log');
-        
-        if (File::exists($logFile)) {
-            File::put($logFile, '');
+        $cleared = 0;
+
+        foreach ($this->allManagedLogPaths() as $path) {
+            if (File::exists($path)) {
+                File::put($path, '');
+                $cleared++;
+            }
         }
 
         return redirect()->route('system-logs.index')
-            ->with('success', 'Log file cleared successfully.');
+            ->with('success', $cleared > 0
+                ? "Cleared {$cleared} log file(s)."
+                : 'No log files to clear.');
     }
 
     public function download()
     {
-        $logFile = storage_path('logs/laravel.log');
-        
-        if (!File::exists($logFile)) {
+        $logFiles = $this->resolveLogFilePaths();
+
+        if ($logFiles === []) {
             return back()->with('error', 'Log file not found.');
         }
 
-        return response()->download($logFile, 'laravel-' . date('Y-m-d') . '.log');
+        $path = $logFiles[0];
+
+        return response()->download($path, basename($path));
+    }
+
+    /**
+     * All Laravel application log files (single + daily), for clear/download.
+     *
+     * @return list<string>
+     */
+    protected function allManagedLogPaths(): array
+    {
+        $logsDir = storage_path('logs');
+        $paths = glob($logsDir . '/laravel*.log') ?: [];
+
+        $single = $logsDir . '/laravel.log';
+        if (File::exists($single) && ! in_array($single, $paths, true)) {
+            $paths[] = $single;
+        }
+
+        return array_values(array_unique($paths));
     }
 }
