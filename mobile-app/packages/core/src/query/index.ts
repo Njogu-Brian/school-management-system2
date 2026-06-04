@@ -5,3 +5,6 @@ export * from './fetchers';
 export * from './QueryProvider';
 export * from './hooks/useDashboardStats';
 export * from './hooks/usePendingApprovals';
+export * from './hooks/useApprovalList';
+export * from './hooks/useApprovalDetail';
+export * from './hooks/useApprovalActions';

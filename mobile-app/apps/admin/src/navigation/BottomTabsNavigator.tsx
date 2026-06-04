@@ -6,7 +6,7 @@ import { DrawerActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { DashboardScreen } from '../features/dashboard';
+import { DashboardStackNavigator } from './DashboardStackNavigator';
 import { FinanceScreen } from '../features/finance';
 import { PeopleScreen } from '../features/people';
 import { StudentsScreen } from '../features/students';
@@ -30,7 +30,7 @@ const TAB_AREA_KEY: Record<keyof TabsParamList, AdminAreaKey> = {
 };
 
 const TAB_SCREENS: Record<keyof TabsParamList, React.ComponentType> = {
-  Dashboard: DashboardScreen,
+  Dashboard: DashboardStackNavigator,
   Students: StudentsScreen,
   Finance: FinanceScreen,
   People: PeopleScreen,

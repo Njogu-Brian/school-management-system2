@@ -4,3 +4,4 @@ export * from './feedback';
 export * from './primitives';
 export * from './rbac';
 export * from './dashboard';
+export * from './approvals';

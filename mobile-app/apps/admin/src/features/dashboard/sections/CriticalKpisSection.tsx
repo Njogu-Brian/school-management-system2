@@ -14,7 +14,7 @@ export const CriticalKpisSection: React.FC = () => {
   return (
     <DashboardSection
       title="Critical KPIs"
-      subtitle="Branch-scoped snapshot — placeholder data"
+      subtitle="Branch-scoped snapshot"
     >
       <WidgetGrid>
         {visible.map((def) => {

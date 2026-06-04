@@ -6,16 +6,17 @@ import {
   AlertsSection,
   CriticalKpisSection,
   OperationalStatusSection,
+  PendingApprovalsSection,
   QuickActionsSection,
 } from '../sections';
 
 /**
  * School Command Center shell — composes permission-gated sections.
- * No API calls; placeholder data only (Sprint 2 Batch 1).
+ * KPIs and pending approvals use live APIs (Sprint 2 Batches 2–3).
  */
 export const DashboardLayout: React.FC = () => {
   const canViewDashboard = useCan('dashboard.view');
-  const { palette, spacing, fontSizes, colors } = useTheme();
+  const { palette, spacing, fontSizes } = useTheme();
 
   if (!canViewDashboard) {
     return (
@@ -34,25 +35,12 @@ export const DashboardLayout: React.FC = () => {
           School Command Center
         </Text>
         <Text style={[styles.heroSub, { color: palette.textSecondary, fontSize: fontSizes.sm }]}>
-          Overview for your branch · placeholder metrics
+          Overview for your branch
         </Text>
-        <View
-          style={[
-            styles.badge,
-            {
-              backgroundColor: `${colors.primary}14`,
-              borderColor: `${colors.primary}33`,
-              marginTop: spacing.sm,
-            },
-          ]}
-        >
-          <Text style={{ color: colors.primary, fontSize: fontSizes.xs, fontWeight: '600' }}>
-            Framework preview — live data in a later batch
-          </Text>
-        </View>
       </View>
 
       <CriticalKpisSection />
+      <PendingApprovalsSection />
       <QuickActionsSection />
       <AlertsSection />
       <OperationalStatusSection />
@@ -76,11 +64,4 @@ const styles = StyleSheet.create({
   hero: {},
   heroTitle: { fontWeight: '700' },
   heroSub: { marginTop: 4 },
-  badge: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
 });
