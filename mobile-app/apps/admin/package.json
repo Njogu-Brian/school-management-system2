@@ -19,6 +19,7 @@
     "@react-navigation/bottom-tabs": "^6.5.11",
     "@react-navigation/drawer": "^6.6.6",
     "@react-navigation/native": "^6.1.9",
+    "@tanstack/react-query": "^5.62.8",
     "axios": "^1.6.5",
     "expo": "~54.0.0",
     "expo-auth-session": "~7.0.10",

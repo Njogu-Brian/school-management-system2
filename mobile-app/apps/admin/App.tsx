@@ -2,6 +2,7 @@ import {
   AuthProvider,
   BiometricAuthProvider,
   GoogleAuthProvider,
+  QueryProvider,
   RbacProvider,
   SessionProvider,
 } from '@erp/core';
@@ -22,8 +23,8 @@ import { AdminRootNavigator } from './src/navigation/AdminRootNavigator';
  * Auth uses a strategy pattern (password / Google / biometric unlock). Google OAuth UI
  * lives in the app layer; biometric unlock only rehydrates an existing backend session.
  *
- * Deferred to later batches (require business logic, out of scope here):
- * QueryClientProvider, RbacProvider, ScopeProvider, NotificationPreferencesProvider.
+ * QueryProvider (TanStack Query) wraps authenticated navigation for dashboard KPIs.
+ * Deferred: ScopeProvider, NotificationPreferencesProvider.
  */
 const ThemedStatusBar: React.FC = () => {
   const { isDark } = useTheme();
@@ -39,13 +40,15 @@ export default function App(): React.JSX.Element {
             <ThemedStatusBar />
             <SessionProvider>
               <AuthProvider>
-                <RbacProvider>
-                  <GoogleAuthProvider>
-                    <BiometricAuthProvider>
-                      <AdminRootNavigator />
-                    </BiometricAuthProvider>
-                  </GoogleAuthProvider>
-                </RbacProvider>
+                <QueryProvider>
+                  <RbacProvider>
+                    <GoogleAuthProvider>
+                      <BiometricAuthProvider>
+                        <AdminRootNavigator />
+                      </BiometricAuthProvider>
+                    </GoogleAuthProvider>
+                  </RbacProvider>
+                </QueryProvider>
               </AuthProvider>
             </SessionProvider>
           </AppErrorBoundary>

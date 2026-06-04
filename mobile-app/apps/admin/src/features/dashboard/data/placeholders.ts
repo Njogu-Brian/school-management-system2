@@ -1,6 +1,3 @@
-import type { WidgetDisplayState } from '@erp/ui';
-import type { DashboardWidgetId, KpiPlaceholderData } from '../types/widget';
-
 export interface AlertPlaceholder {
   id: string;
   title: string;
@@ -23,48 +20,7 @@ export interface QuickActionPlaceholder {
   permissions: readonly string[];
 }
 
-/** Static KPI values — replaced by API hooks in Sprint 2 Batch 2+. */
-export const KPI_PLACEHOLDERS: Record<DashboardWidgetId, KpiPlaceholderData> = {
-  enrollment_kpi: {
-    label: 'Enrollment',
-    value: '1,248',
-    delta: '+12 this term',
-    deltaPositive: true,
-    icon: 'school-outline',
-  },
-  attendance_kpi: {
-    label: 'Attendance today',
-    value: '94.2%',
-    delta: '-0.8% vs yesterday',
-    deltaPositive: false,
-    icon: 'checkmark-circle-outline',
-  },
-  collections_kpi: {
-    label: 'Collections (MTD)',
-    value: 'KES 4.2M',
-    delta: '78% of target',
-    deltaPositive: true,
-    icon: 'cash-outline',
-  },
-  outstanding_fees_kpi: {
-    label: 'Outstanding fees',
-    value: 'KES 1.1M',
-    delta: '142 accounts',
-    deltaPositive: false,
-    icon: 'wallet-outline',
-  },
-  pending_approvals_kpi: {
-    label: 'Pending approvals',
-    value: '7',
-    delta: '3 urgent',
-    deltaPositive: false,
-    icon: 'document-text-outline',
-  },
-};
-
-/** Demo states for framework QA (cycle via widget id suffix in dev if needed). */
-export const WIDGET_DEMO_STATES: Partial<Record<DashboardWidgetId, WidgetDisplayState>> = {};
-
+/** Alerts / quick actions remain static until Batch 3+ widget APIs. */
 export const ALERT_PLACEHOLDERS: AlertPlaceholder[] = [
   {
     id: 'a1',
