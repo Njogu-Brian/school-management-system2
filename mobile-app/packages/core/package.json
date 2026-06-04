@@ -1,0 +1,18 @@
+{
+  "name": "@erp/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "School ERP shared core: config/roles/navigation, canonical domain types, secure storage, API client, and the auth/session foundation.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "peerDependencies": {
+    "@react-native-async-storage/async-storage": "*",
+    "axios": "*",
+    "expo-constants": "*",
+    "expo-local-authentication": "*",
+    "expo-secure-store": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

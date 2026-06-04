@@ -1,7 +1,12 @@
 {
   "name": "school-erp-mobile",
   "version": "1.0.0",
-  "description": "School ERP Management System - Mobile App",
+  "description": "School ERP Management System - Mobile App (monorepo root)",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "main": "expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
