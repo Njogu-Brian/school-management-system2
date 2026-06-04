@@ -9,7 +9,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { DashboardStackNavigator } from './DashboardStackNavigator';
 import { FinanceScreen } from '../features/finance';
 import { PeopleScreen } from '../features/people';
-import { StudentsScreen } from '../features/students';
+import { StudentsStackNavigator } from './StudentsStackNavigator';
 import { withAreaGuard } from './guards/ProtectedAreaScreen';
 import type { TabsParamList } from './types';
 
@@ -31,7 +31,7 @@ const TAB_AREA_KEY: Record<keyof TabsParamList, AdminAreaKey> = {
 
 const TAB_SCREENS: Record<keyof TabsParamList, React.ComponentType> = {
   Dashboard: DashboardStackNavigator,
-  Students: StudentsScreen,
+  Students: StudentsStackNavigator,
   Finance: FinanceScreen,
   People: PeopleScreen,
 };

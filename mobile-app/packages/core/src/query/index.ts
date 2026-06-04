@@ -8,3 +8,5 @@ export * from './hooks/usePendingApprovals';
 export * from './hooks/useApprovalList';
 export * from './hooks/useApprovalDetail';
 export * from './hooks/useApprovalActions';
+export * from './hooks/useStudentList';
+export * from './hooks/useStudentDetail';
