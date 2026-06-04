@@ -1171,6 +1171,8 @@ class CommunicationController extends Controller
 
         $pausedSmsCount = CommunicationPauseService::countPausedSmsLogs();
         $pausedBulkSmsCount = count($pauseMeta['paused_bulk_sms'] ?? []);
+        $showResume = CommunicationPauseService::hasResumableWork();
+        $pausedReminderCount = FeeReminder::query()->where('status', 'paused')->count();
 
         return view('communication.queues', compact(
             'paused',
@@ -1180,7 +1182,9 @@ class CommunicationController extends Controller
             'feeReminders',
             'queueJobs',
             'pausedSmsCount',
-            'pausedBulkSmsCount'
+            'pausedBulkSmsCount',
+            'showResume',
+            'pausedReminderCount'
         ));
     }
 
@@ -1188,8 +1192,8 @@ class CommunicationController extends Controller
     {
         abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
 
-        if (!CommunicationPauseService::isPaused()) {
-            return back()->with('info', 'Communications are not paused.');
+        if (!CommunicationPauseService::hasResumableWork()) {
+            return back()->with('info', 'Nothing to resume. Pending reminders will send automatically when due (see Fee reminders below).');
         }
 
         try {

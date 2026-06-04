@@ -21,31 +21,51 @@
             <div class="alert alert-info">{{ session('info') }}</div>
         @endif
 
-        @if($paused)
+        @if($showResume ?? $paused)
             <div class="settings-card mb-3 border-warning">
                 <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
                     <div>
-                        <h5 class="text-warning mb-1"><i class="bi bi-pause-circle"></i> Communications paused</h5>
+                        <h5 class="text-warning mb-1"><i class="bi bi-pause-circle"></i>
+                            @if($paused)
+                                Communications paused
+                            @else
+                                Paused SMS work ready to resume
+                            @endif
+                        </h5>
                         <p class="mb-0 text-muted">
-                            Insufficient SMS credits detected. Scheduled fee messages, reminders, and bulk SMS jobs are on hold (not cancelled).
+                            @if($paused)
+                                Insufficient SMS credits were detected. Scheduled sends and bulk jobs are on hold (not cancelled).
+                            @else
+                                Top up SMS credits first, then resume to retry paused messages and continue bulk sends.
+                            @endif
                             @if(($pausedSmsCount ?? 0) > 0)
-                                <strong>{{ $pausedSmsCount }}</strong> individual SMS message(s) will be retried on resume.
+                                <strong>{{ $pausedSmsCount }}</strong> individual SMS message(s) will be retried.
                             @endif
                             @if(($pausedBulkSmsCount ?? 0) > 0)
-                                <strong>{{ $pausedBulkSmsCount }}</strong> bulk SMS job(s) will continue from where they stopped.
+                                <strong>{{ $pausedBulkSmsCount }}</strong> bulk SMS job(s) will continue.
+                            @endif
+                            @if(($pausedReminderCount ?? 0) > 0)
+                                <strong>{{ $pausedReminderCount }}</strong> fee reminder(s) are paused.
                             @endif
                             @if($pauseMeta && isset($pauseMeta['paused_at']))
                                 Paused {{ \Carbon\Carbon::parse($pauseMeta['paused_at'])->diffForHumans() }}.
                             @endif
                         </p>
                     </div>
-                    <form method="POST" action="{{ route('communication.resume') }}" onsubmit="return confirm('Resume all paused communications? Ensure SMS credits are topped up first.');">
+                    <form method="POST" action="{{ route('communication.resume') }}" onsubmit="return confirm('Resume paused communications? Ensure SMS credits are topped up first.');">
                         @csrf
                         <button type="submit" class="btn btn-warning">
                             <i class="bi bi-play-circle"></i> Resume all
                         </button>
                     </form>
                 </div>
+            </div>
+        @else
+            <div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle"></i>
+                <strong>No pause active.</strong>
+                Yellow <strong>Pending</strong> fee reminders below are normal — they will send automatically when due (daily scheduler).
+                Resume appears here only after low SMS credits pause the system.
             </div>
         @endif
 

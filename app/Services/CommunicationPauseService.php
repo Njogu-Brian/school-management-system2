@@ -313,6 +313,39 @@ class CommunicationPauseService
             ->count();
     }
 
+    /**
+     * Whether the UI should offer "Resume" (global pause or orphaned paused work).
+     */
+    public static function hasResumableWork(): bool
+    {
+        if (self::isPaused()) {
+            return true;
+        }
+
+        if (self::countPausedSmsLogs() > 0) {
+            return true;
+        }
+
+        $meta = self::getMeta() ?? [];
+        if (!empty($meta['paused_bulk_sms'])) {
+            return true;
+        }
+
+        if (ScheduledFeeCommunication::query()->where('status', 'paused')->exists()) {
+            return true;
+        }
+
+        if (ScheduledCommunication::query()->where('status', 'paused')->exists()) {
+            return true;
+        }
+
+        if (FeeReminder::query()->where('status', 'paused')->exists()) {
+            return true;
+        }
+
+        return false;
+    }
+
     public static function assertNotPaused(): void
     {
         if (self::isPaused()) {
