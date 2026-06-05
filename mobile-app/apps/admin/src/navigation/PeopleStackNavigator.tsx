@@ -6,6 +6,7 @@ import {
   StaffRegistryScreen,
   TrainingRecordDetailScreen,
   StaffClockScreen,
+  StaffClockTeamScreen,
 } from '../features/people';
 import type { PeopleStackParamList } from './peopleStackTypes';
 
@@ -19,5 +20,6 @@ export const PeopleStackNavigator: React.FC = () => (
     <Stack.Screen name="PerformanceReviewDetail" component={PerformanceReviewDetailScreen} />
     <Stack.Screen name="TrainingRecordDetail" component={TrainingRecordDetailScreen} />
     <Stack.Screen name="StaffClock" component={StaffClockScreen} />
+    <Stack.Screen name="StaffClockTeam" component={StaffClockTeamScreen} />
   </Stack.Navigator>
 );

@@ -1,7 +1,7 @@
 import { useCan, useMarksMatrix, useMarksMatrixContext } from '@erp/core';
-import { AcademicScreenHeader, MarksMatrixRow, ScreenContainer, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, MarksMatrixRow, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -21,11 +21,16 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, palette, spacing, fontSizes, radius } = useTheme();
   const [examTypeId, setExamTypeId] = useState<number | null>(null);
   const [classroomId, setClassroomId] = useState<number | null>(null);
+  const [streamId, setStreamId] = useState<number | null>(null);
 
   const contextQuery = useMarksMatrixContext(classroomId ?? undefined, { enabled: canView });
+
+  useEffect(() => {
+    setStreamId(null);
+  }, [classroomId]);
   const matrixFilters =
     examTypeId != null && classroomId != null
-      ? { exam_type_id: examTypeId, classroom_id: classroomId }
+      ? { exam_type_id: examTypeId, classroom_id: classroomId, stream_id: streamId ?? undefined }
       : null;
   const matrixQuery = useMarksMatrix(matrixFilters, { enabled: canView });
 
@@ -74,8 +79,13 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
           <View>
             <AcademicScreenHeader
               title="Marks Matrix"
-              subtitle="Students × exams (read-only)"
+              subtitle="View matrix or enter marks in bulk"
               onBack={() => navigation.goBack()}
+            />
+            <Button
+              label="Bulk marks entry"
+              onPress={() => navigation.navigate('MarksMatrixSetup')}
+              style={{ marginBottom: spacing.sm }}
             />
             <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
               Class
@@ -104,6 +114,50 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
               Exam type
             </Text>
+            {classroomId != null && (contextQuery.data?.streams?.length ?? 0) > 0 ? (
+              <>
+                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
+                  Stream (optional)
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
+                  <Pressable
+                    onPress={() => setStreamId(null)}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: streamId === null ? colors.primary : palette.surface,
+                        borderColor: streamId === null ? colors.primary : palette.border,
+                        borderRadius: radius.full,
+                        marginRight: spacing.xs,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: streamId === null ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                      All
+                    </Text>
+                  </Pressable>
+                  {(contextQuery.data?.streams ?? []).map((s) => (
+                    <Pressable
+                      key={s.id}
+                      onPress={() => setStreamId(s.id)}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: streamId === s.id ? colors.primary : palette.surface,
+                          borderColor: streamId === s.id ? colors.primary : palette.border,
+                          borderRadius: radius.full,
+                          marginRight: spacing.xs,
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: streamId === s.id ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                        {s.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </>
+            ) : null}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
               {(contextQuery.data?.exam_types ?? []).map((t) => (
                 <Pressable

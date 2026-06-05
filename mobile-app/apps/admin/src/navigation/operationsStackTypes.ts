@@ -13,4 +13,7 @@ export type OperationsStackParamList = {
   TeacherTransport: undefined;
   DriverTrips: undefined;
   DriverTripDetail: { tripId: number; tripName?: string };
+  VehiclesList: undefined;
+  VehicleForm: { vehicleId?: number };
+  TripForm: { tripId?: number };
 };

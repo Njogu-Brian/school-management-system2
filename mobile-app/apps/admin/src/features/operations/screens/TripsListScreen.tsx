@@ -1,8 +1,8 @@
 import { useTransportRoutes } from '@erp/core';
-import { AcademicScreenHeader, ScreenContainer, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 
 type Props = StackScreenProps<OperationsStackParamList, 'TripsList'>;
@@ -18,7 +18,13 @@ export const TripsListScreen: React.FC<Props> = ({ navigation }) => {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         ListHeaderComponent={
-          <AcademicScreenHeader title="Transport trips" subtitle="GET /routes" onBack={() => navigation.goBack()} />
+          <View>
+            <AcademicScreenHeader title="Transport trips" subtitle="Routes and trip templates" onBack={() => navigation.goBack()} />
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md }}>
+              <Button label="Add trip" onPress={() => navigation.navigate('TripForm', {})} />
+              <Button label="Vehicles" variant="secondary" onPress={() => navigation.navigate('VehiclesList')} />
+            </View>
+          </View>
         }
         renderItem={({ item }) => (
           <Pressable

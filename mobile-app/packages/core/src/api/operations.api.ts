@@ -6,7 +6,9 @@ export interface TransportRouteSummary {
   name: string;
   code?: string | null;
   description?: string | null;
+  vehicle_id?: number | null;
   vehicle_registration?: string | null;
+  driver_id?: number | null;
   driver_name?: string | null;
   status?: string;
   drop_points?: Array<{
@@ -15,6 +17,18 @@ export interface TransportRouteSummary {
     sequence?: number;
     pickup_time?: string | null;
   }>;
+}
+
+export interface VehicleRecord {
+  id: number;
+  vehicle_number: string;
+  driver_name?: string | null;
+  make?: string | null;
+  model?: string | null;
+  type?: string | null;
+  capacity?: number | null;
+  chassis_number?: string | null;
+  trips_count?: number;
 }
 
 export interface StudentRequirementTemplateItem {
@@ -144,6 +158,76 @@ export const operationsApi = {
 
   getRoute(id: number): Promise<ApiResponse<TransportRouteSummary>> {
     return apiClient.get<TransportRouteSummary>(`/routes/${id}`);
+  },
+
+  createRoute(payload: {
+    vehicle_id: number;
+    name: string;
+    driver_id?: number;
+    direction?: string;
+    day_of_week?: number[];
+  }): Promise<ApiResponse<TransportRouteSummary>> {
+    return apiClient.post<TransportRouteSummary>('/routes', payload);
+  },
+
+  updateRoute(
+    id: number,
+    payload: {
+      vehicle_id: number;
+      name: string;
+      driver_id?: number;
+      direction?: string;
+      day_of_week?: number[];
+    },
+  ): Promise<ApiResponse<TransportRouteSummary>> {
+    return apiClient.put<TransportRouteSummary>(`/routes/${id}`, payload);
+  },
+
+  deleteRoute(id: number): Promise<ApiResponse<void>> {
+    return apiClient.delete(`/routes/${id}`);
+  },
+
+  listVehicles(params?: {
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<VehicleRecord>>> {
+    return apiClient.get<PaginatedResponse<VehicleRecord>>('/vehicles', params);
+  },
+
+  getVehicle(id: number): Promise<ApiResponse<VehicleRecord>> {
+    return apiClient.get<VehicleRecord>(`/vehicles/${id}`);
+  },
+
+  createVehicle(payload: {
+    vehicle_number: string;
+    driver_name?: string;
+    make?: string;
+    model?: string;
+    type?: string;
+    capacity?: number;
+    chassis_number?: string;
+  }): Promise<ApiResponse<VehicleRecord>> {
+    return apiClient.post<VehicleRecord>('/vehicles', payload);
+  },
+
+  updateVehicle(
+    id: number,
+    payload: {
+      vehicle_number: string;
+      driver_name?: string;
+      make?: string;
+      model?: string;
+      type?: string;
+      capacity?: number;
+      chassis_number?: string;
+    },
+  ): Promise<ApiResponse<VehicleRecord>> {
+    return apiClient.put<VehicleRecord>(`/vehicles/${id}`, payload);
+  },
+
+  deleteVehicle(id: number): Promise<ApiResponse<void>> {
+    return apiClient.delete(`/vehicles/${id}`);
   },
 
   getStudentRequirements(

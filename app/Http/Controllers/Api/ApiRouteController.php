@@ -64,6 +64,88 @@ class ApiRouteController extends Controller
         ]);
     }
 
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'vehicle_id' => 'required|exists:vehicles,id',
+            'name' => 'required|string|max:255',
+            'driver_id' => 'nullable|exists:staff,id',
+            'direction' => 'nullable|string|max:50',
+            'day_of_week' => 'nullable|array',
+            'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
+        ]);
+
+        $data = [
+            'vehicle_id' => $validated['vehicle_id'],
+            'driver_id' => $validated['driver_id'] ?? null,
+            'direction' => $validated['direction'] ?? null,
+            'trip_name' => $validated['name'],
+            'day_of_week' => ! empty($validated['day_of_week'])
+                ? array_map('intval', $validated['day_of_week'])
+                : null,
+        ];
+
+        $trip = Trip::create($data);
+        $trip->load(['vehicle', 'driver', 'stops.dropOffPoint']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Trip created.',
+            'data' => $this->formatTripAsRoute($trip),
+        ], 201);
+    }
+
+    public function update(Request $request, int $id)
+    {
+        $trip = Trip::findOrFail($id);
+
+        $validated = $request->validate([
+            'vehicle_id' => 'required|exists:vehicles,id',
+            'name' => 'required|string|max:255',
+            'driver_id' => 'nullable|exists:staff,id',
+            'direction' => 'nullable|string|max:50',
+            'day_of_week' => 'nullable|array',
+            'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
+        ]);
+
+        $trip->update([
+            'vehicle_id' => $validated['vehicle_id'],
+            'driver_id' => $validated['driver_id'] ?? null,
+            'direction' => $validated['direction'] ?? null,
+            'trip_name' => $validated['name'],
+            'day_of_week' => ! empty($validated['day_of_week'])
+                ? array_map('intval', $validated['day_of_week'])
+                : null,
+        ]);
+
+        $trip->load(['vehicle', 'driver', 'stops.dropOffPoint']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Trip updated.',
+            'data' => $this->formatTripAsRoute($trip),
+        ]);
+    }
+
+    public function destroy(int $id)
+    {
+        $trip = Trip::findOrFail($id);
+
+        if ($trip->assignments()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete a trip with assigned students.',
+            ], 422);
+        }
+
+        $trip->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Trip deleted.',
+        ]);
+    }
+
     protected function formatTripAsRoute(Trip $t): array
     {
         $vehicle = $t->vehicle;

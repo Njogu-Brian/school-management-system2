@@ -7,6 +7,8 @@ export { ExamDetailScreen } from './screens/ExamDetailScreen';
 export { MarksEntryScreen } from './screens/MarksEntryScreen';
 export { MarksScreen } from './screens/MarksScreen';
 export { MarksMatrixScreen } from './screens/MarksMatrixScreen';
+export { MarksMatrixSetupScreen } from './screens/MarksMatrixSetupScreen';
+export { MarksMatrixEntryScreen } from './screens/MarksMatrixEntryScreen';
 export { ReportCardsScreen } from './screens/ReportCardsScreen';
 export { ReportCardHistoryScreen } from './screens/ReportCardHistoryScreen';
 export { ReportCardDetailScreen } from './screens/ReportCardDetailScreen';

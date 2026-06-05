@@ -53,7 +53,8 @@ export const StaffClockScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-        <AcademicScreenHeader title="Staff clock" subtitle="POST /staff-attendance/clock-in" onBack={() => navigation.goBack()} />
+        <AcademicScreenHeader title="Staff clock" subtitle="Clock in/out with GPS geofence" onBack={() => navigation.goBack()} />
+        <Button label="Team clock history" variant="secondary" onPress={() => navigation.navigate('StaffClockTeam')} style={{ marginBottom: spacing.md }} />
 
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />

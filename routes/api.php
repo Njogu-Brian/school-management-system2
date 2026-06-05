@@ -151,8 +151,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/staff/{id}/photo', [\App\Http\Controllers\Api\ApiStaffController::class, 'uploadPhoto']);
     Route::get('/payroll-records', [\App\Http\Controllers\Api\ApiPayrollRecordsController::class, 'index']);
     Route::get('/payroll-records/{id}/payslip/download', [\App\Http\Controllers\Api\ApiPayslipController::class, 'download']);
+    Route::get('/vehicles', [\App\Http\Controllers\Api\ApiVehicleController::class, 'index']);
+    Route::get('/vehicles/{id}', [\App\Http\Controllers\Api\ApiVehicleController::class, 'show']);
+    Route::post('/vehicles', [\App\Http\Controllers\Api\ApiVehicleController::class, 'store']);
+    Route::put('/vehicles/{id}', [\App\Http\Controllers\Api\ApiVehicleController::class, 'update']);
+    Route::delete('/vehicles/{id}', [\App\Http\Controllers\Api\ApiVehicleController::class, 'destroy']);
     Route::get('/routes', [\App\Http\Controllers\Api\ApiRouteController::class, 'index']);
+    Route::post('/routes', [\App\Http\Controllers\Api\ApiRouteController::class, 'store']);
     Route::get('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'show']);
+    Route::put('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'update']);
+    Route::delete('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'destroy']);
     Route::get('/routes/{id}/fee-clearance-roster', [ApiFeeClearanceController::class, 'tripRoster']);
     Route::get('/leave-types', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'leaveTypes']);
     Route::get('/leave-requests', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'index']);

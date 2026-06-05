@@ -136,6 +136,8 @@ export const queryKeys = {
     summary: () => [...queryKeys.operations.all, 'summary'] as const,
     routes: (search?: string) => [...queryKeys.operations.all, 'routes', search ?? ''] as const,
     route: (id: number) => [...queryKeys.operations.all, 'route', id] as const,
+    vehicles: (search?: string) => [...queryKeys.operations.all, 'vehicles', search ?? ''] as const,
+    vehicle: (id: number) => [...queryKeys.operations.all, 'vehicle', id] as const,
     studentRequirements: (studentId: number) =>
       [...queryKeys.operations.all, 'student-requirements', studentId] as const,
     inventory: (filters?: { search?: string; lowStock?: boolean }) =>
@@ -177,10 +179,13 @@ export const queryKeys = {
     today: () => [...queryKeys.staffClock.all, 'today'] as const,
     history: () => [...queryKeys.staffClock.all, 'history'] as const,
     geofence: () => [...queryKeys.staffClock.all, 'geofence'] as const,
+    roster: () => [...queryKeys.staffClock.all, 'roster'] as const,
+    memberHistory: (staffId: number) => [...queryKeys.staffClock.all, 'member-history', staffId] as const,
   },
   teacherTransport: {
     all: ['teacher-transport'] as const,
     students: (date?: string) => [...queryKeys.teacherTransport.all, 'students', date ?? 'today'] as const,
+    vehicles: () => [...queryKeys.teacherTransport.all, 'vehicles'] as const,
   },
   driverTransport: {
     all: ['driver-transport'] as const,

@@ -9,4 +9,5 @@ export type PeopleStackParamList = {
   PerformanceReviewDetail: { staffId: number; reviewId: number };
   TrainingRecordDetail: { staffId: number; recordId: number };
   StaffClock: undefined;
+  StaffClockTeam: undefined;
 };

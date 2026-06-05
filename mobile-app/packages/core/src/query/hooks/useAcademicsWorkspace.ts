@@ -349,5 +349,19 @@ export function useEnterMarks() {
   });
 }
 
+export function useEnterMarksMatrix() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Parameters<typeof academicsWorkspaceApi.enterMarksMatrix>[0]) => {
+      const res = await academicsWorkspaceApi.enterMarksMatrix(data);
+      if (!res.success) throw new Error(res.message || 'Failed to save marks matrix.');
+      return res;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.academics.all });
+    },
+  });
+}
+
 /** Aliases matching sprint hook names */
 export { useInfiniteExams as useExams };

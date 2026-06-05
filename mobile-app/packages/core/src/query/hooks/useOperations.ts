@@ -293,6 +293,96 @@ export function useAsset(id: number, options?: { enabled?: boolean }) {
   });
 }
 
+export function useVehicles(options?: { enabled?: boolean; search?: string }) {
+  return useQuery({
+    queryKey: queryKeys.operations.vehicles(options?.search),
+    queryFn: async () => {
+      const res = await operationsApi.listVehicles({ per_page: 50, search: options?.search });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load vehicles.');
+      }
+      return res.data.data ?? [];
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 45_000,
+  });
+}
+
+export function useVehicle(vehicleId: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.operations.vehicle(vehicleId),
+    queryFn: async () => {
+      const res = await operationsApi.getVehicle(vehicleId);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load vehicle.');
+      }
+      return res.data;
+    },
+    enabled: (options?.enabled !== false) && vehicleId > 0,
+    staleTime: 60_000,
+  });
+}
+
+export function useVehicleMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => void qc.invalidateQueries({ queryKey: queryKeys.operations.all });
+  const create = useMutation({
+    mutationFn: async (payload: Parameters<typeof operationsApi.createVehicle>[0]) => {
+      const res = await operationsApi.createVehicle(payload);
+      if (!res.success) throw new Error(res.message || 'Failed to create vehicle.');
+      return res.data;
+    },
+    onSuccess: invalidate,
+  });
+  const update = useMutation({
+    mutationFn: async ({ id, ...payload }: Parameters<typeof operationsApi.updateVehicle>[1] & { id: number }) => {
+      const res = await operationsApi.updateVehicle(id, payload);
+      if (!res.success) throw new Error(res.message || 'Failed to update vehicle.');
+      return res.data;
+    },
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await operationsApi.deleteVehicle(id);
+      if (!res.success) throw new Error(res.message || 'Failed to delete vehicle.');
+      return res;
+    },
+    onSuccess: invalidate,
+  });
+  return { create, update, remove };
+}
+
+export function useTripMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => void qc.invalidateQueries({ queryKey: queryKeys.operations.all });
+  const create = useMutation({
+    mutationFn: async (payload: Parameters<typeof operationsApi.createRoute>[0]) => {
+      const res = await operationsApi.createRoute(payload);
+      if (!res.success) throw new Error(res.message || 'Failed to create trip.');
+      return res.data;
+    },
+    onSuccess: invalidate,
+  });
+  const update = useMutation({
+    mutationFn: async ({ id, ...payload }: Parameters<typeof operationsApi.updateRoute>[1] & { id: number }) => {
+      const res = await operationsApi.updateRoute(id, payload);
+      if (!res.success) throw new Error(res.message || 'Failed to update trip.');
+      return res.data;
+    },
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await operationsApi.deleteRoute(id);
+      if (!res.success) throw new Error(res.message || 'Failed to delete trip.');
+      return res;
+    },
+    onSuccess: invalidate,
+  });
+  return { create, update, remove };
+}
+
 export function useMedicalRecords(studentId: number, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.operations.medicalRecords(studentId),

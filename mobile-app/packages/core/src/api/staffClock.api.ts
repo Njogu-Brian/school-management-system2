@@ -30,6 +30,12 @@ export interface StaffClockHistoryItem {
   check_out_distance_meters: number | null;
 }
 
+export interface StaffClockRosterItem {
+  id: number;
+  staff_id: string;
+  full_name: string;
+}
+
 interface ClockPayload {
   latitude: number;
   longitude: number;
@@ -41,12 +47,31 @@ export const staffClockApi = {
     return apiClient.get<StaffGeofenceConfig>('/staff-attendance/geofence');
   },
 
+  updateGeofenceConfig(data: {
+    latitude: number;
+    longitude: number;
+    radius_meters: number;
+  }): Promise<ApiResponse<StaffGeofenceConfig>> {
+    return apiClient.put<StaffGeofenceConfig>('/staff-attendance/geofence', data);
+  },
+
   getTodayClockStatus(): Promise<ApiResponse<StaffTodayClock | null>> {
     return apiClient.get<StaffTodayClock | null>('/staff-attendance/me/today');
   },
 
   getClockHistory(limit = 90): Promise<ApiResponse<StaffClockHistoryItem[]>> {
     return apiClient.get<StaffClockHistoryItem[]>('/staff-attendance/me/history', { limit });
+  },
+
+  getClockRoster(): Promise<ApiResponse<StaffClockRosterItem[]>> {
+    return apiClient.get<StaffClockRosterItem[]>('/staff-attendance/clock-roster');
+  },
+
+  getStaffClockHistory(
+    staffId: number,
+    limit = 90,
+  ): Promise<ApiResponse<{ staff: { id: number; full_name: string } | null; history: StaffClockHistoryItem[] }>> {
+    return apiClient.get('/staff-attendance/staff/history', { staff_id: staffId, limit });
   },
 
   clockIn(payload: ClockPayload): Promise<ApiResponse<{ check_in_time: string; distance_meters: number }>> {

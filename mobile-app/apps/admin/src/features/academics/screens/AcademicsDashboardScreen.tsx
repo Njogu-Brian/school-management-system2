@@ -27,6 +27,7 @@ const SECTIONS = [
   { route: 'Assessments' as const, label: 'Assessments', icon: 'analytics-outline' as const },
   { route: 'ExamsList' as const, label: 'Exams', icon: 'school-outline' as const },
   { route: 'Marks' as const, label: 'Marks', icon: 'grid-outline' as const },
+  { route: 'MarksMatrix' as const, label: 'Marks Matrix', icon: 'apps-outline' as const },
   { route: 'ReportCards' as const, label: 'Report Cards', icon: 'ribbon-outline' as const },
   { route: 'Moderation' as const, label: 'Moderation', icon: 'shield-checkmark-outline' as const },
 ];

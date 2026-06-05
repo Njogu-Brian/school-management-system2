@@ -15,6 +15,9 @@ import {
   TeacherTransportScreen,
   DriverTripsScreen,
   DriverTripDetailScreen,
+  VehiclesListScreen,
+  VehicleFormScreen,
+  TripFormScreen,
 } from '../features/operations';
 import type { OperationsStackParamList } from './operationsStackTypes';
 
@@ -36,5 +39,8 @@ export const OperationsStackNavigator: React.FC = () => (
     <Stack.Screen name="TeacherTransport" component={TeacherTransportScreen} />
     <Stack.Screen name="DriverTrips" component={DriverTripsScreen} />
     <Stack.Screen name="DriverTripDetail" component={DriverTripDetailScreen} />
+    <Stack.Screen name="VehiclesList" component={VehiclesListScreen} />
+    <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
+    <Stack.Screen name="TripForm" component={TripFormScreen} />
   </Stack.Navigator>
 );

@@ -9,6 +9,7 @@ type Props = StackScreenProps<OperationsStackParamList, 'OperationsDashboard'>;
 
 const SECTIONS = [
   { route: 'TripsList' as const, label: 'Routes', icon: 'bus-outline' as const },
+  { route: 'VehiclesList' as const, label: 'Vehicles', icon: 'car-sport-outline' as const },
   { route: 'TeacherTransport' as const, label: 'Teacher transport', icon: 'people-outline' as const },
   { route: 'DriverTrips' as const, label: 'Driver trips', icon: 'car-outline' as const },
   { route: 'InventoryList' as const, label: 'Inventory', icon: 'cube-outline' as const },

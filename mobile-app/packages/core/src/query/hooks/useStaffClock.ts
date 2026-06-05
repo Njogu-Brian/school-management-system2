@@ -41,6 +41,46 @@ export function useStaffGeofence(options?: { enabled?: boolean }) {
   });
 }
 
+export function useStaffClockRoster(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.staffClock.roster(),
+    queryFn: async () => {
+      const res = await staffClockApi.getClockRoster();
+      if (!res.success || !res.data) throw new Error(res.message || 'Failed to load staff roster.');
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 60_000,
+  });
+}
+
+export function useStaffMemberClockHistory(staffId: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.staffClock.memberHistory(staffId),
+    queryFn: async () => {
+      const res = await staffClockApi.getStaffClockHistory(staffId, 90);
+      if (!res.success || !res.data) throw new Error(res.message || 'Failed to load staff history.');
+      return res.data;
+    },
+    enabled: options?.enabled !== false && staffId > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useStaffGeofenceUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Parameters<typeof staffClockApi.updateGeofenceConfig>[0]) => {
+      const res = await staffClockApi.updateGeofenceConfig(payload);
+      if (!res.success) throw new Error(res.message || 'Failed to update geofence.');
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.staffClock.geofence() });
+    },
+  });
+}
+
 export function useStaffClockActions() {
   const qc = useQueryClient();
   const invalidate = () => {
