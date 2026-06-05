@@ -13,6 +13,8 @@ export * from './hooks/useStudentDetail';
 export * from './hooks/useStudent360';
 export * from './hooks/useStudentAcademics';
 export * from './hooks/useSettingsHub';
+export * from './hooks/useAdmissions';
+export * from './hooks/useAdmissionActions';
 export * from './hooks/useStaffList';
 export * from './hooks/useStaffDetail';
 export * from './hooks/useStaff360';

@@ -53,6 +53,11 @@ class OnlineAdmission extends Model
         return $this->belongsTo(\App\Models\User::class, 'reviewed_by');
     }
 
+    public function preferredClassroom()
+    {
+        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'preferred_classroom_id');
+    }
+
     public function classroom()
     {
         return $this->belongsTo(\App\Models\Academics\Classroom::class);

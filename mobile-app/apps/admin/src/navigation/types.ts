@@ -1,11 +1,12 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { StudentsStackParamList } from './studentsStackTypes';
 
 /**
  * Bottom-tab routes (the most-used admin areas — build plan §5.2 default preset).
  */
 export type TabsParamList = {
   Dashboard: undefined;
-  Students: undefined;
+  Students: NavigatorScreenParams<StudentsStackParamList> | undefined;
   Finance: undefined;
   People: undefined;
 };

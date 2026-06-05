@@ -7,6 +7,7 @@ export * from './api';
 export * from './auth';
 export * from './rbac';
 export * from './query';
+export * from './admissions';
 export * from './approvals';
 export * from './students';
 export * from './staff';

@@ -52,6 +52,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/staff-attendance/clock-out', [ApiStaffClockController::class, 'clockOut']);
 
     Route::get('/dashboard/stats', [\App\Http\Controllers\Api\ApiDashboardController::class, 'stats']);
+
+    Route::prefix('admissions')->group(function () {
+        $admissions = \App\Http\Controllers\Api\ApiAdmissionsController::class;
+        Route::get('/stats', [$admissions, 'stats']);
+        Route::get('/', [$admissions, 'index']);
+        Route::get('/{admission}/files/{field}', [$admissions, 'downloadFile']);
+        Route::put('/{admission}/status', [$admissions, 'updateStatus']);
+        Route::post('/{admission}/waitlist', [$admissions, 'waitlist']);
+        Route::post('/{admission}/reject', [$admissions, 'reject']);
+        Route::post('/{admission}/enroll', [$admissions, 'enroll']);
+        Route::get('/{admission}', [$admissions, 'show']);
+    });
     Route::get('/student-categories', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'categories']);
     Route::get('/students', [\App\Http\Controllers\Api\ApiStudentController::class, 'index']);
     Route::post('/students', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'store']);

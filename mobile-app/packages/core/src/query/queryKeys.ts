@@ -1,3 +1,4 @@
+import type { ApplicationListFilters } from '../types/admissions';
 import type { ApprovalListFilters } from '../types/approval';
 import type { DashboardStatsFilters } from '../types/dashboard';
 import type { StaffListFilters } from '../types/staff';
@@ -59,6 +60,13 @@ export const queryKeys = {
     ) => [...queryKeys.staff.all, 'attendance-history', id, range ?? {}] as const,
     payrollRecords: (id: number, page?: number) =>
       [...queryKeys.staff.all, 'payroll-records', id, page ?? 1] as const,
+  },
+  admissions: {
+    all: ['admissions'] as const,
+    stats: () => [...queryKeys.admissions.all, 'stats'] as const,
+    list: (filters?: ApplicationListFilters) =>
+      [...queryKeys.admissions.all, 'list', filters ?? {}] as const,
+    detail: (id: number) => [...queryKeys.admissions.all, 'detail', id] as const,
   },
   settings: {
     all: ['settings'] as const,

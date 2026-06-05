@@ -1,6 +1,7 @@
 export * from './client';
 export * from './auth.api';
 export * from './dashboard.api';
+export * from './admissions.api';
 export * from './approvals.api';
 export * from './students.api';
 export * from './academics.api';

@@ -57,6 +57,8 @@ function Invoke-Api($method, $path) {
 # Dashboard + Settings Hub (Sprint 4)
 $globalChecks = @(
     @{ Label = "GET /dashboard/stats"; Path = "/dashboard/stats" },
+    @{ Label = "GET /admissions/stats"; Path = "/admissions/stats" },
+    @{ Label = "GET /admissions"; Path = "/admissions?per_page=5" },
     @{ Label = "GET /settings/school"; Path = "/settings/school" },
     @{ Label = "GET /settings/academic-years"; Path = "/settings/academic-years" },
     @{ Label = "GET /settings/terms"; Path = "/settings/terms" },

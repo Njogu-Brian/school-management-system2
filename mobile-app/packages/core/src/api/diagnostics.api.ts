@@ -1,3 +1,4 @@
+import { admissionsApi } from './admissions.api';
 import { academicsApi } from './academics.api';
 import { dashboardApi } from './dashboard.api';
 import { settingsApi } from './settings.api';
@@ -82,6 +83,9 @@ export async function runApiDiagnostics(
 
   const probes: Array<() => Promise<ApiProbeResult>> = [
     () => probe('Dashboard', 'Stats', 'GET /dashboard/stats', () => dashboardApi.getStats()),
+    () => probe('Admissions', 'Stats', 'GET /admissions/stats', () => admissionsApi.getStats()),
+    () =>
+      probe('Admissions', 'List', 'GET /admissions', () => admissionsApi.list({ per_page: 5 })),
     () =>
       probe('Settings', 'School', 'GET /settings/school', () => settingsApi.getSchool()),
     () =>
