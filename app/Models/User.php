@@ -159,7 +159,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     public function getDashboardClassroomIds(): array
     {
         $ids = array_map('intval', $this->getAssignedClassroomIds());
-        if ($this->isSeniorTeacherUser()) {
+        if ($this->isSeniorTeacherUser() || $this->isDeputySeniorTeacherUser()) {
             $ids = array_values(array_unique(array_merge(
                 $ids,
                 array_map('intval', $this->getSupervisedClassroomIds())
@@ -168,6 +168,27 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         sort($ids);
 
         return $ids;
+    }
+
+    /**
+     * Subject ids this teacher is assigned to teach (classroom_subjects + subject_teacher).
+     *
+     * @return int[]
+     */
+    public function getAssignedSubjectIds(): array
+    {
+        $ids = $this->subjects()->pluck('subjects.id')->map(fn ($id) => (int) $id)->all();
+        if ($this->staff) {
+            $fromClassroom = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                ->where('staff_id', $this->staff->id)
+                ->distinct()
+                ->pluck('subject_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $ids = array_merge($ids, $fromClassroom);
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**

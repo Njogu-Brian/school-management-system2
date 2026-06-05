@@ -29,6 +29,11 @@ export const linking: LinkingOptions<DrawerParamList> = {
               DashboardHome: '',
               ApprovalCenter: 'approvals',
               ApprovalDetail: 'approvals/:id',
+              NotificationsList: 'notifications',
+              NotificationDetail: 'notifications/:notificationId',
+              GlobalSearch: 'search',
+              ActivityCenter: 'activity',
+              AuditDetail: 'activity/:auditId',
             },
           },
           Students: {

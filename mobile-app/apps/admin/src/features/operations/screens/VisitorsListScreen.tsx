@@ -1,53 +1,114 @@
-import { useVisitors } from '@erp/core';
-import { AcademicScreenHeader, ScreenContainer, useTheme } from '@erp/ui';
+import { useCan, useInfiniteVisitors } from '@erp/core';
+import { AcademicScreenHeader, EmptyState, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
+import { formatDateTimeLabel } from '../../shared/utils/formatters';
 
 type Props = StackScreenProps<OperationsStackParamList, 'VisitorsList'>;
 
+type Filter = 'all' | 'on_site' | 'checked_out';
+
 export const VisitorsListScreen: React.FC<Props> = ({ navigation }) => {
+  const canView = useCan('operations.view');
   const { colors, palette, spacing, fontSizes } = useTheme();
-  const query = useVisitors({ onSite: true });
+  const [filter, setFilter] = useState<Filter>('all');
+
+  const listQuery = useInfiniteVisitors({
+    enabled: canView,
+    onSite: filter === 'on_site' ? true : filter === 'checked_out' ? false : undefined,
+  });
+
+  const items = useMemo(() => {
+    const rows = listQuery.data?.pages.flatMap((p) => p.items) ?? [];
+    if (filter === 'checked_out') return rows.filter((v) => !v.on_site);
+    return rows;
+  }, [listQuery.data, filter]);
+
+  if (!canView) {
+    return (
+      <ScreenContainer contentContainerStyle={styles.denied}>
+        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <FlatList
-        data={query.data ?? []}
+        data={items}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         ListHeaderComponent={
-          <AcademicScreenHeader
-            title="Visitors on site"
-            subtitle="GET /visitors?on_site=1"
-            onBack={() => navigation.goBack()}
-          />
+          <View>
+            <AcademicScreenHeader title="Visitors" onBack={() => navigation.goBack()} />
+            <Pressable onPress={() => navigation.navigate('VisitorCheckIn')} style={{ marginBottom: spacing.sm }}>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>+ Check in visitor</Text>
+            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.sm }}>
+              {(['all', 'on_site', 'checked_out'] as Filter[]).map((f) => (
+                <Pressable
+                  key={f}
+                  onPress={() => setFilter(f)}
+                  style={[styles.chip, filter === f && { borderColor: colors.primary }]}
+                >
+                  <Text style={{ fontSize: fontSizes.xs }}>{f.replace('_', ' ')}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.row, { borderColor: palette.border, padding: spacing.sm, marginBottom: spacing.xs }]}>
+          <Pressable
+            onPress={() => navigation.navigate('VisitorDetail', { visitorId: item.id })}
+            style={[styles.row, { borderColor: palette.border }]}
+          >
             <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>
               {item.visitor_name}
             </Text>
             <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
-              {[item.purpose, item.host_name].filter(Boolean).join(' · ') || 'On site'}
+              {[item.purpose, item.host_name, item.on_site ? 'On site' : 'Checked out'].filter(Boolean).join(' · ')}
             </Text>
-          </View>
+            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+              {formatDateTimeLabel(item.checked_in_at)}
+            </Text>
+          </Pressable>
         )}
+        refreshControl={
+          <RefreshControl
+            refreshing={listQuery.isRefetching && !listQuery.isFetchingNextPage}
+            onRefresh={() => void listQuery.refetch()}
+            colors={[colors.primary]}
+          />
+        }
+        onEndReached={() => {
+          if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) void listQuery.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={listQuery.isFetchingNextPage ? <ActivityIndicator color={colors.primary} /> : null}
         ListEmptyComponent={
-          query.isLoading ? (
+          listQuery.isLoading ? (
             <ActivityIndicator color={colors.primary} />
           ) : (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No visitors currently on site.</Text>
+            <EmptyState title="No visitors" message="No visitor records match your filter." icon="person-outline" />
           )
         }
-        refreshing={query.isRefetching}
-        onRefresh={() => void query.refetch()}
       />
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  row: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 },
+  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  chip: { borderWidth: 1, borderColor: '#ccc', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 },
+  row: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12, marginBottom: 8 },
 });

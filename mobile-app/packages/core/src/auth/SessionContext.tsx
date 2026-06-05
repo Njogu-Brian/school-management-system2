@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import type { PersistedSessionMeta } from '../types';
+import { sessionsApi } from '../api/sessions.api';
 import {
   clearAuthData,
   getSessionMeta,
@@ -109,7 +110,25 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, []);
 
-  const refresh = useCallback(async () => false, []);
+  const refresh = useCallback(async () => {
+    if (!token) {
+      return false;
+    }
+    try {
+      const res = await sessionsApi.refresh();
+      if (!res.success || !res.data?.token) {
+        return false;
+      }
+      await setSession({
+        token: res.data.token,
+        expiresAt: res.data.expires_at,
+        rememberMe: meta?.rememberMe,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }, [token, meta?.rememberMe, setSession]);
 
   const isValid = token != null && !isSessionExpired(meta);
 

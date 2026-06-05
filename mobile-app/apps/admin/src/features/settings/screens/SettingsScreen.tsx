@@ -8,6 +8,8 @@ import { AcademicSettingsSection } from '../sections/AcademicSettingsSection';
 import { GradingSettingsSection } from '../sections/GradingSettingsSection';
 import { RolesSettingsSection } from '../sections/RolesSettingsSection';
 import { SchoolSettingsSection } from '../sections/SchoolSettingsSection';
+import { AboutScreen } from './AboutScreen';
+import { SessionScreen } from './SessionScreen';
 
 const area = getNavArea('settings');
 
@@ -23,6 +25,8 @@ export const SettingsScreen: React.FC = () => {
   const { colors, spacing, fontSizes, palette } = useTheme();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('school');
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const sections = useMemo(() => ALL_SECTIONS, []);
 
@@ -60,26 +64,43 @@ export const SettingsScreen: React.FC = () => {
       >
         {content}
       </SettingsHubLayout>
+      <View
+        style={{
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderTopWidth: 1,
+          borderTopColor: palette.border,
+          gap: spacing.sm,
+        }}
+      >
+        <Pressable onPress={() => setSessionOpen(true)}>
+          <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+            Session & security
+          </Text>
+        </Pressable>
+        <Pressable onPress={() => setAboutOpen(true)}>
+          <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+            About & support
+          </Text>
+        </Pressable>
+        {__DEV__ ? (
+          <Pressable onPress={() => setDiagnosticsOpen(true)}>
+            <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+              API Health (dev)
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <Modal visible={sessionOpen} animationType="slide" onRequestClose={() => setSessionOpen(false)}>
+        <SessionScreen onBack={() => setSessionOpen(false)} />
+      </Modal>
+      <Modal visible={aboutOpen} animationType="slide" onRequestClose={() => setAboutOpen(false)}>
+        <AboutScreen onBack={() => setAboutOpen(false)} />
+      </Modal>
       {__DEV__ ? (
-        <>
-          <View
-            style={{
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.sm,
-              borderTopWidth: 1,
-              borderTopColor: palette.border,
-            }}
-          >
-            <Pressable onPress={() => setDiagnosticsOpen(true)}>
-              <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
-                API Health (dev)
-              </Text>
-            </Pressable>
-          </View>
-          <Modal visible={diagnosticsOpen} animationType="slide" onRequestClose={() => setDiagnosticsOpen(false)}>
-            <ApiDiagnosticsScreen onClose={() => setDiagnosticsOpen(false)} />
-          </Modal>
-        </>
+        <Modal visible={diagnosticsOpen} animationType="slide" onRequestClose={() => setDiagnosticsOpen(false)}>
+          <ApiDiagnosticsScreen onClose={() => setDiagnosticsOpen(false)} />
+        </Modal>
       ) : null}
     </ScreenContainer>
   );

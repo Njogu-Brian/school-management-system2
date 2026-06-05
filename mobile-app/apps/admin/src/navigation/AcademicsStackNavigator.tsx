@@ -7,6 +7,7 @@ import {
   AssessmentsScreen,
   ExamDetailScreen,
   ExamsListScreen,
+  MarksEntryScreen,
   LessonPlanReviewScreen,
   MarksMatrixScreen,
   MarksScreen,
@@ -27,6 +28,7 @@ export const AcademicsStackNavigator: React.FC = () => (
     <Stack.Screen name="AssessmentDetail" component={AssessmentDetailScreen} />
     <Stack.Screen name="ExamsList" component={ExamsListScreen} />
     <Stack.Screen name="ExamDetail" component={ExamDetailScreen} />
+    <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />
     <Stack.Screen name="Marks" component={MarksScreen} />
     <Stack.Screen name="MarksMatrix" component={MarksMatrixScreen} />
     <Stack.Screen name="ReportCards" component={ReportCardsScreen} />

@@ -3,6 +3,7 @@
 namespace App\Services\Academics\ExamReports;
 
 use App\Models\Academics\Classroom;
+use App\Models\Academics\ClassroomSubject;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -89,5 +90,51 @@ final class ExamReportsAccess
         $u = Auth::user();
 
         return $u instanceof User ? $u : null;
+    }
+
+    /**
+     * Regular subject teachers see only their assigned subjects; seniors/deputies/admins see all.
+     */
+    public static function userIsSubjectScoped(?User $user): bool
+    {
+        if (! $user || self::userHasFullAccess($user)) {
+            return false;
+        }
+        if ($user->isSeniorTeacherUser() || $user->isDeputySeniorTeacherUser()) {
+            return false;
+        }
+
+        return $user->hasTeacherLikeRole();
+    }
+
+    /**
+     * Subject ids the user may view for a class. Null = no filter (all subjects in class).
+     *
+     * @return int[]|null
+     */
+    public static function subjectIdsForUserInClass(?User $user, int $classroomId, ?int $streamId = null): ?array
+    {
+        if (! self::userIsSubjectScoped($user) || ! $user?->staff) {
+            return null;
+        }
+
+        $q = ClassroomSubject::query()
+            ->where('staff_id', $user->staff->id)
+            ->where('classroom_id', $classroomId);
+
+        if ($streamId) {
+            $q->where(function ($q2) use ($streamId) {
+                $q2->whereNull('stream_id')->orWhere('stream_id', $streamId);
+            });
+        } else {
+            $q->whereNull('stream_id');
+        }
+
+        $ids = $q->pluck('subject_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
+        if ($ids !== []) {
+            return $ids;
+        }
+
+        return $user->getAssignedSubjectIds();
     }
 }

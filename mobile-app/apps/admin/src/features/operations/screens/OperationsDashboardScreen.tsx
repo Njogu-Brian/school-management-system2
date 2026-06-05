@@ -8,10 +8,14 @@ import type { OperationsStackParamList } from '../../../navigation/operationsSta
 type Props = StackScreenProps<OperationsStackParamList, 'OperationsDashboard'>;
 
 const SECTIONS = [
-  { route: 'TripsList' as const, label: 'Transport', icon: 'bus-outline' as const },
+  { route: 'TripsList' as const, label: 'Routes', icon: 'bus-outline' as const },
+  { route: 'TeacherTransport' as const, label: 'Teacher transport', icon: 'people-outline' as const },
+  { route: 'DriverTrips' as const, label: 'Driver trips', icon: 'car-outline' as const },
   { route: 'InventoryList' as const, label: 'Inventory', icon: 'cube-outline' as const },
   { route: 'RequisitionsList' as const, label: 'Requisitions', icon: 'clipboard-outline' as const },
   { route: 'VisitorsList' as const, label: 'Visitors', icon: 'person-outline' as const },
+  { route: 'AssetsList' as const, label: 'Assets', icon: 'hardware-chip-outline' as const },
+  { route: 'VisitorCheckIn' as const, label: 'Check in', icon: 'log-in-outline' as const },
 ];
 
 export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
@@ -33,6 +37,7 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
   }
 
   const s = summaryQuery.data;
+  const state = summaryQuery.isLoading ? 'loading' : summaryQuery.isError ? 'error' : 'success';
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
@@ -53,20 +58,17 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
         <WidgetGrid>
           {[
-            { label: 'Active trips', value: String(s?.transport.active_trips ?? '—'), icon: 'bus-outline' as const },
-            { label: 'Students on transport', value: String(s?.transport.students_assigned ?? '—'), icon: 'people-outline' as const },
-            { label: 'Library books', value: String(s?.library.total_books ?? '—'), icon: 'library-outline' as const },
-            { label: 'Books available', value: String(s?.library.available_books ?? '—'), icon: 'book-outline' as const },
-            { label: 'Low stock', value: String(s?.inventory.low_stock_items ?? '—'), icon: 'warning-outline' as const },
             { label: 'Visitors on site', value: String(s?.visitors?.on_site ?? '—'), icon: 'walk-outline' as const },
-          ].map((kpi) => {
-            const state = summaryQuery.isLoading ? 'loading' : summaryQuery.isError ? 'error' : 'success';
-            return (
-              <WidgetShell key={kpi.label} state={state} title={kpi.label}>
-                <KpiCard label={kpi.label} value={kpi.value} icon={kpi.icon} />
-              </WidgetShell>
-            );
-          })}
+            { label: 'Active assets', value: String(s?.assets?.active ?? '—'), icon: 'hardware-chip-outline' as const },
+            { label: 'Low stock', value: String(s?.inventory.low_stock_items ?? '—'), icon: 'warning-outline' as const },
+            { label: 'Open tickets', value: String(s?.facilities.open_tickets ?? '—'), icon: 'construct-outline' as const },
+            { label: 'Active trips', value: String(s?.transport.active_trips ?? '—'), icon: 'bus-outline' as const },
+            { label: 'Library books', value: String(s?.library.total_books ?? '—'), icon: 'library-outline' as const },
+          ].map((kpi) => (
+            <WidgetShell key={kpi.label} state={state} title={kpi.label} onRetry={() => void summaryQuery.refetch()}>
+              <KpiCard label={kpi.label} value={kpi.value} icon={kpi.icon} />
+            </WidgetShell>
+          ))}
         </WidgetGrid>
 
         <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>

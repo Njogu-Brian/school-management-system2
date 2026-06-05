@@ -1,4 +1,5 @@
 export * from './queryKeys';
+export * from './persistConfig';
 export * from './queryClient';
 export * from './widgetQueryState';
 export * from './fetchers';
@@ -25,3 +26,11 @@ export * from './hooks/useDocuments';
 export * from './hooks/useCommunication';
 export * from './hooks/useReports';
 export * from './hooks/useStaffPerformance';
+export * from './hooks/useNotifications';
+export * from './hooks/useSearch';
+export * from './hooks/useAudit';
+export * from './hooks/useSessions';
+export * from './hooks/useAnalytics';
+export * from './hooks/useStaffClock';
+export * from './hooks/useTeacherTransport';
+export * from './hooks/useDriverTransport';

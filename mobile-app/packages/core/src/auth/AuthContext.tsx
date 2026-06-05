@@ -255,9 +255,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    apiClient.setOnUnauthorized(() => logoutRef.current());
+    apiClient.setOnUnauthorized(async () => {
+      const refreshed = await session.refresh();
+      if (!refreshed) {
+        await logoutRef.current();
+      }
+    });
     return () => apiClient.setOnUnauthorized(null);
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     const onChange = (next: AppStateStatus) => {

@@ -335,5 +335,19 @@ export function useLessonPlanModerationActions() {
   return { approve, reject };
 }
 
+export function useEnterMarks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Parameters<typeof academicsWorkspaceApi.enterMarks>[0]) => {
+      const res = await academicsWorkspaceApi.enterMarks(data);
+      if (!res.success) throw new Error(res.message || 'Failed to save marks.');
+      return res;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.academics.all });
+    },
+  });
+}
+
 /** Aliases matching sprint hook names */
 export { useInfiniteExams as useExams };

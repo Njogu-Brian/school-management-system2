@@ -76,4 +76,10 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     icon: 'school-outline',
     permissions: ['admissions.view'],
   },
+  {
+    id: 'qa_clock',
+    label: 'Staff clock',
+    icon: 'time-outline',
+    permissions: ['dashboard.view'],
+  },
 ];

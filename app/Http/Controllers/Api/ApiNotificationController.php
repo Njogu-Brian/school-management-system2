@@ -30,6 +30,20 @@ class ApiNotificationController extends Controller
             $query->whereNotNull('read_at');
         }
 
+        if ($request->filled('category')) {
+            $category = $request->string('category');
+            $query->where('data->category', $category);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('data->title', 'like', "%{$search}%")
+                    ->orWhere('data->body', 'like', "%{$search}%")
+                    ->orWhere('data->message', 'like', "%{$search}%");
+            });
+        }
+
         $paginated = $query->paginate($perPage);
 
         $data = $paginated->getCollection()->map(fn ($n) => $this->formatNotification($n))->values();
@@ -82,6 +96,22 @@ class ApiNotificationController extends Controller
         ]);
     }
 
+    public function unreadCount(Request $request)
+    {
+        $user = $request->user();
+        if (! Schema::hasTable('notifications')) {
+            return response()->json(['success' => true, 'data' => ['count' => 0]]);
+        }
+
+        /** @var User $user */
+        $count = $user->unreadNotifications()->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => ['count' => $count],
+        ]);
+    }
+
     public function destroy(Request $request, string $id)
     {
         $user = $request->user();
@@ -101,13 +131,19 @@ class ApiNotificationController extends Controller
         $title = $payload['title'] ?? $payload['subject'] ?? class_basename($n->type);
         $body = $payload['body'] ?? $payload['message'] ?? '';
 
+        $category = $payload['category'] ?? $payload['module'] ?? 'general';
+        $sourceModule = $payload['source_module'] ?? $payload['module'] ?? $category;
+        $deepLink = $payload['deep_link'] ?? $payload['action_url'] ?? null;
+
         return [
             'id' => $n->id,
             'user_id' => $n->notifiable_id,
             'title' => (string) $title,
             'body' => (string) $body,
-            'type' => 'info',
-            'category' => $payload['category'] ?? 'general',
+            'type' => $payload['type'] ?? 'info',
+            'category' => (string) $category,
+            'source_module' => (string) $sourceModule,
+            'deep_link' => $deepLink,
             'data' => $payload,
             'is_read' => $n->read_at !== null,
             'created_at' => $n->created_at?->toIso8601String() ?? '',

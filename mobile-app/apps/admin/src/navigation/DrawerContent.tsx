@@ -3,6 +3,7 @@ import {
   AdminAreaKey,
   AdminNavArea,
   useAuth,
+  useBranding,
   useCurrentUser,
   useRbac,
 } from '@erp/core';
@@ -12,7 +13,7 @@ import {
   DrawerContentScrollView,
 } from '@react-navigation/drawer';
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AREA_TO_DRAWER_ROUTE, AREA_TO_TAB_ROUTE } from './areaRoutes';
 function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey {
   const current = state.routes[state.index];
@@ -45,6 +46,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const { palette, colors, spacing, fontSizes } = useTheme();
   const activeKey = getActiveKey(props.state);
   const { drawerAreas } = useRbac();
+  const { schoolName, logoUrl } = useBranding();
   const user = useCurrentUser();
   const { logout } = useAuth();
 
@@ -74,12 +76,16 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
       contentContainerStyle={[styles.content, { backgroundColor: palette.surface }]}
     >
       <View style={[styles.header, { borderBottomColor: palette.border }]}>
-        <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-          <Ionicons name="school" size={20} color={colors.white} />
-        </View>
+        {logoUrl ? (
+          <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+        ) : (
+          <View style={[styles.logo, { backgroundColor: colors.primary }]}>
+            <Ionicons name="school" size={20} color={colors.white} />
+          </View>
+        )}
         <View style={styles.headerText}>
           <Text style={[styles.appName, { color: palette.textPrimary, fontSize: fontSizes.md }]}>
-            School ERP
+            {schoolName}
           </Text>
           <Text
             style={[styles.appRole, { color: palette.textSecondary, fontSize: fontSizes.xs }]}
@@ -181,6 +187,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  logoImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    resizeMode: 'contain',
   },
   headerText: { marginLeft: 12 },
   appName: { fontWeight: '700' },

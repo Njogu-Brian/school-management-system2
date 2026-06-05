@@ -1,20 +1,15 @@
 import { useBoardPack, useCan, useDashboardStats, useExpenseReportSummary, useWeeklyReports } from '@erp/core';
 import { KpiCard, QuickAction, ScreenContainer, WidgetGrid, WidgetShell, useTheme } from '@erp/ui';
-import { useNavigation } from '@react-navigation/native';
+import type { StackScreenProps } from '@react-navigation/stack';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { navigateToDrawer, navigateToTab } from '../../../navigation/navigateWorkspace';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { ReportsStackParamList } from '../../../navigation/reportsStackTypes';
+import { formatDateLabel } from '../../shared/utils/formatters';
 
-const LINKS = [
-  { label: 'Finance statements', icon: 'document-text-outline' as const, action: 'finance-statements' as const },
-  { label: 'Academics report cards', icon: 'ribbon-outline' as const, action: 'academics-report-cards' as const },
-  { label: 'Exam analytics', icon: 'analytics-outline' as const, action: 'academics-exams' as const },
-  { label: 'Operations transport', icon: 'bus-outline' as const, action: 'operations-trips' as const },
-];
+type Props = StackScreenProps<ReportsStackParamList, 'ReportsHub'>;
 
-export const ReportsHubScreen: React.FC = () => {
+export const ReportsHubScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('reports.view');
-  const navigation = useNavigation();
   const { palette, spacing, fontSizes } = useTheme();
   const statsQuery = useDashboardStats({ enabled: canView });
   const boardPackQuery = useBoardPack({ enabled: canView });
@@ -34,33 +29,31 @@ export const ReportsHubScreen: React.FC = () => {
   const expenses = expenseQuery.data;
   const weekly = weeklyQuery.data?.items ?? [];
 
-  const onLink = (action: (typeof LINKS)[number]['action']) => {
-    switch (action) {
-      case 'finance-statements':
-        navigateToTab(navigation, 'Finance', 'Statements');
-        break;
-      case 'academics-report-cards':
-        navigateToDrawer(navigation, 'Academics', 'ReportCards');
-        break;
-      case 'academics-exams':
-        navigateToDrawer(navigation, 'Academics', 'ExamsList');
-        break;
-      case 'operations-trips':
-        navigateToDrawer(navigation, 'Operations', 'TripsList');
-        break;
-      default:
-        break;
-    }
+  const refreshAll = () => {
+    void statsQuery.refetch();
+    void boardPackQuery.refetch();
+    void expenseQuery.refetch();
+    void weeklyQuery.refetch();
   };
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+        refreshControl={
+          <RefreshControl
+            refreshing={
+              statsQuery.isRefetching ||
+              boardPackQuery.isRefetching ||
+              expenseQuery.isRefetching ||
+              weeklyQuery.isRefetching
+            }
+            onRefresh={refreshAll}
+          />
+        }
+      >
         <Text style={{ color: palette.textPrimary, fontSize: fontSizes.lg, fontWeight: '700', marginBottom: spacing.sm }}>
           Reports hub
-        </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.md }}>
-          Cross-module reports backed by Laravel APIs.
         </Text>
 
         <WidgetGrid>
@@ -80,21 +73,31 @@ export const ReportsHubScreen: React.FC = () => {
           ].map((kpi) => {
             const state = statsQuery.isLoading ? 'loading' : statsQuery.isError ? 'error' : 'success';
             return (
-              <WidgetShell key={kpi.label} state={state} title={kpi.label}>
+              <WidgetShell key={kpi.label} state={state} title={kpi.label} onRetry={refreshAll}>
                 <KpiCard label={kpi.label} value={kpi.value} icon={kpi.icon} />
               </WidgetShell>
             );
           })}
         </WidgetGrid>
 
+        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
+          Report workspaces
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <QuickAction label="Board pack" icon="briefcase-outline" onPress={() => navigation.navigate('BoardPack')} />
+          <QuickAction label="Expense reports" icon="pie-chart-outline" onPress={() => navigation.navigate('ExpenseReports')} />
+          <QuickAction label="Weekly reports" icon="calendar-outline" onPress={() => navigation.navigate('WeeklyReportsList')} />
+        </View>
+
         {weekly.length > 0 ? (
           <>
             <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
-              Weekly operations reports
+              Recent weekly reports
             </Text>
             {weekly.slice(0, 5).map((item) => (
-              <View
+              <Pressable
                 key={`${item.type}-${item.id}`}
+                onPress={() => navigation.navigate('WeeklyReportDetail', { type: item.type, reportId: item.id })}
                 style={{
                   marginBottom: spacing.xs,
                   padding: spacing.sm,
@@ -105,21 +108,12 @@ export const ReportsHubScreen: React.FC = () => {
               >
                 <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{item.title}</Text>
                 <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
-                  {[item.type.replace(/_/g, ' '), item.week_ending, item.subtitle].filter(Boolean).join(' · ')}
+                  {[item.type.replace(/_/g, ' '), formatDateLabel(item.week_ending), item.subtitle].filter(Boolean).join(' · ')}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </>
         ) : null}
-
-        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
-          Open reports
-        </Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          {LINKS.map((link) => (
-            <QuickAction key={link.action} label={link.label} icon={link.icon} onPress={() => onLink(link.action)} />
-          ))}
-        </View>
       </ScrollView>
     </ScreenContainer>
   );

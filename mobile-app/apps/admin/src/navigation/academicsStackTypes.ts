@@ -7,6 +7,13 @@ export type AcademicsStackParamList = {
   AssessmentDetail: { item: AssessmentHistoryItem; studentName: string };
   ExamsList: undefined;
   ExamDetail: { examId: number; summary?: ExamSummary };
+  MarksEntry: {
+    examId: number;
+    classroomId: number;
+    subjectId: number;
+    classroomName: string;
+    subjectName: string;
+  };
   Marks: undefined;
   MarksMatrix: undefined;
   ReportCards: undefined;

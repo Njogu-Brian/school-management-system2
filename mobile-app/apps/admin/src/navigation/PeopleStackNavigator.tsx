@@ -1,6 +1,12 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
-import { StaffDetailScreen, StaffRegistryScreen } from '../features/people';
+import {
+  PerformanceReviewDetailScreen,
+  StaffDetailScreen,
+  StaffRegistryScreen,
+  TrainingRecordDetailScreen,
+  StaffClockScreen,
+} from '../features/people';
 import type { PeopleStackParamList } from './peopleStackTypes';
 
 const Stack = createStackNavigator<PeopleStackParamList>();
@@ -10,5 +16,8 @@ export const PeopleStackNavigator: React.FC = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="StaffRegistry" component={StaffRegistryScreen} />
     <Stack.Screen name="StaffDetail" component={StaffDetailScreen} />
+    <Stack.Screen name="PerformanceReviewDetail" component={PerformanceReviewDetailScreen} />
+    <Stack.Screen name="TrainingRecordDetail" component={TrainingRecordDetailScreen} />
+    <Stack.Screen name="StaffClock" component={StaffClockScreen} />
   </Stack.Navigator>
 );

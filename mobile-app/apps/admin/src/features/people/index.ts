@@ -1,3 +1,6 @@
 export * from './models';
 export * from './screens/StaffRegistryScreen';
 export * from './screens/StaffDetailScreen';
+export * from './screens/PerformanceReviewDetailScreen';
+export * from './screens/TrainingRecordDetailScreen';
+export * from './screens/StaffClockScreen';

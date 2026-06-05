@@ -1,27 +1,18 @@
 import { useStaffTrainingRecords } from '@erp/core';
-import { EmptyState, FinanceFieldSection } from '@erp/ui';
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { EmptyState } from '@erp/ui';
+import React from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
+import { capitalizeStatus, formatDateLabel } from '../../../shared/utils/formatters';
 
 export interface TrainingTabProps {
   staffId: number;
+  onOpenRecord?: (recordId: number) => void;
 }
 
-export const TrainingTab: React.FC<TrainingTabProps> = ({ staffId }) => {
-  const { colors, palette, fontSizes } = useTheme();
+export const TrainingTab: React.FC<TrainingTabProps> = ({ staffId, onOpenRecord }) => {
+  const { colors, palette, spacing, fontSizes } = useTheme();
   const query = useStaffTrainingRecords(staffId);
-
-  const rows = useMemo(
-    () =>
-      (query.data ?? []).map((record) => ({
-        label: record.training_name,
-        value: [record.training_type, record.start_date, record.status, record.provider]
-          .filter(Boolean)
-          .join(' · ') || '—',
-      })),
-    [query.data],
-  );
 
   if (query.isLoading) {
     return (
@@ -42,7 +33,8 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ staffId }) => {
     );
   }
 
-  if (rows.length === 0) {
+  const records = query.data ?? [];
+  if (records.length === 0) {
     return (
       <EmptyState
         title="No training records"
@@ -54,10 +46,24 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ staffId }) => {
 
   return (
     <>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
-        API: GET /staff/{'{id}'}/training-records
-      </Text>
-      <FinanceFieldSection title="Training & development" rows={rows} />
+      {records.map((record) => (
+        <Pressable
+          key={record.id}
+          onPress={() => onOpenRecord?.(record.id)}
+          style={[styles.card, { borderColor: palette.border, marginBottom: spacing.xs }]}
+        >
+          <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{record.training_name}</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+            {[record.provider, formatDateLabel(record.start_date), capitalizeStatus(record.status)]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+        </Pressable>
+      ))}
     </>
   );
 };
+
+const styles = StyleSheet.create({
+  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12 },
+});

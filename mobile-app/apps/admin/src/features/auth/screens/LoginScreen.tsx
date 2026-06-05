@@ -1,9 +1,10 @@
-import { useAuth, useBiometricAuth } from '@erp/core';
+import { useAuth, useBiometricAuth, useBranding } from '@erp/core';
 import { Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Image,
   Pressable,
   StyleSheet,
   Switch,
@@ -27,6 +28,8 @@ export const LoginScreen: React.FC = () => {
     submitting: biometricSubmitting,
   } = useBiometricAuth();
   const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { schoolName, logoUrl } = useBranding();
+  const [logoFailed, setLogoFailed] = useState(false);
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -71,11 +74,15 @@ export const LoginScreen: React.FC = () => {
   return (
     <ScreenContainer edges={['top', 'bottom']} contentContainerStyle={styles.content}>
       <View style={styles.brand}>
-        <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-          <Ionicons name="school" size={32} color={colors.white} />
-        </View>
+        {logoUrl && !logoFailed ? (
+          <Image source={{ uri: logoUrl }} style={styles.logoImage} onError={() => setLogoFailed(true)} />
+        ) : (
+          <View style={[styles.logo, { backgroundColor: colors.primary }]}>
+            <Ionicons name="school" size={32} color={colors.white} />
+          </View>
+        )}
         <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.xxl }]}>
-          Admin Console
+          {schoolName}
         </Text>
         <Text style={[styles.subtitle, { color: palette.textSecondary, fontSize: fontSizes.sm }]}>
           Sign in to manage your school
@@ -189,6 +196,13 @@ const styles = StyleSheet.create({
   brand: {
     alignItems: 'center',
     marginBottom: 24,
+  },
+  logoImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    marginBottom: 16,
+    resizeMode: 'contain',
   },
   logo: {
     width: 64,

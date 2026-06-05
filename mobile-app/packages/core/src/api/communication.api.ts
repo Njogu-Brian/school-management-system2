@@ -5,8 +5,10 @@ export interface AnnouncementRecord {
   id: number;
   title: string;
   content: string;
+  active?: boolean;
   expires_at?: string | null;
   created_at: string;
+  updated_at?: string | null;
 }
 
 export interface CommunicationTemplate {
@@ -26,6 +28,7 @@ export interface CommunicationLogRecord {
   message?: string | null;
   status?: string | null;
   sent_at?: string | null;
+  delivered_at?: string | null;
   created_at?: string | null;
 }
 

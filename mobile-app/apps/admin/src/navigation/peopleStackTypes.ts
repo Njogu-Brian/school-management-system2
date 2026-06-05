@@ -6,4 +6,7 @@ export type PeopleStackParamList = {
     staffId: number;
     summary?: StaffSummary;
   };
+  PerformanceReviewDetail: { staffId: number; reviewId: number };
+  TrainingRecordDetail: { staffId: number; recordId: number };
+  StaffClock: undefined;
 };

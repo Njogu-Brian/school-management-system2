@@ -51,6 +51,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/staff-attendance/clock-in', [ApiStaffClockController::class, 'clockIn']);
     Route::post('/staff-attendance/clock-out', [ApiStaffClockController::class, 'clockOut']);
 
+    Route::get('/search', [\App\Http\Controllers\Api\ApiSearchController::class, 'index']);
+    Route::get('/search/suggest', [\App\Http\Controllers\Api\ApiSearchController::class, 'suggest']);
+    Route::get('/audit-trail', [\App\Http\Controllers\Api\ApiAuditTrailController::class, 'index']);
+    Route::get('/audit-trail/{id}', [\App\Http\Controllers\Api\ApiAuditTrailController::class, 'show']);
+    Route::get('/sessions', [\App\Http\Controllers\Api\ApiSessionController::class, 'index']);
+    Route::post('/sessions/revoke', [\App\Http\Controllers\Api\ApiSessionController::class, 'revoke']);
+    Route::post('/auth/refresh', [\App\Http\Controllers\Api\ApiSessionController::class, 'refresh']);
+    Route::get('/analytics/executive', [\App\Http\Controllers\Api\ApiAnalyticsController::class, 'executive']);
+
     Route::get('/dashboard/stats', [\App\Http\Controllers\Api\ApiDashboardController::class, 'stats']);
     Route::get('/finance/summary', [\App\Http\Controllers\Api\ApiFinanceSummaryController::class, 'show']);
     Route::get('/operations/summary', [\App\Http\Controllers\Api\ApiOperationsSummaryController::class, 'show']);
@@ -180,6 +189,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/board-pack', [\App\Http\Controllers\Api\ApiBoardPackController::class, 'show']);
 
     Route::post('/notifications/mark-all-read', [\App\Http\Controllers\Api\ApiNotificationController::class, 'markAllRead']);
+    Route::get('/notifications/unread-count', [\App\Http\Controllers\Api\ApiNotificationController::class, 'unreadCount']);
     Route::get('/notifications', [\App\Http\Controllers\Api\ApiNotificationController::class, 'index']);
     Route::post('/notifications/{id}/read', [\App\Http\Controllers\Api\ApiNotificationController::class, 'markRead']);
     Route::delete('/notifications/{id}', [\App\Http\Controllers\Api\ApiNotificationController::class, 'destroy']);

@@ -73,8 +73,12 @@ export const queryKeys = {
       [...queryKeys.staff.all, 'payroll-records', id, page ?? 1] as const,
     performanceReviews: (id: number) =>
       [...queryKeys.staff.all, 'performance-reviews', id] as const,
+    performanceReview: (staffId: number, reviewId: number) =>
+      [...queryKeys.staff.all, 'performance-review', staffId, reviewId] as const,
     trainingRecords: (id: number) =>
       [...queryKeys.staff.all, 'training-records', id] as const,
+    trainingRecord: (staffId: number, recordId: number) =>
+      [...queryKeys.staff.all, 'training-record', staffId, recordId] as const,
   },
   admissions: {
     all: ['admissions'] as const,
@@ -138,8 +142,12 @@ export const queryKeys = {
       [...queryKeys.operations.all, 'inventory', filters ?? {}] as const,
     requisitions: (status?: string) =>
       [...queryKeys.operations.all, 'requisitions', status ?? 'all'] as const,
-    visitors: (onSite?: boolean) =>
-      [...queryKeys.operations.all, 'visitors', onSite ?? false] as const,
+    requisition: (id: number) => [...queryKeys.operations.all, 'requisition', id] as const,
+    visitors: (filters?: { onSite?: boolean; date?: string }) =>
+      [...queryKeys.operations.all, 'visitors', filters ?? {}] as const,
+    assets: (filters?: { search?: string; status?: string }) =>
+      [...queryKeys.operations.all, 'assets', filters ?? {}] as const,
+    asset: (id: number) => [...queryKeys.operations.all, 'asset', id] as const,
     medicalRecords: (studentId: number) =>
       [...queryKeys.operations.all, 'medical-records', studentId] as const,
   },
@@ -150,10 +158,34 @@ export const queryKeys = {
   },
   communication: {
     all: ['communication'] as const,
-    announcements: () => [...queryKeys.communication.all, 'announcements'] as const,
+    announcements: (page?: number | 'infinite') =>
+      [...queryKeys.communication.all, 'announcements', page ?? 1] as const,
+    announcement: (id: number) => [...queryKeys.communication.all, 'announcement', id] as const,
     templates: (type?: string) =>
       [...queryKeys.communication.all, 'templates', type ?? 'sms'] as const,
-    logs: () => [...queryKeys.communication.all, 'logs'] as const,
+    logs: (filters?: { channel?: string; status?: string; infinite?: boolean }) =>
+      [...queryKeys.communication.all, 'logs', filters ?? {}] as const,
+  },
+  notifications: {
+    all: ['notifications'] as const,
+    unreadCount: () => [...queryKeys.notifications.all, 'unread-count'] as const,
+    list: (filters?: { isRead?: boolean; category?: string; search?: string }) =>
+      [...queryKeys.notifications.all, 'list', filters ?? {}] as const,
+  },
+  staffClock: {
+    all: ['staff-clock'] as const,
+    today: () => [...queryKeys.staffClock.all, 'today'] as const,
+    history: () => [...queryKeys.staffClock.all, 'history'] as const,
+    geofence: () => [...queryKeys.staffClock.all, 'geofence'] as const,
+  },
+  teacherTransport: {
+    all: ['teacher-transport'] as const,
+    students: (date?: string) => [...queryKeys.teacherTransport.all, 'students', date ?? 'today'] as const,
+  },
+  driverTransport: {
+    all: ['driver-transport'] as const,
+    trips: (date?: string) => [...queryKeys.driverTransport.all, 'trips', date ?? 'today'] as const,
+    trip: (id: number, date?: string) => [...queryKeys.driverTransport.all, 'trip', id, date ?? 'today'] as const,
   },
   reports: {
     all: ['reports'] as const,
@@ -162,6 +194,26 @@ export const queryKeys = {
     expenses: (range?: { from?: string; to?: string }) =>
       [...queryKeys.reports.all, 'expenses', range ?? {}] as const,
     boardPack: () => [...queryKeys.reports.all, 'board-pack'] as const,
+  },
+  search: {
+    all: ['search'] as const,
+    global: (query: string, module: string) =>
+      [...queryKeys.search.all, 'global', query, module] as const,
+    suggest: (query: string) => [...queryKeys.search.all, 'suggest', query] as const,
+    cached: (query: string) => [...queryKeys.search.all, 'cached', query] as const,
+  },
+  audit: {
+    all: ['audit'] as const,
+    list: (filters?: object) => [...queryKeys.audit.all, 'list', filters ?? {}] as const,
+    detail: (id: string) => [...queryKeys.audit.all, 'detail', id] as const,
+  },
+  sessions: {
+    all: ['sessions'] as const,
+    list: () => [...queryKeys.sessions.all, 'list'] as const,
+  },
+  analytics: {
+    all: ['analytics'] as const,
+    executive: (period: string) => [...queryKeys.analytics.all, 'executive', period] as const,
   },
   settings: {
     all: ['settings'] as const,

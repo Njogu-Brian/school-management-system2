@@ -218,5 +218,99 @@ class ReportCache
 
         return Cache::remember($key, now()->addMinutes(10), fn () => $build());
     }
+
+    public function rememberExamSessionSubjectPerformance(ExamSession $session, Classroom $classroom, ?int $streamId, \Closure $build): array
+    {
+        $paperIds = Exam::query()
+            ->where('exam_session_id', $session->id)
+            ->whereNotNull('subject_id')
+            ->pluck('id');
+
+        $stamp = $this->marksStampForPapers($paperIds, $classroom, $streamId);
+        $key = implode(':', [
+            'exam_reports', 'subject_perf', 'exam_session', $session->id, $classroom->id, $streamId ?: 0,
+            'v', $stamp,
+        ]);
+
+        return Cache::remember($key, now()->addMinutes(10), fn () => $build());
+    }
+
+    public function rememberExamSessionTeacherPerformance(ExamSession $session, Classroom $classroom, ?int $streamId, \Closure $build): array
+    {
+        $paperIds = Exam::query()
+            ->where('exam_session_id', $session->id)
+            ->whereNotNull('subject_id')
+            ->pluck('id');
+
+        $stamp = $this->marksStampForPapers($paperIds, $classroom, $streamId);
+        $key = implode(':', [
+            'exam_reports', 'teacher_perf', 'exam_session', $session->id, $classroom->id, $streamId ?: 0,
+            'v', $stamp,
+        ]);
+
+        return Cache::remember($key, now()->addMinutes(10), fn () => $build());
+    }
+
+    public function rememberTermSubjectPerformance(int $academicYearId, int $termId, Classroom $classroom, ?int $streamId, \Closure $build): array
+    {
+        $stamp = $this->marksStampForTerm($academicYearId, $termId, $classroom, $streamId);
+        $key = implode(':', [
+            'exam_reports', 'subject_perf', 'term', $academicYearId, $termId, $classroom->id, $streamId ?: 0,
+            'v', $stamp,
+        ]);
+
+        return Cache::remember($key, now()->addMinutes(10), fn () => $build());
+    }
+
+    public function rememberTermTeacherPerformance(int $academicYearId, int $termId, Classroom $classroom, ?int $streamId, \Closure $build): array
+    {
+        $stamp = $this->marksStampForTerm($academicYearId, $termId, $classroom, $streamId);
+        $key = implode(':', [
+            'exam_reports', 'teacher_perf', 'term', $academicYearId, $termId, $classroom->id, $streamId ?: 0,
+            'v', $stamp,
+        ]);
+
+        return Cache::remember($key, now()->addMinutes(10), fn () => $build());
+    }
+
+    private function marksStampForPapers($paperIds, Classroom $classroom, ?int $streamId): int
+    {
+        if ($paperIds->isEmpty()) {
+            return 0;
+        }
+
+        $stamp = ExamMark::query()
+            ->whereIn('exam_id', $paperIds)
+            ->whereHas('student', function ($q) use ($classroom, $streamId) {
+                $q->where('classroom_id', $classroom->id);
+                if ($streamId) {
+                    $q->where('stream_id', $streamId);
+                }
+            })
+            ->max('updated_at');
+
+        return $stamp ? strtotime((string) $stamp) : 0;
+    }
+
+    private function marksStampForTerm(int $academicYearId, int $termId, Classroom $classroom, ?int $streamId): int
+    {
+        $termIds = (new TermScopeResolver())->termIdsForScope($termId, $academicYearId, null, $classroom->id, $streamId);
+        $stamp = ExamMark::query()
+            ->whereHas('exam', function ($q) use ($academicYearId, $termIds, $classroom, $streamId) {
+                $q->where('academic_year_id', $academicYearId)
+                    ->whereIn('term_id', $termIds)
+                    ->where('classroom_id', $classroom->id)
+                    ->when($streamId, fn ($qq) => $qq->where('stream_id', $streamId), fn ($qq) => $qq->whereNull('stream_id'));
+            })
+            ->whereHas('student', function ($q) use ($classroom, $streamId) {
+                $q->where('classroom_id', $classroom->id);
+                if ($streamId) {
+                    $q->where('stream_id', $streamId);
+                }
+            })
+            ->max('updated_at');
+
+        return $stamp ? strtotime((string) $stamp) : 0;
+    }
 }
 

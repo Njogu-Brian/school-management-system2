@@ -38,15 +38,6 @@ export const ExamDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     ];
   }, [exam]);
 
-  const markingRows = useMemo(
-    () =>
-      (optionsQuery.data ?? []).map((o) => ({
-        label: `${o.classroom_name} · ${o.subject_name}`,
-        value: `Class #${o.classroom_id} · Subject #${o.subject_id}`,
-      })),
-    [optionsQuery.data],
-  );
-
   if (!canView) {
     return (
       <ScreenContainer>
@@ -83,8 +74,37 @@ export const ExamDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         ) : (
           <>
             <FinanceFieldSection title="Exam" rows={fields} />
-            {markingRows.length > 0 ? (
-              <FinanceFieldSection title="Marking options" rows={markingRows} />
+            {(optionsQuery.data ?? []).length > 0 ? (
+              <>
+                <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.md, marginBottom: spacing.sm }}>
+                  Enter marks
+                </Text>
+                {(optionsQuery.data ?? []).map((opt) => (
+                  <Pressable
+                    key={`${opt.classroom_id}-${opt.subject_id}`}
+                    onPress={() =>
+                      navigation.navigate('MarksEntry', {
+                        examId,
+                        classroomId: opt.classroom_id,
+                        subjectId: opt.subject_id,
+                        classroomName: opt.classroom_name,
+                        subjectName: opt.subject_name,
+                      })
+                    }
+                    style={{
+                      borderWidth: 1,
+                      borderColor: palette.border,
+                      borderRadius: 8,
+                      padding: spacing.sm,
+                      marginBottom: spacing.xs,
+                    }}
+                  >
+                    <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                      {opt.classroom_name} · {opt.subject_name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </>
             ) : optionsQuery.isLoading ? (
               <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
             ) : null}

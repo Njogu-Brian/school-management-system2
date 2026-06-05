@@ -186,11 +186,25 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       case 'payroll':
         return <PayrollTab staffId={staffId} canViewFinance={canViewFinance} />;
       case 'performance':
-        return <PerformanceTab staffId={staffId} />;
+        return (
+          <PerformanceTab
+            staffId={staffId}
+            onOpenReview={(reviewId) =>
+              navigation.navigate('PerformanceReviewDetail', { staffId, reviewId })
+            }
+          />
+        );
       case 'documents':
         return <DocumentsTab staffId={staffId} />;
       case 'training':
-        return <TrainingTab staffId={staffId} />;
+        return (
+          <TrainingTab
+            staffId={staffId}
+            onOpenRecord={(recordId) =>
+              navigation.navigate('TrainingRecordDetail', { staffId, recordId })
+            }
+          />
+        );
       default:
         return null;
     }

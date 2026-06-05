@@ -116,4 +116,22 @@ export const academicsWorkspaceApi = {
       rejection_notes: rejectionNotes,
     });
   },
+
+  enterMarks(data: {
+    exam_id: number;
+    subject_id: number;
+    classroom_id: number;
+    marks: { student_id: number; marks: number; remarks?: string }[];
+  }): Promise<ApiResponse<{ count: number; message: string }>> {
+    return apiClient.post('/exam-marks/batch', data);
+  },
+
+  enterMarksMatrix(data: {
+    exam_type_id: number;
+    classroom_id: number;
+    stream_id?: number;
+    entries: { student_id: number; exam_id: number; marks?: number; remarks?: string }[];
+  }): Promise<ApiResponse<{ count: number; skipped: number; message: string }>> {
+    return apiClient.post('/exam-marks/matrix/batch', data);
+  },
 };

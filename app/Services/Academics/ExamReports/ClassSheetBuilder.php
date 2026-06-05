@@ -13,6 +13,11 @@ use Illuminate\Support\Collection;
 
 class ClassSheetBuilder
 {
+    public function __construct(
+        private readonly TermScopeResolver $terms = new TermScopeResolver(),
+        private readonly ExamScopeResolver $examScope = new ExamScopeResolver(),
+    ) {}
+
     public function buildForExam(Exam $exam, Classroom $classroom, ?int $streamId = null): array
     {
         $subjects = $this->subjectsForContext(
@@ -408,13 +413,7 @@ class ClassSheetBuilder
             ->orderBy('last_name')
             ->get(['id', 'admission_number', 'first_name', 'middle_name', 'last_name', 'classroom_id', 'stream_id']);
 
-        $exams = Exam::query()
-            ->where('academic_year_id', $academicYearId)
-            ->where('term_id', $termId)
-            ->whereNotNull('subject_id')
-            ->orderBy('starts_on')
-            ->orderBy('created_at')
-            ->get(['id', 'name', 'weight', 'max_marks', 'starts_on']);
+        $exams = $this->examScope->papersForTerm($academicYearId, $termId, $classroom->id, $streamId);
 
         $examIds = $exams->pluck('id');
         $weights = $exams->mapWithKeys(function (Exam $e) {
@@ -522,7 +521,7 @@ class ClassSheetBuilder
         ];
     }
 
-    private function subjectsForContext(int $classroomId, ?int $streamId, ?int $academicYearId, ?int $termId): Collection
+    private function subjectsForContext(int $classroomId, ?int $streamId, ?int $academicYearId, ?int $termId, ?array $limitSubjectIds = null): Collection
     {
         $assignments = ClassroomSubject::query()
             ->where('classroom_id', $classroomId)
@@ -537,17 +536,43 @@ class ClassSheetBuilder
                     $q2->whereNull('academic_year_id')->orWhere('academic_year_id', $academicYearId);
                 });
             })
-            ->when($termId, function ($q) use ($termId) {
-                $q->where(function ($q2) use ($termId) {
-                    $q2->whereNull('term_id')->orWhere('term_id', $termId);
-                });
+            ->when($termId, function ($q) use ($termId, $academicYearId) {
+                if ($academicYearId) {
+                    $termIds = $this->terms->termIdsForScope($termId, $academicYearId, null, $classroomId, $streamId);
+                    $q->where(function ($q2) use ($termIds) {
+                        $q2->whereNull('term_id')->orWhereIn('term_id', $termIds);
+                    });
+                } else {
+                    $q->where(function ($q2) use ($termId) {
+                        $q2->whereNull('term_id')->orWhere('term_id', $termId);
+                    });
+                }
             })
+            ->when($limitSubjectIds !== null, fn ($q) => $q->whereIn('subject_id', $limitSubjectIds))
             ->pluck('subject_id')
             ->unique()
             ->values();
 
+        $fromPapers = collect();
+        if ($academicYearId && $termId) {
+            $fromPapers = $this->examScope->papersForTerm($academicYearId, $termId, $classroomId, $streamId)
+                ->pluck('subject_id')
+                ->filter()
+                ->unique()
+                ->values();
+        }
+
+        $subjectIds = $assignments->merge($fromPapers)->unique()->values();
+        if ($limitSubjectIds !== null) {
+            $subjectIds = $subjectIds->intersect($limitSubjectIds)->values();
+        }
+
+        if ($subjectIds->isEmpty()) {
+            return collect();
+        }
+
         return Subject::query()
-            ->whereIn('id', $assignments)
+            ->whereIn('id', $subjectIds)
             ->orderBy('name')
             ->get(['id', 'name', 'code']);
     }

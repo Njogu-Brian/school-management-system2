@@ -36,6 +36,9 @@ export const QuickActionsSection: React.FC = () => {
         case 'qa_approvals':
           navigateToDrawer(navigation, 'Approvals', 'ApprovalsHome');
           break;
+        case 'qa_clock':
+          navigateToTab(navigation, 'People', 'StaffClock');
+          break;
         default:
           break;
       }

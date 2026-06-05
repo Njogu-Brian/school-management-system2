@@ -1,59 +1,73 @@
 import {
   AuthProvider,
   BiometricAuthProvider,
+  getAppQueryClient,
   GoogleAuthProvider,
-  QueryProvider,
   RbacProvider,
   SessionProvider,
+  useNetworkStatus,
 } from '@erp/core';
-import { AppErrorBoundary, ThemeProvider, useTheme } from '@erp/ui';
+import { AppErrorBoundary, OfflineBanner, useTheme } from '@erp/ui';
+import { AppThemeProvider } from './src/providers/AppThemeProvider';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AdminRootNavigator } from './src/navigation/AdminRootNavigator';
+import { PersistedQueryProvider } from './src/providers/PersistedQueryProvider';
 
-/**
- * Admin App provider tree (build plan §4.2).
- *
- * GestureHandlerRootView → ThemeProvider → SafeAreaProvider → AppErrorBoundary →
- * SessionProvider → AuthProvider → RbacProvider → GoogleAuthProvider →
- * BiometricAuthProvider → AdminRootNavigator.
- *
- * Auth uses a strategy pattern (password / Google / biometric unlock). Google OAuth UI
- * lives in the app layer; biometric unlock only rehydrates an existing backend session.
- *
- * QueryProvider (TanStack Query) wraps authenticated navigation for dashboard KPIs.
- * Deferred: ScopeProvider, NotificationPreferencesProvider.
- */
 const ThemedStatusBar: React.FC = () => {
   const { isDark } = useTheme();
   return <StatusBar style={isDark ? 'light' : 'dark'} />;
 };
 
+const OfflineShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const networkStatus = useNetworkStatus();
+  const prevStatus = useRef(networkStatus);
+
+  useEffect(() => {
+    if (prevStatus.current !== 'online' && networkStatus === 'online') {
+      void getAppQueryClient().invalidateQueries();
+    }
+    prevStatus.current = networkStatus;
+  }, [networkStatus]);
+
+  return (
+    <>
+      <OfflineBanner
+        status={networkStatus}
+        onRetry={() => void getAppQueryClient().refetchQueries({ type: 'active' })}
+      />
+      {children}
+    </>
+  );
+};
+
 export default function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
+      <AppThemeProvider>
         <SafeAreaProvider>
           <AppErrorBoundary>
             <ThemedStatusBar />
             <SessionProvider>
               <AuthProvider>
-                <QueryProvider>
+                <PersistedQueryProvider>
                   <RbacProvider>
                     <GoogleAuthProvider>
                       <BiometricAuthProvider>
-                        <AdminRootNavigator />
+                        <OfflineShell>
+                          <AdminRootNavigator />
+                        </OfflineShell>
                       </BiometricAuthProvider>
                     </GoogleAuthProvider>
                   </RbacProvider>
-                </QueryProvider>
+                </PersistedQueryProvider>
               </AuthProvider>
             </SessionProvider>
           </AppErrorBoundary>
         </SafeAreaProvider>
-      </ThemeProvider>
+      </AppThemeProvider>
     </GestureHandlerRootView>
   );
 }

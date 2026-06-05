@@ -1,46 +1,95 @@
-import { useAnnouncements } from '@erp/core';
-import { AcademicScreenHeader, ScreenContainer, useTheme } from '@erp/ui';
+import { useCan, useInfiniteAnnouncements } from '@erp/core';
+import { AcademicScreenHeader, EmptyState, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { CommunicationStackParamList } from '../../../navigation/communicationStackTypes';
+import { formatDateLabel } from '../../shared/utils/formatters';
 
 type Props = StackScreenProps<CommunicationStackParamList, 'AnnouncementsList'>;
 
 export const AnnouncementsListScreen: React.FC<Props> = ({ navigation }) => {
+  const canView = useCan('communication.view');
   const { colors, palette, spacing, fontSizes } = useTheme();
-  const query = useAnnouncements({ perPage: 50 });
+  const listQuery = useInfiniteAnnouncements({ enabled: canView });
+
+  const items = useMemo(() => listQuery.data?.pages.flatMap((p) => p.items) ?? [], [listQuery.data]);
+
+  if (!canView) {
+    return (
+      <ScreenContainer contentContainerStyle={styles.denied}>
+        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <FlatList
-        data={query.data?.data ?? []}
+        data={items}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         ListHeaderComponent={
-          <AcademicScreenHeader title="Announcements" subtitle="GET /announcements" onBack={() => navigation.goBack()} />
+          <View>
+            <AcademicScreenHeader title="Announcements" onBack={() => navigation.goBack()} />
+            <Pressable onPress={() => navigation.navigate('AnnouncementForm')} style={{ marginBottom: spacing.sm }}>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>+ New announcement</Text>
+            </Pressable>
+          </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.card, { borderColor: palette.border, padding: spacing.md, marginBottom: spacing.sm }]}>
+          <Pressable
+            onPress={() => navigation.navigate('AnnouncementDetail', { announcementId: item.id })}
+            style={[styles.card, { borderColor: palette.border }]}
+          >
             <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.md }}>{item.title}</Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: spacing.xs }}>{item.content}</Text>
+            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: spacing.xs }} numberOfLines={2}>
+              {item.content}
+            </Text>
             {item.expires_at ? (
               <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.xs }}>
-                Expires {item.expires_at}
+                Expires {formatDateLabel(item.expires_at)}
               </Text>
             ) : null}
-          </View>
+          </Pressable>
         )}
-        ListEmptyComponent={
-          query.isLoading ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No announcements.</Text>
+        refreshControl={
+          <RefreshControl
+            refreshing={listQuery.isRefetching && !listQuery.isFetchingNextPage}
+            onRefresh={() => void listQuery.refetch()}
+            colors={[colors.primary]}
+          />
         }
-        refreshing={query.isRefetching}
-        onRefresh={() => void query.refetch()}
+        onEndReached={() => {
+          if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) void listQuery.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={listQuery.isFetchingNextPage ? <ActivityIndicator color={colors.primary} /> : null}
+        ListEmptyComponent={
+          listQuery.isLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : listQuery.isError ? (
+            <Pressable onPress={() => void listQuery.refetch()}>
+              <Text style={{ color: colors.error, textAlign: 'center' }}>Retry</Text>
+            </Pressable>
+          ) : (
+            <EmptyState title="No announcements" message="Create your first announcement." icon="megaphone-outline" />
+          )
+        }
       />
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 },
+  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 16, marginBottom: 8 },
 });

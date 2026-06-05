@@ -12,7 +12,7 @@
       <div>
         <div class="crumb">Academics · Exam Reports &amp; Analysis</div>
         <h1 class="mb-1">Subject Performance</h1>
-        <p class="text-muted mb-0">Identify the leading subjects in a specific class for an exam.</p>
+        <p class="text-muted mb-0">Class-by-class subject rankings with averages for one exam or a full term.</p>
       </div>
       <div class="d-flex gap-2">
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.class-sheet') }}">Class Sheet</a>
@@ -21,53 +21,17 @@
       </div>
     </div>
 
-    <div class="settings-card mb-3">
-      <div class="card-body">
-        <form method="GET" class="row g-3 align-items-end">
-          <div class="col-md-5">
-            <label class="form-label">Exam</label>
-            <select name="exam_id" class="form-select" required>
-              <option value="">Select Exam</option>
-              @foreach($exams as $exam)
-                <option value="{{ $exam->id }}" {{ request('exam_id') == $exam->id ? 'selected' : '' }}>
-                  {{ $exam->name }} - {{ $exam->academicYear->year ?? '' }} {{ $exam->term ? 'Term ' . $exam->term->name : '' }}
-                </option>
-              @endforeach
-            </select>
-          </div>
+    @include('academics.exam_reports.partials.analysis_filters')
 
-          <div class="col-md-4">
-            <label class="form-label">Class</label>
-            <select name="classroom_id" class="form-select" required>
-              <option value="">Select Class</option>
-              @foreach($classrooms as $classroom)
-                <option value="{{ $classroom->id }}" {{ request('classroom_id') == $classroom->id ? 'selected' : '' }}>{{ $classroom->name }}</option>
-              @endforeach
-            </select>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">Stream (Optional)</label>
-            <select name="stream_id" class="form-select">
-              <option value="">All Streams</option>
-              @foreach($streams as $stream)
-                <option value="{{ $stream->id }}" {{ request('stream_id') == $stream->id ? 'selected' : '' }}>{{ $stream->name }}</option>
-              @endforeach
-            </select>
-          </div>
-
-          <div class="col-12 d-flex justify-content-end gap-2">
-            <button type="submit" class="btn btn-settings-primary">Generate</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    @if($classrooms->isEmpty())
+    @if(($classrooms ?? collect())->isEmpty())
       <div class="alert alert-warning border-0 shadow-sm mb-3" role="alert">
         <i class="bi bi-info-circle me-1"></i>
         No classes are available for your account. Ask an administrator to assign you to a class or assign your senior-teacher campus.
       </div>
+    @endif
+
+    @if(!empty($notice))
+      <div class="alert alert-warning border-0 shadow-sm mb-3" role="alert">{{ $notice }}</div>
     @endif
 
     @if($payload)
@@ -77,7 +41,7 @@
       <div id="exam-report-print-area" class="exam-report-print-root">
         @include('academics.exam_reports.partials.report_letterhead', [
           'reportTitle' => 'Subject Performance',
-          'reportSubtitle' => 'Subject rankings for selected exam & class',
+          'reportSubtitle' => ($analysisFlow ?? '') === 'term' ? 'Termly subject rankings' : 'Exam subject rankings',
           'generatedAt' => now(),
           'generatedBy' => auth()->user()?->name,
         ])
@@ -112,4 +76,3 @@
   </div>
 </div>
 @endsection
-

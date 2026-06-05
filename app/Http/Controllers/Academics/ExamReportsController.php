@@ -19,8 +19,10 @@ use App\Services\Academics\ExamReports\AnalyticsService;
 use App\Services\Academics\ExamReports\ClassSheetBuilder;
 use App\Services\Academics\ExamReports\ClassSheetSubjectResolver;
 use App\Services\Academics\ExamReports\ExamReportsAccess;
+use App\Services\Academics\ExamReports\ExamScopeResolver;
 use App\Services\Academics\ExamReports\ReportCache;
 use App\Services\Academics\ExamReports\SchoolWideTeacherRankingService;
+use App\Services\Academics\ExamReports\TermScopeResolver;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -28,6 +30,11 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ExamReportsController extends Controller
 {
+    public function __construct(
+        private readonly TermScopeResolver $termScope = new TermScopeResolver(),
+        private readonly ExamScopeResolver $examScope = new ExamScopeResolver(),
+    ) {}
+
     public function classSheet(Request $request)
     {
         $user = $request->user();
@@ -59,35 +66,9 @@ class ExamReportsController extends Controller
             ->map(fn ($g) => $g->pluck('exam_type_id')->unique()->values()->all())
             ->toArray();
 
-        $subjectExamScopes = $allowedClassIds === [] ? [] : Exam::query()
-            ->whereNotNull('subject_id')
-            ->whereNotNull('classroom_id')
-            ->whereIn('classroom_id', $allowedClassIds)
-            ->select('subject_id', 'classroom_id', 'academic_year_id', 'term_id')
-            ->distinct()
-            ->get()
-            ->map(fn ($e) => [
-                'subject_id' => (int) $e->subject_id,
-                'classroom_id' => (int) $e->classroom_id,
-                'academic_year_id' => (int) $e->academic_year_id,
-                'term_id' => (int) $e->term_id,
-            ])
-            ->values()
-            ->all();
-
-        $termYearClassScopes = $allowedClassIds === [] ? [] : Exam::query()
-            ->whereNotNull('classroom_id')
-            ->whereIn('classroom_id', $allowedClassIds)
-            ->select('academic_year_id', 'term_id', 'classroom_id')
-            ->distinct()
-            ->get()
-            ->map(fn ($e) => [
-                'academic_year_id' => (int) $e->academic_year_id,
-                'term_id' => (int) $e->term_id,
-                'classroom_id' => (int) $e->classroom_id,
-            ])
-            ->values()
-            ->all();
+        $filterScopes = $this->buildFilterScopes($allowedClassIds);
+        $subjectExamScopes = $filterScopes['subjectExamScopes'];
+        $termYearClassScopes = $filterScopes['termYearClassScopes'];
 
         $streamsByClassroom = $allowedClassIds === [] ? [] : Stream::query()
             ->whereIn('classroom_id', $allowedClassIds)
@@ -234,7 +215,7 @@ class ExamReportsController extends Controller
             $classroom = Classroom::findOrFail((int) $request->classroom_id);
             ExamReportsAccess::assertClassroomAccess($user, $classroom->id);
 
-            $session = $this->findExamSessionForClassMarkSheet(
+            $session = $this->examScope->findExamSession(
                 (int) $request->exam_type_id,
                 (int) $request->academic_year_id,
                 (int) $request->term_id,
@@ -312,154 +293,6 @@ class ExamReportsController extends Controller
         return [['classroom' => $classroom, 'payload' => $payload, 'notice' => null]];
     }
 
-    /**
-     * Resolve the exam sitting for “by exam type” flow. Exact term_id is tried first; then any term in the
-     * same academic year with the same name (handles duplicate term rows); then a subject paper’s session.
-     */
-    private function findExamSessionForClassMarkSheet(
-        int $examTypeId,
-        int $academicYearId,
-        int $termId,
-        int $classroomId,
-        ?int $streamId
-    ): ?ExamSession {
-        $direct = ExamSession::query()
-            ->forScope($examTypeId, $academicYearId, $termId, $classroomId, $streamId)
-            ->first();
-
-        if ($direct) {
-            return $direct;
-        }
-
-        $termIds = $this->termIdsForClassMarkSheet($termId, $academicYearId, $examTypeId, $classroomId, $streamId);
-
-        $session = ExamSession::query()
-            ->where('exam_type_id', $examTypeId)
-            ->where('academic_year_id', $academicYearId)
-            ->where('classroom_id', $classroomId)
-            ->whereIn('term_id', $termIds)
-            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
-            ->orderByDesc('id')
-            ->first();
-
-        if ($session) {
-            return $session;
-        }
-
-        $examSessionId = Exam::query()
-            ->whereNotNull('subject_id')
-            ->whereNotNull('exam_session_id')
-            ->where('academic_year_id', $academicYearId)
-            ->where('classroom_id', $classroomId)
-            ->whereIn('term_id', $termIds)
-            ->where(function ($q) use ($examTypeId) {
-                $q->where('exam_type_id', $examTypeId)
-                    ->orWhereHas('examSession', fn ($s) => $s->where('exam_type_id', $examTypeId));
-            })
-            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
-            ->orderByDesc('id')
-            ->value('exam_session_id');
-
-        return $examSessionId ? ExamSession::query()->find($examSessionId) : null;
-    }
-
-    /**
-     * Term ids used to find ExamSession / papers for the selected calendar term.
-     * Includes terms in the selected academic year with the same label, plus legacy paper {@see Term} rows
-     * (e.g. exams still pointing at an older year's term id while academic_year_id on the exam is correct).
-     *
-     * @return list<int>
-     */
-    private function termIdsForClassMarkSheet(
-        int $selectedTermId,
-        int $academicYearId,
-        int $examTypeId,
-        int $classroomId,
-        ?int $streamId
-    ): array {
-        $base = $this->termIdsWithSameLabelInYear($selectedTermId, $academicYearId);
-        $selected = Term::find($selectedTermId);
-        $needleNorm = $selected ? $this->normalizeTermLabelForMatching($selected->name) : '';
-        if ($needleNorm === '') {
-            return $base;
-        }
-
-        $paperTermIds = Exam::query()
-            ->whereNotNull('subject_id')
-            ->whereNotNull('exam_session_id')
-            ->where('academic_year_id', $academicYearId)
-            ->where('classroom_id', $classroomId)
-            ->where(function ($q) use ($examTypeId) {
-                $q->where('exam_type_id', $examTypeId)
-                    ->orWhereHas('examSession', fn ($s) => $s->where('exam_type_id', $examTypeId));
-            })
-            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
-            ->distinct()
-            ->pluck('term_id')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->all();
-
-        $extra = [];
-        foreach ($paperTermIds as $tid) {
-            if (in_array($tid, $base, true)) {
-                continue;
-            }
-            $t = Term::find($tid);
-            if ($t && $this->normalizeTermLabelForMatching($t->name) === $needleNorm) {
-                $extra[] = $tid;
-            }
-        }
-
-        $merged = array_values(array_unique(array_merge($base, $extra)));
-
-        return $merged !== [] ? $merged : [$selectedTermId];
-    }
-
-    /**
-     * @return list<int>
-     */
-    private function termIdsWithSameLabelInYear(int $termId, int $academicYearId): array
-    {
-        $term = Term::find($termId);
-        if (! $term) {
-            return [$termId];
-        }
-
-        $needleRaw = mb_strtolower(trim((string) $term->name));
-        $needleNorm = $this->normalizeTermLabelForMatching($term->name);
-
-        $ids = Term::query()
-            ->where('academic_year_id', $academicYearId)
-            ->get(['id', 'name'])
-            ->filter(function ($t) use ($needleRaw, $needleNorm) {
-                $raw = mb_strtolower(trim((string) $t->name));
-                if ($raw === $needleRaw) {
-                    return true;
-                }
-
-                return $needleNorm !== ''
-                    && $this->normalizeTermLabelForMatching($t->name) === $needleNorm;
-            })
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        return $ids !== [] ? $ids : [$termId];
-    }
-
-    /** Strip leading year prefix so "2026 - Term 1" and "Term 1" match. */
-    private function normalizeTermLabelForMatching(?string $name): string
-    {
-        $s = mb_strtolower(trim((string) $name));
-        $s = preg_replace('/^\d{4}\s*[-–.\/]\s*/u', '', $s);
-
-        return trim($s);
-    }
-
     private function excelSheetTitle(array $payload, string $classLabel): string
     {
         $meta = $payload['meta'] ?? [];
@@ -512,85 +345,84 @@ class ExamReportsController extends Controller
     {
         $request->validate([
             'scope' => 'nullable|in:class,school',
-            'exam_id' => 'nullable|exists:exams,id',
+            'analysis_flow' => 'nullable|in:by_exam_type,term',
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+            'term_id' => 'nullable|exists:terms,id',
+            'exam_type_id' => 'nullable|exists:exam_types,id',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
+            'exam_id' => 'nullable|exists:exams,id',
             'subject_id' => 'nullable|exists:subjects,id',
         ]);
 
         $user = $request->user();
         $u = $user instanceof User ? $user : null;
         $examReportsFullAccess = ExamReportsAccess::userHasFullAccess($u);
+        $subjectScopedTeacher = ExamReportsAccess::userIsSubjectScoped($u);
 
         $scope = $request->input('scope', 'class');
         if (! $examReportsFullAccess) {
             $scope = 'class';
         }
 
-        $exams = Exam::with(['academicYear', 'term'])->orderByDesc('created_at')->limit(60)->get();
-        $classrooms = ExamReportsAccess::classroomsQueryFor($u)->get();
-        $streams = Stream::orderBy('name')->get();
-
+        $analysisFlow = $request->input('analysis_flow', 'by_exam_type');
+        $filterData = $this->analysisFilterViewData($u);
         $payload = null;
-        if ($request->filled('exam_id')) {
-            $exam = Exam::find($request->exam_id);
-            if ($exam) {
-                $cache = new ReportCache();
-                $subjectId = $request->integer('subject_id') ?: null;
+        $notice = null;
 
-                if ($scope === 'school') {
-                    ExamReportsAccess::assertSchoolWideReportsAllowed($u);
+        if ($request->filled('load')) {
+            if ($scope === 'school' && $request->filled('exam_id')) {
+                ExamReportsAccess::assertSchoolWideReportsAllowed($u);
+                $exam = Exam::find($request->exam_id);
+                if ($exam) {
+                    $cache = new ReportCache();
+                    $subjectId = $request->integer('subject_id') ?: null;
                     $payload = $cache->rememberSchoolTeacherPerformance($exam, $subjectId, fn () => $schoolRankings->rankingsForExam($exam, $subjectId));
-                } else {
-                    if ($request->filled('classroom_id')) {
-                        ExamReportsAccess::assertClassroomAccess($u, (int) $request->classroom_id);
-                        $classroom = Classroom::find($request->classroom_id);
-                        if ($classroom) {
-                            $streamId = $request->integer('stream_id') ?: null;
-                            $payload = $cache->rememberExamTeacherPerformance(
-                                exam: $exam,
-                                classroom: $classroom,
-                                streamId: $streamId,
-                                subjectId: $subjectId,
-                                build: fn () => $analytics->teacherPerformanceForExam($exam, $classroom, $streamId, $subjectId)
-                            );
-                        }
-                    }
                 }
+            } else {
+                [$payload, $notice] = $this->buildTeacherPerformancePayload($request, $u, $analytics, $analysisFlow);
             }
         }
 
-        return view('academics.exam_reports.teacher_performance', compact('scope', 'exams', 'classrooms', 'streams', 'payload', 'examReportsFullAccess'));
+        return view('academics.exam_reports.teacher_performance', array_merge($filterData, compact(
+            'scope',
+            'analysisFlow',
+            'payload',
+            'notice',
+            'examReportsFullAccess',
+            'subjectScopedTeacher'
+        )));
     }
 
     public function subjectPerformance(Request $request, AnalyticsService $analytics)
     {
         $request->validate([
-            'exam_id' => 'nullable|exists:exams,id',
+            'analysis_flow' => 'nullable|in:by_exam_type,term',
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+            'term_id' => 'nullable|exists:terms,id',
+            'exam_type_id' => 'nullable|exists:exam_types,id',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
         ]);
 
         $user = $request->user();
         $u = $user instanceof User ? $user : null;
-
-        $exams = Exam::with(['academicYear', 'term'])->orderByDesc('created_at')->limit(60)->get();
-        $classrooms = ExamReportsAccess::classroomsQueryFor($u)->get();
-        $streams = Stream::orderBy('name')->get();
+        $subjectScopedTeacher = ExamReportsAccess::userIsSubjectScoped($u);
+        $analysisFlow = $request->input('analysis_flow', 'by_exam_type');
+        $filterData = $this->analysisFilterViewData($u);
 
         $payload = null;
-        if ($request->filled('exam_id') && $request->filled('classroom_id')) {
-            ExamReportsAccess::assertClassroomAccess($u, (int) $request->classroom_id);
-            $exam = Exam::find($request->exam_id);
-            $classroom = Classroom::find($request->classroom_id);
-            if ($exam && $classroom) {
-                $cache = new ReportCache();
-                $streamId = $request->integer('stream_id') ?: null;
-                $payload = $cache->rememberExamSubjectPerformance($exam, $classroom, $streamId, fn () => $analytics->subjectPerformanceForExam($exam, $classroom, $streamId));
-            }
+        $notice = null;
+        if ($request->filled('load')) {
+            [$payload, $notice] = $this->buildSubjectPerformancePayload($request, $u, $analytics, $analysisFlow);
         }
 
-        return view('academics.exam_reports.subject_performance', compact('exams', 'classrooms', 'streams', 'payload'));
+        return view('academics.exam_reports.subject_performance', array_merge($filterData, compact(
+            'analysisFlow',
+            'payload',
+            'notice',
+            'subjectScopedTeacher'
+        )));
     }
 
     public function studentInsights(Request $request, AnalyticsService $analytics)
@@ -638,5 +470,207 @@ class ExamReportsController extends Controller
         }
 
         return view('academics.exam_reports.student_insights', compact('mode', 'exams', 'classrooms', 'streams', 'academicYears', 'terms', 'payload'));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function analysisFilterViewData(?User $user): array
+    {
+        $classrooms = ExamReportsAccess::classroomsQueryFor($user)->get();
+        $allowedClassIds = $classrooms->pluck('id')->all();
+        $filterScopes = $this->buildFilterScopes($allowedClassIds);
+
+        return [
+            'examTypes' => ExamType::orderBy('name')->get(),
+            'classrooms' => $classrooms,
+            'classroomExamTypeIds' => $filterScopes['classroomExamTypeIds'],
+            'termYearClassScopes' => $filterScopes['termYearClassScopes'],
+            'streamsByClassroom' => $allowedClassIds === [] ? [] : Stream::query()
+                ->whereIn('classroom_id', $allowedClassIds)
+                ->orderBy('name')
+                ->get()
+                ->groupBy('classroom_id')
+                ->map(fn ($rows) => $rows->map(fn ($s) => ['id' => (int) $s->id, 'name' => $s->name])->values()->all())
+                ->toArray(),
+            'academicYears' => AcademicYear::orderByDesc('year')->get(),
+            'terms' => Term::with('academicYear')->orderByDesc('academic_year_id')->orderBy('name')->get(),
+        ];
+    }
+
+    /**
+     * @param  int[]  $allowedClassIds
+     * @return array{classroomExamTypeIds: array, subjectExamScopes: list<array>, termYearClassScopes: list<array>}
+     */
+    private function buildFilterScopes(array $allowedClassIds): array
+    {
+        if ($allowedClassIds === []) {
+            return [
+                'classroomExamTypeIds' => [],
+                'subjectExamScopes' => [],
+                'termYearClassScopes' => [],
+            ];
+        }
+
+        $classroomExamTypeIds = Exam::query()
+            ->whereNotNull('exam_type_id')
+            ->whereNotNull('classroom_id')
+            ->whereIn('classroom_id', $allowedClassIds)
+            ->select('classroom_id', 'exam_type_id')
+            ->distinct()
+            ->get()
+            ->groupBy('classroom_id')
+            ->map(fn ($g) => $g->pluck('exam_type_id')->unique()->values()->all())
+            ->toArray();
+
+        $rawSubjectScopes = Exam::query()
+            ->whereNotNull('subject_id')
+            ->whereNotNull('classroom_id')
+            ->whereIn('classroom_id', $allowedClassIds)
+            ->select('subject_id', 'classroom_id', 'academic_year_id', 'term_id')
+            ->distinct()
+            ->get()
+            ->map(fn ($e) => [
+                'subject_id' => (int) $e->subject_id,
+                'classroom_id' => (int) $e->classroom_id,
+                'academic_year_id' => (int) $e->academic_year_id,
+                'term_id' => (int) $e->term_id,
+            ])
+            ->values()
+            ->all();
+
+        $rawTermScopes = Exam::query()
+            ->whereNotNull('classroom_id')
+            ->whereIn('classroom_id', $allowedClassIds)
+            ->select('academic_year_id', 'term_id', 'classroom_id')
+            ->distinct()
+            ->get()
+            ->map(fn ($e) => [
+                'academic_year_id' => (int) $e->academic_year_id,
+                'term_id' => (int) $e->term_id,
+                'classroom_id' => (int) $e->classroom_id,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'classroomExamTypeIds' => $classroomExamTypeIds,
+            'subjectExamScopes' => $this->termScope->expandSubjectExamScopes($rawSubjectScopes),
+            'termYearClassScopes' => $this->termScope->expandTermClassScopes($rawTermScopes),
+        ];
+    }
+
+    /**
+     * @return array{0: ?array, 1: ?string}
+     */
+    private function buildSubjectPerformancePayload(Request $request, ?User $user, AnalyticsService $analytics, string $analysisFlow): array
+    {
+        $streamId = $request->integer('stream_id') ?: null;
+        $classroomId = $request->integer('classroom_id');
+        if (! $classroomId) {
+            return [null, 'Select a class.'];
+        }
+
+        ExamReportsAccess::assertClassroomAccess($user, $classroomId);
+        $classroom = Classroom::findOrFail($classroomId);
+        $subjectLimit = ExamReportsAccess::subjectIdsForUserInClass($user, $classroomId, $streamId);
+        $cache = new ReportCache();
+
+        if ($analysisFlow === 'term') {
+            $request->validate([
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'term_id' => 'required|exists:terms,id',
+            ]);
+            $ay = (int) $request->academic_year_id;
+            $termId = (int) $request->term_id;
+            $payload = $cache->rememberTermSubjectPerformance($ay, $termId, $classroom, $streamId, fn () => $analytics->subjectPerformanceForTerm($ay, $termId, $classroom, $streamId, $subjectLimit));
+            if (empty($payload['subjects'])) {
+                return [$payload, 'No mark data found for this class and term. Check that exams exist and marks have been entered.'];
+            }
+
+            return [$payload, null];
+        }
+
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'exam_type_id' => 'required|exists:exam_types,id',
+        ]);
+
+        $session = $this->examScope->findExamSession(
+            (int) $request->exam_type_id,
+            (int) $request->academic_year_id,
+            (int) $request->term_id,
+            $classroomId,
+            $streamId
+        );
+
+        if (! $session) {
+            return [null, 'No exam sitting found for this exam type, class, year, and term.'];
+        }
+
+        $payload = $cache->rememberExamSessionSubjectPerformance($session, $classroom, $streamId, fn () => $analytics->subjectPerformanceForExamSession($session, $classroom, $streamId, $subjectLimit));
+        if (empty($payload['subjects'])) {
+            return [$payload, 'No mark data found for this exam sitting. Ensure marks have been entered for this class.'];
+        }
+
+        return [$payload, null];
+    }
+
+    /**
+     * @return array{0: ?array, 1: ?string}
+     */
+    private function buildTeacherPerformancePayload(Request $request, ?User $user, AnalyticsService $analytics, string $analysisFlow): array
+    {
+        $streamId = $request->integer('stream_id') ?: null;
+        $classroomId = $request->integer('classroom_id');
+        if (! $classroomId) {
+            return [null, 'Select a class.'];
+        }
+
+        ExamReportsAccess::assertClassroomAccess($user, $classroomId);
+        $classroom = Classroom::findOrFail($classroomId);
+        $subjectLimit = ExamReportsAccess::subjectIdsForUserInClass($user, $classroomId, $streamId);
+        $cache = new ReportCache();
+
+        if ($analysisFlow === 'term') {
+            $request->validate([
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'term_id' => 'required|exists:terms,id',
+            ]);
+            $ay = (int) $request->academic_year_id;
+            $termId = (int) $request->term_id;
+            $payload = $cache->rememberTermTeacherPerformance($ay, $termId, $classroom, $streamId, fn () => $analytics->teacherPerformanceForTerm($ay, $termId, $classroom, $streamId, $subjectLimit));
+            if (empty($payload['per_teacher']) && empty($payload['per_subject'])) {
+                return [$payload, 'No teacher performance data for this class and term. Check subject assignments and marks.'];
+            }
+
+            return [$payload, null];
+        }
+
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'exam_type_id' => 'required|exists:exam_types,id',
+        ]);
+
+        $session = $this->examScope->findExamSession(
+            (int) $request->exam_type_id,
+            (int) $request->academic_year_id,
+            (int) $request->term_id,
+            $classroomId,
+            $streamId
+        );
+
+        if (! $session) {
+            return [null, 'No exam sitting found for this exam type, class, year, and term.'];
+        }
+
+        $payload = $cache->rememberExamSessionTeacherPerformance($session, $classroom, $streamId, fn () => $analytics->teacherPerformanceForExamSession($session, $classroom, $streamId, $subjectLimit));
+        if (empty($payload['per_teacher']) && empty($payload['per_subject'])) {
+            return [$payload, 'No teacher performance data for this exam sitting. Check subject assignments and marks.'];
+        }
+
+        return [$payload, null];
     }
 }

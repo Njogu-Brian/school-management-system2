@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { AdminAreaKey } from '@erp/core';
 import { useRbac } from '@erp/core';
-import { GlobalAppHeader, useTheme } from '@erp/ui';
+import { useTheme } from '@erp/ui';
+import { AppHeaderChrome } from './AppHeaderChrome';
 import { DrawerActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React from 'react';
@@ -78,7 +79,7 @@ export const BottomTabsNavigator: React.FC = () => {
       screenOptions={({ navigation, route }) => ({
         headerShown: true,
         header: () => (
-          <GlobalAppHeader
+          <AppHeaderChrome
             title={TAB_LABEL[route.name]}
             onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
           />

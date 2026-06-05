@@ -71,8 +71,12 @@ export interface RequisitionRecord {
   type: string;
   purpose?: string | null;
   status: string;
+  rejection_reason?: string | null;
   requested_by?: string | null;
+  approved_by?: string | null;
   requested_at?: string | null;
+  approved_at?: string | null;
+  fulfilled_at?: string | null;
   can_approve?: boolean;
   can_reject?: boolean;
   items?: Array<{
@@ -80,6 +84,7 @@ export interface RequisitionRecord {
     item_name: string;
     quantity_requested: number;
     quantity_approved?: number | null;
+    quantity_issued?: number | null;
     unit?: string | null;
   }>;
 }
@@ -99,11 +104,28 @@ export interface VisitorRecord {
   id: number;
   visitor_name: string;
   phone?: string | null;
+  organization?: string | null;
   purpose?: string | null;
   host_name?: string | null;
+  badge_number?: string | null;
+  notes?: string | null;
   checked_in_at?: string | null;
   checked_out_at?: string | null;
   on_site: boolean;
+}
+
+export interface FixedAssetRecord {
+  id: number;
+  asset_tag?: string | null;
+  name: string;
+  category?: string | null;
+  location?: string | null;
+  status?: string | null;
+  assigned_to?: string | null;
+  serial_number?: string | null;
+  purchase_date?: string | null;
+  purchase_cost?: number | null;
+  notes?: string | null;
 }
 
 /** Transport + operations summary APIs (Sprints 9–10). */
@@ -162,9 +184,52 @@ export const operationsApi = {
 
   listVisitors(params?: {
     on_site?: boolean;
+    date?: string;
     page?: number;
     per_page?: number;
   }): Promise<ApiResponse<PaginatedResponse<VisitorRecord>>> {
     return apiClient.get<PaginatedResponse<VisitorRecord>>('/visitors', params);
+  },
+
+  checkInVisitor(payload: {
+    visitor_name: string;
+    phone?: string;
+    id_number?: string;
+    organization?: string;
+    purpose?: string;
+    host_name?: string;
+    host_staff_id?: number;
+    badge_number?: string;
+    notes?: string;
+  }): Promise<ApiResponse<VisitorRecord>> {
+    return apiClient.post<VisitorRecord>('/visitors', payload);
+  },
+
+  checkOutVisitor(id: number): Promise<ApiResponse<VisitorRecord>> {
+    return apiClient.post<VisitorRecord>(`/visitors/${id}/checkout`);
+  },
+
+  listAssets(params?: {
+    search?: string;
+    status?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<FixedAssetRecord>>> {
+    return apiClient.get<PaginatedResponse<FixedAssetRecord>>('/assets', params);
+  },
+
+  getAsset(id: number): Promise<ApiResponse<FixedAssetRecord>> {
+    return apiClient.get<FixedAssetRecord>(`/assets/${id}`);
+  },
+
+  approveRequisition(
+    id: number,
+    payload?: { items?: Array<{ id: number; quantity_approved: number }> },
+  ): Promise<ApiResponse<RequisitionRecord>> {
+    return apiClient.post<RequisitionRecord>(`/requisitions/${id}/approve`, payload ?? {});
+  },
+
+  rejectRequisition(id: number, rejection_reason: string): Promise<ApiResponse<RequisitionRecord>> {
+    return apiClient.post<RequisitionRecord>(`/requisitions/${id}/reject`, { rejection_reason });
   },
 };

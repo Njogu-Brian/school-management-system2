@@ -7,4 +7,9 @@ export type DashboardStackParamList = {
     id: ApprovalCompositeId;
     item: ApprovalItem;
   };
+  NotificationsList: undefined;
+  NotificationDetail: { notificationId: string };
+  GlobalSearch: undefined;
+  ActivityCenter: undefined;
+  AuditDetail: { auditId: string };
 };

@@ -15,6 +15,8 @@ export interface GlobalAppHeaderProps {
   onNotificationsPress?: () => void;
   onApprovalsPress?: () => void;
   onProfilePress?: () => void;
+  showApprovalsBadge?: boolean;
+  showNotificationsBadge?: boolean;
 }
 
 /**
@@ -31,6 +33,8 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   onNotificationsPress,
   onApprovalsPress,
   onProfilePress,
+  showApprovalsBadge = false,
+  showNotificationsBadge = false,
 }) => {
   const { palette, colors, spacing, fontSizes } = useTheme();
   const insets = useSafeAreaInsets();
@@ -90,14 +94,14 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
           color={palette.textPrimary}
           onPress={onApprovalsPress}
           label="Approvals"
-          dotColor={colors.warning}
+          dotColor={showApprovalsBadge ? colors.warning : undefined}
         />
         <HeaderIcon
           name="notifications-outline"
           color={palette.textPrimary}
           onPress={onNotificationsPress}
           label="Notifications"
-          dotColor={colors.error}
+          dotColor={showNotificationsBadge ? colors.error : undefined}
         />
         <Pressable
           accessibilityRole="button"

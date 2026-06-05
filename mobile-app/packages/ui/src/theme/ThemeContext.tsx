@@ -9,7 +9,8 @@ import {
   SPACING,
 } from './tokens';
 
-/** Semantic colors already resolved for the active light/dark mode. */
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
 export interface ResolvedPalette {
   background: string;
   surface: string;
@@ -22,22 +23,25 @@ export interface ResolvedPalette {
 export interface ThemeValue {
   isDark: boolean;
   mode: 'light' | 'dark';
+  themeMode: ThemeMode;
   colors: ColorTokens;
   spacing: typeof SPACING;
   fontSizes: typeof FONT_SIZES;
   radius: typeof BORDER_RADIUS;
   shadows: typeof SHADOWS;
   palette: ResolvedPalette;
+  setThemeMode: (mode: ThemeMode) => void;
+  toggleTheme: () => void;
 }
 
-function resolvePalette(isDark: boolean): ResolvedPalette {
+function resolvePalette(colors: ColorTokens, isDark: boolean): ResolvedPalette {
   return {
-    background: isDark ? COLORS.backgroundDark : COLORS.backgroundLight,
-    surface: isDark ? COLORS.surfaceDark : COLORS.surfaceLight,
-    textPrimary: isDark ? COLORS.textMainDark : COLORS.textMainLight,
-    textSecondary: isDark ? COLORS.textSubDark : COLORS.textSubLight,
-    border: isDark ? COLORS.borderDark : COLORS.borderLight,
-    accent: isDark ? COLORS.accentDark : COLORS.accentLight,
+    background: isDark ? colors.backgroundDark : colors.backgroundLight,
+    surface: isDark ? colors.surfaceDark : colors.surfaceLight,
+    textPrimary: isDark ? colors.textMainDark : colors.textMainLight,
+    textSecondary: isDark ? colors.textSubDark : colors.textSubLight,
+    border: isDark ? colors.borderDark : colors.borderLight,
+    accent: isDark ? colors.accentDark : colors.accentLight,
   };
 }
 
@@ -45,27 +49,50 @@ const ThemeContext = createContext<ThemeValue | undefined>(undefined);
 
 export interface ThemeProviderProps {
   children: React.ReactNode;
-  /** Force a mode for testing/previews; defaults to the OS color scheme. */
+  /** Force a mode for testing/previews. */
   forcedMode?: 'light' | 'dark';
+  themeMode?: ThemeMode;
+  onThemeModeChange?: (mode: ThemeMode) => void;
+  colorOverrides?: Partial<Record<keyof ColorTokens, string>>;
 }
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, forcedMode }) => {
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({
+  children,
+  forcedMode,
+  themeMode = 'auto',
+  onThemeModeChange,
+  colorOverrides,
+}) => {
   const scheme = useColorScheme();
-  const isDark = forcedMode ? forcedMode === 'dark' : scheme === 'dark';
+  const isDark = forcedMode
+    ? forcedMode === 'dark'
+    : themeMode === 'dark' || (themeMode === 'auto' && scheme === 'dark');
 
-  const value = useMemo<ThemeValue>(
-    () => ({
+  const setThemeMode = (mode: ThemeMode) => {
+    onThemeModeChange?.(mode);
+  };
+
+  const toggleTheme = () => {
+    const next = isDark ? 'light' : 'dark';
+    onThemeModeChange?.(next);
+  };
+
+  const value = useMemo<ThemeValue>(() => {
+    const colors = { ...COLORS, ...colorOverrides } as ColorTokens;
+    return {
       isDark,
       mode: isDark ? 'dark' : 'light',
-      colors: COLORS,
+      themeMode,
+      colors,
       spacing: SPACING,
       fontSizes: FONT_SIZES,
       radius: BORDER_RADIUS,
       shadows: SHADOWS,
-      palette: resolvePalette(isDark),
-    }),
-    [isDark],
-  );
+      palette: resolvePalette(colors, isDark),
+      setThemeMode,
+      toggleTheme,
+    };
+  }, [isDark, themeMode, colorOverrides, onThemeModeChange]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };

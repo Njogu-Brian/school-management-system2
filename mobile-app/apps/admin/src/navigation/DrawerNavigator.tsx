@@ -1,5 +1,6 @@
 import { useRbac } from '@erp/core';
-import { GlobalAppHeader, useTheme } from '@erp/ui';
+import { useTheme } from '@erp/ui';
+import { AppHeaderChrome } from './AppHeaderChrome';
 import {
   createDrawerNavigator,
   DrawerNavigationOptions,
@@ -30,7 +31,7 @@ function headerOptions(title: string) {
   }): DrawerNavigationOptions => ({
     headerShown: true,
     header: () => (
-      <GlobalAppHeader
+      <AppHeaderChrome
         title={title}
         onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
       />
