@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { DashboardStackNavigator } from './DashboardStackNavigator';
-import { FinanceScreen } from '../features/finance';
+import { FinanceStackNavigator } from './FinanceStackNavigator';
 import { PeopleStackNavigator } from './PeopleStackNavigator';
 import { StudentsStackNavigator } from './StudentsStackNavigator';
 import { withAreaGuard } from './guards/ProtectedAreaScreen';
@@ -32,7 +32,7 @@ const TAB_AREA_KEY: Record<keyof TabsParamList, AdminAreaKey> = {
 const TAB_SCREENS: Record<keyof TabsParamList, React.ComponentType> = {
   Dashboard: DashboardStackNavigator,
   Students: StudentsStackNavigator,
-  Finance: FinanceScreen,
+  Finance: FinanceStackNavigator,
   People: PeopleStackNavigator,
 };
 

@@ -1,1 +1,14 @@
-export * from './screens/AcademicsScreen';
+export { AcademicsDashboardScreen } from './screens/AcademicsDashboardScreen';
+export { AssessmentsScreen } from './screens/AssessmentsScreen';
+export { AssessmentHistoryScreen } from './screens/AssessmentHistoryScreen';
+export { AssessmentDetailScreen } from './screens/AssessmentDetailScreen';
+export { ExamsListScreen } from './screens/ExamsListScreen';
+export { ExamDetailScreen } from './screens/ExamDetailScreen';
+export { MarksScreen } from './screens/MarksScreen';
+export { MarksMatrixScreen } from './screens/MarksMatrixScreen';
+export { ReportCardsScreen } from './screens/ReportCardsScreen';
+export { ReportCardHistoryScreen } from './screens/ReportCardHistoryScreen';
+export { ReportCardDetailScreen } from './screens/ReportCardDetailScreen';
+export { ModerationScreen } from './screens/ModerationScreen';
+export { LessonPlanReviewScreen } from './screens/LessonPlanReviewScreen';
+export { LessonPlanDetailScreen } from './screens/LessonPlanDetailScreen';

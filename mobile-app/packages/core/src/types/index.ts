@@ -15,3 +15,5 @@ export * from './studentAcademics';
 export * from './settings';
 export * from './staff';
 export * from './staff360';
+export * from './finance';
+export * from './academics';

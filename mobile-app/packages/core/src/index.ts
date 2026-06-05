@@ -11,3 +11,5 @@ export * from './admissions';
 export * from './approvals';
 export * from './students';
 export * from './staff';
+export * from './finance';
+export * from './academics';

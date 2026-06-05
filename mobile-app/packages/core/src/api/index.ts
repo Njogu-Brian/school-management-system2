@@ -9,3 +9,5 @@ export * from './settings.api';
 export * from './staff.api';
 export * from './payroll.api';
 export * from './diagnostics.api';
+export * from './finance.api';
+export * from './academicsWorkspace.api';
