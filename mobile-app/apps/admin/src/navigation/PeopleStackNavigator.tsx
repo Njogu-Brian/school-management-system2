@@ -5,7 +5,7 @@ import type { PeopleStackParamList } from './peopleStackTypes';
 
 const Stack = createStackNavigator<PeopleStackParamList>();
 
-/** People workspace: staff registry + detail routing (Staff 360 tabs in later sprints). */
+/** People workspace: staff registry + Staff 360 read-only profile. */
 export const PeopleStackNavigator: React.FC = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="StaffRegistry" component={StaffRegistryScreen} />

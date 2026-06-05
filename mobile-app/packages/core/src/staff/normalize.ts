@@ -60,6 +60,14 @@ export function toStaffDetail(raw: StaffRecord): StaffDetail {
     supervisorId: raw.supervisor_id ?? null,
     supervisorName: raw.supervisor_name ?? null,
     maxLessonsPerWeek: raw.max_lessons_per_week ?? null,
+    basicSalary: raw.basic_salary ?? null,
+    bankName: raw.bank_name ?? null,
+    bankBranch: raw.bank_branch ?? null,
+    bankAccount: raw.bank_account ?? null,
+    kraPin: raw.kra_pin ?? null,
+    nssf: raw.nssf ?? null,
+    nhif: raw.nhif ?? null,
+    statutoryExemptions: raw.statutory_exemptions ?? [],
   };
 }
 

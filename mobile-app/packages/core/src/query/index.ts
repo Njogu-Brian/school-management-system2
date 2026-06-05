@@ -15,3 +15,4 @@ export * from './hooks/useStudentAcademics';
 export * from './hooks/useSettingsHub';
 export * from './hooks/useStaffList';
 export * from './hooks/useStaffDetail';
+export * from './hooks/useStaff360';

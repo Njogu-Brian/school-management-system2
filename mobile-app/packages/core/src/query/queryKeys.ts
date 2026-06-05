@@ -50,6 +50,15 @@ export const queryKeys = {
       [...queryKeys.staff.all, 'list', filters ?? {}] as const,
     detail: (id: number) => [...queryKeys.staff.all, 'detail', id] as const,
     filterOptions: () => [...queryKeys.staff.all, 'filter-options'] as const,
+    leaveBalances: (id: number) => [...queryKeys.staff.all, 'leave-balances', id] as const,
+    leaveRequests: (id: number, status?: string) =>
+      [...queryKeys.staff.all, 'leave-requests', id, status ?? 'all'] as const,
+    attendanceHistory: (
+      id: number,
+      range?: { startDate?: string; endDate?: string; page?: number },
+    ) => [...queryKeys.staff.all, 'attendance-history', id, range ?? {}] as const,
+    payrollRecords: (id: number, page?: number) =>
+      [...queryKeys.staff.all, 'payroll-records', id, page ?? 1] as const,
   },
   settings: {
     all: ['settings'] as const,

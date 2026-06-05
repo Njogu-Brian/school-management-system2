@@ -96,6 +96,14 @@ export interface StaffDetail extends StaffSummary {
   supervisorId: number | null;
   supervisorName: string | null;
   maxLessonsPerWeek: number | null;
+  basicSalary: number | null;
+  bankName: string | null;
+  bankBranch: string | null;
+  bankAccount: string | null;
+  kraPin: string | null;
+  nssf: string | null;
+  nhif: string | null;
+  statutoryExemptions: string[];
 }
 
 export interface StaffListQueryParams {

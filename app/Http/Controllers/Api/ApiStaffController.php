@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AcademicYear;
 use App\Models\Department;
 use App\Models\Staff;
+use App\Models\StaffAttendance;
 use App\Models\StaffCategory;
+use App\Models\StaffLeaveBalance;
 use App\Models\SalaryStructure;
 use App\Services\PhoneNumberService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -163,6 +167,95 @@ class ApiStaffController extends Controller
             ->findOrFail($id);
 
         return response()->json(['success' => true, 'data' => $this->formatStaffDetail($staff)]);
+    }
+
+    /**
+     * Leave balances for active academic year (Staff 360 Leave / Overview tabs).
+     */
+    public function leaveBalances(Request $request, $id)
+    {
+        $this->assertCanViewStaffRecord($request, (int) $id);
+
+        $staff = Staff::findOrFail($id);
+        $currentYear = AcademicYear::where('is_active', true)->first();
+
+        $query = StaffLeaveBalance::with(['leaveType', 'academicYear'])
+            ->where('staff_id', $staff->id);
+
+        if ($currentYear) {
+            $query->where('academic_year_id', $currentYear->id);
+        }
+
+        $balances = $query->orderBy('leave_type_id')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'staff_id' => $staff->id,
+                'academic_year' => $currentYear ? [
+                    'id' => $currentYear->id,
+                    'name' => $currentYear->name,
+                ] : null,
+                'balances' => $balances->map(fn ($b) => $this->formatLeaveBalance($b))->values(),
+            ],
+        ]);
+    }
+
+    /**
+     * Attendance history with date range, summary, and pagination (Staff 360 Attendance tab).
+     */
+    public function attendanceHistory(Request $request, $id)
+    {
+        $this->assertCanViewStaffRecord($request, (int) $id);
+
+        $validated = $request->validate([
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'per_page' => 'nullable|integer|min:1|max:100',
+            'page' => 'nullable|integer|min:1',
+        ]);
+
+        $startDate = $validated['start_date'] ?? Carbon::now()->startOfMonth()->toDateString();
+        $endDate = $validated['end_date'] ?? Carbon::now()->endOfMonth()->toDateString();
+        $perPage = (int) ($validated['per_page'] ?? 30);
+
+        $baseQuery = StaffAttendance::where('staff_id', (int) $id)
+            ->whereBetween('date', [$startDate, $endDate]);
+
+        $summary = [
+            'total' => (clone $baseQuery)->count(),
+            'present' => (clone $baseQuery)->where('status', 'present')->count(),
+            'absent' => (clone $baseQuery)->where('status', 'absent')->count(),
+            'late' => (clone $baseQuery)->where('status', 'late')->count(),
+            'half_day' => (clone $baseQuery)->where('status', 'half_day')->count(),
+        ];
+
+        $paginated = (clone $baseQuery)->orderByDesc('date')->paginate($perPage);
+        $staff = Staff::find((int) $id);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'staff' => $staff ? [
+                    'id' => $staff->id,
+                    'full_name' => $staff->full_name,
+                ] : null,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'summary' => $summary,
+                'history' => [
+                    'data' => $paginated->getCollection()
+                        ->map(fn ($r) => $this->formatAttendanceRow($r))
+                        ->values(),
+                    'current_page' => $paginated->currentPage(),
+                    'last_page' => $paginated->lastPage(),
+                    'per_page' => $paginated->perPage(),
+                    'total' => $paginated->total(),
+                    'from' => $paginated->firstItem(),
+                    'to' => $paginated->lastItem(),
+                ],
+            ],
+        ]);
     }
 
     public function update(Request $request, $id)
@@ -430,5 +523,45 @@ class ApiStaffController extends Controller
             'supervisor_id' => $s->supervisor_id,
             'supervisor_name' => $s->supervisor ? $s->supervisor->full_name : null,
         ]);
+    }
+
+    protected function formatLeaveBalance(StaffLeaveBalance $balance): array
+    {
+        return [
+            'id' => $balance->id,
+            'leave_type_id' => $balance->leave_type_id,
+            'leave_type_name' => $balance->leaveType?->name,
+            'leave_type_code' => $balance->leaveType?->code,
+            'academic_year_id' => $balance->academic_year_id,
+            'entitlement_days' => (int) $balance->entitlement_days,
+            'used_days' => (int) $balance->used_days,
+            'remaining_days' => (int) $balance->remaining_days,
+            'carried_forward' => (int) $balance->carried_forward,
+        ];
+    }
+
+    protected function formatAttendanceRow(StaffAttendance $record): array
+    {
+        $hasClock = $record->check_in_time !== null
+            || $record->check_in_latitude !== null
+            || $record->check_out_time !== null;
+
+        return [
+            'id' => $record->id,
+            'staff_id' => $record->staff_id,
+            'date' => $record->date ? Carbon::parse($record->date)->toDateString() : null,
+            'status' => $record->status,
+            'check_in_time' => $record->check_in_time
+                ? Carbon::parse($record->check_in_time)->format('H:i')
+                : null,
+            'check_out_time' => $record->check_out_time
+                ? Carbon::parse($record->check_out_time)->format('H:i')
+                : null,
+            'check_in_distance_meters' => $record->check_in_distance_meters,
+            'check_out_distance_meters' => $record->check_out_distance_meters,
+            'notes' => $record->notes,
+            'marked_by' => $record->marked_by,
+            'source' => $hasClock ? 'clock' : 'manual',
+        ];
     }
 }

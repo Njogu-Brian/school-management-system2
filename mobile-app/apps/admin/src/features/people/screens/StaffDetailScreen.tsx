@@ -1,20 +1,32 @@
-import { useCan, useStaffDetail, type StaffDetail, type StaffSummary } from '@erp/core';
-import { ScreenContainer, StaffEmploymentBadge, useTheme } from '@erp/ui';
-import { Ionicons } from '@expo/vector-icons';
-import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+  useCan,
+  useStaffAttendanceHistory,
+  useStaffDetail,
+  useStaffLatestPayroll,
+  useStaffLeaveBalances,
+  useStaffLeaveRequests,
+  type StaffDetail,
+  type StaffSummary,
+} from '@erp/core';
+import type { StackScreenProps } from '@react-navigation/stack';
+import { ScreenContainer, Staff360Layout, type Staff360TabId } from '@erp/ui';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { useTheme } from '@erp/ui';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
+import { AttendanceTab } from '../staff360/tabs/AttendanceTab';
+import { EmploymentTab } from '../staff360/tabs/EmploymentTab';
+import { LeaveTab } from '../staff360/tabs/LeaveTab';
+import { OverviewTab } from '../staff360/tabs/OverviewTab';
 
 type Props = StackScreenProps<PeopleStackParamList, 'StaffDetail'>;
+
+const TABS: Array<{ id: Staff360TabId; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'employment', label: 'Employment' },
+  { id: 'leave', label: 'Leave' },
+  { id: 'attendance', label: 'Attendance' },
+];
 
 function summaryAsDetail(summary: StaffSummary): StaffDetail {
   return {
@@ -36,169 +48,155 @@ function summaryAsDetail(summary: StaffSummary): StaffDetail {
     supervisorId: null,
     supervisorName: null,
     maxLessonsPerWeek: null,
+    basicSalary: null,
+    bankName: null,
+    bankBranch: null,
+    bankAccount: null,
+    kraPin: null,
+    nssf: null,
+    nhif: null,
+    statutoryExemptions: [],
   };
-}
-
-function FieldRow({ label, value }: { label: string; value: string | null | undefined }) {
-  const { palette, fontSizes, spacing } = useTheme();
-  return (
-    <View style={{ marginBottom: spacing.md }}>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 4 }}>
-        {label}
-      </Text>
-      <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md }}>{value || '—'}</Text>
-    </View>
-  );
 }
 
 export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { staffId, summary } = route.params;
   const canView = useCan(['people.view', 'staff.view']);
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const canViewFinance = useCan('finance.view');
+  const { colors, spacing } = useTheme();
+  const [activeTab, setActiveTab] = useState<Staff360TabId>('overview');
 
   const detailQuery = useStaffDetail(staffId, { enabled: canView });
   const staff = detailQuery.data ?? (summary ? summaryAsDetail(summary) : undefined);
 
-  const orgLine = useMemo(() => {
-    if (!staff) return '';
-    return [staff.departmentName, staff.jobTitle].filter(Boolean).join(' · ');
+  const loadLeave = activeTab === 'overview' || activeTab === 'leave';
+  const loadAttendance = activeTab === 'overview' || activeTab === 'attendance';
+  const loadPayroll = canViewFinance && activeTab === 'overview';
+
+  const leaveBalancesQuery = useStaffLeaveBalances(staffId, { enabled: canView && loadLeave });
+  const leaveRequestsQuery = useStaffLeaveRequests(staffId, { enabled: canView && loadLeave });
+  const pendingLeaveQuery = useStaffLeaveRequests(staffId, {
+    enabled: canView && activeTab === 'overview',
+    status: 'pending',
+    perPage: 1,
+  });
+  const attendanceQuery = useStaffAttendanceHistory(staffId, { enabled: canView && loadAttendance });
+  const payrollQuery = useStaffLatestPayroll(staffId, { enabled: loadPayroll });
+
+  const header = useMemo(() => {
+    if (!staff) return null;
+    const orgLabel = [staff.departmentName, staff.jobTitle].filter(Boolean).join(' · ') || '—';
+    return {
+      fullName: staff.fullName,
+      employeeNumber: staff.employeeNumber,
+      orgLabel,
+      avatarUrl: staff.avatarUrl,
+      employmentStatus: staff.employmentStatus,
+      systemRole: staff.systemRole,
+    };
   }, [staff]);
+
+  const pendingLeaveCount = pendingLeaveQuery.data?.total ?? 0;
 
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
+        <Text style={{ textAlign: 'center', color: colors.error }}>
           You need people.view permission to view staff profiles.
         </Text>
       </ScreenContainer>
     );
   }
 
+  if (detailQuery.isLoading && !staff) {
+    return (
+      <ScreenContainer contentContainerStyle={styles.centered}>
+        <ActivityIndicator color={colors.primary} />
+      </ScreenContainer>
+    );
+  }
+
+  if (!staff || !header) {
+    return (
+      <ScreenContainer contentContainerStyle={styles.centered}>
+        <Text style={{ color: colors.error }}>Staff member not found.</Text>
+        {detailQuery.isError ? (
+          <Pressable onPress={() => void detailQuery.refetch()} style={{ marginTop: spacing.sm }}>
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
+          </Pressable>
+        ) : null}
+      </ScreenContainer>
+    );
+  }
+
+  const tabContent = (() => {
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <OverviewTab
+            staff={staff}
+            leaveBalances={leaveBalancesQuery.data ?? []}
+            leaveBalancesLoading={leaveBalancesQuery.isLoading}
+            attendancePct={attendanceQuery.summary.percentage}
+            attendanceLoading={attendanceQuery.isLoading}
+            canViewFinance={canViewFinance}
+            latestPayroll={payrollQuery.latest}
+            payrollLoading={payrollQuery.isLoading}
+            pendingLeaveCount={pendingLeaveCount}
+          />
+        );
+      case 'employment':
+        return <EmploymentTab staff={staff} canViewFinance={canViewFinance} />;
+      case 'leave':
+        return (
+          <LeaveTab
+            balances={leaveBalancesQuery.data ?? []}
+            balancesLoading={leaveBalancesQuery.isLoading}
+            balancesError={leaveBalancesQuery.isError}
+            onRetryBalances={() => void leaveBalancesQuery.refetch()}
+            requests={leaveRequestsQuery.data?.data ?? []}
+            requestsLoading={leaveRequestsQuery.isLoading}
+            requestsError={leaveRequestsQuery.isError}
+            onRetryRequests={() => void leaveRequestsQuery.refetch()}
+          />
+        );
+      case 'attendance':
+        return (
+          <AttendanceTab
+            isLoading={attendanceQuery.isLoading}
+            isError={attendanceQuery.isError}
+            onRetry={() => void attendanceQuery.refetch()}
+            present={attendanceQuery.summary.present}
+            absent={attendanceQuery.summary.absent}
+            late={attendanceQuery.summary.late}
+            halfDay={attendanceQuery.summary.halfDay}
+            percentage={attendanceQuery.summary.percentage}
+            rangeLabel={`${attendanceQuery.range.startDate} → ${attendanceQuery.range.endDate}`}
+            days={attendanceQuery.days}
+          />
+        );
+      default:
+        return null;
+    }
+  })();
+
   return (
-    <ScreenContainer style={{ flex: 1 }}>
-      <View style={[styles.topBar, { paddingHorizontal: spacing.md, paddingTop: spacing.sm }]}>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          accessibilityRole="button"
-          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, padding: spacing.xs }]}
-        >
-          <Ionicons name="arrow-back" size={24} color={palette.textPrimary} />
-        </Pressable>
-        <Text style={{ flex: 1, fontSize: fontSizes.lg, fontWeight: '700', color: palette.textPrimary }}>
-          Staff profile
-        </Text>
-      </View>
-
-      {detailQuery.isLoading && !staff ? (
-        <ActivityIndicator style={{ marginTop: spacing.xl }} />
-      ) : detailQuery.isError && !staff ? (
-        <View style={styles.denied}>
-          <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
-            {(detailQuery.error as Error)?.message ?? 'Failed to load profile.'}
-          </Text>
-        </View>
-      ) : staff ? (
-        <ScrollView
-          contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View
-            style={[
-              styles.headerCard,
-              {
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
-                borderRadius: radius.lg,
-                padding: spacing.md,
-              },
-              shadows.sm,
-            ]}
-          >
-            <View style={styles.headerRow}>
-              {staff.avatarUrl ? (
-                <Image source={{ uri: staff.avatarUrl }} style={styles.avatar} />
-              ) : (
-                <View
-                  style={[
-                    styles.avatar,
-                    styles.avatarPlaceholder,
-                    { backgroundColor: palette.accent },
-                  ]}
-                >
-                  <Ionicons name="person" size={32} color={colors.primary} />
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: fontSizes.lg, fontWeight: '700', color: palette.textPrimary }}>
-                  {staff.fullName}
-                </Text>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-                  {staff.employeeNumber}
-                </Text>
-                {orgLine ? (
-                  <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 4 }}>
-                    {orgLine}
-                  </Text>
-                ) : null}
-                <View style={{ marginTop: spacing.sm }}>
-                  <StaffEmploymentBadge status={staff.employmentStatus} />
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <Text
-            style={{
-              marginTop: spacing.lg,
-              marginBottom: spacing.sm,
-              fontSize: fontSizes.sm,
-              fontWeight: '700',
-              color: palette.textSecondary,
-              textTransform: 'uppercase',
-            }}
-          >
-            Overview
-          </Text>
-          <View
-            style={{
-              backgroundColor: palette.surface,
-              borderRadius: radius.lg,
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: palette.border,
-              padding: spacing.md,
-            }}
-          >
-            <FieldRow label="System role" value={staff.systemRole} />
-            <FieldRow label="Category" value={staff.staffCategory} />
-            <FieldRow label="Work email" value={staff.email} />
-            <FieldRow label="Phone" value={staff.phone} />
-            <FieldRow label="Gender" value={staff.gender} />
-            <FieldRow label="Supervisor" value={staff.supervisorName} />
-            <FieldRow label="Hire date" value={staff.hireDate} />
-            <FieldRow label="Employment type" value={staff.employmentType} />
-          </View>
-
-          <Text
-            style={{
-              marginTop: spacing.lg,
-              color: palette.textSecondary,
-              fontSize: fontSizes.xs,
-              textAlign: 'center',
-            }}
-          >
-            Full Staff 360 tabs (leave, payroll, attendance) ship in a later sprint.
-          </Text>
-        </ScrollView>
-      ) : null}
+    <ScreenContainer style={styles.flex}>
+      <Staff360Layout
+        header={header}
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onBack={() => navigation.goBack()}
+      >
+        {tabContent}
+      </Staff360Layout>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  flex: { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  headerCard: { borderWidth: StyleSheet.hairlineWidth },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 72, height: 72, borderRadius: 36 },
-  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
 });

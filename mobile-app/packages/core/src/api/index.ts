@@ -6,3 +6,4 @@ export * from './students.api';
 export * from './academics.api';
 export * from './settings.api';
 export * from './staff.api';
+export * from './payroll.api';

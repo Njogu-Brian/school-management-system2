@@ -104,6 +104,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/classes/{classId}/subjects', [\App\Http\Controllers\Api\ApiClassroomController::class, 'subjects']);
     Route::get('/staff/filter-options', [\App\Http\Controllers\Api\ApiStaffController::class, 'filterOptions']);
     Route::get('/staff', [\App\Http\Controllers\Api\ApiStaffController::class, 'index']);
+    Route::get('/staff/{id}/leave-balances', [\App\Http\Controllers\Api\ApiStaffController::class, 'leaveBalances']);
+    Route::get('/staff/{id}/attendance-history', [\App\Http\Controllers\Api\ApiStaffController::class, 'attendanceHistory']);
     Route::get('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'show']);
     Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);
     Route::post('/staff/{id}/photo', [\App\Http\Controllers\Api\ApiStaffController::class, 'uploadPhoto']);
