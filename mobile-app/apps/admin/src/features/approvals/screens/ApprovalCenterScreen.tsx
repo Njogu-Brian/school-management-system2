@@ -50,7 +50,7 @@ export const ApprovalCenterScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer style={styles.container}>
+    <ScreenContainer scroll={false} style={styles.container}>
       <ApprovalFilters
         status={status}
         priority={priority}

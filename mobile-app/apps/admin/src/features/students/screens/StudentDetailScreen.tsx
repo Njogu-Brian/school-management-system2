@@ -192,7 +192,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   })();
 
   return (
-    <ScreenContainer style={styles.flex}>
+    <ScreenContainer scroll={false} style={styles.flex}>
       <Student360Layout
         header={header}
         tabs={tabs}

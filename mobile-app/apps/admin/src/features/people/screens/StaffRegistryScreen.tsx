@@ -110,7 +110,7 @@ export const StaffRegistryScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <FlatList
         data={staff}
         keyExtractor={(item) => String(item.id)}

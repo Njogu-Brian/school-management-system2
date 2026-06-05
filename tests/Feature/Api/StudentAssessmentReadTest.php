@@ -18,8 +18,9 @@ class StudentAssessmentReadTest extends TestCase
 {
     protected function setUp(): void
     {
-        if (config('database.default') === 'mysql') {
-            $this->markTestSkipped('Skipping on mysql: RefreshDatabase migration graph fails in CI.');
+        $driver = getenv('DB_CONNECTION') ?: 'mysql';
+        if ($driver === 'mysql') {
+            $this->markTestSkipped('Skipping on mysql: RefreshDatabase migration graph fails locally. Use sqlite for API tests.');
         }
 
         parent::setUp();

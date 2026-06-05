@@ -39,6 +39,31 @@ class ApiClient {
     this.onUnauthorized = cb;
   }
 
+  private logRequest(config: InternalAxiosRequestConfig): void {
+    if (!__DEV__) return;
+    const method = (config.method ?? 'get').toUpperCase();
+    const base = config.baseURL ?? '';
+    const path = config.url ?? '';
+    const params = config.params as Record<string, unknown> | undefined;
+    const paramStr =
+      params && Object.keys(params).length > 0 ? ` ${JSON.stringify(params)}` : '';
+    console.log(`[API] → ${method} ${base}${path}${paramStr}`);
+  }
+
+  private logResponse(status: number, url: string, data?: unknown): void {
+    if (!__DEV__) return;
+    const preview =
+      data != null && typeof data === 'object'
+        ? JSON.stringify(data).slice(0, 400)
+        : String(data ?? '');
+    console.log(`[API] ← ${status} ${url}`, preview);
+  }
+
+  private logError(status: number | undefined, url: string, body: unknown, message: string): void {
+    if (!__DEV__) return;
+    console.error(`[API] ✗ ${status ?? 'ERR'} ${url}`, { message, body });
+  }
+
   private setupInterceptors(): void {
     this.client.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
@@ -52,6 +77,7 @@ class ApiClient {
         if (token && headers && !hasAuth) {
           headers.Authorization = `Bearer ${token}`;
         }
+        this.logRequest(config);
         return config;
       },
       (error) => Promise.reject(error),
@@ -62,11 +88,13 @@ class ApiClient {
         if (response.status >= 200 && response.status < 300) {
           void touchSessionMeta();
         }
+        this.logResponse(response.status, String(response.config.url ?? ''), response.data);
         return response;
       },
       async (error: AxiosError) => {
         const url = String(error.config?.url ?? '');
         const isAuthRoute = url.endsWith('/login') || url.includes('/logout');
+        this.logError(error.response?.status, url, error.response?.data, error.message);
 
         if (error.response?.status === 401 && !isAuthRoute) {
           await clearToken();

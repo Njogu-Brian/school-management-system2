@@ -123,7 +123,7 @@ export const StudentRegistryScreen: React.FC = () => {
   }
 
   return (
-    <ScreenContainer style={styles.container}>
+    <ScreenContainer scroll={false} style={styles.container}>
       <StudentSearchBar value={searchInput} onChangeText={setSearchInput} />
 
       <StudentFilters

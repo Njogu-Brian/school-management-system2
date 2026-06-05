@@ -1,6 +1,9 @@
 import { getNavArea, useCan } from '@erp/core';
 import { PlaceholderScreen, ScreenContainer, SettingsHubLayout, type SettingsSectionId } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
+import { Modal, Pressable, Text, View } from 'react-native';
+import { useTheme } from '@erp/ui';
+import { ApiDiagnosticsScreen } from '../../diagnostics';
 import { AcademicSettingsSection } from '../sections/AcademicSettingsSection';
 import { GradingSettingsSection } from '../sections/GradingSettingsSection';
 import { RolesSettingsSection } from '../sections/RolesSettingsSection';
@@ -17,7 +20,9 @@ const ALL_SECTIONS = [
 
 export const SettingsScreen: React.FC = () => {
   const canView = useCan('settings.view');
+  const { colors, spacing, fontSizes, palette } = useTheme();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('school');
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   const sections = useMemo(() => ALL_SECTIONS, []);
 
@@ -47,7 +52,7 @@ export const SettingsScreen: React.FC = () => {
   })();
 
   return (
-    <ScreenContainer style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <SettingsHubLayout
         sections={sections}
         activeSection={activeSection}
@@ -55,6 +60,27 @@ export const SettingsScreen: React.FC = () => {
       >
         {content}
       </SettingsHubLayout>
+      {__DEV__ ? (
+        <>
+          <View
+            style={{
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              borderTopWidth: 1,
+              borderTopColor: palette.border,
+            }}
+          >
+            <Pressable onPress={() => setDiagnosticsOpen(true)}>
+              <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+                API Health (dev)
+              </Text>
+            </Pressable>
+          </View>
+          <Modal visible={diagnosticsOpen} animationType="slide" onRequestClose={() => setDiagnosticsOpen(false)}>
+            <ApiDiagnosticsScreen onClose={() => setDiagnosticsOpen(false)} />
+          </Modal>
+        </>
+      ) : null}
     </ScreenContainer>
   );
 };

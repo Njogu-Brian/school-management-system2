@@ -181,7 +181,7 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   })();
 
   return (
-    <ScreenContainer style={styles.flex}>
+    <ScreenContainer scroll={false} style={styles.flex}>
       <Staff360Layout
         header={header}
         tabs={TABS}

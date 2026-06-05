@@ -10,16 +10,37 @@ WebBrowser.maybeCompleteAuthSession();
 /**
  * Google OAuth button (expo-auth-session). Obtains an ID token client-side and
  * exchanges it via `GoogleSignInStrategy` → `POST /login/google`.
+ *
+ * The auth hook must not run unless client IDs are configured — expo-auth-session
+ * throws on Android when `androidClientId` is missing.
  */
 export const GoogleSignInButton: React.FC = () => {
-  const { isConfigured, clientIds, signInWithIdToken, submitting, error } = useGoogleAuth();
+  const { isConfigured } = useGoogleAuth();
+  const { palette, fontSizes, spacing } = useTheme();
+
+  if (!isConfigured) {
+    return (
+      <View style={{ marginTop: spacing.md }}>
+        <Text style={[styles.hint, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
+          Google sign-in is optional. Use email and password, or set
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID for OAuth.
+        </Text>
+      </View>
+    );
+  }
+
+  return <GoogleSignInButtonConfigured />;
+};
+
+const GoogleSignInButtonConfigured: React.FC = () => {
+  const { clientIds, signInWithIdToken, submitting, error } = useGoogleAuth();
   const { palette, fontSizes, spacing } = useTheme();
   const [prompting, setPrompting] = useState(false);
 
   const [, googleResponse, googlePromptAsync] = Google.useIdTokenAuthRequest({
-    androidClientId: clientIds.androidClientId || undefined,
-    iosClientId: clientIds.iosClientId || undefined,
-    webClientId: clientIds.webClientId || undefined,
+    androidClientId: clientIds.androidClientId,
+    iosClientId: clientIds.iosClientId,
+    webClientId: clientIds.webClientId,
     selectAccount: true,
   });
 
@@ -43,13 +64,6 @@ export const GoogleSignInButton: React.FC = () => {
   }, [googleResponse]);
 
   const handlePress = async (): Promise<void> => {
-    if (!isConfigured) {
-      Alert.alert(
-        'Google sign-in not configured',
-        'Set EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID (and iOS/web if needed) in the Admin app environment, then restart the dev server.',
-      );
-      return;
-    }
     setPrompting(true);
     try {
       await googlePromptAsync();
@@ -71,11 +85,6 @@ export const GoogleSignInButton: React.FC = () => {
         loading={loading}
         disabled={loading}
       />
-      {!isConfigured ? (
-        <Text style={[styles.hint, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-          Google OAuth client ID not configured for this build.
-        </Text>
-      ) : null}
       {error && !submitting ? (
         <Text style={[styles.hint, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
           {error}

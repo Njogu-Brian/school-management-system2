@@ -18,6 +18,11 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
-config.resolver.disableHierarchicalLookup = true;
+
+// Hoist common transitive deps that break when hierarchical lookup is disabled.
+config.resolver.extraNodeModules = {
+  semver: path.resolve(workspaceRoot, 'node_modules/semver'),
+  'webidl-conversions': path.resolve(workspaceRoot, 'node_modules/webidl-conversions'),
+};
 
 module.exports = config;
