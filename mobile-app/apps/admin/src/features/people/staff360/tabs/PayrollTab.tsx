@@ -1,7 +1,7 @@
-import { toPayrollSummary, useStaffPayrollRecords } from '@erp/core';
-import { EmptyState, FinanceFieldSection } from '@erp/ui';
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { downloadAuthenticatedFile, payrollApi, toPayrollSummary, useStaffPayrollRecords } from '@erp/core';
+import { EmptyState } from '@erp/ui';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
 import { capitalizeStatus, formatKes } from '../utils/formatters';
 
@@ -10,21 +10,21 @@ export interface PayrollTabProps {
   canViewFinance: boolean;
 }
 
-/** Payroll history from `GET /payroll-records?staff_id=`. */
 export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance }) => {
-  const { colors, palette, fontSizes } = useTheme();
+  const { colors, palette, fontSizes, spacing } = useTheme();
   const query = useStaffPayrollRecords(staffId, { enabled: canViewFinance, perPage: 12 });
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
-  const rows = useMemo(() => {
-    const records = query.data?.data ?? [];
-    return records.map((raw) => {
-      const row = toPayrollSummary(raw);
-      return {
-        label: row.periodLabel,
-        value: `${formatKes(row.netSalary)} · ${capitalizeStatus(row.status)}`,
-      };
-    });
-  }, [query.data]);
+  const handlePayslip = useCallback(async (recordId: number, label: string) => {
+    setDownloadingId(recordId);
+    try {
+      await downloadAuthenticatedFile(payrollApi.payslipDownloadPath(recordId), `payslip-${label}`);
+    } catch (err) {
+      Alert.alert('Download failed', (err as Error).message);
+    } finally {
+      setDownloadingId(null);
+    }
+  }, []);
 
   if (!canViewFinance) {
     return (
@@ -53,7 +53,8 @@ export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance 
     );
   }
 
-  if (rows.length === 0) {
+  const records = query.data?.data ?? [];
+  if (records.length === 0) {
     return (
       <EmptyState
         title="No payroll records"
@@ -68,7 +69,31 @@ export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance 
       <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
         API: GET /payroll-records?staff_id=
       </Text>
-      <FinanceFieldSection title="Payroll history" rows={rows} />
+      {records.map((raw) => {
+        const row = toPayrollSummary(raw);
+        return (
+          <View
+            key={raw.id}
+            style={{
+              borderWidth: 1,
+              borderColor: palette.border,
+              borderRadius: 8,
+              padding: spacing.sm,
+              marginBottom: spacing.xs,
+            }}
+          >
+            <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{row.periodLabel}</Text>
+            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+              {formatKes(row.netSalary)} · {capitalizeStatus(row.status)}
+            </Text>
+            <Pressable onPress={() => void handlePayslip(raw.id, row.periodLabel)} style={{ marginTop: 8 }}>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                {downloadingId === raw.id ? 'Downloading…' : 'Download payslip PDF'}
+              </Text>
+            </Pressable>
+          </View>
+        );
+      })}
     </>
   );
 };

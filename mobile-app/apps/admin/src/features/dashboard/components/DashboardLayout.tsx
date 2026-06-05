@@ -1,7 +1,7 @@
 import { useCan } from '@erp/core';
 import { ScreenContainer, useTheme } from '@erp/ui';
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   AlertsSection,
   CriticalKpisSection,
@@ -14,9 +14,12 @@ import {
  * School Command Center shell — composes permission-gated sections.
  * KPIs and pending approvals use live APIs (Sprint 2 Batches 2–3).
  */
+type DashboardTab = 'overview' | 'approvals' | 'alerts';
+
 export const DashboardLayout: React.FC = () => {
   const canViewDashboard = useCan('dashboard.view');
-  const { palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, fontSizes, colors } = useTheme();
+  const [tab, setTab] = useState<DashboardTab>('overview');
 
   if (!canViewDashboard) {
     return (
@@ -39,11 +42,42 @@ export const DashboardLayout: React.FC = () => {
         </Text>
       </View>
 
-      <CriticalKpisSection />
-      <PendingApprovalsSection />
-      <QuickActionsSection />
-      <AlertsSection />
-      <OperationalStatusSection />
+      <View style={[styles.tabs, { marginBottom: spacing.md, gap: spacing.xs }]}>
+        {([
+          ['overview', 'Overview'],
+          ['approvals', 'Approvals'],
+          ['alerts', 'Alerts'],
+        ] as const).map(([key, label]) => {
+          const active = tab === key;
+          return (
+            <Pressable
+              key={key}
+              onPress={() => setTab(key)}
+              style={[
+                styles.tab,
+                {
+                  borderColor: active ? colors.primary : palette.border,
+                  backgroundColor: active ? `${colors.primary}18` : 'transparent',
+                },
+              ]}
+            >
+              <Text style={{ color: active ? colors.primary : palette.textSecondary, fontWeight: '600', fontSize: fontSizes.sm }}>
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {tab === 'overview' ? (
+        <>
+          <CriticalKpisSection />
+          <QuickActionsSection />
+          <OperationalStatusSection />
+        </>
+      ) : null}
+      {tab === 'approvals' ? <PendingApprovalsSection /> : null}
+      {tab === 'alerts' ? <AlertsSection /> : null}
     </ScreenContainer>
   );
 };
@@ -64,4 +98,12 @@ const styles = StyleSheet.create({
   hero: {},
   heroTitle: { fontWeight: '700' },
   heroSub: { marginTop: 4 },
+  tabs: { flexDirection: 'row' },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
 });

@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ResolvesDocumentStorage;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ApiStudentDocumentsController extends Controller
 {
+    use ResolvesDocumentStorage;
     public function index(Request $request, int $id)
     {
         $student = Student::findOrFail($id);
@@ -32,6 +35,7 @@ class ApiStudentDocumentsController extends Controller
             'file_type' => $doc->file_type,
             'file_size' => $doc->file_size,
             'file_url' => $doc->file_url,
+            'download_path' => "/students/{$student->id}/documents/{$doc->id}/download",
             'version' => $doc->version,
             'created_at' => $doc->created_at?->toIso8601String(),
             'updated_at' => $doc->updated_at?->toIso8601String(),
@@ -50,5 +54,22 @@ class ApiStudentDocumentsController extends Controller
                 'to' => $paginated->lastItem(),
             ],
         ]);
+    }
+
+    public function download(Request $request, int $studentId, int $documentId)
+    {
+        $student = Student::findOrFail($studentId);
+        $document = Document::query()
+            ->where('documentable_type', Student::class)
+            ->where('documentable_id', $student->id)
+            ->where('is_active', true)
+            ->findOrFail($documentId);
+
+        $disk = $this->resolveDiskForPath($document->file_path);
+        if (! $disk) {
+            abort(404, 'File not found.');
+        }
+
+        return Storage::disk($disk)->download($document->file_path, $document->file_name);
     }
 }

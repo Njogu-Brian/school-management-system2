@@ -186,11 +186,11 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       case 'payroll':
         return <PayrollTab staffId={staffId} canViewFinance={canViewFinance} />;
       case 'performance':
-        return <PerformanceTab />;
+        return <PerformanceTab staffId={staffId} />;
       case 'documents':
         return <DocumentsTab staffId={staffId} />;
       case 'training':
-        return <TrainingTab />;
+        return <TrainingTab staffId={staffId} />;
       default:
         return null;
     }

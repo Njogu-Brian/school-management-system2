@@ -1,4 +1,4 @@
-import { useCan, useDashboardStats } from '@erp/core';
+import { useBoardPack, useCan, useDashboardStats, useExpenseReportSummary, useWeeklyReports } from '@erp/core';
 import { KpiCard, QuickAction, ScreenContainer, WidgetGrid, WidgetShell, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React from 'react';
@@ -17,6 +17,9 @@ export const ReportsHubScreen: React.FC = () => {
   const navigation = useNavigation();
   const { palette, spacing, fontSizes } = useTheme();
   const statsQuery = useDashboardStats({ enabled: canView });
+  const boardPackQuery = useBoardPack({ enabled: canView });
+  const expenseQuery = useExpenseReportSummary({ enabled: canView });
+  const weeklyQuery = useWeeklyReports({ enabled: canView });
 
   if (!canView) {
     return (
@@ -27,6 +30,9 @@ export const ReportsHubScreen: React.FC = () => {
   }
 
   const stats = statsQuery.data as Record<string, number | undefined> | undefined;
+  const boardPack = boardPackQuery.data;
+  const expenses = expenseQuery.data;
+  const weekly = weeklyQuery.data?.items ?? [];
 
   const onLink = (action: (typeof LINKS)[number]['action']) => {
     switch (action) {
@@ -54,13 +60,23 @@ export const ReportsHubScreen: React.FC = () => {
           Reports hub
         </Text>
         <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.md }}>
-          Cross-module reports and deep-links to live workspaces.
+          Cross-module reports backed by Laravel APIs.
         </Text>
 
         <WidgetGrid>
           {[
             { label: 'Enrolled students', value: String(stats?.total_students ?? stats?.enrolled_students ?? '—'), icon: 'people-outline' as const },
             { label: 'Fees collected', value: String(stats?.fees_collected ?? '—'), icon: 'cash-outline' as const },
+            {
+              label: 'Expenses MTD',
+              value: expenses ? `KES ${expenses.total_expenses.toLocaleString()}` : '—',
+              icon: 'receipt-outline' as const,
+            },
+            {
+              label: 'Pending approvals',
+              value: String(boardPack?.approvals.pending_total ?? '—'),
+              icon: 'checkmark-circle-outline' as const,
+            },
           ].map((kpi) => {
             const state = statsQuery.isLoading ? 'loading' : statsQuery.isError ? 'error' : 'success';
             return (
@@ -70,6 +86,31 @@ export const ReportsHubScreen: React.FC = () => {
             );
           })}
         </WidgetGrid>
+
+        {weekly.length > 0 ? (
+          <>
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
+              Weekly operations reports
+            </Text>
+            {weekly.slice(0, 5).map((item) => (
+              <View
+                key={`${item.type}-${item.id}`}
+                style={{
+                  marginBottom: spacing.xs,
+                  padding: spacing.sm,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: palette.border,
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{item.title}</Text>
+                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
+                  {[item.type.replace(/_/g, ' '), item.week_ending, item.subtitle].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            ))}
+          </>
+        ) : null}
 
         <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
           Open reports

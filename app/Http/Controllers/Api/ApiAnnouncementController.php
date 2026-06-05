@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Announcement;
+use App\Services\ExpoPushService;
 use Illuminate\Http\Request;
 
 class ApiAnnouncementController extends Controller
@@ -45,5 +46,95 @@ class ApiAnnouncementController extends Controller
                 'to' => $paginated->lastItem(),
             ],
         ]);
+    }
+
+    public function show(int $id)
+    {
+        $announcement = Announcement::findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->serialize($announcement),
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $user = $request->user();
+        if ($user?->hasRole('Teacher') || $user?->hasRole('teacher')) {
+            return response()->json(['success' => false, 'message' => 'Permission denied.'], 403);
+        }
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'active' => 'required|boolean',
+            'expires_at' => 'nullable|date',
+        ]);
+
+        $announcement = Announcement::create($validated);
+
+        if ($announcement->active) {
+            app(ExpoPushService::class)->sendAnnouncementNotification($announcement);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Announcement created.',
+            'data' => $this->serialize($announcement),
+        ], 201);
+    }
+
+    public function update(Request $request, int $id)
+    {
+        $user = $request->user();
+        if ($user?->hasRole('Teacher') || $user?->hasRole('teacher')) {
+            return response()->json(['success' => false, 'message' => 'Permission denied.'], 403);
+        }
+
+        $announcement = Announcement::findOrFail($id);
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'active' => 'required|boolean',
+            'expires_at' => 'nullable|date',
+        ]);
+
+        $wasInactive = ! $announcement->active;
+        $announcement->update($validated);
+
+        if ($request->boolean('active') && $wasInactive) {
+            app(ExpoPushService::class)->sendAnnouncementNotification($announcement->fresh());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Announcement updated.',
+            'data' => $this->serialize($announcement->fresh()),
+        ]);
+    }
+
+    public function destroy(int $id)
+    {
+        $announcement = Announcement::findOrFail($id);
+        $announcement->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Announcement deleted.',
+        ]);
+    }
+
+    protected function serialize(Announcement $a): array
+    {
+        return [
+            'id' => $a->id,
+            'title' => $a->title ?? '',
+            'content' => $a->content ?? '',
+            'active' => (bool) $a->active,
+            'expires_at' => $a->expires_at?->format('Y-m-d'),
+            'created_at' => $a->created_at?->toIso8601String(),
+            'updated_at' => $a->updated_at?->toIso8601String(),
+        ];
     }
 }

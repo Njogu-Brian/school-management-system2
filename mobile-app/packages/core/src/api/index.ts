@@ -14,3 +14,5 @@ export * from './academicsWorkspace.api';
 export * from './operations.api';
 export * from './documents.api';
 export * from './communication.api';
+export * from './reports.api';
+export * from './staff360.api';

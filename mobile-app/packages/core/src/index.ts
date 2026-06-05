@@ -13,3 +13,4 @@ export * from './students';
 export * from './staff';
 export * from './finance';
 export * from './academics';
+export * from './utils/downloadFile';

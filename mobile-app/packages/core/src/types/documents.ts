@@ -8,6 +8,7 @@ export interface DocumentListRecord {
   file_type?: string | null;
   file_size?: number | null;
   file_url?: string | null;
+  download_path?: string | null;
   expiry_date?: string | null;
   is_expired?: boolean;
   is_expiring_soon?: boolean;

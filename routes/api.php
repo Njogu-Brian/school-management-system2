@@ -87,6 +87,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/students/{id}/mpesa/payment-link', [\App\Http\Controllers\Api\ApiMpesaPaymentController::class, 'paymentLinkUrl']);
     Route::get('/students/{id}/fee-clearance', [ApiFeeClearanceController::class, 'show']);
     Route::get('/students/{id}/documents', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'index']);
+    Route::get('/students/{studentId}/documents/{documentId}/download', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'download']);
+    Route::get('/students/{studentId}/medical-records', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'index']);
+    Route::get('/students/{studentId}/medical-records/{id}', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'show']);
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'show']);
@@ -129,10 +132,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/staff/{id}/leave-balances', [\App\Http\Controllers\Api\ApiStaffController::class, 'leaveBalances']);
     Route::get('/staff/{id}/attendance-history', [\App\Http\Controllers\Api\ApiStaffController::class, 'attendanceHistory']);
     Route::get('/staff/{id}/documents', [\App\Http\Controllers\Api\ApiStaffDocumentsController::class, 'index']);
+    Route::get('/staff/{staffId}/documents/{documentId}/download', [\App\Http\Controllers\Api\ApiStaffDocumentsController::class, 'download']);
+    Route::get('/staff/{staffId}/performance-reviews', [\App\Http\Controllers\Api\ApiStaffPerformanceController::class, 'index']);
+    Route::get('/staff/{staffId}/performance-reviews/{id}', [\App\Http\Controllers\Api\ApiStaffPerformanceController::class, 'show']);
+    Route::get('/staff/{staffId}/training-records', [\App\Http\Controllers\Api\ApiStaffTrainingController::class, 'index']);
+    Route::get('/staff/{staffId}/training-records/{id}', [\App\Http\Controllers\Api\ApiStaffTrainingController::class, 'show']);
     Route::get('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'show']);
     Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);
     Route::post('/staff/{id}/photo', [\App\Http\Controllers\Api\ApiStaffController::class, 'uploadPhoto']);
     Route::get('/payroll-records', [\App\Http\Controllers\Api\ApiPayrollRecordsController::class, 'index']);
+    Route::get('/payroll-records/{id}/payslip/download', [\App\Http\Controllers\Api\ApiPayslipController::class, 'download']);
     Route::get('/routes', [\App\Http\Controllers\Api\ApiRouteController::class, 'index']);
     Route::get('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'show']);
     Route::get('/routes/{id}/fee-clearance-roster', [ApiFeeClearanceController::class, 'tripRoster']);
@@ -143,6 +152,32 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/leave-requests/{id}/reject', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'reject']);
     Route::get('/library/books', [\App\Http\Controllers\Api\ApiLibraryController::class, 'index']);
     Route::get('/announcements', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'index']);
+    Route::post('/announcements', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'store']);
+    Route::get('/announcements/{id}', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'show']);
+    Route::put('/announcements/{id}', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'update']);
+    Route::delete('/announcements/{id}', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'destroy']);
+
+    Route::get('/communication/templates', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'templates']);
+    Route::get('/communication/logs', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'logs']);
+    Route::post('/communication/sms', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendSms']);
+
+    Route::get('/inventory/items', [\App\Http\Controllers\Api\ApiInventoryController::class, 'index']);
+    Route::get('/inventory/items/{id}', [\App\Http\Controllers\Api\ApiInventoryController::class, 'show']);
+    Route::get('/requisitions', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'index']);
+    Route::get('/requisitions/{id}', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'show']);
+    Route::post('/requisitions/{id}/approve', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'approve']);
+    Route::post('/requisitions/{id}/reject', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'reject']);
+
+    Route::get('/visitors', [\App\Http\Controllers\Api\ApiVisitorsController::class, 'index']);
+    Route::post('/visitors', [\App\Http\Controllers\Api\ApiVisitorsController::class, 'store']);
+    Route::post('/visitors/{id}/checkout', [\App\Http\Controllers\Api\ApiVisitorsController::class, 'checkout']);
+
+    Route::get('/assets', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'index']);
+    Route::get('/assets/{id}', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'show']);
+
+    Route::get('/reports/weekly', [\App\Http\Controllers\Api\ApiWeeklyReportsController::class, 'index']);
+    Route::get('/reports/expenses/summary', [\App\Http\Controllers\Api\ApiExpenseReportsController::class, 'summary']);
+    Route::get('/reports/board-pack', [\App\Http\Controllers\Api\ApiBoardPackController::class, 'show']);
 
     Route::post('/notifications/mark-all-read', [\App\Http\Controllers\Api\ApiNotificationController::class, 'markAllRead']);
     Route::get('/notifications', [\App\Http\Controllers\Api\ApiNotificationController::class, 'index']);

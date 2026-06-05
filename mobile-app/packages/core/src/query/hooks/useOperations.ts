@@ -62,3 +62,80 @@ export function useStudentRequirements(studentId: number, options?: { enabled?: 
     staleTime: 45_000,
   });
 }
+
+export function useInventoryItems(options?: {
+  enabled?: boolean;
+  search?: string;
+  lowStock?: boolean;
+}) {
+  return useQuery({
+    queryKey: queryKeys.operations.inventory({
+      search: options?.search,
+      lowStock: options?.lowStock,
+    }),
+    queryFn: async () => {
+      const res = await operationsApi.listInventoryItems({
+        search: options?.search,
+        low_stock: options?.lowStock,
+        per_page: 50,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load inventory.');
+      }
+      return res.data.data ?? [];
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 45_000,
+  });
+}
+
+export function useRequisitions(options?: { enabled?: boolean; status?: string }) {
+  return useQuery({
+    queryKey: queryKeys.operations.requisitions(options?.status),
+    queryFn: async () => {
+      const res = await operationsApi.listRequisitions({
+        status: options?.status,
+        per_page: 50,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load requisitions.');
+      }
+      return res.data.data ?? [];
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 45_000,
+  });
+}
+
+export function useVisitors(options?: { enabled?: boolean; onSite?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.operations.visitors(options?.onSite),
+    queryFn: async () => {
+      const res = await operationsApi.listVisitors({
+        on_site: options?.onSite,
+        per_page: 50,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load visitors.');
+      }
+      return res.data.data ?? [];
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 30_000,
+  });
+}
+
+export function useMedicalRecords(studentId: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.operations.medicalRecords(studentId),
+    queryFn: async () => {
+      const res = await operationsApi.listMedicalRecords(studentId);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load medical records.');
+      }
+      return res.data.data ?? [];
+    },
+    enabled: (options?.enabled !== false) && studentId > 0,
+    staleTime: 60_000,
+  });
+}

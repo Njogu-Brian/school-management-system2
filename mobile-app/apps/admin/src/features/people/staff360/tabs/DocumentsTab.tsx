@@ -1,25 +1,31 @@
-import { useStaffDocuments } from '@erp/core';
-import { EmptyState, FinanceFieldSection } from '@erp/ui';
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { downloadAuthenticatedFile, useStaffDocuments } from '@erp/core';
+import { EmptyState } from '@erp/ui';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
 
 export interface DocumentsTabProps {
   staffId: number;
 }
 
-/** `GET /staff/{id}/documents` */
 export const DocumentsTab: React.FC<DocumentsTabProps> = ({ staffId }) => {
-  const { colors, palette, fontSizes } = useTheme();
+  const { colors, palette, fontSizes, spacing } = useTheme();
   const query = useStaffDocuments(staffId);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
-  const rows = useMemo(
-    () =>
-      (query.data ?? []).map((doc) => ({
-        label: doc.title,
-        value: [doc.document_type, doc.expiry_date].filter(Boolean).join(' · ') || '—',
-      })),
-    [query.data],
+  const handleDownload = useCallback(
+    async (doc: { id: number; title: string; download_path?: string | null }) => {
+      if (!doc.download_path) return;
+      setDownloadingId(doc.id);
+      try {
+        await downloadAuthenticatedFile(doc.download_path, doc.title);
+      } catch (err) {
+        Alert.alert('Download failed', (err as Error).message);
+      } finally {
+        setDownloadingId(null);
+      }
+    },
+    [],
   );
 
   if (query.isLoading) {
@@ -41,7 +47,8 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ staffId }) => {
     );
   }
 
-  if (rows.length === 0) {
+  const docs = query.data ?? [];
+  if (docs.length === 0) {
     return (
       <EmptyState
         title="No documents"
@@ -56,7 +63,30 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ staffId }) => {
       <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
         API: GET /staff/{'{id}'}/documents
       </Text>
-      <FinanceFieldSection title="HR documents" rows={rows} />
+      {docs.map((doc) => (
+        <View
+          key={doc.id}
+          style={{
+            borderWidth: 1,
+            borderColor: palette.border,
+            borderRadius: 8,
+            padding: spacing.sm,
+            marginBottom: spacing.xs,
+          }}
+        >
+          <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{doc.title}</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+            {[doc.document_type, doc.expiry_date].filter(Boolean).join(' · ') || '—'}
+          </Text>
+          {doc.download_path ? (
+            <Pressable onPress={() => void handleDownload(doc)} style={{ marginTop: 8 }}>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                {downloadingId === doc.id ? 'Downloading…' : 'Download'}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ))}
     </>
   );
 };

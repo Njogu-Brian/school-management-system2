@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\LeaveRequest;
 use App\Models\Academics\LessonPlan;
 use App\Models\OnlineAdmission;
+use App\Models\Requisition;
 use Illuminate\Http\Request;
 
 /**
@@ -29,6 +30,9 @@ class ApiApprovalsController extends Controller
         }
         if ($sourceType === 'all' || $sourceType === 'online_admission') {
             $items = array_merge($items, $this->admissionItems($status, $perPage));
+        }
+        if ($sourceType === 'all' || $sourceType === 'requisition') {
+            $items = array_merge($items, $this->requisitionItems($status, $perPage));
         }
 
         usort($items, function ($a, $b) {
@@ -61,6 +65,9 @@ class ApiApprovalsController extends Controller
             'online_admission' => $this->formatAdmissionItem(
                 OnlineAdmission::with(['preferredClassroom', 'classroom'])->findOrFail((int) $id)
             ),
+            'requisition' => $this->formatRequisitionItem(
+                Requisition::with(['requestedBy', 'items'])->findOrFail((int) $id)
+            ),
             default => null,
         };
 
@@ -78,6 +85,7 @@ class ApiApprovalsController extends Controller
         return match ($type) {
             'leave_request' => app(ApiLeaveRequestController::class)->approve($request, (int) $id),
             'lesson_plan' => app(ApiLessonPlansController::class)->approve($request, (int) $id),
+            'requisition' => app(ApiRequisitionController::class)->approve($request, (int) $id),
             default => response()->json([
                 'success' => false,
                 'message' => 'Approve not supported for this approval type in mobile.',
@@ -92,6 +100,7 @@ class ApiApprovalsController extends Controller
         return match ($type) {
             'leave_request' => app(ApiLeaveRequestController::class)->reject($request, (int) $id),
             'lesson_plan' => app(ApiLessonPlansController::class)->reject($request, (int) $id),
+            'requisition' => app(ApiRequisitionController::class)->reject($request, (int) $id),
             default => response()->json([
                 'success' => false,
                 'message' => 'Reject not supported for this approval type in mobile.',
@@ -192,6 +201,43 @@ class ApiApprovalsController extends Controller
             'requester_name' => $lp->creator?->full_name,
             'summary' => $lp->classroom?->name,
             'can_act' => $lp->submission_status === 'submitted',
+        ];
+    }
+
+    protected function requisitionItems(string $status, int $limit): array
+    {
+        $query = Requisition::with(['requestedBy', 'items'])->orderByDesc('created_at');
+        if ($status === 'approved') {
+            $query->whereIn('status', ['approved', 'fulfilled']);
+        } elseif ($status === 'rejected') {
+            $query->where('status', 'rejected');
+        } elseif ($status === 'pending') {
+            $query->where('status', 'pending');
+        }
+
+        return $query->limit($limit)->get()->map(fn ($r) => $this->formatRequisitionItem($r))->all();
+    }
+
+    protected function formatRequisitionItem(Requisition $r): array
+    {
+        $approvalStatus = match ($r->status) {
+            'approved', 'fulfilled' => 'approved',
+            'rejected' => 'rejected',
+            default => 'pending',
+        };
+
+        return [
+            'id' => 'requisition:'.$r->id,
+            'source_type' => 'requisition',
+            'source_id' => $r->id,
+            'title' => $r->requisition_number,
+            'subtitle' => ($r->requestedBy?->name ?? 'Staff').' · '.$r->type,
+            'status' => $approvalStatus,
+            'priority' => 'medium',
+            'requested_at' => ($r->requested_at ?? $r->created_at)?->toIso8601String(),
+            'requester_name' => $r->requestedBy?->name,
+            'summary' => $r->purpose,
+            'can_act' => $r->status === 'pending',
         ];
     }
 

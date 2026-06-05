@@ -27,6 +27,7 @@ class ApiStaffDocumentsController extends Controller
             'description' => $doc->description,
             'file_path' => $doc->file_path,
             'file_url' => $doc->file_url,
+            'download_path' => "/staff/{$staff->id}/documents/{$doc->id}/download",
             'expiry_date' => $doc->expiry_date?->format('Y-m-d'),
             'is_expired' => $doc->isExpired(),
             'is_expiring_soon' => $doc->isExpiringSoon(),
@@ -47,5 +48,24 @@ class ApiStaffDocumentsController extends Controller
                 'to' => $paginated->lastItem(),
             ],
         ]);
+    }
+
+    public function download(Request $request, int $staffId, int $documentId)
+    {
+        $staff = Staff::findOrFail($staffId);
+        $document = StaffDocument::query()
+            ->where('staff_id', $staff->id)
+            ->findOrFail($documentId);
+
+        if (! storage_public()->exists($document->file_path)) {
+            abort(404, 'File not found.');
+        }
+
+        $ext = pathinfo($document->file_path, PATHINFO_EXTENSION);
+
+        return storage_public()->download(
+            $document->file_path,
+            $document->title.($ext ? ".{$ext}" : '')
+        );
     }
 }

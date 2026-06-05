@@ -23,3 +23,5 @@ export * from './hooks/useAcademicsWorkspace';
 export * from './hooks/useOperations';
 export * from './hooks/useDocuments';
 export * from './hooks/useCommunication';
+export * from './hooks/useReports';
+export * from './hooks/useStaffPerformance';

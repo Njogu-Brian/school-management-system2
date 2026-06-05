@@ -71,6 +71,10 @@ export const queryKeys = {
     ) => [...queryKeys.staff.all, 'attendance-history', id, range ?? {}] as const,
     payrollRecords: (id: number, page?: number) =>
       [...queryKeys.staff.all, 'payroll-records', id, page ?? 1] as const,
+    performanceReviews: (id: number) =>
+      [...queryKeys.staff.all, 'performance-reviews', id] as const,
+    trainingRecords: (id: number) =>
+      [...queryKeys.staff.all, 'training-records', id] as const,
   },
   admissions: {
     all: ['admissions'] as const,
@@ -130,6 +134,14 @@ export const queryKeys = {
     route: (id: number) => [...queryKeys.operations.all, 'route', id] as const,
     studentRequirements: (studentId: number) =>
       [...queryKeys.operations.all, 'student-requirements', studentId] as const,
+    inventory: (filters?: { search?: string; lowStock?: boolean }) =>
+      [...queryKeys.operations.all, 'inventory', filters ?? {}] as const,
+    requisitions: (status?: string) =>
+      [...queryKeys.operations.all, 'requisitions', status ?? 'all'] as const,
+    visitors: (onSite?: boolean) =>
+      [...queryKeys.operations.all, 'visitors', onSite ?? false] as const,
+    medicalRecords: (studentId: number) =>
+      [...queryKeys.operations.all, 'medical-records', studentId] as const,
   },
   documents: {
     all: ['documents'] as const,
@@ -139,6 +151,17 @@ export const queryKeys = {
   communication: {
     all: ['communication'] as const,
     announcements: () => [...queryKeys.communication.all, 'announcements'] as const,
+    templates: (type?: string) =>
+      [...queryKeys.communication.all, 'templates', type ?? 'sms'] as const,
+    logs: () => [...queryKeys.communication.all, 'logs'] as const,
+  },
+  reports: {
+    all: ['reports'] as const,
+    weekly: (weekEnding?: string) =>
+      [...queryKeys.reports.all, 'weekly', weekEnding ?? 'recent'] as const,
+    expenses: (range?: { from?: string; to?: string }) =>
+      [...queryKeys.reports.all, 'expenses', range ?? {}] as const,
+    boardPack: () => [...queryKeys.reports.all, 'board-pack'] as const,
   },
   settings: {
     all: ['settings'] as const,

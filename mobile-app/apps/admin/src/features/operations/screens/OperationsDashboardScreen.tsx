@@ -8,7 +8,10 @@ import type { OperationsStackParamList } from '../../../navigation/operationsSta
 type Props = StackScreenProps<OperationsStackParamList, 'OperationsDashboard'>;
 
 const SECTIONS = [
-  { route: 'TripsList' as const, label: 'Transport', icon: 'bus-outline' as const, subtitle: 'School trips & routes' },
+  { route: 'TripsList' as const, label: 'Transport', icon: 'bus-outline' as const },
+  { route: 'InventoryList' as const, label: 'Inventory', icon: 'cube-outline' as const },
+  { route: 'RequisitionsList' as const, label: 'Requisitions', icon: 'clipboard-outline' as const },
+  { route: 'VisitorsList' as const, label: 'Visitors', icon: 'person-outline' as const },
 ];
 
 export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
@@ -54,6 +57,8 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
             { label: 'Students on transport', value: String(s?.transport.students_assigned ?? '—'), icon: 'people-outline' as const },
             { label: 'Library books', value: String(s?.library.total_books ?? '—'), icon: 'library-outline' as const },
             { label: 'Books available', value: String(s?.library.available_books ?? '—'), icon: 'book-outline' as const },
+            { label: 'Low stock', value: String(s?.inventory.low_stock_items ?? '—'), icon: 'warning-outline' as const },
+            { label: 'Visitors on site', value: String(s?.visitors?.on_site ?? '—'), icon: 'walk-outline' as const },
           ].map((kpi) => {
             const state = summaryQuery.isLoading ? 'loading' : summaryQuery.isError ? 'error' : 'success';
             return (

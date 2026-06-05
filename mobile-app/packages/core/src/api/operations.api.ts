@@ -48,7 +48,62 @@ export interface OperationsSummary {
   library: { total_books: number; available_books: number };
   inventory: { tracked_items: number; low_stock_items: number };
   facilities: { open_tickets: number };
+  visitors?: { on_site: number };
+  assets?: { active: number };
   as_of: string;
+}
+
+export interface InventoryItemRecord {
+  id: number;
+  name: string;
+  category?: string | null;
+  brand?: string | null;
+  quantity: number;
+  min_stock_level: number;
+  unit?: string | null;
+  is_low_stock: boolean;
+  location?: string | null;
+}
+
+export interface RequisitionRecord {
+  id: number;
+  requisition_number: string;
+  type: string;
+  purpose?: string | null;
+  status: string;
+  requested_by?: string | null;
+  requested_at?: string | null;
+  can_approve?: boolean;
+  can_reject?: boolean;
+  items?: Array<{
+    id: number;
+    item_name: string;
+    quantity_requested: number;
+    quantity_approved?: number | null;
+    unit?: string | null;
+  }>;
+}
+
+export interface MedicalRecordRow {
+  id: number;
+  record_type?: string | null;
+  record_date?: string | null;
+  title?: string | null;
+  description?: string | null;
+  doctor_name?: string | null;
+  vaccination_name?: string | null;
+  notes?: string | null;
+}
+
+export interface VisitorRecord {
+  id: number;
+  visitor_name: string;
+  phone?: string | null;
+  purpose?: string | null;
+  host_name?: string | null;
+  checked_in_at?: string | null;
+  checked_out_at?: string | null;
+  on_site: boolean;
 }
 
 /** Transport + operations summary APIs (Sprints 9–10). */
@@ -75,5 +130,41 @@ export const operationsApi = {
     return apiClient.get<StudentRequirementsPayload>(
       `/teacher/requirements/students/${studentId}/templates`,
     );
+  },
+
+  listInventoryItems(params?: {
+    search?: string;
+    low_stock?: boolean;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<InventoryItemRecord>>> {
+    return apiClient.get<PaginatedResponse<InventoryItemRecord>>('/inventory/items', params);
+  },
+
+  listRequisitions(params?: {
+    status?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<RequisitionRecord>>> {
+    return apiClient.get<PaginatedResponse<RequisitionRecord>>('/requisitions', params);
+  },
+
+  getRequisition(id: number): Promise<ApiResponse<RequisitionRecord>> {
+    return apiClient.get<RequisitionRecord>(`/requisitions/${id}`);
+  },
+
+  listMedicalRecords(
+    studentId: number,
+    params?: { page?: number; per_page?: number },
+  ): Promise<ApiResponse<PaginatedResponse<MedicalRecordRow> & { student_id: number }>> {
+    return apiClient.get(`/students/${studentId}/medical-records`, params);
+  },
+
+  listVisitors(params?: {
+    on_site?: boolean;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<VisitorRecord>>> {
+    return apiClient.get<PaginatedResponse<VisitorRecord>>('/visitors', params);
   },
 };

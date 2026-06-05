@@ -1877,6 +1877,17 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('requisitions/{requisition}/reject', [\App\Http\Controllers\Inventory\RequisitionController::class, 'reject'])->name('requisitions.reject');
     });
 
+    Route::prefix('operations')->name('operations.')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
+        Route::get('visitors', [\App\Http\Controllers\Operations\VisitorLogController::class, 'index'])->name('visitors.index');
+        Route::get('visitors/create', [\App\Http\Controllers\Operations\VisitorLogController::class, 'create'])->name('visitors.create');
+        Route::post('visitors', [\App\Http\Controllers\Operations\VisitorLogController::class, 'store'])->name('visitors.store');
+        Route::post('visitors/{visitor}/checkout', [\App\Http\Controllers\Operations\VisitorLogController::class, 'checkout'])->name('visitors.checkout');
+
+        Route::get('assets', [\App\Http\Controllers\Operations\FixedAssetController::class, 'index'])->name('assets.index');
+        Route::get('assets/create', [\App\Http\Controllers\Operations\FixedAssetController::class, 'create'])->name('assets.create');
+        Route::post('assets', [\App\Http\Controllers\Operations\FixedAssetController::class, 'store'])->name('assets.store');
+    });
+
     /*
     |----------------------------------------------------------------------
     | Point of Sale (POS) Management

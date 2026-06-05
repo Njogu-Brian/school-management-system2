@@ -16,4 +16,8 @@ export const payrollApi = {
   ): Promise<ApiResponse<PaginatedResponse<PayrollRecordRow>>> {
     return apiClient.get<PaginatedResponse<PayrollRecordRow>>('/payroll-records', params);
   },
+
+  payslipDownloadPath(recordId: number): string {
+    return `/payroll-records/${recordId}/payslip/download`;
+  },
 };

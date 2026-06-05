@@ -40,7 +40,10 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
         <Text style={{ color: palette.textPrimary, fontSize: fontSizes.lg, fontWeight: '700', marginBottom: spacing.sm }}>
           Communication
         </Text>
-        <QuickAction label="Announcements" icon="megaphone-outline" onPress={openAnnouncements} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <QuickAction label="Announcements" icon="megaphone-outline" onPress={openAnnouncements} />
+          <QuickAction label="Send SMS" icon="chatbubble-outline" onPress={() => navigation.navigate('SmsCompose')} />
+        </View>
 
         <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
           Recent announcements
