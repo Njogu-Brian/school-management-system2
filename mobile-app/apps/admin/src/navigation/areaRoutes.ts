@@ -13,6 +13,7 @@ export const AREA_TO_TAB_ROUTE: Partial<Record<AdminAreaKey, keyof TabsParamList
 export const AREA_TO_DRAWER_ROUTE: Partial<
   Record<AdminAreaKey, Exclude<keyof import('./types').DrawerParamList, 'Workspace'>>
 > = {
+  approvals: 'Approvals',
   admissions: 'Admissions',
   academics: 'Academics',
   operations: 'Operations',

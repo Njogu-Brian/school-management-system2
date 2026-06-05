@@ -14,8 +14,12 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from '@erp/ui';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { AttendanceTab } from '../student360/tabs/AttendanceTab';
+import { DocumentsTab } from '../student360/tabs/DocumentsTab';
 import { FamilyTab } from '../student360/tabs/FamilyTab';
 import { FeesTab } from '../student360/tabs/FeesTab';
+import { HealthTab } from '../student360/tabs/HealthTab';
+import { RequirementsTab } from '../student360/tabs/RequirementsTab';
+import { TransportTab } from '../student360/tabs/TransportTab';
 import { AcademicsTab } from '../student360/tabs/AcademicsTab';
 import { OverviewTab } from '../student360/tabs/OverviewTab';
 
@@ -24,6 +28,10 @@ type Props = StackScreenProps<StudentsStackParamList, 'StudentDetail'>;
 const BASE_TABS: Array<{ id: Student360TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'attendance', label: 'Attendance' },
+  { id: 'health', label: 'Health' },
+  { id: 'transport', label: 'Transport' },
+  { id: 'requirements', label: 'Requirements' },
+  { id: 'documents', label: 'Documents' },
   { id: 'fees', label: 'Fees' },
   { id: 'family', label: 'Family' },
 ];
@@ -43,15 +51,23 @@ function summaryAsDetail(summary: StudentSummary): StudentDetail {
     parent: null,
     guardians: [],
     emergencyContact: { name: null, phone: null },
+    tripId: null,
+    dropOffPointId: null,
+    dropOffPointOther: null,
+    preferredHospital: null,
+    hasAllergies: false,
+    allergiesNotes: null,
+    isFullyImmunized: null,
+    bloodGroup: null,
   };
 }
 
 export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { studentId, summary } = route.params;
+  const { studentId, summary, tab: initialTab } = route.params;
   const canViewFees = useCan('finance.view');
   const canViewAcademics = useCan('academics.view');
   const { colors, spacing } = useTheme();
-  const [activeTab, setActiveTab] = useState<Student360TabId>('overview');
+  const [activeTab, setActiveTab] = useState<Student360TabId>(initialTab ?? 'overview');
 
   const detailQuery = useStudentDetail(studentId);
   const statsQuery = useStudentStats(studentId);
@@ -63,10 +79,14 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const tabs = useMemo(() => {
     const list = [...BASE_TABS];
     if (canViewAcademics) {
-      list.splice(2, 0, { id: 'academics', label: 'Academics' });
+      const healthIndex = list.findIndex((t) => t.id === 'health');
+      list.splice(healthIndex >= 0 ? healthIndex : 2, 0, { id: 'academics', label: 'Academics' });
+    }
+    if (!canViewFees) {
+      return list.filter((t) => t.id !== 'fees');
     }
     return list;
-  }, [canViewAcademics]);
+  }, [canViewAcademics, canViewFees]);
 
   const student = detailQuery.data ?? (summary ? summaryAsDetail(summary) : undefined);
 
@@ -186,6 +206,14 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         );
       case 'family':
         return <FamilyTab student={student} />;
+      case 'health':
+        return <HealthTab student={student} />;
+      case 'transport':
+        return <TransportTab student={student} />;
+      case 'requirements':
+        return <RequirementsTab studentId={studentId} />;
+      case 'documents':
+        return <DocumentsTab />;
       default:
         return null;
     }

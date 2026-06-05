@@ -5,6 +5,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
+import { navigateToDrawer } from '../../../navigation/navigateWorkspace';
 import { useCanViewApprovals } from '../../approvals/hooks/useCanViewApprovals';
 import { approvalItemToCard } from '../../approvals/utils/mapToCard';
 
@@ -41,7 +42,7 @@ export const PendingApprovalsPanel: React.FC = () => {
       title="Pending approvals"
       subtitle="Leave requests and lesson plans awaiting action"
       headerRight={
-        <Pressable onPress={() => navigation.navigate('ApprovalCenter')}>
+        <Pressable onPress={() => navigateToDrawer(navigation, 'Approvals', 'ApprovalsHome')}>
           <Text style={{ color: colors.primary, fontWeight: '600', fontSize: fontSizes.sm }}>
             View all
           </Text>

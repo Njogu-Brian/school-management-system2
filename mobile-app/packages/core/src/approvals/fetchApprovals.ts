@@ -1,6 +1,12 @@
+import { admissionsApi } from '../api/admissions.api';
 import { approvalsApi } from '../api/approvals.api';
+import type { ApplicationStatus } from '../types/admissions';
 import type { ApprovalItem, ApprovalListFilters } from '../types/approval';
-import { leaveToApprovalItem, lessonPlanToApprovalItem } from './normalize';
+import {
+  admissionToApprovalItem,
+  leaveToApprovalItem,
+  lessonPlanToApprovalItem,
+} from './normalize';
 
 const DEFAULT_PER_PAGE = 30;
 
@@ -128,13 +134,66 @@ function applyLessonPlanStatusFilter(
   return items;
 }
 
+function admissionStatusesForFilter(
+  status: ApprovalListFilters['status'],
+): ApplicationStatus[] | 'all' {
+  if (!status || status === 'all') return 'all';
+  if (status === 'approved') return ['enrolled'];
+  if (status === 'rejected') return ['rejected'];
+  if (status === 'pending' || status === 'escalated' || status === 'expired') {
+    return ['pending', 'under_review', 'waitlisted'];
+  }
+  return 'all';
+}
+
+async function fetchAdmissionItems(filters: ApprovalListFilters): Promise<ApprovalItem[]> {
+  const mapped = admissionStatusesForFilter(filters.status);
+  const perPage = filters.perPage ?? DEFAULT_PER_PAGE;
+  const page = filters.page ?? 1;
+
+  const statuses: ApplicationStatus[] =
+    mapped === 'all'
+      ? ['pending', 'under_review', 'waitlisted', 'enrolled', 'rejected']
+      : mapped;
+
+  const results = await Promise.all(
+    statuses.map((applicationStatus) =>
+      admissionsApi.list({ status: applicationStatus, per_page: perPage, page }),
+    ),
+  );
+
+  const items: ApprovalItem[] = [];
+  for (const res of results) {
+    if (res.success && res.data) {
+      items.push(...res.data.data.map(admissionToApprovalItem));
+    }
+  }
+
+  const status = filters.status;
+  if (status === 'pending') {
+    return items.filter((i) => i.status === 'pending');
+  }
+  if (status === 'approved') {
+    return items.filter((i) => i.status === 'approved');
+  }
+  if (status === 'rejected') {
+    return items.filter((i) => i.status === 'rejected');
+  }
+  return items;
+}
+
 /** Merges enabled approval sources and applies client-side filters/sort. */
 export async function fetchApprovalItems(
   filters: ApprovalListFilters,
-  options?: { includeLeave?: boolean; includeLessonPlans?: boolean },
+  options?: {
+    includeLeave?: boolean;
+    includeLessonPlans?: boolean;
+    includeAdmissions?: boolean;
+  },
 ): Promise<ApprovalItem[]> {
   const includeLeave = options?.includeLeave !== false;
   const includeLessonPlans = options?.includeLessonPlans !== false;
+  const includeAdmissions = options?.includeAdmissions !== false;
 
   const batches: ApprovalItem[][] = [];
   if (includeLeave && (!filters.sourceType || filters.sourceType === 'all' || filters.sourceType === 'leave_request')) {
@@ -145,6 +204,12 @@ export async function fetchApprovalItems(
     (!filters.sourceType || filters.sourceType === 'all' || filters.sourceType === 'lesson_plan')
   ) {
     batches.push(await fetchLessonPlanItems(filters));
+  }
+  if (
+    includeAdmissions &&
+    (!filters.sourceType || filters.sourceType === 'all' || filters.sourceType === 'online_admission')
+  ) {
+    batches.push(await fetchAdmissionItems(filters));
   }
 
   const merged = batches.flat().filter((item) => matchesFilters(item, filters));

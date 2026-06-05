@@ -19,6 +19,11 @@ export const APPROVAL_SOURCE_REGISTRY: ApprovalSourceDefinition[] = [
     label: 'Lesson plan',
     permissions: ['dashboard.approvals.view', 'dashboard.view'],
   },
+  {
+    type: 'online_admission',
+    label: 'Admission application',
+    permissions: ['admissions.view', 'approvals.view'],
+  },
 ];
 
 export function getSourceLabel(type: ApprovalSourceType): string {

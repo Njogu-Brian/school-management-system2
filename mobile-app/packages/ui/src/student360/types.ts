@@ -1,4 +1,13 @@
-export type Student360TabId = 'overview' | 'attendance' | 'academics' | 'fees' | 'family';
+export type Student360TabId =
+  | 'overview'
+  | 'attendance'
+  | 'academics'
+  | 'fees'
+  | 'family'
+  | 'health'
+  | 'transport'
+  | 'requirements'
+  | 'documents';
 
 export interface Student360HeaderData {
   fullName: string;

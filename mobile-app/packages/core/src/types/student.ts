@@ -26,6 +26,14 @@ export interface StudentRecord {
   residential_area?: string | null;
   religion?: string | null;
   nemis_number?: string | null;
+  trip_id?: number | null;
+  drop_off_point_id?: number | null;
+  drop_off_point_other?: string | null;
+  preferred_hospital?: string | null;
+  has_allergies?: boolean;
+  allergies_notes?: string | null;
+  is_fully_immunized?: boolean | null;
+  blood_group?: string | null;
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
   guardians?: StudentGuardianRecord[];
@@ -100,6 +108,14 @@ export interface StudentDetail extends StudentSummary {
   parent: StudentParentInfo | null;
   guardians: StudentGuardianContact[];
   emergencyContact: StudentEmergencyContact;
+  tripId: number | null;
+  dropOffPointId: number | null;
+  dropOffPointOther: string | null;
+  preferredHospital: string | null;
+  hasAllergies: boolean;
+  allergiesNotes: string | null;
+  isFullyImmunized: boolean | null;
+  bloodGroup: string | null;
 }
 
 export interface StudentGuardianContact {

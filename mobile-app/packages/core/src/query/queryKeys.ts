@@ -123,6 +123,12 @@ export const queryKeys = {
     transactionDetail: (id: number, type: string) =>
       [...queryKeys.finance.all, 'transaction', id, type] as const,
   },
+  operations: {
+    all: ['operations'] as const,
+    route: (id: number) => [...queryKeys.operations.all, 'route', id] as const,
+    studentRequirements: (studentId: number) =>
+      [...queryKeys.operations.all, 'student-requirements', studentId] as const,
+  },
   settings: {
     all: ['settings'] as const,
     school: () => [...queryKeys.settings.all, 'school'] as const,

@@ -20,3 +20,4 @@ export * from './hooks/useStaffDetail';
 export * from './hooks/useStaff360';
 export * from './hooks/useFinance';
 export * from './hooks/useAcademicsWorkspace';
+export * from './hooks/useOperations';

@@ -1,4 +1,12 @@
-export type Staff360TabId = 'overview' | 'employment' | 'leave' | 'attendance';
+export type Staff360TabId =
+  | 'overview'
+  | 'employment'
+  | 'leave'
+  | 'attendance'
+  | 'payroll'
+  | 'performance'
+  | 'documents'
+  | 'training';
 
 export interface Staff360HeaderData {
   fullName: string;

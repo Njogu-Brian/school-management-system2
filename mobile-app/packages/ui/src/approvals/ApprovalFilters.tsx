@@ -38,6 +38,7 @@ const SOURCE_CHIPS: FilterChip<ApprovalSourceType | 'all'>[] = [
   { value: 'all', label: 'All types' },
   { value: 'leave_request', label: 'Leave' },
   { value: 'lesson_plan', label: 'Lesson plans' },
+  { value: 'online_admission', label: 'Admissions' },
 ];
 
 function ChipRow<T extends string>({

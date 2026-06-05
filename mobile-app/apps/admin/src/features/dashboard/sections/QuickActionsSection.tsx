@@ -7,6 +7,7 @@ import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@erp/ui';
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
+import { navigateToDrawer, navigateToTab } from '../../../navigation/navigateWorkspace';
 import { QUICK_ACTION_PLACEHOLDERS } from '../data/placeholders';
 
 export const QuickActionsSection: React.FC = () => {
@@ -22,8 +23,21 @@ export const QuickActionsSection: React.FC = () => {
 
   const onActionPress = useCallback(
     (actionId: string) => {
-      if (actionId === 'qa_approvals') {
-        navigation.navigate('ApprovalCenter');
+      switch (actionId) {
+        case 'qa_students':
+          navigateToTab(navigation, 'Students', 'StudentRegistry');
+          break;
+        case 'qa_finance':
+          navigateToTab(navigation, 'Finance', 'CollectionsList');
+          break;
+        case 'qa_admissions':
+          navigateToDrawer(navigation, 'Admissions', 'AdmissionsWorkspace');
+          break;
+        case 'qa_approvals':
+          navigateToDrawer(navigation, 'Approvals', 'ApprovalsHome');
+          break;
+        default:
+          break;
       }
     },
     [navigation],

@@ -68,7 +68,7 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     id: 'qa_approvals',
     label: 'Approvals inbox',
     icon: 'checkbox-outline',
-    permissions: ['dashboard.view', 'dashboard.approvals.view'],
+    permissions: ['approvals.view', 'dashboard.approvals.view', 'dashboard.view'],
   },
   {
     id: 'qa_admissions',

@@ -8,7 +8,7 @@ export type ApprovalStatus =
 
 export type ApprovalPriority = 'critical' | 'high' | 'medium' | 'low';
 
-export type ApprovalSourceType = 'leave_request' | 'lesson_plan';
+export type ApprovalSourceType = 'leave_request' | 'lesson_plan' | 'online_admission';
 
 export interface ApprovalCardData {
   id: string;

@@ -15,9 +15,13 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from '@erp/ui';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
 import { AttendanceTab } from '../staff360/tabs/AttendanceTab';
+import { DocumentsTab } from '../staff360/tabs/DocumentsTab';
 import { EmploymentTab } from '../staff360/tabs/EmploymentTab';
 import { LeaveTab } from '../staff360/tabs/LeaveTab';
 import { OverviewTab } from '../staff360/tabs/OverviewTab';
+import { PayrollTab } from '../staff360/tabs/PayrollTab';
+import { PerformanceTab } from '../staff360/tabs/PerformanceTab';
+import { TrainingTab } from '../staff360/tabs/TrainingTab';
 
 type Props = StackScreenProps<PeopleStackParamList, 'StaffDetail'>;
 
@@ -26,6 +30,10 @@ const TABS: Array<{ id: Staff360TabId; label: string }> = [
   { id: 'employment', label: 'Employment' },
   { id: 'leave', label: 'Leave' },
   { id: 'attendance', label: 'Attendance' },
+  { id: 'payroll', label: 'Payroll' },
+  { id: 'performance', label: 'Performance' },
+  { id: 'documents', label: 'Documents' },
+  { id: 'training', label: 'Training' },
 ];
 
 function summaryAsDetail(summary: StaffSummary): StaffDetail {
@@ -175,6 +183,14 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             days={attendanceQuery.days}
           />
         );
+      case 'payroll':
+        return <PayrollTab staffId={staffId} canViewFinance={canViewFinance} />;
+      case 'performance':
+        return <PerformanceTab />;
+      case 'documents':
+        return <DocumentsTab />;
+      case 'training':
+        return <TrainingTab />;
       default:
         return null;
     }

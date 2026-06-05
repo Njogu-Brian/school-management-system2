@@ -1,14 +1,20 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { AcademicsStackParamList } from './academicsStackTypes';
+import type { AdmissionsStackParamList } from './admissionsStackTypes';
+import type { ApprovalsStackParamList } from './approvalsStackTypes';
+import type { DashboardStackParamList } from './dashboardStackTypes';
+import type { FinanceStackParamList } from './financeStackTypes';
+import type { PeopleStackParamList } from './peopleStackTypes';
 import type { StudentsStackParamList } from './studentsStackTypes';
 
 /**
  * Bottom-tab routes (the most-used admin areas — build plan §5.2 default preset).
  */
 export type TabsParamList = {
-  Dashboard: undefined;
+  Dashboard: NavigatorScreenParams<DashboardStackParamList> | undefined;
   Students: NavigatorScreenParams<StudentsStackParamList> | undefined;
-  Finance: undefined;
-  People: undefined;
+  Finance: NavigatorScreenParams<FinanceStackParamList> | undefined;
+  People: NavigatorScreenParams<PeopleStackParamList> | undefined;
 };
 
 /**
@@ -17,8 +23,9 @@ export type TabsParamList = {
  */
 export type DrawerParamList = {
   Workspace: NavigatorScreenParams<TabsParamList> | undefined;
-  Admissions: undefined;
-  Academics: undefined;
+  Approvals: NavigatorScreenParams<ApprovalsStackParamList> | undefined;
+  Admissions: NavigatorScreenParams<AdmissionsStackParamList> | undefined;
+  Academics: NavigatorScreenParams<AcademicsStackParamList> | undefined;
   Operations: undefined;
   Communication: undefined;
   Reports: undefined;

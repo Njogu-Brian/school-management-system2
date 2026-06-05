@@ -8,6 +8,7 @@ export interface UseApprovalListOptions {
   enabled?: boolean;
   includeLeave?: boolean;
   includeLessonPlans?: boolean;
+  includeAdmissions?: boolean;
 }
 
 export function useApprovalList(options?: UseApprovalListOptions) {
@@ -18,6 +19,7 @@ export function useApprovalList(options?: UseApprovalListOptions) {
       fetchApprovalItems(filters, {
         includeLeave: options?.includeLeave,
         includeLessonPlans: options?.includeLessonPlans,
+        includeAdmissions: options?.includeAdmissions,
       }),
     enabled: options?.enabled !== false,
     staleTime: 45_000,

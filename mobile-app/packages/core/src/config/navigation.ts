@@ -10,6 +10,7 @@
 
 export type AdminAreaKey =
   | 'dashboard'
+  | 'approvals'
   | 'admissions'
   | 'students'
   | 'academics'
@@ -41,6 +42,14 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
     description: 'Role-aware command center: overview, approvals, and alerts.',
     sections: ['Overview', 'Approvals', 'Alerts'],
     inTabs: true,
+  },
+  {
+    key: 'approvals',
+    label: 'Approvals',
+    icon: 'checkbox-outline',
+    description: 'Unified inbox for leave, lesson plans, admissions, and more.',
+    sections: ['Pending', 'Approved', 'Rejected'],
+    inTabs: false,
   },
   {
     key: 'admissions',

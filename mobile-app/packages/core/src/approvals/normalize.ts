@@ -1,3 +1,4 @@
+import type { ApplicationListRecord, ApplicationStatus } from '../types/admissions';
 import type {
   ApprovalCompositeId,
   ApprovalItem,
@@ -101,6 +102,31 @@ export function leaveToApprovalItem(leave: LeaveRequestRecord): ApprovalItem {
     requesterName: leave.staff_name,
     summary: leave.reason ?? undefined,
     canAct: status === 'pending' || status === 'escalated',
+  };
+}
+
+function deriveAdmissionStatus(status: ApplicationStatus): ApprovalStatus {
+  if (status === 'enrolled') return 'approved';
+  if (status === 'rejected') return 'rejected';
+  return 'pending';
+}
+
+export function admissionToApprovalItem(app: ApplicationListRecord): ApprovalItem {
+  const status = deriveAdmissionStatus(app.application_status);
+  const classLabel = app.class_name ?? app.preferred_class_name;
+
+  return {
+    id: toCompositeId('online_admission', app.id),
+    sourceType: 'online_admission',
+    sourceId: app.id,
+    title: app.full_name,
+    subtitle: [classLabel, app.application_status.replace('_', ' ')].filter(Boolean).join(' · '),
+    status,
+    priority: 'medium',
+    requestedAt: app.application_date ?? new Date().toISOString(),
+    requesterName: app.full_name,
+    summary: app.application_source ?? undefined,
+    canAct: false,
   };
 }
 

@@ -1,14 +1,13 @@
 import type { ApprovalItem } from '@erp/core';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
-import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
+import type { ApprovalsStackParamList } from '../../../navigation/approvalsStackTypes';
 import { ApprovalsInbox } from '../components/ApprovalsInbox';
 import { useCanViewApprovals } from '../hooks/useCanViewApprovals';
 
-type Props = StackScreenProps<DashboardStackParamList, 'ApprovalCenter'>;
+type Props = StackScreenProps<ApprovalsStackParamList, 'ApprovalsHome'>;
 
-/** Dashboard entry point — same inbox as the Approvals workspace drawer. */
-export const ApprovalCenterScreen: React.FC<Props> = ({ navigation }) => {
+export const ApprovalsWorkspaceScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCanViewApprovals();
 
   const onOpenDetail = useCallback(

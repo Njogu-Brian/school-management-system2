@@ -1,5 +1,6 @@
 import type { User } from '../types';
 import { UserRole } from '../config/roles';
+import { expandPermissionAliases, PERMISSION_ALIASES } from './permissionAliases';
 import { ALL_ADMIN_PERMISSIONS, AdminPermission } from './permissions';
 import { ROLE_PRESET_PERMISSIONS, RolePreset } from './rolePresets';
 import { presetMatchesRole, resolveRolePreset } from './roleModel';
@@ -24,9 +25,11 @@ function normalizePermissionSet(permissions: Iterable<string>): Set<string> {
 
 function expandWildcard(set: Set<string>): Set<string> {
   if (set.has(AdminPermission.ALL)) {
-    return normalizePermissionSet([...ALL_ADMIN_PERMISSIONS, AdminPermission.ALL]);
+    return expandPermissionAliases(
+      normalizePermissionSet([...ALL_ADMIN_PERMISSIONS, AdminPermission.ALL]),
+    );
   }
-  return set;
+  return expandPermissionAliases(set);
 }
 
 /**
@@ -72,9 +75,19 @@ export function can(
 
   const normalized = required.map((p) => p.trim().toLowerCase());
   if (options?.requireAll) {
-    return normalized.every((p) => permissionSet.has(p));
+    return normalized.every((p) => permissionSet.has(p) || hasAliasGrant(permissionSet, p));
   }
-  return normalized.some((p) => permissionSet.has(p));
+  return normalized.some((p) => permissionSet.has(p) || hasAliasGrant(permissionSet, p));
+}
+
+/** True when a required mobile key is granted via a Laravel source permission. */
+function hasAliasGrant(set: Set<string>, required: string): boolean {
+  for (const [source, aliases] of Object.entries(PERMISSION_ALIASES)) {
+    if (set.has(source) && aliases.includes(required)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function hasRole(

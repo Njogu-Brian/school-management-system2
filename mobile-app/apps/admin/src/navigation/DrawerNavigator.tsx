@@ -9,6 +9,7 @@ import { DrawerActions } from '@react-navigation/native';
 import React from 'react';
 import { AcademicsStackNavigator } from './AcademicsStackNavigator';
 import { AdmissionsStackNavigator } from './AdmissionsStackNavigator';
+import { ApprovalsStackNavigator } from './ApprovalsStackNavigator';
 import { CommunicationScreen } from '../features/communication';
 import { OperationsScreen } from '../features/operations';
 import { ReportsScreen } from '../features/reports';
@@ -42,6 +43,7 @@ const DRAWER_SCREENS: Array<{
   component: React.ComponentType;
   title: string;
 }> = [
+  { areaKey: 'approvals', component: ApprovalsStackNavigator, title: 'Approvals' },
   { areaKey: 'admissions', component: AdmissionsStackNavigator, title: 'Admissions' },
   { areaKey: 'academics', component: AcademicsStackNavigator, title: 'Academics' },
   { areaKey: 'operations', component: OperationsScreen, title: 'Operations' },

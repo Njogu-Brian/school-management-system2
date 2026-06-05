@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { admissionsApi } from '../../api/admissions.api';
 import { approvalsApi } from '../../api/approvals.api';
-import { lessonPlanToApprovalItem, parseCompositeId } from '../../approvals/normalize';
+import { admissionToApprovalItem, lessonPlanToApprovalItem, parseCompositeId } from '../../approvals/normalize';
 import type { ApprovalCompositeId, ApprovalItem } from '../../types/approval';
 import { queryKeys } from '../queryKeys';
 
@@ -22,6 +23,13 @@ export function useApprovalDetail(
           throw new Error(res.message || 'Failed to load lesson plan.');
         }
         return lessonPlanToApprovalItem(res.data);
+      }
+      if (parsed.sourceType === 'online_admission') {
+        const res = await admissionsApi.getById(parsed.sourceId);
+        if (!res.success || !res.data) {
+          throw new Error(res.message || 'Failed to load application.');
+        }
+        return admissionToApprovalItem(res.data);
       }
       if (initialItem) {
         return initialItem;

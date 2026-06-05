@@ -30,6 +30,7 @@ const LEADERSHIP_PERMISSIONS: PermissionKey[] = [
   AdminPermission.DASHBOARD_VIEW,
   AdminPermission.DASHBOARD_APPROVALS_VIEW,
   AdminPermission.DASHBOARD_ALERTS_VIEW,
+  AdminPermission.APPROVALS_VIEW,
   AdminPermission.ADMISSIONS_VIEW,
   AdminPermission.STUDENTS_VIEW,
   AdminPermission.ACADEMICS_VIEW,
@@ -44,6 +45,7 @@ const LEADERSHIP_PERMISSIONS: PermissionKey[] = [
 const ACADEMIC_LEADERSHIP: PermissionKey[] = [
   AdminPermission.DASHBOARD_VIEW,
   AdminPermission.DASHBOARD_APPROVALS_VIEW,
+  AdminPermission.APPROVALS_VIEW,
   AdminPermission.DASHBOARD_ALERTS_VIEW,
   AdminPermission.STUDENTS_VIEW,
   AdminPermission.ACADEMICS_VIEW,
@@ -64,6 +66,7 @@ const FINANCE_SUITE: PermissionKey[] = [
 const SECRETARIAL: PermissionKey[] = [
   AdminPermission.DASHBOARD_VIEW,
   AdminPermission.DASHBOARD_APPROVALS_VIEW,
+  AdminPermission.APPROVALS_VIEW,
   AdminPermission.ADMISSIONS_VIEW,
   AdminPermission.STUDENTS_VIEW,
   AdminPermission.COMMUNICATION_VIEW,

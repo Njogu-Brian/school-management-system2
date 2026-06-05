@@ -10,6 +10,7 @@ export const AdminPermission = {
   DASHBOARD_VIEW: 'dashboard.view',
   DASHBOARD_APPROVALS_VIEW: 'dashboard.approvals.view',
   DASHBOARD_ALERTS_VIEW: 'dashboard.alerts.view',
+  APPROVALS_VIEW: 'approvals.view',
 
   // Top-level modules (minimum to see area in nav)
   ADMISSIONS_VIEW: 'admissions.view',
@@ -39,11 +40,16 @@ export const ALL_ADMIN_PERMISSIONS: readonly PermissionName[] = Object.values(
  */
 export const AREA_VIEW_PERMISSIONS: Record<AdminAreaKey, readonly PermissionName[]> = {
   dashboard: [AdminPermission.DASHBOARD_VIEW],
+  approvals: [
+    AdminPermission.APPROVALS_VIEW,
+    AdminPermission.DASHBOARD_APPROVALS_VIEW,
+    AdminPermission.DASHBOARD_VIEW,
+  ],
   admissions: [AdminPermission.ADMISSIONS_VIEW],
   students: [AdminPermission.STUDENTS_VIEW],
   academics: [AdminPermission.ACADEMICS_VIEW],
   finance: [AdminPermission.FINANCE_VIEW],
-  people: [AdminPermission.PEOPLE_VIEW],
+  people: [AdminPermission.PEOPLE_VIEW, 'staff.view'],
   operations: [AdminPermission.OPERATIONS_VIEW],
   communication: [AdminPermission.COMMUNICATION_VIEW],
   reports: [AdminPermission.REPORTS_VIEW],
@@ -53,7 +59,11 @@ export const AREA_VIEW_PERMISSIONS: Record<AdminAreaKey, readonly PermissionName
 /** Dashboard tab visibility (Batch 3 — rules only, no widgets). */
 export const DASHBOARD_TAB_PERMISSIONS = {
   overview: [AdminPermission.DASHBOARD_VIEW],
-  approvals: [AdminPermission.DASHBOARD_APPROVALS_VIEW, AdminPermission.DASHBOARD_VIEW],
+  approvals: [
+    AdminPermission.APPROVALS_VIEW,
+    AdminPermission.DASHBOARD_APPROVALS_VIEW,
+    AdminPermission.DASHBOARD_VIEW,
+  ],
   alerts: [AdminPermission.DASHBOARD_ALERTS_VIEW, AdminPermission.DASHBOARD_VIEW],
 } as const;
 

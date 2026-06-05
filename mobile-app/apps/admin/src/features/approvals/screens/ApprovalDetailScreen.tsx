@@ -10,17 +10,29 @@ import {
   ScreenContainer,
   TextField,
 } from '@erp/ui';
-import type { StackScreenProps } from '@react-navigation/stack';
+import type { RouteProp } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
-import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
+import { navigateToDrawer } from '../../../navigation/navigateWorkspace';
 import { buildApprovalDetailFields } from '../utils/detailFields';
 
-type Props = StackScreenProps<DashboardStackParamList, 'ApprovalDetail'>;
+type ApprovalDetailRoute = {
+  ApprovalDetail: {
+    id: ApprovalCompositeId;
+    item: ApprovalItem;
+  };
+};
+
+type Props = {
+  route: RouteProp<ApprovalDetailRoute, 'ApprovalDetail'>;
+  navigation: { goBack: () => void };
+};
 
 export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { id, item: initialItem } = route.params;
+  const rootNavigation = useNavigation();
   const { palette, spacing, fontSizes, colors } = useTheme();
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -66,6 +78,13 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
     );
   };
 
+  const openApplication = () => {
+    if (!item || item.sourceType !== 'online_admission') return;
+    navigateToDrawer(rootNavigation, 'Admissions', 'ApplicationDetail', {
+      applicationId: item.sourceId,
+    });
+  };
+
   if (detailQuery.isLoading && !item) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
@@ -93,6 +112,13 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
           fields={buildApprovalDetailFields(item)}
           summary={item.summary}
         >
+          {item.sourceType === 'online_admission' ? (
+            <Pressable onPress={openApplication} style={{ marginTop: spacing.md }}>
+              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: fontSizes.sm }}>
+                Open application in Admissions →
+              </Text>
+            </Pressable>
+          ) : null}
           {rejectMode ? (
             <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.md }}>
               <TextField

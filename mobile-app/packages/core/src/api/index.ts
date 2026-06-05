@@ -11,3 +11,4 @@ export * from './payroll.api';
 export * from './diagnostics.api';
 export * from './finance.api';
 export * from './academicsWorkspace.api';
+export * from './operations.api';

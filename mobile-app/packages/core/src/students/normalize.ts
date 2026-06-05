@@ -47,6 +47,14 @@ export function toStudentDetail(raw: StudentRecord, gradeLevel?: number | string
     parent: mapParentBlock(raw.parent),
     guardians: mapGuardians(raw.guardians),
     emergencyContact: mapEmergencyContact(raw),
+    tripId: raw.trip_id ?? null,
+    dropOffPointId: raw.drop_off_point_id ?? null,
+    dropOffPointOther: raw.drop_off_point_other ?? null,
+    preferredHospital: raw.preferred_hospital ?? null,
+    hasAllergies: Boolean(raw.has_allergies),
+    allergiesNotes: raw.allergies_notes ?? null,
+    isFullyImmunized: raw.is_fully_immunized ?? null,
+    bloodGroup: raw.blood_group ?? null,
   };
 }
 
