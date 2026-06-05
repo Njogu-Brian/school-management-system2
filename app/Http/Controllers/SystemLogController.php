@@ -15,10 +15,10 @@ class SystemLogController extends Controller
 
     public function index(Request $request)
     {
-        $levelFilter = $request->input('level', 'all');
-        $categoryFilter = $request->input('category', 'all');
-        $search = $request->input('search', '');
-        $dateFilter = $request->input('date', '');
+        $levelFilter = (string) ($request->input('level') ?: 'all');
+        $categoryFilter = (string) ($request->input('category') ?: 'all');
+        $search = (string) ($request->input('search') ?? '');
+        $dateFilter = (string) ($request->input('date') ?? '');
 
         $logFiles = $this->resolveLogFilePaths($dateFilter);
 
@@ -61,8 +61,9 @@ class SystemLogController extends Controller
      *
      * @return list<string> Absolute paths, newest first.
      */
-    protected function resolveLogFilePaths(string $dateFilter = ''): array
+    protected function resolveLogFilePaths(?string $dateFilter = ''): array
     {
+        $dateFilter = $dateFilter ?? '';
         $logsDir = storage_path('logs');
 
         if ($dateFilter !== '') {
