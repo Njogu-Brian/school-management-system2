@@ -1,4 +1,4 @@
-import type { ApiResponse } from '../types/api';
+import type { ApiResponse, PaginatedResponse } from '../types/api';
 import { apiClient } from './client';
 
 export interface TransportRouteSummary {
@@ -43,8 +43,28 @@ export interface StudentRequirementsPayload {
   items: StudentRequirementTemplateItem[];
 }
 
-/** Reuses existing transport + teacher requirements routes (no new backend). */
+export interface OperationsSummary {
+  transport: { active_trips: number; students_assigned: number };
+  library: { total_books: number; available_books: number };
+  inventory: { tracked_items: number; low_stock_items: number };
+  facilities: { open_tickets: number };
+  as_of: string;
+}
+
+/** Transport + operations summary APIs (Sprints 9–10). */
 export const operationsApi = {
+  getSummary(): Promise<ApiResponse<OperationsSummary>> {
+    return apiClient.get<OperationsSummary>('/operations/summary');
+  },
+
+  listRoutes(params?: {
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<TransportRouteSummary>>> {
+    return apiClient.get<PaginatedResponse<TransportRouteSummary>>('/routes', params);
+  },
+
   getRoute(id: number): Promise<ApiResponse<TransportRouteSummary>> {
     return apiClient.get<TransportRouteSummary>(`/routes/${id}`);
   },

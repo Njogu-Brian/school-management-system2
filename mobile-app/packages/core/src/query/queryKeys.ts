@@ -125,9 +125,20 @@ export const queryKeys = {
   },
   operations: {
     all: ['operations'] as const,
+    summary: () => [...queryKeys.operations.all, 'summary'] as const,
+    routes: (search?: string) => [...queryKeys.operations.all, 'routes', search ?? ''] as const,
     route: (id: number) => [...queryKeys.operations.all, 'route', id] as const,
     studentRequirements: (studentId: number) =>
       [...queryKeys.operations.all, 'student-requirements', studentId] as const,
+  },
+  documents: {
+    all: ['documents'] as const,
+    student: (studentId: number) => [...queryKeys.documents.all, 'student', studentId] as const,
+    staff: (staffId: number) => [...queryKeys.documents.all, 'staff', staffId] as const,
+  },
+  communication: {
+    all: ['communication'] as const,
+    announcements: () => [...queryKeys.communication.all, 'announcements'] as const,
   },
   settings: {
     all: ['settings'] as const,

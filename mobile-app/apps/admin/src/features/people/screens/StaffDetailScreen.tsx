@@ -188,7 +188,7 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       case 'performance':
         return <PerformanceTab />;
       case 'documents':
-        return <DocumentsTab />;
+        return <DocumentsTab staffId={staffId} />;
       case 'training':
         return <TrainingTab />;
       default:

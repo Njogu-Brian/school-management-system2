@@ -115,4 +115,22 @@ export const financeApi = {
   ): Promise<ApiResponse<{ message?: string }>> {
     return apiClient.post(`/finance/transactions/${id}/reject`, { type });
   },
+
+  getSummary(): Promise<
+    ApiResponse<{
+      collected_today: number;
+      collected_this_month: number;
+      total_invoiced: number;
+      total_paid: number;
+      outstanding_balance: number;
+      pending_invoices: number;
+      overdue_invoices: number;
+      students_in_arrears: number;
+      pending_reconciliation: number;
+      active_students: number;
+      as_of: string;
+    }>
+  > {
+    return apiClient.get('/finance/summary');
+  },
 };

@@ -1,1 +1,1 @@
-export * from './screens/ReportsScreen';
+export { ReportsHubScreen } from './screens/ReportsHubScreen';

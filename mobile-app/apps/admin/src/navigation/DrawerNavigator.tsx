@@ -10,9 +10,9 @@ import React from 'react';
 import { AcademicsStackNavigator } from './AcademicsStackNavigator';
 import { AdmissionsStackNavigator } from './AdmissionsStackNavigator';
 import { ApprovalsStackNavigator } from './ApprovalsStackNavigator';
-import { CommunicationScreen } from '../features/communication';
-import { OperationsScreen } from '../features/operations';
-import { ReportsScreen } from '../features/reports';
+import { CommunicationStackNavigator } from './CommunicationStackNavigator';
+import { OperationsStackNavigator } from './OperationsStackNavigator';
+import { ReportsStackNavigator } from './ReportsStackNavigator';
 import { SettingsScreen } from '../features/settings';
 import { AREA_TO_DRAWER_ROUTE } from './areaRoutes';
 import { BottomTabsNavigator } from './BottomTabsNavigator';
@@ -46,9 +46,9 @@ const DRAWER_SCREENS: Array<{
   { areaKey: 'approvals', component: ApprovalsStackNavigator, title: 'Approvals' },
   { areaKey: 'admissions', component: AdmissionsStackNavigator, title: 'Admissions' },
   { areaKey: 'academics', component: AcademicsStackNavigator, title: 'Academics' },
-  { areaKey: 'operations', component: OperationsScreen, title: 'Operations' },
-  { areaKey: 'communication', component: CommunicationScreen, title: 'Communication' },
-  { areaKey: 'reports', component: ReportsScreen, title: 'Reports' },
+  { areaKey: 'operations', component: OperationsStackNavigator, title: 'Operations' },
+  { areaKey: 'communication', component: CommunicationStackNavigator, title: 'Communication' },
+  { areaKey: 'reports', component: ReportsStackNavigator, title: 'Reports' },
   { areaKey: 'settings', component: SettingsScreen, title: 'Settings' },
 ];
 

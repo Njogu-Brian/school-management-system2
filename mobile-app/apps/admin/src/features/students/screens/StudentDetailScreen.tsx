@@ -213,7 +213,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       case 'requirements':
         return <RequirementsTab studentId={studentId} />;
       case 'documents':
-        return <DocumentsTab />;
+        return <DocumentsTab studentId={studentId} />;
       default:
         return null;
     }

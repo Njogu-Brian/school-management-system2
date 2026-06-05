@@ -77,6 +77,54 @@ export const approvalsApi = {
       rejection_notes: rejectionNotes,
     });
   },
+
+  /** Unified inbox (Sprint 9) — falls back to client merge when unavailable. */
+  listUnified(params?: {
+    status?: string;
+    source_type?: string;
+    priority?: string;
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<
+    ApiResponse<
+      Array<{
+        id: string;
+        source_type: string;
+        source_id: number;
+        title: string;
+        subtitle: string;
+        status: string;
+        priority: string;
+        requested_at: string;
+        due_date?: string;
+        requester_name?: string;
+        summary?: string;
+        can_act: boolean;
+      }>
+    >
+  > {
+    return apiClient.get('/approvals', params);
+  },
+
+  approveUnified(
+    compositeId: string,
+    notes?: string,
+  ): Promise<ApiResponse<unknown>> {
+    const encoded = encodeURIComponent(compositeId);
+    return apiClient.post(`/approvals/${encoded}/approve`, { admin_notes: notes, approval_notes: notes });
+  },
+
+  rejectUnified(
+    compositeId: string,
+    reason: string,
+  ): Promise<ApiResponse<unknown>> {
+    const encoded = encodeURIComponent(compositeId);
+    return apiClient.post(`/approvals/${encoded}/reject`, {
+      rejection_reason: reason,
+      rejection_notes: reason,
+    });
+  },
 };
 
 export type { ApprovalListFilters };

@@ -52,6 +52,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/staff-attendance/clock-out', [ApiStaffClockController::class, 'clockOut']);
 
     Route::get('/dashboard/stats', [\App\Http\Controllers\Api\ApiDashboardController::class, 'stats']);
+    Route::get('/finance/summary', [\App\Http\Controllers\Api\ApiFinanceSummaryController::class, 'show']);
+    Route::get('/operations/summary', [\App\Http\Controllers\Api\ApiOperationsSummaryController::class, 'show']);
+    Route::get('/approvals', [\App\Http\Controllers\Api\ApiApprovalsController::class, 'index']);
+    Route::get('/approvals/{compositeId}', [\App\Http\Controllers\Api\ApiApprovalsController::class, 'show'])
+        ->where('compositeId', '.*');
+    Route::post('/approvals/{compositeId}/approve', [\App\Http\Controllers\Api\ApiApprovalsController::class, 'approve'])
+        ->where('compositeId', '.*');
+    Route::post('/approvals/{compositeId}/reject', [\App\Http\Controllers\Api\ApiApprovalsController::class, 'reject'])
+        ->where('compositeId', '.*');
 
     Route::prefix('admissions')->group(function () {
         $admissions = \App\Http\Controllers\Api\ApiAdmissionsController::class;
@@ -77,6 +86,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/students/{id}/mpesa/prompt', [\App\Http\Controllers\Api\ApiMpesaPaymentController::class, 'prompt']);
     Route::get('/students/{id}/mpesa/payment-link', [\App\Http\Controllers\Api\ApiMpesaPaymentController::class, 'paymentLinkUrl']);
     Route::get('/students/{id}/fee-clearance', [ApiFeeClearanceController::class, 'show']);
+    Route::get('/students/{id}/documents', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'index']);
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'show']);
@@ -118,6 +128,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/staff', [\App\Http\Controllers\Api\ApiStaffController::class, 'index']);
     Route::get('/staff/{id}/leave-balances', [\App\Http\Controllers\Api\ApiStaffController::class, 'leaveBalances']);
     Route::get('/staff/{id}/attendance-history', [\App\Http\Controllers\Api\ApiStaffController::class, 'attendanceHistory']);
+    Route::get('/staff/{id}/documents', [\App\Http\Controllers\Api\ApiStaffDocumentsController::class, 'index']);
     Route::get('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'show']);
     Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);
     Route::post('/staff/{id}/photo', [\App\Http\Controllers\Api\ApiStaffController::class, 'uploadPhoto']);

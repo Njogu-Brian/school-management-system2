@@ -53,8 +53,24 @@ async function countStudentsInArrears(): Promise<number> {
   return ids.size;
 }
 
-/** Compose finance workspace KPIs from existing endpoints (no `/finance/summary`). */
+/** Prefer `GET /finance/summary`; fall back to composed KPIs. */
 export async function fetchFinanceDashboardKpis(): Promise<FinanceDashboardKpis> {
+  try {
+    const summaryRes = await financeApi.getSummary();
+    if (summaryRes.success && summaryRes.data) {
+      const s = summaryRes.data;
+      return {
+        collectedToday: s.collected_today,
+        collectedThisMonth: s.collected_this_month,
+        outstandingFees: s.outstanding_balance,
+        studentsInArrears: s.students_in_arrears,
+        pendingReconciliation: s.pending_reconciliation,
+      };
+    }
+  } catch {
+    // Fall through to legacy composition.
+  }
+
   const [statsRes, unassignedRes] = await Promise.all([
     dashboardApi.getStats(),
     financeApi.listTransactions({ view: 'unassigned', per_page: 1 }),

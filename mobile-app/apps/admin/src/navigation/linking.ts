@@ -111,9 +111,30 @@ export const linking: LinkingOptions<DrawerParamList> = {
           LessonPlanReview: 'lesson-plans/:lessonPlanId',
         },
       },
-      Operations: 'operations',
-      Communication: 'communication',
-      Reports: 'reports',
+      Operations: {
+        path: 'operations',
+        screens: {
+          OperationsDashboard: '',
+          TripsList: 'transport',
+          TripDetail: {
+            path: 'transport/:tripId',
+            parse: { tripId: Number },
+          },
+        },
+      },
+      Communication: {
+        path: 'communication',
+        screens: {
+          CommunicationDashboard: '',
+          AnnouncementsList: 'announcements',
+        },
+      },
+      Reports: {
+        path: 'reports',
+        screens: {
+          ReportsHub: '',
+        },
+      },
       Settings: 'settings',
     },
   },

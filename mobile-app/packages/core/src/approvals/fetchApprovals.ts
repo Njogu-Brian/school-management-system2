@@ -1,5 +1,6 @@
 import { admissionsApi } from '../api/admissions.api';
 import { approvalsApi } from '../api/approvals.api';
+import type { ApprovalSourceType } from '../types/approval';
 import type { ApplicationStatus } from '../types/admissions';
 import type { ApprovalItem, ApprovalListFilters } from '../types/approval';
 import {
@@ -182,7 +183,54 @@ async function fetchAdmissionItems(filters: ApprovalListFilters): Promise<Approv
   return items;
 }
 
-/** Merges enabled approval sources and applies client-side filters/sort. */
+function mapUnifiedRow(row: {
+  id: string;
+  source_type: string;
+  source_id: number;
+  title: string;
+  subtitle: string;
+  status: string;
+  priority: string;
+  requested_at: string;
+  due_date?: string;
+  requester_name?: string;
+  summary?: string;
+  can_act: boolean;
+}): ApprovalItem {
+  return {
+    id: row.id as ApprovalItem['id'],
+    sourceType: row.source_type as ApprovalSourceType,
+    sourceId: row.source_id,
+    title: row.title,
+    subtitle: row.subtitle,
+    status: row.status as ApprovalItem['status'],
+    priority: row.priority as ApprovalItem['priority'],
+    requestedAt: row.requested_at,
+    dueDate: row.due_date,
+    requesterName: row.requester_name,
+    summary: row.summary,
+    canAct: row.can_act,
+  };
+}
+
+async function fetchUnifiedItems(filters: ApprovalListFilters): Promise<ApprovalItem[] | null> {
+  try {
+    const res = await approvalsApi.listUnified({
+      status: filters.status === 'all' ? undefined : filters.status,
+      source_type: filters.sourceType === 'all' ? undefined : filters.sourceType,
+      priority: filters.priority === 'all' ? undefined : filters.priority,
+      search: filters.search,
+      per_page: filters.perPage,
+      page: filters.page,
+    });
+    if (!res.success || !res.data) return null;
+    return res.data.map(mapUnifiedRow).filter((item) => matchesFilters(item, filters));
+  } catch {
+    return null;
+  }
+}
+
+/** Prefer `GET /approvals`; fall back to per-domain merge. */
 export async function fetchApprovalItems(
   filters: ApprovalListFilters,
   options?: {
@@ -191,6 +239,11 @@ export async function fetchApprovalItems(
     includeAdmissions?: boolean;
   },
 ): Promise<ApprovalItem[]> {
+  const unified = await fetchUnifiedItems(filters);
+  if (unified) {
+    return sortApprovals(unified);
+  }
+
   const includeLeave = options?.includeLeave !== false;
   const includeLessonPlans = options?.includeLessonPlans !== false;
   const includeAdmissions = options?.includeAdmissions !== false;

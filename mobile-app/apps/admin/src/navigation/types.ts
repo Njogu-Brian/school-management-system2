@@ -5,6 +5,9 @@ import type { ApprovalsStackParamList } from './approvalsStackTypes';
 import type { DashboardStackParamList } from './dashboardStackTypes';
 import type { FinanceStackParamList } from './financeStackTypes';
 import type { PeopleStackParamList } from './peopleStackTypes';
+import type { CommunicationStackParamList } from './communicationStackTypes';
+import type { OperationsStackParamList } from './operationsStackTypes';
+import type { ReportsStackParamList } from './reportsStackTypes';
 import type { StudentsStackParamList } from './studentsStackTypes';
 
 /**
@@ -26,9 +29,9 @@ export type DrawerParamList = {
   Approvals: NavigatorScreenParams<ApprovalsStackParamList> | undefined;
   Admissions: NavigatorScreenParams<AdmissionsStackParamList> | undefined;
   Academics: NavigatorScreenParams<AcademicsStackParamList> | undefined;
-  Operations: undefined;
-  Communication: undefined;
-  Reports: undefined;
+  Operations: NavigatorScreenParams<OperationsStackParamList> | undefined;
+  Communication: NavigatorScreenParams<CommunicationStackParamList> | undefined;
+  Reports: NavigatorScreenParams<ReportsStackParamList> | undefined;
   Settings: undefined;
 };
 
