@@ -35,7 +35,7 @@ const config: ExpoConfig = {
       backgroundColor: '#004A99',
     },
   },
-  plugins: ['expo-local-authentication'],
+  plugins: ['expo-local-authentication', 'expo-web-browser'],
   extra: {
     API_BASE_URL: apiBase,
     GOOGLE_ANDROID_CLIENT_ID: googleAndroid,

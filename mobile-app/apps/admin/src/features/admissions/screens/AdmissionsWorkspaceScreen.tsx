@@ -8,6 +8,8 @@ import {
   ApplicationFilters,
   ApplicationListItem,
   ApplicationSearchBar,
+  DashboardHero,
+  DashboardSection,
   KpiCard,
   ScreenContainer,
   WidgetGrid,
@@ -27,6 +29,7 @@ import {
   View,
 } from 'react-native';
 import type { AdmissionsStackParamList } from '../../../navigation/admissionsStackTypes';
+import { AdmissionsFunnelChart } from '../components/AdmissionsFunnelChart';
 import { useApplicationRegistryState } from '../hooks/useApplicationRegistryState';
 import { summaryToListItem } from '../utils/mapToListItem';
 
@@ -41,7 +44,7 @@ const KPI_CONFIG = [
 export const AdmissionsWorkspaceScreen: React.FC = () => {
   const canView = useCan('admissions.view');
   const navigation = useNavigation<StackNavigationProp<AdmissionsStackParamList>>();
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
 
   const { searchInput, setSearchInput, status, setStatus, filters } = useApplicationRegistryState();
   const statsQuery = useAdmissionsStats({ enabled: canView });
@@ -59,15 +62,27 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
     [navigation],
   );
 
+  const stats = statsQuery.data;
+  const totalApplications =
+    (stats?.pending ?? 0) +
+    (stats?.under_review ?? 0) +
+    (stats?.waitlisted ?? 0) +
+    (stats?.enrolled ?? 0) +
+    (stats?.rejected ?? 0);
+
   const listHeader = useMemo(
     () => (
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.lg, fontWeight: '700', marginBottom: spacing.sm }}>
-          Admissions Dashboard
-        </Text>
+        <DashboardHero
+          variant="admissions"
+          title="Admissions Dashboard"
+          subtitle="Applications & enrollment pipeline"
+          meta={totalApplications > 0 ? `${totalApplications} total applications` : undefined}
+        />
+
         <WidgetGrid>
           {KPI_CONFIG.map((kpi) => {
-            const value = statsQuery.data?.[kpi.field];
+            const value = stats?.[kpi.field];
             const state = statsQuery.isLoading
               ? 'loading'
               : statsQuery.isError
@@ -93,26 +108,29 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
           })}
         </WidgetGrid>
 
-        <Text
-          style={{
-            color: palette.textPrimary,
-            fontSize: fontSizes.md,
-            fontWeight: '700',
-            marginTop: spacing.lg,
-            marginBottom: spacing.sm,
-          }}
-        >
-          Applications
-        </Text>
-        <ApplicationSearchBar value={searchInput} onChangeText={setSearchInput} />
-        <ApplicationFilters status={status} onStatusChange={setStatus} />
+        {stats ? (
+          <View style={{ marginVertical: spacing.md }}>
+            <AdmissionsFunnelChart
+              pending={stats.pending ?? 0}
+              underReview={stats.under_review ?? 0}
+              waitlisted={stats.waitlisted ?? 0}
+              enrolled={stats.enrolled ?? 0}
+              rejected={stats.rejected ?? 0}
+            />
+          </View>
+        ) : null}
+
+        <DashboardSection title="Applications">
+          <ApplicationSearchBar value={searchInput} onChangeText={setSearchInput} />
+          <ApplicationFilters status={status} onStatusChange={setStatus} />
+        </DashboardSection>
       </View>
     ),
     [
       spacing,
-      palette,
-      fontSizes,
       statsQuery,
+      stats,
+      totalApplications,
       searchInput,
       status,
       setSearchInput,
@@ -123,7 +141,7 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.md, textAlign: 'center' }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, textAlign: 'center' }}>
           You need admissions.view permission to open the admissions workspace.
         </Text>
       </ScreenContainer>
@@ -175,7 +193,7 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
                 color: palette.textSecondary,
                 textAlign: 'center',
                 marginTop: spacing.lg,
-                fontSize: fontSizes.sm,
+                fontSize: typography.caption.fontSize,
                 paddingHorizontal: spacing.md,
               }}
             >

@@ -2,6 +2,8 @@ import { useAcademicDashboard, useCan } from '@erp/core';
 import {
   AcademicKpiCard,
   AcademicTrendCard,
+  DashboardHero,
+  DashboardSection,
   KpiCard,
   QuickAction,
   ScreenContainer,
@@ -14,6 +16,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
+import { ExamBreakdownChart } from '../components/ExamBreakdownChart';
 
 const KPI_CONFIG = [
   { key: 'examsDraft' as const, label: 'Exams Draft', icon: 'document-outline' as const },
@@ -35,7 +38,7 @@ const SECTIONS = [
 export const AcademicsDashboardScreen: React.FC = () => {
   const canView = useCan('academics.view');
   const navigation = useNavigation<StackNavigationProp<AcademicsStackParamList>>();
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const dashboardQuery = useAcademicDashboard({ enabled: canView });
 
   const openSection = useCallback(
@@ -48,7 +51,7 @@ export const AcademicsDashboardScreen: React.FC = () => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.md, textAlign: 'center' }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, textAlign: 'center' }}>
           You need academics.view permission to open the academics workspace.
         </Text>
       </ScreenContainer>
@@ -56,6 +59,7 @@ export const AcademicsDashboardScreen: React.FC = () => {
   }
 
   const breakdown = dashboardQuery.data?.examStatusBreakdown ?? {};
+  const totalExams = Object.values(breakdown).reduce((sum, n) => sum + n, 0);
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
@@ -70,9 +74,12 @@ export const AcademicsDashboardScreen: React.FC = () => {
           />
         }
       >
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.lg, fontWeight: '700', marginBottom: spacing.sm }}>
-          Academics Dashboard
-        </Text>
+        <DashboardHero
+          variant="academics"
+          title="Academics Dashboard"
+          subtitle="Exams, marks & report cards"
+          meta={totalExams > 0 ? `${totalExams} exams in pipeline` : undefined}
+        />
 
         <WidgetGrid>
           {KPI_CONFIG.map((kpi) => {
@@ -106,24 +113,28 @@ export const AcademicsDashboardScreen: React.FC = () => {
           </Pressable>
         ) : null}
 
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
-          Exam Status Breakdown
-        </Text>
-        <View style={[styles.breakdown, { gap: spacing.xs }]}>
-          {Object.keys(breakdown).length === 0 ? (
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No exam data loaded.</Text>
-          ) : (
-            Object.entries(breakdown).map(([status, count]) => (
-              <AcademicKpiCard key={status} label={status} value={String(count)} />
-            ))
-          )}
-        </View>
+        {Object.keys(breakdown).length > 0 ? (
+          <View style={{ marginTop: spacing.md, marginBottom: spacing.md }}>
+            <ExamBreakdownChart breakdown={breakdown} />
+          </View>
+        ) : null}
+
+        <DashboardSection title="Exam Status Breakdown">
+          <View style={[styles.breakdown, { gap: spacing.xs }]}>
+            {Object.keys(breakdown).length === 0 ? (
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                No exam data loaded.
+              </Text>
+            ) : (
+              Object.entries(breakdown).map(([status, count]) => (
+                <AcademicKpiCard key={status} label={status} value={String(count)} />
+              ))
+            )}
+          </View>
+        </DashboardSection>
 
         {(dashboardQuery.data?.trendSummary?.length ?? 0) > 0 ? (
-          <>
-            <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
-              Academic Trend Summary
-            </Text>
+          <DashboardSection title="Academic Trend Summary">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {dashboardQuery.data!.trendSummary.map((t) => (
                 <AcademicTrendCard
@@ -134,33 +145,31 @@ export const AcademicsDashboardScreen: React.FC = () => {
                 />
               ))}
             </ScrollView>
-          </>
+          </DashboardSection>
         ) : null}
 
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
-          Moderation Queue
-        </Text>
-        <Pressable onPress={() => openSection('Moderation')}>
-          <AcademicKpiCard
-            label="Lesson plans awaiting review"
-            value={String(dashboardQuery.data?.lessonPlansPendingReview ?? 0)}
-            icon="time-outline"
-          />
-        </Pressable>
-
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
-          Workspace
-        </Text>
-        <View style={[styles.actions, { gap: spacing.sm }]}>
-          {SECTIONS.map((section) => (
-            <QuickAction
-              key={section.route}
-              label={section.label}
-              icon={section.icon}
-              onPress={() => openSection(section.route)}
+        <DashboardSection title="Moderation Queue">
+          <Pressable onPress={() => openSection('Moderation')}>
+            <AcademicKpiCard
+              label="Lesson plans awaiting review"
+              value={String(dashboardQuery.data?.lessonPlansPendingReview ?? 0)}
+              icon="time-outline"
             />
-          ))}
-        </View>
+          </Pressable>
+        </DashboardSection>
+
+        <DashboardSection title="Workspace">
+          <View style={[styles.actions, { gap: spacing.sm }]}>
+            {SECTIONS.map((section) => (
+              <QuickAction
+                key={section.route}
+                label={section.label}
+                icon={section.icon}
+                onPress={() => openSection(section.route)}
+              />
+            ))}
+          </View>
+        </DashboardSection>
       </ScrollView>
     </ScreenContainer>
   );

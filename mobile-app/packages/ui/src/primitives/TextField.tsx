@@ -23,22 +23,29 @@ export const TextField: React.FC<TextFieldProps> = ({
   onBlur,
   ...inputProps
 }) => {
-  const { palette, colors, radius, spacing, fontSizes } = useTheme();
+  const { palette, colors, radius, spacing, typography, elevation } = useTheme();
   const [focused, setFocused] = useState(false);
 
-  const borderColor = error ? colors.error : focused ? colors.primary : palette.border;
+  const borderColor = error ? colors.error : focused ? colors.primary : palette.borderSubtle;
 
   return (
     <View style={[{ marginBottom: spacing.md }, containerStyle]}>
       {label ? (
         <Text
-          style={[styles.label, { color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.xs }]}
+          style={[
+            styles.label,
+            {
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginBottom: spacing.xs,
+            },
+          ]}
         >
           {label}
         </Text>
       ) : null}
       <TextInput
-        placeholderTextColor={palette.textSecondary}
+        placeholderTextColor={palette.textMuted}
         {...inputProps}
         onFocus={(e) => {
           setFocused(true);
@@ -50,18 +57,28 @@ export const TextField: React.FC<TextFieldProps> = ({
         }}
         style={[
           styles.input,
+          elevation[focused ? 1 : 0],
           {
             borderColor,
-            borderRadius: radius.md,
+            borderRadius: radius.control,
             paddingHorizontal: spacing.md,
             color: palette.textPrimary,
-            backgroundColor: palette.surface,
-            fontSize: fontSizes.md,
+            backgroundColor: palette.surfaceRaised,
+            fontSize: typography.body.fontSize,
           },
         ]}
       />
       {error ? (
-        <Text style={[styles.error, { color: colors.error, fontSize: fontSizes.xs, marginTop: spacing.xs }]}>
+        <Text
+          style={[
+            styles.error,
+            {
+              color: colors.error,
+              fontSize: typography.caption.fontSize,
+              marginTop: spacing.xs,
+            },
+          ]}
+        >
           {error}
         </Text>
       ) : null}
@@ -70,14 +87,10 @@ export const TextField: React.FC<TextFieldProps> = ({
 };
 
 const styles = StyleSheet.create({
-  label: {
-    fontWeight: '500',
-  },
+  label: { fontWeight: '500' },
   input: {
     borderWidth: 1,
     minHeight: 48,
   },
-  error: {
-    fontWeight: '500',
-  },
+  error: { fontWeight: '500' },
 });

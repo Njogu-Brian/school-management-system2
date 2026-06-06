@@ -10,7 +10,7 @@ export interface StudentListItemProps {
 }
 
 export const StudentListItem: React.FC<StudentListItemProps> = ({ student }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   const classLine = [student.classLabel, student.streamName].filter(Boolean).join(' · ');
 
@@ -18,36 +18,48 @@ export const StudentListItem: React.FC<StudentListItemProps> = ({ student }) => 
     <View
       style={[
         styles.row,
+        elevation[1],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
         },
-        shadows.sm,
       ]}
     >
       {student.avatarUrl ? (
-        <Image source={{ uri: student.avatarUrl }} style={styles.avatar} />
+        <Image source={{ uri: student.avatarUrl }} style={[styles.avatar, { borderRadius: radius.lg }]} />
       ) : (
-        <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: palette.accent }]}>
+        <View
+          style={[
+            styles.avatar,
+            styles.avatarPlaceholder,
+            { backgroundColor: `${colors.primary}12`, borderRadius: radius.lg },
+          ]}
+        >
           <Ionicons name="person-outline" size={22} color={colors.primary} />
         </View>
       )}
 
       <View style={styles.content}>
         <Text
-          style={[styles.name, { color: palette.textPrimary, fontSize: fontSizes.md }]}
+          style={[
+            styles.name,
+            { color: palette.textPrimary, fontSize: typography.body.fontSize, fontWeight: '600' },
+          ]}
           numberOfLines={1}
         >
           {student.fullName}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
           {student.admissionNumber}
         </Text>
         {classLine ? (
           <Text
-            style={[styles.classLine, { color: palette.textSecondary, fontSize: fontSizes.sm }]}
+            style={[
+              styles.classLine,
+              { color: palette.textSecondary, fontSize: typography.caption.fontSize },
+            ]}
             numberOfLines={1}
           >
             {classLine}
@@ -61,7 +73,7 @@ export const StudentListItem: React.FC<StudentListItemProps> = ({ student }) => 
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+      <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
     </View>
   );
 
@@ -86,10 +98,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },
-  avatar: { width: 48, height: 48, borderRadius: 24, marginRight: 12 },
+  avatar: { width: 48, height: 48, marginRight: 12 },
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1, marginRight: 8 },
-  name: { fontWeight: '700' },
+  name: {},
   classLine: { marginTop: 2 },
   badges: { flexDirection: 'row', flexWrap: 'wrap' },
 });

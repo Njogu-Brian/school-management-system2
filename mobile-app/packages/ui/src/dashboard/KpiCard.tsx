@@ -22,25 +22,55 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   icon = 'stats-chart-outline',
   onPress,
 }) => {
-  const { palette, colors, fontSizes } = useTheme();
+  const { palette, colors, typography, radius, spacing } = useTheme();
 
   const deltaColor = deltaPositive === false ? colors.error : colors.success;
 
   const body = (
     <>
       <View style={styles.header}>
-        <View style={[styles.iconWrap, { backgroundColor: palette.accent }]}>
+        <View style={[styles.iconWrap, { backgroundColor: `${colors.primary}12`, borderRadius: radius.sm }]}>
           <Ionicons name={icon} size={20} color={colors.primary} />
         </View>
-        <Text style={[styles.label, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-          {label}
+        <Text
+          style={[
+            styles.label,
+            {
+              color: palette.textMuted,
+              fontSize: typography.overline.fontSize,
+              letterSpacing: typography.overline.letterSpacing,
+            },
+          ]}
+        >
+          {label.toUpperCase()}
         </Text>
       </View>
-      <Text style={[styles.value, { color: palette.textPrimary, fontSize: fontSizes.xxl }]}>
+      <Text
+        style={[
+          styles.value,
+          {
+            color: palette.textPrimary,
+            fontSize: typography.heading.fontSize,
+            lineHeight: typography.heading.lineHeight,
+            marginTop: spacing.xs,
+          },
+        ]}
+      >
         {value}
       </Text>
       {delta ? (
-        <Text style={[styles.delta, { color: deltaColor, fontSize: fontSizes.xs }]}>{delta}</Text>
+        <Text
+          style={[
+            styles.delta,
+            {
+              color: deltaColor,
+              fontSize: typography.caption.fontSize,
+              marginTop: spacing.xs,
+            },
+          ]}
+        >
+          {delta}
+        </Text>
       ) : null}
     </>
   );
@@ -57,16 +87,15 @@ export const KpiCard: React.FC<KpiCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center' },
   iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 10,
   },
-  label: { fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase', flex: 1 },
+  label: { fontWeight: '600', flex: 1 },
   value: { fontWeight: '700' },
-  delta: { marginTop: 4, fontWeight: '500' },
+  delta: { fontWeight: '500' },
 });

@@ -1,6 +1,6 @@
-import { useTheme } from '@erp/ui';
+import { ChartCard, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-chart-kit';
 
 interface ChartSeries {
@@ -25,19 +25,26 @@ export const ExecutiveCharts: React.FC<ExecutiveChartsProps> = ({
   enrollmentPie,
   attendance,
 }) => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing } = useTheme();
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width - spacing.md * 2, 380);
 
   const chartConfig = useMemo(
     () => ({
-      backgroundColor: palette.surface,
-      backgroundGradientFrom: palette.surface,
-      backgroundGradientTo: palette.surface,
+      backgroundColor: palette.surfaceRaised,
+      backgroundGradientFrom: palette.surfaceRaised,
+      backgroundGradientTo: palette.surfaceRaised,
       decimalPlaces: 0,
-      color: (opacity = 1) => `rgba(37, 99, 235, ${opacity})`,
+      color: (opacity = 1) => {
+        const hex = colors.primary.replace('#', '');
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      },
       labelColor: () => palette.textSecondary,
-      propsForDots: { r: '3', strokeWidth: '2', stroke: colors.primary },
+      propsForDots: { r: '4', strokeWidth: '2', stroke: colors.primary },
+      propsForBackgroundLines: { strokeDasharray: '', stroke: palette.borderSubtle, strokeWidth: 1 },
     }),
     [colors.primary, palette],
   );
@@ -45,23 +52,29 @@ export const ExecutiveCharts: React.FC<ExecutiveChartsProps> = ({
   const pieData = enrollmentPie.filter((s) => s.value > 0);
 
   return (
-    <View style={{ gap: spacing.md }}>
-      <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.surface }]}>
-        <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.sm }]}>Fee collections</Text>
+    <>
+      <ChartCard title="Fee collections" subtitle="Trend over selected period">
         <LineChart
-          data={{ labels: collections.labels, datasets: [{ data: collections.values.length ? collections.values : [0] }] }}
+          data={{
+            labels: collections.labels,
+            datasets: [{ data: collections.values.length ? collections.values : [0] }],
+          }}
           width={chartWidth}
           height={180}
           chartConfig={chartConfig}
           bezier
           style={styles.chart}
+          withInnerLines
+          withOuterLines={false}
         />
-      </View>
+      </ChartCard>
 
-      <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.surface }]}>
-        <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.sm }]}>Attendance %</Text>
+      <ChartCard title="Attendance %" subtitle="Daily attendance rate">
         <BarChart
-          data={{ labels: attendance.labels, datasets: [{ data: attendance.values.length ? attendance.values : [0] }] }}
+          data={{
+            labels: attendance.labels,
+            datasets: [{ data: attendance.values.length ? attendance.values : [0] }],
+          }}
           width={chartWidth}
           height={180}
           chartConfig={chartConfig}
@@ -69,36 +82,34 @@ export const ExecutiveCharts: React.FC<ExecutiveChartsProps> = ({
           yAxisLabel=""
           yAxisSuffix="%"
           fromZero
+          showValuesOnTopOfBars
         />
-      </View>
+      </ChartCard>
 
       {pieData.length > 0 ? (
-        <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.surface }]}>
-          <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.sm }]}>Enrollment mix</Text>
+        <ChartCard title="Enrollment mix" subtitle="Distribution by category">
           <PieChart
             data={pieData.map((s) => ({
               name: s.name,
               population: s.value,
               color: s.color,
               legendFontColor: palette.textSecondary,
-              legendFontSize: 11,
+              legendFontSize: 12,
             }))}
             width={chartWidth}
-            height={160}
+            height={180}
             chartConfig={chartConfig}
             accessor="population"
             backgroundColor="transparent"
             paddingLeft="8"
             absolute
           />
-        </View>
+        </ChartCard>
       ) : null}
-    </View>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12 },
-  title: { fontWeight: '700', marginBottom: 8 },
-  chart: { borderRadius: 8, marginLeft: -8 },
+  chart: { borderRadius: 12, marginLeft: -8 },
 });

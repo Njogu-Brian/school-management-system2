@@ -1,2 +1,5 @@
 export * from './Button';
 export * from './TextField';
+export * from './SearchBar';
+export * from './FilterChip';
+export * from './StatusBadge';

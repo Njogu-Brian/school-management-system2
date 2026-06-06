@@ -16,18 +16,34 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
   children,
   headerRight,
 }) => {
-  const { palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography } = useTheme();
 
   return (
     <View style={[styles.section, { marginBottom: spacing.lg }]}>
       <View style={styles.header}>
         <View style={styles.headerText}>
-          <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.lg }]}>
+          <Text
+            style={[
+              styles.title,
+              {
+                color: palette.textPrimary,
+                fontSize: typography.title.fontSize,
+                fontWeight: typography.title.fontWeight,
+              },
+            ]}
+          >
             {title}
           </Text>
           {subtitle ? (
             <Text
-              style={[styles.subtitle, { color: palette.textSecondary, fontSize: fontSizes.sm }]}
+              style={[
+                styles.subtitle,
+                {
+                  color: palette.textSecondary,
+                  fontSize: typography.caption.fontSize,
+                  marginTop: spacing.xs,
+                },
+              ]}
             >
               {subtitle}
             </Text>
@@ -49,6 +65,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   headerText: { flex: 1 },
-  title: { fontWeight: '700' },
-  subtitle: { marginTop: 2 },
+  title: {},
+  subtitle: {},
 });

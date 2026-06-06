@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { StatusBadge } from '../primitives/StatusBadge';
+import type { SemanticTone } from '../theme/tokens';
 
 export function invoiceStatusLabel(status: string): string {
   switch (status) {
@@ -19,34 +19,18 @@ export function invoiceStatusLabel(status: string): string {
   }
 }
 
+function invoiceTone(status: string): SemanticTone {
+  if (status === 'paid') return 'success';
+  if (status === 'partially_paid' || status === 'issued') return 'warning';
+  if (status === 'overdue') return 'danger';
+  return 'brand';
+}
+
 export interface InvoiceStatusBadgeProps {
   status: string;
 }
 
 export const InvoiceStatusBadge: React.FC<InvoiceStatusBadgeProps> = ({ status }) => {
-  const { colors, palette, fontSizes, radius, spacing } = useTheme();
   const label = invoiceStatusLabel(status);
-
-  let bg = `${palette.textSecondary}22`;
-  let fg = palette.textSecondary;
-  if (status === 'paid') {
-    bg = `${colors.success}22`;
-    fg = colors.success;
-  } else if (status === 'partially_paid' || status === 'issued') {
-    bg = `${colors.warning}22`;
-    fg = colors.warning;
-  } else if (status === 'overdue') {
-    bg = `${colors.error}22`;
-    fg = colors.error;
-  }
-
-  return (
-    <View style={[styles.badge, { backgroundColor: bg, borderRadius: radius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 }]}>
-      <Text style={{ color: fg, fontSize: fontSizes.xs, fontWeight: '700' }}>{label}</Text>
-    </View>
-  );
+  return <StatusBadge label={label} tone={invoiceTone(status)} compact />;
 };
-
-const styles = StyleSheet.create({
-  badge: { alignSelf: 'flex-start' },
-});

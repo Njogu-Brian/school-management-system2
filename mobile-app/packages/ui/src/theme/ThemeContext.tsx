@@ -4,19 +4,30 @@ import {
   BORDER_RADIUS,
   COLORS,
   ColorTokens,
+  ELEVATION,
   FONT_SIZES,
+  SEMANTIC,
   SHADOWS,
   SPACING,
+  TYPOGRAPHY,
 } from './tokens';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
-export interface ResolvedPalette {
+export interface SurfaceHierarchy {
   background: string;
   surface: string;
+  surfaceRaised: string;
+  surfaceMuted: string;
+  surfaceOverlay: string;
+}
+
+export interface ResolvedPalette extends SurfaceHierarchy {
   textPrimary: string;
   textSecondary: string;
+  textMuted: string;
   border: string;
+  borderSubtle: string;
   accent: string;
 }
 
@@ -27,8 +38,11 @@ export interface ThemeValue {
   colors: ColorTokens;
   spacing: typeof SPACING;
   fontSizes: typeof FONT_SIZES;
+  typography: typeof TYPOGRAPHY;
   radius: typeof BORDER_RADIUS;
   shadows: typeof SHADOWS;
+  elevation: typeof ELEVATION;
+  semantic: typeof SEMANTIC;
   palette: ResolvedPalette;
   setThemeMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
@@ -38,9 +52,14 @@ function resolvePalette(colors: ColorTokens, isDark: boolean): ResolvedPalette {
   return {
     background: isDark ? colors.backgroundDark : colors.backgroundLight,
     surface: isDark ? colors.surfaceDark : colors.surfaceLight,
+    surfaceRaised: isDark ? colors.surfaceRaisedDark : colors.surfaceRaisedLight,
+    surfaceMuted: isDark ? colors.surfaceMutedDark : colors.surfaceMutedLight,
+    surfaceOverlay: isDark ? colors.surfaceOverlayDark : colors.surfaceOverlayLight,
     textPrimary: isDark ? colors.textMainDark : colors.textMainLight,
     textSecondary: isDark ? colors.textSubDark : colors.textSubLight,
+    textMuted: isDark ? colors.textMutedDark : colors.textMutedLight,
     border: isDark ? colors.borderDark : colors.borderLight,
+    borderSubtle: isDark ? colors.borderSubtleDark : colors.borderSubtleLight,
     accent: isDark ? colors.accentDark : colors.accentLight,
   };
 }
@@ -49,7 +68,6 @@ const ThemeContext = createContext<ThemeValue | undefined>(undefined);
 
 export interface ThemeProviderProps {
   children: React.ReactNode;
-  /** Force a mode for testing/previews. */
   forcedMode?: 'light' | 'dark';
   themeMode?: ThemeMode;
   onThemeModeChange?: (mode: ThemeMode) => void;
@@ -86,8 +104,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       colors,
       spacing: SPACING,
       fontSizes: FONT_SIZES,
+      typography: TYPOGRAPHY,
       radius: BORDER_RADIUS,
       shadows: SHADOWS,
+      elevation: ELEVATION,
+      semantic: SEMANTIC,
       palette: resolvePalette(colors, isDark),
       setThemeMode,
       toggleTheme,

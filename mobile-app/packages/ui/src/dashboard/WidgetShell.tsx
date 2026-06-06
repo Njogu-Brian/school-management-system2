@@ -28,17 +28,17 @@ export const WidgetShell: React.FC<WidgetShellProps> = ({
   children,
   style,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   const cardStyle = [
     styles.card,
+    elevation[2],
     {
-      backgroundColor: palette.surface,
-      borderColor: palette.border,
-      borderRadius: radius.lg,
+      backgroundColor: palette.surfaceRaised,
+      borderColor: palette.borderSubtle,
+      borderRadius: radius.card,
       padding: spacing.md,
     },
-    shadows.sm,
     style,
   ];
 
@@ -46,12 +46,12 @@ export const WidgetShell: React.FC<WidgetShellProps> = ({
     return (
       <View style={cardStyle} accessibilityState={{ busy: true }}>
         {title ? (
-          <View style={[styles.skeletonLine, { width: '50%', backgroundColor: palette.border }]} />
+          <View style={[styles.skeletonLine, { width: '50%', backgroundColor: palette.borderSubtle }]} />
         ) : null}
         <View
           style={[
             styles.skeletonValue,
-            { backgroundColor: palette.border, marginTop: spacing.sm },
+            { backgroundColor: palette.borderSubtle, marginTop: spacing.sm },
           ]}
         />
         <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
@@ -63,15 +63,28 @@ export const WidgetShell: React.FC<WidgetShellProps> = ({
     return (
       <View style={cardStyle}>
         {title ? (
-          <Text style={[styles.meta, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-            {title}
+          <Text
+            style={[
+              styles.meta,
+              {
+                color: palette.textMuted,
+                fontSize: typography.overline.fontSize,
+                letterSpacing: typography.overline.letterSpacing,
+              },
+            ]}
+          >
+            {title.toUpperCase()}
           </Text>
         ) : null}
-        <Ionicons name="analytics-outline" size={28} color={palette.textSecondary} />
+        <Ionicons name="analytics-outline" size={28} color={palette.textMuted} />
         <Text
           style={[
             styles.feedback,
-            { color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: spacing.sm },
+            {
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginTop: spacing.sm,
+            },
           ]}
         >
           {emptyMessage}
@@ -84,22 +97,41 @@ export const WidgetShell: React.FC<WidgetShellProps> = ({
     return (
       <View style={cardStyle}>
         {title ? (
-          <Text style={[styles.meta, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-            {title}
+          <Text
+            style={[
+              styles.meta,
+              {
+                color: palette.textMuted,
+                fontSize: typography.overline.fontSize,
+                letterSpacing: typography.overline.letterSpacing,
+              },
+            ]}
+          >
+            {title.toUpperCase()}
           </Text>
         ) : null}
         <Ionicons name="alert-circle-outline" size={28} color={colors.error} />
         <Text
           style={[
             styles.feedback,
-            { color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: spacing.sm },
+            {
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginTop: spacing.sm,
+            },
           ]}
         >
           {errorMessage}
         </Text>
         {onRetry ? (
           <Pressable onPress={onRetry} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+            <Text
+              style={{
+                color: colors.primary,
+                fontSize: typography.caption.fontSize,
+                fontWeight: '600',
+              }}
+            >
               Retry
             </Text>
           </Pressable>
@@ -119,7 +151,6 @@ const styles = StyleSheet.create({
   },
   meta: {
     fontWeight: '600',
-    letterSpacing: 0.3,
     textTransform: 'uppercase',
     marginBottom: 4,
   },

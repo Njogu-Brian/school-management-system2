@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { SearchBar } from '../primitives/SearchBar';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface AcademicSearchBarProps {
@@ -14,43 +14,11 @@ export const AcademicSearchBar: React.FC<AcademicSearchBarProps> = ({
   onChangeText,
   placeholder = 'Search…',
 }) => {
-  const { palette, spacing, fontSizes, radius } = useTheme();
+  const { spacing } = useTheme();
 
   return (
-    <View
-      style={[
-        styles.row,
-        {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.md,
-          paddingHorizontal: spacing.sm,
-          marginBottom: spacing.sm,
-        },
-      ]}
-    >
-      <Ionicons name="search-outline" size={18} color={palette.textSecondary} />
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={palette.textSecondary}
-        style={{
-          flex: 1,
-          paddingVertical: spacing.sm,
-          paddingHorizontal: spacing.sm,
-          color: palette.textPrimary,
-          fontSize: fontSizes.sm,
-        }}
-      />
+    <View style={{ marginBottom: spacing.sm }}>
+      <SearchBar value={value} onChangeText={onChangeText} placeholder={placeholder} />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-});

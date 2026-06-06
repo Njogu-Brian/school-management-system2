@@ -5,6 +5,7 @@ import {
   type StaffSummary,
 } from '@erp/core';
 import {
+  DashboardHero,
   ScreenContainer,
   StaffFilters,
   StaffListItem,
@@ -31,7 +32,7 @@ import { summaryToListItem } from '../utils/mapToListItem';
 export const StaffRegistryScreen: React.FC = () => {
   const canView = useCan(['people.view', 'staff.view']);
   const navigation = useNavigation<StackNavigationProp<PeopleStackParamList>>();
-  const { palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography } = useTheme();
 
   const {
     searchInput,
@@ -92,6 +93,8 @@ export const StaffRegistryScreen: React.FC = () => {
     [listQuery.data],
   );
 
+  const totalStaff = listQuery.data?.pages[0]?.total;
+
   const openDetail = useCallback(
     (summary: StaffSummary) => {
       navigation.navigate('StaffDetail', { staffId: summary.id, summary });
@@ -102,7 +105,7 @@ export const StaffRegistryScreen: React.FC = () => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.md, textAlign: 'center' }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, textAlign: 'center' }}>
           You need people.view permission to open the staff directory.
         </Text>
       </ScreenContainer>
@@ -117,6 +120,12 @@ export const StaffRegistryScreen: React.FC = () => {
         contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         ListHeaderComponent={
           <View>
+            <DashboardHero
+              variant="people"
+              title="People Directory"
+              subtitle="Staff registry & employment records"
+              meta={totalStaff != null ? `${totalStaff} staff members` : undefined}
+            />
             <StaffSearchBar value={searchInput} onChangeText={setSearchInput} />
             {filterQuery.isLoading ? (
               <ActivityIndicator style={{ marginVertical: spacing.sm }} />
@@ -141,17 +150,6 @@ export const StaffRegistryScreen: React.FC = () => {
                 onGenderChange={(v) => setGender(v as typeof gender)}
               />
             )}
-            {listQuery.data?.pages[0] != null ? (
-              <Text
-                style={{
-                  color: palette.textSecondary,
-                  fontSize: fontSizes.sm,
-                  marginBottom: spacing.sm,
-                }}
-              >
-                {listQuery.data.pages[0].total} staff
-              </Text>
-            ) : null}
           </View>
         }
         renderItem={({ item }) => (

@@ -10,7 +10,7 @@ export interface StaffListItemProps {
 }
 
 export const StaffListItem: React.FC<StaffListItemProps> = ({ staff }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   const subtitle = [staff.departmentName, staff.jobTitle].filter(Boolean).join(' · ');
   const roleLine = staff.systemRole ? `Role: ${staff.systemRole}` : null;
@@ -19,43 +19,52 @@ export const StaffListItem: React.FC<StaffListItemProps> = ({ staff }) => {
     <View
       style={[
         styles.row,
+        elevation[1],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
         },
-        shadows.sm,
       ]}
     >
       {staff.avatarUrl ? (
-        <Image source={{ uri: staff.avatarUrl }} style={styles.avatar} />
+        <Image source={{ uri: staff.avatarUrl }} style={[styles.avatar, { borderRadius: radius.lg }]} />
       ) : (
-        <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: palette.accent }]}>
+        <View
+          style={[
+            styles.avatar,
+            styles.avatarPlaceholder,
+            { backgroundColor: `${colors.primary}12`, borderRadius: radius.lg },
+          ]}
+        >
           <Ionicons name="person-outline" size={22} color={colors.primary} />
         </View>
       )}
 
       <View style={styles.content}>
         <Text
-          style={[styles.name, { color: palette.textPrimary, fontSize: fontSizes.md }]}
+          style={[
+            styles.name,
+            { color: palette.textPrimary, fontSize: typography.body.fontSize, fontWeight: '600' },
+          ]}
           numberOfLines={1}
         >
           {staff.fullName}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
           {staff.employeeNumber || '—'}
         </Text>
         {subtitle ? (
           <Text
-            style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 2 }}
+            style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}
             numberOfLines={1}
           >
             {subtitle}
           </Text>
         ) : null}
         {roleLine ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 2 }}>
             {roleLine}
           </Text>
         ) : null}
@@ -64,7 +73,7 @@ export const StaffListItem: React.FC<StaffListItemProps> = ({ staff }) => {
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+      <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
     </View>
   );
 
@@ -89,8 +98,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },
-  avatar: { width: 48, height: 48, borderRadius: 24, marginRight: 12 },
+  avatar: { width: 48, height: 48, marginRight: 12 },
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1, marginRight: 8 },
-  name: { fontWeight: '700' },
+  name: {},
 });

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import type { ApprovalPriority, ApprovalSourceType, ApprovalStatus } from './types';
 
-export interface FilterChip<T extends string> {
+export interface ApprovalFilterChipOption<T extends string> {
   value: T;
   label: string;
 }
@@ -17,7 +17,7 @@ export interface ApprovalFiltersProps {
   onSourceTypeChange: (value: ApprovalSourceType | 'all') => void;
 }
 
-const STATUS_CHIPS: FilterChip<ApprovalStatus | 'all'>[] = [
+const STATUS_CHIPS: ApprovalFilterChipOption<ApprovalStatus | 'all'>[] = [
   { value: 'all', label: 'All' },
   { value: 'pending', label: 'Pending' },
   { value: 'escalated', label: 'Escalated' },
@@ -26,7 +26,7 @@ const STATUS_CHIPS: FilterChip<ApprovalStatus | 'all'>[] = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
-const PRIORITY_CHIPS: FilterChip<ApprovalPriority | 'all'>[] = [
+const PRIORITY_CHIPS: ApprovalFilterChipOption<ApprovalPriority | 'all'>[] = [
   { value: 'all', label: 'All priorities' },
   { value: 'critical', label: 'Critical' },
   { value: 'high', label: 'High' },
@@ -34,7 +34,7 @@ const PRIORITY_CHIPS: FilterChip<ApprovalPriority | 'all'>[] = [
   { value: 'low', label: 'Low' },
 ];
 
-const SOURCE_CHIPS: FilterChip<ApprovalSourceType | 'all'>[] = [
+const SOURCE_CHIPS: ApprovalFilterChipOption<ApprovalSourceType | 'all'>[] = [
   { value: 'all', label: 'All types' },
   { value: 'leave_request', label: 'Leave' },
   { value: 'lesson_plan', label: 'Lesson plans' },
@@ -46,7 +46,7 @@ function ChipRow<T extends string>({
   selected,
   onSelect,
 }: {
-  chips: FilterChip<T>[];
+  chips: ApprovalFilterChipOption<T>[];
   selected: T;
   onSelect: (v: T) => void;
 }) {

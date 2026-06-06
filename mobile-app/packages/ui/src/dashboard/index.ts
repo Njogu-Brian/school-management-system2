@@ -5,3 +5,6 @@ export * from './AlertCard';
 export * from './QuickAction';
 export * from './DashboardSection';
 export * from './WidgetGrid';
+export * from './DashboardHero';
+export * from './SegmentedTabBar';
+export * from './ChartCard';

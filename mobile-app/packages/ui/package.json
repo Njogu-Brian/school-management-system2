@@ -8,6 +8,7 @@
   "sideEffects": false,
   "peerDependencies": {
     "@expo/vector-icons": "*",
+    "expo-linear-gradient": "*",
     "react": "*",
     "react-native": "*",
     "react-native-safe-area-context": "*"

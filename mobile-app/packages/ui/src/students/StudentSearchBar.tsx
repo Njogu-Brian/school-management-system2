@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { TextField } from '../primitives/TextField';
+import { SearchBar } from '../primitives/SearchBar';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface StudentSearchBarProps {
@@ -18,14 +18,7 @@ export const StudentSearchBar: React.FC<StudentSearchBarProps> = ({
 
   return (
     <View style={[styles.wrap, { marginBottom: spacing.sm }]}>
-      <TextField
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        autoCapitalize="none"
-        autoCorrect={false}
-        returnKeyType="search"
-      />
+      <SearchBar value={value} onChangeText={onChangeText} placeholder={placeholder} />
     </View>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FilterChip } from '../primitives/FilterChip';
 import { useTheme } from '../theme/ThemeContext';
 export type StudentEnrollmentStatusFilter = 'all' | 'active' | 'fee_pending' | 'fee_cleared';
 export type StudentGenderFilter = 'all' | 'male' | 'female' | 'other';
@@ -47,12 +48,22 @@ function FilterRow<T extends string>({
   selected: T | null;
   onSelect: (v: T | null) => void;
 }) {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, typography, spacing } = useTheme();
 
   return (
     <View style={{ marginBottom: spacing.sm }}>
-      <Text style={[styles.sectionLabel, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-        {label}
+      <Text
+        style={[
+          styles.sectionLabel,
+          {
+            color: palette.textMuted,
+            fontSize: typography.overline.fontSize,
+            letterSpacing: typography.overline.letterSpacing,
+            marginBottom: spacing.xs,
+          },
+        ]}
+      >
+        {label.toUpperCase()}
       </Text>
       <ScrollView
         horizontal
@@ -63,28 +74,12 @@ function FilterRow<T extends string>({
           const active =
             selected === chip.value || (selected == null && chip.value === ('all' as T));
           return (
-            <Pressable
+            <FilterChip
               key={String(chip.value)}
+              label={chip.label}
+              active={active}
               onPress={() => onSelect(chip.value === ('all' as T) ? null : chip.value)}
-              style={[
-                styles.chip,
-                {
-                  borderRadius: radius.full,
-                  borderColor: active ? colors.primary : palette.border,
-                  backgroundColor: active ? `${colors.primary}14` : palette.surface,
-                },
-              ]}
-            >
-              <Text
-                style={{
-                  color: active ? colors.primary : palette.textSecondary,
-                  fontSize: fontSizes.xs,
-                  fontWeight: active ? '700' : '500',
-                }}
-              >
-                {chip.label}
-              </Text>
-            </Pressable>
+            />
           );
         })}
       </ScrollView>
@@ -182,7 +177,6 @@ export const StudentFilters: React.FC<StudentFiltersProps> = ({
 };
 
 const styles = StyleSheet.create({
-  sectionLabel: { fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase', marginLeft: 2 },
+  sectionLabel: { fontWeight: '600', marginLeft: 2 },
   row: { flexDirection: 'row', alignItems: 'center' },
-  chip: { borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6 },
 });

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
+import { FilterChip } from '../primitives/FilterChip';
 import { useTheme } from '../theme/ThemeContext';
 import { applicationStatusLabel } from './ApplicationStatusBadge';
 import type { ApplicationStatusFilter } from './types';
@@ -22,7 +23,7 @@ export const ApplicationFilters: React.FC<ApplicationFiltersProps> = ({
   status,
   onStatusChange,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { spacing } = useTheme();
 
   return (
     <ScrollView
@@ -34,30 +35,12 @@ export const ApplicationFilters: React.FC<ApplicationFiltersProps> = ({
         const active = status === option;
         const label = option === 'all' ? 'All' : applicationStatusLabel(option);
         return (
-          <Pressable
+          <FilterChip
             key={option}
+            label={label}
+            active={active}
             onPress={() => onStatusChange(option)}
-            style={[
-              styles.chip,
-              {
-                borderRadius: radius.full,
-                backgroundColor: active ? `${colors.primary}18` : palette.surface,
-                borderColor: active ? colors.primary : palette.border,
-                paddingHorizontal: spacing.md,
-                paddingVertical: spacing.xs,
-              },
-            ]}
-          >
-            <Text
-              style={{
-                color: active ? colors.primary : palette.textSecondary,
-                fontSize: fontSizes.xs,
-                fontWeight: '700',
-              }}
-            >
-              {label}
-            </Text>
-          </Pressable>
+          />
         );
       })}
     </ScrollView>
@@ -66,5 +49,4 @@ export const ApplicationFilters: React.FC<ApplicationFiltersProps> = ({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
-  chip: { borderWidth: StyleSheet.hairlineWidth },
 });

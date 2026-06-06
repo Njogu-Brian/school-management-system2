@@ -1,5 +1,7 @@
 import { formatFinanceAmount, useCan, useFinanceDashboardKpis } from '@erp/core';
 import {
+  DashboardHero,
+  DashboardSection,
   KpiCard,
   QuickAction,
   ScreenContainer,
@@ -12,6 +14,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
+import { FinanceSummaryChart } from '../components/FinanceSummaryChart';
 
 const KPI_CONFIG = [
   { key: 'collectedToday' as const, label: 'Collected Today', icon: 'today-outline' as const },
@@ -31,7 +34,7 @@ const SECTIONS = [
 export const FinanceDashboardScreen: React.FC = () => {
   const canView = useCan('finance.view');
   const navigation = useNavigation<StackNavigationProp<FinanceStackParamList>>();
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const kpisQuery = useFinanceDashboardKpis({ enabled: canView });
 
   const openSection = useCallback(
@@ -44,12 +47,14 @@ export const FinanceDashboardScreen: React.FC = () => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.md, textAlign: 'center' }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, textAlign: 'center' }}>
           You need finance.view permission to open the finance workspace.
         </Text>
       </ScreenContainer>
     );
   }
+
+  const kpiData = kpisQuery.data;
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
@@ -64,13 +69,20 @@ export const FinanceDashboardScreen: React.FC = () => {
           />
         }
       >
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.lg, fontWeight: '700', marginBottom: spacing.sm }}>
-          Finance Dashboard
-        </Text>
+        <DashboardHero
+          variant="finance"
+          title="Finance Dashboard"
+          subtitle="Collections, billing & reconciliation"
+          meta={
+            kpiData
+              ? `${formatFinanceAmount(kpiData.collectedThisMonth ?? 0)} collected this month`
+              : undefined
+          }
+        />
 
         <WidgetGrid>
           {KPI_CONFIG.map((kpi) => {
-            const raw = kpisQuery.data?.[kpi.key];
+            const raw = kpiData?.[kpi.key];
             const value =
               kpi.key === 'studentsInArrears' || kpi.key === 'pendingReconciliation'
                 ? String(raw ?? 0)
@@ -95,6 +107,16 @@ export const FinanceDashboardScreen: React.FC = () => {
           })}
         </WidgetGrid>
 
+        {kpiData ? (
+          <View style={{ marginTop: spacing.md }}>
+            <FinanceSummaryChart
+              collectedToday={kpiData.collectedToday ?? 0}
+              collectedThisMonth={kpiData.collectedThisMonth ?? 0}
+              outstandingFees={kpiData.outstandingFees ?? 0}
+            />
+          </View>
+        ) : null}
+
         {kpisQuery.isError ? (
           <Pressable onPress={() => void kpisQuery.refetch()} style={{ marginTop: spacing.sm }}>
             <Text style={{ color: colors.error, textAlign: 'center' }}>
@@ -103,28 +125,18 @@ export const FinanceDashboardScreen: React.FC = () => {
           </Pressable>
         ) : null}
 
-        <Text
-          style={{
-            color: palette.textPrimary,
-            fontSize: fontSizes.md,
-            fontWeight: '700',
-            marginTop: spacing.lg,
-            marginBottom: spacing.sm,
-          }}
-        >
-          Workspace
-        </Text>
-
-        <View style={[styles.actions, { gap: spacing.sm }]}>
-          {SECTIONS.map((section) => (
-            <QuickAction
-              key={section.route}
-              label={section.label}
-              icon={section.icon}
-              onPress={() => openSection(section.route)}
-            />
-          ))}
-        </View>
+        <DashboardSection title="Workspace">
+          <View style={[styles.actions, { gap: spacing.sm }]}>
+            {SECTIONS.map((section) => (
+              <QuickAction
+                key={section.route}
+                label={section.label}
+                icon={section.icon}
+                onPress={() => openSection(section.route)}
+              />
+            ))}
+          </View>
+        </DashboardSection>
       </ScrollView>
     </ScreenContainer>
   );

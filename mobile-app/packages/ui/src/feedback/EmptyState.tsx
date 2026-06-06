@@ -18,23 +18,27 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   actionLabel,
   onAction,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   return (
     <View style={[styles.wrap, { padding: spacing.lg }]}>
       <View
         style={[
           styles.iconCircle,
-          { backgroundColor: palette.accent, borderRadius: radius.full },
+          elevation[1],
+          {
+            backgroundColor: palette.surfaceMuted,
+            borderRadius: radius['2xl'],
+          },
         ]}
       >
-        <Ionicons name={icon} size={32} color={colors.primary} />
+        <Ionicons name={icon} size={36} color={colors.primary} />
       </View>
       <Text
         style={{
           color: palette.textPrimary,
-          fontSize: fontSizes.md,
-          fontWeight: '700',
+          fontSize: typography.title.fontSize,
+          fontWeight: typography.title.fontWeight,
           textAlign: 'center',
           marginTop: spacing.md,
         }}
@@ -45,10 +49,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <Text
           style={{
             color: palette.textSecondary,
-            fontSize: fontSizes.sm,
+            fontSize: typography.body.fontSize,
             textAlign: 'center',
             marginTop: spacing.xs,
-            lineHeight: 20,
+            lineHeight: typography.body.lineHeight,
+            maxWidth: 280,
           }}
         >
           {message}
@@ -59,16 +64,25 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           onPress={onAction}
           style={[
             styles.action,
+            elevation[1],
             {
               marginTop: spacing.md,
-              backgroundColor: `${colors.primary}14`,
-              borderRadius: radius.md,
-              paddingHorizontal: spacing.md,
+              backgroundColor: palette.surfaceRaised,
+              borderColor: colors.primary,
+              borderRadius: radius.control,
+              paddingHorizontal: spacing.lg,
               paddingVertical: spacing.sm,
+              borderWidth: 1,
             },
           ]}
         >
-          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: fontSizes.sm }}>
+          <Text
+            style={{
+              color: colors.primary,
+              fontWeight: '600',
+              fontSize: typography.body.fontSize,
+            }}
+          >
             {actionLabel}
           </Text>
         </Pressable>
@@ -80,8 +94,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
   iconCircle: {
-    width: 64,
-    height: 64,
+    width: 80,
+    height: 80,
     alignItems: 'center',
     justifyContent: 'center',
   },

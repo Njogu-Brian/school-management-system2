@@ -26,7 +26,7 @@ export const AlertCard: React.FC<AlertCardProps> = ({
   timestamp,
   onPress,
 }) => {
-  const { palette, colors, fontSizes, spacing, radius } = useTheme();
+  const { palette, colors, typography, spacing, radius, elevation } = useTheme();
 
   const accent =
     severity === 'error'
@@ -41,31 +41,49 @@ export const AlertCard: React.FC<AlertCardProps> = ({
     <View
       style={[
         styles.card,
+        elevation[1],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
           borderLeftColor: accent,
-          borderRadius: radius.md,
+          borderRadius: radius.control,
           padding: spacing.md,
         },
       ]}
     >
       <View style={styles.row}>
-        <Ionicons name={SEVERITY_ICON[severity]} size={22} color={accent} />
+        <View style={[styles.iconWrap, { backgroundColor: `${accent}14`, borderRadius: radius.sm }]}>
+          <Ionicons name={SEVERITY_ICON[severity]} size={20} color={accent} />
+        </View>
         <View style={styles.textCol}>
-          <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.sm }]}>
+          <Text
+            style={[
+              styles.title,
+              { color: palette.textPrimary, fontSize: typography.body.fontSize, fontWeight: '600' },
+            ]}
+          >
             {title}
           </Text>
-          <Text style={[styles.message, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
+          <Text
+            style={[
+              styles.message,
+              { color: palette.textSecondary, fontSize: typography.caption.fontSize },
+            ]}
+          >
             {message}
           </Text>
           {timestamp ? (
-            <Text style={[styles.time, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
+            <Text
+              style={[
+                styles.time,
+                { color: palette.textMuted, fontSize: typography.caption.fontSize },
+              ]}
+            >
               {timestamp}
             </Text>
           ) : null}
         </View>
-        {onPress ? <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} /> : null}
+        {onPress ? <Ionicons name="chevron-forward" size={18} color={palette.textMuted} /> : null}
       </View>
     </View>
   );
@@ -88,8 +106,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   row: { flexDirection: 'row', alignItems: 'flex-start' },
-  textCol: { flex: 1, marginLeft: 10 },
-  title: { fontWeight: '700' },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  textCol: { flex: 1 },
+  title: {},
   message: { marginTop: 2, lineHeight: 18 },
   time: { marginTop: 4, fontWeight: '500' },
 });

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface QuickActionProps {
@@ -16,7 +16,7 @@ export const QuickAction: React.FC<QuickActionProps> = ({
   onPress,
   disabled = false,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   return (
     <Pressable
@@ -26,21 +26,28 @@ export const QuickAction: React.FC<QuickActionProps> = ({
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
+        elevation[1],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.md,
-          paddingVertical: spacing.sm,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.control,
+          paddingVertical: spacing.md,
           paddingHorizontal: spacing.md,
-          opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
+          opacity: disabled ? 0.5 : pressed ? 0.88 : 1,
         },
       ]}
     >
-      <Ionicons name={icon} size={20} color={colors.primary} />
+      <View style={[styles.iconWrap, { backgroundColor: `${colors.primary}10`, borderRadius: radius.sm }]}>
+        <Ionicons name={icon} size={22} color={colors.primary} />
+      </View>
       <Text
         style={[
           styles.label,
-          { color: palette.textPrimary, fontSize: fontSizes.xs, marginLeft: spacing.xs },
+          {
+            color: palette.textPrimary,
+            fontSize: typography.caption.fontSize,
+            marginTop: spacing.xs,
+          },
         ]}
         numberOfLines={2}
       >
@@ -52,12 +59,17 @@ export const QuickAction: React.FC<QuickActionProps> = ({
 
 const styles = StyleSheet.create({
   chip: {
-    flexDirection: 'row',
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    minWidth: 140,
+    minWidth: 100,
     flex: 1,
     maxWidth: '48%',
   },
-  label: { fontWeight: '600', flexShrink: 1 },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  label: { fontWeight: '600', textAlign: 'center' },
 });

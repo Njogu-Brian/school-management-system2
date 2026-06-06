@@ -1,7 +1,12 @@
 import { useCan } from '@erp/core';
-import { ScreenContainer, useTheme } from '@erp/ui';
+import {
+  DashboardHero,
+  ScreenContainer,
+  SegmentedTabBar,
+  useTheme,
+} from '@erp/ui';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
   AlertsSection,
   CriticalKpisSection,
@@ -14,15 +19,27 @@ import { QuickActionFab } from './QuickActionFab';
 
 type DashboardTab = 'overview' | 'executive' | 'approvals' | 'alerts';
 
+const DASHBOARD_TABS = [
+  { key: 'overview' as const, label: 'Overview' },
+  { key: 'executive' as const, label: 'Executive' },
+  { key: 'approvals' as const, label: 'Approvals' },
+  { key: 'alerts' as const, label: 'Alerts' },
+];
+
 export const DashboardLayout: React.FC = () => {
   const canViewDashboard = useCan('dashboard.view');
-  const { palette, spacing, fontSizes, colors } = useTheme();
+  const { palette, typography } = useTheme();
   const [tab, setTab] = useState<DashboardTab>('overview');
 
   if (!canViewDashboard) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={[styles.deniedText, { color: palette.textSecondary, fontSize: fontSizes.md }]}>
+        <Text
+          style={[
+            styles.deniedText,
+            { color: palette.textSecondary, fontSize: typography.body.fontSize },
+          ]}
+        >
           You don&apos;t have permission to view the dashboard.
         </Text>
       </ScreenContainer>
@@ -32,42 +49,14 @@ export const DashboardLayout: React.FC = () => {
   return (
     <View style={{ flex: 1 }}>
       <ScreenContainer contentContainerStyle={styles.content}>
-        <View style={[styles.hero, { marginBottom: spacing.lg }]}>
-          <Text style={[styles.heroTitle, { color: palette.textPrimary, fontSize: fontSizes.xl }]}>
-            School Command Center
-          </Text>
-          <Text style={[styles.heroSub, { color: palette.textSecondary, fontSize: fontSizes.sm }]}>
-            Overview for your branch
-          </Text>
-        </View>
+        <DashboardHero
+          variant="default"
+          title="School Command Center"
+          subtitle="Overview for your branch"
+          meta="Real-time KPIs · Approvals · Alerts"
+        />
 
-        <View style={[styles.tabs, { marginBottom: spacing.md, gap: spacing.xs }]}>
-          {([
-            ['overview', 'Overview'],
-            ['executive', 'Executive'],
-            ['approvals', 'Approvals'],
-            ['alerts', 'Alerts'],
-          ] as const).map(([key, label]) => {
-            const active = tab === key;
-            return (
-              <Pressable
-                key={key}
-                onPress={() => setTab(key)}
-                style={[
-                  styles.tab,
-                  {
-                    borderColor: active ? colors.primary : palette.border,
-                    backgroundColor: active ? `${colors.primary}18` : 'transparent',
-                  },
-                ]}
-              >
-                <Text style={{ color: active ? colors.primary : palette.textSecondary, fontWeight: '600', fontSize: fontSizes.xs }}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SegmentedTabBar tabs={DASHBOARD_TABS} activeTab={tab} onTabChange={setTab} />
 
         {tab === 'overview' ? (
           <>
@@ -98,16 +87,4 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   deniedText: { textAlign: 'center' },
-  hero: {},
-  heroTitle: { fontWeight: '700' },
-  heroSub: { marginTop: 4 },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap' },
-  tab: {
-    flexGrow: 1,
-    minWidth: '22%',
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-  },
 });
