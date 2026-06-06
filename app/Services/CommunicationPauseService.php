@@ -68,6 +68,12 @@ class CommunicationPauseService
                 'scheduled_comm_paused' => $scheduledPaused,
                 'fee_reminders_paused' => $remindersPaused,
             ]);
+
+            try {
+                app(SystemAlertService::class)->raiseSmsCreditsAlert($balance, $trigger);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to raise SMS credits system alert', ['error' => $e->getMessage()]);
+            }
         }
 
         self::saveMeta(array_merge($meta, [

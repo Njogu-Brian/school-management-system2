@@ -67,6 +67,16 @@ export function useMarkNotificationRead() {
   });
 }
 
+export function useAcknowledgeNotification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => notificationsApi.acknowledge(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.notifications.all });
+    },
+  });
+}
+
 export function useMarkAllNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({

@@ -1,5 +1,6 @@
 export const NOTIFICATION_CATEGORIES = [
   { id: 'all', label: 'All' },
+  { id: 'system', label: 'System' },
   { id: 'approvals', label: 'Approvals' },
   { id: 'finance', label: 'Finance' },
   { id: 'admissions', label: 'Admissions' },

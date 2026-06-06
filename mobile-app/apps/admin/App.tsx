@@ -14,6 +14,7 @@ import React, { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AdminRootNavigator } from './src/navigation/AdminRootNavigator';
+import { AdminPushNotifications } from './src/providers/AdminPushNotifications';
 import { PersistedQueryProvider } from './src/providers/PersistedQueryProvider';
 
 const ThemedStatusBar: React.FC = () => {
@@ -57,6 +58,7 @@ export default function App(): React.JSX.Element {
                     <GoogleAuthProvider>
                       <BiometricAuthProvider>
                         <OfflineShell>
+                          <AdminPushNotifications />
                           <AdminRootNavigator />
                         </OfflineShell>
                       </BiometricAuthProvider>

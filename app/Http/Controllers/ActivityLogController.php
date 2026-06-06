@@ -31,6 +31,14 @@ class ActivityLogController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
+        if ($request->boolean('alert_audit')) {
+            $query->where(function ($q) {
+                $q->where('action', 'like', 'system_alert_%')
+                    ->orWhere('action', 'sms_balance_low')
+                    ->orWhere('action', 'queue_job_failed');
+            });
+        }
+
         $logs = $query->latest()->paginate(50);
         $users = \App\Models\User::orderBy('name')->get();
         $actions = ActivityLog::distinct()->pluck('action')->sort();

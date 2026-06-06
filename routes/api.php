@@ -200,6 +200,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/unread-count', [\App\Http\Controllers\Api\ApiNotificationController::class, 'unreadCount']);
     Route::get('/notifications', [\App\Http\Controllers\Api\ApiNotificationController::class, 'index']);
     Route::post('/notifications/{id}/read', [\App\Http\Controllers\Api\ApiNotificationController::class, 'markRead']);
+    Route::post('/notifications/{id}/acknowledge', [\App\Http\Controllers\Api\ApiNotificationController::class, 'acknowledge']);
     Route::delete('/notifications/{id}', [\App\Http\Controllers\Api\ApiNotificationController::class, 'destroy']);
     Route::get('/attendance/class', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'classAttendance']);
     Route::post('/attendance/mark', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'mark']);

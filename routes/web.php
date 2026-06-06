@@ -1997,6 +1997,12 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('/download', [\App\Http\Controllers\SystemLogController::class, 'download'])->name('download');
     });
 
+    Route::prefix('admin/alerts')->name('admin.alerts.')->middleware('role:Super Admin')->group(function () {
+        Route::get('/', [\App\Http\Controllers\AdminAlertController::class, 'index'])->name('index');
+        Route::get('/sms-balance', [\App\Http\Controllers\AdminAlertController::class, 'smsBalance'])->name('sms-balance');
+        Route::post('/{id}/acknowledge', [\App\Http\Controllers\AdminAlertController::class, 'acknowledge'])->name('acknowledge');
+    });
+
 });
 
 /*

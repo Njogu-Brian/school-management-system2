@@ -420,7 +420,8 @@ class MpesaSmartMatchingService
                 if (!isset($familyMatches[$familyId][$childName])) {
                     $familyMatches[$familyId][$childName] = [];
                 }
-                if (!in_array($s->id, $familyMatches[$familyId][$childName])) {
+                $existingIds = array_map(fn ($st) => $st->id, $familyMatches[$familyId][$childName]);
+                if (!in_array($s->id, $existingIds, true)) {
                     $familyMatches[$familyId][$childName][] = $s;
                 }
             }
@@ -547,18 +548,7 @@ class MpesaSmartMatchingService
             }
         }
         
-        // If no delimiter found, try splitting by spaces (but only if it looks like multiple names)
-        // This is less reliable, so we'll be conservative
-        $words = array_filter(explode(' ', $reference), function($word) {
-            return strlen(trim($word)) >= 2;
-        });
-        
-        // If we have 2-4 words, treat them as potential names
-        if (count($words) >= 2 && count($words) <= 4) {
-            return array_values(array_map('trim', $words));
-        }
-        
-        // Single name
+        // Without an explicit delimiter, treat the reference as one name (e.g. "Philip Njenga").
         return [trim($reference)];
     }
 

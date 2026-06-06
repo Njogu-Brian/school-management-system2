@@ -13,6 +13,10 @@ export function resolveNotificationDeepLink(
     navigateToDrawer(navigation, 'Approvals', 'ApprovalsHome');
     return;
   }
+  if (category === 'system' || link.includes('system-logs')) {
+    navigateToDrawer(navigation, 'Settings', 'ActivityCenter');
+    return;
+  }
   if (link.includes('admission') || category === 'admissions') {
     const appId = data.application_id ?? data.admission_id;
     if (appId) {

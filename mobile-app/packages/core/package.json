@@ -11,7 +11,9 @@
     "@react-native-async-storage/async-storage": "*",
     "axios": "*",
     "expo-constants": "*",
+    "expo-device": "*",
     "expo-local-authentication": "*",
+    "expo-notifications": "*",
     "expo-secure-store": "*",
     "react": "*",
     "react-native": "*"

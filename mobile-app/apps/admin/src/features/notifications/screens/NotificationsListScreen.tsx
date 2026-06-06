@@ -1,6 +1,7 @@
 import {
   useDeleteNotification,
   useInfiniteNotifications,
+  useAcknowledgeNotification,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
 } from '@erp/core';
@@ -34,6 +35,7 @@ export const NotificationsListScreen: React.FC<Props> = ({ navigation }) => {
   });
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
+  const acknowledge = useAcknowledgeNotification();
   const remove = useDeleteNotification();
 
   const items = useMemo(() => listQuery.data?.pages.flatMap((p) => p.items) ?? [], [listQuery.data]);
@@ -96,6 +98,22 @@ export const NotificationsListScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
               {[item.category, formatDateTimeLabel(item.created_at)].filter(Boolean).join(' · ')}
             </Text>
+            {item.requires_action && !item.is_acknowledged ? (
+              <Pressable
+                onPress={() =>
+                  void acknowledge.mutateAsync(item.id).then(() => showSuccess('Done', 'Alert marked as handled.'))
+                }
+                style={{ marginTop: 8, alignSelf: 'flex-start' }}
+              >
+                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: fontSizes.xs }}>
+                  Mark done
+                </Text>
+              </Pressable>
+            ) : item.is_acknowledged ? (
+              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 8 }}>
+                Handled
+              </Text>
+            ) : null}
           </Pressable>
         )}
         refreshControl={

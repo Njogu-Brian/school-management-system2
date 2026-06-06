@@ -14,6 +14,7 @@ use App\Models\MpesaC2BTransaction;
 use App\Services\PaymentGateways\MpesaGateway;
 use App\Services\PaymentAllocationService;
 use App\Services\MpesaSmartMatchingService;
+use App\Services\SystemAlertService;
 use App\Services\SwimmingWalletService;
 use App\Services\SMSService;
 use App\Services\EmailService;
@@ -2113,6 +2114,24 @@ class MpesaPaymentController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'data' => $request->all(),
             ]);
+
+            try {
+                $transId = $request->input('TransID', 'unknown');
+                app(SystemAlertService::class)->raiseProcessingError(
+                    title: 'M-Pesa C2B callback failed',
+                    message: 'Payment '.$transId.' could not be processed automatically: '.$e->getMessage(),
+                    category: 'finance',
+                    fingerprint: 'c2b_callback_'.sha1($transId.'|'.$e->getMessage()),
+                    deepLink: '/finance/mpesa/c2b/transactions',
+                    context: [
+                        'trans_id' => $transId,
+                        'bill_ref' => $request->input('BillRefNumber'),
+                        'amount' => $request->input('TransAmount'),
+                    ],
+                );
+            } catch (\Throwable $alertError) {
+                Log::warning('Failed to raise C2B system alert', ['error' => $alertError->getMessage()]);
+            }
 
             // Still return success to M-PESA to avoid retries
             return response()->json([

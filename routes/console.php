@@ -17,5 +17,7 @@ Schedule::command('communications:send-scheduled')->everyMinute();
 Schedule::command('fee-communications:process-scheduled')->everyMinute();
 Schedule::command('queue:work --stop-when-empty --max-time=300')->everyMinute();
 Schedule::job(new \App\Jobs\SendFeeRemindersJob)->everyMinute();
+Schedule::command('sms:check-balance-alert')->everyFifteenMinutes();
+Schedule::command('system-alerts:escalate')->everyFifteenMinutes();
 Schedule::command('payment-plans:update-statuses')->dailyAt('00:15');
 Schedule::call([\App\Http\Controllers\BackupRestoreController::class, 'runScheduledIfDue'])->hourly();

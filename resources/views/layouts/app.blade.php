@@ -249,6 +249,62 @@
         .modal { z-index: 2060 !important; }
         .header-alerts {
             margin-left: auto;
+            position: relative;
+        }
+        .header-alerts .alert-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: #dc3545;
+            color: #fff;
+            font-size: 11px;
+            line-height: 18px;
+            text-align: center;
+            font-weight: 700;
+        }
+        .header-alerts .dropdown-menu {
+            width: min(420px, 92vw);
+            max-height: 420px;
+            overflow-y: auto;
+        }
+        .header-alerts .alert-item {
+            white-space: normal;
+            padding: 10px 12px;
+        }
+        .header-alerts .alert-item .alert-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .header-alerts .alert-item .alert-body {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        .header-alerts .alert-item.critical {
+            border-left: 3px solid #dc3545;
+        }
+        .header-alerts .alert-item.warning {
+            border-left: 3px solid #ffc107;
+        }
+        .header-sms-balance .dropdown-menu {
+            width: min(320px, 92vw);
+        }
+        .sms-balance-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .sms-balance-meta {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        .system-alert-banner {
+            position: sticky;
+            top: 0;
+            z-index: 1040;
         }
         .header-actions {
             display: flex;
@@ -462,16 +518,37 @@
     @php $isFinance = request()->is('finance*') || request()->is('voteheads*'); @endphp
     <div class="content @if($isFinance) finance-content @endif">
         @auth
+        @php $isSuperAdmin = auth()->user()->hasRole('Super Admin'); @endphp
         <div class="app-header d-flex align-items-center gap-3 mb-3">
             <div class="header-actions ms-auto">
-                <div class="dropdown header-alerts">
-                    <button class="btn btn-ghost-strong btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                @if($isSuperAdmin)
+                <div class="dropdown header-alerts" id="headerAlertsRoot">
+                    <button class="btn btn-ghost-strong btn-sm dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="headerAlertsToggle">
                         <i class="bi bi-bell"></i> Alerts
+                        <span class="alert-badge d-none" id="headerAlertsBadge">0</span>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><span class="dropdown-item-text text-muted small">No alerts yet</span></li>
+                    <ul class="dropdown-menu dropdown-menu-end" id="headerAlertsMenu">
+                        <li><span class="dropdown-item-text text-muted small">Loading alerts…</span></li>
                     </ul>
                 </div>
+                <div class="dropdown header-sms-balance" id="headerSmsBalanceRoot">
+                    <button class="btn btn-ghost-strong btn-sm dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="headerSmsBalanceToggle">
+                        <i class="bi bi-chat-dots"></i> SMS
+                        <span class="alert-badge d-none" id="headerSmsBalanceBadge">!</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end p-3" id="headerSmsBalanceMenu">
+                        <div class="sms-balance-value" id="headerSmsBalanceValue">—</div>
+                        <div class="sms-balance-meta mt-1" id="headerSmsBalanceMeta">Checking balance…</div>
+                        <div class="d-flex gap-2 mt-3 flex-wrap">
+                            <a class="btn btn-sm btn-outline-primary" href="{{ url('/communication/queues') }}">Queues</a>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="headerSmsBalanceRefresh">Refresh</button>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-ghost-strong btn-sm d-none" id="enableDesktopNotificationsBtn" title="Enable desktop notifications">
+                    <i class="bi bi-app-indicator"></i>
+                </button>
+                @endif
                 <label class="toggle-pill">
                     <input type="checkbox" id="darkModeToggle">
                     <span class="track">
@@ -511,6 +588,7 @@
             </div>
         </div>
         @endauth
+        <div id="systemAlertBannerHost"></div>
         <div class="page-wrapper">
             @if(session('warning'))
             <div class="alert alert-warning alert-dismissible fade show mx-3 mt-3 mb-0" role="alert">
@@ -575,6 +653,217 @@
                     }
                 });
             }
+
+            @if($isSuperAdmin ?? false)
+            (function initSystemAlerts() {
+                const menu = document.getElementById('headerAlertsMenu');
+                const badge = document.getElementById('headerAlertsBadge');
+                const bannerHost = document.getElementById('systemAlertBannerHost');
+                const smsValue = document.getElementById('headerSmsBalanceValue');
+                const smsMeta = document.getElementById('headerSmsBalanceMeta');
+                const smsBadge = document.getElementById('headerSmsBalanceBadge');
+                const smsRefresh = document.getElementById('headerSmsBalanceRefresh');
+                const desktopBtn = document.getElementById('enableDesktopNotificationsBtn');
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                const pollMs = 30000;
+                let knownIds = new Set(JSON.parse(sessionStorage.getItem('seenSystemAlertIds') || '[]'));
+                let audioCtx = null;
+
+                function initDesktopNotifications() {
+                    if (!('Notification' in window) || !desktopBtn) return;
+                    if (Notification.permission === 'granted') {
+                        desktopBtn.classList.add('d-none');
+                        return;
+                    }
+                    desktopBtn.classList.remove('d-none');
+                    desktopBtn.addEventListener('click', async () => {
+                        const result = await Notification.requestPermission();
+                        if (result === 'granted') {
+                            desktopBtn.classList.add('d-none');
+                            new Notification('ERP alerts enabled', {
+                                body: 'You will receive desktop notifications for critical system alerts.',
+                            });
+                        }
+                    });
+                }
+
+                function showDesktopNotification(alert) {
+                    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+                    try {
+                        new Notification(alert.title, {
+                            body: alert.body,
+                            tag: alert.id,
+                            requireInteraction: alert.severity === 'critical',
+                        });
+                    } catch (e) {
+                        /* ignore */
+                    }
+                }
+
+                function playAlertSound() {
+                    try {
+                        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.value = 880;
+                        gain.gain.value = 0.08;
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start();
+                        setTimeout(() => {
+                            osc.stop();
+                            osc.disconnect();
+                            gain.disconnect();
+                        }, 280);
+                    } catch (e) {
+                        /* ignore autoplay restrictions */
+                    }
+                }
+
+                function escapeHtml(value) {
+                    return String(value)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                }
+
+                function renderBanner(alerts) {
+                    if (!bannerHost) return;
+                    bannerHost.innerHTML = '';
+                    const critical = alerts.filter(a => a.severity === 'critical');
+                    if (!critical.length) return;
+
+                    critical.slice(0, 2).forEach(alert => {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'alert alert-danger alert-dismissible fade show system-alert-banner mx-3 mt-3 mb-0';
+                        wrap.innerHTML = `
+                            <i class="bi bi-exclamation-octagon-fill me-2"></i>
+                            <strong>${escapeHtml(alert.title)}</strong> — ${escapeHtml(alert.body)}
+                            <div class="mt-2 d-flex gap-2 flex-wrap">
+                                ${alert.deep_link ? `<a class="btn btn-sm btn-light" href="${escapeHtml(alert.deep_link)}">Open</a>` : ''}
+                                <button type="button" class="btn btn-sm btn-outline-light" data-alert-id="${escapeHtml(alert.id)}">Mark done</button>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+                        wrap.querySelector('[data-alert-id]')?.addEventListener('click', () => acknowledgeAlert(alert.id));
+                        bannerHost.appendChild(wrap);
+                    });
+                }
+
+                function renderMenu(alerts) {
+                    if (!menu) return;
+                    menu.innerHTML = '';
+                    if (!alerts.length) {
+                        menu.innerHTML = '<li><span class="dropdown-item-text text-muted small">No pending alerts</span></li>';
+                    } else {
+                        alerts.forEach(alert => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `
+                                <div class="dropdown-item alert-item ${escapeHtml(alert.severity)}">
+                                    <div class="alert-title">${escapeHtml(alert.title)}</div>
+                                    <div class="alert-body">${escapeHtml(alert.body)}</div>
+                                    <div class="d-flex gap-2 mt-2">
+                                        ${alert.deep_link ? `<a class="btn btn-sm btn-outline-primary" href="${escapeHtml(alert.deep_link)}">Open</a>` : ''}
+                                        <button type="button" class="btn btn-sm btn-success" data-alert-id="${escapeHtml(alert.id)}">
+                                            <i class="bi bi-check2"></i> Done
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                            li.querySelector('[data-alert-id]')?.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                acknowledgeAlert(alert.id);
+                            });
+                            menu.appendChild(li);
+                        });
+                    }
+
+                    const footer = document.createElement('li');
+                    footer.innerHTML = `<hr class="dropdown-divider"><a class="dropdown-item small" href="{{ route('activity-logs.index', ['alert_audit' => 1]) }}">View alert audit trail</a>`;
+                    menu.appendChild(footer);
+                }
+
+                function renderSmsBalance(data) {
+                    if (!smsValue || !smsMeta || !smsBadge) return;
+                    const balance = data?.balance;
+                    const threshold = data?.threshold ?? 50;
+                    smsValue.textContent = balance === null || balance === undefined ? 'Unavailable' : `${Number(balance).toLocaleString()} credits`;
+                    const parts = [`Threshold: ${Number(threshold).toLocaleString()}`];
+                    if (data?.checked_at) parts.push(`Updated ${new Date(data.checked_at).toLocaleString()}`);
+                    if (data?.is_paused) parts.push('Communications paused');
+                    else if (data?.is_empty) parts.push('Credits exhausted');
+                    else if (data?.is_low) parts.push('Low balance');
+                    else parts.push('Healthy');
+                    smsMeta.textContent = parts.join(' · ');
+                    const warn = data?.is_paused || data?.is_empty || data?.is_low;
+                    smsBadge.classList.toggle('d-none', !warn);
+                }
+
+                async function refreshSmsBalance(force) {
+                    const url = `{{ route('admin.alerts.sms-balance') }}${force ? '?refresh=1' : ''}`;
+                    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    if (!res.ok) return;
+                    const payload = await res.json();
+                    renderSmsBalance(payload?.data || {});
+                }
+
+                function updateBadge(count) {
+                    if (!badge) return;
+                    if (count > 0) {
+                        badge.textContent = String(count);
+                        badge.classList.remove('d-none');
+                    } else {
+                        badge.classList.add('d-none');
+                    }
+                }
+
+                async function acknowledgeAlert(id) {
+                    await fetch(`{{ url('/admin/alerts') }}/${id}/acknowledge`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                        },
+                    });
+                    await refreshAlerts(false);
+                }
+
+                async function refreshAlerts(playOnNew) {
+                    const res = await fetch(`{{ route('admin.alerts.index') }}`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    if (!res.ok) return;
+                    const payload = await res.json();
+                    const alerts = payload?.data?.alerts || [];
+                    const count = payload?.data?.pending_count || 0;
+                    updateBadge(count);
+                    renderMenu(alerts);
+                    renderBanner(alerts);
+
+                    const newCritical = alerts.filter(a => a.severity === 'critical' && !knownIds.has(a.id));
+                    if (playOnNew && newCritical.length) {
+                        playAlertSound();
+                        newCritical.forEach(showDesktopNotification);
+                    }
+                    alerts.forEach(a => knownIds.add(a.id));
+                    sessionStorage.setItem('seenSystemAlertIds', JSON.stringify(Array.from(knownIds).slice(-100)));
+                }
+
+                initDesktopNotifications();
+                if ('Notification' in window && Notification.permission === 'default') {
+                    setTimeout(() => Notification.requestPermission().catch(() => {}), 1500);
+                }
+                refreshAlerts(true);
+                refreshSmsBalance(false);
+                if (smsRefresh) smsRefresh.addEventListener('click', () => refreshSmsBalance(true));
+                setInterval(() => {
+                    refreshAlerts(true);
+                    refreshSmsBalance(false);
+                }, pollMs);
+            })();
+            @endif
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

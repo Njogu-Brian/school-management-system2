@@ -41,5 +41,42 @@ return Application::configure(basePath: dirname(__DIR__))
     })
 
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->reportable(function (\Throwable $e) {
+            if (app()->runningInConsole() || app()->runningUnitTests()) {
+                return;
+            }
+
+            if (! app()->environment('production', 'staging')) {
+                return;
+            }
+
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface && $e->getStatusCode() < 500) {
+                return;
+            }
+
+            if ($e instanceof \Illuminate\Validation\ValidationException
+                || $e instanceof \Illuminate\Auth\AuthenticationException
+                || $e instanceof \Illuminate\Auth\Access\AuthorizationException) {
+                return;
+            }
+
+            try {
+                app(\App\Services\SystemAlertService::class)->raiseProcessingError(
+                    title: 'Unhandled application error',
+                    message: class_basename($e).': '.$e->getMessage(),
+                    category: 'system',
+                    fingerprint: 'exception_'.sha1(get_class($e).'|'.$e->getMessage()),
+                    deepLink: '/system-logs',
+                    context: [
+                        'exception' => get_class($e),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                    ],
+                );
+            } catch (\Throwable $alertError) {
+                \Illuminate\Support\Facades\Log::warning('Failed to raise exception system alert', [
+                    'error' => $alertError->getMessage(),
+                ]);
+            }
+        });
     })->create();

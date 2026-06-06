@@ -10,6 +10,10 @@ export interface NotificationRecord {
   category: string;
   source_module?: string;
   deep_link?: string | null;
+  severity?: string;
+  requires_action?: boolean;
+  is_acknowledged?: boolean;
+  acknowledged_at?: string | null;
   data?: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -33,6 +37,10 @@ export const notificationsApi = {
 
   markRead(id: string): Promise<ApiResponse<NotificationRecord>> {
     return apiClient.post<NotificationRecord>(`/notifications/${id}/read`);
+  },
+
+  acknowledge(id: string): Promise<ApiResponse<NotificationRecord>> {
+    return apiClient.post<NotificationRecord>(`/notifications/${id}/acknowledge`);
   },
 
   markAllRead(): Promise<ApiResponse<{ count: number }>> {

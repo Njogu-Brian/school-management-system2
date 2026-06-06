@@ -5,9 +5,12 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Queue\Events\JobFailed;
+use App\Services\SystemAlertService;
 use Spatie\Permission\Models\Permission;
 use App\Models\OptionalFee;
 use App\Models\User;
@@ -41,6 +44,25 @@ class AppServiceProvider extends ServiceProvider
 
         // Register OptionalFee observer for automatic wallet crediting/debiting
         OptionalFee::observe(OptionalFeeObserver::class);
+
+        Event::listen(JobFailed::class, function (JobFailed $event) {
+            if (app()->runningUnitTests()) {
+                return;
+            }
+
+            try {
+                $jobName = $event->job->resolveName();
+                app(SystemAlertService::class)->raiseQueueFailureAlert(
+                    $jobName,
+                    $event->exception->getMessage(),
+                    $event->job->uuid()
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Queue failure alert failed', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     protected function ensureCriticalPermissions(): void

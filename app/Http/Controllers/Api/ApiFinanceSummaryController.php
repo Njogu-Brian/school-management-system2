@@ -31,7 +31,7 @@ class ApiFinanceSummaryController extends Controller
 
         $invoiceBase = Invoice::query()->whereNull('reversed_at');
 
-        $totalInvoiced = (float) (clone $invoiceBase)->sum('total_amount');
+        $totalInvoiced = (float) (clone $invoiceBase)->sum('total');
         $totalPaid = (float) (clone $invoiceBase)->sum('paid_amount');
         $outstandingBalance = (float) (clone $invoiceBase)->sum('balance');
 

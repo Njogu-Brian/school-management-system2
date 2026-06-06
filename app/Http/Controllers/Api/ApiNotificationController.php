@@ -104,11 +104,40 @@ class ApiNotificationController extends Controller
         }
 
         /** @var User $user */
-        $count = $user->unreadNotifications()->count();
+        $count = $user->notifications()
+            ->where(function ($q) {
+                $q->whereNull('read_at')
+                    ->orWhere(function ($q2) {
+                        $q2->where('data->requires_action', true)
+                            ->whereNull('data->acknowledged_at');
+                    });
+            })
+            ->count();
 
         return response()->json([
             'success' => true,
             'data' => ['count' => $count],
+        ]);
+    }
+
+    public function acknowledge(Request $request, string $id)
+    {
+        $user = $request->user();
+        if (! Schema::hasTable('notifications')) {
+            return response()->json(['success' => true, 'message' => 'OK']);
+        }
+
+        /** @var User $user */
+        $ok = app(\App\Services\SystemAlertService::class)->acknowledge($user, $id);
+        if (! $ok) {
+            abort(404);
+        }
+
+        $n = $user->notifications()->where('id', $id)->firstOrFail();
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->formatNotification($n),
         ]);
     }
 
@@ -144,6 +173,10 @@ class ApiNotificationController extends Controller
             'category' => (string) $category,
             'source_module' => (string) $sourceModule,
             'deep_link' => $deepLink,
+            'severity' => $payload['severity'] ?? 'info',
+            'requires_action' => (bool) ($payload['requires_action'] ?? false),
+            'is_acknowledged' => ! empty($payload['acknowledged_at']),
+            'acknowledged_at' => $payload['acknowledged_at'] ?? null,
             'data' => $payload,
             'is_read' => $n->read_at !== null,
             'created_at' => $n->created_at?->toIso8601String() ?? '',
