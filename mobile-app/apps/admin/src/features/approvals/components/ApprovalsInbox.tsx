@@ -6,10 +6,18 @@ import type {
   ApprovalSourceType,
   ApprovalStatus,
 } from '@erp/core';
-import { ApprovalFilters, ApprovalList, ScreenContainer } from '@erp/ui';
+import {
+  ApprovalFilters,
+  ApprovalList,
+  countActiveFilters,
+  FilterBottomSheet,
+  FilterTriggerButton,
+  ScreenContainer,
+  SearchBar,
+  useTheme,
+} from '@erp/ui';
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { StyleSheet, Text, View } from 'react-native';
 import { approvalItemToCard } from '../utils/mapToCard';
 
 const SECTION_HINT: Record<ApprovalStatus | 'all', string> = {
@@ -33,6 +41,8 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
   initialStatus = 'pending',
 }) => {
   const { palette, fontSizes, spacing } = useTheme();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
   const [status, setStatus] = useState<ApprovalStatus | 'all'>(initialStatus);
   const [priority, setPriority] = useState<ApprovalPriority | 'all'>('all');
   const [sourceType, setSourceType] = useState<ApprovalSourceType | 'all'>('all');
@@ -48,10 +58,27 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
     includeAdmissions: true,
   });
 
-  const cards = useMemo(
-    () => (query.data ?? []).map((item) => approvalItemToCard(item, () => onOpenDetail(item))),
-    [query.data, onOpenDetail],
-  );
+  const cards = useMemo(() => {
+    const all = (query.data ?? []).map((item) => approvalItemToCard(item, () => onOpenDetail(item)));
+    if (!searchInput.trim()) return all;
+    const q = searchInput.trim().toLowerCase();
+    return all.filter(
+      (c) =>
+        c.title.toLowerCase().includes(q) ||
+        c.subtitle.toLowerCase().includes(q) ||
+        c.sourceLabel?.toLowerCase().includes(q),
+    );
+  }, [query.data, onOpenDetail, searchInput]);
+
+  const activeFilterCount = countActiveFilters([status, priority, sourceType]);
+
+  const clearFilters = () => {
+    setStatus('all');
+    setPriority('all');
+    setSourceType('all');
+    setSearchInput('');
+    setFiltersOpen(false);
+  };
 
   if (!canView) {
     return (
@@ -65,35 +92,57 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
 
   return (
     <ScreenContainer scroll={false} style={styles.container}>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.xs }}>
-        {SECTION_HINT[status]}
-      </Text>
-      <ApprovalFilters
-        status={status}
-        priority={priority}
-        sourceType={sourceType}
-        onStatusChange={setStatus}
-        onPriorityChange={setPriority}
-        onSourceTypeChange={setSourceType}
-      />
-      <ApprovalList
-        items={cards}
-        isLoading={query.isLoading}
-        isRefreshing={query.isFetching && !query.isLoading}
-        errorMessage={query.isError ? (query.error as Error).message : null}
-        onRefresh={() => void query.refetch()}
-        onRetry={() => void query.refetch()}
-        onClearFilters={() => {
-          setStatus('all');
-          setPriority('all');
-          setSourceType('all');
-        }}
-      />
+      <View
+        style={[
+          styles.sticky,
+          {
+            paddingHorizontal: spacing.md,
+            paddingTop: spacing.sm,
+            paddingBottom: spacing.sm,
+            backgroundColor: palette.surface,
+            borderBottomColor: palette.borderSubtle,
+            gap: spacing.sm,
+          },
+        ]}
+      >
+        <SearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search approvals…" />
+        <FilterTriggerButton activeCount={activeFilterCount} onPress={() => setFiltersOpen(true)} />
+        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{SECTION_HINT[status]}</Text>
+      </View>
+
+      <View style={{ flex: 1, paddingHorizontal: spacing.md }}>
+        <ApprovalList
+          items={cards}
+          isLoading={query.isLoading}
+          isRefreshing={query.isFetching && !query.isLoading}
+          errorMessage={query.isError ? (query.error as Error).message : null}
+          onRefresh={() => void query.refetch()}
+          onRetry={() => void query.refetch()}
+          onClearFilters={clearFilters}
+        />
+      </View>
+
+      <FilterBottomSheet
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onApply={() => setFiltersOpen(false)}
+        onClear={clearFilters}
+      >
+        <ApprovalFilters
+          status={status}
+          priority={priority}
+          sourceType={sourceType}
+          onStatusChange={setStatus}
+          onPriorityChange={setPriority}
+          onSourceTypeChange={setSourceType}
+        />
+      </FilterBottomSheet>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 16 },
+  container: { flex: 1 },
+  sticky: { zIndex: 2, borderBottomWidth: StyleSheet.hairlineWidth },
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
 });

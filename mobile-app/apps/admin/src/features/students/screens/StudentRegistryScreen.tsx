@@ -8,9 +8,12 @@ import {
   type StudentSummary,
 } from '@erp/core';
 import {
+  countActiveFilters,
   DashboardHero,
   ListEmptyState,
+  RegistryListLayout,
   ScreenContainer,
+  SkeletonListRows,
   StudentFilters,
   StudentListItem,
   StudentSearchBar,
@@ -19,14 +22,12 @@ import {
 import type { StudentEnrollmentStatusFilter, StudentGenderFilter } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   RefreshControl,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { useStudentRegistryState } from '../hooks/useStudentRegistryState';
@@ -35,7 +36,8 @@ import { summaryToListItem } from '../utils/mapToListItem';
 export const StudentRegistryScreen: React.FC = () => {
   const canView = useCan('students.view');
   const navigation = useNavigation<StackNavigationProp<StudentsStackParamList>>();
-  const { colors, palette, spacing, typography } = useTheme();
+  const { colors, palette, typography } = useTheme();
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const {
     searchInput,
@@ -104,6 +106,14 @@ export const StudentRegistryScreen: React.FC = () => {
     return parts.length > 0 ? parts.join(' · ') : undefined;
   }, [listTotal, newThisTerm]);
 
+  const activeFilterCount = countActiveFilters([
+    gradeLevel,
+    classroomId,
+    streamId,
+    status,
+    gender,
+  ]);
+
   const openDetail = useCallback(
     (summary: StudentSummary) => {
       navigation.navigate('StudentDetail', { studentId: summary.id, summary });
@@ -118,6 +128,7 @@ export const StudentRegistryScreen: React.FC = () => {
     setStreamId(null);
     setStatus('all');
     setGender('all');
+    setFiltersOpen(false);
   }, [setSearchInput, setGradeLevel, setClassroomId, setStreamId, setStatus, setGender]);
 
   const onGradeChange = useCallback(
@@ -149,35 +160,46 @@ export const StudentRegistryScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={students}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
-          <View>
-            <DashboardHero
-              variant="students"
-              title="Students"
-              subtitle={enrolled != null ? `${enrolled} enrolled` : 'Student registry'}
-              meta={heroMeta}
-            />
-            <StudentSearchBar value={searchInput} onChangeText={setSearchInput} />
-            <StudentFilters
-              gradeLevel={gradeLevel}
-              classroomId={classroomId}
-              streamId={streamId}
-              status={status as StudentEnrollmentStatusFilter}
-              gender={gender as StudentGenderFilter}
-              gradeOptions={gradeOptions}
-              classOptions={classOptions}
-              streamOptions={streamOptions}
-              onGradeChange={onGradeChange}
-              onClassroomChange={onClassroomChange}
-              onStreamChange={setStreamId}
-              onStatusChange={setStatus}
-              onGenderChange={setGender}
-            />
-          </View>
+        hero={
+          <DashboardHero
+            variant="students"
+            title="Students"
+            subtitle={enrolled != null ? `${enrolled} enrolled` : 'Student registry'}
+            meta={heroMeta}
+          />
+        }
+        searchBar={
+          <StudentSearchBar
+            value={searchInput}
+            onChangeText={setSearchInput}
+            placeholder="Search students…"
+          />
+        }
+        activeFilterCount={activeFilterCount}
+        filtersOpen={filtersOpen}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onCloseFilters={() => setFiltersOpen(false)}
+        onApplyFilters={() => setFiltersOpen(false)}
+        onClearFilters={clearFilters}
+        filterContent={
+          <StudentFilters
+            gradeLevel={gradeLevel}
+            classroomId={classroomId}
+            streamId={streamId}
+            status={status as StudentEnrollmentStatusFilter}
+            gender={gender as StudentGenderFilter}
+            gradeOptions={gradeOptions}
+            classOptions={classOptions}
+            streamOptions={streamOptions}
+            onGradeChange={onGradeChange}
+            onClassroomChange={onClassroomChange}
+            onStreamChange={setStreamId}
+            onStatusChange={setStatus}
+            onGenderChange={setGender}
+          />
         }
         renderItem={({ item }) => (
           <StudentListItem student={summaryToListItem(item, () => openDetail(item))} />
@@ -198,12 +220,12 @@ export const StudentRegistryScreen: React.FC = () => {
         onEndReachedThreshold={0.4}
         ListFooterComponent={
           listQuery.isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
           ) : null
         }
         ListEmptyComponent={
           listQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
+            <SkeletonListRows variant="avatar" />
           ) : listQuery.isError ? (
             <ListEmptyState
               title="Could not load students"

@@ -8,21 +8,23 @@ import {
   ApplicationFilters,
   ApplicationListItem,
   ApplicationSearchBar,
+  countActiveFilters,
   DashboardHero,
-  DashboardSection,
   KpiCard,
   ListEmptyState,
+  RegistryListLayout,
   ScreenContainer,
+  SkeletonListRows,
+  SkeletonWidgetGrid,
   WidgetGrid,
   WidgetShell,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -46,6 +48,7 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
   const canView = useCan('admissions.view');
   const navigation = useNavigation<StackNavigationProp<AdmissionsStackParamList>>();
   const { colors, palette, spacing, typography } = useTheme();
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const { searchInput, setSearchInput, status, setStatus, filters } = useApplicationRegistryState();
   const statsQuery = useAdmissionsStats({ enabled: canView });
@@ -71,9 +74,17 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
     (stats?.enrolled ?? 0) +
     (stats?.rejected ?? 0);
 
-  const listHeader = useMemo(
+  const activeFilterCount = countActiveFilters([status]);
+
+  const clearFilters = useCallback(() => {
+    setSearchInput('');
+    setStatus('all');
+    setFiltersOpen(false);
+  }, [setSearchInput, setStatus]);
+
+  const hero = useMemo(
     () => (
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
+      <View>
         <DashboardHero
           variant="admissions"
           title="Admissions Dashboard"
@@ -81,33 +92,37 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
           meta={totalApplications > 0 ? `${totalApplications} total applications` : undefined}
         />
 
-        <WidgetGrid>
-          {KPI_CONFIG.map((kpi) => {
-            const value = stats?.[kpi.field];
-            const state = statsQuery.isLoading
-              ? 'loading'
-              : statsQuery.isError
-                ? 'error'
-                : value == null
-                  ? 'empty'
-                  : 'success';
-            return (
-              <WidgetShell
-                key={kpi.field}
-                state={state}
-                title={kpi.label}
-                onRetry={() => void statsQuery.refetch()}
-              >
-                <KpiCard
-                  label={kpi.label}
-                  value={String(value ?? 0)}
-                  icon={kpi.icon}
-                  onPress={() => setStatus(kpi.status)}
-                />
-              </WidgetShell>
-            );
-          })}
-        </WidgetGrid>
+        {statsQuery.isLoading ? (
+          <SkeletonWidgetGrid count={4} />
+        ) : (
+          <WidgetGrid>
+            {KPI_CONFIG.map((kpi) => {
+              const value = stats?.[kpi.field];
+              const state = statsQuery.isLoading
+                ? 'loading'
+                : statsQuery.isError
+                  ? 'error'
+                  : value == null
+                    ? 'empty'
+                    : 'success';
+              return (
+                <WidgetShell
+                  key={kpi.field}
+                  state={state}
+                  title={kpi.label}
+                  onRetry={() => void statsQuery.refetch()}
+                >
+                  <KpiCard
+                    label={kpi.label}
+                    value={String(value ?? 0)}
+                    icon={kpi.icon}
+                    onPress={() => setStatus(kpi.status)}
+                  />
+                </WidgetShell>
+              );
+            })}
+          </WidgetGrid>
+        )}
 
         {stats ? (
           <View style={{ marginVertical: spacing.md }}>
@@ -121,22 +136,19 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
           </View>
         ) : null}
 
-        <DashboardSection title="Applications">
-          <ApplicationSearchBar value={searchInput} onChangeText={setSearchInput} />
-          <ApplicationFilters status={status} onStatusChange={setStatus} />
-        </DashboardSection>
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontSize: typography.title.fontSize,
+            fontWeight: typography.title.fontWeight,
+            marginTop: spacing.sm,
+          }}
+        >
+          Applications
+        </Text>
       </View>
     ),
-    [
-      spacing,
-      statsQuery,
-      stats,
-      totalApplications,
-      searchInput,
-      status,
-      setSearchInput,
-      setStatus,
-    ],
+    [spacing, statsQuery, stats, totalApplications, setStatus, typography],
   );
 
   if (!canView) {
@@ -151,16 +163,21 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={applications}
         keyExtractor={(item) => String(item.id)}
-        ListHeaderComponent={listHeader}
+        hero={hero}
+        searchBar={<ApplicationSearchBar value={searchInput} onChangeText={setSearchInput} />}
+        activeFilterCount={activeFilterCount}
+        filtersOpen={filtersOpen}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onCloseFilters={() => setFiltersOpen(false)}
+        onApplyFilters={() => setFiltersOpen(false)}
+        onClearFilters={clearFilters}
+        filterContent={<ApplicationFilters status={status} onStatusChange={setStatus} />}
         renderItem={({ item }) => (
-          <View style={{ paddingHorizontal: spacing.md, marginBottom: spacing.sm }}>
-            <ApplicationListItem
-              application={summaryToListItem(item)}
-              onPress={() => openDetail(item)}
-            />
+          <View style={{ marginBottom: spacing.sm }}>
+            <ApplicationListItem application={summaryToListItem(item)} onPress={() => openDetail(item)} />
           </View>
         )}
         refreshControl={
@@ -188,18 +205,12 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
           ) : null
         }
         ListEmptyComponent={
-          !listQuery.isLoading && !listQuery.isError ? (
-            <ListEmptyState
-              entityName="applications"
-              icon="document-text-outline"
-              onClearFilters={() => {
-                setSearchInput('');
-                setStatus('all');
-              }}
-            />
+          listQuery.isLoading ? (
+            <SkeletonListRows variant="avatar" />
+          ) : !listQuery.isError ? (
+            <ListEmptyState entityName="applications" icon="document-text-outline" onClearFilters={clearFilters} />
           ) : null
         }
-        contentContainerStyle={{ paddingBottom: spacing.xl }}
       />
 
       {listQuery.isError ? (

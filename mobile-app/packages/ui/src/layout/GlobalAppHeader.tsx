@@ -11,6 +11,8 @@ export interface GlobalAppHeaderProps {
   /** Static label for the active branch (no switching logic in the shell batch). */
   branchLabel?: string;
   onBranchPress?: () => void;
+  /** When set, shows a tappable search affordance below the title row (opens global search). */
+  searchPrompt?: string;
   onSearchPress?: () => void;
   onNotificationsPress?: () => void;
   onApprovalsPress?: () => void;
@@ -30,13 +32,14 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   branchLabel = 'Main Branch',
   onBranchPress,
   onSearchPress,
+  searchPrompt = 'Search anything…',
   onNotificationsPress,
   onApprovalsPress,
   onProfilePress,
   showApprovalsBadge = false,
   showNotificationsBadge = false,
 }) => {
-  const { palette, colors, spacing, typography } = useTheme();
+  const { palette, colors, spacing, typography, radius } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
@@ -113,6 +116,37 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
           <Ionicons name="person" size={16} color={colors.white} />
         </Pressable>
       </View>
+
+      {onSearchPress ? (
+        <Pressable
+          onPress={onSearchPress}
+          accessibilityRole="search"
+          accessibilityLabel={searchPrompt}
+          style={[
+            styles.searchPrompt,
+            {
+              marginHorizontal: spacing.sm,
+              marginTop: spacing.xs,
+              marginBottom: spacing.sm,
+              backgroundColor: palette.surfaceRaised,
+              borderColor: palette.borderSubtle,
+              borderRadius: radius.control,
+            },
+          ]}
+        >
+          <Ionicons name="search-outline" size={18} color={palette.textMuted} />
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              color: palette.textMuted,
+              fontSize: typography.body.fontSize,
+            }}
+          >
+            {searchPrompt}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 };
@@ -169,5 +203,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 6,
+  },
+  searchPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 44,
   },
 });

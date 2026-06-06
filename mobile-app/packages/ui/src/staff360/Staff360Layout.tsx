@@ -1,4 +1,5 @@
 import React from 'react';
+import { Profile360CompactBar } from '../layout/Profile360CompactBar';
 import { Profile360Layout } from '../layout/Profile360Layout';
 import { Staff360Header } from './Staff360Header';
 import type { Staff360HeaderData, Staff360TabId } from './types';
@@ -27,6 +28,9 @@ export const Staff360Layout: React.FC<Staff360LayoutProps> = ({
 }) => (
   <Profile360Layout
     header={<Staff360Header staff={header} />}
+    headerCompact={
+      <Profile360CompactBar title={header.fullName} subtitle={header.orgLabel} />
+    }
     tabs={tabs.map((t) => ({ key: t.id, label: t.label }))}
     activeTab={activeTab}
     onTabChange={onTabChange}

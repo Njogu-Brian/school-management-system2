@@ -1,18 +1,20 @@
 import { useCan, useInfiniteInvoiceList, type InvoiceSummary } from '@erp/core';
 import {
+  countActiveFilters,
   FinanceScreenHeader,
   FinanceSearchBar,
   InvoiceFilters,
   InvoiceListItem,
   ListEmptyState,
+  RegistryListLayout,
   ScreenContainer,
+  SkeletonListRows,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -28,6 +30,7 @@ type Props = StackScreenProps<FinanceStackParamList, 'BillingList'>;
 export const BillingListScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('finance.view');
   const { colors, palette, spacing } = useTheme();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const { searchInput, setSearchInput, status, setStatus, filters } = useBillingRegistryState();
   const listQuery = useInfiniteInvoiceList(filters, { enabled: canView });
 
@@ -36,12 +39,20 @@ export const BillingListScreen: React.FC<Props> = ({ navigation }) => {
     [listQuery.data],
   );
 
+  const activeFilterCount = countActiveFilters([status]);
+
   const openDetail = useCallback(
     (summary: InvoiceSummary) => {
       navigation.navigate('InvoiceDetail', { invoiceId: summary.id, summary });
     },
     [navigation],
   );
+
+  const clearFilters = useCallback(() => {
+    setSearchInput('');
+    setStatus('all');
+    setFiltersOpen(false);
+  }, [setSearchInput, setStatus]);
 
   if (!canView) {
     return (
@@ -53,24 +64,29 @@ export const BillingListScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={invoices}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
-          <View>
-            <FinanceScreenHeader title="Billing" subtitle="Invoices (read-only)" onBack={() => navigation.goBack()} />
-            <FinanceSearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search student or invoice…" />
-            <InvoiceFilters status={status} onStatusChange={setStatus} />
-          </View>
+        hero={
+          <FinanceScreenHeader title="Billing" subtitle="Invoices (read-only)" onBack={() => navigation.goBack()} />
         }
+        searchBar={
+          <FinanceSearchBar
+            value={searchInput}
+            onChangeText={setSearchInput}
+            placeholder="Search student or invoice…"
+          />
+        }
+        activeFilterCount={activeFilterCount}
+        filtersOpen={filtersOpen}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onCloseFilters={() => setFiltersOpen(false)}
+        onApplyFilters={() => setFiltersOpen(false)}
+        onClearFilters={clearFilters}
+        filterContent={<InvoiceFilters status={status} onStatusChange={setStatus} />}
         renderItem={({ item }) => (
           <View style={{ marginBottom: spacing.sm }}>
-            <InvoiceListItem
-              invoice={item}
-              onPress={() => openDetail(item)}
-              formatAmount={formatKes}
-            />
+            <InvoiceListItem invoice={item} onPress={() => openDetail(item)} formatAmount={formatKes} />
           </View>
         )}
         refreshControl={
@@ -93,15 +109,10 @@ export const BillingListScreen: React.FC<Props> = ({ navigation }) => {
           ) : null
         }
         ListEmptyComponent={
-          !listQuery.isLoading && !listQuery.isError ? (
-            <ListEmptyState
-              entityName="invoices"
-              icon="receipt-outline"
-              onClearFilters={() => {
-                setSearchInput('');
-                setStatus('all');
-              }}
-            />
+          listQuery.isLoading ? (
+            <SkeletonListRows variant="card" />
+          ) : !listQuery.isError ? (
+            <ListEmptyState entityName="invoices" icon="receipt-outline" onClearFilters={clearFilters} />
           ) : null
         }
       />

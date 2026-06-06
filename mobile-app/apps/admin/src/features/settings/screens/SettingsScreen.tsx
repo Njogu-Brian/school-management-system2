@@ -1,8 +1,7 @@
-import { getNavArea, useCan } from '@erp/core';
+import { getNavArea, useCan, useSchoolSettings } from '@erp/core';
 import { PlaceholderScreen, ScreenContainer, SettingsHubLayout, type SettingsSectionId } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { Modal, ScrollView } from 'react-native';
 import { ApiDiagnosticsScreen } from '../../diagnostics';
 import { AcademicSettingsSection } from '../sections/AcademicSettingsSection';
 import { GradingSettingsSection } from '../sections/GradingSettingsSection';
@@ -22,7 +21,7 @@ const ALL_SECTIONS = [
 
 export const SettingsScreen: React.FC = () => {
   const canView = useCan('settings.view');
-  const { colors, spacing, fontSizes, palette } = useTheme();
+  const schoolQuery = useSchoolSettings({ enabled: canView });
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('school');
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
@@ -57,40 +56,41 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <SettingsHubLayout
-        sections={sections}
-        activeSection={activeSection}
-        onSectionChange={setActiveSection}
-      >
-        {content}
-      </SettingsHubLayout>
-      <View
-        style={{
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm,
-          borderTopWidth: 1,
-          borderTopColor: palette.border,
-          gap: spacing.sm,
-        }}
-      >
-        <Pressable onPress={() => setSessionOpen(true)}>
-          <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
-            Session & security
-          </Text>
-        </Pressable>
-        <Pressable onPress={() => setAboutOpen(true)}>
-          <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
-            About & support
-          </Text>
-        </Pressable>
-        {__DEV__ ? (
-          <Pressable onPress={() => setDiagnosticsOpen(true)}>
-            <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
-              API Health (dev)
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+        <SettingsHubLayout
+          sections={sections}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          schoolName={schoolQuery.data?.school_name ?? 'School settings'}
+          schoolSubtitle={schoolQuery.data?.school_email ?? 'Administration & configuration'}
+          footerLinks={[
+            {
+              id: 'session',
+              label: 'Session & security',
+              icon: 'lock-closed-outline',
+              onPress: () => setSessionOpen(true),
+            },
+            {
+              id: 'about',
+              label: 'About & support',
+              icon: 'information-circle-outline',
+              onPress: () => setAboutOpen(true),
+            },
+            ...(__DEV__
+              ? [
+                  {
+                    id: 'diagnostics',
+                    label: 'API Health (dev)',
+                    icon: 'pulse-outline' as const,
+                    onPress: () => setDiagnosticsOpen(true),
+                  },
+                ]
+              : []),
+          ]}
+        >
+          {content}
+        </SettingsHubLayout>
+      </ScrollView>
       <Modal visible={sessionOpen} animationType="slide" onRequestClose={() => setSessionOpen(false)}>
         <SessionScreen onBack={() => setSessionOpen(false)} />
       </Modal>

@@ -4,14 +4,15 @@ import {
   FinanceSearchBar,
   ListEmptyState,
   PaymentListItem,
+  RegistryListLayout,
   ScreenContainer,
+  SkeletonListRows,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -52,15 +53,23 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={payments}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
-          <View>
-            <FinanceScreenHeader title="Collections" subtitle="Payments (read-only)" onBack={() => navigation.goBack()} />
-            <FinanceSearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search receipt or student…" />
-          </View>
+        showFilterTrigger={false}
+        hero={
+          <FinanceScreenHeader
+            title="Collections"
+            subtitle="Payments (read-only)"
+            onBack={() => navigation.goBack()}
+          />
+        }
+        searchBar={
+          <FinanceSearchBar
+            value={searchInput}
+            onChangeText={setSearchInput}
+            placeholder="Search receipt or student…"
+          />
         }
         renderItem={({ item }) => (
           <View style={{ marginBottom: spacing.sm }}>
@@ -92,7 +101,9 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation }) => {
           ) : null
         }
         ListEmptyComponent={
-          !listQuery.isLoading && !listQuery.isError ? (
+          listQuery.isLoading ? (
+            <SkeletonListRows variant="card" />
+          ) : !listQuery.isError ? (
             <ListEmptyState
               entityName="payments"
               icon="cash-outline"

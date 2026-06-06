@@ -8,6 +8,7 @@ export interface SearchBarProps {
   onChangeText: (text: string) => void;
   placeholder?: string;
   style?: ViewStyle;
+  autoFocus?: boolean;
 }
 
 /** Unified search bar — V2 design with icon, elevated surface, and focus ring. */
@@ -16,6 +17,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onChangeText,
   placeholder = 'Search…',
   style,
+  autoFocus,
 }) => {
   const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
@@ -50,6 +52,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         ]}
         autoCapitalize="none"
         autoCorrect={false}
+        autoFocus={autoFocus}
         returnKeyType="search"
         selectionColor={colors.primary}
         accessibilityRole="search"

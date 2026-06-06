@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SkeletonLoader } from '../feedback/SkeletonLoader';
 import { useTheme } from '../theme/ThemeContext';
 import type { WidgetDisplayState } from './types';
 
@@ -45,16 +46,9 @@ export const WidgetShell: React.FC<WidgetShellProps> = ({
   if (state === 'loading') {
     return (
       <View style={cardStyle} accessibilityState={{ busy: true }}>
-        {title ? (
-          <View style={[styles.skeletonLine, { width: '50%', backgroundColor: palette.borderSubtle }]} />
-        ) : null}
-        <View
-          style={[
-            styles.skeletonValue,
-            { backgroundColor: palette.borderSubtle, marginTop: spacing.sm },
-          ]}
-        />
-        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
+        {title ? <SkeletonLoader height={12} width="50%" /> : null}
+        <SkeletonLoader height={28} width="70%" style={{ marginTop: spacing.sm }} />
+        <SkeletonLoader height={12} width="40%" style={{ marginTop: spacing.xs }} />
       </View>
     );
   }

@@ -8,17 +8,19 @@ import {
 import {
   AcademicScreenHeader,
   AcademicSearchBar,
+  countActiveFilters,
   ExamFilters,
   ExamListItem,
   ListEmptyState,
+  RegistryListLayout,
   ScreenContainer,
+  SkeletonListRows,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -34,6 +36,7 @@ type Props = StackScreenProps<AcademicsStackParamList, 'ExamsList'>;
 export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('academics.view') && useCan('exams.view');
   const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const {
     searchInput,
     setSearchInput,
@@ -57,11 +60,92 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
     [listQuery.data],
   );
 
+  const activeFilterCount = countActiveFilters([status, academicYearId, termId]);
+
   const openDetail = useCallback(
     (summary: ExamSummary) => {
       navigation.navigate('ExamDetail', { examId: summary.id, summary });
     },
     [navigation],
+  );
+
+  const clearFilters = useCallback(() => {
+    setSearchInput('');
+    setStatus('all');
+    setAcademicYearId(null);
+    setTermId(null);
+    setFiltersOpen(false);
+  }, [setSearchInput, setStatus, setAcademicYearId, setTermId]);
+
+  const filterContent = (
+    <View>
+      <ExamFilters status={status} onStatusChange={setStatus} />
+      <Text style={[styles.sectionLabel, { color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.sm }]}>
+        Academic year
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
+        {(yearsQuery.data ?? []).map((y) => (
+          <Pressable
+            key={y.id}
+            onPress={() => {
+              setAcademicYearId(academicYearId === y.id ? null : y.id);
+              setTermId(null);
+            }}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: academicYearId === y.id ? colors.primary : palette.surface,
+                borderColor: academicYearId === y.id ? colors.primary : palette.border,
+                borderRadius: radius.full,
+                marginRight: spacing.xs,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: academicYearId === y.id ? colors.white : palette.textSecondary,
+                fontSize: fontSizes.xs,
+                fontWeight: '700',
+              }}
+            >
+              {y.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      {(termsQuery.data ?? []).length > 0 ? (
+        <>
+          <Text style={[styles.sectionLabel, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>Term</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {(termsQuery.data ?? []).map((t) => (
+              <Pressable
+                key={t.id}
+                onPress={() => setTermId(termId === t.id ? null : t.id)}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: termId === t.id ? colors.primary : palette.surface,
+                    borderColor: termId === t.id ? colors.primary : palette.border,
+                    borderRadius: radius.full,
+                    marginRight: spacing.xs,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: termId === t.id ? colors.white : palette.textSecondary,
+                    fontSize: fontSizes.xs,
+                    fontWeight: '700',
+                  }}
+                >
+                  {t.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
+    </View>
   );
 
   if (!canView) {
@@ -74,10 +158,22 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={exams}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+        hero={
+          <AcademicScreenHeader title="Exams" subtitle="Read-only exam registry" onBack={() => navigation.goBack()} />
+        }
+        searchBar={
+          <AcademicSearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search exams…" />
+        }
+        activeFilterCount={activeFilterCount}
+        filtersOpen={filtersOpen}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onCloseFilters={() => setFiltersOpen(false)}
+        onApplyFilters={() => setFiltersOpen(false)}
+        onClearFilters={clearFilters}
+        filterContent={filterContent}
         refreshControl={
           <RefreshControl
             refreshing={listQuery.isRefetching && !listQuery.isFetchingNextPage}
@@ -85,60 +181,6 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
             colors={[colors.primary]}
             tintColor={colors.primary}
           />
-        }
-        ListHeaderComponent={
-          <View>
-            <AcademicScreenHeader title="Exams" subtitle="Read-only exam registry" onBack={() => navigation.goBack()} />
-            <AcademicSearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search exams…" />
-            <ExamFilters status={status} onStatusChange={setStatus} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
-              {(yearsQuery.data ?? []).map((y) => (
-                <Pressable
-                  key={y.id}
-                  onPress={() => {
-                    setAcademicYearId(academicYearId === y.id ? null : y.id);
-                    setTermId(null);
-                  }}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: academicYearId === y.id ? colors.primary : palette.surface,
-                      borderColor: academicYearId === y.id ? colors.primary : palette.border,
-                      borderRadius: radius.full,
-                      marginRight: spacing.xs,
-                    },
-                  ]}
-                >
-                  <Text style={{ color: academicYearId === y.id ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
-                    {y.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            {(termsQuery.data ?? []).length > 0 ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
-                {(termsQuery.data ?? []).map((t) => (
-                  <Pressable
-                    key={t.id}
-                    onPress={() => setTermId(termId === t.id ? null : t.id)}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: termId === t.id ? colors.primary : palette.surface,
-                        borderColor: termId === t.id ? colors.primary : palette.border,
-                        borderRadius: radius.full,
-                        marginRight: spacing.xs,
-                      },
-                    ]}
-                  >
-                    <Text style={{ color: termId === t.id ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
-                      {t.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            ) : null}
-          </View>
         }
         renderItem={({ item }) => (
           <ExamListItem
@@ -156,7 +198,7 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
         )}
         ListEmptyComponent={
           listQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} />
+            <SkeletonListRows variant="compact" />
           ) : listQuery.isError ? (
             <ListEmptyState
               title="Could not load exams"
@@ -166,7 +208,7 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
               onAction={() => void listQuery.refetch()}
             />
           ) : (
-            <ListEmptyState entityName="exams" icon="school-outline" />
+            <ListEmptyState entityName="exams" icon="school-outline" onClearFilters={clearFilters} />
           )
         }
         onEndReached={() => {
@@ -186,4 +228,5 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: StyleSheet.hairlineWidth },
+  sectionLabel: { fontWeight: '600', marginBottom: 6, textTransform: 'uppercase' },
 });

@@ -1,5 +1,6 @@
 import type {
   AdminDashboardStats,
+  DashboardChartSeries,
   PendingApprovalsSummary,
 } from '@erp/core';
 import type { KpiCardProps } from '@erp/ui';
@@ -14,6 +15,33 @@ export interface KpiAdapterResult {
 
 function meta(widgetId: DashboardWidgetId) {
   return KPI_METADATA[widgetId];
+}
+
+function chartPeriodTrend(
+  series: DashboardChartSeries | undefined,
+  options?: { invertPositive?: boolean },
+): { delta: string; deltaPositive: boolean } | null {
+  const values = series?.values;
+  if (!values || values.length < 2) return null;
+
+  const prev = values[values.length - 2];
+  const curr = values[values.length - 1];
+  if (prev === 0 && curr === 0) return null;
+
+  if (prev === 0) {
+    return {
+      delta: `↑ ${formatInteger(curr)}`,
+      deltaPositive: !options?.invertPositive,
+    };
+  }
+
+  const pct = ((curr - prev) / Math.abs(prev)) * 100;
+  const arrow = pct >= 0 ? '↑' : '↓';
+  const positive = options?.invertPositive ? pct <= 0 : pct >= 0;
+  return {
+    delta: `${arrow} ${Math.abs(pct).toFixed(1)}%`,
+    deltaPositive: positive,
+  };
 }
 
 function termScopeCaption(stats: AdminDashboardStats): string | undefined {
@@ -35,14 +63,16 @@ function termScopeCaption(stats: AdminDashboardStats): string | undefined {
 export function adaptEnrollmentKpi(stats: AdminDashboardStats): KpiAdapterResult {
   const { label, icon } = meta('enrollment_kpi');
   const total = stats.total_students ?? 0;
+  const trend = chartPeriodTrend(stats.charts?.enrollment);
+
   return {
     isEmpty: total === 0,
     kpi: {
       label,
       icon: icon as KpiCardProps['icon'],
       value: formatInteger(total),
-      delta: 'Active students',
-      deltaPositive: true,
+      delta: trend?.delta ?? 'Active students',
+      deltaPositive: trend?.deltaPositive ?? true,
     },
   };
 }
@@ -72,6 +102,7 @@ export function adaptCollectionsKpi(stats: AdminDashboardStats): KpiAdapterResul
   const scope = termScopeCaption(stats);
   const collectionRate =
     invoiced > 0 ? Math.min(100, Math.round((collected / invoiced) * 100)) : null;
+  const trend = chartPeriodTrend(stats.charts?.payments);
 
   return {
     isEmpty: false,
@@ -80,10 +111,11 @@ export function adaptCollectionsKpi(stats: AdminDashboardStats): KpiAdapterResul
       icon: icon as KpiCardProps['icon'],
       value: formatKes(collected),
       delta:
-        collectionRate != null
+        trend?.delta ??
+        (collectionRate != null
           ? `${collectionRate}% of invoiced${scope ? ` · ${scope}` : ''}`
-          : scope ?? 'Scoped collections',
-      deltaPositive: collectionRate == null || collectionRate >= 50,
+          : scope ?? 'Scoped collections'),
+      deltaPositive: trend?.deltaPositive ?? (collectionRate == null || collectionRate >= 50),
     },
   };
 }
@@ -93,6 +125,7 @@ export function adaptOutstandingFeesKpi(stats: AdminDashboardStats): KpiAdapterR
   const balance = stats.outstanding_balance ?? 0;
   const invoiced = stats.total_invoiced ?? 0;
   const scope = termScopeCaption(stats);
+  const trend = chartPeriodTrend(stats.charts?.invoices, { invertPositive: true });
 
   return {
     isEmpty: balance === 0 && invoiced === 0,
@@ -100,8 +133,8 @@ export function adaptOutstandingFeesKpi(stats: AdminDashboardStats): KpiAdapterR
       label,
       icon: icon as KpiCardProps['icon'],
       value: formatKes(balance),
-      delta: scope ? `Balance · ${scope}` : 'Invoice balance',
-      deltaPositive: false,
+      delta: trend?.delta ?? (scope ? `Balance · ${scope}` : 'Invoice balance'),
+      deltaPositive: trend?.deltaPositive ?? false,
     },
   };
 }

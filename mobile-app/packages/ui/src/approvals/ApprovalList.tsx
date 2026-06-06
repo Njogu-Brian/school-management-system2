@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   RefreshControl,
   StyleSheet,
   View,
 } from 'react-native';
 import { ListEmptyState } from '../feedback/ListEmptyState';
+import { SkeletonListRows } from '../feedback/SkeletonListRows';
 import { useTheme } from '../theme/ThemeContext';
 import { ApprovalCard } from './ApprovalCard';
 import type { ApprovalCardData } from './types';
@@ -39,7 +39,7 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
   if (isLoading && items.length === 0) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary} />
+        <SkeletonListRows count={5} variant="compact" />
       </View>
     );
   }

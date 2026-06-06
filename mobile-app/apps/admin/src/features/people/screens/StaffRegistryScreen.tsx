@@ -5,9 +5,12 @@ import {
   type StaffSummary,
 } from '@erp/core';
 import {
+  countActiveFilters,
   DashboardHero,
   ListEmptyState,
+  RegistryListLayout,
   ScreenContainer,
+  SkeletonListRows,
   StaffFilters,
   StaffListItem,
   StaffSearchBar,
@@ -16,14 +19,12 @@ import {
 import type { StaffEmploymentStatusFilterUi, StaffGenderFilterUi } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   RefreshControl,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
 import { useStaffRegistryState } from '../hooks/useStaffRegistryState';
@@ -32,7 +33,8 @@ import { summaryToListItem } from '../utils/mapToListItem';
 export const StaffRegistryScreen: React.FC = () => {
   const canView = useCan(['people.view', 'staff.view']);
   const navigation = useNavigation<StackNavigationProp<PeopleStackParamList>>();
-  const { palette, spacing, typography } = useTheme();
+  const { colors, palette, typography } = useTheme();
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const {
     searchInput,
@@ -95,6 +97,14 @@ export const StaffRegistryScreen: React.FC = () => {
 
   const totalStaff = listQuery.data?.pages[0]?.total;
 
+  const activeFilterCount = countActiveFilters([
+    departmentId,
+    staffCategoryId,
+    role,
+    employmentStatus,
+    gender,
+  ]);
+
   const openDetail = useCallback(
     (summary: StaffSummary) => {
       navigation.navigate('StaffDetail', { staffId: summary.id, summary });
@@ -109,6 +119,7 @@ export const StaffRegistryScreen: React.FC = () => {
     setRole(null);
     setEmploymentStatus('all');
     setGender('all');
+    setFiltersOpen(false);
   }, [setSearchInput, setDepartmentId, setStaffCategoryId, setRole, setEmploymentStatus, setGender]);
 
   if (!canView) {
@@ -123,43 +134,46 @@ export const StaffRegistryScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={staff}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
-          <View>
-            <DashboardHero
-              variant="people"
-              title="People Directory"
-              subtitle="Staff registry & employment records"
-              meta={totalStaff != null ? `${totalStaff} staff members` : undefined}
+        hero={
+          <DashboardHero
+            variant="people"
+            title="People Directory"
+            subtitle="Staff registry & employment records"
+            meta={totalStaff != null ? `${totalStaff} staff members` : undefined}
+          />
+        }
+        searchBar={<StaffSearchBar value={searchInput} onChangeText={setSearchInput} />}
+        activeFilterCount={activeFilterCount}
+        filtersOpen={filtersOpen}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onCloseFilters={() => setFiltersOpen(false)}
+        onApplyFilters={() => setFiltersOpen(false)}
+        onClearFilters={clearFilters}
+        filterContent={
+          filterQuery.isLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <StaffFilters
+              departmentId={departmentId}
+              staffCategoryId={staffCategoryId}
+              role={role}
+              employmentStatus={employmentStatus as StaffEmploymentStatusFilterUi}
+              gender={gender as StaffGenderFilterUi}
+              departmentOptions={departmentOptions}
+              categoryOptions={categoryOptions}
+              roleOptions={roleOptions}
+              employmentStatusOptions={employmentStatusOptions}
+              genderOptions={genderOptions}
+              onDepartmentChange={setDepartmentId}
+              onCategoryChange={setStaffCategoryId}
+              onRoleChange={setRole}
+              onEmploymentStatusChange={(v) => setEmploymentStatus(v as typeof employmentStatus)}
+              onGenderChange={(v) => setGender(v as typeof gender)}
             />
-            <StaffSearchBar value={searchInput} onChangeText={setSearchInput} />
-            {filterQuery.isLoading ? (
-              <ActivityIndicator style={{ marginVertical: spacing.sm }} />
-            ) : (
-              <StaffFilters
-                departmentId={departmentId}
-                staffCategoryId={staffCategoryId}
-                role={role}
-                employmentStatus={employmentStatus as StaffEmploymentStatusFilterUi}
-                gender={gender as StaffGenderFilterUi}
-                departmentOptions={departmentOptions}
-                categoryOptions={categoryOptions}
-                roleOptions={roleOptions}
-                employmentStatusOptions={employmentStatusOptions}
-                genderOptions={genderOptions}
-                onDepartmentChange={setDepartmentId}
-                onCategoryChange={setStaffCategoryId}
-                onRoleChange={setRole}
-                onEmploymentStatusChange={(v) =>
-                  setEmploymentStatus(v as typeof employmentStatus)
-                }
-                onGenderChange={(v) => setGender(v as typeof gender)}
-              />
-            )}
-          </View>
+          )
         }
         renderItem={({ item }) => (
           <StaffListItem staff={summaryToListItem(item, () => openDetail(item))} />
@@ -172,18 +186,18 @@ export const StaffRegistryScreen: React.FC = () => {
         }
         onEndReached={() => {
           if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) {
-            listQuery.fetchNextPage();
+            void listQuery.fetchNextPage();
           }
         }}
         onEndReachedThreshold={0.3}
         ListFooterComponent={
           listQuery.isFetchingNextPage ? (
-            <ActivityIndicator style={{ marginVertical: spacing.md }} />
+            <ActivityIndicator style={{ marginVertical: 16 }} />
           ) : null
         }
         ListEmptyComponent={
           listQuery.isLoading ? (
-            <ActivityIndicator style={{ marginTop: spacing.lg }} />
+            <SkeletonListRows variant="avatar" />
           ) : listQuery.isError ? (
             <ListEmptyState
               title="Could not load staff"

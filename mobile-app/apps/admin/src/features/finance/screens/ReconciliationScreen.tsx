@@ -1,18 +1,20 @@
 import { useCan, useInfiniteFinanceTransactions, type FinanceTransactionSummary } from '@erp/core';
 import {
+  countActiveFilters,
   FinanceScreenHeader,
   FinanceSearchBar,
   FinanceTransactionListItem,
   ListEmptyState,
   ReconciliationFilters,
+  RegistryListLayout,
   ScreenContainer,
+  SkeletonListRows,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -28,6 +30,7 @@ type Props = StackScreenProps<FinanceStackParamList, 'ReconciliationList'>;
 export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('finance.view');
   const { colors, palette, spacing } = useTheme();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const { searchInput, setSearchInput, queue, setQueue, filters } = useReconciliationRegistryState();
   const listQuery = useInfiniteFinanceTransactions(filters, { enabled: canView });
 
@@ -41,6 +44,8 @@ export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
     );
   }, [listQuery.data]);
 
+  const activeFilterCount = countActiveFilters([queue !== 'pending' ? queue : null]);
+
   const openDetail = useCallback(
     (summary: FinanceTransactionSummary, type: 'bank' | 'c2b') => {
       navigation.navigate('TransactionDetail', {
@@ -52,6 +57,12 @@ export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
     [navigation],
   );
 
+  const clearFilters = useCallback(() => {
+    setSearchInput('');
+    setQueue('pending');
+    setFiltersOpen(false);
+  }, [setSearchInput, setQueue]);
+
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
@@ -62,21 +73,30 @@ export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={transactions}
         keyExtractor={(item) => `${item.type}-${item.summary.id}`}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
-          <View>
-            <FinanceScreenHeader
-              title="Reconciliation"
-              subtitle="Bank & M-Pesa transactions"
-              onBack={() => navigation.goBack()}
-            />
-            <FinanceSearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search reference or student…" />
-            <ReconciliationFilters queue={queue} onQueueChange={setQueue} />
-          </View>
+        hero={
+          <FinanceScreenHeader
+            title="Reconciliation"
+            subtitle="Bank & M-Pesa transactions"
+            onBack={() => navigation.goBack()}
+          />
         }
+        searchBar={
+          <FinanceSearchBar
+            value={searchInput}
+            onChangeText={setSearchInput}
+            placeholder="Search reference or student…"
+          />
+        }
+        activeFilterCount={activeFilterCount}
+        filtersOpen={filtersOpen}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onCloseFilters={() => setFiltersOpen(false)}
+        onApplyFilters={() => setFiltersOpen(false)}
+        onClearFilters={clearFilters}
+        filterContent={<ReconciliationFilters queue={queue} onQueueChange={setQueue} />}
         renderItem={({ item }) => (
           <View style={{ marginBottom: spacing.sm }}>
             <FinanceTransactionListItem
@@ -106,15 +126,14 @@ export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
           ) : null
         }
         ListEmptyComponent={
-          !listQuery.isLoading && !listQuery.isError ? (
+          listQuery.isLoading ? (
+            <SkeletonListRows variant="card" />
+          ) : !listQuery.isError ? (
             <ListEmptyState
               title="Queue is empty"
               message="No transactions in the reconciliation queue."
               icon="git-compare-outline"
-              onClearFilters={() => {
-                setSearchInput('');
-                setQueue('pending');
-              }}
+              onClearFilters={clearFilters}
             />
           ) : null
         }
