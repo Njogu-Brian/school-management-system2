@@ -1,14 +1,14 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { StatusBadge } from '../primitives/StatusBadge';
+import type { SemanticTone } from '../theme/tokens';
 import type { ApplicationStatusFilter } from './types';
 
-const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
-  pending: { bg: '#fef3c7', fg: '#b45309' },
-  under_review: { bg: '#dbeafe', fg: '#1d4ed8' },
-  waitlisted: { bg: '#ede9fe', fg: '#6d28d9' },
-  enrolled: { bg: '#dcfce7', fg: '#15803d' },
-  rejected: { bg: '#fee2e2', fg: '#b91c1c' },
+const STATUS_TONES: Record<string, SemanticTone> = {
+  pending: 'warning',
+  under_review: 'info',
+  waitlisted: 'brand',
+  enrolled: 'success',
+  rejected: 'danger',
 };
 
 export interface ApplicationStatusBadgeProps {
@@ -37,28 +37,8 @@ export const ApplicationStatusBadge: React.FC<ApplicationStatusBadgeProps> = ({
   status,
   compact,
 }) => {
-  const { fontSizes, radius } = useTheme();
-  const palette = STATUS_COLORS[status] ?? { bg: '#f3f4f6', fg: '#374151' };
-
+  const tone = STATUS_TONES[status] ?? 'brand';
   return (
-    <View
-      style={[
-        styles.badge,
-        {
-          backgroundColor: palette.bg,
-          borderRadius: radius.full,
-          paddingHorizontal: compact ? 8 : 10,
-          paddingVertical: compact ? 2 : 4,
-        },
-      ]}
-    >
-      <Text style={{ color: palette.fg, fontSize: compact ? fontSizes.xs : fontSizes.sm, fontWeight: '700' }}>
-        {applicationStatusLabel(status)}
-      </Text>
-    </View>
+    <StatusBadge label={applicationStatusLabel(status)} tone={tone} compact={compact} />
   );
 };
-
-const styles = StyleSheet.create({
-  badge: { alignSelf: 'flex-start' },
-});

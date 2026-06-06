@@ -3,6 +3,7 @@ import {
   FinanceScreenHeader,
   FinanceSearchBar,
   FinanceTransactionListItem,
+  ListEmptyState,
   ReconciliationFilters,
   ScreenContainer,
   useTheme,
@@ -26,7 +27,7 @@ type Props = StackScreenProps<FinanceStackParamList, 'ReconciliationList'>;
 
 export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('finance.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing } = useTheme();
   const { searchInput, setSearchInput, queue, setQueue, filters } = useReconciliationRegistryState();
   const listQuery = useInfiniteFinanceTransactions(filters, { enabled: canView });
 
@@ -106,9 +107,15 @@ export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
         }
         ListEmptyComponent={
           !listQuery.isLoading && !listQuery.isError ? (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center', marginTop: spacing.lg, fontSize: fontSizes.sm }}>
-              No transactions in this queue.
-            </Text>
+            <ListEmptyState
+              title="Queue is empty"
+              message="No transactions in the reconciliation queue."
+              icon="git-compare-outline"
+              onClearFilters={() => {
+                setSearchInput('');
+                setQueue('pending');
+              }}
+            />
           ) : null
         }
       />

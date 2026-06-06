@@ -7,6 +7,7 @@ import {
 } from '@erp/core';
 import {
   AcademicScreenHeader,
+  ListEmptyState,
   MarksRow,
   ScreenContainer,
   useTheme,
@@ -194,17 +195,23 @@ export const MarksScreen: React.FC<Props> = ({ navigation }) => {
         )}
         ListEmptyComponent={
           !filters ? (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
-              Select exam, class, and subject to load marks.
-            </Text>
+            <ListEmptyState
+              title="Select filters"
+              message="Choose an exam, class, and subject to load marks."
+              icon="options-outline"
+            />
           ) : marksQuery.isLoading ? (
             <ActivityIndicator color={colors.primary} />
           ) : marksQuery.isError ? (
-            <Pressable onPress={() => void marksQuery.refetch()}>
-              <Text style={{ color: colors.error }}>{(marksQuery.error as Error).message}</Text>
-            </Pressable>
+            <ListEmptyState
+              title="Could not load marks"
+              message={(marksQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void marksQuery.refetch()}
+            />
           ) : (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No marks recorded.</Text>
+            <ListEmptyState entityName="marks" icon="grid-outline" />
           )
         }
       />

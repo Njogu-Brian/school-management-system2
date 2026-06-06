@@ -1,5 +1,5 @@
 import { useApprovalList } from '@erp/core';
-import { ApprovalCard, DashboardSection, useTheme } from '@erp/ui';
+import { ApprovalCard, DashboardSection, QueueEmptyState, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
@@ -14,7 +14,7 @@ const PANEL_LIMIT = 5;
 export const PendingApprovalsPanel: React.FC = () => {
   const canView = useCanViewApprovals();
   const navigation = useNavigation<StackNavigationProp<DashboardStackParamList>>();
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, spacing, typography } = useTheme();
 
   const query = useApprovalList({
     filters: { status: 'pending', priority: 'all', sourceType: 'all' },
@@ -43,7 +43,7 @@ export const PendingApprovalsPanel: React.FC = () => {
       subtitle="Leave requests and lesson plans awaiting action"
       headerRight={
         <Pressable onPress={() => navigateToDrawer(navigation, 'Approvals', 'ApprovalsHome')}>
-          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: fontSizes.sm }}>
+          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
             View all
           </Text>
         </Pressable>
@@ -57,11 +57,11 @@ export const PendingApprovalsPanel: React.FC = () => {
 
       {query.isError ? (
         <View style={styles.centered}>
-          <Text style={{ color: colors.error, fontSize: fontSizes.sm }}>
+          <Text style={{ color: colors.error, fontSize: typography.caption.fontSize }}>
             {(query.error as Error).message}
           </Text>
           <Pressable onPress={() => void query.refetch()} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontWeight: '600', fontSize: fontSizes.sm }}>
+            <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
               Retry
             </Text>
           </Pressable>
@@ -69,9 +69,10 @@ export const PendingApprovalsPanel: React.FC = () => {
       ) : null}
 
       {!query.isLoading && !query.isError && cards.length === 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-          No pending approvals right now.
-        </Text>
+        <QueueEmptyState
+          title="No pending approvals"
+          message="You're all caught up — nothing needs your action right now."
+        />
       ) : null}
 
       {cards.map((card) => (

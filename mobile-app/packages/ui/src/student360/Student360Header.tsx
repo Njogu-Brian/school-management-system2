@@ -10,36 +10,36 @@ export interface Student360HeaderProps {
 }
 
 export const Student360Header: React.FC<Student360HeaderProps> = ({ student }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   return (
     <View
       style={[
         styles.card,
+        elevation[2],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
         },
-        shadows.sm,
       ]}
     >
       {student.avatarUrl ? (
         <Image source={{ uri: student.avatarUrl }} style={styles.avatar} />
       ) : (
-        <View style={[styles.avatar, styles.avatarPh, { backgroundColor: palette.accent }]}>
+        <View style={[styles.avatar, styles.avatarPh, { backgroundColor: `${colors.primary}12`, borderRadius: radius.lg }]}>
           <Ionicons name="person" size={36} color={colors.primary} />
         </View>
       )}
       <View style={styles.meta}>
-        <Text style={[styles.name, { color: palette.textPrimary, fontSize: fontSizes.lg }]}>
+        <Text style={[styles.name, { color: palette.textPrimary, fontSize: typography.title.fontSize, fontWeight: typography.title.fontWeight }]}>
           {student.fullName}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
           {student.admissionNumber}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 2 }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
           {student.classLabel}
         </Text>
         <View style={[styles.badges, { marginTop: spacing.xs, gap: spacing.xs }]}>

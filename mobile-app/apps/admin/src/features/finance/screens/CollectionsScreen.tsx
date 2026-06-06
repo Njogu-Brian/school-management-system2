@@ -2,6 +2,7 @@ import { paymentMethodLabel, useCan, useInfinitePaymentList, type PaymentSummary
 import {
   FinanceScreenHeader,
   FinanceSearchBar,
+  ListEmptyState,
   PaymentListItem,
   ScreenContainer,
   useTheme,
@@ -25,7 +26,7 @@ type Props = StackScreenProps<FinanceStackParamList, 'CollectionsList'>;
 
 export const CollectionsScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('finance.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing } = useTheme();
   const { searchInput, setSearchInput, filters } = useCollectionsRegistryState();
   const listQuery = useInfinitePaymentList(filters, { enabled: canView });
 
@@ -92,9 +93,11 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation }) => {
         }
         ListEmptyComponent={
           !listQuery.isLoading && !listQuery.isError ? (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center', marginTop: spacing.lg, fontSize: fontSizes.sm }}>
-              No payments match your search.
-            </Text>
+            <ListEmptyState
+              entityName="payments"
+              icon="cash-outline"
+              onClearFilters={() => setSearchInput('')}
+            />
           ) : null
         }
       />

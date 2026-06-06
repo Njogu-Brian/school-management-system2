@@ -2,12 +2,11 @@ import React from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { ListEmptyState } from '../feedback/ListEmptyState';
 import { useTheme } from '../theme/ThemeContext';
 import { ApprovalCard } from './ApprovalCard';
 import type { ApprovalCardData } from './types';
@@ -18,8 +17,10 @@ export interface ApprovalListProps {
   isRefreshing?: boolean;
   errorMessage?: string | null;
   emptyMessage?: string;
+  emptyTitle?: string;
   onRefresh?: () => void;
   onRetry?: () => void;
+  onClearFilters?: () => void;
 }
 
 export const ApprovalList: React.FC<ApprovalListProps> = ({
@@ -28,36 +29,30 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
   isRefreshing,
   errorMessage,
   emptyMessage = 'No approvals match your filters.',
+  emptyTitle = 'No approvals found',
   onRefresh,
   onRetry,
+  onClearFilters,
 }) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { colors } = useTheme();
 
   if (isLoading && items.length === 0) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.primary} />
-        <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: fontSizes.sm }}>
-          Loading approvals…
-        </Text>
       </View>
     );
   }
 
   if (errorMessage && items.length === 0) {
     return (
-      <View style={styles.centered}>
-        <Text style={{ color: colors.error, fontSize: fontSizes.sm, textAlign: 'center' }}>
-          {errorMessage}
-        </Text>
-        {onRetry ? (
-          <Pressable onPress={onRetry} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontWeight: '600', fontSize: fontSizes.sm }}>
-              Retry
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <ListEmptyState
+        title="Could not load approvals"
+        message={errorMessage}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={onRetry}
+      />
     );
   }
 
@@ -78,11 +73,12 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
         ) : undefined
       }
       ListEmptyComponent={
-        <View style={styles.centered}>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, textAlign: 'center' }}>
-            {emptyMessage}
-          </Text>
-        </View>
+        <ListEmptyState
+          title={emptyTitle}
+          message={emptyMessage}
+          icon={onClearFilters ? 'filter-outline' : 'checkmark-circle-outline'}
+          onClearFilters={onClearFilters}
+        />
       }
     />
   );

@@ -4,7 +4,7 @@ import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
-export type DashboardHeroVariant = 'default' | 'finance' | 'academics' | 'admissions' | 'people';
+export type DashboardHeroVariant = 'default' | 'finance' | 'academics' | 'admissions' | 'people' | 'students';
 
 const VARIANT_ICONS: Record<DashboardHeroVariant, keyof typeof Ionicons.glyphMap> = {
   default: 'grid-outline',
@@ -12,6 +12,7 @@ const VARIANT_ICONS: Record<DashboardHeroVariant, keyof typeof Ionicons.glyphMap
   academics: 'school-outline',
   admissions: 'person-add-outline',
   people: 'people-outline',
+  students: 'people-circle-outline',
 };
 
 export interface DashboardHeroProps {

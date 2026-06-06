@@ -6,6 +6,7 @@ import {
 } from '@erp/core';
 import {
   DashboardHero,
+  ListEmptyState,
   ScreenContainer,
   StaffFilters,
   StaffListItem,
@@ -19,7 +20,6 @@ import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -102,6 +102,15 @@ export const StaffRegistryScreen: React.FC = () => {
     [navigation],
   );
 
+  const clearFilters = useCallback(() => {
+    setSearchInput('');
+    setDepartmentId(null);
+    setStaffCategoryId(null);
+    setRole(null);
+    setEmploymentStatus('all');
+    setGender('all');
+  }, [setSearchInput, setDepartmentId, setStaffCategoryId, setRole, setEmploymentStatus, setGender]);
+
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
@@ -176,24 +185,15 @@ export const StaffRegistryScreen: React.FC = () => {
           listQuery.isLoading ? (
             <ActivityIndicator style={{ marginTop: spacing.lg }} />
           ) : listQuery.isError ? (
-            <View style={styles.empty}>
-              <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
-                {(listQuery.error as Error)?.message ?? 'Failed to load staff.'}
-              </Text>
-              <Pressable onPress={() => listQuery.refetch()} style={{ marginTop: spacing.sm }}>
-                <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>Retry</Text>
-              </Pressable>
-            </View>
+            <ListEmptyState
+              title="Could not load staff"
+              message={(listQuery.error as Error)?.message ?? 'Failed to load staff.'}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => listQuery.refetch()}
+            />
           ) : (
-            <Text
-              style={{
-                color: palette.textSecondary,
-                textAlign: 'center',
-                marginTop: spacing.lg,
-              }}
-            >
-              No staff match your filters.
-            </Text>
+            <ListEmptyState entityName="staff" icon="people-outline" onClearFilters={clearFilters} />
           )
         }
       />
@@ -203,5 +203,4 @@ export const StaffRegistryScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-  empty: { alignItems: 'center', paddingTop: 24 },
 });

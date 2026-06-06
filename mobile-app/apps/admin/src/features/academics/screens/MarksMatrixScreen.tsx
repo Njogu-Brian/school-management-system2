@@ -1,5 +1,5 @@
 import { useCan, useMarksMatrix, useMarksMatrixContext } from '@erp/core';
-import { AcademicScreenHeader, Button, MarksMatrixRow, ScreenContainer, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, ListEmptyState, MarksMatrixRow, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -190,17 +190,23 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
         )}
         ListEmptyComponent={
           !matrixFilters ? (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
-              Select class and exam type to load matrix.
-            </Text>
+            <ListEmptyState
+              title="Select filters"
+              message="Choose a class and exam type to load the marks matrix."
+              icon="apps-outline"
+            />
           ) : matrixQuery.isLoading ? (
             <ActivityIndicator color={colors.primary} />
           ) : matrixQuery.isError ? (
-            <Pressable onPress={() => void matrixQuery.refetch()}>
-              <Text style={{ color: colors.error }}>{(matrixQuery.error as Error).message}</Text>
-            </Pressable>
+            <ListEmptyState
+              title="Could not load matrix"
+              message={(matrixQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void matrixQuery.refetch()}
+            />
           ) : (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No matrix data.</Text>
+            <ListEmptyState entityName="matrix rows" icon="grid-outline" />
           )
         }
       />

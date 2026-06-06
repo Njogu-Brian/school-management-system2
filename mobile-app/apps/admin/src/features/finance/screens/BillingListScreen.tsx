@@ -4,6 +4,7 @@ import {
   FinanceSearchBar,
   InvoiceFilters,
   InvoiceListItem,
+  ListEmptyState,
   ScreenContainer,
   useTheme,
 } from '@erp/ui';
@@ -26,7 +27,7 @@ type Props = StackScreenProps<FinanceStackParamList, 'BillingList'>;
 
 export const BillingListScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('finance.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing } = useTheme();
   const { searchInput, setSearchInput, status, setStatus, filters } = useBillingRegistryState();
   const listQuery = useInfiniteInvoiceList(filters, { enabled: canView });
 
@@ -93,9 +94,14 @@ export const BillingListScreen: React.FC<Props> = ({ navigation }) => {
         }
         ListEmptyComponent={
           !listQuery.isLoading && !listQuery.isError ? (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center', marginTop: spacing.lg, fontSize: fontSizes.sm }}>
-              No invoices match your filters.
-            </Text>
+            <ListEmptyState
+              entityName="invoices"
+              icon="receipt-outline"
+              onClearFilters={() => {
+                setSearchInput('');
+                setStatus('all');
+              }}
+            />
           ) : null
         }
       />

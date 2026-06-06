@@ -119,20 +119,6 @@ export const AcademicsDashboardScreen: React.FC = () => {
           </View>
         ) : null}
 
-        <DashboardSection title="Exam Status Breakdown">
-          <View style={[styles.breakdown, { gap: spacing.xs }]}>
-            {Object.keys(breakdown).length === 0 ? (
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-                No exam data loaded.
-              </Text>
-            ) : (
-              Object.entries(breakdown).map(([status, count]) => (
-                <AcademicKpiCard key={status} label={status} value={String(count)} />
-              ))
-            )}
-          </View>
-        </DashboardSection>
-
         {(dashboardQuery.data?.trendSummary?.length ?? 0) > 0 ? (
           <DashboardSection title="Academic Trend Summary">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -177,6 +163,5 @@ export const AcademicsDashboardScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  breakdown: { flexDirection: 'row', flexWrap: 'wrap' },
   actions: { flexDirection: 'row', flexWrap: 'wrap' },
 });

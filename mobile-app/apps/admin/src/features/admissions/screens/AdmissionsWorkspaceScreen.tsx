@@ -11,6 +11,7 @@ import {
   DashboardHero,
   DashboardSection,
   KpiCard,
+  ListEmptyState,
   ScreenContainer,
   WidgetGrid,
   WidgetShell,
@@ -188,17 +189,14 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
         }
         ListEmptyComponent={
           !listQuery.isLoading && !listQuery.isError ? (
-            <Text
-              style={{
-                color: palette.textSecondary,
-                textAlign: 'center',
-                marginTop: spacing.lg,
-                fontSize: typography.caption.fontSize,
-                paddingHorizontal: spacing.md,
+            <ListEmptyState
+              entityName="applications"
+              icon="document-text-outline"
+              onClearFilters={() => {
+                setSearchInput('');
+                setStatus('all');
               }}
-            >
-              No applications match your filters.
-            </Text>
+            />
           ) : null
         }
         contentContainerStyle={{ paddingBottom: spacing.xl }}

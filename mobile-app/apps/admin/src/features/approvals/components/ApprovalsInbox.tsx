@@ -83,6 +83,11 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
         errorMessage={query.isError ? (query.error as Error).message : null}
         onRefresh={() => void query.refetch()}
         onRetry={() => void query.refetch()}
+        onClearFilters={() => {
+          setStatus('all');
+          setPriority('all');
+          setSourceType('all');
+        }}
       />
     </ScreenContainer>
   );

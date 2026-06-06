@@ -1,8 +1,8 @@
 import { useCan } from '@erp/core';
 import {
   DashboardHero,
+  ScrollableTabBar,
   ScreenContainer,
-  SegmentedTabBar,
   useTheme,
 } from '@erp/ui';
 import React, { useState } from 'react';
@@ -56,7 +56,12 @@ export const DashboardLayout: React.FC = () => {
           meta="Real-time KPIs · Approvals · Alerts"
         />
 
-        <SegmentedTabBar tabs={DASHBOARD_TABS} activeTab={tab} onTabChange={setTab} />
+        <ScrollableTabBar
+          variant="segmented"
+          tabs={DASHBOARD_TABS}
+          activeTab={tab}
+          onTabChange={setTab}
+        />
 
         {tab === 'overview' ? (
           <>

@@ -36,7 +36,7 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   showApprovalsBadge = false,
   showNotificationsBadge = false,
 }) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, colors, spacing, typography } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
@@ -65,7 +65,7 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
         <View style={styles.titleBlock}>
           <Text
             numberOfLines={1}
-            style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.xl }]}
+            style={[styles.title, { color: palette.textPrimary, fontSize: typography.heading.fontSize }]}
           >
             {title}
           </Text>
@@ -78,7 +78,7 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
             <Ionicons name="business-outline" size={12} color={palette.textSecondary} />
             <Text
               numberOfLines={1}
-              style={[styles.branchText, { color: palette.textSecondary, fontSize: fontSizes.xs }]}
+              style={[styles.branchText, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}
             >
               {branchLabel}
             </Text>

@@ -10,6 +10,7 @@ import {
   AcademicSearchBar,
   ExamFilters,
   ExamListItem,
+  ListEmptyState,
   ScreenContainer,
   useTheme,
 } from '@erp/ui';
@@ -157,11 +158,15 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
           listQuery.isLoading ? (
             <ActivityIndicator color={colors.primary} />
           ) : listQuery.isError ? (
-            <Pressable onPress={() => void listQuery.refetch()}>
-              <Text style={{ color: colors.error }}>{(listQuery.error as Error).message}</Text>
-            </Pressable>
+            <ListEmptyState
+              title="Could not load exams"
+              message={(listQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void listQuery.refetch()}
+            />
           ) : (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No exams found.</Text>
+            <ListEmptyState entityName="exams" icon="school-outline" />
           )
         }
         onEndReached={() => {

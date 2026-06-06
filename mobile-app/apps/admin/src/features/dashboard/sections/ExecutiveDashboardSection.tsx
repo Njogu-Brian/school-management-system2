@@ -1,14 +1,14 @@
 import { useExecutiveAnalytics, type AnalyticsPeriod } from '@erp/core';
-import { Button, KpiCard, WidgetGrid, WidgetShell, useTheme } from '@erp/ui';
+import { Button, DashboardSection, FilterChip, FilterChipRow, KpiCard, WidgetGrid, WidgetShell, useTheme } from '@erp/ui';
 import React, { useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Share, View } from 'react-native';
 import { formatKes } from '../../shared/utils/formatters';
 import { ExecutiveCharts } from '../components/ExecutiveCharts';
 
 const PERIODS: AnalyticsPeriod[] = ['week', 'month', 'term', 'year'];
 
 export const ExecutiveDashboardSection: React.FC = () => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { spacing } = useTheme();
   const [period, setPeriod] = useState<AnalyticsPeriod>('month');
   const analyticsQuery = useExecutiveAnalytics(period);
 
@@ -30,23 +30,17 @@ export const ExecutiveDashboardSection: React.FC = () => {
   };
 
   return (
-    <View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
-        <Text style={{ fontWeight: '700', color: palette.textPrimary }}>Executive analytics</Text>
-        <Button label="Share" variant="ghost" onPress={() => void shareReport()} />
-      </View>
-
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.md }}>
+    <DashboardSection title="Executive analytics" headerRight={<Button label="Share" variant="ghost" onPress={() => void shareReport()} />}>
+      <FilterChipRow label="Period">
         {PERIODS.map((p) => (
-          <Pressable
+          <FilterChip
             key={p}
+            label={p.charAt(0).toUpperCase() + p.slice(1)}
+            active={period === p}
             onPress={() => setPeriod(p)}
-            style={[styles.chip, period === p && { borderColor: colors.primary, backgroundColor: '#E8F0FA' }]}
-          >
-            <Text style={{ fontSize: fontSizes.xs, textTransform: 'capitalize' }}>{p}</Text>
-          </Pressable>
+          />
         ))}
-      </View>
+      </FilterChipRow>
 
       <WidgetGrid>
         <WidgetShell state={state} title="Finance" onRetry={() => void analyticsQuery.refetch()}>
@@ -84,10 +78,6 @@ export const ExecutiveDashboardSection: React.FC = () => {
           />
         </View>
       ) : null}
-    </View>
+    </DashboardSection>
   );
 };
-
-const styles = StyleSheet.create({
-  chip: { borderWidth: 1, borderColor: '#ccc', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
-});
