@@ -35,6 +35,12 @@ class ReceiptService
         $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
 
         $student = $payment->student;
+        if (! $student && $payment->student_id) {
+            $student = \App\Models\Student::withoutGlobalScopes()->find($payment->student_id);
+        }
+        if (! $student) {
+            throw new \RuntimeException('Student record not found for payment #'.$payment->id);
+        }
 
         // Get payment allocations for this specific payment
         $paymentAllocations = $payment->allocations;

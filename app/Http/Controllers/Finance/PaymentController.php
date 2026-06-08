@@ -515,17 +515,9 @@ class PaymentController extends Controller
      */
     protected function getProfileUpdateLinkForStudent(Student $student): ?string
     {
+        ensure_student_family_record($student);
         $student->loadMissing('family.updateLink');
-        
-        if (!$student->family_id) {
-            $family = \App\Models\Family::create([
-                'guardian_name' => $student->full_name
-                    ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
-            ]);
-            $student->update(['family_id' => $family->id]);
-            $student->load('family.updateLink');
-        }
-        
+
         if (!$student->family) {
             return null;
         }
@@ -2373,14 +2365,7 @@ class PaymentController extends Controller
 
         // Ensure student has a family and profile update link (so Update Profile button shows)
         if ($student) {
-            if (!$student->family_id) {
-                $family = \App\Models\Family::create([
-                    'guardian_name' => $student->full_name ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
-                ]);
-                $student->update(['family_id' => $family->id]);
-                $student->refresh();
-                $payment->refresh();
-            }
+            ensure_student_family_record($student);
             $student->load('family.updateLink');
             if ($student->family && !$student->family->updateLink) {
                 \App\Models\FamilyUpdateLink::create([
@@ -2444,16 +2429,7 @@ class PaymentController extends Controller
             abort(404, 'Student record not found for this receipt.');
         }
 
-        // Ensure student has a family (create if doesn't exist)
-        if (!$student->family_id) {
-            $family = \App\Models\Family::create([
-                'guardian_name' => $student->first_name . ' ' . $student->last_name,
-            ]);
-            $student->update(['family_id' => $family->id]);
-            $student->refresh();
-            $payment->refresh();
-        }
-
+        ensure_student_family_record($student);
         $student->load('family.updateLink');
 
         if ($student->family) {
@@ -2495,11 +2471,8 @@ class PaymentController extends Controller
         $receiptData['receipt_number'] = $payment->shared_receipt_number ?? $receiptData['receipt_number'];
 
         $myReceiptsUrl = null;
-        if ($student->family_id && class_exists(\App\Models\FamilyReceiptLink::class) && \Illuminate\Support\Facades\Route::has('receipts.my-receipts')) {
-            $receiptLink = \App\Models\FamilyReceiptLink::firstOrCreate(
-                ['family_id' => $student->family_id],
-                ['is_active' => true]
-            );
+        $receiptLink = $student->family_id ? ensure_family_receipt_link((int) $student->family_id) : null;
+        if ($receiptLink) {
             $myReceiptsUrl = route('receipts.my-receipts', $receiptLink->token);
         }
 

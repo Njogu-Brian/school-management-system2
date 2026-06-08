@@ -60,12 +60,16 @@ return Application::configure(basePath: dirname(__DIR__))
                 return;
             }
 
+            if (! \App\Services\SystemAlertService::shouldReportException($e)) {
+                return;
+            }
+
             try {
                 app(\App\Services\SystemAlertService::class)->raiseProcessingError(
                     title: 'Unhandled application error',
                     message: class_basename($e).': '.$e->getMessage(),
                     category: 'system',
-                    fingerprint: 'exception_'.sha1(get_class($e).'|'.$e->getMessage()),
+                    fingerprint: \App\Services\SystemAlertService::fingerprintForException($e),
                     deepLink: '/system-logs',
                     context: [
                         'exception' => get_class($e),

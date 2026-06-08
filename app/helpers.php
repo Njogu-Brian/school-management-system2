@@ -298,6 +298,71 @@ if (!function_exists('get_or_create_profile_update_link_for_student')) {
 }
 
 /**
+ * Ensure a student has a valid family row (restore soft-deleted, or create when missing/orphaned).
+ */
+if (!function_exists('ensure_student_family_record')) {
+    function ensure_student_family_record(\App\Models\Student $student): ?\App\Models\Family
+    {
+        $student->loadMissing('family');
+        if ($student->family) {
+            return $student->family;
+        }
+
+        if ($student->family_id && class_exists(\App\Models\Family::class)) {
+            $existing = \App\Models\Family::withTrashed()->find($student->family_id);
+            if ($existing) {
+                if ($existing->trashed()) {
+                    $existing->restore();
+                }
+                $student->setRelation('family', $existing);
+
+                return $existing;
+            }
+
+            \Illuminate\Support\Facades\Log::warning('Student has orphaned family_id; reassigning to new family', [
+                'student_id' => $student->id,
+                'family_id' => $student->family_id,
+            ]);
+            $student->forceFill(['family_id' => null])->save();
+        }
+
+        $family = \App\Models\Family::create([
+            'guardian_name' => $student->full_name
+                ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+        ]);
+        $student->update(['family_id' => $family->id]);
+        $student->setRelation('family', $family);
+
+        return $family;
+    }
+}
+
+/**
+ * Create a permanent family receipt link only when the family row exists.
+ */
+if (!function_exists('ensure_family_receipt_link')) {
+    function ensure_family_receipt_link(int $familyId): ?\App\Models\FamilyReceiptLink
+    {
+        if ($familyId <= 0 || ! class_exists(\App\Models\FamilyReceiptLink::class)) {
+            return null;
+        }
+
+        if (! class_exists(\App\Models\Family::class) || ! \App\Models\Family::where('id', $familyId)->exists()) {
+            return null;
+        }
+
+        if (! \Illuminate\Support\Facades\Route::has('receipts.my-receipts')) {
+            return null;
+        }
+
+        return \App\Models\FamilyReceiptLink::firstOrCreate(
+            ['family_id' => $familyId],
+            ['is_active' => true]
+        );
+    }
+}
+
+/**
  * When siblings are linked (family_id set or family merged), ensure one shared family payment link
  * and expire old per-student links for that family (like profile update link).
  *

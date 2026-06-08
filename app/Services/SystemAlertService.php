@@ -19,6 +19,36 @@ class SystemAlertService
 
     public const ESCALATION_MINUTES = 30;
 
+    public static function shouldReportException(\Throwable $e): bool
+    {
+        $message = $e->getMessage();
+
+        if (str_contains($message, 'Permission denied')
+            && str_contains($message, 'storage/framework/views')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static function fingerprintForException(\Throwable $e): string
+    {
+        if ($e instanceof \Illuminate\Database\QueryException) {
+            if (preg_match('/CONSTRAINT `([^`]+)`/', $e->getMessage(), $match)) {
+                return 'exception_sql_'.sha1(get_class($e).'|'.$match[1]);
+            }
+
+            if (preg_match('/insert into `([^`]+)`/', $e->getMessage(), $match)) {
+                return 'exception_sql_'.sha1(get_class($e).'|'.$match[1]);
+            }
+        }
+
+        $normalized = preg_replace('/\b[A-Za-z0-9]{16,}\b/', '<dyn>', $e->getMessage()) ?? $e->getMessage();
+        $normalized = preg_replace('/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/', '<ts>', $normalized) ?? $normalized;
+
+        return 'exception_'.sha1(get_class($e).'|'.$e->getFile().'|'.$e->getLine().'|'.$normalized);
+    }
+
     /**
      * Raise an actionable alert for all Super Admin users and send push notifications.
      *
