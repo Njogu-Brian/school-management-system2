@@ -229,6 +229,83 @@ export function useVisitors(options?: { enabled?: boolean; onSite?: boolean; dat
   });
 }
 
+export function useAdjustInventoryStock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: number;
+      type: 'in' | 'out' | 'adjustment';
+      quantity: number;
+      notes?: string;
+    }) => operationsApi.adjustInventoryStock(id, payload),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.inventoryItem(vars.id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.inventory() });
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.summary() });
+    },
+  });
+}
+
+export function useCreateRequisition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: operationsApi.createRequisition,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.all });
+    },
+  });
+}
+
+export function useUpdateAssetStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: number;
+      status: 'active' | 'in_repair' | 'retired' | 'disposed';
+      notes?: string;
+    }) => operationsApi.updateAssetStatus(id, payload),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.asset(vars.id) });
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.assets() });
+    },
+  });
+}
+
+export function useCreateMedicalRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      studentId,
+      ...payload
+    }: {
+      studentId: number;
+      record_type: 'vaccination' | 'checkup' | 'medication' | 'incident' | 'certificate' | 'other';
+      record_date: string;
+      title: string;
+      description?: string;
+      doctor_name?: string;
+      clinic_hospital?: string;
+      medication_name?: string;
+      medication_dosage?: string;
+      vaccination_name?: string;
+      vaccination_date?: string;
+      next_due_date?: string;
+      notes?: string;
+    }) => operationsApi.createMedicalRecord(studentId, payload),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({
+        queryKey: queryKeys.operations.medicalRecords(vars.studentId),
+      });
+    },
+  });
+}
+
 export function useVisitor(id: number, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.operations.visitor(id),

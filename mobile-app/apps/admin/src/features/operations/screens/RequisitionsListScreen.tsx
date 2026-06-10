@@ -1,6 +1,7 @@
 import { useCan, useInfiniteRequisitions } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   countActiveFilters,
   FilterChip,
   FilterChipRow,
@@ -13,7 +14,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 import { capitalizeStatus } from '../../shared/utils/formatters';
 import { OpsListCard } from '../components/OpsListCard';
@@ -67,7 +68,14 @@ export const RequisitionsListScreen: React.FC<Props> = ({ navigation }) => {
       <RegistryListLayout
         data={items}
         keyExtractor={(item) => String(item.id)}
-        hero={<AcademicScreenHeader title="Requisitions" subtitle="Procurement queue" onBack={() => navigation.goBack()} />}
+        hero={
+          <View>
+            <AcademicScreenHeader title="Requisitions" subtitle="Procurement queue" onBack={() => navigation.goBack()} />
+            <View style={{ marginBottom: 8 }}>
+              <Button label="New requisition" onPress={() => navigation.navigate('RequisitionForm')} />
+            </View>
+          </View>
+        }
         searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search requisitions…" />}
         activeFilterCount={countActiveFilters([status === 'pending' ? null : status])}
         filtersOpen={filtersOpen}

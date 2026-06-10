@@ -1,9 +1,10 @@
-import { useCan, useCommunicationTemplate } from '@erp/core';
-import { AcademicScreenHeader, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
+import { useCan, useCommunicationTemplate, useDeleteTemplate } from '@erp/core';
+import { AcademicScreenHeader, Button, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CommunicationStackParamList } from '../../../navigation/communicationStackTypes';
+import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<CommunicationStackParamList, 'TemplateDetail'>;
 
@@ -12,8 +13,20 @@ export const TemplateDetailScreen: React.FC<Props> = ({ navigation, route }) => 
   const canView = useCan('communication.view');
   const { colors, palette, spacing } = useTheme();
   const query = useCommunicationTemplate(templateId, { enabled: canView });
+  const deleteMutation = useDeleteTemplate();
 
   const template = query.data;
+
+  const onDelete = () => {
+    confirmAction('Delete template', 'This template will be permanently removed.', 'Delete', async () => {
+      try {
+        await deleteMutation.mutateAsync(templateId);
+        showSuccess('Deleted', 'Template removed.', () => navigation.goBack());
+      } catch (err) {
+        showError('Delete failed', (err as Error).message);
+      }
+    });
+  };
 
   if (!canView) {
     return (
@@ -56,9 +69,18 @@ export const TemplateDetailScreen: React.FC<Props> = ({ navigation, route }) => 
       <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: spacing.md }}>
         Placeholders like {'{{student_name}}'}, {'{{balance}}'} are resolved when sending from the web portal.
       </Text>
+      <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+        <Button label="Edit template" onPress={() => navigation.navigate('TemplateForm', { templateId })} />
+        <Button
+          label={deleteMutation.isPending ? 'Deleting…' : 'Delete template'}
+          variant="ghost"
+          onPress={onDelete}
+          disabled={deleteMutation.isPending}
+        />
+      </View>
       <Pressable
         onPress={() => navigation.navigate('SmsCompose')}
-        style={{ marginTop: spacing.lg, padding: 12, alignItems: 'center' }}
+        style={{ marginTop: spacing.sm, padding: 12, alignItems: 'center' }}
       >
         <Text style={{ color: colors.primary, fontWeight: '600' }}>Use in SMS compose</Text>
       </Pressable>

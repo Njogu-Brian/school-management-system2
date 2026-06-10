@@ -10,6 +10,7 @@ import {
   RequirementsRosterScreen,
   RequirementsStudentScreen,
   RequisitionDetailScreen,
+  RequisitionFormScreen,
   RequisitionsListScreen,
   TripDetailScreen,
   TripsListScreen,
@@ -38,6 +39,7 @@ export const OperationsStackNavigator: React.FC = () => (
     <Stack.Screen name="RequirementsStudent" component={RequirementsStudentScreen} />
     <Stack.Screen name="LibraryBooks" component={LibraryBooksScreen} />
     <Stack.Screen name="RequisitionsList" component={RequisitionsListScreen} />
+    <Stack.Screen name="RequisitionForm" component={RequisitionFormScreen} />
     <Stack.Screen name="RequisitionDetail" component={RequisitionDetailScreen} />
     <Stack.Screen name="VisitorsList" component={VisitorsListScreen} />
     <Stack.Screen name="VisitorDetail" component={VisitorDetailScreen} />

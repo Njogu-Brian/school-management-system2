@@ -2,6 +2,7 @@ import {
   useCan,
   useCommunicationTemplates,
   useSendSms,
+  useSendWhatsApp,
   useSettingsClasses,
   useSmsRecipients,
 } from '@erp/core';
@@ -23,12 +24,15 @@ type Props = StackScreenProps<CommunicationStackParamList, 'SmsCompose'>;
 
 const SMS_SEGMENT = 160;
 type SenderId = 'default' | 'finance';
+type Channel = 'sms' | 'whatsapp';
 
 export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('communication.view');
   const { colors, palette, spacing, typography, radius } = useTheme();
-  const templatesQuery = useCommunicationTemplates({ enabled: canView });
+  const [channel, setChannel] = useState<Channel>('sms');
+  const templatesQuery = useCommunicationTemplates({ enabled: canView, type: channel });
   const sendMutation = useSendSms();
+  const sendWhatsAppMutation = useSendWhatsApp();
   const [message, setMessage] = useState('');
   const [phones, setPhones] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>();
@@ -63,6 +67,8 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
   const segments = Math.max(1, Math.ceil(charCount / SMS_SEGMENT));
   const estimatedCost = segments * (recipientCount || 1);
 
+  const pending = sendMutation.isPending || sendWhatsAppMutation.isPending;
+
   const onSend = async () => {
     if (!message.trim() && !selectedTemplateId) {
       showError('Missing fields', 'Enter a message or select a template.');
@@ -73,14 +79,23 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
     try {
-      const res = await sendMutation.mutateAsync({
-        message: message.trim() || undefined,
-        template_id: selectedTemplateId,
-        custom_numbers: phones.trim(),
-        sender_id: senderId,
-      });
-      showSuccess('SMS sent', res.message ?? `Sent: ${res.data?.sent ?? 0}, failed: ${res.data?.failed ?? 0}`, () =>
-        navigation.goBack(),
+      const res =
+        channel === 'whatsapp'
+          ? await sendWhatsAppMutation.mutateAsync({
+              message: message.trim() || undefined,
+              template_id: selectedTemplateId,
+              custom_numbers: phones.trim(),
+            })
+          : await sendMutation.mutateAsync({
+              message: message.trim() || undefined,
+              template_id: selectedTemplateId,
+              custom_numbers: phones.trim(),
+              sender_id: senderId,
+            });
+      showSuccess(
+        channel === 'whatsapp' ? 'WhatsApp sent' : 'SMS sent',
+        res.message ?? `Sent: ${res.data?.sent ?? 0}, failed: ${res.data?.failed ?? 0}`,
+        () => navigation.goBack(),
       );
     } catch (err) {
       showError('Send failed', (err as Error).message);
@@ -117,7 +132,31 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-      <AcademicScreenHeader title="Send SMS" subtitle="Broadcast to custom numbers" onBack={() => navigation.goBack()} />
+      <AcademicScreenHeader
+        title="Send message"
+        subtitle="Broadcast via SMS or WhatsApp"
+        onBack={() => navigation.goBack()}
+      />
+
+      <Text style={[labelStyle, { marginTop: 0 }]}>Channel</Text>
+      <FilterChipRow>
+        <FilterChip
+          label="SMS"
+          active={channel === 'sms'}
+          onPress={() => {
+            setChannel('sms');
+            setSelectedTemplateId(undefined);
+          }}
+        />
+        <FilterChip
+          label="WhatsApp"
+          active={channel === 'whatsapp'}
+          onPress={() => {
+            setChannel('whatsapp');
+            setSelectedTemplateId(undefined);
+          }}
+        />
+      </FilterChipRow>
 
       {templatesQuery.data && templatesQuery.data.length > 0 ? (
         <View style={{ marginBottom: spacing.sm }}>
@@ -145,11 +184,15 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         </View>
       ) : null}
 
-      <Text style={labelStyle}>Sender ID</Text>
-      <FilterChipRow>
-        <FilterChip label="School (default)" active={senderId === 'default'} onPress={() => setSenderId('default')} />
-        <FilterChip label="Finance" active={senderId === 'finance'} onPress={() => setSenderId('finance')} />
-      </FilterChipRow>
+      {channel === 'sms' ? (
+        <>
+          <Text style={labelStyle}>Sender ID</Text>
+          <FilterChipRow>
+            <FilterChip label="School (default)" active={senderId === 'default'} onPress={() => setSenderId('default')} />
+            <FilterChip label="Finance" active={senderId === 'finance'} onPress={() => setSenderId('finance')} />
+          </FilterChipRow>
+        </>
+      ) : null}
 
       <Text style={labelStyle}>Phone numbers (comma-separated)</Text>
       <TextInput
@@ -185,10 +228,16 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         style={[...inputStyle, styles.textArea]}
       />
 
-      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
-        {charCount} chars · {segments} segment{segments === 1 ? '' : 's'} · est. {estimatedCost} credit
-        {estimatedCost === 1 ? '' : 's'}
-      </Text>
+      {channel === 'sms' ? (
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
+          {charCount} chars · {segments} segment{segments === 1 ? '' : 's'} · est. {estimatedCost} credit
+          {estimatedCost === 1 ? '' : 's'}
+        </Text>
+      ) : (
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
+          {charCount} chars · sent via WhatsApp
+        </Text>
+      )}
       <FilterBottomSheet
         visible={pickerVisible}
         title="Add parent recipients"
@@ -233,19 +282,19 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
 
       <Pressable
         onPress={() => void onSend()}
-        disabled={sendMutation.isPending}
+        disabled={pending}
         accessibilityRole="button"
         style={({ pressed }) => [
           styles.sendBtn,
           {
             backgroundColor: colors.primary,
             borderRadius: radius.md,
-            opacity: sendMutation.isPending ? 0.6 : pressed ? 0.85 : 1,
+            opacity: pending ? 0.6 : pressed ? 0.85 : 1,
           },
         ]}
       >
         <Text style={{ color: colors.white, fontWeight: '700', fontSize: typography.body.fontSize }}>
-          {sendMutation.isPending ? 'Sending…' : 'Send now'}
+          {pending ? 'Sending…' : channel === 'whatsapp' ? 'Send via WhatsApp' : 'Send SMS'}
         </Text>
       </Pressable>
     </ScreenContainer>

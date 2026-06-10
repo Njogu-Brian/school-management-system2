@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
+use App\Services\ExpenseWorkflowService;
 use Illuminate\Http\Request;
 
 class ApiExpensesController extends Controller
@@ -53,14 +54,18 @@ class ApiExpensesController extends Controller
         ]);
     }
 
-    public function show(int $id)
+    public function show(Request $request, int $id)
     {
         $e = Expense::with(['vendor', 'requester', 'approver', 'lines.category', 'vouchers'])->findOrFail($id);
+        $user = $request->user();
 
         return response()->json([
             'success' => true,
             'data' => [
                 ...$this->serializeSummary($e),
+                'can_submit' => $user ? $user->can('submit', $e) : false,
+                'can_approve' => $user ? $user->can('approve', $e) : false,
+                'can_pay' => $user ? $user->can('pay', $e) : false,
                 'due_date' => $e->due_date?->format('Y-m-d'),
                 'currency' => $e->currency,
                 'subtotal' => (float) $e->subtotal,
@@ -89,6 +94,95 @@ class ApiExpensesController extends Controller
                     'payment_date' => $v->payment_date?->format('Y-m-d'),
                 ])->values(),
             ],
+        ]);
+    }
+
+    public function submit(Request $request, int $id, ExpenseWorkflowService $workflow)
+    {
+        $expense = Expense::findOrFail($id);
+
+        if (! $request->user()?->can('submit', $expense)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to submit this expense.'], 403);
+        }
+
+        try {
+            $workflow->submit($expense);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Expense submitted for approval.',
+            'data' => $this->serializeSummary($expense->fresh('vendor')),
+        ]);
+    }
+
+    public function approve(Request $request, int $id, ExpenseWorkflowService $workflow)
+    {
+        return $this->decide($request, $id, $workflow, 'approved');
+    }
+
+    public function reject(Request $request, int $id, ExpenseWorkflowService $workflow)
+    {
+        $request->validate(['remarks' => 'required|string|max:1000']);
+
+        return $this->decide($request, $id, $workflow, 'rejected');
+    }
+
+    public function pay(Request $request, int $id, ExpenseWorkflowService $workflow)
+    {
+        $expense = Expense::with('vendor')->findOrFail($id);
+        $user = $request->user();
+
+        if (! $user?->can('pay', $expense)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to pay this expense.'], 403);
+        }
+
+        $data = $request->validate([
+            'payment_method' => 'nullable|string|max:100',
+            'reference_no' => 'nullable|string|max:100',
+        ]);
+
+        try {
+            $voucher = $workflow->createVoucher($expense, $user, [
+                'payment_method' => $data['payment_method'] ?? null,
+                'payment_date' => now()->toDateString(),
+            ]);
+            $workflow->payVoucher($voucher, $user, [
+                'reference_no' => $data['reference_no'] ?? null,
+                'paid_at' => now(),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Expense paid and posted to ledger.',
+            'data' => $this->serializeSummary($expense->fresh('vendor')),
+        ]);
+    }
+
+    protected function decide(Request $request, int $id, ExpenseWorkflowService $workflow, string $decision)
+    {
+        $expense = Expense::findOrFail($id);
+        $user = $request->user();
+
+        if (! $user?->can('approve', $expense)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to review this expense.'], 403);
+        }
+
+        try {
+            $workflow->decide($expense, $user, $decision, $request->input('remarks'));
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $decision === 'approved' ? 'Expense approved.' : 'Expense rejected.',
+            'data' => $this->serializeSummary($expense->fresh('vendor')),
         ]);
     }
 

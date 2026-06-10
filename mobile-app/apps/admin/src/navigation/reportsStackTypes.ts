@@ -5,6 +5,7 @@ export type ReportsStackParamList = {
   ExpenseReports: undefined;
   ExpensesList: undefined;
   ExpenseDetail: { expenseId: number };
+  IncomeStatement: undefined;
   WeeklyReportsList: undefined;
   WeeklyReportDetail: { type: string; reportId: number };
 };

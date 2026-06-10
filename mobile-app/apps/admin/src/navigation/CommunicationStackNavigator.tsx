@@ -9,6 +9,7 @@ import {
   SmsHistoryScreen,
   SmsLogDetailScreen,
   TemplateDetailScreen,
+  TemplateFormScreen,
   TemplatesListScreen,
 } from '../features/communication';
 import type { CommunicationStackParamList } from './communicationStackTypes';
@@ -25,6 +26,7 @@ export const CommunicationStackNavigator: React.FC = () => (
     <Stack.Screen name="SmsHistory" component={SmsHistoryScreen} />
     <Stack.Screen name="SmsLogDetail" component={SmsLogDetailScreen} />
     <Stack.Screen name="TemplatesList" component={TemplatesListScreen} />
+    <Stack.Screen name="TemplateForm" component={TemplateFormScreen} />
     <Stack.Screen name="TemplateDetail" component={TemplateDetailScreen} />
   </Stack.Navigator>
 );

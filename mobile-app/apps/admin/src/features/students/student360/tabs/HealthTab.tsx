@@ -1,9 +1,12 @@
 import type { StudentDetail } from '@erp/core';
 import { useMedicalRecords } from '@erp/core';
-import { FinanceFieldSection } from '@erp/ui';
+import { Button, FinanceFieldSection } from '@erp/ui';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
+import type { StudentsStackParamList } from '../../../../navigation/studentsStackTypes';
 
 export interface HealthTabProps {
   student: StudentDetail;
@@ -11,6 +14,7 @@ export interface HealthTabProps {
 
 export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
   const { colors, palette, fontSizes } = useTheme();
+  const navigation = useNavigation<StackNavigationProp<StudentsStackParamList>>();
   const medicalQuery = useMedicalRecords(student.id);
 
   const profileRows = useMemo(
@@ -54,6 +58,18 @@ export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
       <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
         Profile: GET /students/{'{id}'} · Clinic: GET /students/{'{id}'}/medical-records
       </Text>
+      <View style={{ marginBottom: 12 }}>
+        <Button
+          label="Log medical record"
+          variant="secondary"
+          onPress={() =>
+            navigation.navigate('MedicalRecordForm', {
+              studentId: student.id,
+              studentName: student.fullName,
+            })
+          }
+        />
+      </View>
       <FinanceFieldSection title="Health profile" rows={profileRows} />
       {medicalQuery.isLoading ? (
         <View style={{ paddingVertical: 16, alignItems: 'center' }}>

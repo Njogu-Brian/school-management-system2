@@ -1,6 +1,7 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
 import {
+  MedicalRecordFormScreen,
   ReportCardDetailScreen,
   StudentDetailScreen,
   StudentRegistryScreen,
@@ -14,5 +15,6 @@ export const StudentsStackNavigator: React.FC = () => (
     <Stack.Screen name="StudentRegistry" component={StudentRegistryScreen} />
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     <Stack.Screen name="ReportCardDetail" component={ReportCardDetailScreen} />
+    <Stack.Screen name="MedicalRecordForm" component={MedicalRecordFormScreen} />
   </Stack.Navigator>
 );

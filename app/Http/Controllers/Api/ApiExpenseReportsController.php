@@ -4,10 +4,70 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 
 class ApiExpenseReportsController extends Controller
 {
+    /**
+     * Monthly income (fee collections) vs expenses with net position.
+     */
+    public function incomeStatement(Request $request)
+    {
+        $months = min(max((int) $request->input('months', 6), 1), 24);
+        $end = now()->endOfMonth();
+        $start = now()->copy()->subMonths($months - 1)->startOfMonth();
+
+        $rows = [];
+        $cursor = $start->copy();
+        $totalIncome = 0.0;
+        $totalExpenses = 0.0;
+
+        while ($cursor->lte($end)) {
+            $monthStart = $cursor->copy()->startOfMonth();
+            $monthEnd = $cursor->copy()->endOfMonth();
+
+            $income = round((float) Payment::query()
+                ->where(function ($q) {
+                    $q->whereNull('reversed')->orWhere('reversed', false);
+                })
+                ->whereBetween('payment_date', [$monthStart, $monthEnd])
+                ->sum('amount'), 2);
+
+            $expenses = round((float) Expense::query()
+                ->whereIn('status', [Expense::STATUS_APPROVED, Expense::STATUS_PAID])
+                ->whereBetween('expense_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+                ->sum('total'), 2);
+
+            $rows[] = [
+                'month' => $monthStart->format('Y-m'),
+                'label' => $monthStart->format('M Y'),
+                'income' => $income,
+                'expenses' => $expenses,
+                'net' => round($income - $expenses, 2),
+            ];
+
+            $totalIncome += $income;
+            $totalExpenses += $expenses;
+            $cursor->addMonth();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'from' => $start->toDateString(),
+                'to' => $end->toDateString(),
+                'months' => $rows,
+                'totals' => [
+                    'income' => round($totalIncome, 2),
+                    'expenses' => round($totalExpenses, 2),
+                    'net' => round($totalIncome - $totalExpenses, 2),
+                ],
+                'as_of' => now()->toIso8601String(),
+            ],
+        ]);
+    }
+
     public function summary(Request $request)
     {
         $baseQuery = Expense::query()->with(['vendor', 'lines.category']);

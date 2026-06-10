@@ -9,6 +9,7 @@ export type OperationsStackParamList = {
   LibraryBooks: undefined;
   RequisitionsList: undefined;
   RequisitionDetail: { requisitionId: number };
+  RequisitionForm: undefined;
   VisitorsList: undefined;
   VisitorDetail: { visitorId: number };
   VisitorCheckIn: undefined;

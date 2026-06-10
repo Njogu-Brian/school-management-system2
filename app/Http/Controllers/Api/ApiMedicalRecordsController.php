@@ -36,6 +36,38 @@ class ApiMedicalRecordsController extends Controller
         ]);
     }
 
+    public function store(Request $request, int $studentId)
+    {
+        $student = Student::findOrFail($studentId);
+
+        $data = $request->validate([
+            'record_type' => 'required|in:vaccination,checkup,medication,incident,certificate,other',
+            'record_date' => 'required|date',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string|max:2000',
+            'doctor_name' => 'nullable|string|max:255',
+            'clinic_hospital' => 'nullable|string|max:255',
+            'medication_name' => 'nullable|string|max:255',
+            'medication_dosage' => 'nullable|string|max:255',
+            'vaccination_name' => 'nullable|string|max:255',
+            'vaccination_date' => 'nullable|date',
+            'next_due_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:2000',
+        ]);
+
+        $record = StudentMedicalRecord::create([
+            ...$data,
+            'student_id' => $student->id,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Medical record added.',
+            'data' => $this->serialize($record->load('createdBy')),
+        ], 201);
+    }
+
     public function show(int $studentId, int $id)
     {
         $record = StudentMedicalRecord::query()

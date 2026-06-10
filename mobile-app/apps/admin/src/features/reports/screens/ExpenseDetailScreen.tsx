@@ -1,17 +1,27 @@
-import { useCan, useExpense } from '@erp/core';
+import {
+  useApproveExpense,
+  useCan,
+  useExpense,
+  usePayExpense,
+  useRejectExpense,
+  useSubmitExpense,
+} from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   FinanceFieldSection,
   ListEmptyState,
   ScreenContainer,
   SkeletonListRows,
   StatusBadge,
+  TextField,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { ReportsStackParamList } from '../../../navigation/reportsStackTypes';
+import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
 import { capitalizeStatus, formatDateLabel, formatDateTimeLabel } from '../../shared/utils/formatters';
 
 type Props = StackScreenProps<ReportsStackParamList, 'ExpenseDetail'>;
@@ -33,6 +43,79 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { palette, spacing, radius, typography } = useTheme();
   const query = useExpense(expenseId, { enabled: canView });
   const expense = query.data;
+
+  const submitMutation = useSubmitExpense();
+  const approveMutation = useApproveExpense();
+  const rejectMutation = useRejectExpense();
+  const payMutation = usePayExpense();
+
+  const [remarks, setRemarks] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [referenceNo, setReferenceNo] = useState('');
+
+  const workflowPending =
+    submitMutation.isPending || approveMutation.isPending || rejectMutation.isPending || payMutation.isPending;
+
+  const onSubmitExpense = () => {
+    confirmAction('Submit expense', 'Send this expense for approval?', 'Submit', async () => {
+      try {
+        await submitMutation.mutateAsync({ id: expenseId });
+        showSuccess('Submitted', 'Expense sent for approval.');
+      } catch (err) {
+        showError('Submit failed', (err as Error).message);
+      }
+    });
+  };
+
+  const onApprove = () => {
+    confirmAction('Approve expense', 'Approve this expense for payment?', 'Approve', async () => {
+      try {
+        await approveMutation.mutateAsync({ id: expenseId, remarks: remarks.trim() || undefined });
+        setRemarks('');
+        showSuccess('Approved', 'Expense approved.');
+      } catch (err) {
+        showError('Approve failed', (err as Error).message);
+      }
+    });
+  };
+
+  const onReject = () => {
+    if (!remarks.trim()) {
+      showError('Remarks required', 'Add remarks explaining why this expense is rejected.');
+      return;
+    }
+    confirmAction('Reject expense', 'Reject this expense? The requester will see your remarks.', 'Reject', async () => {
+      try {
+        await rejectMutation.mutateAsync({ id: expenseId, remarks: remarks.trim() });
+        setRemarks('');
+        showSuccess('Rejected', 'Expense rejected.');
+      } catch (err) {
+        showError('Reject failed', (err as Error).message);
+      }
+    });
+  };
+
+  const onPay = () => {
+    confirmAction(
+      'Mark as paid',
+      'This creates a payment voucher, records the payment and posts ledger entries.',
+      'Pay',
+      async () => {
+        try {
+          await payMutation.mutateAsync({
+            id: expenseId,
+            payment_method: paymentMethod.trim() || undefined,
+            reference_no: referenceNo.trim() || undefined,
+          });
+          setPaymentMethod('');
+          setReferenceNo('');
+          showSuccess('Paid', 'Expense paid and posted to ledger.');
+        } catch (err) {
+          showError('Payment failed', (err as Error).message);
+        }
+      },
+    );
+  };
 
   if (!canView) {
     return (
@@ -146,6 +229,67 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={[styles.notes, { borderColor: palette.border, marginTop: spacing.md }]}>
           <Text style={{ color: palette.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>NOTES</Text>
           <Text style={{ color: palette.textPrimary, lineHeight: 20 }}>{expense.notes}</Text>
+        </View>
+      ) : null}
+
+      {expense.can_submit || expense.can_approve || expense.can_pay ? (
+        <View style={{ marginTop: spacing.lg }}>
+          <Text style={[styles.sectionLabel, { color: palette.textSecondary }]}>WORKFLOW</Text>
+
+          {expense.can_submit ? (
+            <Button
+              label={submitMutation.isPending ? 'Submitting…' : 'Submit for approval'}
+              onPress={onSubmitExpense}
+              disabled={workflowPending}
+              loading={submitMutation.isPending}
+            />
+          ) : null}
+
+          {expense.can_approve ? (
+            <View style={{ gap: spacing.sm }}>
+              <TextField
+                label="Remarks (required to reject)"
+                value={remarks}
+                onChangeText={setRemarks}
+                placeholder="Review notes…"
+              />
+              <Button
+                label={approveMutation.isPending ? 'Approving…' : 'Approve expense'}
+                onPress={onApprove}
+                disabled={workflowPending}
+                loading={approveMutation.isPending}
+              />
+              <Button
+                label={rejectMutation.isPending ? 'Rejecting…' : 'Reject expense'}
+                variant="ghost"
+                onPress={onReject}
+                disabled={workflowPending}
+              />
+            </View>
+          ) : null}
+
+          {expense.can_pay ? (
+            <View style={{ gap: spacing.sm }}>
+              <TextField
+                label="Payment method (optional)"
+                value={paymentMethod}
+                onChangeText={setPaymentMethod}
+                placeholder="e.g. M-Pesa, bank transfer, cash"
+              />
+              <TextField
+                label="Reference no (optional)"
+                value={referenceNo}
+                onChangeText={setReferenceNo}
+                placeholder="Transaction reference"
+              />
+              <Button
+                label={payMutation.isPending ? 'Recording payment…' : 'Mark as paid'}
+                onPress={onPay}
+                disabled={workflowPending}
+                loading={payMutation.isPending}
+              />
+            </View>
+          ) : null}
         </View>
       ) : null}
     </ScreenContainer>

@@ -1,6 +1,7 @@
 import { useCan, useCommunicationTemplates } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -55,10 +56,10 @@ export const TemplatesListScreen: React.FC<Props> = ({ navigation }) => {
         showFilterTrigger={false}
         hero={
           <View>
-            <AcademicScreenHeader title="SMS templates" onBack={() => navigation.goBack()} />
-            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
-              Read-only — template CRUD is managed on the web portal.
-            </Text>
+            <AcademicScreenHeader title="Message templates" onBack={() => navigation.goBack()} />
+            <View style={{ marginBottom: spacing.sm }}>
+              <Button label="New template" onPress={() => navigation.navigate('TemplateForm', undefined)} />
+            </View>
           </View>
         }
         searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search templates…" />}

@@ -213,6 +213,8 @@ export const queryKeys = {
     expensesList: (filters?: { status?: string; search?: string }) =>
       [...queryKeys.reports.all, 'expenses-list', filters ?? {}] as const,
     expenseDetail: (id: number) => [...queryKeys.reports.all, 'expense', id] as const,
+    incomeStatement: (months?: number) =>
+      [...queryKeys.reports.all, 'income-statement', months ?? 6] as const,
     boardPack: () => [...queryKeys.reports.all, 'board-pack'] as const,
   },
   search: {

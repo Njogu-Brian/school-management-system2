@@ -54,6 +54,10 @@ export const linking: LinkingOptions<DrawerParamList> = {
                 },
               },
               ReportCardDetail: 'report-cards/:reportCardId',
+              MedicalRecordForm: {
+                path: ':studentId/medical-records/new',
+                parse: { studentId: Number },
+              },
             },
           },
           Finance: {
@@ -149,6 +153,7 @@ export const linking: LinkingOptions<DrawerParamList> = {
             parse: { itemId: Number },
           },
           RequisitionsList: 'requisitions',
+          RequisitionForm: 'requisitions/new',
           RequisitionDetail: {
             path: 'requisitions/:requisitionId',
             parse: { requisitionId: Number },
@@ -189,6 +194,7 @@ export const linking: LinkingOptions<DrawerParamList> = {
             parse: { logId: Number },
           },
           TemplatesList: 'templates',
+          TemplateForm: 'templates/new',
           TemplateDetail: {
             path: 'templates/:templateId',
             parse: { templateId: Number },
@@ -203,6 +209,7 @@ export const linking: LinkingOptions<DrawerParamList> = {
           BoardPack: 'board-pack',
           ExpenseReports: 'expenses',
           ExpensesList: 'expenses/all',
+          IncomeStatement: 'income-statement',
           ExpenseDetail: {
             path: 'expenses/:expenseId',
             parse: { expenseId: Number },

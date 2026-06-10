@@ -98,6 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/students/{id}/documents', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'index']);
     Route::get('/students/{studentId}/documents/{documentId}/download', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'download']);
     Route::get('/students/{studentId}/medical-records', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'index']);
+    Route::post('/students/{studentId}/medical-records', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'store']);
     Route::get('/students/{studentId}/medical-records/{id}', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'show']);
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
@@ -175,15 +176,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/announcements/{id}', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'destroy']);
 
     Route::get('/communication/templates', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'templates']);
+    Route::post('/communication/templates', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'templateStore']);
     Route::get('/communication/templates/{id}', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'templateShow']);
+    Route::put('/communication/templates/{id}', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'templateUpdate']);
+    Route::delete('/communication/templates/{id}', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'templateDestroy']);
     Route::get('/communication/logs', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'logs']);
     Route::get('/communication/logs/{id}', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'logShow']);
     Route::get('/communication/recipients', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'recipients']);
     Route::post('/communication/sms', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendSms']);
+    Route::post('/communication/whatsapp', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendWhatsApp']);
 
     Route::get('/inventory/items', [\App\Http\Controllers\Api\ApiInventoryController::class, 'index']);
     Route::get('/inventory/items/{id}', [\App\Http\Controllers\Api\ApiInventoryController::class, 'show']);
+    Route::post('/inventory/items/{id}/adjust', [\App\Http\Controllers\Api\ApiInventoryController::class, 'adjust']);
     Route::get('/requisitions', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'index']);
+    Route::post('/requisitions', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'store']);
     Route::get('/requisitions/{id}', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'show']);
     Route::post('/requisitions/{id}/approve', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'approve']);
     Route::post('/requisitions/{id}/reject', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'reject']);
@@ -195,14 +202,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/assets', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'index']);
     Route::get('/assets/{id}', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'show']);
+    Route::post('/assets/{id}/status', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'updateStatus']);
 
     Route::get('/reports/weekly', [\App\Http\Controllers\Api\ApiWeeklyReportsController::class, 'index']);
     Route::get('/reports/weekly/{type}/{id}', [\App\Http\Controllers\Api\ApiWeeklyReportsController::class, 'show']);
     Route::get('/reports/expenses/summary', [\App\Http\Controllers\Api\ApiExpenseReportsController::class, 'summary']);
+    Route::get('/reports/income-statement', [\App\Http\Controllers\Api\ApiExpenseReportsController::class, 'incomeStatement']);
     Route::get('/reports/board-pack', [\App\Http\Controllers\Api\ApiBoardPackController::class, 'show']);
 
     Route::get('/expenses', [\App\Http\Controllers\Api\ApiExpensesController::class, 'index']);
     Route::get('/expenses/{id}', [\App\Http\Controllers\Api\ApiExpensesController::class, 'show']);
+    Route::post('/expenses/{id}/submit', [\App\Http\Controllers\Api\ApiExpensesController::class, 'submit']);
+    Route::post('/expenses/{id}/approve', [\App\Http\Controllers\Api\ApiExpensesController::class, 'approve']);
+    Route::post('/expenses/{id}/reject', [\App\Http\Controllers\Api\ApiExpensesController::class, 'reject']);
+    Route::post('/expenses/{id}/pay', [\App\Http\Controllers\Api\ApiExpensesController::class, 'pay']);
 
     Route::get('/cbc/learning-areas', [\App\Http\Controllers\Api\ApiCbcController::class, 'learningAreas']);
     Route::get('/cbc/strands', [\App\Http\Controllers\Api\ApiCbcController::class, 'strands']);

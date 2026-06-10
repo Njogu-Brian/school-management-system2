@@ -90,6 +90,27 @@ export const communicationApi = {
     return apiClient.get<CommunicationTemplateDetail>(`/communication/templates/${id}`);
   },
 
+  createTemplate(payload: {
+    title: string;
+    type: string;
+    code?: string | null;
+    subject?: string | null;
+    content: string;
+  }): Promise<ApiResponse<CommunicationTemplateDetail>> {
+    return apiClient.post<CommunicationTemplateDetail>('/communication/templates', payload);
+  },
+
+  updateTemplate(
+    id: number,
+    payload: { title: string; type: string; code?: string | null; subject?: string | null; content: string },
+  ): Promise<ApiResponse<CommunicationTemplateDetail>> {
+    return apiClient.put<CommunicationTemplateDetail>(`/communication/templates/${id}`, payload);
+  },
+
+  deleteTemplate(id: number): Promise<ApiResponse<null>> {
+    return apiClient.delete(`/communication/templates/${id}`);
+  },
+
   getLog(id: number): Promise<ApiResponse<CommunicationLogRecord>> {
     return apiClient.get<CommunicationLogRecord>(`/communication/logs/${id}`);
   },
@@ -115,5 +136,14 @@ export const communicationApi = {
     sender_id?: 'finance' | 'default';
   }): Promise<ApiResponse<{ sent: number; failed: number; total: number }>> {
     return apiClient.post('/communication/sms', payload);
+  },
+
+  sendWhatsApp(payload: {
+    message?: string;
+    template_id?: number;
+    custom_numbers?: string;
+    phones?: string[];
+  }): Promise<ApiResponse<{ sent: number; failed: number; total: number }>> {
+    return apiClient.post('/communication/whatsapp', payload);
   },
 };

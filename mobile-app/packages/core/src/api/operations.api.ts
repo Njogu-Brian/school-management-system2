@@ -274,6 +274,13 @@ export const operationsApi = {
     return apiClient.get<InventoryItemRecord>(`/inventory/items/${id}`);
   },
 
+  adjustInventoryStock(
+    id: number,
+    payload: { type: 'in' | 'out' | 'adjustment'; quantity: number; notes?: string },
+  ): Promise<ApiResponse<InventoryItemRecord>> {
+    return apiClient.post<InventoryItemRecord>(`/inventory/items/${id}/adjust`, payload);
+  },
+
   listRequirementsStudents(params?: {
     search?: string;
     page?: number;
@@ -305,11 +312,46 @@ export const operationsApi = {
     return apiClient.get<RequisitionRecord>(`/requisitions/${id}`);
   },
 
+  createRequisition(payload: {
+    type: 'inventory' | 'requirement';
+    purpose?: string;
+    items: Array<{
+      inventory_item_id?: number;
+      item_name: string;
+      brand?: string;
+      quantity_requested: number;
+      unit: string;
+      purpose?: string;
+    }>;
+  }): Promise<ApiResponse<RequisitionRecord>> {
+    return apiClient.post<RequisitionRecord>('/requisitions', payload);
+  },
+
   listMedicalRecords(
     studentId: number,
     params?: { page?: number; per_page?: number },
   ): Promise<ApiResponse<PaginatedResponse<MedicalRecordRow> & { student_id: number }>> {
     return apiClient.get(`/students/${studentId}/medical-records`, params);
+  },
+
+  createMedicalRecord(
+    studentId: number,
+    payload: {
+      record_type: 'vaccination' | 'checkup' | 'medication' | 'incident' | 'certificate' | 'other';
+      record_date: string;
+      title: string;
+      description?: string;
+      doctor_name?: string;
+      clinic_hospital?: string;
+      medication_name?: string;
+      medication_dosage?: string;
+      vaccination_name?: string;
+      vaccination_date?: string;
+      next_due_date?: string;
+      notes?: string;
+    },
+  ): Promise<ApiResponse<MedicalRecordRow>> {
+    return apiClient.post<MedicalRecordRow>(`/students/${studentId}/medical-records`, payload);
   },
 
   listVisitors(params?: {
@@ -354,6 +396,13 @@ export const operationsApi = {
 
   getAsset(id: number): Promise<ApiResponse<FixedAssetRecord>> {
     return apiClient.get<FixedAssetRecord>(`/assets/${id}`);
+  },
+
+  updateAssetStatus(
+    id: number,
+    payload: { status: 'active' | 'in_repair' | 'retired' | 'disposed'; notes?: string },
+  ): Promise<ApiResponse<FixedAssetRecord>> {
+    return apiClient.post<FixedAssetRecord>(`/assets/${id}/status`, payload);
   },
 
   approveRequisition(

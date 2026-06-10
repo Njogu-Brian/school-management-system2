@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Inventory\RequisitionController as WebRequisitionController;
 use App\Models\Requisition;
+use App\Models\RequisitionItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class ApiRequisitionController extends Controller
 {
@@ -42,6 +44,53 @@ class ApiRequisitionController extends Controller
                 'to' => $paginated->lastItem(),
             ],
         ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'type' => 'required|in:inventory,requirement',
+            'purpose' => 'nullable|string|max:1000',
+            'items' => 'required|array|min:1',
+            'items.*.inventory_item_id' => 'nullable|exists:inventory_items,id',
+            'items.*.requirement_type_id' => 'nullable|exists:requirement_types,id',
+            'items.*.item_name' => 'required|string|max:255',
+            'items.*.brand' => 'nullable|string|max:255',
+            'items.*.quantity_requested' => 'required|numeric|min:0.01',
+            'items.*.unit' => 'required|string|max:50',
+            'items.*.purpose' => 'nullable|string',
+        ]);
+
+        $requisition = DB::transaction(function () use ($validated) {
+            $requisition = Requisition::create([
+                'requested_by' => Auth::id(),
+                'type' => $validated['type'],
+                'purpose' => $validated['purpose'] ?? null,
+                'status' => 'pending',
+                'requested_at' => now(),
+            ]);
+
+            foreach ($validated['items'] as $itemData) {
+                RequisitionItem::create([
+                    'requisition_id' => $requisition->id,
+                    'inventory_item_id' => $itemData['inventory_item_id'] ?? null,
+                    'requirement_type_id' => $itemData['requirement_type_id'] ?? null,
+                    'item_name' => $itemData['item_name'],
+                    'brand' => $itemData['brand'] ?? null,
+                    'quantity_requested' => $itemData['quantity_requested'],
+                    'unit' => $itemData['unit'],
+                    'purpose' => $itemData['purpose'] ?? null,
+                ]);
+            }
+
+            return $requisition;
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Requisition submitted.',
+            'data' => $this->serialize($requisition->fresh(['requestedBy', 'approvedBy', 'items']), true),
+        ], 201);
     }
 
     public function show(int $id)

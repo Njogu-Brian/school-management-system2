@@ -6,4 +6,5 @@ export { SmsComposeScreen } from './screens/SmsComposeScreen';
 export { SmsHistoryScreen } from './screens/SmsHistoryScreen';
 export { SmsLogDetailScreen } from './screens/SmsLogDetailScreen';
 export { TemplatesListScreen } from './screens/TemplatesListScreen';
+export { TemplateFormScreen } from './screens/TemplateFormScreen';
 export { TemplateDetailScreen } from './screens/TemplateDetailScreen';

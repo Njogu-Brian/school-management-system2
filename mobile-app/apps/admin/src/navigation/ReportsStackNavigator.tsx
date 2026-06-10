@@ -6,6 +6,7 @@ import {
   ExpenseDetailScreen,
   ExpenseReportsScreen,
   ExpensesListScreen,
+  IncomeStatementScreen,
   ReportsHubScreen,
   WeeklyReportDetailScreen,
   WeeklyReportsListScreen,
@@ -22,6 +23,7 @@ export const ReportsStackNavigator: React.FC = () => (
     <Stack.Screen name="ExpenseReports" component={ExpenseReportsScreen} />
     <Stack.Screen name="ExpensesList" component={ExpensesListScreen} />
     <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} />
+    <Stack.Screen name="IncomeStatement" component={IncomeStatementScreen} />
     <Stack.Screen name="WeeklyReportsList" component={WeeklyReportsListScreen} />
     <Stack.Screen name="WeeklyReportDetail" component={WeeklyReportDetailScreen} />
   </Stack.Navigator>

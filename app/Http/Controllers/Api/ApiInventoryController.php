@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
+use App\Models\InventoryTransaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ApiInventoryController extends Controller
 {
@@ -55,6 +57,39 @@ class ApiInventoryController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->serialize($item),
+        ]);
+    }
+
+    public function adjust(Request $request, int $id)
+    {
+        $item = InventoryItem::active()->findOrFail($id);
+
+        $data = $request->validate([
+            'type' => 'required|in:in,out,adjustment',
+            'quantity' => 'required|numeric|min:0',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        if ($data['type'] === 'out' && (float) $data['quantity'] > (float) $item->quantity) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot issue more than the available stock ('.(float) $item->quantity.' '.$item->unit.').',
+            ], 422);
+        }
+
+        InventoryTransaction::create([
+            'inventory_item_id' => $item->id,
+            'user_id' => Auth::id(),
+            'type' => $data['type'],
+            'quantity' => $data['quantity'],
+            'unit_cost' => $item->unit_cost,
+            'notes' => $data['notes'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Stock updated.',
+            'data' => $this->serialize($item->fresh()),
         ]);
     }
 

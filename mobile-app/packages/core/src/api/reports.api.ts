@@ -48,7 +48,24 @@ export interface ExpenseSummaryRecord {
   source_type?: string | null;
 }
 
+export interface IncomeStatementData {
+  from: string;
+  to: string;
+  months: Array<{
+    month: string;
+    label: string;
+    income: number;
+    expenses: number;
+    net: number;
+  }>;
+  totals: { income: number; expenses: number; net: number };
+  as_of: string;
+}
+
 export interface ExpenseDetailRecord extends ExpenseSummaryRecord {
+  can_submit?: boolean;
+  can_approve?: boolean;
+  can_pay?: boolean;
   due_date?: string | null;
   currency?: string | null;
   subtotal?: number;
@@ -120,6 +137,29 @@ export const reportsApi = {
 
   getExpense(id: number): Promise<ApiResponse<ExpenseDetailRecord>> {
     return apiClient.get<ExpenseDetailRecord>(`/expenses/${id}`);
+  },
+
+  submitExpense(id: number): Promise<ApiResponse<ExpenseSummaryRecord>> {
+    return apiClient.post<ExpenseSummaryRecord>(`/expenses/${id}/submit`);
+  },
+
+  approveExpense(id: number, remarks?: string): Promise<ApiResponse<ExpenseSummaryRecord>> {
+    return apiClient.post<ExpenseSummaryRecord>(`/expenses/${id}/approve`, { remarks });
+  },
+
+  rejectExpense(id: number, remarks: string): Promise<ApiResponse<ExpenseSummaryRecord>> {
+    return apiClient.post<ExpenseSummaryRecord>(`/expenses/${id}/reject`, { remarks });
+  },
+
+  payExpense(
+    id: number,
+    payload?: { payment_method?: string; reference_no?: string },
+  ): Promise<ApiResponse<ExpenseSummaryRecord>> {
+    return apiClient.post<ExpenseSummaryRecord>(`/expenses/${id}/pay`, payload ?? {});
+  },
+
+  getIncomeStatement(params?: { months?: number }): Promise<ApiResponse<IncomeStatementData>> {
+    return apiClient.get<IncomeStatementData>('/reports/income-statement', params);
   },
 
   getBoardPack(): Promise<ApiResponse<BoardPackSummary>> {

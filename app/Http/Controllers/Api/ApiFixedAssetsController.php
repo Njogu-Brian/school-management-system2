@@ -51,6 +51,29 @@ class ApiFixedAssetsController extends Controller
         ]);
     }
 
+    public function updateStatus(Request $request, int $id)
+    {
+        $asset = FixedAsset::findOrFail($id);
+
+        $data = $request->validate([
+            'status' => 'required|in:active,in_repair,retired,disposed',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $asset->status = $data['status'];
+        if (! empty($data['notes'])) {
+            $stamp = now()->format('Y-m-d H:i');
+            $asset->notes = trim(($asset->notes ? $asset->notes."\n" : '')."[{$stamp}] {$data['notes']}");
+        }
+        $asset->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Asset status updated.',
+            'data' => $this->serialize($asset->fresh('assignedStaff'), true),
+        ]);
+    }
+
     protected function serialize(FixedAsset $a, bool $detailed = false): array
     {
         $payload = [

@@ -4,5 +4,6 @@ export { BoardPackScreen } from './screens/BoardPackScreen';
 export { ExpenseReportsScreen } from './screens/ExpenseReportsScreen';
 export { ExpensesListScreen } from './screens/ExpensesListScreen';
 export { ExpenseDetailScreen } from './screens/ExpenseDetailScreen';
+export { IncomeStatementScreen } from './screens/IncomeStatementScreen';
 export { WeeklyReportsListScreen } from './screens/WeeklyReportsListScreen';
 export { WeeklyReportDetailScreen } from './screens/WeeklyReportDetailScreen';

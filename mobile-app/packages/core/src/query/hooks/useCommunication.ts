@@ -200,6 +200,57 @@ export function useSendSms() {
   });
 }
 
+export function useSendWhatsApp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: communicationApi.sendWhatsApp,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.communication.logs() });
+    },
+  });
+}
+
+export function useCreateTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: communicationApi.createTemplate,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.communication.all });
+    },
+  });
+}
+
+export function useUpdateTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: number;
+      title: string;
+      type: string;
+      code?: string | null;
+      subject?: string | null;
+      content: string;
+    }) => communicationApi.updateTemplate(id, payload),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.communication.all });
+      void qc.invalidateQueries({ queryKey: queryKeys.communication.template(vars.id) });
+    },
+  });
+}
+
+export function useDeleteTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => communicationApi.deleteTemplate(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.communication.all });
+    },
+  });
+}
+
 export function useCreateAnnouncement() {
   const qc = useQueryClient();
   return useMutation({

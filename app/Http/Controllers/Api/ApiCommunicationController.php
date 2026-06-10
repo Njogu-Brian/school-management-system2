@@ -31,6 +31,54 @@ class ApiCommunicationController extends Controller
         return response()->json(['success' => true, 'data' => $templates]);
     }
 
+    public function templateStore(Request $request)
+    {
+        $data = $request->validate([
+            'title' => 'required|string|max:255',
+            'type' => 'required|string|in:sms,email,whatsapp',
+            'code' => 'nullable|string|max:100|unique:communication_templates,code',
+            'subject' => 'nullable|string|max:255',
+            'content' => 'required|string',
+        ]);
+
+        $template = CommunicationTemplate::create($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Template created.',
+            'data' => $this->serializeTemplate($template),
+        ], 201);
+    }
+
+    public function templateUpdate(Request $request, int $id)
+    {
+        $template = CommunicationTemplate::findOrFail($id);
+
+        $data = $request->validate([
+            'title' => 'required|string|max:255',
+            'type' => 'required|string|in:sms,email,whatsapp',
+            'code' => 'nullable|string|max:100|unique:communication_templates,code,'.$template->id,
+            'subject' => 'nullable|string|max:255',
+            'content' => 'required|string',
+        ]);
+
+        $template->update($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Template updated.',
+            'data' => $this->serializeTemplate($template->fresh()),
+        ]);
+    }
+
+    public function templateDestroy(int $id)
+    {
+        $template = CommunicationTemplate::findOrFail($id);
+        $template->delete();
+
+        return response()->json(['success' => true, 'message' => 'Template deleted.']);
+    }
+
     public function templateShow(int $id)
     {
         $t = CommunicationTemplate::findOrFail($id);
@@ -222,6 +270,79 @@ class ApiCommunicationController extends Controller
             'message' => "SMS dispatch complete. Sent: {$sent}, failed: {$failed}.",
             'data' => ['sent' => $sent, 'failed' => $failed, 'total' => count($phones)],
         ]);
+    }
+
+    public function sendWhatsApp(Request $request, \App\Services\WhatsAppService $whatsAppService)
+    {
+        $data = $request->validate([
+            'message' => 'nullable|string',
+            'template_id' => 'nullable|exists:communication_templates,id',
+            'custom_numbers' => 'nullable|string',
+            'phones' => 'nullable|array',
+            'phones.*' => 'string',
+        ]);
+
+        $message = $data['message'] ?? '';
+        if (! empty($data['template_id'])) {
+            $tpl = CommunicationTemplate::find($data['template_id']);
+            $message = $tpl?->content ?: $message;
+        }
+
+        if (! filled($message)) {
+            return response()->json(['success' => false, 'message' => 'Message content is required.'], 422);
+        }
+
+        $phones = $data['phones'] ?? [];
+        if (! empty($data['custom_numbers'])) {
+            $phones = array_merge(
+                $phones,
+                preg_split('/[\s,;]+/', $data['custom_numbers'], -1, PREG_SPLIT_NO_EMPTY) ?: []
+            );
+        }
+
+        $phones = array_values(array_unique(array_filter(array_map(
+            fn ($p) => $this->normalizeKenyanPhone($p),
+            $phones
+        ))));
+
+        if (count($phones) === 0) {
+            return response()->json(['success' => false, 'message' => 'At least one valid phone number is required.'], 422);
+        }
+
+        $sent = 0;
+        $failed = 0;
+        foreach ($phones as $phone) {
+            try {
+                $result = $whatsAppService->sendMessage($phone, $message);
+                if (($result['status'] ?? '') === 'success') {
+                    $sent++;
+                } else {
+                    $failed++;
+                }
+            } catch (\Throwable $e) {
+                $failed++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "WhatsApp dispatch complete. Sent: {$sent}, failed: {$failed}.",
+            'data' => ['sent' => $sent, 'failed' => $failed, 'total' => count($phones)],
+        ]);
+    }
+
+    protected function serializeTemplate(CommunicationTemplate $t): array
+    {
+        return [
+            'id' => $t->id,
+            'code' => $t->code,
+            'title' => $t->title,
+            'type' => $t->type,
+            'subject' => $t->subject,
+            'content' => $t->content,
+            'created_at' => $t->created_at?->toIso8601String(),
+            'updated_at' => $t->updated_at?->toIso8601String(),
+        ];
     }
 
     protected function normalizeKenyanPhone(?string $phone): ?string

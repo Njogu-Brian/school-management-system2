@@ -8,4 +8,5 @@ export type CommunicationStackParamList = {
   SmsLogDetail: { logId: number };
   TemplatesList: undefined;
   TemplateDetail: { templateId: number };
+  TemplateForm: { templateId?: number } | undefined;
 };

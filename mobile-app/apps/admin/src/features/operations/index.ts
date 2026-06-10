@@ -7,6 +7,7 @@ export { RequirementsRosterScreen } from './screens/RequirementsRosterScreen';
 export { RequirementsStudentScreen } from './screens/RequirementsStudentScreen';
 export { LibraryBooksScreen } from './screens/LibraryBooksScreen';
 export { RequisitionsListScreen } from './screens/RequisitionsListScreen';
+export { RequisitionFormScreen } from './screens/RequisitionFormScreen';
 export { RequisitionDetailScreen } from './screens/RequisitionDetailScreen';
 export { VisitorsListScreen } from './screens/VisitorsListScreen';
 export { VisitorDetailScreen } from './screens/VisitorDetailScreen';

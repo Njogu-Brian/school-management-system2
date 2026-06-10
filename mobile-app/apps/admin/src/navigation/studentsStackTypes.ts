@@ -12,4 +12,8 @@ export type StudentsStackParamList = {
     reportCardId: number;
     studentName?: string;
   };
+  MedicalRecordForm: {
+    studentId: number;
+    studentName?: string;
+  };
 };

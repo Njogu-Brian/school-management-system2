@@ -154,6 +154,11 @@ export const FinanceDashboardScreen: React.FC = () => {
                 onPress={() => navigateToDrawer(navigation, 'Reports', 'ExpensesList')}
               />
               <QuickAction
+                label="Income statement"
+                icon="stats-chart-outline"
+                onPress={() => navigateToDrawer(navigation, 'Reports', 'IncomeStatement')}
+              />
+              <QuickAction
                 label="Executive analytics"
                 icon="trending-up-outline"
                 onPress={() => navigateToDrawer(navigation, 'Reports', 'ExecutiveAnalytics')}
