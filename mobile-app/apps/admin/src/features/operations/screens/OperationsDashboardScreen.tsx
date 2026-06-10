@@ -1,38 +1,58 @@
 import { useCan, useOperationsSummary } from '@erp/core';
-import { KpiCard, QuickAction, ScreenContainer, WidgetGrid, WidgetShell, useTheme } from '@erp/ui';
+import {
+  DashboardHero,
+  DashboardSection,
+  KpiCard,
+  QuickAction,
+  ScreenContainer,
+  WidgetGrid,
+  WidgetShell,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 
 type Props = StackScreenProps<OperationsStackParamList, 'OperationsDashboard'>;
 
-const SECTIONS = [
-  { route: 'TripsList' as const, label: 'Routes', icon: 'bus-outline' as const },
+const TRANSPORT_SECTIONS = [
+  { route: 'TripsList' as const, label: 'Routes & trips', icon: 'bus-outline' as const },
   { route: 'VehiclesList' as const, label: 'Vehicles', icon: 'car-sport-outline' as const },
   { route: 'TeacherTransport' as const, label: 'Teacher transport', icon: 'people-outline' as const },
   { route: 'DriverTrips' as const, label: 'Driver trips', icon: 'car-outline' as const },
+];
+
+const LOGISTICS_SECTIONS = [
   { route: 'InventoryList' as const, label: 'Inventory', icon: 'cube-outline' as const },
   { route: 'RequisitionsList' as const, label: 'Requisitions', icon: 'clipboard-outline' as const },
-  { route: 'VisitorsList' as const, label: 'Visitors', icon: 'person-outline' as const },
   { route: 'AssetsList' as const, label: 'Assets', icon: 'hardware-chip-outline' as const },
-  { route: 'VisitorCheckIn' as const, label: 'Check in', icon: 'log-in-outline' as const },
+  { route: 'LibraryBooks' as const, label: 'Library', icon: 'library-outline' as const },
+];
+
+const FRONT_DESK_SECTIONS = [
+  { route: 'VisitorsList' as const, label: 'Visitors', icon: 'person-outline' as const },
+  { route: 'VisitorCheckIn' as const, label: 'Check in visitor', icon: 'log-in-outline' as const },
+  { route: 'RequirementsRoster' as const, label: 'Requirements', icon: 'checkbox-outline' as const },
 ];
 
 export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('operations.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing } = useTheme();
   const summaryQuery = useOperationsSummary({ enabled: canView });
 
   const openSection = useCallback(
-    (route: (typeof SECTIONS)[number]['route']) => navigation.navigate(route),
+    (route: keyof OperationsStackParamList) =>
+      navigation.navigate(route as never),
     [navigation],
   );
 
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>Access denied.</Text>
+        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
+          You need operations.view permission to open this workspace.
+        </Text>
       </ScreenContainer>
     );
   }
@@ -53,17 +73,24 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
           />
         }
       >
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.lg, fontWeight: '700', marginBottom: spacing.sm }}>
-          Operations
-        </Text>
+        <DashboardHero
+          variant="operations"
+          title="Operations"
+          subtitle="Transport, logistics & front desk"
+          meta={
+            s
+              ? `${s.transport.active_trips} active trips · ${s.visitors?.on_site ?? 0} visitors on site`
+              : undefined
+          }
+        />
 
         <WidgetGrid>
           {[
-            { label: 'Visitors on site', value: String(s?.visitors?.on_site ?? '—'), icon: 'walk-outline' as const },
-            { label: 'Active assets', value: String(s?.assets?.active ?? '—'), icon: 'hardware-chip-outline' as const },
-            { label: 'Low stock', value: String(s?.inventory.low_stock_items ?? '—'), icon: 'warning-outline' as const },
-            { label: 'Open tickets', value: String(s?.facilities.open_tickets ?? '—'), icon: 'construct-outline' as const },
             { label: 'Active trips', value: String(s?.transport.active_trips ?? '—'), icon: 'bus-outline' as const },
+            { label: 'Students on transport', value: String(s?.transport.students_assigned ?? '—'), icon: 'people-outline' as const },
+            { label: 'Visitors on site', value: String(s?.visitors?.on_site ?? '—'), icon: 'walk-outline' as const },
+            { label: 'Low stock items', value: String(s?.inventory.low_stock_items ?? '—'), icon: 'warning-outline' as const },
+            { label: 'Active assets', value: String(s?.assets?.active ?? '—'), icon: 'hardware-chip-outline' as const },
             { label: 'Library books', value: String(s?.library.total_books ?? '—'), icon: 'library-outline' as const },
           ].map((kpi) => (
             <WidgetShell key={kpi.label} state={state} title={kpi.label} onRetry={() => void summaryQuery.refetch()}>
@@ -72,16 +99,44 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
           ))}
         </WidgetGrid>
 
-        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
-          Workspaces
-        </Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          {SECTIONS.map((section) => (
-            <Pressable key={section.route} onPress={() => openSection(section.route)} style={{ minWidth: '45%' }}>
-              <QuickAction label={section.label} icon={section.icon} onPress={() => openSection(section.route)} />
-            </Pressable>
-          ))}
-        </View>
+        <DashboardSection title="Transport">
+          <View style={styles.grid}>
+            {TRANSPORT_SECTIONS.map((section) => (
+              <QuickAction
+                key={section.route}
+                label={section.label}
+                icon={section.icon}
+                onPress={() => openSection(section.route)}
+              />
+            ))}
+          </View>
+        </DashboardSection>
+
+        <DashboardSection title="Logistics">
+          <View style={styles.grid}>
+            {LOGISTICS_SECTIONS.map((section) => (
+              <QuickAction
+                key={section.route}
+                label={section.label}
+                icon={section.icon}
+                onPress={() => openSection(section.route)}
+              />
+            ))}
+          </View>
+        </DashboardSection>
+
+        <DashboardSection title="Front desk & students">
+          <View style={styles.grid}>
+            {FRONT_DESK_SECTIONS.map((section) => (
+              <QuickAction
+                key={section.route}
+                label={section.label}
+                icon={section.icon}
+                onPress={() => openSection(section.route)}
+              />
+            ))}
+          </View>
+        </DashboardSection>
       </ScrollView>
     </ScreenContainer>
   );
@@ -89,4 +144,5 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 });

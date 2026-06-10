@@ -31,7 +31,14 @@ export function resolveNotificationDeepLink(
     return;
   }
   if (link.includes('announcement') || category === 'communication') {
-    navigateToDrawer(navigation, 'Communication', 'AnnouncementsList');
+    const announcementId = data.announcement_id ?? link.match(/announcements?\/(\d+)/)?.[1];
+    if (announcementId) {
+      navigateToDrawer(navigation, 'Communication', 'AnnouncementDetail', {
+        announcementId: Number(announcementId),
+      });
+    } else {
+      navigateToDrawer(navigation, 'Communication', 'AnnouncementsList');
+    }
     return;
   }
   if (category === 'visitors' || category === 'operations') {

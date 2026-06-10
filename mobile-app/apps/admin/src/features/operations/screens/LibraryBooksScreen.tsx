@@ -1,9 +1,6 @@
-import { useCan, useInfiniteAssets } from '@erp/core';
+import { useCan, useInfiniteLibraryBooks } from '@erp/core';
 import {
   AcademicScreenHeader,
-  countActiveFilters,
-  FilterChip,
-  FilterChipRow,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -18,29 +15,16 @@ import type { OperationsStackParamList } from '../../../navigation/operationsSta
 import { capitalizeStatus } from '../../shared/utils/formatters';
 import { OpsListCard } from '../components/OpsListCard';
 
-type Props = StackScreenProps<OperationsStackParamList, 'AssetsList'>;
+type Props = StackScreenProps<OperationsStackParamList, 'LibraryBooks'>;
 
-const STATUS_FILTERS = ['all', 'active', 'assigned', 'maintenance', 'retired'] as const;
-type StatusFilter = (typeof STATUS_FILTERS)[number];
-
-const STATUS_TONES: Record<string, 'brand' | 'success' | 'warning' | 'danger' | 'info'> = {
-  active: 'success',
-  assigned: 'info',
-  maintenance: 'warning',
-  retired: 'danger',
-};
-
-export const AssetsListScreen: React.FC<Props> = ({ navigation }) => {
+export const LibraryBooksScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('operations.view');
   const { colors, palette } = useTheme();
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('all');
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const listQuery = useInfiniteAssets({
+  const listQuery = useInfiniteLibraryBooks({
     enabled: canView,
     search: search.trim() || undefined,
-    status: status === 'all' ? undefined : status,
   });
 
   const items = useMemo(() => listQuery.data?.pages.flatMap((p) => p.items) ?? [], [listQuery.data]);
@@ -58,38 +42,19 @@ export const AssetsListScreen: React.FC<Props> = ({ navigation }) => {
       <RegistryListLayout
         data={items}
         keyExtractor={(item) => String(item.id)}
-        hero={<AcademicScreenHeader title="Fixed assets" subtitle="Asset registry" onBack={() => navigation.goBack()} />}
-        searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search assets…" />}
-        activeFilterCount={countActiveFilters([status])}
-        filtersOpen={filtersOpen}
-        onOpenFilters={() => setFiltersOpen(true)}
-        onCloseFilters={() => setFiltersOpen(false)}
-        onApplyFilters={() => setFiltersOpen(false)}
-        onClearFilters={() => {
-          setStatus('all');
-          setSearch('');
-          setFiltersOpen(false);
-        }}
-        filterContent={
-          <FilterChipRow label="Status">
-            {STATUS_FILTERS.map((s) => (
-              <FilterChip key={s} label={capitalizeStatus(s)} active={status === s} onPress={() => setStatus(s)} />
-            ))}
-          </FilterChipRow>
+        showFilterTrigger={false}
+        hero={
+          <AcademicScreenHeader title="Library" subtitle="Book catalogue" onBack={() => navigation.goBack()} />
         }
+        searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search title, author or ISBN…" />}
         renderItem={({ item }) => (
           <OpsListCard
-            title={item.name}
-            lines={[
-              [item.asset_tag, item.category].filter(Boolean).join(' · ') || null,
-              item.assigned_to ? `Assigned to ${item.assigned_to}` : item.location,
-            ]}
-            badge={
-              item.status
-                ? { label: capitalizeStatus(item.status), tone: STATUS_TONES[item.status] ?? 'brand' }
-                : undefined
-            }
-            onPress={() => navigation.navigate('AssetDetail', { assetId: item.id })}
+            title={item.title || 'Untitled'}
+            lines={[item.author, item.isbn ? `ISBN ${item.isbn}` : null]}
+            badge={{
+              label: capitalizeStatus(item.status),
+              tone: item.status === 'available' ? 'success' : 'warning',
+            }}
           />
         )}
         refreshControl={
@@ -109,7 +74,7 @@ export const AssetsListScreen: React.FC<Props> = ({ navigation }) => {
             <SkeletonListRows variant="card" />
           ) : listQuery.isError ? (
             <ListEmptyState
-              title="Could not load assets"
+              title="Could not load books"
               message={(listQuery.error as Error).message}
               icon="alert-circle-outline"
               actionLabel="Retry"
@@ -117,13 +82,9 @@ export const AssetsListScreen: React.FC<Props> = ({ navigation }) => {
             />
           ) : (
             <ListEmptyState
-              title="No assets"
-              message="No fixed assets match your filters."
-              icon="hardware-chip-outline"
-              onClearFilters={() => {
-                setStatus('all');
-                setSearch('');
-              }}
+              title="No books"
+              message={search ? 'No books match your search.' : 'The library catalogue is empty.'}
+              icon="library-outline"
             />
           )
         }

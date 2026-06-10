@@ -1,34 +1,58 @@
 import { useCan, useInfiniteRequisitions } from '@erp/core';
-import { AcademicScreenHeader, EmptyState, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  countActiveFilters,
+  FilterChip,
+  FilterChipRow,
+  ListEmptyState,
+  RegistryListLayout,
+  ScreenContainer,
+  SearchBar,
+  SkeletonListRows,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, Text } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 import { capitalizeStatus } from '../../shared/utils/formatters';
+import { OpsListCard } from '../components/OpsListCard';
 
 type Props = StackScreenProps<OperationsStackParamList, 'RequisitionsList'>;
 
 const STATUS_FILTERS = ['all', 'pending', 'approved', 'rejected', 'fulfilled'] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
+
+const STATUS_TONES: Record<string, 'brand' | 'success' | 'warning' | 'danger' | 'info'> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+  fulfilled: 'info',
+};
 
 export const RequisitionsListScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('operations.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
-  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>('pending');
+  const { colors, palette } = useTheme();
+  const [status, setStatus] = useState<StatusFilter>('pending');
+  const [search, setSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const listQuery = useInfiniteRequisitions({
     enabled: canView,
     status: status === 'all' ? undefined : status,
   });
 
-  const items = useMemo(() => listQuery.data?.pages.flatMap((p) => p.items) ?? [], [listQuery.data]);
+  const items = useMemo(() => {
+    const all = listQuery.data?.pages.flatMap((p) => p.items) ?? [];
+    const q = search.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter(
+      (r) =>
+        r.requisition_number.toLowerCase().includes(q) ||
+        (r.requested_by ?? '').toLowerCase().includes(q) ||
+        (r.purpose ?? '').toLowerCase().includes(q),
+    );
+  }, [listQuery.data, search]);
 
   if (!canView) {
     return (
@@ -40,38 +64,38 @@ export const RequisitionsListScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={items}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
-          <>
-            <AcademicScreenHeader title="Requisitions" onBack={() => navigation.goBack()} />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.sm }}>
-              {STATUS_FILTERS.map((s) => (
-                <Pressable
-                  key={s}
-                  onPress={() => setStatus(s)}
-                  style={[styles.chip, status === s && { borderColor: colors.primary }]}
-                >
-                  <Text style={{ fontSize: fontSizes.xs }}>{capitalizeStatus(s)}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </>
+        hero={<AcademicScreenHeader title="Requisitions" subtitle="Procurement queue" onBack={() => navigation.goBack()} />}
+        searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search requisitions…" />}
+        activeFilterCount={countActiveFilters([status === 'pending' ? null : status])}
+        filtersOpen={filtersOpen}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onCloseFilters={() => setFiltersOpen(false)}
+        onApplyFilters={() => setFiltersOpen(false)}
+        onClearFilters={() => {
+          setStatus('pending');
+          setSearch('');
+          setFiltersOpen(false);
+        }}
+        filterContent={
+          <FilterChipRow label="Status">
+            {STATUS_FILTERS.map((s) => (
+              <FilterChip key={s} label={capitalizeStatus(s)} active={status === s} onPress={() => setStatus(s)} />
+            ))}
+          </FilterChipRow>
         }
         renderItem={({ item }) => (
-          <Pressable
+          <OpsListCard
+            title={item.requisition_number}
+            lines={[
+              [item.requested_by, capitalizeStatus(item.type)].filter(Boolean).join(' · ') || null,
+              item.purpose,
+            ]}
+            badge={{ label: capitalizeStatus(item.status), tone: STATUS_TONES[item.status] ?? 'brand' }}
             onPress={() => navigation.navigate('RequisitionDetail', { requisitionId: item.id })}
-            style={[styles.row, { borderColor: palette.border }]}
-          >
-            <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>
-              {item.requisition_number}
-            </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
-              {[item.requested_by, capitalizeStatus(item.type), capitalizeStatus(item.status)].filter(Boolean).join(' · ')}
-            </Text>
-          </Pressable>
+          />
         )}
         refreshControl={
           <RefreshControl
@@ -87,9 +111,25 @@ export const RequisitionsListScreen: React.FC<Props> = ({ navigation }) => {
         ListFooterComponent={listQuery.isFetchingNextPage ? <ActivityIndicator color={colors.primary} /> : null}
         ListEmptyComponent={
           listQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} />
+            <SkeletonListRows variant="card" />
+          ) : listQuery.isError ? (
+            <ListEmptyState
+              title="Could not load requisitions"
+              message={(listQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void listQuery.refetch()}
+            />
           ) : (
-            <EmptyState title="No requisitions" message="No requisitions match your filter." icon="clipboard-outline" />
+            <ListEmptyState
+              title="No requisitions"
+              message="No requisitions match your filters."
+              icon="clipboard-outline"
+              onClearFilters={() => {
+                setStatus('all');
+                setSearch('');
+              }}
+            />
           )
         }
       />
@@ -99,6 +139,4 @@ export const RequisitionsListScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  chip: { borderWidth: 1, borderColor: '#ccc', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 },
-  row: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12, marginBottom: 8 },
 });

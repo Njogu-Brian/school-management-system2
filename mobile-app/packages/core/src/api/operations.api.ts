@@ -72,11 +72,34 @@ export interface InventoryItemRecord {
   name: string;
   category?: string | null;
   brand?: string | null;
+  description?: string | null;
   quantity: number;
   min_stock_level: number;
   unit?: string | null;
+  unit_cost?: number | null;
   is_low_stock: boolean;
+  is_active?: boolean;
   location?: string | null;
+  updated_at?: string | null;
+}
+
+export interface RequirementsStudentRow {
+  id: number;
+  admission_number: string;
+  full_name: string;
+  class_name?: string | null;
+  stream_name?: string | null;
+  avatar?: string | null;
+  is_new_joiner: boolean;
+  can_teacher_receive: boolean;
+}
+
+export interface LibraryBookRecord {
+  id: number;
+  title: string;
+  author?: string | null;
+  isbn?: string | null;
+  status: string;
 }
 
 export interface RequisitionRecord {
@@ -245,6 +268,29 @@ export const operationsApi = {
     per_page?: number;
   }): Promise<ApiResponse<PaginatedResponse<InventoryItemRecord>>> {
     return apiClient.get<PaginatedResponse<InventoryItemRecord>>('/inventory/items', params);
+  },
+
+  getInventoryItem(id: number): Promise<ApiResponse<InventoryItemRecord>> {
+    return apiClient.get<InventoryItemRecord>(`/inventory/items/${id}`);
+  },
+
+  listRequirementsStudents(params?: {
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<RequirementsStudentRow>>> {
+    return apiClient.get<PaginatedResponse<RequirementsStudentRow>>(
+      '/teacher/requirements/students',
+      params,
+    );
+  },
+
+  listLibraryBooks(params?: {
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<LibraryBookRecord>>> {
+    return apiClient.get<PaginatedResponse<LibraryBookRecord>>('/library/books', params);
   },
 
   listRequisitions(params?: {

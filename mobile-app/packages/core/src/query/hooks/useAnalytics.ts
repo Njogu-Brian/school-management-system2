@@ -2,7 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { analyticsApi, type AnalyticsPeriod } from '../../api/analytics.api';
 import { queryKeys } from '../queryKeys';
 
-export function useExecutiveAnalytics(period: AnalyticsPeriod = 'month') {
+export function useExecutiveAnalytics(
+  period: AnalyticsPeriod = 'month',
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: queryKeys.analytics.executive(period),
     queryFn: async () => {
@@ -12,6 +15,7 @@ export function useExecutiveAnalytics(period: AnalyticsPeriod = 'month') {
       }
       return res.data;
     },
+    enabled: options?.enabled !== false,
     staleTime: 120_000,
   });
 }

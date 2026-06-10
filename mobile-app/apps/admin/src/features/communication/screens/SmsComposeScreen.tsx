@@ -1,5 +1,11 @@
 import { useCan, useCommunicationTemplates, useSendSms } from '@erp/core';
-import { AcademicScreenHeader, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  FilterChip,
+  FilterChipRow,
+  ScreenContainer,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -9,19 +15,25 @@ import { showError, showSuccess } from '../../shared/utils/feedback';
 type Props = StackScreenProps<CommunicationStackParamList, 'SmsCompose'>;
 
 const SMS_SEGMENT = 160;
+type SenderId = 'default' | 'finance';
 
 export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('communication.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const templatesQuery = useCommunicationTemplates({ enabled: canView });
   const sendMutation = useSendSms();
   const [message, setMessage] = useState('');
   const [phones, setPhones] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>();
+  const [senderId, setSenderId] = useState<SenderId>('default');
 
+  const recipientCount = useMemo(
+    () => phones.split(/[,;\s]+/).filter(Boolean).length,
+    [phones],
+  );
   const charCount = message.length;
   const segments = Math.max(1, Math.ceil(charCount / SMS_SEGMENT));
-  const estimatedCost = useMemo(() => segments * (phones.split(/[,;\s]+/).filter(Boolean).length || 1), [segments, phones]);
+  const estimatedCost = segments * (recipientCount || 1);
 
   const onSend = async () => {
     if (!message.trim() && !selectedTemplateId) {
@@ -37,6 +49,7 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         message: message.trim() || undefined,
         template_id: selectedTemplateId,
         custom_numbers: phones.trim(),
+        sender_id: senderId,
       });
       showSuccess('SMS sent', res.message ?? `Sent: ${res.data?.sent ?? 0}, failed: ${res.data?.failed ?? 0}`, () =>
         navigation.goBack(),
@@ -54,66 +67,109 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
+  const inputStyle = [
+    styles.input,
+    {
+      borderColor: palette.borderSubtle,
+      backgroundColor: palette.surfaceRaised,
+      color: palette.textPrimary,
+      borderRadius: radius.control,
+      fontSize: typography.body.fontSize,
+    },
+  ];
+  const labelStyle = {
+    color: palette.textSecondary,
+    fontSize: typography.caption.fontSize,
+    fontWeight: '600' as const,
+    marginBottom: 6,
+    marginTop: spacing.md,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  };
+
   return (
-    <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="Send SMS" onBack={() => navigation.goBack()} />
+    <ScreenContainer contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+      <AcademicScreenHeader title="Send SMS" subtitle="Broadcast to custom numbers" onBack={() => navigation.goBack()} />
 
       {templatesQuery.data && templatesQuery.data.length > 0 ? (
-        <View style={{ marginBottom: spacing.md }}>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
-            Template selector
-          </Text>
-          {templatesQuery.data.map((tpl) => (
-            <Pressable
-              key={tpl.id}
+        <View style={{ marginBottom: spacing.sm }}>
+          <Text style={labelStyle}>Template</Text>
+          <FilterChipRow>
+            <FilterChip
+              label="None"
+              active={selectedTemplateId == null}
               onPress={() => {
-                setSelectedTemplateId(tpl.id);
-                setMessage(tpl.content ?? '');
+                setSelectedTemplateId(undefined);
               }}
-              style={[
-                styles.chip,
-                { borderColor: palette.border, marginBottom: spacing.xs },
-                selectedTemplateId === tpl.id && { borderColor: colors.primary, backgroundColor: '#E8F0FA' },
-              ]}
-            >
-              <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm }}>{tpl.title}</Text>
-            </Pressable>
-          ))}
+            />
+            {templatesQuery.data.map((tpl) => (
+              <FilterChip
+                key={tpl.id}
+                label={tpl.title}
+                active={selectedTemplateId === tpl.id}
+                onPress={() => {
+                  setSelectedTemplateId(tpl.id);
+                  setMessage(tpl.content ?? '');
+                }}
+              />
+            ))}
+          </FilterChipRow>
         </View>
       ) : null}
 
-      <Text style={styles.label}>Phone numbers (comma-separated)</Text>
+      <Text style={labelStyle}>Sender ID</Text>
+      <FilterChipRow>
+        <FilterChip label="School (default)" active={senderId === 'default'} onPress={() => setSenderId('default')} />
+        <FilterChip label="Finance" active={senderId === 'finance'} onPress={() => setSenderId('finance')} />
+      </FilterChipRow>
+
+      <Text style={labelStyle}>Phone numbers (comma-separated)</Text>
       <TextInput
         value={phones}
         onChangeText={setPhones}
         placeholder="2547XXXXXXXX, 2541XXXXXXXX"
-        placeholderTextColor={palette.textSecondary}
-        style={[styles.input, { borderColor: palette.border, color: palette.textPrimary }]}
+        placeholderTextColor={palette.textMuted}
+        keyboardType="phone-pad"
+        style={inputStyle}
       />
+      {recipientCount > 0 ? (
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+          {recipientCount} recipient{recipientCount === 1 ? '' : 's'}
+        </Text>
+      ) : null}
 
-      <Text style={styles.label}>Message</Text>
+      <Text style={labelStyle}>Message</Text>
       <TextInput
         value={message}
         onChangeText={setMessage}
         multiline
         placeholder="SMS body"
-        placeholderTextColor={palette.textSecondary}
-        style={[styles.input, styles.textArea, { borderColor: palette.border, color: palette.textPrimary }]}
+        placeholderTextColor={palette.textMuted}
+        style={[...inputStyle, styles.textArea]}
       />
 
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.xs }}>
-        {charCount} chars · {segments} segment(s) · est. {estimatedCost} credit(s)
+      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
+        {charCount} chars · {segments} segment{segments === 1 ? '' : 's'} · est. {estimatedCost} credit
+        {estimatedCost === 1 ? '' : 's'}
       </Text>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
         Class/parent recipient selection is available on the web portal.
       </Text>
 
       <Pressable
         onPress={() => void onSend()}
         disabled={sendMutation.isPending}
-        style={[styles.sendBtn, { backgroundColor: colors.primary, opacity: sendMutation.isPending ? 0.6 : 1 }]}
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.sendBtn,
+          {
+            backgroundColor: colors.primary,
+            borderRadius: radius.md,
+            opacity: sendMutation.isPending ? 0.6 : pressed ? 0.85 : 1,
+          },
+        ]}
       >
-        <Text style={{ color: '#fff', fontWeight: '700' }}>
+        <Text style={{ color: colors.white, fontWeight: '700', fontSize: typography.body.fontSize }}>
           {sendMutation.isPending ? 'Sending…' : 'Send now'}
         </Text>
       </Pressable>
@@ -123,9 +179,7 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  label: { fontWeight: '600', marginBottom: 6, marginTop: 12 },
-  input: { borderWidth: 1, borderRadius: 8, padding: 12 },
+  input: { borderWidth: StyleSheet.hairlineWidth, padding: 14 },
   textArea: { minHeight: 120, textAlignVertical: 'top' },
-  sendBtn: { marginTop: 20, padding: 14, borderRadius: 8, alignItems: 'center' },
-  chip: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 10 },
+  sendBtn: { marginTop: 24, padding: 16, alignItems: 'center' },
 });

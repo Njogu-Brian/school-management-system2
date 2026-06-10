@@ -1,15 +1,25 @@
 import { useCan, useInfiniteCommunicationLogs } from '@erp/core';
-import { AcademicScreenHeader, EmptyState, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  countActiveFilters,
+  FilterChip,
+  FilterChipRow,
+  ListEmptyState,
+  RegistryListLayout,
+  ScreenContainer,
+  SearchBar,
+  SkeletonListRows,
+  StatusBadge,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
 import type { CommunicationStackParamList } from '../../../navigation/communicationStackTypes';
 import { capitalizeStatus, formatDateTimeLabel } from '../../shared/utils/formatters';
@@ -17,11 +27,21 @@ import { capitalizeStatus, formatDateTimeLabel } from '../../shared/utils/format
 type Props = StackScreenProps<CommunicationStackParamList, 'SmsHistory'>;
 
 const STATUS_FILTERS = ['all', 'sent', 'delivered', 'failed', 'pending'] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
+
+const STATUS_TONES: Record<string, 'success' | 'danger' | 'warning' | 'info'> = {
+  delivered: 'success',
+  sent: 'info',
+  failed: 'danger',
+  pending: 'warning',
+};
 
 export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('communication.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
-  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>('all');
+  const { colors, palette, spacing, typography, radius, elevation } = useTheme();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [search, setSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const listQuery = useInfiniteCommunicationLogs({
     enabled: canView,
@@ -29,10 +49,17 @@ export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
     status: statusFilter === 'all' ? undefined : statusFilter,
   });
 
-  const items = useMemo(
-    () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
-    [listQuery.data],
-  );
+  const items = useMemo(() => {
+    const all = listQuery.data?.pages.flatMap((p) => p.items) ?? [];
+    const q = search.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter(
+      (l) =>
+        (l.contact ?? '').toLowerCase().includes(q) ||
+        (l.title ?? '').toLowerCase().includes(q) ||
+        (l.message ?? '').toLowerCase().includes(q),
+    );
+  }, [listQuery.data, search]);
 
   if (!canView) {
     return (
@@ -44,44 +71,69 @@ export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={items}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
-          <>
-            <AcademicScreenHeader title="SMS history" onBack={() => navigation.goBack()} />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.sm }}>
-              {STATUS_FILTERS.map((s) => (
-                <Pressable
-                  key={s}
-                  onPress={() => setStatusFilter(s)}
-                  style={[
-                    styles.chip,
-                    { borderColor: palette.border },
-                    statusFilter === s && { borderColor: colors.primary, backgroundColor: '#E8F0FA' },
-                  ]}
-                >
-                  <Text style={{ fontSize: fontSizes.xs, color: palette.textPrimary }}>{capitalizeStatus(s)}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </>
+        hero={<AcademicScreenHeader title="SMS history" subtitle="Delivery log" onBack={() => navigation.goBack()} />}
+        searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search contact or message…" />}
+        activeFilterCount={countActiveFilters([statusFilter])}
+        filtersOpen={filtersOpen}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onCloseFilters={() => setFiltersOpen(false)}
+        onApplyFilters={() => setFiltersOpen(false)}
+        onClearFilters={() => {
+          setStatusFilter('all');
+          setSearch('');
+          setFiltersOpen(false);
+        }}
+        filterContent={
+          <FilterChipRow label="Status">
+            {STATUS_FILTERS.map((s) => (
+              <FilterChip
+                key={s}
+                label={capitalizeStatus(s)}
+                active={statusFilter === s}
+                onPress={() => setStatusFilter(s)}
+              />
+            ))}
+          </FilterChipRow>
         }
         renderItem={({ item }) => (
           <Pressable
             onPress={() => navigation.navigate('SmsLogDetail', { logId: item.id })}
-            style={[styles.row, { borderColor: palette.border }]}
+            style={({ pressed }) => [
+              elevation[1],
+              {
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: palette.borderSubtle,
+                backgroundColor: palette.surfaceRaised,
+                borderRadius: radius.card,
+                padding: spacing.md,
+                marginBottom: spacing.sm,
+                opacity: pressed ? 0.9 : 1,
+              },
+            ]}
           >
-            <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.body.fontSize }}>
               {item.contact ?? item.title ?? 'SMS'}
             </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }} numberOfLines={2}>
+            <Text
+              style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}
+              numberOfLines={2}
+            >
               {item.message ?? '—'}
             </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
-              {[capitalizeStatus(item.status), formatDateTimeLabel(item.sent_at ?? item.created_at)].filter(Boolean).join(' · ')}
+            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 6 }}>
+              {formatDateTimeLabel(item.sent_at ?? item.created_at)}
             </Text>
+            {item.status ? (
+              <StatusBadge
+                label={capitalizeStatus(item.status)}
+                tone={STATUS_TONES[item.status] ?? 'info'}
+                compact
+                style={{ alignSelf: 'flex-start', marginTop: 6 }}
+              />
+            ) : null}
           </Pressable>
         )}
         refreshControl={
@@ -98,13 +150,25 @@ export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
         ListFooterComponent={listQuery.isFetchingNextPage ? <ActivityIndicator color={colors.primary} /> : null}
         ListEmptyComponent={
           listQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} />
+            <SkeletonListRows variant="card" />
           ) : listQuery.isError ? (
-            <Pressable onPress={() => void listQuery.refetch()}>
-              <Text style={{ color: colors.error, textAlign: 'center' }}>Retry</Text>
-            </Pressable>
+            <ListEmptyState
+              title="Could not load SMS logs"
+              message={(listQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void listQuery.refetch()}
+            />
           ) : (
-            <EmptyState title="No SMS logs" message="No messages match your filters." icon="chatbubble-outline" />
+            <ListEmptyState
+              title="No SMS logs"
+              message="No messages match your filters."
+              icon="chatbubble-outline"
+              onClearFilters={() => {
+                setStatusFilter('all');
+                setSearch('');
+              }}
+            />
           )
         }
       />
@@ -114,6 +178,4 @@ export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  chip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 },
-  row: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12, marginBottom: 8 },
 });

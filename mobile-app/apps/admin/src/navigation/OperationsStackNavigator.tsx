@@ -3,8 +3,12 @@ import React from 'react';
 import {
   AssetDetailScreen,
   AssetsListScreen,
+  InventoryItemDetailScreen,
   InventoryListScreen,
+  LibraryBooksScreen,
   OperationsDashboardScreen,
+  RequirementsRosterScreen,
+  RequirementsStudentScreen,
   RequisitionDetailScreen,
   RequisitionsListScreen,
   TripDetailScreen,
@@ -29,6 +33,10 @@ export const OperationsStackNavigator: React.FC = () => (
     <Stack.Screen name="TripsList" component={TripsListScreen} />
     <Stack.Screen name="TripDetail" component={TripDetailScreen} />
     <Stack.Screen name="InventoryList" component={InventoryListScreen} />
+    <Stack.Screen name="InventoryItemDetail" component={InventoryItemDetailScreen} />
+    <Stack.Screen name="RequirementsRoster" component={RequirementsRosterScreen} />
+    <Stack.Screen name="RequirementsStudent" component={RequirementsStudentScreen} />
+    <Stack.Screen name="LibraryBooks" component={LibraryBooksScreen} />
     <Stack.Screen name="RequisitionsList" component={RequisitionsListScreen} />
     <Stack.Screen name="RequisitionDetail" component={RequisitionDetailScreen} />
     <Stack.Screen name="VisitorsList" component={VisitorsListScreen} />

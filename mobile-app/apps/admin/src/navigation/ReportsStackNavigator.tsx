@@ -2,6 +2,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
 import {
   BoardPackScreen,
+  ExecutiveAnalyticsScreen,
   ExpenseReportsScreen,
   ReportsHubScreen,
   WeeklyReportDetailScreen,
@@ -14,6 +15,7 @@ const Stack = createStackNavigator<ReportsStackParamList>();
 export const ReportsStackNavigator: React.FC = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ReportsHub" component={ReportsHubScreen} />
+    <Stack.Screen name="ExecutiveAnalytics" component={ExecutiveAnalyticsScreen} />
     <Stack.Screen name="BoardPack" component={BoardPackScreen} />
     <Stack.Screen name="ExpenseReports" component={ExpenseReportsScreen} />
     <Stack.Screen name="WeeklyReportsList" component={WeeklyReportsListScreen} />

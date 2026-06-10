@@ -152,6 +152,11 @@ export const queryKeys = {
     asset: (id: number) => [...queryKeys.operations.all, 'asset', id] as const,
     medicalRecords: (studentId: number) =>
       [...queryKeys.operations.all, 'medical-records', studentId] as const,
+    inventoryItem: (id: number) => [...queryKeys.operations.all, 'inventory-item', id] as const,
+    requirementsStudents: (search?: string) =>
+      [...queryKeys.operations.all, 'requirements-students', search ?? ''] as const,
+    libraryBooks: (search?: string) =>
+      [...queryKeys.operations.all, 'library-books', search ?? ''] as const,
   },
   documents: {
     all: ['documents'] as const,

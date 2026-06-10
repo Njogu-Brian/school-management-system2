@@ -383,6 +383,80 @@ export function useTripMutations() {
   return { create, update, remove };
 }
 
+export function useInventoryItem(id: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.operations.inventoryItem(id),
+    queryFn: async () => {
+      const res = await operationsApi.getInventoryItem(id);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load inventory item.');
+      }
+      return res.data;
+    },
+    enabled: (options?.enabled !== false) && id > 0,
+    staleTime: 45_000,
+  });
+}
+
+export function useInfiniteRequirementsStudents(options?: {
+  enabled?: boolean;
+  search?: string;
+}) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.operations.requirementsStudents(options?.search),
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await operationsApi.listRequirementsStudents({
+        search: options?.search || undefined,
+        per_page: 25,
+        page: pageParam as number,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load requirements roster.');
+      }
+      const page = res.data;
+      return {
+        items: page.data,
+        currentPage: page.current_page,
+        lastPage: page.last_page,
+        total: page.total,
+        hasMore: page.current_page < page.last_page,
+      };
+    },
+    getNextPageParam: (last) => (last.hasMore ? last.currentPage + 1 : undefined),
+    enabled: options?.enabled !== false,
+    staleTime: 45_000,
+  });
+}
+
+export function useInfiniteLibraryBooks(options?: { enabled?: boolean; search?: string }) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.operations.libraryBooks(options?.search),
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await operationsApi.listLibraryBooks({
+        search: options?.search || undefined,
+        per_page: 25,
+        page: pageParam as number,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load library books.');
+      }
+      const page = res.data;
+      return {
+        items: page.data,
+        currentPage: page.current_page,
+        lastPage: page.last_page,
+        total: page.total,
+        hasMore: page.current_page < page.last_page,
+      };
+    },
+    getNextPageParam: (last) => (last.hasMore ? last.currentPage + 1 : undefined),
+    enabled: options?.enabled !== false,
+    staleTime: 60_000,
+  });
+}
+
 export function useMedicalRecords(studentId: number, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.operations.medicalRecords(studentId),

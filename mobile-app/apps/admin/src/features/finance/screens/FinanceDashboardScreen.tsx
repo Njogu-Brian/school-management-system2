@@ -14,6 +14,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
+import { navigateToDrawer } from '../../../navigation/navigateWorkspace';
 import { FinanceSummaryChart } from '../components/FinanceSummaryChart';
 
 const KPI_CONFIG = [
@@ -33,6 +34,7 @@ const SECTIONS = [
 
 export const FinanceDashboardScreen: React.FC = () => {
   const canView = useCan('finance.view');
+  const canReports = useCan('reports.view');
   const navigation = useNavigation<StackNavigationProp<FinanceStackParamList>>();
   const { colors, palette, spacing, typography } = useTheme();
   const kpisQuery = useFinanceDashboardKpis({ enabled: canView });
@@ -137,6 +139,28 @@ export const FinanceDashboardScreen: React.FC = () => {
             ))}
           </View>
         </DashboardSection>
+
+        {canReports ? (
+          <DashboardSection title="Accounting & reporting">
+            <View style={[styles.actions, { gap: spacing.sm }]}>
+              <QuickAction
+                label="Expense reports"
+                icon="pie-chart-outline"
+                onPress={() => navigateToDrawer(navigation, 'Reports', 'ExpenseReports')}
+              />
+              <QuickAction
+                label="Executive analytics"
+                icon="trending-up-outline"
+                onPress={() => navigateToDrawer(navigation, 'Reports', 'ExecutiveAnalytics')}
+              />
+              <QuickAction
+                label="Board pack"
+                icon="briefcase-outline"
+                onPress={() => navigateToDrawer(navigation, 'Reports', 'BoardPack')}
+              />
+            </View>
+          </DashboardSection>
+        ) : null}
       </ScrollView>
     </ScreenContainer>
   );

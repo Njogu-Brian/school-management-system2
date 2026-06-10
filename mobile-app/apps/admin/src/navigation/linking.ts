@@ -134,6 +134,33 @@ export const linking: LinkingOptions<DrawerParamList> = {
           TripForm: 'transport/form',
           TeacherTransport: 'teacher-transport',
           DriverTrips: 'driver-trips',
+          InventoryList: 'inventory',
+          InventoryItemDetail: {
+            path: 'inventory/:itemId',
+            parse: { itemId: Number },
+          },
+          RequisitionsList: 'requisitions',
+          RequisitionDetail: {
+            path: 'requisitions/:requisitionId',
+            parse: { requisitionId: Number },
+          },
+          VisitorsList: 'visitors',
+          VisitorDetail: {
+            path: 'visitors/:visitorId',
+            parse: { visitorId: Number },
+          },
+          VisitorCheckIn: 'visitors/check-in',
+          AssetsList: 'assets',
+          AssetDetail: {
+            path: 'assets/:assetId',
+            parse: { assetId: Number },
+          },
+          RequirementsRoster: 'requirements',
+          RequirementsStudent: {
+            path: 'requirements/:studentId',
+            parse: { studentId: Number },
+          },
+          LibraryBooks: 'library',
         },
       },
       Communication: {
@@ -141,12 +168,36 @@ export const linking: LinkingOptions<DrawerParamList> = {
         screens: {
           CommunicationDashboard: '',
           AnnouncementsList: 'announcements',
+          AnnouncementForm: 'announcements/new',
+          AnnouncementDetail: {
+            path: 'announcements/:announcementId',
+            parse: { announcementId: Number },
+          },
+          SmsCompose: 'sms/compose',
+          SmsHistory: 'sms',
+          SmsLogDetail: {
+            path: 'sms/:logId',
+            parse: { logId: Number },
+          },
+          TemplatesList: 'templates',
+          TemplateDetail: {
+            path: 'templates/:templateId',
+            parse: { templateId: Number },
+          },
         },
       },
       Reports: {
         path: 'reports',
         screens: {
           ReportsHub: '',
+          ExecutiveAnalytics: 'executive',
+          BoardPack: 'board-pack',
+          ExpenseReports: 'expenses',
+          WeeklyReportsList: 'weekly',
+          WeeklyReportDetail: {
+            path: 'weekly/:type/:reportId',
+            parse: { reportId: Number },
+          },
         },
       },
       Settings: 'settings',

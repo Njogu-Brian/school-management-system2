@@ -1,8 +1,15 @@
 import { useCan, useInfiniteStudentList } from '@erp/core';
-import { AcademicScreenHeader, AcademicSearchBar, ScreenContainer, StudentListItem, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  AcademicSearchBar,
+  ScreenContainer,
+  SkeletonListRows,
+  StudentListItem,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { summaryToListItem } from '../../students/utils/mapToListItem';
 
@@ -10,7 +17,7 @@ type Props = StackScreenProps<AcademicsStackParamList, 'Assessments'>;
 
 export const AssessmentsScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('academics.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, fontSizes } = useTheme();
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -55,7 +62,7 @@ export const AssessmentsScreen: React.FC<Props> = ({ navigation }) => {
             Type to search for a student and view their assessment history.
           </Text>
         ) : listQuery.isLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
+          <SkeletonListRows variant="avatar" count={5} />
         ) : students.length === 0 ? (
           <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No students found.</Text>
         ) : (

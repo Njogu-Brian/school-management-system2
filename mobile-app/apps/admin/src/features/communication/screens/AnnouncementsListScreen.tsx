@@ -1,10 +1,18 @@
 import { useCan, useInfiniteAnnouncements } from '@erp/core';
-import { AcademicScreenHeader, EmptyState, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  ListEmptyState,
+  RegistryListLayout,
+  ScreenContainer,
+  SearchBar,
+  SkeletonListRows,
+  useTheme,
+} from '@erp/ui';
+import { Ionicons } from '@expo/vector-icons';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -18,10 +26,18 @@ type Props = StackScreenProps<CommunicationStackParamList, 'AnnouncementsList'>;
 
 export const AnnouncementsListScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('communication.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography, radius, elevation } = useTheme();
+  const [search, setSearch] = useState('');
   const listQuery = useInfiniteAnnouncements({ enabled: canView });
 
-  const items = useMemo(() => listQuery.data?.pages.flatMap((p) => p.items) ?? [], [listQuery.data]);
+  const items = useMemo(() => {
+    const all = listQuery.data?.pages.flatMap((p) => p.items) ?? [];
+    const q = search.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter(
+      (a) => a.title.toLowerCase().includes(q) || a.content.toLowerCase().includes(q),
+    );
+  }, [listQuery.data, search]);
 
   if (!canView) {
     return (
@@ -33,29 +49,59 @@ export const AnnouncementsListScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
+      <RegistryListLayout
         data={items}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        ListHeaderComponent={
+        showFilterTrigger={false}
+        hero={
           <View>
             <AcademicScreenHeader title="Announcements" onBack={() => navigation.goBack()} />
-            <Pressable onPress={() => navigation.navigate('AnnouncementForm')} style={{ marginBottom: spacing.sm }}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>+ New announcement</Text>
+            <Pressable
+              onPress={() => navigation.navigate('AnnouncementForm')}
+              style={({ pressed }) => [
+                styles.newBtn,
+                {
+                  backgroundColor: colors.primary,
+                  borderRadius: radius.md,
+                  paddingVertical: spacing.sm,
+                  paddingHorizontal: spacing.md,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="add" size={18} color={colors.white} />
+              <Text style={{ color: colors.white, fontWeight: '700' }}>New announcement</Text>
             </Pressable>
           </View>
         }
+        searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search announcements…" />}
         renderItem={({ item }) => (
           <Pressable
             onPress={() => navigation.navigate('AnnouncementDetail', { announcementId: item.id })}
-            style={[styles.card, { borderColor: palette.border }]}
+            style={({ pressed }) => [
+              elevation[1],
+              {
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: palette.borderSubtle,
+                backgroundColor: palette.surfaceRaised,
+                borderRadius: radius.card,
+                padding: spacing.md,
+                marginBottom: spacing.sm,
+                opacity: pressed ? 0.9 : 1,
+              },
+            ]}
           >
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.md }}>{item.title}</Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: spacing.xs }} numberOfLines={2}>
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.body.fontSize }}>
+              {item.title}
+            </Text>
+            <Text
+              style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}
+              numberOfLines={2}
+            >
               {item.content}
             </Text>
             {item.expires_at ? (
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.xs }}>
+              <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
                 Expires {formatDateLabel(item.expires_at)}
               </Text>
             ) : null}
@@ -75,13 +121,21 @@ export const AnnouncementsListScreen: React.FC<Props> = ({ navigation }) => {
         ListFooterComponent={listQuery.isFetchingNextPage ? <ActivityIndicator color={colors.primary} /> : null}
         ListEmptyComponent={
           listQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} />
+            <SkeletonListRows variant="card" />
           ) : listQuery.isError ? (
-            <Pressable onPress={() => void listQuery.refetch()}>
-              <Text style={{ color: colors.error, textAlign: 'center' }}>Retry</Text>
-            </Pressable>
+            <ListEmptyState
+              title="Could not load announcements"
+              message={(listQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void listQuery.refetch()}
+            />
           ) : (
-            <EmptyState title="No announcements" message="Create your first announcement." icon="megaphone-outline" />
+            <ListEmptyState
+              title="No announcements"
+              message={search ? 'No announcements match your search.' : 'Create your first announcement.'}
+              icon="megaphone-outline"
+            />
           )
         }
       />
@@ -91,5 +145,11 @@ export const AnnouncementsListScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 16, marginBottom: 8 },
+  newBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginBottom: 4,
+  },
 });
