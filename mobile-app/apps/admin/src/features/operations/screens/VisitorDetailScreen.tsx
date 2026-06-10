@@ -1,7 +1,7 @@
-import { useCan, useCheckOutVisitor, useVisitors } from '@erp/core';
+import { useCan, useCheckOutVisitor, useVisitor } from '@erp/core';
 import { AcademicScreenHeader, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
+import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 import { formatDateTimeLabel } from '../../shared/utils/formatters';
@@ -13,13 +13,10 @@ export const VisitorDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { visitorId } = route.params;
   const canView = useCan('operations.view');
   const { colors, palette, spacing } = useTheme();
-  const query = useVisitors({ enabled: canView });
+  const query = useVisitor(visitorId, { enabled: canView });
   const checkoutMutation = useCheckOutVisitor();
 
-  const visitor = useMemo(
-    () => (query.data ?? []).find((v) => v.id === visitorId),
-    [query.data, visitorId],
-  );
+  const visitor = query.data;
 
   const onCheckout = () => {
     if (!visitor) return;
@@ -64,6 +61,7 @@ export const VisitorDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           { label: 'Organization', value: visitor.organization ?? '—' },
           { label: 'Purpose', value: visitor.purpose ?? '—' },
           { label: 'Host', value: visitor.host_name ?? '—' },
+          { label: 'Badge', value: visitor.badge_number ?? '—' },
           { label: 'Check-in', value: formatDateTimeLabel(visitor.checked_in_at) },
           { label: 'Check-out', value: formatDateTimeLabel(visitor.checked_out_at) },
           { label: 'Status', value: visitor.on_site ? 'On site' : 'Checked out' },

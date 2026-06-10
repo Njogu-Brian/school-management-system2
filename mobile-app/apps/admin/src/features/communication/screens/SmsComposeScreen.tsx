@@ -1,6 +1,13 @@
-import { useCan, useCommunicationTemplates, useSendSms } from '@erp/core';
+import {
+  useCan,
+  useCommunicationTemplates,
+  useSendSms,
+  useSettingsClasses,
+  useSmsRecipients,
+} from '@erp/core';
 import {
   AcademicScreenHeader,
+  FilterBottomSheet,
   FilterChip,
   FilterChipRow,
   ScreenContainer,
@@ -8,7 +15,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { CommunicationStackParamList } from '../../../navigation/communicationStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -26,6 +33,27 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
   const [phones, setPhones] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>();
   const [senderId, setSenderId] = useState<SenderId>('default');
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerClassId, setPickerClassId] = useState<number | undefined>();
+
+  const classesQuery = useSettingsClasses({ enabled: canView });
+  const recipientsQuery = useSmsRecipients({
+    enabled: canView && pickerVisible,
+    classroomId: pickerClassId,
+  });
+
+  const applyRecipients = () => {
+    const fetched = recipientsQuery.data?.recipients ?? [];
+    if (fetched.length === 0) {
+      setPickerVisible(false);
+      return;
+    }
+    const existing = phones.split(/[,;\s]+/).filter(Boolean);
+    const merged = Array.from(new Set([...existing, ...fetched.map((r) => r.phone)]));
+    setPhones(merged.join(', '));
+    setPickerVisible(false);
+    showSuccess('Recipients added', `${fetched.length} parent contact${fetched.length === 1 ? '' : 's'} added.`);
+  };
 
   const recipientCount = useMemo(
     () => phones.split(/[,;\s]+/).filter(Boolean).length,
@@ -132,11 +160,20 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         keyboardType="phone-pad"
         style={inputStyle}
       />
-      {recipientCount > 0 ? (
-        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-          {recipientCount} recipient{recipientCount === 1 ? '' : 's'}
-        </Text>
-      ) : null}
+      <View style={styles.recipientRow}>
+        {recipientCount > 0 ? (
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+            {recipientCount} recipient{recipientCount === 1 ? '' : 's'}
+          </Text>
+        ) : (
+          <View />
+        )}
+        <Pressable onPress={() => setPickerVisible(true)} accessibilityRole="button" hitSlop={8}>
+          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
+            + Add parents by class
+          </Text>
+        </Pressable>
+      </View>
 
       <Text style={labelStyle}>Message</Text>
       <TextInput
@@ -152,9 +189,47 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         {charCount} chars · {segments} segment{segments === 1 ? '' : 's'} · est. {estimatedCost} credit
         {estimatedCost === 1 ? '' : 's'}
       </Text>
-      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-        Class/parent recipient selection is available on the web portal.
-      </Text>
+      <FilterBottomSheet
+        visible={pickerVisible}
+        title="Add parent recipients"
+        onClose={() => setPickerVisible(false)}
+        onApply={applyRecipients}
+        onClear={() => setPickerClassId(undefined)}
+      >
+        <Text style={[labelStyle, { marginTop: 0 }]}>Scope</Text>
+        <FilterChipRow>
+          <FilterChip
+            label="Whole school"
+            active={pickerClassId == null}
+            onPress={() => setPickerClassId(undefined)}
+          />
+          {(classesQuery.data ?? []).map((cls) => (
+            <FilterChip
+              key={cls.id}
+              label={cls.name}
+              active={pickerClassId === cls.id}
+              onPress={() => setPickerClassId(cls.id)}
+            />
+          ))}
+        </FilterChipRow>
+        <View style={{ marginTop: spacing.md, minHeight: 24 }}>
+          {recipientsQuery.isLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : recipientsQuery.isError ? (
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+              Could not load recipients. Try again.
+            </Text>
+          ) : (
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+              {recipientsQuery.data?.total ?? 0} parent contact
+              {(recipientsQuery.data?.total ?? 0) === 1 ? '' : 's'} across{' '}
+              {recipientsQuery.data?.students_matched ?? 0} student
+              {(recipientsQuery.data?.students_matched ?? 0) === 1 ? '' : 's'}. Apply to add them to
+              the recipient list.
+            </Text>
+          )}
+        </View>
+      </FilterBottomSheet>
 
       <Pressable
         onPress={() => void onSend()}
@@ -180,6 +255,12 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
   input: { borderWidth: StyleSheet.hairlineWidth, padding: 14 },
+  recipientRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
   textArea: { minHeight: 120, textAlignVertical: 'top' },
   sendBtn: { marginTop: 24, padding: 16, alignItems: 'center' },
 });

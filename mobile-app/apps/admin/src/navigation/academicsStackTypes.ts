@@ -23,4 +23,7 @@ export type AcademicsStackParamList = {
   ReportCardDetail: { reportCardId: number; studentName: string };
   Moderation: undefined;
   LessonPlanReview: { lessonPlanId: number; summary?: LessonPlanSummary };
+  CbcCurriculum: undefined;
+  CbcStrands: { learningAreaId: number; learningAreaName?: string };
+  CbcSubstrand: { substrandId: number; substrandName?: string };
 };

@@ -114,6 +114,11 @@ export const ReportsHubScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => navigation.navigate('ExpenseReports')}
             />
             <QuickAction
+              label="All expenses"
+              icon="wallet-outline"
+              onPress={() => navigation.navigate('ExpensesList')}
+            />
+            <QuickAction
               label="Weekly reports"
               icon="calendar-outline"
               onPress={() => navigation.navigate('WeeklyReportsList')}

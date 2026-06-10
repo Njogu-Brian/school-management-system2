@@ -321,6 +321,10 @@ export const operationsApi = {
     return apiClient.get<PaginatedResponse<VisitorRecord>>('/visitors', params);
   },
 
+  getVisitor(id: number): Promise<ApiResponse<VisitorRecord>> {
+    return apiClient.get<VisitorRecord>(`/visitors/${id}`);
+  },
+
   checkInVisitor(payload: {
     visitor_name: string;
     phone?: string;

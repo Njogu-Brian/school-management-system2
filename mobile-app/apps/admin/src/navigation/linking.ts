@@ -118,6 +118,15 @@ export const linking: LinkingOptions<DrawerParamList> = {
           ReportCardDetail: 'report-cards/detail/:reportCardId',
           Moderation: 'moderation',
           LessonPlanReview: 'lesson-plans/:lessonPlanId',
+          CbcCurriculum: 'cbc',
+          CbcSubstrand: {
+            path: 'cbc/substrands/:substrandId',
+            parse: { substrandId: Number },
+          },
+          CbcStrands: {
+            path: 'cbc/:learningAreaId',
+            parse: { learningAreaId: Number },
+          },
         },
       },
       Operations: {
@@ -193,6 +202,11 @@ export const linking: LinkingOptions<DrawerParamList> = {
           ExecutiveAnalytics: 'executive',
           BoardPack: 'board-pack',
           ExpenseReports: 'expenses',
+          ExpensesList: 'expenses/all',
+          ExpenseDetail: {
+            path: 'expenses/:expenseId',
+            parse: { expenseId: Number },
+          },
           WeeklyReportsList: 'weekly',
           WeeklyReportDetail: {
             path: 'weekly/:type/:reportId',

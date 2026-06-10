@@ -26,3 +26,4 @@ export * from './staffClock.api';
 export * from './teacherTransport.api';
 export * from './driverTransport.api';
 export * from './device.api';
+export * from './cbc.api';

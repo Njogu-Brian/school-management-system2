@@ -175,7 +175,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/announcements/{id}', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'destroy']);
 
     Route::get('/communication/templates', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'templates']);
+    Route::get('/communication/templates/{id}', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'templateShow']);
     Route::get('/communication/logs', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'logs']);
+    Route::get('/communication/logs/{id}', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'logShow']);
+    Route::get('/communication/recipients', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'recipients']);
     Route::post('/communication/sms', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendSms']);
 
     Route::get('/inventory/items', [\App\Http\Controllers\Api\ApiInventoryController::class, 'index']);
@@ -187,14 +190,24 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/visitors', [\App\Http\Controllers\Api\ApiVisitorsController::class, 'index']);
     Route::post('/visitors', [\App\Http\Controllers\Api\ApiVisitorsController::class, 'store']);
+    Route::get('/visitors/{id}', [\App\Http\Controllers\Api\ApiVisitorsController::class, 'show']);
     Route::post('/visitors/{id}/checkout', [\App\Http\Controllers\Api\ApiVisitorsController::class, 'checkout']);
 
     Route::get('/assets', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'index']);
     Route::get('/assets/{id}', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'show']);
 
     Route::get('/reports/weekly', [\App\Http\Controllers\Api\ApiWeeklyReportsController::class, 'index']);
+    Route::get('/reports/weekly/{type}/{id}', [\App\Http\Controllers\Api\ApiWeeklyReportsController::class, 'show']);
     Route::get('/reports/expenses/summary', [\App\Http\Controllers\Api\ApiExpenseReportsController::class, 'summary']);
     Route::get('/reports/board-pack', [\App\Http\Controllers\Api\ApiBoardPackController::class, 'show']);
+
+    Route::get('/expenses', [\App\Http\Controllers\Api\ApiExpensesController::class, 'index']);
+    Route::get('/expenses/{id}', [\App\Http\Controllers\Api\ApiExpensesController::class, 'show']);
+
+    Route::get('/cbc/learning-areas', [\App\Http\Controllers\Api\ApiCbcController::class, 'learningAreas']);
+    Route::get('/cbc/strands', [\App\Http\Controllers\Api\ApiCbcController::class, 'strands']);
+    Route::get('/cbc/substrands', [\App\Http\Controllers\Api\ApiCbcController::class, 'substrands']);
+    Route::get('/cbc/substrands/{id}', [\App\Http\Controllers\Api\ApiCbcController::class, 'substrandShow']);
 
     Route::post('/notifications/mark-all-read', [\App\Http\Controllers\Api\ApiNotificationController::class, 'markAllRead']);
     Route::get('/notifications/unread-count', [\App\Http\Controllers\Api\ApiNotificationController::class, 'unreadCount']);

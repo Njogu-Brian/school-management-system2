@@ -2,5 +2,7 @@ export { ReportsHubScreen } from './screens/ReportsHubScreen';
 export { ExecutiveAnalyticsScreen } from './screens/ExecutiveAnalyticsScreen';
 export { BoardPackScreen } from './screens/BoardPackScreen';
 export { ExpenseReportsScreen } from './screens/ExpenseReportsScreen';
+export { ExpensesListScreen } from './screens/ExpensesListScreen';
+export { ExpenseDetailScreen } from './screens/ExpenseDetailScreen';
 export { WeeklyReportsListScreen } from './screens/WeeklyReportsListScreen';
 export { WeeklyReportDetailScreen } from './screens/WeeklyReportDetailScreen';

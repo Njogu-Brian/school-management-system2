@@ -3,6 +3,9 @@ import React from 'react';
 import {
   AcademicsDashboardScreen,
   AssessmentDetailScreen,
+  CbcCurriculumScreen,
+  CbcStrandsScreen,
+  CbcSubstrandScreen,
   AssessmentHistoryScreen,
   AssessmentsScreen,
   ExamDetailScreen,
@@ -40,5 +43,8 @@ export const AcademicsStackNavigator: React.FC = () => (
     <Stack.Screen name="ReportCardDetail" component={ReportCardDetailScreen} />
     <Stack.Screen name="Moderation" component={ModerationScreen} />
     <Stack.Screen name="LessonPlanReview" component={LessonPlanReviewScreen} />
+    <Stack.Screen name="CbcCurriculum" component={CbcCurriculumScreen} />
+    <Stack.Screen name="CbcStrands" component={CbcStrandsScreen} />
+    <Stack.Screen name="CbcSubstrand" component={CbcSubstrandScreen} />
   </Stack.Navigator>
 );

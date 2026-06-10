@@ -80,6 +80,53 @@ export function useCommunicationTemplates(options?: { enabled?: boolean; type?: 
   });
 }
 
+export function useCommunicationTemplate(id: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.communication.template(id),
+    queryFn: async () => {
+      const res = await communicationApi.getTemplate(id);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load template.');
+      }
+      return res.data;
+    },
+    enabled: (options?.enabled !== false) && id > 0,
+    staleTime: 120_000,
+  });
+}
+
+export function useCommunicationLog(id: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.communication.log(id),
+    queryFn: async () => {
+      const res = await communicationApi.getLog(id);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load message log.');
+      }
+      return res.data;
+    },
+    enabled: (options?.enabled !== false) && id > 0,
+    staleTime: 60_000,
+  });
+}
+
+export function useSmsRecipients(options?: { enabled?: boolean; classroomId?: number }) {
+  return useQuery({
+    queryKey: queryKeys.communication.recipients(options?.classroomId),
+    queryFn: async () => {
+      const res = await communicationApi.listRecipients(
+        options?.classroomId ? { classroom_id: options.classroomId } : undefined,
+      );
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load recipients.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 120_000,
+  });
+}
+
 export function useCommunicationLogs(options?: {
   enabled?: boolean;
   channel?: string;

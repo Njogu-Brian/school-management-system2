@@ -37,6 +37,16 @@ class ApiVisitorsController extends Controller
         ]);
     }
 
+    public function show(int $id)
+    {
+        $visitor = VisitorLog::with('hostStaff')->findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->serialize($visitor),
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

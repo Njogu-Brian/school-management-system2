@@ -99,6 +99,17 @@ export const ExpenseReportsScreen: React.FC<Props> = ({ navigation }) => {
           </>
         ) : null}
 
+        <Pressable
+          onPress={() => navigation.navigate('ExpensesList')}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.viewAllBtn,
+            { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>View all expenses</Text>
+        </Pressable>
+
         <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.lg }}>
           PDF and Excel export are available on the web portal.
         </Text>
@@ -111,4 +122,11 @@ const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
   chip: { borderWidth: 1, borderColor: '#ccc', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   row: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12, marginBottom: 8 },
+  viewAllBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 20,
+  },
 });

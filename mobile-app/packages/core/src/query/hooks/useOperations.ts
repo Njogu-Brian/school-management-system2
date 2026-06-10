@@ -229,6 +229,21 @@ export function useVisitors(options?: { enabled?: boolean; onSite?: boolean; dat
   });
 }
 
+export function useVisitor(id: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.operations.visitor(id),
+    queryFn: async () => {
+      const res = await operationsApi.getVisitor(id);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load visitor.');
+      }
+      return res.data;
+    },
+    enabled: (options?.enabled !== false) && id > 0,
+    staleTime: 30_000,
+  });
+}
+
 export function useCheckInVisitor() {
   const qc = useQueryClient();
   return useMutation({

@@ -15,3 +15,6 @@ export { ReportCardDetailScreen } from './screens/ReportCardDetailScreen';
 export { ModerationScreen } from './screens/ModerationScreen';
 export { LessonPlanReviewScreen } from './screens/LessonPlanReviewScreen';
 export { LessonPlanDetailScreen } from './screens/LessonPlanDetailScreen';
+export { CbcCurriculumScreen } from './screens/CbcCurriculumScreen';
+export { CbcStrandsScreen } from './screens/CbcStrandsScreen';
+export { CbcSubstrandScreen } from './screens/CbcSubstrandScreen';

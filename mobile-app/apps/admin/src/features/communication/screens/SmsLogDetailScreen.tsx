@@ -1,7 +1,7 @@
-import { useCommunicationLogs, useCan } from '@erp/core';
+import { useCommunicationLog, useCan } from '@erp/core';
 import { AcademicScreenHeader, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
+import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CommunicationStackParamList } from '../../../navigation/communicationStackTypes';
 import { capitalizeStatus, formatDateTimeLabel } from '../../shared/utils/formatters';
@@ -12,12 +12,9 @@ export const SmsLogDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { logId } = route.params;
   const canView = useCan('communication.view');
   const { colors, palette, spacing } = useTheme();
-  const query = useCommunicationLogs({ enabled: canView, perPage: 100 });
+  const query = useCommunicationLog(logId, { enabled: canView });
 
-  const log = useMemo(
-    () => (query.data?.data ?? []).find((row) => row.id === logId),
-    [query.data, logId],
-  );
+  const log = query.data;
 
   if (!canView) {
     return (

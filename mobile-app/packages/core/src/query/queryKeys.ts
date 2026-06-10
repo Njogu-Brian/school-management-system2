@@ -147,6 +147,7 @@ export const queryKeys = {
     requisition: (id: number) => [...queryKeys.operations.all, 'requisition', id] as const,
     visitors: (filters?: { onSite?: boolean; date?: string }) =>
       [...queryKeys.operations.all, 'visitors', filters ?? {}] as const,
+    visitor: (id: number) => [...queryKeys.operations.all, 'visitor', id] as const,
     assets: (filters?: { search?: string; status?: string }) =>
       [...queryKeys.operations.all, 'assets', filters ?? {}] as const,
     asset: (id: number) => [...queryKeys.operations.all, 'asset', id] as const,
@@ -170,8 +171,12 @@ export const queryKeys = {
     announcement: (id: number) => [...queryKeys.communication.all, 'announcement', id] as const,
     templates: (type?: string) =>
       [...queryKeys.communication.all, 'templates', type ?? 'sms'] as const,
+    template: (id: number) => [...queryKeys.communication.all, 'template', id] as const,
     logs: (filters?: { channel?: string; status?: string; infinite?: boolean }) =>
       [...queryKeys.communication.all, 'logs', filters ?? {}] as const,
+    log: (id: number) => [...queryKeys.communication.all, 'log', id] as const,
+    recipients: (classroomId?: number) =>
+      [...queryKeys.communication.all, 'recipients', classroomId ?? 'all'] as const,
   },
   notifications: {
     all: ['notifications'] as const,
@@ -201,8 +206,13 @@ export const queryKeys = {
     all: ['reports'] as const,
     weekly: (weekEnding?: string) =>
       [...queryKeys.reports.all, 'weekly', weekEnding ?? 'recent'] as const,
+    weeklyDetail: (type: string, id: number) =>
+      [...queryKeys.reports.all, 'weekly-detail', type, id] as const,
     expenses: (range?: { from?: string; to?: string }) =>
       [...queryKeys.reports.all, 'expenses', range ?? {}] as const,
+    expensesList: (filters?: { status?: string; search?: string }) =>
+      [...queryKeys.reports.all, 'expenses-list', filters ?? {}] as const,
+    expenseDetail: (id: number) => [...queryKeys.reports.all, 'expense', id] as const,
     boardPack: () => [...queryKeys.reports.all, 'board-pack'] as const,
   },
   search: {
@@ -224,6 +234,15 @@ export const queryKeys = {
   analytics: {
     all: ['analytics'] as const,
     executive: (period: string) => [...queryKeys.analytics.all, 'executive', period] as const,
+  },
+  cbc: {
+    all: ['cbc'] as const,
+    learningAreas: () => [...queryKeys.cbc.all, 'learning-areas'] as const,
+    strands: (learningAreaId?: number) =>
+      [...queryKeys.cbc.all, 'strands', learningAreaId ?? 'all'] as const,
+    substrands: (strandId?: number) =>
+      [...queryKeys.cbc.all, 'substrands', strandId ?? 'all'] as const,
+    substrand: (id: number) => [...queryKeys.cbc.all, 'substrand', id] as const,
   },
   settings: {
     all: ['settings'] as const,

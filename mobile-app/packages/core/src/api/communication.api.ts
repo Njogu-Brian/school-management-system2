@@ -32,6 +32,25 @@ export interface CommunicationLogRecord {
   created_at?: string | null;
 }
 
+export interface CommunicationTemplateDetail extends CommunicationTemplate {
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SmsRecipient {
+  phone: string;
+  name?: string | null;
+  relation?: string | null;
+  student_name?: string | null;
+  classroom?: string | null;
+}
+
+export interface SmsRecipientsResult {
+  recipients: SmsRecipient[];
+  total: number;
+  students_matched: number;
+}
+
 export const communicationApi = {
   listAnnouncements(
     params?: { page?: number; per_page?: number; status?: string },
@@ -65,6 +84,18 @@ export const communicationApi = {
 
   listTemplates(params?: { type?: string }): Promise<ApiResponse<CommunicationTemplate[]>> {
     return apiClient.get<CommunicationTemplate[]>('/communication/templates', params);
+  },
+
+  getTemplate(id: number): Promise<ApiResponse<CommunicationTemplateDetail>> {
+    return apiClient.get<CommunicationTemplateDetail>(`/communication/templates/${id}`);
+  },
+
+  getLog(id: number): Promise<ApiResponse<CommunicationLogRecord>> {
+    return apiClient.get<CommunicationLogRecord>(`/communication/logs/${id}`);
+  },
+
+  listRecipients(params?: { classroom_id?: number }): Promise<ApiResponse<SmsRecipientsResult>> {
+    return apiClient.get<SmsRecipientsResult>('/communication/recipients', params);
   },
 
   listLogs(params?: {

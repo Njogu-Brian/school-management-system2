@@ -1,7 +1,7 @@
-import { useCan, useCommunicationTemplates } from '@erp/core';
+import { useCan, useCommunicationTemplate } from '@erp/core';
 import { AcademicScreenHeader, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
+import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CommunicationStackParamList } from '../../../navigation/communicationStackTypes';
 
@@ -11,12 +11,9 @@ export const TemplateDetailScreen: React.FC<Props> = ({ navigation, route }) => 
   const { templateId } = route.params;
   const canView = useCan('communication.view');
   const { colors, palette, spacing } = useTheme();
-  const query = useCommunicationTemplates({ enabled: canView });
+  const query = useCommunicationTemplate(templateId, { enabled: canView });
 
-  const template = useMemo(
-    () => (query.data ?? []).find((t) => t.id === templateId),
-    [query.data, templateId],
-  );
+  const template = query.data;
 
   if (!canView) {
     return (

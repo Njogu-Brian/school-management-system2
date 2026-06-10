@@ -34,3 +34,4 @@ export * from './hooks/useAnalytics';
 export * from './hooks/useStaffClock';
 export * from './hooks/useTeacherTransport';
 export * from './hooks/useDriverTransport';
+export * from './hooks/useCbc';

@@ -1,4 +1,4 @@
-import type { ApiResponse } from '../types/api';
+import type { ApiResponse, PaginatedResponse } from '../types/api';
 import { apiClient } from './client';
 
 export interface WeeklyReportItem {
@@ -27,6 +27,57 @@ export interface ExpenseReportSummary {
   as_of: string;
 }
 
+export interface WeeklyReportDetail {
+  type: string;
+  id: number;
+  week_ending?: string | null;
+  campus?: string | null;
+  title: string;
+  subtitle?: string | null;
+  fields: Array<{ label: string; value?: string | null }>;
+  notes?: string | null;
+}
+
+export interface ExpenseSummaryRecord {
+  id: number;
+  expense_no?: string | null;
+  vendor?: string | null;
+  expense_date?: string | null;
+  total: number;
+  status?: string | null;
+  source_type?: string | null;
+}
+
+export interface ExpenseDetailRecord extends ExpenseSummaryRecord {
+  due_date?: string | null;
+  currency?: string | null;
+  subtotal?: number;
+  tax_total?: number;
+  requested_by?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  submitted_at?: string | null;
+  notes?: string | null;
+  lines: Array<{
+    id: number;
+    description?: string | null;
+    category?: string | null;
+    department?: string | null;
+    qty: number;
+    unit_cost: number;
+    tax_rate: number;
+    line_total: number;
+  }>;
+  vouchers: Array<{
+    id: number;
+    voucher_no?: string | null;
+    status?: string | null;
+    amount: number;
+    payment_method?: string | null;
+    payment_date?: string | null;
+  }>;
+}
+
 export interface BoardPackSummary {
   finance: Record<string, unknown>;
   operations: Record<string, unknown>;
@@ -50,6 +101,25 @@ export const reportsApi = {
     ApiResponse<ExpenseReportSummary>
   > {
     return apiClient.get<ExpenseReportSummary>('/reports/expenses/summary', params);
+  },
+
+  getWeeklyReportDetail(type: string, id: number): Promise<ApiResponse<WeeklyReportDetail>> {
+    return apiClient.get<WeeklyReportDetail>(`/reports/weekly/${type}/${id}`);
+  },
+
+  listExpenses(params?: {
+    page?: number;
+    per_page?: number;
+    status?: string;
+    search?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<ApiResponse<PaginatedResponse<ExpenseSummaryRecord>>> {
+    return apiClient.get<PaginatedResponse<ExpenseSummaryRecord>>('/expenses', params);
+  },
+
+  getExpense(id: number): Promise<ApiResponse<ExpenseDetailRecord>> {
+    return apiClient.get<ExpenseDetailRecord>(`/expenses/${id}`);
   },
 
   getBoardPack(): Promise<ApiResponse<BoardPackSummary>> {

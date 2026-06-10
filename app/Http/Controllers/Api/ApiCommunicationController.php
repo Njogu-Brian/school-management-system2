@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CommunicationLog;
 use App\Models\CommunicationTemplate;
+use App\Models\Student;
 use App\Services\SMSService;
 use Illuminate\Http\Request;
 
@@ -28,6 +29,96 @@ class ApiCommunicationController extends Controller
             ->values();
 
         return response()->json(['success' => true, 'data' => $templates]);
+    }
+
+    public function templateShow(int $id)
+    {
+        $t = CommunicationTemplate::findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $t->id,
+                'code' => $t->code,
+                'title' => $t->title,
+                'type' => $t->type,
+                'subject' => $t->subject,
+                'content' => $t->content,
+                'created_at' => $t->created_at?->toIso8601String(),
+                'updated_at' => $t->updated_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    public function logShow(int $id)
+    {
+        $log = CommunicationLog::findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $log->id,
+                'channel' => $log->channel,
+                'contact' => $log->contact,
+                'title' => $log->title,
+                'message' => $log->message,
+                'status' => $log->status,
+                'sent_at' => $log->sent_at?->toIso8601String(),
+                'delivered_at' => $log->delivered_at?->toIso8601String(),
+                'created_at' => $log->created_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Parent SMS recipients, optionally scoped to a classroom.
+     * Used by the mobile SMS compose recipient picker.
+     */
+    public function recipients(Request $request)
+    {
+        $query = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNotNull('parent_id')
+            ->with(['parent', 'classroom']);
+
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', (int) $request->input('classroom_id'));
+        }
+
+        $students = $query->orderBy('first_name')->limit(2000)->get();
+
+        $recipients = [];
+        $seenPhones = [];
+        foreach ($students as $student) {
+            $parent = $student->parent;
+            if (! $parent) {
+                continue;
+            }
+            foreach ($parent->schoolNotificationSmsRecipients() as $r) {
+                $phone = $r['phone'] ?? null;
+                if (! $phone || isset($seenPhones[$phone])) {
+                    continue;
+                }
+                $seenPhones[$phone] = true;
+                $recipients[] = [
+                    'phone' => $phone,
+                    'name' => $r['name'] ?? null,
+                    'relation' => $r['slot'] ?? null,
+                    'student_name' => $student->full_name,
+                    'classroom' => $student->classroom?->name,
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'recipients' => $recipients,
+                'total' => count($recipients),
+                'students_matched' => $students->count(),
+            ],
+        ]);
     }
 
     public function logs(Request $request)
