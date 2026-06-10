@@ -102,11 +102,10 @@ export const AssetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   return (
     <ScreenContainer contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader title={asset.name} onBack={() => navigation.goBack()} />
-      <StatusBadge
-        label={capitalizeStatus(asset.status)}
-        tone={statusTone(asset.status)}
-        style={{ alignSelf: 'flex-start', marginBottom: spacing.md }}
-      />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
+        <StatusBadge label={capitalizeStatus(asset.status)} tone={statusTone(asset.status)} />
+        <Button label="Edit" variant="secondary" onPress={() => navigation.navigate('AssetForm', { assetId })} />
+      </View>
       <FinanceFieldSection
         title="Asset"
         rows={[

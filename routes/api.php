@@ -100,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/students/{studentId}/medical-records', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'index']);
     Route::post('/students/{studentId}/medical-records', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'store']);
     Route::get('/students/{studentId}/medical-records/{id}', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'show']);
+    Route::post('/students/{studentId}/medical-records/{id}/certificate', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'uploadCertificate']);
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'show']);
@@ -169,6 +170,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/leave-requests/{id}/approve', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'approve']);
     Route::post('/leave-requests/{id}/reject', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'reject']);
     Route::get('/library/books', [\App\Http\Controllers\Api\ApiLibraryController::class, 'index']);
+    Route::get('/library/borrowings', [\App\Http\Controllers\Api\ApiLibraryController::class, 'borrowings']);
+    Route::post('/library/borrowings', [\App\Http\Controllers\Api\ApiLibraryController::class, 'issue']);
+    Route::post('/library/borrowings/{id}/return', [\App\Http\Controllers\Api\ApiLibraryController::class, 'returnBorrowing']);
+    Route::post('/library/borrowings/{id}/renew', [\App\Http\Controllers\Api\ApiLibraryController::class, 'renew']);
     Route::get('/announcements', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'index']);
     Route::post('/announcements', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'store']);
     Route::get('/announcements/{id}', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'show']);
@@ -201,7 +206,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/visitors/{id}/checkout', [\App\Http\Controllers\Api\ApiVisitorsController::class, 'checkout']);
 
     Route::get('/assets', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'index']);
+    Route::post('/assets', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'store']);
     Route::get('/assets/{id}', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'show']);
+    Route::put('/assets/{id}', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'update']);
     Route::post('/assets/{id}/status', [\App\Http\Controllers\Api\ApiFixedAssetsController::class, 'updateStatus']);
 
     Route::get('/reports/weekly', [\App\Http\Controllers\Api\ApiWeeklyReportsController::class, 'index']);
@@ -216,6 +223,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/expenses/{id}/approve', [\App\Http\Controllers\Api\ApiExpensesController::class, 'approve']);
     Route::post('/expenses/{id}/reject', [\App\Http\Controllers\Api\ApiExpensesController::class, 'reject']);
     Route::post('/expenses/{id}/pay', [\App\Http\Controllers\Api\ApiExpensesController::class, 'pay']);
+    Route::post('/expenses/{id}/attachments', [\App\Http\Controllers\Api\ApiExpensesController::class, 'storeAttachment']);
+    Route::delete('/expenses/{id}/attachments/{attachmentId}', [\App\Http\Controllers\Api\ApiExpensesController::class, 'destroyAttachment']);
+
+    Route::get('/ledger/postings', [\App\Http\Controllers\Api\ApiLedgerController::class, 'postings']);
+    Route::get('/ledger/trial-balance', [\App\Http\Controllers\Api\ApiLedgerController::class, 'trialBalance']);
+    Route::get('/reports/balance-sheet', [\App\Http\Controllers\Api\ApiLedgerController::class, 'balanceSheet']);
 
     Route::get('/cbc/learning-areas', [\App\Http\Controllers\Api\ApiCbcController::class, 'learningAreas']);
     Route::get('/cbc/strands', [\App\Http\Controllers\Api\ApiCbcController::class, 'strands']);

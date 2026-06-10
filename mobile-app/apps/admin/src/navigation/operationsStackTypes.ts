@@ -7,6 +7,8 @@ export type OperationsStackParamList = {
   RequirementsRoster: undefined;
   RequirementsStudent: { studentId: number; studentName?: string };
   LibraryBooks: undefined;
+  LibraryCirculation: undefined;
+  IssueBook: undefined;
   RequisitionsList: undefined;
   RequisitionDetail: { requisitionId: number };
   RequisitionForm: undefined;
@@ -15,6 +17,7 @@ export type OperationsStackParamList = {
   VisitorCheckIn: undefined;
   AssetsList: undefined;
   AssetDetail: { assetId: number };
+  AssetForm: { assetId?: number } | undefined;
   TeacherTransport: undefined;
   DriverTrips: undefined;
   DriverTripDetail: { tripId: number; tripName?: string };

@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
+use App\Models\ExpenseAttachment;
 use App\Services\ExpenseWorkflowService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ApiExpensesController extends Controller
 {
@@ -56,7 +58,7 @@ class ApiExpensesController extends Controller
 
     public function show(Request $request, int $id)
     {
-        $e = Expense::with(['vendor', 'requester', 'approver', 'lines.category', 'vouchers'])->findOrFail($id);
+        $e = Expense::with(['vendor', 'requester', 'approver', 'lines.category', 'vouchers', 'attachments.uploader'])->findOrFail($id);
         $user = $request->user();
 
         return response()->json([
@@ -93,8 +95,68 @@ class ApiExpensesController extends Controller
                     'payment_method' => $v->payment_method,
                     'payment_date' => $v->payment_date?->format('Y-m-d'),
                 ])->values(),
+                'attachments' => $e->attachments->map(fn (ExpenseAttachment $a) => $this->serializeAttachment($a))->values(),
             ],
         ]);
+    }
+
+    public function storeAttachment(Request $request, int $id)
+    {
+        $expense = Expense::findOrFail($id);
+
+        if (! $request->user()?->can('view', $expense)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to modify this expense.'], 403);
+        }
+
+        $request->validate([
+            'file' => 'required|file|max:10240|mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx',
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store('expense-attachments', 'public');
+
+        $attachment = ExpenseAttachment::create([
+            'expense_id' => $expense->id,
+            'path' => $path,
+            'mime_type' => $file->getClientMimeType(),
+            'uploaded_by' => $request->user()->id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Attachment uploaded.',
+            'data' => $this->serializeAttachment($attachment->load('uploader')),
+        ], 201);
+    }
+
+    public function destroyAttachment(Request $request, int $id, int $attachmentId)
+    {
+        $expense = Expense::findOrFail($id);
+
+        if (! $request->user()?->can('view', $expense)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to modify this expense.'], 403);
+        }
+
+        $attachment = ExpenseAttachment::where('expense_id', $expense->id)->findOrFail($attachmentId);
+
+        if ($attachment->path && Storage::disk('public')->exists($attachment->path)) {
+            Storage::disk('public')->delete($attachment->path);
+        }
+        $attachment->delete();
+
+        return response()->json(['success' => true, 'message' => 'Attachment removed.']);
+    }
+
+    protected function serializeAttachment(ExpenseAttachment $a): array
+    {
+        return [
+            'id' => $a->id,
+            'file_name' => basename($a->path ?? ''),
+            'mime_type' => $a->mime_type,
+            'url' => $a->path ? asset('storage/'.ltrim($a->path, '/')) : null,
+            'uploaded_by' => $a->uploader?->name,
+            'uploaded_at' => $a->created_at?->toIso8601String(),
+        ];
     }
 
     public function submit(Request $request, int $id, ExpenseWorkflowService $workflow)

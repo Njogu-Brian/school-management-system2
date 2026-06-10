@@ -1,6 +1,7 @@
 import { useCan, useInfiniteAssets } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   countActiveFilters,
   FilterChip,
   FilterChipRow,
@@ -13,7 +14,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 import { capitalizeStatus } from '../../shared/utils/formatters';
 import { OpsListCard } from '../components/OpsListCard';
@@ -58,7 +59,14 @@ export const AssetsListScreen: React.FC<Props> = ({ navigation }) => {
       <RegistryListLayout
         data={items}
         keyExtractor={(item) => String(item.id)}
-        hero={<AcademicScreenHeader title="Fixed assets" subtitle="Asset registry" onBack={() => navigation.goBack()} />}
+        hero={
+          <View>
+            <AcademicScreenHeader title="Fixed assets" subtitle="Asset registry" onBack={() => navigation.goBack()} />
+            <View style={{ marginBottom: 8 }}>
+              <Button label="Register asset" onPress={() => navigation.navigate('AssetForm', {})} />
+            </View>
+          </View>
+        }
         searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search assets…" />}
         activeFilterCount={countActiveFilters([status])}
         filtersOpen={filtersOpen}

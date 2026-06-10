@@ -277,6 +277,122 @@ export function useUpdateAssetStatus() {
   });
 }
 
+export function useInfiniteBorrowings(options?: {
+  enabled?: boolean;
+  status?: string;
+  search?: string;
+  studentId?: number;
+}) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.operations.borrowings({
+      status: options?.status,
+      search: options?.search,
+      studentId: options?.studentId,
+    }),
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await operationsApi.listBorrowings({
+        status: options?.status,
+        search: options?.search || undefined,
+        student_id: options?.studentId,
+        per_page: 25,
+        page: pageParam as number,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load borrowings.');
+      }
+      const page = res.data;
+      return {
+        items: page.data,
+        currentPage: page.current_page,
+        lastPage: page.last_page,
+        total: page.total,
+        hasMore: page.current_page < page.last_page,
+      };
+    },
+    getNextPageParam: (last) => (last.hasMore ? last.currentPage + 1 : undefined),
+    enabled: options?.enabled !== false,
+    staleTime: 30_000,
+  });
+}
+
+export function useIssueBook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: operationsApi.issueBook,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...queryKeys.operations.all, 'borrowings'] });
+      void qc.invalidateQueries({ queryKey: [...queryKeys.operations.all, 'library-books'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.summary() });
+    },
+  });
+}
+
+export function useReturnBook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, condition }: { id: number; condition?: string }) =>
+      operationsApi.returnBook(id, condition),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...queryKeys.operations.all, 'borrowings'] });
+      void qc.invalidateQueries({ queryKey: [...queryKeys.operations.all, 'library-books'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.summary() });
+    },
+  });
+}
+
+export function useRenewBorrowing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, days }: { id: number; days?: number }) =>
+      operationsApi.renewBorrowing(id, days),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...queryKeys.operations.all, 'borrowings'] });
+    },
+  });
+}
+
+export function useCreateAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: operationsApi.createAsset,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...queryKeys.operations.all, 'assets'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.summary() });
+    },
+  });
+}
+
+export function useUpdateAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: { id: number } & Parameters<typeof operationsApi.updateAsset>[1]) =>
+      operationsApi.updateAsset(id, payload),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.asset(vars.id) });
+      void qc.invalidateQueries({ queryKey: [...queryKeys.operations.all, 'assets'] });
+    },
+  });
+}
+
+export function useUploadMedicalCertificate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      studentId,
+      recordId,
+      file,
+    }: {
+      studentId: number;
+      recordId: number;
+      file: { uri: string; name: string; type: string };
+    }) => operationsApi.uploadMedicalCertificate(studentId, recordId, file),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.operations.medicalRecords(vars.studentId) });
+    },
+  });
+}
+
 export function useCreateMedicalRecord() {
   const qc = useQueryClient();
   return useMutation({

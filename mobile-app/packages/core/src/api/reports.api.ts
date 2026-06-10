@@ -93,6 +93,50 @@ export interface ExpenseDetailRecord extends ExpenseSummaryRecord {
     payment_method?: string | null;
     payment_date?: string | null;
   }>;
+  attachments?: ExpenseAttachmentRecord[];
+}
+
+export interface ExpenseAttachmentRecord {
+  id: number;
+  file_name?: string | null;
+  mime_type?: string | null;
+  url?: string | null;
+  uploaded_by?: string | null;
+  uploaded_at?: string | null;
+}
+
+export interface LedgerPostingRecord {
+  id: number;
+  posting_date?: string | null;
+  account_code: string;
+  dr_cr: 'dr' | 'cr';
+  amount: number;
+  source_type?: string | null;
+  source_id?: number | null;
+}
+
+export interface TrialBalanceData {
+  accounts: Array<{
+    account_code: string;
+    total_dr: number;
+    total_cr: number;
+    net: number;
+  }>;
+  totals: { dr: number; cr: number };
+  as_of: string;
+}
+
+export interface BalanceSheetData {
+  assets: Array<{ label: string; amount: number }>;
+  liabilities: Array<{ label: string; amount: number }>;
+  totals: { assets: number; liabilities: number; net_position: number };
+  as_of: string;
+}
+
+export interface UploadFileInput {
+  uri: string;
+  name: string;
+  type: string;
 }
 
 export interface BoardPackSummary {
@@ -160,6 +204,41 @@ export const reportsApi = {
 
   getIncomeStatement(params?: { months?: number }): Promise<ApiResponse<IncomeStatementData>> {
     return apiClient.get<IncomeStatementData>('/reports/income-statement', params);
+  },
+
+  uploadExpenseAttachment(
+    expenseId: number,
+    file: UploadFileInput,
+  ): Promise<ApiResponse<ExpenseAttachmentRecord>> {
+    const form = new FormData();
+    form.append('file', { uri: file.uri, name: file.name, type: file.type } as unknown as Blob);
+    return apiClient.postMultipart<ExpenseAttachmentRecord>(`/expenses/${expenseId}/attachments`, form);
+  },
+
+  deleteExpenseAttachment(expenseId: number, attachmentId: number): Promise<ApiResponse<null>> {
+    return apiClient.delete(`/expenses/${expenseId}/attachments/${attachmentId}`);
+  },
+
+  listLedgerPostings(params?: {
+    account_code?: string;
+    dr_cr?: string;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<LedgerPostingRecord>>> {
+    return apiClient.get<PaginatedResponse<LedgerPostingRecord>>('/ledger/postings', params);
+  },
+
+  getTrialBalance(params?: {
+    date_from?: string;
+    date_to?: string;
+  }): Promise<ApiResponse<TrialBalanceData>> {
+    return apiClient.get<TrialBalanceData>('/ledger/trial-balance', params);
+  },
+
+  getBalanceSheet(): Promise<ApiResponse<BalanceSheetData>> {
+    return apiClient.get<BalanceSheetData>('/reports/balance-sheet');
   },
 
   getBoardPack(): Promise<ApiResponse<BoardPackSummary>> {

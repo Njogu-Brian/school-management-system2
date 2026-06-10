@@ -1,10 +1,12 @@
 import {
   useApproveExpense,
   useCan,
+  useDeleteExpenseAttachment,
   useExpense,
   usePayExpense,
   useRejectExpense,
   useSubmitExpense,
+  useUploadExpenseAttachment,
 } from '@erp/core';
 import {
   AcademicScreenHeader,
@@ -18,8 +20,9 @@ import {
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
+import * as DocumentPicker from 'expo-document-picker';
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ReportsStackParamList } from '../../../navigation/reportsStackTypes';
 import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
 import { capitalizeStatus, formatDateLabel, formatDateTimeLabel } from '../../shared/utils/formatters';
@@ -49,9 +52,46 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const rejectMutation = useRejectExpense();
   const payMutation = usePayExpense();
 
+  const uploadMutation = useUploadExpenseAttachment();
+  const deleteAttachmentMutation = useDeleteExpenseAttachment();
+
   const [remarks, setRemarks] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [referenceNo, setReferenceNo] = useState('');
+
+  const onPickAttachment = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'application/pdf'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      await uploadMutation.mutateAsync({
+        expenseId,
+        file: {
+          uri: asset.uri,
+          name: asset.name ?? 'attachment',
+          type: asset.mimeType ?? 'application/octet-stream',
+        },
+      });
+      showSuccess('Uploaded', 'Attachment added to this expense.');
+    } catch (err) {
+      showError('Upload failed', (err as Error).message);
+    }
+  };
+
+  const onDeleteAttachment = (attachmentId: number, name?: string | null) => {
+    confirmAction('Remove attachment', `Delete "${name ?? 'this file'}"?`, 'Delete', async () => {
+      try {
+        await deleteAttachmentMutation.mutateAsync({ expenseId, attachmentId });
+        showSuccess('Removed', 'Attachment deleted.');
+      } catch (err) {
+        showError('Delete failed', (err as Error).message);
+      }
+    });
+  };
 
   const workflowPending =
     submitMutation.isPending || approveMutation.isPending || rejectMutation.isPending || payMutation.isPending;
@@ -232,6 +272,46 @@ export const ExpenseDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       ) : null}
 
+      <View style={{ marginTop: spacing.lg }}>
+        <Text style={[styles.sectionLabel, { color: palette.textSecondary }]}>ATTACHMENTS</Text>
+        {(expense.attachments ?? []).map((att) => (
+          <View
+            key={att.id}
+            style={[
+              styles.attachmentRow,
+              { backgroundColor: palette.surfaceRaised, borderColor: palette.borderSubtle, borderRadius: radius.md },
+            ]}
+          >
+            <Pressable
+              style={{ flex: 1 }}
+              onPress={() => {
+                if (att.url) void Linking.openURL(att.url);
+              }}
+            >
+              <Text style={{ color: palette.textPrimary, fontWeight: '600' }} numberOfLines={1}>
+                {att.file_name ?? `Attachment #${att.id}`}
+              </Text>
+              <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 2 }}>
+                {[att.uploaded_by, formatDateTimeLabel(att.uploaded_at)].filter(Boolean).join(' · ') || '—'}
+              </Text>
+            </Pressable>
+            <Button label="Delete" variant="ghost" onPress={() => onDeleteAttachment(att.id, att.file_name)} />
+          </View>
+        ))}
+        {(expense.attachments ?? []).length === 0 ? (
+          <Text style={{ color: palette.textMuted, fontSize: 12, marginBottom: 8 }}>
+            No receipts or supporting documents attached yet.
+          </Text>
+        ) : null}
+        <Button
+          label={uploadMutation.isPending ? 'Uploading…' : 'Attach receipt / document'}
+          variant="secondary"
+          onPress={() => void onPickAttachment()}
+          disabled={uploadMutation.isPending}
+          loading={uploadMutation.isPending}
+        />
+      </View>
+
       {expense.can_submit || expense.can_approve || expense.can_pay ? (
         <View style={{ marginTop: spacing.lg }}>
           <Text style={[styles.sectionLabel, { color: palette.textSecondary }]}>WORKFLOW</Text>
@@ -313,4 +393,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   notes: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 14 },
+  attachmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
 });

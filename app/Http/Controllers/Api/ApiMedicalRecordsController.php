@@ -81,6 +81,27 @@ class ApiMedicalRecordsController extends Controller
         ]);
     }
 
+    public function uploadCertificate(Request $request, int $studentId, int $id)
+    {
+        $record = StudentMedicalRecord::query()
+            ->where('student_id', $studentId)
+            ->findOrFail($id);
+
+        $request->validate([
+            'file' => 'required|file|max:10240|mimes:jpg,jpeg,png,pdf',
+        ]);
+
+        $path = $request->file('file')->store('medical-certificates', 'public');
+
+        $record->update(['certificate_file_path' => $path]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Certificate uploaded.',
+            'data' => $this->serialize($record->fresh('createdBy')),
+        ]);
+    }
+
     protected function serialize(StudentMedicalRecord $r): array
     {
         return [
@@ -98,6 +119,9 @@ class ApiMedicalRecordsController extends Controller
             'vaccination_date' => $r->vaccination_date?->format('Y-m-d'),
             'next_due_date' => $r->next_due_date?->format('Y-m-d'),
             'certificate_type' => $r->certificate_type,
+            'certificate_url' => $r->certificate_file_path
+                ? asset('storage/'.ltrim($r->certificate_file_path, '/'))
+                : null,
             'notes' => $r->notes,
             'created_by' => $r->createdBy?->name,
             'created_at' => $r->created_at?->toIso8601String(),

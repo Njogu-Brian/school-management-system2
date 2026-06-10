@@ -1,6 +1,7 @@
 import { useCan, useInfiniteLibraryBooks } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -10,7 +11,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 import { capitalizeStatus } from '../../shared/utils/formatters';
 import { OpsListCard } from '../components/OpsListCard';
@@ -44,13 +45,33 @@ export const LibraryBooksScreen: React.FC<Props> = ({ navigation }) => {
         keyExtractor={(item) => String(item.id)}
         showFilterTrigger={false}
         hero={
-          <AcademicScreenHeader title="Library" subtitle="Book catalogue" onBack={() => navigation.goBack()} />
+          <View>
+            <AcademicScreenHeader title="Library" subtitle="Book catalogue" onBack={() => navigation.goBack()} />
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Button label="Circulation" variant="secondary" onPress={() => navigation.navigate('LibraryCirculation')} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button label="Issue a book" onPress={() => navigation.navigate('IssueBook')} />
+              </View>
+            </View>
+          </View>
         }
         searchBar={<SearchBar value={search} onChangeText={setSearch} placeholder="Search title, author or ISBN…" />}
         renderItem={({ item }) => (
           <OpsListCard
             title={item.title || 'Untitled'}
-            lines={[item.author, item.isbn ? `ISBN ${item.isbn}` : null]}
+            lines={[
+              item.author,
+              [
+                item.isbn ? `ISBN ${item.isbn}` : null,
+                item.total_copies != null
+                  ? `${item.available_copies ?? 0}/${item.total_copies} available`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ') || null,
+            ]}
             badge={{
               label: capitalizeStatus(item.status),
               tone: item.status === 'available' ? 'success' : 'warning',

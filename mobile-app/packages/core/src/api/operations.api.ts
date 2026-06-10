@@ -1,5 +1,6 @@
 import type { ApiResponse, PaginatedResponse } from '../types/api';
 import { apiClient } from './client';
+import type { UploadFileInput } from './reports.api';
 
 export interface TransportRouteSummary {
   id: number;
@@ -99,7 +100,28 @@ export interface LibraryBookRecord {
   title: string;
   author?: string | null;
   isbn?: string | null;
+  category?: string | null;
+  total_copies?: number;
+  available_copies?: number;
   status: string;
+}
+
+export interface BorrowingRecord {
+  id: number;
+  status: string;
+  is_overdue: boolean;
+  book_title?: string | null;
+  copy_number?: string | null;
+  student_id?: number | null;
+  student_name?: string | null;
+  admission_number?: string | null;
+  card_number?: string | null;
+  borrowed_date?: string | null;
+  due_date?: string | null;
+  returned_date?: string | null;
+  fine_amount?: number | null;
+  can_return?: boolean;
+  can_renew?: boolean;
 }
 
 export interface RequisitionRecord {
@@ -134,6 +156,7 @@ export interface MedicalRecordRow {
   description?: string | null;
   doctor_name?: string | null;
   vaccination_name?: string | null;
+  certificate_url?: string | null;
   notes?: string | null;
 }
 
@@ -162,7 +185,21 @@ export interface FixedAssetRecord {
   serial_number?: string | null;
   purchase_date?: string | null;
   purchase_cost?: number | null;
+  assigned_staff_id?: number | null;
   notes?: string | null;
+}
+
+export interface FixedAssetPayload {
+  asset_tag: string;
+  name: string;
+  category?: string;
+  location?: string;
+  serial_number?: string;
+  purchase_date?: string;
+  purchase_cost?: number;
+  status?: 'active' | 'in_repair' | 'retired' | 'disposed';
+  assigned_staff_id?: number | null;
+  notes?: string;
 }
 
 /** Transport + operations summary APIs (Sprints 9–10). */
@@ -294,10 +331,37 @@ export const operationsApi = {
 
   listLibraryBooks(params?: {
     search?: string;
+    available_only?: boolean;
     page?: number;
     per_page?: number;
   }): Promise<ApiResponse<PaginatedResponse<LibraryBookRecord>>> {
     return apiClient.get<PaginatedResponse<LibraryBookRecord>>('/library/books', params);
+  },
+
+  listBorrowings(params?: {
+    status?: string;
+    student_id?: number;
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<BorrowingRecord>>> {
+    return apiClient.get<PaginatedResponse<BorrowingRecord>>('/library/borrowings', params);
+  },
+
+  issueBook(payload: {
+    student_id: number;
+    book_id: number;
+    days?: number;
+  }): Promise<ApiResponse<BorrowingRecord>> {
+    return apiClient.post<BorrowingRecord>('/library/borrowings', payload);
+  },
+
+  returnBook(id: number, condition?: string): Promise<ApiResponse<BorrowingRecord>> {
+    return apiClient.post<BorrowingRecord>(`/library/borrowings/${id}/return`, { condition });
+  },
+
+  renewBorrowing(id: number, days?: number): Promise<ApiResponse<BorrowingRecord>> {
+    return apiClient.post<BorrowingRecord>(`/library/borrowings/${id}/renew`, { days });
   },
 
   listRequisitions(params?: {
@@ -354,6 +418,19 @@ export const operationsApi = {
     return apiClient.post<MedicalRecordRow>(`/students/${studentId}/medical-records`, payload);
   },
 
+  uploadMedicalCertificate(
+    studentId: number,
+    recordId: number,
+    file: UploadFileInput,
+  ): Promise<ApiResponse<MedicalRecordRow>> {
+    const form = new FormData();
+    form.append('file', { uri: file.uri, name: file.name, type: file.type } as unknown as Blob);
+    return apiClient.postMultipart<MedicalRecordRow>(
+      `/students/${studentId}/medical-records/${recordId}/certificate`,
+      form,
+    );
+  },
+
   listVisitors(params?: {
     on_site?: boolean;
     date?: string;
@@ -403,6 +480,14 @@ export const operationsApi = {
     payload: { status: 'active' | 'in_repair' | 'retired' | 'disposed'; notes?: string },
   ): Promise<ApiResponse<FixedAssetRecord>> {
     return apiClient.post<FixedAssetRecord>(`/assets/${id}/status`, payload);
+  },
+
+  createAsset(payload: FixedAssetPayload): Promise<ApiResponse<FixedAssetRecord>> {
+    return apiClient.post<FixedAssetRecord>('/assets', payload);
+  },
+
+  updateAsset(id: number, payload: FixedAssetPayload): Promise<ApiResponse<FixedAssetRecord>> {
+    return apiClient.put<FixedAssetRecord>(`/assets/${id}`, payload);
   },
 
   approveRequisition(

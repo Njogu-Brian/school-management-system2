@@ -165,6 +165,7 @@ export const linking: LinkingOptions<DrawerParamList> = {
           },
           VisitorCheckIn: 'visitors/check-in',
           AssetsList: 'assets',
+          AssetForm: 'assets/new',
           AssetDetail: {
             path: 'assets/:assetId',
             parse: { assetId: Number },
@@ -175,6 +176,8 @@ export const linking: LinkingOptions<DrawerParamList> = {
             parse: { studentId: Number },
           },
           LibraryBooks: 'library',
+          LibraryCirculation: 'library/circulation',
+          IssueBook: 'library/issue',
         },
       },
       Communication: {
@@ -210,6 +213,8 @@ export const linking: LinkingOptions<DrawerParamList> = {
           ExpenseReports: 'expenses',
           ExpensesList: 'expenses/all',
           IncomeStatement: 'income-statement',
+          BalanceSheet: 'balance-sheet',
+          Ledger: 'ledger',
           ExpenseDetail: {
             path: 'expenses/:expenseId',
             parse: { expenseId: Number },

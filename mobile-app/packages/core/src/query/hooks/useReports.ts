@@ -188,6 +188,115 @@ export function useIncomeStatement(options?: { enabled?: boolean; months?: numbe
   });
 }
 
+export function useInfiniteLedgerPostings(options?: {
+  enabled?: boolean;
+  accountCode?: string;
+  drCr?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.reports.ledgerPostings({
+      account: options?.accountCode,
+      drCr: options?.drCr,
+      from: options?.dateFrom,
+      to: options?.dateTo,
+    }),
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await reportsApi.listLedgerPostings({
+        account_code: options?.accountCode,
+        dr_cr: options?.drCr,
+        date_from: options?.dateFrom,
+        date_to: options?.dateTo,
+        per_page: 30,
+        page: pageParam as number,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load ledger postings.');
+      }
+      const page = res.data;
+      return {
+        items: page.data,
+        currentPage: page.current_page,
+        lastPage: page.last_page,
+        total: page.total,
+        hasMore: page.current_page < page.last_page,
+      };
+    },
+    getNextPageParam: (last) => (last.hasMore ? last.currentPage + 1 : undefined),
+    enabled: options?.enabled !== false,
+    staleTime: 60_000,
+  });
+}
+
+export function useTrialBalance(options?: { enabled?: boolean; dateFrom?: string; dateTo?: string }) {
+  return useQuery({
+    queryKey: queryKeys.reports.trialBalance({ from: options?.dateFrom, to: options?.dateTo }),
+    queryFn: async () => {
+      const res = await reportsApi.getTrialBalance({
+        date_from: options?.dateFrom,
+        date_to: options?.dateTo,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load trial balance.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 120_000,
+  });
+}
+
+export function useBalanceSheet(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.reports.balanceSheet(),
+    queryFn: async () => {
+      const res = await reportsApi.getBalanceSheet();
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load balance sheet.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 120_000,
+  });
+}
+
+export function useUploadExpenseAttachment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      expenseId,
+      file,
+    }: {
+      expenseId: number;
+      file: { uri: string; name: string; type: string };
+    }) => {
+      const res = await reportsApi.uploadExpenseAttachment(expenseId, file);
+      if (!res.success) throw new Error(res.message || 'Failed to upload attachment.');
+      return res;
+    },
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.reports.expenseDetail(vars.expenseId) });
+    },
+  });
+}
+
+export function useDeleteExpenseAttachment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ expenseId, attachmentId }: { expenseId: number; attachmentId: number }) => {
+      const res = await reportsApi.deleteExpenseAttachment(expenseId, attachmentId);
+      if (!res.success) throw new Error(res.message || 'Failed to remove attachment.');
+      return res;
+    },
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.reports.expenseDetail(vars.expenseId) });
+    },
+  });
+}
+
 export function useBoardPack(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.reports.boardPack(),

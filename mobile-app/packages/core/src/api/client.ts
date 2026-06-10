@@ -151,6 +151,15 @@ class ApiClient {
     return res.data;
   }
 
+  /** POST multipart/form-data (file uploads). */
+  async postMultipart<T>(url: string, data: FormData): Promise<ApiResponse<T>> {
+    const res = await this.client.post(url, data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: (d) => d,
+    });
+    return res.data;
+  }
+
   async put<T>(url: string, data?: unknown): Promise<ApiResponse<T>> {
     const res = await this.client.put(url, data);
     return res.data;

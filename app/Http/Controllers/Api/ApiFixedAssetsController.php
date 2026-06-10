@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\FixedAsset;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ApiFixedAssetsController extends Controller
 {
@@ -51,6 +52,60 @@ class ApiFixedAssetsController extends Controller
         ]);
     }
 
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'asset_tag' => 'required|string|max:100|unique:fixed_assets,asset_tag',
+            'name' => 'required|string|max:255',
+            'category' => 'nullable|string|max:255',
+            'location' => 'nullable|string|max:255',
+            'serial_number' => 'nullable|string|max:255',
+            'purchase_date' => 'nullable|date',
+            'purchase_cost' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:active,in_repair,retired,disposed',
+            'assigned_staff_id' => 'nullable|exists:staff,id',
+            'notes' => 'nullable|string',
+        ]);
+
+        $asset = FixedAsset::create([
+            ...$validated,
+            'status' => $validated['status'] ?? 'active',
+            'created_by' => Auth::id(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Asset registered.',
+            'data' => $this->serialize($asset->load('assignedStaff'), true),
+        ], 201);
+    }
+
+    public function update(Request $request, int $id)
+    {
+        $asset = FixedAsset::findOrFail($id);
+
+        $validated = $request->validate([
+            'asset_tag' => 'required|string|max:100|unique:fixed_assets,asset_tag,'.$asset->id,
+            'name' => 'required|string|max:255',
+            'category' => 'nullable|string|max:255',
+            'location' => 'nullable|string|max:255',
+            'serial_number' => 'nullable|string|max:255',
+            'purchase_date' => 'nullable|date',
+            'purchase_cost' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:active,in_repair,retired,disposed',
+            'assigned_staff_id' => 'nullable|exists:staff,id',
+            'notes' => 'nullable|string',
+        ]);
+
+        $asset->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Asset updated.',
+            'data' => $this->serialize($asset->fresh('assignedStaff'), true),
+        ]);
+    }
+
     public function updateStatus(Request $request, int $id)
     {
         $asset = FixedAsset::findOrFail($id);
@@ -91,6 +146,7 @@ class ApiFixedAssetsController extends Controller
                 'serial_number' => $a->serial_number,
                 'purchase_date' => $a->purchase_date?->format('Y-m-d'),
                 'purchase_cost' => $a->purchase_cost !== null ? (float) $a->purchase_cost : null,
+                'assigned_staff_id' => $a->assigned_staff_id,
                 'notes' => $a->notes,
             ];
         }

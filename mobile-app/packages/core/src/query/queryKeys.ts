@@ -158,6 +158,8 @@ export const queryKeys = {
       [...queryKeys.operations.all, 'requirements-students', search ?? ''] as const,
     libraryBooks: (search?: string) =>
       [...queryKeys.operations.all, 'library-books', search ?? ''] as const,
+    borrowings: (filters?: { status?: string; search?: string; studentId?: number }) =>
+      [...queryKeys.operations.all, 'borrowings', filters ?? {}] as const,
   },
   documents: {
     all: ['documents'] as const,
@@ -215,6 +217,11 @@ export const queryKeys = {
     expenseDetail: (id: number) => [...queryKeys.reports.all, 'expense', id] as const,
     incomeStatement: (months?: number) =>
       [...queryKeys.reports.all, 'income-statement', months ?? 6] as const,
+    ledgerPostings: (filters?: { account?: string; drCr?: string; from?: string; to?: string }) =>
+      [...queryKeys.reports.all, 'ledger-postings', filters ?? {}] as const,
+    trialBalance: (range?: { from?: string; to?: string }) =>
+      [...queryKeys.reports.all, 'trial-balance', range ?? {}] as const,
+    balanceSheet: () => [...queryKeys.reports.all, 'balance-sheet'] as const,
     boardPack: () => [...queryKeys.reports.all, 'board-pack'] as const,
   },
   search: {

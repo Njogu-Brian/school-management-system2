@@ -1,12 +1,14 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
 import {
+  BalanceSheetScreen,
   BoardPackScreen,
   ExecutiveAnalyticsScreen,
   ExpenseDetailScreen,
   ExpenseReportsScreen,
   ExpensesListScreen,
   IncomeStatementScreen,
+  LedgerScreen,
   ReportsHubScreen,
   WeeklyReportDetailScreen,
   WeeklyReportsListScreen,
@@ -24,6 +26,8 @@ export const ReportsStackNavigator: React.FC = () => (
     <Stack.Screen name="ExpensesList" component={ExpensesListScreen} />
     <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} />
     <Stack.Screen name="IncomeStatement" component={IncomeStatementScreen} />
+    <Stack.Screen name="BalanceSheet" component={BalanceSheetScreen} />
+    <Stack.Screen name="Ledger" component={LedgerScreen} />
     <Stack.Screen name="WeeklyReportsList" component={WeeklyReportsListScreen} />
     <Stack.Screen name="WeeklyReportDetail" component={WeeklyReportDetailScreen} />
   </Stack.Navigator>

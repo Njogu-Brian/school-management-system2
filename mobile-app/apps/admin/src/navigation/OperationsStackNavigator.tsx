@@ -2,10 +2,13 @@ import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
 import {
   AssetDetailScreen,
+  AssetFormScreen,
   AssetsListScreen,
   InventoryItemDetailScreen,
   InventoryListScreen,
+  IssueBookScreen,
   LibraryBooksScreen,
+  LibraryCirculationScreen,
   OperationsDashboardScreen,
   RequirementsRosterScreen,
   RequirementsStudentScreen,
@@ -38,6 +41,8 @@ export const OperationsStackNavigator: React.FC = () => (
     <Stack.Screen name="RequirementsRoster" component={RequirementsRosterScreen} />
     <Stack.Screen name="RequirementsStudent" component={RequirementsStudentScreen} />
     <Stack.Screen name="LibraryBooks" component={LibraryBooksScreen} />
+    <Stack.Screen name="LibraryCirculation" component={LibraryCirculationScreen} />
+    <Stack.Screen name="IssueBook" component={IssueBookScreen} />
     <Stack.Screen name="RequisitionsList" component={RequisitionsListScreen} />
     <Stack.Screen name="RequisitionForm" component={RequisitionFormScreen} />
     <Stack.Screen name="RequisitionDetail" component={RequisitionDetailScreen} />
@@ -45,6 +50,7 @@ export const OperationsStackNavigator: React.FC = () => (
     <Stack.Screen name="VisitorDetail" component={VisitorDetailScreen} />
     <Stack.Screen name="VisitorCheckIn" component={VisitorCheckInScreen} />
     <Stack.Screen name="AssetsList" component={AssetsListScreen} />
+    <Stack.Screen name="AssetForm" component={AssetFormScreen} />
     <Stack.Screen name="AssetDetail" component={AssetDetailScreen} />
     <Stack.Screen name="TeacherTransport" component={TeacherTransportScreen} />
     <Stack.Screen name="DriverTrips" component={DriverTripsScreen} />
