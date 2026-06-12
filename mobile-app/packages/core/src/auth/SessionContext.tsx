@@ -117,6 +117,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const res = await sessionsApi.refresh();
       if (!res.success || !res.data?.token) {
+        await clearSession();
         return false;
       }
       await setSession({
@@ -126,9 +127,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       return true;
     } catch {
+      await clearSession();
       return false;
     }
-  }, [token, meta?.rememberMe, setSession]);
+  }, [token, meta?.rememberMe, setSession, clearSession]);
 
   const isValid = token != null && !isSessionExpired(meta);
 

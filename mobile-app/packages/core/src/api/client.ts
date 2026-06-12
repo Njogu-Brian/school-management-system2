@@ -18,6 +18,8 @@ type UnauthorizedCallback = () => void | Promise<void>;
 class ApiClient {
   private readonly client: AxiosInstance;
   private onUnauthorized: UnauthorizedCallback | null = null;
+  /** Prevents recursive 401 → refresh → 401 loops when refresh itself fails. */
+  private handlingUnauthorized = false;
 
   constructor() {
     const baseURL = API_BASE_URL;
@@ -93,12 +95,20 @@ class ApiClient {
       },
       async (error: AxiosError) => {
         const url = String(error.config?.url ?? '');
-        const isAuthRoute = url.endsWith('/login') || url.includes('/logout');
+        const isAuthRoute =
+          url.endsWith('/login') ||
+          url.includes('/logout') ||
+          url.includes('/auth/refresh');
         this.logError(error.response?.status, url, error.response?.data, error.message);
 
-        if (error.response?.status === 401 && !isAuthRoute) {
-          await clearToken();
-          await this.onUnauthorized?.();
+        if (error.response?.status === 401 && !isAuthRoute && !this.handlingUnauthorized) {
+          this.handlingUnauthorized = true;
+          try {
+            await clearToken();
+            await this.onUnauthorized?.();
+          } finally {
+            this.handlingUnauthorized = false;
+          }
         }
 
         const data = error.response?.data as Record<string, unknown> | undefined;
