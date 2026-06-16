@@ -27,9 +27,9 @@
           </a>
         @endif
         @if(Route::has('students.export'))
-          <a href="{{ route('students.export', request()->query()) }}" class="btn btn-ghost-strong">
-            <i class="bi bi-download"></i> Export CSV
-          </a>
+          <button type="button" class="btn btn-ghost-strong" data-bs-toggle="modal" data-bs-target="#studentsExportModal">
+            <i class="bi bi-download"></i> Export
+          </button>
         @endif
         @if(Route::has('students.bulk.assign-streams'))
           <a href="{{ route('students.bulk.assign-streams') }}" class="btn btn-ghost-strong">
@@ -353,4 +353,16 @@
   });
 </script>
 @endpush
+
+@php
+    $directoryExport = app(\App\Services\DirectoryExportService::class);
+@endphp
+@include('partials.directory_export_modal', [
+    'exportType' => 'students',
+    'exportRoute' => route('students.export'),
+    'fieldGroups' => $directoryExport->studentFieldGroups(),
+    'defaultFields' => $directoryExport->defaultStudentFields(),
+    'filterParams' => request()->only(['name', 'admission_number', 'classroom_id', 'stream_id', 'showArchived', 'show_all']),
+])
+
 @endsection

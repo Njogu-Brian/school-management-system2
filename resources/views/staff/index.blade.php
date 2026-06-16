@@ -20,6 +20,9 @@
                 <a href="{{ route('staff.template') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-download"></i> Template
                 </a>
+                <button type="button" class="btn btn-ghost-strong" data-bs-toggle="modal" data-bs-target="#staffExportModal">
+                    <i class="bi bi-download"></i> Export
+                </button>
                 <a href="{{ route('staff.create') }}" class="btn btn-settings-primary">
                     <i class="bi bi-plus-circle"></i> Add Staff
                 </a>
@@ -433,4 +436,16 @@
         </form>
     </div>
 </div>
+
+@php
+    $directoryExport = app(\App\Services\DirectoryExportService::class);
+@endphp
+@include('partials.directory_export_modal', [
+    'exportType' => 'staff',
+    'exportRoute' => route('staff.export'),
+    'fieldGroups' => $directoryExport->staffFieldGroups(),
+    'defaultFields' => $directoryExport->defaultStaffFields(),
+    'filterParams' => request()->only(['q', 'department_id', 'status']),
+])
+
 @endsection

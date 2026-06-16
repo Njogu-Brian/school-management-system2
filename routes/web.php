@@ -745,6 +745,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/upload/commit', [StaffController::class, 'uploadCommit'])->name('upload.commit'); // finalize
             Route::post('/upload',        [StaffController::class, 'handleUpload'])->name('upload.handle'); // legacy
             Route::get('/template',       [StaffController::class, 'template'])->name('template');
+            Route::match(['get', 'post'], '/export', [\App\Http\Controllers\DirectoryExportController::class, 'exportStaff'])->name('export');
 
             // Leave Management (must come before {id})
             Route::prefix('leave-types')->name('leave-types.')->group(function () {
@@ -1133,8 +1134,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::get('/api/finance/students/{student}/invoices', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentInvoices'])
         ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.finance.students.invoices');
 
-    // Export filtered list
-    Route::get('/students/export', [StudentController::class, 'export'])
+    // Export filtered list (Excel / PDF with selectable fields)
+    Route::match(['get', 'post'], '/students/export', [\App\Http\Controllers\DirectoryExportController::class, 'exportStudents'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.export');
 
     // Bulk assign (class/stream) + bulk archive/restore

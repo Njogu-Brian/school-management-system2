@@ -24,9 +24,9 @@
             <i class="bi bi-arrow-left"></i> Back to Students
           </a>
           @if(Route::has('students.export'))
-          <a href="{{ route('students.export', request()->query()) }}" class="btn btn-ghost-light">
-            <i class="bi bi-download"></i> Export CSV
-          </a>
+          <button type="button" class="btn btn-ghost-light" data-bs-toggle="modal" data-bs-target="#studentsExportModal">
+            <i class="bi bi-download"></i> Export
+          </button>
           @endif
         </div>
       </div>
@@ -174,4 +174,19 @@
     </div>
   </div>
 </div>
+
+@php
+    $directoryExport = app(\App\Services\DirectoryExportService::class);
+@endphp
+@include('partials.directory_export_modal', [
+    'exportType' => 'students',
+    'exportRoute' => route('students.export'),
+    'fieldGroups' => $directoryExport->studentFieldGroups(),
+    'defaultFields' => $directoryExport->defaultStudentFields(),
+    'filterParams' => array_merge(
+        request()->only(['name', 'admission_number', 'classroom_id', 'stream_id']),
+        ['archived_only' => 1]
+    ),
+])
+
 @endsection
