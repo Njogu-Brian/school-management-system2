@@ -31,6 +31,8 @@ class DirectoryExportController extends Controller
       'format' => 'required|in:excel,pdf',
       'fields' => 'nullable|array',
       'fields.*' => 'string|max:64',
+      'classroom_ids' => 'nullable|array',
+      'classroom_ids.*' => 'integer|min:1',
     ]);
 
     $fields = $this->exportService->resolveFields($type, (array) $request->input('fields', []));

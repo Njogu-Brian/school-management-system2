@@ -173,7 +173,11 @@ class DirectoryExportService
       $query->where('admission_number', 'like', $searchTerm);
     }
 
-    if ($request->filled('classroom_id')) {
+    $classroomIds = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('classroom_ids', [])))));
+    if (!empty($classroomIds)) {
+      $query->whereIn('classroom_id', $classroomIds);
+    } elseif ($request->filled('classroom_id')) {
+      // Backwards-compat: single classroom filter
       $query->where('classroom_id', $request->classroom_id);
     }
 
@@ -342,7 +346,10 @@ class DirectoryExportService
       if ($request->filled('admission_number')) {
         $parts[] = 'Admission #: ' . $request->admission_number;
       }
-      if ($request->filled('classroom_id')) {
+      $classroomIds = array_values(array_unique(array_filter(array_map('intval', (array) $request->input('classroom_ids', [])))));
+      if (!empty($classroomIds)) {
+        $parts[] = 'Classes: ' . implode(',', $classroomIds);
+      } elseif ($request->filled('classroom_id')) {
         $parts[] = 'Class ID: ' . $request->classroom_id;
       }
       if ($request->filled('stream_id')) {

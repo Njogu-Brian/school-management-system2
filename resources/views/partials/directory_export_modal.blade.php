@@ -56,6 +56,28 @@
                         </div>
                     </div>
 
+                    @if(($exportType ?? '') === 'students' && !empty($classrooms))
+                        @php
+                            $selectedClassroomIds = array_values(array_unique(array_filter(array_map('intval', (array) ($selectedClassroomIds ?? request()->input('classroom_ids', []))))));
+                            if (empty($selectedClassroomIds) && filled(request('classroom_id'))) {
+                                $selectedClassroomIds = [(int) request('classroom_id')];
+                            }
+                        @endphp
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Classes to export</label>
+                            <select name="classroom_ids[]" class="form-select" multiple size="8">
+                                @foreach($classrooms as $c)
+                                    <option value="{{ $c->id }}" @selected(in_array((int) $c->id, $selectedClassroomIds, true))>
+                                        {{ $c->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                Leave empty to export all classes (or use the list filters).
+                            </div>
+                        </div>
+                    @endif
+
                     @foreach($fieldGroups as $group => $fields)
                         <div class="mb-3">
                             <div class="fw-semibold small text-uppercase text-muted mb-2">{{ $group }}</div>

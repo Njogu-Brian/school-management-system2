@@ -362,6 +362,7 @@
     'exportRoute' => route('students.export'),
     'fieldGroups' => $directoryExport->studentFieldGroups(),
     'defaultFields' => $directoryExport->defaultStudentFields(),
+    'classrooms' => $classrooms ?? \App\Models\Academics\Classroom::orderBy('name')->get(),
     'filterParams' => request()->only(['name', 'admission_number', 'classroom_id', 'stream_id', 'showArchived', 'show_all']),
 ])
 
