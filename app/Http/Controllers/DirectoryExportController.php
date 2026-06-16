@@ -6,6 +6,7 @@ use App\Exports\ArrayExport;
 use App\Services\DirectoryExportService;
 use App\Services\PDFExportService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 
 class DirectoryExportController extends Controller
@@ -37,6 +38,13 @@ class DirectoryExportController extends Controller
 
     $fields = $this->exportService->resolveFields($type, (array) $request->input('fields', []));
     $labels = $this->exportService->fieldLabels($type, $fields);
+
+    Log::info('Directory export requested', [
+      'type' => $type,
+      'format' => $request->input('format'),
+      'fields_count' => count($fields),
+      'user_id' => auth()->id(),
+    ]);
 
     if ($type === 'staff') {
       $records = $this->exportService->staffQuery($request)->get();

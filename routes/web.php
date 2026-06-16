@@ -1137,7 +1137,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Export filtered list (Excel / PDF with selectable fields)
     Route::match(['get', 'post'], '/students/export', [\App\Http\Controllers\DirectoryExportController::class, 'exportStudents'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.export');
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher')->name('students.export');
 
     // Bulk assign (class/stream) + bulk archive/restore
     Route::post('/students/bulk-assign', [StudentController::class, 'bulkAssign'])
