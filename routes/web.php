@@ -1101,6 +1101,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     // Parents contact list (child, class, admission, father/mother name, phone, email, whatsapp)
     Route::get('/students/parents-contact', [StudentController::class, 'parentsContact'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('students.parents-contact');
+
+    // Export filtered list (must be before students resource — otherwise {student}=export)
+    Route::match(['get', 'post'], '/students/export', [\App\Http\Controllers\DirectoryExportController::class, 'exportStudents'])
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher')->name('students.export');
     
     // AJAX endpoint for student details
     Route::get('/students/{id}/details-ajax', [StudentController::class, 'detailsAjax'])
@@ -1134,10 +1138,6 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.finance.students.show');
     Route::get('/api/finance/students/{student}/invoices', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentInvoices'])
         ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.finance.students.invoices');
-
-    // Export filtered list (Excel / PDF with selectable fields)
-    Route::match(['get', 'post'], '/students/export', [\App\Http\Controllers\DirectoryExportController::class, 'exportStudents'])
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher')->name('students.export');
 
     // Bulk assign (class/stream) + bulk archive/restore
     Route::post('/students/bulk-assign', [StudentController::class, 'bulkAssign'])
