@@ -6,8 +6,7 @@
 <div class="modal fade" id="{{ $modalId }}" tabindex="-1" aria-labelledby="{{ $modalId }}Label" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
-            <form method="POST" action="{{ $exportRoute }}" target="_blank">
-                @csrf
+            <form method="GET" action="{{ $exportRoute }}" target="_blank">
                 <div class="modal-header">
                     <h5 class="modal-title" id="{{ $modalId }}Label">
                         <i class="bi bi-download"></i> Export {{ ucfirst($exportType) }}
@@ -65,7 +64,7 @@
                         @endphp
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Classes to export</label>
-                            <select name="classroom_ids[]" class="form-select" multiple size="8">
+                            <select name="classroom_ids[]" class="form-select directory-export-classroom-select" multiple size="8">
                                 @foreach($classrooms as $c)
                                     <option value="{{ $c->id }}" @selected(in_array((int) $c->id, $selectedClassroomIds, true))>
                                         {{ $c->name }}
@@ -78,12 +77,20 @@
                         </div>
                     @endif
 
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Fields</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control directory-export-field-filter" placeholder="Search fields (e.g. DOB, father, phone)">
+                        </div>
+                    </div>
+
                     @foreach($fieldGroups as $group => $fields)
-                        <div class="mb-3">
+                        <div class="mb-3 directory-export-group">
                             <div class="fw-semibold small text-uppercase text-muted mb-2">{{ $group }}</div>
                             <div class="row g-2">
                                 @foreach($fields as $key => $label)
-                                    <div class="col-md-4 col-sm-6">
+                                    <div class="col-md-4 col-sm-6 directory-export-field-item" data-label="{{ strtolower($label) }}" data-key="{{ strtolower($key) }}">
                                         <div class="form-check">
                                             <input
                                                 class="form-check-input directory-export-field"
@@ -114,6 +121,13 @@
 </div>
 
 @once
+    @push('styles')
+        <style>
+            .directory-export-classroom-select { font-size: 0.95rem; }
+            .directory-export-field-filter { font-size: 0.95rem; }
+        </style>
+    @endpush
+
     @push('scripts')
     <script>
         document.addEventListener('click', function (event) {
@@ -138,6 +152,24 @@
                     cb.checked = cb.dataset.default === '1';
                 });
             }
+        });
+
+        document.addEventListener('input', function (event) {
+            const input = event.target.closest('.directory-export-field-filter');
+            if (!input) return;
+
+            const modal = input.closest('.modal');
+            const q = (input.value || '').trim().toLowerCase();
+
+            modal?.querySelectorAll('.directory-export-field-item').forEach(el => {
+                const hay = (el.dataset.label || '') + ' ' + (el.dataset.key || '');
+                el.classList.toggle('d-none', q.length > 0 && !hay.includes(q));
+            });
+
+            modal?.querySelectorAll('.directory-export-group').forEach(group => {
+                const hasVisible = !!group.querySelector('.directory-export-field-item:not(.d-none)');
+                group.classList.toggle('d-none', !hasVisible);
+            });
         });
     </script>
     @endpush
