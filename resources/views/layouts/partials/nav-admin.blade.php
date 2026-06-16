@@ -558,22 +558,42 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
             </div>
         @endif
         <a href="{{ route('finance.expense-categories.index') }}" class="sublink {{ Request::is('finance/expense-categories*') ? 'active' : '' }}"><i class="bi bi-tags"></i> Expense Categories</a>
-        <a href="#accountingMenu" data-bs-toggle="collapse" aria-expanded="{{ $accountingActive ? 'true' : 'false' }}" class="sublink {{ $accountingActive ? 'parent-active' : '' }}"><i class="bi bi-journal-bookmark"></i> Accounting</a>
-        <div class="collapse {{ $accountingActive ? 'show' : '' }}" id="accountingMenu" style="padding-left: 20px;">
-            <a href="{{ route('finance.chart-of-accounts.index') }}" class="sublink {{ Request::is('finance/chart-of-accounts*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-diagram-3"></i> Chart of Accounts</a>
-            <a href="{{ route('finance.journal-entries.index') }}" class="sublink {{ Request::is('finance/journal-entries*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-journal-text"></i> Journal Entries</a>
-            <a href="{{ route('finance.petty-cash-funds.index') }}" class="sublink {{ Request::is('finance/petty-cash-funds*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-cash-coin"></i> Petty Cash Funds</a>
-            <a href="{{ route('finance.petty-cash-vouchers.index') }}" class="sublink {{ Request::is('finance/petty-cash-vouchers*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-receipt-cutoff"></i> Petty Cash Vouchers</a>
-            <a href="{{ route('finance.journal-entries.create') }}" class="sublink {{ Request::is('finance/journal-entries/create') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-pencil-square"></i> Manual Journal</a>
-            <a href="{{ route('finance.fiscal-periods.index') }}" class="sublink {{ Request::is('finance/fiscal-periods*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-calendar-range"></i> Fiscal Periods</a>
-            <a href="{{ route('finance.budgets.index') }}" class="sublink {{ Request::is('finance/budgets*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-bar-chart"></i> Budgets</a>
-            <a href="#accountingReportsMenu" data-bs-toggle="collapse" aria-expanded="{{ Request::is('finance/accounting-reports*') ? 'true' : 'false' }}" class="sublink {{ Request::is('finance/accounting-reports*') ? 'parent-active' : '' }}" style="padding-left: 40px;"><i class="bi bi-graph-up"></i> GL Reports</a>
-            <div class="collapse {{ Request::is('finance/accounting-reports*') ? 'show' : '' }}" id="accountingReportsMenu" style="padding-left: 40px;">
-                <a href="{{ route('finance.accounting-reports.trial-balance') }}" class="sublink {{ Request::is('finance/accounting-reports/trial-balance') ? 'active' : '' }}" style="padding-left: 60px;">Trial Balance</a>
-                <a href="{{ route('finance.accounting-reports.profit-and-loss') }}" class="sublink {{ Request::is('finance/accounting-reports/profit-and-loss') ? 'active' : '' }}" style="padding-left: 60px;">Profit &amp; Loss</a>
-                <a href="{{ route('finance.accounting-reports.balance-sheet') }}" class="sublink {{ Request::is('finance/accounting-reports/balance-sheet') ? 'active' : '' }}" style="padding-left: 60px;">Balance Sheet</a>
+        @if(Route::has('finance.chart-of-accounts.index'))
+            <a href="#accountingMenu" data-bs-toggle="collapse" aria-expanded="{{ $accountingActive ? 'true' : 'false' }}" class="sublink {{ $accountingActive ? 'parent-active' : '' }}"><i class="bi bi-journal-bookmark"></i> Accounting</a>
+            <div class="collapse {{ $accountingActive ? 'show' : '' }}" id="accountingMenu" style="padding-left: 20px;">
+                <a href="{{ route('finance.chart-of-accounts.index') }}" class="sublink {{ Request::is('finance/chart-of-accounts*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-diagram-3"></i> Chart of Accounts</a>
+                @if(Route::has('finance.journal-entries.index'))
+                    <a href="{{ route('finance.journal-entries.index') }}" class="sublink {{ Request::is('finance/journal-entries*') && !Request::is('finance/journal-entries/create') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-journal-text"></i> Journal Entries</a>
+                @endif
+                @if(Route::has('finance.petty-cash-funds.index'))
+                    <a href="{{ route('finance.petty-cash-funds.index') }}" class="sublink {{ Request::is('finance/petty-cash-funds*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-cash-coin"></i> Petty Cash Funds</a>
+                @endif
+                @if(Route::has('finance.petty-cash-vouchers.index'))
+                    <a href="{{ route('finance.petty-cash-vouchers.index') }}" class="sublink {{ Request::is('finance/petty-cash-vouchers*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-receipt-cutoff"></i> Petty Cash Vouchers</a>
+                @endif
+                @if(Route::has('finance.journal-entries.create'))
+                    <a href="{{ route('finance.journal-entries.create') }}" class="sublink {{ Request::is('finance/journal-entries/create') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-pencil-square"></i> Manual Journal</a>
+                @endif
+                @if(Route::has('finance.fiscal-periods.index'))
+                    <a href="{{ route('finance.fiscal-periods.index') }}" class="sublink {{ Request::is('finance/fiscal-periods*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-calendar-range"></i> Fiscal Periods</a>
+                @endif
+                @if(Route::has('finance.budgets.index'))
+                    <a href="{{ route('finance.budgets.index') }}" class="sublink {{ Request::is('finance/budgets*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-bar-chart"></i> Budgets</a>
+                @endif
+                @if(Route::has('finance.accounting-reports.trial-balance'))
+                    <a href="#accountingReportsMenu" data-bs-toggle="collapse" aria-expanded="{{ Request::is('finance/accounting-reports*') ? 'true' : 'false' }}" class="sublink {{ Request::is('finance/accounting-reports*') ? 'parent-active' : '' }}" style="padding-left: 40px;"><i class="bi bi-graph-up"></i> GL Reports</a>
+                    <div class="collapse {{ Request::is('finance/accounting-reports*') ? 'show' : '' }}" id="accountingReportsMenu" style="padding-left: 40px;">
+                        <a href="{{ route('finance.accounting-reports.trial-balance') }}" class="sublink {{ Request::is('finance/accounting-reports/trial-balance') ? 'active' : '' }}" style="padding-left: 60px;">Trial Balance</a>
+                        @if(Route::has('finance.accounting-reports.profit-and-loss'))
+                            <a href="{{ route('finance.accounting-reports.profit-and-loss') }}" class="sublink {{ Request::is('finance/accounting-reports/profit-and-loss') ? 'active' : '' }}" style="padding-left: 60px;">Profit &amp; Loss</a>
+                        @endif
+                        @if(Route::has('finance.accounting-reports.balance-sheet'))
+                            <a href="{{ route('finance.accounting-reports.balance-sheet') }}" class="sublink {{ Request::is('finance/accounting-reports/balance-sheet') ? 'active' : '' }}" style="padding-left: 60px;">Balance Sheet</a>
+                        @endif
+                    </div>
+                @endif
             </div>
-        </div>
+        @endif
         <a href="{{ route('finance.vendors.index') }}" class="sublink {{ Request::is('finance/vendors*') ? 'active' : '' }}"><i class="bi bi-building"></i> Vendors</a>
     </div>
     
