@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\DocumentNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -59,11 +60,7 @@ class Expense extends Model
 
     public static function generateExpenseNo(): string
     {
-        do {
-            $number = 'EXP-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
-        } while (self::where('expense_no', $number)->exists());
-
-        return $number;
+        return DocumentNumberService::generateExpense();
     }
 
     public function vendor(): BelongsTo

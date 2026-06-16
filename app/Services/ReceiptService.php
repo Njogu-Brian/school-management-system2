@@ -36,7 +36,9 @@ class ReceiptService
 
         $student = $payment->student;
         if (! $student && $payment->student_id) {
-            $student = \App\Models\Student::withoutGlobalScopes()->find($payment->student_id);
+            $student = \App\Models\Student::withoutGlobalScopes()
+                ->with(['classroom', 'family.updateLink'])
+                ->find($payment->student_id);
         }
         if (! $student) {
             throw new \RuntimeException('Student record not found for payment #'.$payment->id);

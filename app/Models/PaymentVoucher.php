@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\DocumentNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,6 +23,7 @@ class PaymentVoucher extends Model
         'status',
         'prepared_by',
         'approved_by',
+        'journal_entry_id',
     ];
 
     protected $casts = [
@@ -42,11 +44,7 @@ class PaymentVoucher extends Model
 
     public static function generateVoucherNo(): string
     {
-        do {
-            $number = 'PV-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
-        } while (self::where('voucher_no', $number)->exists());
-
-        return $number;
+        return DocumentNumberService::generatePaymentVoucher();
     }
 
     public function expense(): BelongsTo
@@ -67,5 +65,10 @@ class PaymentVoucher extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(ExpensePayment::class, 'voucher_id');
+    }
+
+    public function journalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class);
     }
 }

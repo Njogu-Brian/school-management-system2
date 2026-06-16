@@ -7,7 +7,7 @@
       'title' => 'Expenses',
       'icon' => 'bi bi-wallet2',
       'subtitle' => 'Track school operating expenses and approvals',
-      'actions' => '<a href="' . route('finance.expenses.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> New Expense</a>'
+      'actions' => '<a href="' . route('finance.expense-statements.index') . '" class="btn btn-finance btn-finance-outline me-2"><i class="bi bi-file-earmark-spreadsheet"></i> Statement Analyzer</a><a href="' . route('finance.expenses.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> New Expense</a>'
     ])
 
     <div class="finance-card mb-3">

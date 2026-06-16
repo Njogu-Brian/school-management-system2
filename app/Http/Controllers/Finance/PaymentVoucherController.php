@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\StoreExpensePaymentRequest;
 use App\Http\Requests\Finance\StoreVoucherRequest;
+use App\Models\BankAccount;
+use App\Models\Account;
 use App\Models\Expense;
 use App\Models\PaymentVoucher;
 use App\Services\ExpenseWorkflowService;
@@ -31,8 +33,19 @@ class PaymentVoucherController extends Controller
 
     public function show(PaymentVoucher $paymentVoucher): View
     {
-        $paymentVoucher->load(['expense.vendor', 'expense.requester', 'payments.recorder']);
-        return view('finance.vouchers.show', ['voucher' => $paymentVoucher]);
+        $paymentVoucher->load(['expense.vendor', 'expense.requester', 'payments.recorder', 'journalEntry.lines.account']);
+        $bankAccounts = BankAccount::with('account')->where('is_active', true)->orderBy('name')->get();
+        $cashAccounts = Account::query()
+            ->whereIn('code', ['1000', '1011', '1101'])
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get();
+
+        return view('finance.vouchers.show', [
+            'voucher' => $paymentVoucher,
+            'bankAccounts' => $bankAccounts,
+            'cashAccounts' => $cashAccounts,
+        ]);
     }
 
     public function pay(StoreExpensePaymentRequest $request, PaymentVoucher $paymentVoucher, ExpenseWorkflowService $workflowService): RedirectResponse

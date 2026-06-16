@@ -96,8 +96,8 @@ class SMSService
                     'output'   => 'json',
                 ]);
 
-                $curl = curl_init();
-                curl_setopt_array($curl, [
+                $curl = \curl_init();
+                \curl_setopt_array($curl, [
                     CURLOPT_URL            => $creditHistoryEndpoint,
                     CURLOPT_RETURNTRANSFER => true,
                     CURLOPT_TIMEOUT        => 10,
@@ -110,10 +110,10 @@ class SMSService
                     ],
                 ]);
 
-                $response = curl_exec($curl);
-                $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-                $err      = curl_error($curl);
-                curl_close($curl);
+                $response = \curl_exec($curl);
+                $httpCode = \curl_getinfo($curl, CURLINFO_HTTP_CODE);
+                $err      = \curl_error($curl);
+                \curl_close($curl);
 
                 if (!$err && $httpCode === 200) {
                     $decoded = json_decode($response, true);
@@ -275,8 +275,8 @@ class SMSService
             'message' => $message,
         ]);
 
-        $curl = curl_init();
-        curl_setopt_array($curl, [
+        $curl = \curl_init();
+        \curl_setopt_array($curl, [
             CURLOPT_URL            => $this->apiUrl,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 30,
@@ -289,10 +289,10 @@ class SMSService
             ],
         ]);
 
-        $response = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        $err      = curl_error($curl);
-        curl_close($curl);
+        $response = \curl_exec($curl);
+        $httpCode = \curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $err      = \curl_error($curl);
+        \curl_close($curl);
 
         if ($err) {
             Log::error("SMS Sending Failed: $err", [
@@ -398,8 +398,8 @@ class SMSService
                 'output'        => 'json',
             ]);
 
-            $curl = curl_init();
-            curl_setopt_array($curl, [
+            $curl = \curl_init();
+            \curl_setopt_array($curl, [
                 CURLOPT_URL            => $endpoint,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT        => 10,
@@ -412,10 +412,10 @@ class SMSService
                 ],
             ]);
 
-            $response = curl_exec($curl);
-            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-            $err      = curl_error($curl);
-            curl_close($curl);
+            $response = \curl_exec($curl);
+            $httpCode = \curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            $err      = \curl_error($curl);
+            \curl_close($curl);
 
             if ($err || $httpCode !== 200) {
                 Log::warning("Delivery status check failed", [
@@ -457,6 +457,12 @@ class SMSService
      */
     public function getAccountStatus(): ?array
     {
+        if (! function_exists('curl_init')) {
+            Log::warning('Account status check skipped: PHP curl extension is not enabled');
+
+            return null;
+        }
+
         $apiBase = 'https://smsportal.hostpinnacle.co.ke/SMSApi';
         
         // Primary endpoint from HostPinnacle documentation
@@ -473,8 +479,8 @@ class SMSService
         $fullUrl = $endpoint . '?' . $queryParams;
 
         try {
-            $curl = curl_init();
-            curl_setopt_array($curl, [
+            $curl = \curl_init();
+            \curl_setopt_array($curl, [
                 CURLOPT_URL            => $fullUrl,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT        => 10,
@@ -486,10 +492,10 @@ class SMSService
                 // NOTE: NOT including API key header - documentation states API key cannot be used in GET method
             ]);
 
-            $response = curl_exec($curl);
-            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-            $err      = curl_error($curl);
-            curl_close($curl);
+            $response = \curl_exec($curl);
+            $httpCode = \curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            $err      = \curl_error($curl);
+            \curl_close($curl);
 
             if ($err) {
                 Log::error("Account status check failed - cURL error", [

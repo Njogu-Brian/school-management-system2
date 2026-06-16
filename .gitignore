@@ -28,7 +28,12 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
-.qodo
+.venv
+app/Services/python/venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
 
 # Local Stitch / design exports (reference only — keep on your machine, not in git)
 _stitch_edunexus_export/

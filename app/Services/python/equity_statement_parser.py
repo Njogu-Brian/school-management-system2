@@ -859,6 +859,7 @@ def parse_paybill_table(tables_data):
             transactions.append({
                 'tran_date': tran_date,
                 'value_date': tran_date,
+                'completed_at': completion_time if completion_time else None,
                 'particulars': details,
                 'credit': credit,
                 'debit': debit,
@@ -913,6 +914,7 @@ def parse_paybill_from_text(page_texts):
         transactions.append({
             'tran_date': tran_date,
             'value_date': tran_date,
+            'completed_at': date_cand,
             'particulars': details.strip(),
             'credit': credit,
             'debit': debit,

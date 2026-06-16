@@ -81,8 +81,9 @@ class PayrollPeriodController extends Controller
     {
         $period = PayrollPeriod::with(['payrollRecords.staff', 'processedBy'])->findOrFail($id);
         $period->calculateTotals();
+        $bankAccounts = \App\Models\BankAccount::where('is_active', true)->orderBy('name')->get();
 
-        return view('hr.payroll.periods.show', compact('period'));
+        return view('hr.payroll.periods.show', compact('period', 'bankAccounts'));
     }
 
     /**
@@ -242,6 +243,12 @@ class PayrollPeriodController extends Controller
 
             DB::commit();
 
+            try {
+                app(\App\Services\Finance\PayrollPostingService::class)->postAccrual($period->fresh(), auth()->user());
+            } catch (\Exception $e) {
+                \Log::warning('Payroll GL accrual failed', ['period_id' => $period->id, 'error' => $e->getMessage()]);
+            }
+
             return redirect()->route('hr.payroll.periods.show', $period->id)
                 ->with('success', 'Payroll processed successfully for ' . $period->staff_count . ' staff members.');
         } catch (\Exception $e) {
@@ -267,5 +274,30 @@ class PayrollPeriodController extends Controller
         $period->save();
 
         return back()->with('success', 'Payroll period locked successfully.');
+    }
+
+    public function markPaid(Request $request, $id)
+    {
+        $period = PayrollPeriod::findOrFail($id);
+
+        if ($period->status !== 'completed' && $period->status !== 'locked') {
+            return back()->with('error', 'Only completed payroll periods can be marked as paid.');
+        }
+
+        $validated = $request->validate([
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+        ]);
+
+        try {
+            app(\App\Services\Finance\PayrollPostingService::class)->markPeriodPaid(
+                $period,
+                $request->user(),
+                $validated['bank_account_id'] ?? null,
+            );
+
+            return back()->with('success', 'Payroll marked as paid and posted to the general ledger.');
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 }

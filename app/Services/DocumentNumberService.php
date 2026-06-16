@@ -135,4 +135,24 @@ class DocumentNumberService
     {
         return self::generate('debit_note', 'DN', 5);
     }
+
+    public static function generateExpense(): string
+    {
+        return self::generate('expense', 'EXP', 5);
+    }
+
+    public static function generatePaymentVoucher(): string
+    {
+        return self::generate('payment_voucher', 'PV', 5);
+    }
+
+    public static function generatePettyCashVoucher(): string
+    {
+        return self::generate('petty_cash_voucher', 'PCV', 5);
+    }
+
+    public static function generateJournalEntry(): string
+    {
+        return self::generate('journal_entry', 'JE', 5);
+    }
 }

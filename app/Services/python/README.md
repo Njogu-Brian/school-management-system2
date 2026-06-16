@@ -30,9 +30,33 @@ This directory contains the Python parser for bank statements (MPESA and Equity 
 
 Python 3.9 or higher is required.
 
-## Local Installation
+## Local Installation (recommended — project venv)
 
-1. **Install Python 3.9+** if not already installed:
+The Laravel app prefers a **project virtualenv** at `app/Services/python/venv/` so PDF parsing works from the web server (not only your user shell).
+
+**Windows (PowerShell):**
+```powershell
+cd app/Services/python
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install pdfplumber
+```
+
+**macOS/Linux:**
+```bash
+cd app/Services/python
+python3 -m venv venv
+source venv/bin/activate
+pip install pdfplumber
+```
+
+Verify:
+```bash
+php scripts/test_mpesa_parser.php
+```
+
+Optional: set `PYTHON_BIN` in `.env` to a specific interpreter if auto-detection fails.
+
+## Local Installation (system Python)
    - Windows: Download from https://www.python.org/downloads/
    - macOS: `brew install python3`
    - Linux: Usually pre-installed, or `sudo apt-get install python3 python3-pip`

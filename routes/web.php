@@ -848,6 +848,7 @@ Route::middleware('auth')->group(function () {
                 Route::resource('periods', \App\Http\Controllers\Hr\PayrollPeriodController::class);
                 Route::post('/periods/{id}/process', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'process'])->name('periods.process');
                 Route::post('/periods/{id}/lock', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'lock'])->name('periods.lock');
+                Route::post('/periods/{id}/mark-paid', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'markPaid'])->name('periods.mark-paid');
                 
                 // Payroll Records
                 Route::resource('records', \App\Http\Controllers\Hr\PayrollRecordController::class);
@@ -1451,6 +1452,50 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('expense-categories', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'index'])->name('expense-categories.index');
         Route::post('expense-categories', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'store'])->name('expense-categories.store');
         Route::put('expense-categories/{expenseCategory}', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'update'])->name('expense-categories.update');
+
+        // Accounting (chart of accounts, journals, petty cash)
+        Route::get('chart-of-accounts', [\App\Http\Controllers\Finance\ChartOfAccountController::class, 'index'])->name('chart-of-accounts.index');
+        Route::post('chart-of-accounts', [\App\Http\Controllers\Finance\ChartOfAccountController::class, 'store'])->name('chart-of-accounts.store');
+        Route::put('chart-of-accounts/{account}', [\App\Http\Controllers\Finance\ChartOfAccountController::class, 'update'])->name('chart-of-accounts.update');
+
+        Route::get('journal-entries', [\App\Http\Controllers\Finance\JournalEntryController::class, 'index'])->name('journal-entries.index');
+        Route::get('journal-entries/create', [\App\Http\Controllers\Finance\JournalEntryController::class, 'create'])->name('journal-entries.create');
+        Route::post('journal-entries', [\App\Http\Controllers\Finance\JournalEntryController::class, 'store'])->name('journal-entries.store');
+        Route::get('journal-entries/{journalEntry}', [\App\Http\Controllers\Finance\JournalEntryController::class, 'show'])->name('journal-entries.show');
+
+        Route::get('accounting-reports/trial-balance', [\App\Http\Controllers\Finance\AccountingReportController::class, 'trialBalance'])->name('accounting-reports.trial-balance');
+        Route::get('accounting-reports/profit-and-loss', [\App\Http\Controllers\Finance\AccountingReportController::class, 'profitAndLoss'])->name('accounting-reports.profit-and-loss');
+        Route::get('accounting-reports/balance-sheet', [\App\Http\Controllers\Finance\AccountingReportController::class, 'balanceSheet'])->name('accounting-reports.balance-sheet');
+
+        Route::get('fiscal-periods', [\App\Http\Controllers\Finance\FiscalPeriodController::class, 'index'])->name('fiscal-periods.index');
+        Route::post('fiscal-periods', [\App\Http\Controllers\Finance\FiscalPeriodController::class, 'store'])->name('fiscal-periods.store');
+        Route::post('fiscal-periods/{fiscalPeriod}/close', [\App\Http\Controllers\Finance\FiscalPeriodController::class, 'close'])->name('fiscal-periods.close');
+
+        Route::get('budgets', [\App\Http\Controllers\Finance\BudgetController::class, 'index'])->name('budgets.index');
+        Route::post('budgets', [\App\Http\Controllers\Finance\BudgetController::class, 'store'])->name('budgets.store');
+        Route::get('budgets/{budget}', [\App\Http\Controllers\Finance\BudgetController::class, 'show'])->name('budgets.show');
+        Route::post('budgets/{budget}/lines', [\App\Http\Controllers\Finance\BudgetController::class, 'storeLine'])->name('budgets.lines.store');
+
+        Route::get('petty-cash-funds', [\App\Http\Controllers\Finance\PettyCashFundController::class, 'index'])->name('petty-cash-funds.index');
+        Route::get('petty-cash-funds/create', [\App\Http\Controllers\Finance\PettyCashFundController::class, 'create'])->name('petty-cash-funds.create');
+        Route::post('petty-cash-funds', [\App\Http\Controllers\Finance\PettyCashFundController::class, 'store'])->name('petty-cash-funds.store');
+
+        Route::get('petty-cash-vouchers', [\App\Http\Controllers\Finance\PettyCashVoucherController::class, 'index'])->name('petty-cash-vouchers.index');
+        Route::get('petty-cash-vouchers/create', [\App\Http\Controllers\Finance\PettyCashVoucherController::class, 'create'])->name('petty-cash-vouchers.create');
+        Route::post('petty-cash-vouchers', [\App\Http\Controllers\Finance\PettyCashVoucherController::class, 'store'])->name('petty-cash-vouchers.store');
+        Route::get('petty-cash-vouchers/{pettyCashVoucher}', [\App\Http\Controllers\Finance\PettyCashVoucherController::class, 'show'])->name('petty-cash-vouchers.show');
+        Route::post('petty-cash-vouchers/{pettyCashVoucher}/approve', [\App\Http\Controllers\Finance\PettyCashVoucherController::class, 'approve'])->name('petty-cash-vouchers.approve');
+        Route::post('petty-cash-vouchers/{pettyCashVoucher}/post', [\App\Http\Controllers\Finance\PettyCashVoucherController::class, 'post'])->name('petty-cash-vouchers.post');
+
+        // Expense statement analyzer (M-Pesa / bank statements for expenditure tracking)
+        Route::get('expense-statements', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'index'])->name('expense-statements.index');
+        Route::get('expense-statements/create', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'create'])->name('expense-statements.create');
+        Route::post('expense-statements', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'store'])->name('expense-statements.store');
+        Route::get('expense-statements/{expenseStatement}', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'show'])->name('expense-statements.show');
+        Route::post('expense-statements/{expenseStatement}/groups', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'updateGroup'])->name('expense-statements.groups.update');
+        Route::post('expense-statements/{expenseStatement}/lines', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'updateLine'])->name('expense-statements.lines.update');
+        Route::post('expense-statements/{expenseStatement}/generate-expenses', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'generateExpenses'])->name('expense-statements.generate-expenses');
+        Route::delete('expense-statements/{expenseStatement}', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'destroy'])->name('expense-statements.destroy');
 
         Route::resource('vendors', \App\Http\Controllers\Finance\VendorController::class)->except(['show', 'destroy']);
         

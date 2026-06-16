@@ -24,6 +24,9 @@ class PayrollPeriod extends Model
         'staff_count',
         'processed_at',
         'processed_by',
+        'accrual_journal_entry_id',
+        'payment_journal_entry_id',
+        'paid_at',
         'notes',
     ];
 
@@ -38,7 +41,18 @@ class PayrollPeriod extends Model
         'total_net' => 'decimal:2',
         'staff_count' => 'integer',
         'processed_at' => 'datetime',
+        'paid_at' => 'datetime',
     ];
+
+    public function getNameAttribute(): string
+    {
+        return (string) ($this->period_name ?? "{$this->year}-{$this->month}");
+    }
+
+    public function records()
+    {
+        return $this->payrollRecords();
+    }
 
     public function payrollRecords()
     {

@@ -7,12 +7,27 @@
     $loginBg    = isset($settings['login_background']) && $settings['login_background'] ? $settings['login_background']->value : null;
 
     // Use public_images_path / public_image_url so ASSET_URL and PUBLIC_WEB_ROOT work in production
+    $publicStoragePath = static function (?string $file): ?string {
+        if (! $file) {
+            return null;
+        }
+
+        return storage_path('app/public/' . ltrim(str_replace('\\', '/', $file), '/'));
+    };
+    $publicStorageUrl = static function (?string $file): ?string {
+        if (! $file) {
+            return null;
+        }
+
+        return asset('storage/' . ltrim(str_replace('\\', '/', $file), '/'));
+    };
+
     $bgImage = null;
     if ($loginBg) {
         if (file_exists(public_images_path($loginBg))) {
             $bgImage = public_image_url($loginBg);
-        } elseif (\Illuminate\Support\Facades\Storage::disk('public')->exists($loginBg)) {
-            $bgImage = \Illuminate\Support\Facades\Storage::url($loginBg);
+        } elseif (file_exists($publicStoragePath($loginBg))) {
+            $bgImage = $publicStorageUrl($loginBg);
         }
     }
     if (!$bgImage) {
@@ -22,8 +37,8 @@
                 $bgImage = public_image_url($fallback);
                 break;
             }
-            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($fallback)) {
-                $bgImage = \Illuminate\Support\Facades\Storage::url($fallback);
+            if (file_exists($publicStoragePath($fallback))) {
+                $bgImage = $publicStorageUrl($fallback);
                 break;
             }
         }

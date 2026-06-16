@@ -22,6 +22,7 @@ class Votehead extends Model
         'is_optional',
         'is_active',
         'is_activity_fee',
+        'account_id',
     ];
 
     protected $casts = [
@@ -89,6 +90,11 @@ class Votehead extends Model
     public function feeConcessions(): HasMany
     {
         return $this->hasMany(FeeConcession::class);
+    }
+
+    public function account(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Account::class);
     }
 
     public function activityFeeAttendances(): HasMany

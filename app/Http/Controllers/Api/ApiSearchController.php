@@ -247,14 +247,19 @@ class ApiSearchController extends Controller
     private function searchPayments(string $like, int $page, int $limit): array
     {
         return Payment::query()
-            ->with('student')
+            ->with(['student' => fn ($q) => $q->withoutGlobalScopes()])
             ->where('reversed', false)
             ->where(function ($q) use ($like) {
                 $q->where('receipt_number', 'like', $like)
                     ->orWhere('transaction_code', 'like', $like)
-                    ->orWhereHas('student', fn ($s) => $s->where('first_name', 'like', $like)
-                        ->orWhere('last_name', 'like', $like)
-                        ->orWhere('admission_number', 'like', $like));
+                    ->orWhereHas('student', function ($s) use ($like) {
+                        $s->withoutGlobalScopes()
+                            ->where(function ($n) use ($like) {
+                                $n->where('first_name', 'like', $like)
+                                    ->orWhere('last_name', 'like', $like)
+                                    ->orWhere('admission_number', 'like', $like);
+                            });
+                    });
             })
             ->latest('payment_date')
             ->paginate($limit, ['*'], 'page', $page)

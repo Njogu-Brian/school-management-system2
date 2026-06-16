@@ -36,12 +36,27 @@
                     </form>
                 @endif
                 @if($period->status === 'completed')
-                    <form action="{{ route('hr.payroll.periods.lock', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Lock this payroll period? Locked periods cannot be modified.')">
+                    <form action="{{ route('hr.payroll.periods.lock', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Lock this payroll period?')">
                         @csrf
-                        <button type="submit" class="btn btn-danger">
-                            <i class="bi bi-lock"></i> Lock Period
+                        <button type="submit" class="btn btn-danger"><i class="bi bi-lock"></i> Lock</button>
+                    </form>
+                @endif
+                @if(in_array($period->status, ['completed', 'locked']) && !$period->payment_journal_entry_id)
+                    <form action="{{ route('hr.payroll.periods.mark-paid', $period->id) }}" method="POST" class="d-inline-flex gap-2 align-items-center" onsubmit="return confirm('Mark payroll as paid and post to the general ledger?')">
+                        @csrf
+                        <select name="bank_account_id" class="form-select form-select-sm">
+                            <option value="">Pay from default bank GL</option>
+                            @foreach($bankAccounts ?? [] as $bank)
+                                <option value="{{ $bank->id }}">{{ $bank->name }}</option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-cash-stack"></i> Mark Paid &amp; Post GL
                         </button>
                     </form>
+                @endif
+                @if($period->payment_journal_entry_id)
+                    <span class="pill-badge pill-success">Paid {{ optional($period->paid_at)->format('d M Y') }}</span>
                 @endif
             </div>
         </div>

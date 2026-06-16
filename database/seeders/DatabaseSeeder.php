@@ -14,7 +14,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             Comprehensive2025Seeder::class,
-            ExpenseCategorySeeder::class,
+            ChartOfAccountsSeeder::class,
             ExpensePermissionSeeder::class,
         ]);
     }

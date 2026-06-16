@@ -52,11 +52,11 @@
 <table class="receipt-details-table">
     <tr>
         <td class="detail-label">Student Name:</td>
-        <td class="detail-value">{{ $student->full_name ?? 'N/A' }}</td>
+        <td class="detail-value">{{ $student?->full_name ?? 'N/A' }}@if($student && ($student->archive || $student->is_alumni)) <span style="font-size:8px;color:#856404;">(Archived)</span>@endif</td>
         <td class="detail-label" style="text-align: right; width: 25%;">Receipt Number:</td>
         <td class="detail-value" style="text-align: right; width: 25%;"><strong>{{ $receipt_number ?? $payment->receipt_number }}</strong></td>
     </tr>
-    @if($student->admission_number)
+    @if($student?->admission_number)
     <tr>
         <td class="detail-label">Admission Number:</td>
         <td class="detail-value">{{ $student->admission_number }}</td>
@@ -70,7 +70,7 @@
         <td class="detail-value" style="text-align: right; width: 25%;">{{ $date ?? ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : date('d M Y')) }}</td>
     </tr>
     @endif
-    @if($student->classroom)
+    @if($student?->classroom)
     <tr>
         <td class="detail-label">Class:</td>
         <td class="detail-value">{{ $student->classroom->name ?? 'N/A' }}</td>

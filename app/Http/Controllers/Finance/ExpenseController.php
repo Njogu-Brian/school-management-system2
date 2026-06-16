@@ -37,7 +37,7 @@ class ExpenseController extends Controller
     public function create(): View
     {
         $this->authorize('create', Expense::class);
-        $categories = ExpenseCategory::where('is_active', true)->orderBy('name')->get();
+        $categories = ExpenseCategory::where('is_active', true)->where('is_header', false)->orderBy('name')->get();
         $vendors = Vendor::where('is_active', true)->orderBy('name')->get();
 
         return view('finance.expenses.create', compact('categories', 'vendors'));
@@ -93,7 +93,7 @@ class ExpenseController extends Controller
     {
         $this->authorize('update', $expense);
         $expense->load('lines');
-        $categories = ExpenseCategory::where('is_active', true)->orderBy('name')->get();
+        $categories = ExpenseCategory::where('is_active', true)->where('is_header', false)->orderBy('name')->get();
         $vendors = Vendor::where('is_active', true)->orderBy('name')->get();
 
         return view('finance.expenses.edit', compact('expense', 'categories', 'vendors'));

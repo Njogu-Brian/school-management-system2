@@ -5,13 +5,17 @@ namespace App\Services;
 use App\Models\Expense;
 use App\Models\ExpenseApproval;
 use App\Models\ExpensePayment;
-use App\Models\LedgerPosting;
 use App\Models\PaymentVoucher;
 use App\Models\User;
+use App\Services\Finance\JournalPostingService;
 use Illuminate\Support\Facades\DB;
 
 class ExpenseWorkflowService
 {
+    public function __construct(
+        protected JournalPostingService $journalPosting,
+    ) {}
+
     public function submit(Expense $expense): Expense
     {
         if ($expense->status !== Expense::STATUS_DRAFT) {
@@ -36,7 +40,7 @@ class ExpenseWorkflowService
             throw new \InvalidArgumentException('Only submitted expenses can be approved or rejected.');
         }
 
-        if (!in_array($decision, ['approved', 'rejected'], true)) {
+        if (! in_array($decision, ['approved', 'rejected'], true)) {
             throw new \InvalidArgumentException('Decision must be approved or rejected.');
         }
 
@@ -80,15 +84,19 @@ class ExpenseWorkflowService
 
     public function payVoucher(PaymentVoucher $voucher, User $user, array $attributes): ExpensePayment
     {
-        if (!in_array($voucher->status, ['approved', 'draft'], true)) {
+        if (! in_array($voucher->status, ['approved', 'draft'], true)) {
             throw new \InvalidArgumentException('Voucher is not payable in current status.');
         }
 
         return DB::transaction(function () use ($voucher, $user, $attributes) {
+            $creditAccount = $this->resolvePaymentAccount($attributes);
+
             $payment = ExpensePayment::create([
                 'voucher_id' => $voucher->id,
                 'reference_no' => $attributes['reference_no'] ?? null,
                 'account_source' => $attributes['account_source'] ?? null,
+                'bank_account_id' => $attributes['bank_account_id'] ?? null,
+                'account_id' => $creditAccount->id,
                 'amount' => $attributes['amount'] ?? $voucher->amount,
                 'paid_at' => $attributes['paid_at'] ?? now(),
                 'recorded_by' => $user->id,
@@ -98,36 +106,87 @@ class ExpenseWorkflowService
             $voucher->payment_date = $payment->paid_at;
             $voucher->save();
 
-            $expense = $voucher->expense;
+            $expense = $voucher->expense()->with(['lines.category.account'])->firstOrFail();
             $expense->status = Expense::STATUS_PAID;
             $expense->save();
 
-            $this->postBasicLedgerEntries($expense, $voucher, $payment);
+            $journalEntry = $this->postExpensePaymentJournal($expense, $voucher, $payment, $creditAccount, $user);
+            $voucher->journal_entry_id = $journalEntry->id;
+            $voucher->save();
 
             return $payment;
         });
     }
 
-    protected function postBasicLedgerEntries(Expense $expense, PaymentVoucher $voucher, ExpensePayment $payment): void
+    protected function postExpensePaymentJournal(
+        Expense $expense,
+        PaymentVoucher $voucher,
+        ExpensePayment $payment,
+        $creditAccount,
+        User $user,
+    ) {
+        $lines = [];
+        $defaultExpenseAccount = $this->journalPosting->systemAccount('5999');
+
+        foreach ($expense->lines as $line) {
+            $amount = (float) $line->line_total;
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $expenseAccount = $line->category?->account ?? $defaultExpenseAccount;
+            $lines[] = [
+                'account_id' => $expenseAccount->id,
+                'debit' => $amount,
+                'description' => $line->description,
+            ];
+        }
+
+        if ($lines === []) {
+            $lines[] = [
+                'account_id' => $defaultExpenseAccount->id,
+                'debit' => (float) $payment->amount,
+                'description' => $expense->notes ?? 'Expense payment',
+            ];
+        }
+
+        $lines[] = [
+            'account_id' => $creditAccount->id,
+            'credit' => (float) $payment->amount,
+            'description' => 'Payment for ' . $expense->expense_no,
+        ];
+
+        return $this->journalPosting->post(
+            $lines,
+            'Payment voucher ' . $voucher->voucher_no . ' — ' . $expense->expense_no,
+            $payment->paid_at ?? now(),
+            'expense_payment',
+            $payment->id,
+            $user,
+        );
+    }
+
+    protected function resolvePaymentAccount(array $attributes)
     {
-        $postingDate = $payment->paid_at?->toDateString() ?? now()->toDateString();
+        if (! empty($attributes['account_id'])) {
+            return \App\Models\Account::findOrFail($attributes['account_id']);
+        }
 
-        LedgerPosting::create([
-            'source_type' => 'expense_payment',
-            'source_id' => $payment->id,
-            'account_code' => 'EXPENSE',
-            'dr_cr' => 'dr',
-            'amount' => $payment->amount,
-            'posting_date' => $postingDate,
-        ]);
+        if (! empty($attributes['bank_account_id'])) {
+            $bank = \App\Models\BankAccount::with('account')->find($attributes['bank_account_id']);
+            if ($bank?->account) {
+                return $bank->account;
+            }
 
-        LedgerPosting::create([
-            'source_type' => 'expense_payment',
-            'source_id' => $payment->id,
-            'account_code' => 'CASH_BANK',
-            'dr_cr' => 'cr',
-            'amount' => $payment->amount,
-            'posting_date' => $postingDate,
-        ]);
+            return $this->journalPosting->systemAccount('1011');
+        }
+
+        $source = strtolower((string) ($attributes['account_source'] ?? ''));
+
+        if (str_contains($source, 'petty') || str_contains($source, 'cash')) {
+            return $this->journalPosting->systemAccount('1000');
+        }
+
+        return $this->journalPosting->systemAccount('1010');
     }
 }

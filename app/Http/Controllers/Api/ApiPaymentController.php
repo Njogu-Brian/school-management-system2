@@ -37,10 +37,10 @@ class ApiPaymentController extends Controller
         $activeOnly = $request->has('active_only') ? $request->boolean('active_only') : true;
 
         $query = Payment::query()
-            ->with(['paymentMethod', 'student'])
-            ->whereHas('student', function ($q) {
-                $q->where('archive', 0)->where('is_alumni', false);
-            })
+            ->with([
+                'paymentMethod',
+                'student' => fn ($q) => $q->withoutGlobalScopes()->with('classroom'),
+            ])
             ->where('receipt_number', 'not like', 'SWIM-%')
             ->whereNull('deleted_at');
 
@@ -49,7 +49,7 @@ class ApiPaymentController extends Controller
         }
 
         if ($request->filled('class_id')) {
-            $query->whereHas('student', fn ($s) => $s->where('classroom_id', (int) $request->class_id));
+            $query->whereHas('student', fn ($s) => $s->withoutGlobalScopes()->where('classroom_id', (int) $request->class_id));
         }
 
         if ($request->filled('search')) {
@@ -58,9 +58,12 @@ class ApiPaymentController extends Controller
                 $qq->where('receipt_number', 'like', $term)
                     ->orWhere('transaction_code', 'like', $term)
                     ->orWhereHas('student', function ($s) use ($term) {
-                        $s->where('first_name', 'like', $term)
-                            ->orWhere('last_name', 'like', $term)
-                            ->orWhere('admission_number', 'like', $term);
+                        $s->withoutGlobalScopes()
+                            ->where(function ($n) use ($term) {
+                                $n->where('first_name', 'like', $term)
+                                    ->orWhere('last_name', 'like', $term)
+                                    ->orWhere('admission_number', 'like', $term);
+                            });
                     });
             });
         }

@@ -16,6 +16,8 @@ class StoreExpensePaymentRequest extends FormRequest
         return [
             'reference_no' => 'nullable|string|max:255',
             'account_source' => 'nullable|string|max:255',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'account_id' => 'nullable|exists:accounts,id',
             'amount' => 'required|numeric|min:0.01',
             'paid_at' => 'nullable|date',
         ];

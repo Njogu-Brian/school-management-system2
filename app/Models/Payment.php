@@ -42,6 +42,7 @@ class Payment extends Model
         'reversed_at',
         'reversal_reason',
         'version',
+        'journal_entry_id',
         'bulk_sent_channels',
     ];
 
@@ -125,6 +126,11 @@ class Payment extends Model
     public function allocations(): HasMany
     {
         return $this->hasMany(PaymentAllocation::class);
+    }
+
+    public function journalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class);
     }
 
     public function receipt(): HasOne

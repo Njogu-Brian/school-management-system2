@@ -17,6 +17,7 @@ class BankAccount extends Model
         'is_active',
         'currency',
         'notes',
+        'account_id',
     ];
 
     protected $casts = [
@@ -26,6 +27,11 @@ class BankAccount extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function account(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Account::class);
     }
 
     public function scopeActive($query)

@@ -45,6 +45,11 @@ return [
         'sender_id_finance' => env('SMS_SENDER_ID_FINANCE', 'rks_finance'),
     ],
 
+    'python' => [
+        // Optional absolute path to python executable, e.g. C:\Python314\python.exe
+        'binary' => env('PYTHON_BIN'),
+    ],
+
     'mpesa' => [
         'consumer_key' => env('MPESA_CONSUMER_KEY'),
         'consumer_secret' => env('MPESA_CONSUMER_SECRET'),

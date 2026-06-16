@@ -14,6 +14,8 @@ class ExpensePayment extends Model
         'voucher_id',
         'reference_no',
         'account_source',
+        'bank_account_id',
+        'account_id',
         'amount',
         'paid_at',
         'recorded_by',
@@ -32,5 +34,15 @@ class ExpensePayment extends Model
     public function recorder(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
+    }
+
+    public function account(): BelongsTo
+    {
+        return $this->belongsTo(Account::class);
     }
 }

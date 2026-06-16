@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\CommunicationTemplate;
 use App\Models\CommunicationLog;
 use App\Services\PaymentAllocationService;
+use App\Services\Finance\FeePaymentPostingService;
 use App\Services\ReceiptService;
 use App\Services\SMSService;
 use App\Services\CommunicationService;
@@ -24,25 +25,29 @@ class PaymentController extends Controller
     protected ReceiptService $receiptService;
     protected SMSService $smsService;
     protected CommunicationService $commService;
+    protected FeePaymentPostingService $feePostingService;
 
     public function __construct(
         PaymentAllocationService $allocationService,
         ReceiptService $receiptService,
         SMSService $smsService,
-        CommunicationService $commService
+        CommunicationService $commService,
+        FeePaymentPostingService $feePostingService,
     ) {
         $this->allocationService = $allocationService;
         $this->receiptService = $receiptService;
         $this->smsService = $smsService;
         $this->commService = $commService;
+        $this->feePostingService = $feePostingService;
     }
 
     public function index(Request $request)
     {
-        $query = Payment::with(['student.classroom', 'student.stream', 'paymentMethod', 'invoice'])
-            ->whereHas('student', function($q) {
-                $q->where('archive', 0)->where('is_alumni', false);
-            })
+        $query = Payment::with([
+                'student' => fn ($q) => $q->withoutGlobalScopes()->with(['classroom', 'stream']),
+                'paymentMethod',
+                'invoice',
+            ])
             // Exclude swimming payments - they are managed separately in Swimming Management
             ->where('receipt_number', 'not like', 'SWIM-%')
             // Exclude soft-deleted payments
@@ -55,34 +60,43 @@ class PaymentController extends Controller
         }
         
         if ($request->filled('class_id')) {
-            $query->whereHas('student', function($q) use ($request) {
-                $q->where('classroom_id', $request->class_id);
+            $query->whereHas('student', function ($q) use ($request) {
+                $q->withoutGlobalScopes()->where('classroom_id', $request->class_id);
             });
         }
-        
+
         if ($request->filled('stream_id')) {
-            $query->whereHas('student', function($q) use ($request) {
-                $q->where('stream_id', $request->stream_id);
+            $query->whereHas('student', function ($q) use ($request) {
+                $q->withoutGlobalScopes()->where('stream_id', $request->stream_id);
             });
         }
-        
+
         if ($request->filled('payment_method_id')) {
             $query->where('payment_method_id', $request->payment_method_id);
         }
-        
+
         if ($request->filled('from_date')) {
             $query->whereDate('payment_date', '>=', $request->from_date);
         }
-        
+
         if ($request->filled('to_date')) {
             $query->whereDate('payment_date', '<=', $request->to_date);
         }
-        
+
         if ($request->filled('search')) {
-            $search = trim($request->search);
+            $search = '%' . addcslashes(trim($request->search), '%_\\') . '%';
             $query->where(function ($q) use ($search) {
-                $q->where('receipt_number', 'like', '%' . $search . '%')
-                  ->orWhere('transaction_code', 'like', '%' . $search . '%');
+                $q->where('receipt_number', 'like', $search)
+                  ->orWhere('transaction_code', 'like', $search)
+                  ->orWhereHas('student', function ($sq) use ($search) {
+                      $sq->withoutGlobalScopes()
+                          ->where(function ($n) use ($search) {
+                              $n->where('first_name', 'like', $search)
+                                  ->orWhere('middle_name', 'like', $search)
+                                  ->orWhere('last_name', 'like', $search)
+                                  ->orWhere('admission_number', 'like', $search);
+                          });
+                  });
             });
         }
         
@@ -440,6 +454,18 @@ class PaymentController extends Controller
                     'student_id' => $createdPayment->student_id,
                     'error' => $e->getMessage(),
                 ]);
+            }
+        }
+
+        // Post fee receipts to general ledger
+        foreach (array_unique($createdPaymentIds) as $paymentId) {
+            try {
+                $payment = Payment::with(['allocations.invoiceItem.votehead.account', 'paymentMethod.bankAccount.account'])->find($paymentId);
+                if ($payment) {
+                    $this->feePostingService->post($payment, $request->user());
+                }
+            } catch (\Exception $e) {
+                Log::warning('Fee GL posting failed', ['payment_id' => $paymentId, 'error' => $e->getMessage()]);
             }
         }
 
@@ -1518,6 +1544,12 @@ class PaymentController extends Controller
             
             // Update allocation totals to ensure consistency
             $payment->updateAllocationTotals();
+
+            try {
+                app(FeePaymentPostingService::class)->reverse($payment->fresh(), auth()->user());
+            } catch (\Exception $e) {
+                Log::warning('Fee GL reversal failed', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+            }
             
             // Log audit trail
             try {
@@ -2235,16 +2267,12 @@ class PaymentController extends Controller
     {
         try {
             $query = Payment::with([
-                'student.classroom', 
-                'student.stream', 
-                'paymentMethod', 
+                'student' => fn ($q) => $q->withoutGlobalScopes()->with(['classroom', 'stream']),
+                'paymentMethod',
                 'invoice',
                 'allocations.invoiceItem.votehead',
-                'allocations.invoiceItem.invoice'
+                'allocations.invoiceItem.invoice',
             ])
-            ->whereHas('student', function($q) {
-                $q->where('archive', 0)->where('is_alumni', false);
-            })
             ->where('reversed', false); // Exclude reversed payments
         
             // Apply filters (same as index)
@@ -2253,29 +2281,29 @@ class PaymentController extends Controller
             }
             
             if ($request->filled('class_id')) {
-                $query->whereHas('student', function($q) use ($request) {
-                    $q->where('classroom_id', $request->class_id);
+                $query->whereHas('student', function ($q) use ($request) {
+                    $q->withoutGlobalScopes()->where('classroom_id', $request->class_id);
                 });
             }
-            
+
             if ($request->filled('stream_id')) {
-                $query->whereHas('student', function($q) use ($request) {
-                    $q->where('stream_id', $request->stream_id);
+                $query->whereHas('student', function ($q) use ($request) {
+                    $q->withoutGlobalScopes()->where('stream_id', $request->stream_id);
                 });
             }
-            
+
             if ($request->filled('payment_method_id')) {
                 $query->where('payment_method_id', $request->payment_method_id);
             }
-            
+
             if ($request->filled('from_date')) {
                 $query->whereDate('payment_date', '>=', $request->from_date);
             }
-            
+
             if ($request->filled('to_date')) {
                 $query->whereDate('payment_date', '<=', $request->to_date);
             }
-            
+
             // If specific payment IDs are provided, use those
             if ($request->filled('payment_ids')) {
                 $paymentIds = is_array($request->payment_ids) 
@@ -2353,15 +2381,15 @@ class PaymentController extends Controller
         }
 
         $payment->load([
-            'student.classroom',
-            'student.family.updateLink',
             'invoice.term.academicYear',
             'paymentMethod',
             'allocations.invoiceItem.votehead',
             'allocations.invoiceItem.invoice.term.academicYear',
         ]);
 
-        $student = $payment->student;
+        $receiptData = app(\App\Services\ReceiptService::class)->buildReceiptData($payment);
+        $student = $receiptData['student'] ?? null;
+        $payment->setRelation('student', $student);
 
         // Ensure student has a family and profile update link (so Update Profile button shows)
         if ($student) {
@@ -2377,7 +2405,6 @@ class PaymentController extends Controller
             }
         }
 
-        $receiptData = app(\App\Services\ReceiptService::class)->buildReceiptData($payment);
         $receiptData['receipt_number'] = $payment->shared_receipt_number ?? $receiptData['receipt_number'];
 
         if (!$payment->public_token) {
