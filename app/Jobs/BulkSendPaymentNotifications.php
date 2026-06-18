@@ -423,6 +423,7 @@ class BulkSendPaymentNotifications implements ShouldQueue
                 $vars = array_merge($variables, parent_recipient_placeholder_extra($parentName, $parent, $r['slot'] ?? null));
                 $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $vars);
 
+                \App\Services\WhatsAppBulkRateLimiter::waitBeforeSend('global');
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
 
                 $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';

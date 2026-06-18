@@ -915,6 +915,7 @@ class PaymentController extends Controller
                 }
 
                 $whatsappService = app(\App\Services\WhatsAppService::class);
+                \App\Services\WhatsAppBulkRateLimiter::waitBeforeSend('global');
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
                 $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
                 CommunicationLog::create([

@@ -131,7 +131,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         $failedCount = 0;
         $processed = 0;
         $reportRows = [];
-        $delayBetweenMessages = 5; // Default 5 seconds for account protection
+        $delayBetweenMessages = \App\Services\WhatsAppBulkRateLimiter::delaySeconds();
         $lastSentTime = 0;
 
         // Idempotency: if this job is retried/restarted with the same tracking_id,
@@ -212,7 +212,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     }
                 }
 
-                // Calculate delay needed since last message
+                // Rate limit: wait before each WhatsApp API call
                 if ($lastSentTime > 0) {
                     $currentTime = time();
                     $timeSinceLastMessage = $currentTime - $lastSentTime;
@@ -221,6 +221,8 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                         $waitTime = $delayBetweenMessages - $timeSinceLastMessage;
                         sleep($waitTime);
                     }
+                } else {
+                    \App\Services\WhatsAppBulkRateLimiter::waitBeforeSend('global');
                 }
 
                 // Reconstruct entity from data

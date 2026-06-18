@@ -140,34 +140,16 @@ class CommunicationHelperService
             $out = array_filter($out);
         }
 
-        // Only recipients with fee balance (students/parents who have at least one invoice with balance > 0)
+        // Only recipients with fee balance (outstanding due balance > 0)
         if (!empty($data['fee_balance_only'])) {
-            $today = now()->toDateString();
-            $studentIdsWithBalance = Invoice::where('balance', '>', 0)
-                ->where('status', '!=', 'reversed')
-                ->where(function ($q) use ($today) {
-                    // Communicate only due/current-or-past term balances.
-                    $q->whereDate('due_date', '<=', $today)
-                        ->orWhere(function ($sub) use ($today) {
-                            $sub->whereNull('due_date')
-                                ->where(function ($termFilter) use ($today) {
-                                    $termFilter->whereNull('term_id')
-                                        ->orWhereHas('term', function ($termQuery) use ($today) {
-                                            $termQuery->whereNull('opening_date')
-                                                ->orWhereDate('opening_date', '<=', $today);
-                                        });
-                                });
-                        });
-                })
-                ->distinct()
-                ->pluck('student_id')
-                ->flip()
-                ->all();
-            $out = array_map(function ($entities) use ($studentIdsWithBalance) {
-                $filtered = array_filter(
-                    self::entitiesFromOutValue($entities),
-                    fn ($e) => ! ($e instanceof Student) || isset($studentIdsWithBalance[$e->id])
-                );
+            $out = array_map(function ($entities) {
+                $filtered = array_filter(self::entitiesFromOutValue($entities), function ($e) {
+                    if (! ($e instanceof Student)) {
+                        return false;
+                    }
+
+                    return StudentBalanceService::getTotalOutstandingBalance($e, true) > 0.01;
+                });
 
                 return self::rebuildOutValue($entities, $filtered);
             }, $out);

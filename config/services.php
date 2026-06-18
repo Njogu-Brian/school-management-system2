@@ -86,6 +86,10 @@ return [
         'webhook_token' => env('WASENDER_WEBHOOK_TOKEN'),
     ],
 
+    'whatsapp' => [
+        'bulk_delay_seconds' => (int) env('WHATSAPP_BULK_DELAY_SECONDS', 10),
+    ],
+
     /*
     | Optional Expo access token for higher push throughput (expo.dev account).
     | See https://docs.expo.dev/push-notifications/sending-notifications/

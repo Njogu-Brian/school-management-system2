@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function() {
             channelInput.value = 'email';
             previewForm.appendChild(channelInput);
 
-            ['target', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_staff', 'exclude_student_ids', 'custom_emails', 'title'].forEach(field => {
+            ['target', 'student_id', 'selected_student_ids', 'template_id', 'exclude_student_ids', 'custom_emails', 'title'].forEach(field => {
                 const value = formData.get(field);
                 if (value) {
                     const input = document.createElement('input');
@@ -440,6 +440,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     input.value = value;
                     previewForm.appendChild(input);
                 }
+            });
+            ['fee_balance_only', 'exclude_staff'].forEach(field => {
+                const cb = form.querySelector(`[name="${field}"]`);
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field;
+                input.value = (cb && cb.checked) ? '1' : '0';
+                previewForm.appendChild(input);
             });
             // Add classroom_ids (multi-select)
             formData.getAll('classroom_ids[]').forEach(id => {

@@ -591,8 +591,8 @@ class CommunicationController extends Controller
             $recipients[] = [$normalized, $entity, $parentMeta];
         }
         
-        // For bulk sends (>10 recipients), use queue job for reliability
-        $useQueue = count($recipients) > 10 || $request->has('use_queue');
+        // Queue bulk sends by default (2+ recipients) to apply rate limiting safely
+        $useQueue = count($recipients) > 1 || $request->boolean('use_queue');
         $skipSent = $request->has('skip_sent') ? (bool)$request->skip_sent : true;
         
         if ($useQueue) {
@@ -649,7 +649,7 @@ class CommunicationController extends Controller
         $failedCount = 0;
         $failures = [];
         $reportRows = [];
-        $delayBetweenMessages = 5; // Default 5 seconds for account protection
+        $delayBetweenMessages = \App\Services\WhatsAppBulkRateLimiter::delaySeconds();
         $lastSentTime = 0;
         $totalRecipients = count($recipients);
         
@@ -669,6 +669,8 @@ class CommunicationController extends Controller
                         \Log::info("Rate limiting: waiting {$waitTime} seconds before sending to {$phone} ({$index}/{$totalRecipients})");
                         sleep($waitTime);
                     }
+                } else {
+                    \App\Services\WhatsAppBulkRateLimiter::waitBeforeSend('global');
                 }
                 
                 $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
@@ -949,22 +951,36 @@ class CommunicationController extends Controller
                 $recipients = [];
             }
 
-            // Get first student entity from recipients (handles contact => entity or contact => [entity, ...])
+            $pairs = $this->expandRecipientsToPairs($recipients);
+            $previewRecipients = [];
+            foreach ($pairs as $pair) {
+                [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
+                if (! ($entity instanceof Student)) {
+                    continue;
+                }
+                $entity->loadMissing(['classroom', 'parent']);
+                $previewRecipients[] = [
+                    'student_name' => $entity->full_name,
+                    'admission_number' => $entity->admission_number,
+                    'class_name' => $entity->classroom->name ?? '—',
+                    'parent_name' => $parentMeta['name'] ?? $entity->parent?->father_name ?? $entity->parent?->mother_name ?? '—',
+                    'contact' => $contact,
+                    'fee_balance' => number_format(\App\Services\StudentBalanceService::getTotalOutstandingBalance($entity, true), 2),
+                ];
+            }
+
+            // Get first student entity from filtered recipients only
             $firstStudent = null;
-            if (!empty($recipients)) {
-                foreach ($recipients as $contact => $entityOrEntities) {
-                    $entities = is_array($entityOrEntities) ? $entityOrEntities : [$entityOrEntities];
-                    foreach ($entities as $entity) {
-                        if ($entity instanceof Student) {
-                            $firstStudent = $entity;
-                            break 2;
-                        }
-                    }
+            foreach ($pairs as $pair) {
+                $entity = $pair[1] ?? null;
+                if ($entity instanceof Student) {
+                    $firstStudent = $entity;
+                    break;
                 }
             }
 
-            // If no student found, try to get one based on target
-            if (!$firstStudent) {
+            // If no student found, try to get one based on target (only when not fee-balance filtered)
+            if (!$firstStudent && empty($data['fee_balance_only'])) {
                 try {
                     if ($data['target'] === 'student' && !empty($data['student_id'])) {
                         $firstStudent = Student::with(['family.updateLink', 'classroom', 'parent'])
@@ -1054,7 +1070,9 @@ class CommunicationController extends Controller
                 'student' => $firstStudent ?? new Student(['id' => 0, 'first_name' => 'John', 'last_name' => 'Doe', 'admission_number' => 'ADM001']),
                 'parentName' => $parentName,
                 'parentContact' => $parentContact,
-                'formData' => $data, // Pass all form data for sending
+                'formData' => $data,
+                'previewRecipients' => $previewRecipients,
+                'recipientCount' => count($previewRecipients),
             ]);
         } catch (\Exception $e) {
             \Log::error('Preview error', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
@@ -1997,7 +2015,7 @@ class CommunicationController extends Controller
                 $sentCount = 0;
                 $failedCount = 0;
                 $failures = [];
-                $delayBetweenMessages = 5;
+                $delayBetweenMessages = \App\Services\WhatsAppBulkRateLimiter::delaySeconds();
                 $lastSentTime = 0;
                 $totalRecipients = count($recipients);
 

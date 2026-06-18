@@ -567,7 +567,45 @@
                     </p>
                     <p><strong>Channel:</strong> {{ strtoupper($channel) }}</p>
                     <p><strong>Recipient:</strong> {{ $parentContact ?: 'N/A' }}</p>
+                    @if(!empty($recipientCount))
+                        <p><strong>Will send to:</strong> {{ number_format($recipientCount) }} parent/student contact(s)</p>
+                    @endif
                 </div>
+
+                @if(!empty($previewRecipients))
+                    <div class="mt-3">
+                        <h6 class="mb-2">Recipients preview</h6>
+                        <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Student</th>
+                                        <th>Class</th>
+                                        <th>Contact</th>
+                                        <th class="text-end">Fee balance</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($previewRecipients as $i => $row)
+                                        <tr>
+                                            <td>{{ $i + 1 }}</td>
+                                            <td>{{ $row['student_name'] }}<br><small class="text-muted">{{ $row['admission_number'] }}</small></td>
+                                            <td>{{ $row['class_name'] }}</td>
+                                            <td><small>{{ $row['contact'] }}</small></td>
+                                            <td class="text-end">{{ $row['fee_balance'] }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="small text-muted mt-2 mb-0">Sample message above uses the first matching student only.</p>
+                    </div>
+                @elseif(!empty($formData['fee_balance_only']))
+                    <div class="alert alert-warning mt-3 mb-0 py-2 small">
+                        No recipients match <strong>Only recipients with fee balance</strong> for the current filters.
+                    </div>
+                @endif
             </div>
             
             <a href="{{ route('communication.send.' . $channel) }}" class="action-btn btn-back" style="text-decoration: none;">
@@ -599,6 +637,9 @@
                 <input type="hidden" name="fee_balance_only" value="{{ !empty($formData['fee_balance_only']) ? '1' : '0' }}">
                 <input type="hidden" name="exclude_staff" value="{{ !empty($formData['exclude_staff']) ? '1' : '0' }}">
                 <input type="hidden" name="exclude_student_ids" value="{{ $formData['exclude_student_ids'] ?? '' }}">
+                @if($channel === 'whatsapp')
+                <input type="hidden" name="use_queue" value="1">
+                @endif
                 @if($channel === 'sms')
                 <input type="hidden" name="sender_id" value="{{ $formData['sender_id'] ?? '' }}">
                 @endif

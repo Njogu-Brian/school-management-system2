@@ -8,8 +8,7 @@
         <div class="mt-2">
             <small class="text-muted">
                 <i class="bi bi-info-circle"></i> 
-                <strong>Bulk sending:</strong> Messages are automatically rate-limited (5 seconds between messages) to respect account protection. 
-                To send faster, disable account protection in <a href="{{ route('communication.wasender.sessions') }}" class="alert-link">WhatsApp Sessions</a>.
+                <strong>Bulk sending:</strong> Messages are automatically queued with a {{ \App\Services\WhatsAppBulkRateLimiter::delaySeconds() }}-second gap between each message to reduce ban risk.
             </small>
         </div>
     </div>
@@ -500,7 +499,7 @@ document.addEventListener('DOMContentLoaded', function() {
             previewForm.appendChild(channelInput);
 
             // Add form fields
-            ['target', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_staff', 'exclude_student_ids', 'custom_numbers'].forEach(field => {
+            ['target', 'student_id', 'selected_student_ids', 'template_id', 'exclude_student_ids', 'custom_numbers'].forEach(field => {
                 const value = formData.get(field);
                 if (value) {
                     const input = document.createElement('input');
@@ -509,6 +508,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     input.value = value;
                     previewForm.appendChild(input);
                 }
+            });
+            ['fee_balance_only', 'exclude_staff'].forEach(field => {
+                const cb = form.querySelector(`[name="${field}"]`);
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field;
+                input.value = (cb && cb.checked) ? '1' : '0';
+                previewForm.appendChild(input);
             });
             // Add classroom_ids (multi-select)
             formData.getAll('classroom_ids[]').forEach(id => {
