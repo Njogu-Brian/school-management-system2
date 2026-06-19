@@ -40,7 +40,7 @@ Example config (e.g. `/etc/supervisord.d/laravel-worker.ini`):
 ```ini
 [program:laravel-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php /home2/royalce1/laravel-app/school-management-system/artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+command=php /home2/royalce1/laravel-app/school-management-system/artisan queue:work database --sleep=3 --tries=1 --timeout=900 --max-time=7200
 autostart=true
 autorestart=true
 stopasgroup=true
@@ -51,6 +51,8 @@ redirect_stderr=true
 stdout_logfile=/home2/royalce1/laravel-app/school-management-system/storage/logs/worker.log
 stopwaitsecs=60
 ```
+
+**Bulk WhatsApp:** jobs are split into chunks of 12 messages. Set worker `--timeout=900` (15 min) so each chunk can finish (10 s gap between messages). Use `--tries=1` because partial progress is stored and retried chunks skip already-sent numbers.
 
 Replace the paths and `user` with your app path and Linux user.
 

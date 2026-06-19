@@ -19,19 +19,22 @@ class BulkSendWhatsAppMessages implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * The number of times the job may be attempted.
-     *
-     * @var int
-     */
-    public $tries = 3;
+    /** Recipients processed per job run (keeps each job under queue worker timeout). */
+    public const CHUNK_SIZE = 12;
 
     /**
-     * The number of seconds the job can run before timing out.
+     * One attempt per chunk; idempotency + next-chunk dispatch handle recovery.
      *
      * @var int
      */
-    public $timeout = 7200; // 2 hours for large batches
+    public $tries = 1;
+
+    /**
+     * Per-chunk timeout (12 msgs × ~10s gap + API time).
+     *
+     * @var int
+     */
+    public $timeout = 600;
 
     /**
      * Tracking ID for this bulk send operation
@@ -125,11 +128,19 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             return;
         }
 
-        $totalRecipients = count($this->recipients);
-        $sentCount = 0;
-        $skippedCount = 0;
-        $failedCount = 0;
-        $processed = 0;
+        $batch = array_slice($this->recipients, 0, self::CHUNK_SIZE);
+        $remaining = array_slice($this->recipients, self::CHUNK_SIZE);
+        $progress = $this->getProgress();
+
+        $totalRecipients = (int) ($progress['total'] ?? 0);
+        if ($totalRecipients <= 0) {
+            $totalRecipients = count($this->recipients) + count($remaining);
+        }
+
+        $sentCount = (int) ($progress['sent'] ?? 0);
+        $skippedCount = (int) ($progress['skipped'] ?? 0);
+        $failedCount = (int) ($progress['failed'] ?? 0);
+        $processed = (int) ($progress['processed'] ?? 0);
         $reportRows = [];
         $delayBetweenMessages = \App\Services\WhatsAppBulkRateLimiter::delaySeconds();
         $lastSentTime = 0;
@@ -157,20 +168,28 @@ class BulkSendWhatsAppMessages implements ShouldQueue
 
         Log::info('Bulk WhatsApp send job started', [
             'tracking_id' => $this->trackingId,
+            'batch_size' => count($batch),
+            'remaining_batches' => (int) ceil(count($remaining) / max(1, self::CHUNK_SIZE)),
             'total_recipients' => $totalRecipients,
             'skip_sent' => $this->skipSent,
         ]);
 
+        if (empty($batch)) {
+            $this->finalizeJob($sentCount, $failedCount, $skippedCount, $processed, $totalRecipients);
+
+            return;
+        }
+
         $this->updateProgress([
             'status' => 'processing',
             'total' => $totalRecipients,
-            'sent' => 0,
-            'failed' => 0,
-            'skipped' => 0,
-            'processed' => 0,
+            'sent' => $sentCount,
+            'failed' => $failedCount,
+            'skipped' => $skippedCount,
+            'processed' => $processed,
         ]);
 
-        foreach ($this->recipients as $item) {
+        foreach ($batch as $item) {
             $phone = $item['phone'] ?? null;
             $entityData = $item['entity'] ?? $item;
             if (!$phone) {
@@ -376,17 +395,58 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             }
         }
 
-        // Store delivery report for viewing
+        $this->mergeReportRows($reportRows);
+
+        if (!empty($remaining)) {
+            $this->updateProgress([
+                'status' => 'processing',
+                'sent' => $sentCount,
+                'failed' => $failedCount,
+                'skipped' => $skippedCount,
+                'processed' => $processed,
+            ]);
+
+            Log::info('Bulk WhatsApp dispatching next chunk', [
+                'tracking_id' => $this->trackingId,
+                'remaining' => count($remaining),
+            ]);
+
+            self::dispatch(
+                $this->trackingId,
+                array_values($remaining),
+                $this->message,
+                $this->title,
+                $this->target,
+                $this->mediaUrl,
+                $this->skipSent,
+                $this->userId
+            );
+
+            return;
+        }
+
+        $this->finalizeJob($sentCount, $failedCount, $skippedCount, $processed, $totalRecipients);
+    }
+
+    protected function finalizeJob(
+        int $sentCount,
+        int $failedCount,
+        int $skippedCount,
+        int $processed,
+        int $totalRecipients
+    ): void {
         $reportId = 'dr_wa_' . $this->trackingId;
+        $allRows = Cache::get("comm_report_rows:{$this->trackingId}", []);
+        Cache::forget("comm_report_rows:{$this->trackingId}");
+
         $report = [
             'channel' => 'whatsapp',
-            'recipients' => $reportRows,
+            'recipients' => $allRows,
             'summary' => ['sent' => $sentCount, 'failed' => $failedCount, 'skipped' => $skippedCount],
             'created_at' => now()->toIso8601String(),
         ];
         Cache::put("comm_report:{$reportId}", $report, now()->addHours(24));
 
-        // Track in recent reports for Delivery Reports index
         $key = 'comm_recent_report_ids';
         $recent = Cache::get($key, []);
         array_unshift($recent, [
@@ -398,7 +458,6 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         $recent = array_slice($recent, 0, 20);
         Cache::put($key, $recent, now()->addHours(2));
 
-        // Final progress update
         $this->updateProgress([
             'status' => 'completed',
             'sent' => $sentCount,
@@ -415,6 +474,22 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             'skipped' => $skippedCount,
             'total' => $totalRecipients,
         ]);
+    }
+
+    protected function mergeReportRows(array $rows): void
+    {
+        if (empty($rows)) {
+            return;
+        }
+
+        $key = "comm_report_rows:{$this->trackingId}";
+        $existing = Cache::get($key, []);
+        Cache::put($key, array_merge($existing, $rows), now()->addHours(24));
+    }
+
+    protected function getProgress(): array
+    {
+        return Cache::get("bulk_whatsapp_progress:{$this->trackingId}", []);
     }
 
     /**

@@ -624,6 +624,16 @@ class CommunicationController extends Controller
             }
             
             // Dispatch job with user_id
+            $recipientTotal = count($recipientsData);
+            \Cache::put("bulk_whatsapp_progress:{$trackingId}", [
+                'status' => 'queued',
+                'total' => $recipientTotal,
+                'sent' => 0,
+                'failed' => 0,
+                'skipped' => 0,
+                'processed' => 0,
+            ], now()->addHours(24));
+
             \App\Jobs\BulkSendWhatsAppMessages::dispatch(
                 $trackingId,
                 $recipientsData,

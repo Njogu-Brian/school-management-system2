@@ -113,7 +113,7 @@ class CommunicationHelperService
         if ($target === 'staff') {
             Staff::all()->each(function ($st) use (&$out, $type) {
                 $contact = match ($type) {
-                    'email' => $st->email,
+                    'email' => $st->work_email,
                     'whatsapp' => $st->phone_number,
                     default => $st->phone_number,
                 };

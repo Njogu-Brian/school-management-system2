@@ -225,7 +225,7 @@ class AnalyticsService
         $teacherIds = $teacherBySubject->values()->unique()->filter()->values();
         $teachers = Staff::query()
             ->whereIn('id', $teacherIds)
-            ->get(['id', 'first_name', 'last_name', 'middle_name', 'phone_number', 'email'])
+            ->get(['id', 'first_name', 'last_name', 'middle_name'])
             ->keyBy('id');
 
         $passThreshold = ($this->passMarkPercent() / 100.0) * $maxMarks;
