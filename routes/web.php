@@ -266,14 +266,20 @@ Route::get('/home', function () {
 
     // Prefer Spatie helpers; also be tolerant of case/aliases
     $aliases = [
-        'super admin'    => 'admin.dashboard',
-        'admin'          => 'admin.dashboard',
-        'secretary'      => 'admin.dashboard',
-        'senior teacher' => 'senior_teacher.dashboard',
-        'teacher'        => 'teacher.dashboard',
-        'driver'         => 'transport.dashboard',
-        'parent'         => 'parent.dashboard',
-        'student'        => 'student.dashboard',
+        'super admin'            => 'admin.dashboard',
+        'director'               => 'admin.dashboard',
+        'admin'                  => 'admin.dashboard',
+        'secretary'              => 'admin.dashboard',
+        'academic administrator' => 'admin.dashboard',
+        'accountant'             => 'finance.dashboard',
+        'finance officer'        => 'finance.dashboard',
+        'senior teacher'         => 'senior_teacher.dashboard',
+        'deputy senior teacher'  => 'senior_teacher.dashboard',
+        'teacher'                => 'teacher.dashboard',
+        'supervisor'             => 'supervisor.dashboard',
+        'driver'                 => 'transport.dashboard',
+        'parent'                 => 'parent.dashboard',
+        'student'                => 'student.dashboard',
     ];
 
     // If the user has any role that maps above, send them there.
@@ -439,7 +445,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('academics')->as('academics.')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor|Academic Administrator|Director')
         ->group(function () {
 
         // Core setup
@@ -1327,7 +1333,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Finance
     |----------------------------------------------------------------------
     */
-    Route::prefix('finance')->name('finance.')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
+    Route::prefix('finance')->name('finance.')->middleware('role:Super Admin|Admin|Secretary|Accountant|Finance Officer|Director')->group(function () {
 
         // Voteheads
         Route::resource('voteheads', VoteheadController::class)->except(['show']);

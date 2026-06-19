@@ -19,10 +19,14 @@ class RolePermissionController extends Controller
     public function accessAndLookups()
     {
         // Roles and Permissions
-        $roles = Role::with('permissions')->get();
-        $permissions = Permission::all()->groupBy(function ($perm) {
-            return explode('.', $perm->name)[0]; // group by module prefix
-        });
+        $roles = \App\Support\NavAccess::orderedRoles(
+            Role::with('permissions')->get()
+        );
+        $permissions = Permission::orderBy('name')->get()->groupBy(function ($perm) {
+            return explode('.', $perm->name)[0];
+        })->sortKeys();
+
+        $moduleLabels = config('nav_access.module_labels', []);
 
         // HR Lookups
         $categories   = StaffCategory::all();
@@ -31,7 +35,7 @@ class RolePermissionController extends Controller
         $customFields = CustomField::where('module', 'staff')->get();
 
         return view('hr.access_lookups', compact(
-            'roles', 'permissions', 'categories', 'departments', 'jobTitles', 'customFields'
+            'roles', 'permissions', 'categories', 'departments', 'jobTitles', 'customFields', 'moduleLabels'
         ));
     }
 

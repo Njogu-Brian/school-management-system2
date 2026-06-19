@@ -469,42 +469,7 @@
             <h5>{{ $appName }}</h5>
         </div>
 
- @php
-  $u = Auth::user();
-  $onTeacherRoute = request()->routeIs('teacher.*') || request()->is('teacher/*');
-  $onSeniorTeacherRoute = request()->routeIs('senior_teacher.*') || request()->is('senior-teacher/*');
-
-  // Case-tolerant teacher check
-  $isTeacher = $u && (
-      $u->hasAnyRole(['Teacher','teacher']) ||
-      ($u->roles->pluck('name')->map(fn($n)=>strtolower($n))->contains('teacher'))
-  );
-  
-  // Case-tolerant senior teacher check
-  $isSeniorTeacher = $u && (
-      $u->hasRole('Senior Teacher') ||
-      ($u->roles->pluck('name')->map(fn($n)=>strtolower($n))->contains('senior teacher'))
-  );
-@endphp
-
-@if($onSeniorTeacherRoute && $isSeniorTeacher)
-  @include('layouts.partials.nav-senior-teacher')
-
-@elseif($isSeniorTeacher)
-  @include('layouts.partials.nav-senior-teacher')
-
-@elseif($onTeacherRoute && $isTeacher)
-  @include('layouts.partials.nav-teacher')
-
-@elseif($u && $u->hasAnyRole(['Super Admin','Admin','Secretary']))
-  @include('layouts.partials.nav-admin')
-
-@elseif($isTeacher)
-  @include('layouts.partials.nav-teacher')
-@else
-  {{-- Optional: safe fallback so the sidebar never appears empty --}}
-  @include('layouts.partials.nav-admin')
-@endif
+@include(\App\Support\NavAccess::resolvePartial())
 
 
         <!-- Logout -->

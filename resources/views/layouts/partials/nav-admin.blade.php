@@ -1,56 +1,15 @@
-        {{-- TEMPORARY: Dashboard Links (for testing all roles) --}}
-<!-- <li class="nav-item mt-3">
-    <span class="text-muted small fw-bold px-3">Dashboards (Testing)</span>
-</li> -->
-
+{{-- Role-appropriate dashboard links --}}
+@foreach(\App\Support\NavAccess::dashboardLinks() as $dashLink)
 <li>
-    <a href="{{ route('admin.dashboard') }}"
-       class="{{ Request::is('admin/home') ? 'active' : '' }}">
-        <i class="bi bi-speedometer2"></i>
-        <span>Admin Dashboard</span>
+    <a href="{{ route($dashLink['route']) }}"
+       class="{{ Request::is($dashLink['path']) ? 'active' : '' }}">
+        <i class="bi {{ $dashLink['icon'] }}"></i>
+        <span>{{ $dashLink['label'] }}</span>
     </a>
 </li>
+@endforeach
 
-<li>
-    <a href="{{ route('teacher.dashboard') }}"
-       class="{{ Request::is('teacher/home') ? 'active' : '' }}">
-        <i class="bi bi-easel2"></i>
-        <span>Teacher Dashboard</span>
-    </a>
-</li>
-
-<li>
-    <a href="{{ route('student.dashboard') }}"
-       class="{{ Request::is('student/home') ? 'active' : '' }}">
-        <i class="bi bi-person-badge"></i>
-        <span>Student Dashboard</span>
-    </a>
-</li>
-
-<li>
-    <a href="{{ route('parent.dashboard') }}"
-       class="{{ Request::is('parent/home') ? 'active' : '' }}">
-        <i class="bi bi-people"></i>
-        <span>Parent Dashboard</span>
-    </a>
-</li>
-
-<li>
-    <a href="{{ route('finance.dashboard') }}"
-       class="{{ Request::is('finance/home') ? 'active' : '' }}">
-        <i class="bi bi-cash-stack"></i>
-        <span>Finance Dashboard</span>
-    </a>
-</li>
-
-<li>
-    <a href="{{ route('transport.dashboard') }}"
-       class="{{ Request::is('transport/home') ? 'active' : '' }}">
-        <i class="bi bi-truck"></i>
-        <span>Transport Dashboard</span>
-    </a>
-</li>
-
+@if(nav_can('gallery') && \Illuminate\Support\Facades\Route::has('gallery.index'))
 <li>
     <a href="{{ route('gallery.index') }}"
        class="{{ Request::is('gallery*') ? 'active' : '' }}">
@@ -58,8 +17,10 @@
         <span>Gallery</span>
     </a>
 </li>
+@endif
 
 <!-- Profile -->
+@if(nav_can('profile'))
 <li>
     <a href="{{ route('staff.profile.show') }}"
        class="{{ Request::is('my/profile') ? 'active' : '' }}">
@@ -67,8 +28,10 @@
         <span>My Profile</span>
     </a>
 </li>
+@endif
 
 <!-- Students -->
+@if(nav_can('students'))
 @php 
 $studentsActive = Request::is('students*')
     || Request::is('online-admissions*')
@@ -120,8 +83,10 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     </div>
     @endif
 </div>
+@endif
 
 <!-- Attendance -->
+@if(nav_can('attendance'))
 @php $isAttendanceActive = Request::is('attendance*'); @endphp
 <a href="#attendanceMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isAttendanceActive ? 'true' : 'false' }}"
@@ -158,8 +123,10 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     <i class="bi bi-tags"></i> Reason Codes
     </a>
 </div>
+@endif
 
 {{-- Academics --}}
+@if(nav_can('academics'))
 @php
     $academicsActive = Request::is('academics/classrooms*')
         || Request::is('academics/streams*')
@@ -184,8 +151,10 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
         <i class="bi bi-arrow-up-circle"></i> Student Promotions
     </a>
 </div>
+@endif
 
 {{-- CBC Curriculum & Planning --}}
+@if(nav_can('cbc'))
 @php 
     $cbcActive = Request::is('academics/learning-areas*') 
         || Request::is('academics/competencies*')
@@ -225,8 +194,10 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
         <i class="bi bi-graph-up"></i> Exam Analytics
     </a>
 </div>
+@endif
 
 {{-- Timetable --}}
+@if(nav_can('timetable'))
 @php 
     $timetableActive = Request::is('academics/timetable*') 
         || Request::is('academics/activities*');
@@ -248,8 +219,10 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
         <i class="bi bi-trophy"></i> Activities
     </a>
 </div>
+@endif
 
 {{-- Homework & Diaries --}}
+@if(nav_can('homework'))
 @php $homeworkActive = Request::is('academics/homework*') || Request::is('academics/diaries*'); @endphp
 <a href="#homeworkMenu" data-bs-toggle="collapse" aria-expanded="{{ $homeworkActive ? 'true' : 'false' }}" class="{{ $homeworkActive ? 'parent-active' : '' }}">
     <i class="bi bi-journal"></i> Homework & Diaries
@@ -258,8 +231,10 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     <a href="{{ route('academics.homework.index') }}" class="{{ Request::is('academics/homework*') ? 'active' : '' }}">Homework</a>
     <a href="{{ route('academics.diaries.index') }}" class="{{ Request::is('academics/diaries*') ? 'active' : '' }}">Digital Diaries</a>
 </div>
+@endif
 
 {{-- Exams --}}
+@if(nav_can('exams'))
 @php
     $examsActive = Request::is('academics/exams*')
         || Request::is('academics/exam-types*')
@@ -314,8 +289,10 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
         <i class="bi bi-printer"></i> Exam Timetable
     </a>
 </div>
+@endif
 
 {{-- Report Cards --}}
+@if(nav_can('report_cards'))
 @php
     $reportActive = Request::is('academics/report_cards*')
         || Request::is('academics/skills/grade*');
@@ -357,13 +334,17 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
       </a>
     @endif
 </div>
+@endif
 
 {{-- Assessments --}}
+@if(nav_can('assessments'))
 <a href="{{ route('academics.assessments.index') }}" class="{{ Request::is('academics/assessments*') ? 'active' : '' }}">
     <i class="bi bi-clipboard-data"></i> Assessments
 </a>
+@endif
 
 {{-- Campus & Weekly Reports --}}
+@if(nav_can('campus_reports'))
 @php
     $campusReportsActive = Request::is('reports/heatmaps*') || Request::is('weekly-reports*');
 @endphp
@@ -393,8 +374,10 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <i class="bi bi-building-gear"></i> Operations & Facilities
     </a>
 </div>
+@endif
 
 {{-- Behaviours --}}
+@if(nav_can('behaviours'))
 @php $behaviourActive = Request::is('academics/behaviours*') || Request::is('academics/student-behaviours*'); @endphp
 <a href="#behaviourMenu" data-bs-toggle="collapse" aria-expanded="{{ $behaviourActive ? 'true' : 'false' }}" class="{{ $behaviourActive ? 'parent-active' : '' }}">
     <i class="bi bi-emoji-smile"></i> Behaviours
@@ -403,9 +386,11 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('academics.behaviours.index') }}" class="{{ Request::is('academics/behaviours*') ? 'active' : '' }}">Behaviours</a>
     <a href="{{ route('academics.student-behaviours.index') }}" class="{{ Request::is('academics/student-behaviours*') ? 'active' : '' }}">Student Behaviours</a>
 </div>
+@endif
         
 
 <!-- Finance -->
+@if(nav_can('finance'))
 {{-- Finance --}}
 @php
     $financeActive = Request::is('finance*') || Request::is('voteheads*');
@@ -620,8 +605,10 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('reports.phone-normalization.index') }}" class="sublink {{ Request::is('reports/phone-normalization*') ? 'active' : '' }}"><i class="bi bi-telephone"></i> Phone Normalization</a>
     </div>
 </div>
+@endif
 
 <!-- Transport -->
+@if(nav_can('transport'))
 @php $isTransportActive = Request::is('transport*') || Request::is('driver*'); @endphp
 <a href="#transportMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isTransportActive ? 'true' : 'false' }}"
@@ -685,8 +672,10 @@ class="{{ $isTransportActive ? 'parent-active' : '' }}">
         </a>
     @endif
 </div>
+@endif
 
 <!-- Communication -->
+@if(nav_can('communication'))
 @php $isCommunicationActive = Request::is('communication*') || Request::is('announcements*'); @endphp
 <a href="#communicationMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isCommunicationActive ? 'true' : 'false' }}"
@@ -759,8 +748,10 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     <i class="bi bi-megaphone"></i> Announcements
     </a>
 </div>
+@endif
 
 <!-- HR -->
+@if(nav_can('hr'))
 @php
   $hrActive = Request::is('staff*')
     || Request::is('hr/access-lookups*')
@@ -786,9 +777,11 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
   <a href="{{ route('staff.index') }}" class="{{ Request::is('staff') && !Request::is('staff/*') ? 'active' : '' }}">
     <i class="bi bi-people"></i> Staff
   </a>
+  @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Director']))
   <a href="{{ route('hr.access-lookups') }}" class="{{ Request::is('hr/access-lookups*') || Request::is('hr/roles*') || Request::is('lookups*') ? 'active' : '' }}">
     <i class="bi bi-shield-lock"></i> Roles & Lookups
   </a>
+  @endif
   @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
     <a href="{{ route('admin.senior_teacher_assignments.index') }}" class="{{ Request::is('admin/senior-teacher-assignments*') ? 'active' : '' }}">
       <i class="bi bi-person-badge"></i> Senior Teacher Assignments
@@ -837,9 +830,11 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     </a>
   @endif
 </div>
+@endif
 
 
 <!-- Payroll -->
+@if(nav_can('payroll'))
 @php
   $payrollActive = Request::is('hr/payroll*');
 @endphp
@@ -871,14 +866,18 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     <i class="bi bi-list-check"></i> Custom Deductions
   </a>
 </div>
+@endif
 
 <!-- Events Calendar -->
+@if(nav_can('events'))
 @php $eventsActive = Request::is('events*'); @endphp
 <a href="{{ route('events.index') }}" class="{{ $eventsActive ? 'active' : '' }}">
     <i class="bi bi-calendar-event"></i> Events Calendar
 </a>
+@endif
 
 <!-- Inventory & Requirements -->
+@if(nav_can('inventory'))
 @php $inventoryActive = Request::is('inventory*'); @endphp
 <a href="#inventoryMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $inventoryActive ? 'true' : 'false' }}"
@@ -911,8 +910,10 @@ class="{{ $inventoryActive ? 'parent-active' : '' }}">
         <i class="bi bi-cart-check"></i> Requisitions
     </a>
 </div>
+@endif
 
 <!-- Point of Sale (POS) -->
+@if(nav_can('pos'))
 @php $posActive = Request::is('pos*'); @endphp
 <a href="#posMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $posActive ? 'true' : 'false' }}"
@@ -941,14 +942,18 @@ class="{{ $posActive ? 'parent-active' : '' }}">
         <i class="bi bi-person-badge"></i> Uniforms
     </a>
 </div>
+@endif
 
 <!-- Documents -->
+@if(nav_can('documents'))
 @php $documentsActive = Request::is('documents*'); @endphp
 <a href="{{ route('documents.index') }}" class="{{ $documentsActive ? 'active' : '' }}">
     <i class="bi bi-file-earmark"></i> Documents
 </a>
+@endif
 
 <!-- Settings -->
+@if(nav_can('settings'))
 @php $isSettingsActive = Request::is('settings*'); @endphp
 @php 
     $isAcademicConfig = Request::is('settings/academic*') || Request::is('settings/school-days*');
@@ -988,3 +993,4 @@ class="{{ $isSettingsActive ? 'parent-active' : '' }}">
     </a>
     @endif
 </div>
+@endif

@@ -145,6 +145,16 @@ if (!function_exists('can_access')) {
 }
 
 /**
+ * Whether the current user should see a sidebar section (role-based, from config/nav_access.php).
+ */
+if (!function_exists('nav_can')) {
+    function nav_can(string $section): bool
+    {
+        return \App\Support\NavAccess::can($section);
+    }
+}
+
+/**
  * Get or create a payment link for a student (no expiry, no click limit).
  * Siblings share one family link: one link per family, parent can pay one transaction for all.
  * Students without family_id get a single-student link.

@@ -44,27 +44,35 @@
                             </div>
                             <div class="card-body">
                                 @foreach($roles as $role)
-                                    <form action="{{ route('hr.roles.permissions.update', $role->id) }}" method="POST" class="mb-4">
+                                    <form action="{{ route('hr.roles.permissions.update', $role->id) }}" method="POST" class="mb-4 border-bottom pb-4">
                                         @csrf
-                                        <div class="section-title mb-2">{{ ucfirst($role->name) }}</div>
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                            <div class="section-title mb-0">{{ $role->name }}</div>
+                                            <span class="input-chip">{{ $role->permissions->count() }} permissions</span>
+                                        </div>
                                         <div class="row g-3">
                                             @foreach($permissions as $module => $perms)
                                                 <div class="col-md-3">
-                                                    <div class="fw-semibold text-muted small mb-2">{{ ucfirst($module) }}</div>
+                                                    <div class="fw-semibold text-muted small mb-2">
+                                                        {{ $moduleLabels[$module] ?? \App\Support\NavAccess::moduleLabel($module) }}
+                                                    </div>
                                                     @foreach($perms as $perm)
                                                         <div class="form-check">
                                                             <input class="form-check-input" type="checkbox"
                                                                 name="permissions[]"
                                                                 value="{{ $perm->id }}"
+                                                                id="perm-{{ $role->id }}-{{ $perm->id }}"
                                                                 {{ $role->permissions->contains($perm->id) ? 'checked' : '' }}>
-                                                            <label class="form-check-label">{{ $perm->name }}</label>
+                                                            <label class="form-check-label" for="perm-{{ $role->id }}-{{ $perm->id }}">
+                                                                {{ str_contains($perm->name, '.') ? substr($perm->name, strlen($module) + 1) : $perm->name }}
+                                                            </label>
                                                         </div>
                                                     @endforeach
                                                 </div>
                                             @endforeach
                                         </div>
                                         <div class="d-flex justify-content-end">
-                                            <button class="btn btn-settings-primary mt-3"><i class="bi bi-save"></i> Save for {{ ucfirst($role->name) }}</button>
+                                            <button class="btn btn-settings-primary mt-3"><i class="bi bi-save"></i> Save for {{ $role->name }}</button>
                                         </div>
                                     </form>
                                 @endforeach

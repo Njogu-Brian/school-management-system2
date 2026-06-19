@@ -36,7 +36,11 @@ class ExpensePermissionSeeder extends Seeder
 
         foreach ($grants as $roleName => $rolePermissions) {
             $role = Role::findOrCreate($roleName, 'web');
-            $role->syncPermissions($rolePermissions);
+            if (in_array($roleName, ['Admin', 'Super Admin', 'Finance Officer', 'Accountant'], true)) {
+                $role->syncPermissions($rolePermissions);
+            } else {
+                $role->givePermissionTo($rolePermissions);
+            }
         }
     }
 }
