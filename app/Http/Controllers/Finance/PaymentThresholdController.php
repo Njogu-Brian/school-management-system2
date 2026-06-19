@@ -14,7 +14,7 @@ class PaymentThresholdController extends Controller
 {
     public function index(Request $request)
     {
-        $terms = Term::orderByDesc('id')->with('academicYear')->get();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $termId = $request->filled('term_id') ? (int) $request->get('term_id') : null;
 
         $query = PaymentThreshold::query()
@@ -37,7 +37,7 @@ class PaymentThresholdController extends Controller
 
     public function create(Request $request)
     {
-        $terms = Term::orderByDesc('id')->with('academicYear')->get();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $categories = StudentCategory::orderBy('name')->get();
 
         return view('finance.payment_thresholds.create', [
@@ -115,7 +115,7 @@ class PaymentThresholdController extends Controller
     public function edit(PaymentThreshold $payment_threshold)
     {
         $paymentThreshold = $payment_threshold;
-        $terms = Term::orderByDesc('id')->with('academicYear')->get();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $categories = StudentCategory::orderBy('name')->get();
 
         return view('finance.payment_thresholds.edit', [

@@ -12,8 +12,7 @@ use App\Models\Academics\ExamSession;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Subject;
-use App\Models\AcademicYear;
-use App\Models\Term;
+use App\Support\AcademicContext;
 use App\Models\User;
 use App\Services\Academics\ExamReports\AnalyticsService;
 use App\Services\Academics\ExamReports\ClassSheetBuilder;
@@ -78,10 +77,12 @@ class ExamReportsController extends Controller
             ->map(fn ($rows) => $rows->map(fn ($s) => ['id' => (int) $s->id, 'name' => $s->name])->values()->all())
             ->toArray();
 
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::with('academicYear')->orderByDesc('academic_year_id')->orderBy('name')->get();
+        $academic = AcademicContext::forView(
+            requestedYearId: $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+            requestedTermId: $request->filled('term_id') ? (int) $request->term_id : null,
+        );
 
-        return view('academics.exam_reports.class_sheet', compact(
+        return view('academics.exam_reports.class_sheet', array_merge(compact(
             'sheetFlow',
             'bundles',
             'examTypes',
@@ -91,10 +92,10 @@ class ExamReportsController extends Controller
             'subjectExamScopes',
             'termYearClassScopes',
             'streamsByClassroom',
-            'academicYears',
-            'terms',
             'examReportsFullAccess'
-        ));
+        ), $academic, [
+            'academicYears' => $academic['years'],
+        ]));
     }
 
     public function exportClassSheet(Request $request)
@@ -366,7 +367,7 @@ class ExamReportsController extends Controller
         }
 
         $analysisFlow = $request->input('analysis_flow', 'by_exam_type');
-        $filterData = $this->analysisFilterViewData($u);
+        $filterData = $this->analysisFilterViewData($u, $request);
         $payload = null;
         $notice = null;
 
@@ -409,7 +410,7 @@ class ExamReportsController extends Controller
         $u = $user instanceof User ? $user : null;
         $subjectScopedTeacher = ExamReportsAccess::userIsSubjectScoped($u);
         $analysisFlow = $request->input('analysis_flow', 'by_exam_type');
-        $filterData = $this->analysisFilterViewData($u);
+        $filterData = $this->analysisFilterViewData($u, $request);
 
         $payload = null;
         $notice = null;
@@ -443,8 +444,10 @@ class ExamReportsController extends Controller
         $exams = Exam::with(['academicYear', 'term'])->orderByDesc('created_at')->limit(60)->get();
         $classrooms = ExamReportsAccess::classroomsQueryFor($u)->get();
         $streams = Stream::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::with('academicYear')->orderByDesc('academic_year_id')->orderBy('name')->get();
+        $academic = AcademicContext::forView(
+            requestedYearId: $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+            requestedTermId: $request->filled('term_id') ? (int) $request->term_id : null,
+        );
 
         $payload = null;
         if ($request->filled('classroom_id')) {
@@ -469,19 +472,26 @@ class ExamReportsController extends Controller
             }
         }
 
-        return view('academics.exam_reports.student_insights', compact('mode', 'exams', 'classrooms', 'streams', 'academicYears', 'terms', 'payload'));
+        return view('academics.exam_reports.student_insights', array_merge(compact('mode', 'exams', 'classrooms', 'streams', 'payload'), $academic, [
+            'academicYears' => $academic['years'],
+        ]));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function analysisFilterViewData(?User $user): array
+    private function analysisFilterViewData(?User $user, ?Request $request = null): array
     {
         $classrooms = ExamReportsAccess::classroomsQueryFor($user)->get();
         $allowedClassIds = $classrooms->pluck('id')->all();
         $filterScopes = $this->buildFilterScopes($allowedClassIds);
 
-        return [
+        $academic = AcademicContext::forView(
+            requestedYearId: $request && $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+            requestedTermId: $request && $request->filled('term_id') ? (int) $request->term_id : null,
+        );
+
+        return array_merge([
             'examTypes' => ExamType::orderBy('name')->get(),
             'classrooms' => $classrooms,
             'classroomExamTypeIds' => $filterScopes['classroomExamTypeIds'],
@@ -493,9 +503,9 @@ class ExamReportsController extends Controller
                 ->groupBy('classroom_id')
                 ->map(fn ($rows) => $rows->map(fn ($s) => ['id' => (int) $s->id, 'name' => $s->name])->values()->all())
                 ->toArray(),
-            'academicYears' => AcademicYear::orderByDesc('year')->get(),
-            'terms' => Term::with('academicYear')->orderByDesc('academic_year_id')->orderBy('name')->get(),
-        ];
+        ], $academic, [
+            'academicYears' => $academic['years'],
+        ]);
     }
 
     /**

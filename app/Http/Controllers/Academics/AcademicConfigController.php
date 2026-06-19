@@ -86,14 +86,14 @@ class AcademicConfigController extends Controller
     // --------- Terms ---------
     public function createTerm()
     {
-        $years = AcademicYear::orderByDesc('year')->get();
+        $years = \App\Support\AcademicContext::years();
         $suggestedOpeningDate = $this->getNextSuggestedOpeningDate();
         return view('settings.academic.create_term', compact('years', 'suggestedOpeningDate'));
     }
 
     public function editTerm(Term $term)
     {
-        $years = AcademicYear::orderByDesc('year')->get();
+        $years = \App\Support\AcademicContext::years();
         return view('settings.academic.edit_term', compact('term', 'years'));
     }
 

@@ -47,33 +47,16 @@
             @endif
           </div>
 
-          <div class="col-md-2">
-            <label class="form-label">Academic Year</label>
-            <select name="academic_year_id" class="form-select" {{ ($mode ?? 'exam') === 'exam' ? 'disabled' : '' }}>
-              <option value="">Select Year</option>
-              @foreach($academicYears as $y)
-                <option value="{{ $y->id }}" {{ request('academic_year_id') == $y->id ? 'selected' : '' }}>{{ $y->year }}</option>
-              @endforeach
-            </select>
-            @if(($mode ?? 'exam') === 'exam')
-              <input type="hidden" name="academic_year_id" value="">
-            @endif
-          </div>
-
-          <div class="col-md-2">
-            <label class="form-label">Term</label>
-            <select name="term_id" class="form-select" {{ ($mode ?? 'exam') === 'exam' ? 'disabled' : '' }}>
-              <option value="">Select Term</option>
-              @foreach($terms as $t)
-                <option value="{{ $t->id }}" {{ request('term_id') == $t->id ? 'selected' : '' }}>
-                  {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
-                </option>
-              @endforeach
-            </select>
-            @if(($mode ?? 'exam') === 'exam')
-              <input type="hidden" name="term_id" value="">
-            @endif
-          </div>
+          @include('partials.academic_year_term_selects', [
+            'years' => $academicYears ?? $years ?? [],
+            'terms' => $terms ?? [],
+            'selectedYearId' => $selectedYearId ?? request('academic_year_id'),
+            'selectedTermId' => $selectedTermId ?? request('term_id'),
+            'yearCol' => 'col-md-2',
+            'termCol' => 'col-md-2',
+            'yearSelectId' => 'student_insights_year_id',
+            'termSelectId' => 'student_insights_term_id',
+          ])
 
           <div class="col-md-4">
             <label class="form-label">Class</label>

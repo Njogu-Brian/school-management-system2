@@ -156,7 +156,7 @@
                   <select name="classroom_assignments[0][term_id]" class="form-select">
                     <option value="">-- All --</option>
                     @foreach($terms as $term)
-                      <option value="{{ $term->id }}">{{ $term->name }}</option>
+                      <option value="{{ $term->id }}" data-academic-year-id="{{ $term->academic_year_id }}">{{ ($term->academicYear->year ?? '') ? ($term->academicYear->year . ' · ' . $term->name) : $term->name }}</option>
                     @endforeach
                   </select>
                 </div>

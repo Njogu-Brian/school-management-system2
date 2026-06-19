@@ -69,8 +69,8 @@
             <label class="form-label">Term <span class="text-danger">*</span></label>
             <select name="term_id" class="form-select" required>
               <option value="">-- Select Term --</option>
-              @foreach(\App\Models\Term::orderBy('name')->get() as $term)
-                <option value="{{ $term->id }}" @selected($currentTerm && $currentTerm->id == $term->id)>{{ $term->name }}</option>
+              @foreach(\App\Support\AcademicContext::allTermsForSelect() as $term)
+                <option value="{{ $term->id }}" data-academic-year-id="{{ $term->academic_year_id }}" @selected($currentTerm && $currentTerm->id == $term->id)>{{ ($term->academicYear->year ?? '') ? ($term->academicYear->year . ' · ' . $term->name) : $term->name }}</option>
               @endforeach
             </select>
           </div>

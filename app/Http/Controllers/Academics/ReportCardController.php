@@ -20,6 +20,7 @@ use App\Services\ReportCardBatchService;
 use App\Models\Academics\Stream;
 use App\Services\ReportCardAccessService;
 use App\Services\CommunicationService;
+use App\Support\AcademicContext;
 
 class ReportCardController extends Controller
 {
@@ -75,8 +76,8 @@ class ReportCardController extends Controller
 
         $report_cards = $query->latest()->paginate(20)->withQueryString();
 
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         
         // Filter classrooms based on user role
         if (Auth::user()->hasRole('Teacher')) {
@@ -136,8 +137,8 @@ class ReportCardController extends Controller
                 ->where('is_alumni', false)
                 ->orderBy('last_name')
                 ->get(),
-            'years'    => AcademicYear::orderByDesc('year')->get(),
-            'terms'    => Term::orderBy('name')->get(),
+            'years'    => \App\Support\AcademicContext::years(),
+            'terms'    => \App\Support\AcademicContext::allTermsForSelect(),
         ]);
     }
 
@@ -264,8 +265,8 @@ class ReportCardController extends Controller
 
         return view('academics.assessments.term', [
             'data' => $data,
-            'years' => AcademicYear::orderByDesc('year')->get(),
-            'terms' => Term::orderBy('name')->get(),
+            'years' => \App\Support\AcademicContext::years(),
+            'terms' => \App\Support\AcademicContext::allTermsForSelect(),
             'classrooms' => Classroom::orderBy('name')->get(),
             'selected' => compact('yearId','termId','classId','subjectId'),
         ]);
@@ -317,12 +318,13 @@ class ReportCardController extends Controller
 
     public function generateForm()
     {
-        return view('academics.report_cards.generate', [
-            'years'      => \App\Models\AcademicYear::orderByDesc('year')->get(),
-            'terms'      => \App\Models\Term::orderBy('name')->get(),
-            'classrooms' => Classroom::orderBy('name')->get(),
-            'streams'    => Stream::orderBy('name')->get(),
-        ]);
+        return view('academics.report_cards.generate', array_merge(
+            AcademicContext::forView(),
+            [
+                'classrooms' => Classroom::orderBy('name')->get(),
+                'streams'    => Stream::orderBy('name')->get(),
+            ]
+        ));
     }
 
     public function generate(Request $request, ReportCardBatchService $service)

@@ -23,24 +23,14 @@
       @csrf
       <div class="card-body">
         <div class="row g-3">
-          <div class="col-md-3">
-            <label class="form-label">Academic Year</label>
-            <select name="academic_year_id" class="form-select" required>
-              <option value="">-- choose --</option>
-              @foreach($years as $y)
-                <option value="{{ $y->id }}">{{ $y->year }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Term</label>
-            <select name="term_id" class="form-select" required>
-              <option value="">-- choose --</option>
-              @foreach($terms as $t)
-                <option value="{{ $t->id }}">{{ $t->name }}</option>
-              @endforeach
-            </select>
-          </div>
+          @include('partials.academic_year_term_selects', [
+            'years' => $years,
+            'terms' => $terms,
+            'selectedYearId' => $selectedYearId ?? null,
+            'selectedTermId' => $selectedTermId ?? null,
+            'yearRequired' => true,
+            'termRequired' => true,
+          ])
           <div class="col-md-3">
             <label class="form-label">Classroom</label>
             <select name="classroom_id" class="form-select" required>

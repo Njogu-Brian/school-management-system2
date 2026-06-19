@@ -22,8 +22,8 @@ class FeeClearanceReportController extends Controller
 
     public function index(Request $request)
     {
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderByDesc('id')->with('academicYear')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         $term = $this->resolveTerm($request, $terms);
 
@@ -100,7 +100,7 @@ class FeeClearanceReportController extends Controller
      */
     public function exportPdfByClass(Request $request)
     {
-        $terms = Term::orderByDesc('id')->with('academicYear')->get();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $term = $this->resolveTerm($request, $terms);
 
         if (!$term) {

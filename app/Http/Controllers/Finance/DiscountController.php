@@ -436,7 +436,7 @@ class DiscountController extends Controller
             ->where('discount_type', 'sibling')
             ->orderBy('name')
             ->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
+        $academicYears = \App\Support\AcademicContext::years();
         $currentYear = AcademicYear::where('is_active', true)->first();
         
         return view('finance.discounts.bulk-allocate-sibling', compact('templates', 'academicYears', 'currentYear'));
@@ -446,7 +446,7 @@ class DiscountController extends Controller
     public function replicateForm()
     {
         $templates = DiscountTemplate::where('is_active', true)->orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
+        $academicYears = \App\Support\AcademicContext::years();
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
         
         return view('finance.discounts.replicate', compact('templates', 'academicYears', 'classrooms'));

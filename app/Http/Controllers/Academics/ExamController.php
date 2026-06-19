@@ -9,8 +9,8 @@ use App\Models\Academics\ExamType;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Subject;
 use App\Models\Academics\Stream;
-use App\Models\AcademicYear;
-use App\Models\Term;
+use App\Rules\TermBelongsToAcademicYear;
+use App\Support\AcademicContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -84,13 +84,21 @@ class ExamController extends Controller
             });
         }
 
-        // Filters
-        if ($request->filled('year_id')) {
-            $query->where('academic_year_id', $request->year_id);
+        $filterIds = AcademicContext::listFilterIds(
+            hasYearParam: $request->has('year_id'),
+            yearFilled: $request->filled('year_id'),
+            yearValue: $request->filled('year_id') ? (int) $request->year_id : null,
+            hasTermParam: $request->has('term_id'),
+            termFilled: $request->filled('term_id'),
+            termValue: $request->filled('term_id') ? (int) $request->term_id : null,
+        );
+
+        if ($filterIds['applyYearFilter'] && $filterIds['yearId']) {
+            $query->where('academic_year_id', $filterIds['yearId']);
         }
 
-        if ($request->filled('term_id')) {
-            $query->where('term_id', $request->term_id);
+        if ($filterIds['applyTermFilter'] && $filterIds['termId']) {
+            $query->where('term_id', $filterIds['termId']);
         }
 
         if ($request->filled('status')) {
@@ -138,13 +146,15 @@ class ExamController extends Controller
         $exams = $query->latest('created_at')->paginate($perPage)->withQueryString();
 
         $types = ExamType::orderBy('name')->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $academic = AcademicContext::forView(
+            requestedYearId: $filterIds['yearId'],
+            requestedTermId: $filterIds['termId'],
+        );
 
         $examSessions = ExamSession::query()
             ->with(['examType', 'classroom'])
-            ->when($request->filled('year_id'), fn ($q) => $q->where('academic_year_id', $request->year_id))
-            ->when($request->filled('term_id'), fn ($q) => $q->where('term_id', $request->term_id))
+            ->when($filterIds['applyYearFilter'] && $filterIds['yearId'], fn ($q) => $q->where('academic_year_id', $filterIds['yearId']))
+            ->when($filterIds['applyTermFilter'] && $filterIds['termId'], fn ($q) => $q->where('term_id', $filterIds['termId']))
             ->when($request->filled('exam_type_id'), fn ($q) => $q->where('exam_type_id', $request->exam_type_id))
             ->orderByDesc('id')
             ->limit(150)
@@ -166,17 +176,15 @@ class ExamController extends Controller
 
         $subjects = $this->getMappedActiveSubjects();
 
-        return view('academics.exams.index', compact(
+        return view('academics.exams.index', array_merge(compact(
             'exams',
             'stats',
             'types',
-            'years',
-            'terms',
             'examSessions',
             'classrooms',
             'subjects',
             'perPage'
-        ));
+        ), $academic));
     }
 
 
@@ -196,14 +204,15 @@ class ExamController extends Controller
             $classrooms = Classroom::orderBy('name')->get();
         }
 
-        return view('academics.exams.create', [
-            'years'      => AcademicYear::orderByDesc('year')->get(),
-            'terms'      => Term::orderBy('name')->get(),
-            'classrooms' => $classrooms,
-            'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
-            'streams'    => Stream::orderBy('name')->get(),
-            'types'      => ExamType::orderBy('name')->get(),
-        ]);
+        return view('academics.exams.create', array_merge(
+            AcademicContext::forView(),
+            [
+                'classrooms' => $classrooms,
+                'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
+                'streams'    => Stream::orderBy('name')->get(),
+                'types'      => ExamType::orderBy('name')->get(),
+            ]
+        ));
     }
 
     public function store(Request $request)
@@ -216,7 +225,11 @@ class ExamController extends Controller
             'name'             => 'required|string|max:255',
             'modality'         => 'required|in:physical,online',
             'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id'          => 'required|exists:terms,id',
+            'term_id'          => [
+                'required',
+                'exists:terms,id',
+                new TermBelongsToAcademicYear((int) $request->input('academic_year_id')),
+            ],
             'classroom_id'     => 'nullable|exists:classrooms,id',
             'stream_id'        => 'nullable|exists:streams,id',
             'subject_id'       => 'nullable|exists:subjects,id',
@@ -306,15 +319,19 @@ class ExamController extends Controller
             $classrooms = Classroom::orderBy('name')->get();
         }
 
-        return view('academics.exams.edit', [
-            'exam'       => $exam->load(['academicYear', 'term', 'classroom', 'subject']),
-            'years'      => AcademicYear::orderByDesc('year')->get(),
-            'terms'      => Term::orderBy('name')->get(),
-            'classrooms' => $classrooms,
-            'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
-            'streams'    => Stream::orderBy('name')->get(),
-            'types'      => ExamType::orderBy('name')->get(),
-        ]);
+        return view('academics.exams.edit', array_merge(
+            AcademicContext::forView(
+                requestedYearId: (int) old('academic_year_id', $exam->academic_year_id),
+                requestedTermId: (int) old('term_id', $exam->term_id),
+            ),
+            [
+                'exam'       => $exam->load(['academicYear', 'term', 'classroom', 'subject']),
+                'classrooms' => $classrooms,
+                'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
+                'streams'    => Stream::orderBy('name')->get(),
+                'types'      => ExamType::orderBy('name')->get(),
+            ]
+        ));
     }
 
     public function update(Request $request, Exam $exam)
@@ -350,6 +367,12 @@ class ExamController extends Controller
         $v = $request->validate([
             'name'             => 'required|string|max:255',
             'modality'         => 'required|in:physical,online',
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id'          => [
+                'required',
+                'exists:terms,id',
+                new TermBelongsToAcademicYear((int) $request->input('academic_year_id')),
+            ],
             'classroom_id'     => 'nullable|exists:classrooms,id',
             'stream_id'        => 'nullable|exists:streams,id',
             'subject_id'       => 'nullable|exists:subjects,id',
@@ -563,14 +586,15 @@ class ExamController extends Controller
             $classrooms = Classroom::orderBy('name')->get();
         }
 
-        return view('academics.exams.bulk_create', [
-            'years'      => AcademicYear::orderByDesc('year')->get(),
-            'terms'      => Term::orderBy('name')->get(),
-            'classrooms' => $classrooms,
-            'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
-            'types'      => ExamType::orderBy('name')->get(),
-            'streams'    => Stream::orderBy('name')->get(),
-        ]);
+        return view('academics.exams.bulk_create', array_merge(
+            AcademicContext::forView(),
+            [
+                'classrooms' => $classrooms,
+                'subjects'   => $this->getMappedActiveSubjects($classrooms->pluck('id')->all()),
+                'types'      => ExamType::orderBy('name')->get(),
+                'streams'    => Stream::orderBy('name')->get(),
+            ]
+        ));
     }
 
     public function storeBulk(Request $request)
@@ -584,7 +608,11 @@ class ExamController extends Controller
             'name_template'      => 'required|string|max:240',
             'modality'           => 'required|in:physical,online',
             'academic_year_id'   => 'required|exists:academic_years,id',
-            'term_id'            => 'required|exists:terms,id',
+            'term_id'            => [
+                'required',
+                'exists:terms,id',
+                new TermBelongsToAcademicYear((int) $request->input('academic_year_id')),
+            ],
             'classroom_ids'      => 'required|array|min:1',
             'classroom_ids.*'    => 'exists:classrooms,id',
             'use_all_subjects'   => 'boolean',

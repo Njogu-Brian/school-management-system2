@@ -40,8 +40,8 @@ class ExtraCurricularActivityController extends Controller
 
         $activities = $query->latest()->paginate(20)->withQueryString();
 
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('academics.extra_curricular_activities.index', compact('activities', 'years', 'terms'));
     }
@@ -50,8 +50,8 @@ class ExtraCurricularActivityController extends Controller
     {
         $classrooms = Classroom::orderBy('name')->get();
         $staff = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('academics.extra_curricular_activities.create', compact('classrooms', 'staff', 'years', 'terms'));
     }
@@ -102,8 +102,8 @@ class ExtraCurricularActivityController extends Controller
     {
         $classrooms = Classroom::orderBy('name')->get();
         $staff = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('academics.extra_curricular_activities.edit', compact('extra_curricular_activity', 'classrooms', 'staff', 'years', 'terms'));
     }

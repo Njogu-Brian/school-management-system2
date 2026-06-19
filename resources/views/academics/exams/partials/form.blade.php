@@ -1,20 +1,21 @@
 @php
-  use App\Models\Academics\ExamType;
-  use App\Models\AcademicYear;
-  use App\Models\Term;
+  use App\Support\AcademicContext;
 
-  $types  = $types  ?? ExamType::orderBy('name')->get();
-  $years  = $years  ?? AcademicYear::orderByDesc('year')->get();
-  $terms  = $terms  ?? Term::orderBy('name')->get();
+  $types  = $types  ?? \App\Models\Academics\ExamType::orderBy('name')->get();
+  $years  = $years ?? $academicYears ?? AcademicContext::years();
+  $terms  = $terms ?? AcademicContext::allTermsForSelect();
   $classrooms = $classrooms ?? collect();
   $subjects = $subjects ?? collect();
   $streams = $streams ?? collect();
 
+  $defaultYearId = $selectedYearId ?? AcademicContext::resolveYearId(null);
+  $defaultTermId = $selectedTermId ?? AcademicContext::resolveTermId($defaultYearId, null);
+
   $v = [
     'name' => old('name', $exam->name ?? ''),
     'modality' => old('modality', $exam->modality ?? 'physical'),
-    'academic_year_id' => old('academic_year_id', $exam->academic_year_id ?? ($years->first()->id ?? null)),
-    'term_id' => old('term_id', $exam->term_id ?? ($terms->first()->id ?? null)),
+    'academic_year_id' => old('academic_year_id', $exam->academic_year_id ?? $defaultYearId),
+    'term_id' => old('term_id', $exam->term_id ?? $defaultTermId),
     'classroom_id' => old('classroom_id', $exam->classroom_id ?? null),
     'stream_id' => old('stream_id', $exam->stream_id ?? null),
     'subject_id' => old('subject_id', $exam->subject_id ?? null),
@@ -57,22 +58,14 @@
         </select>
         <div class="form-text">Min and max marks are inherited from the selected exam type.</div>
       </div>
-      <div class="col-md-3">
-        <label class="form-label">Academic Year</label>
-        <select name="academic_year_id" class="form-select" required>
-          @foreach($years as $y)
-            <option value="{{ $y->id }}" @selected($v['academic_year_id']==$y->id)>{{ $y->year }}</option>
-          @endforeach
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Term</label>
-        <select name="term_id" class="form-select" required>
-          @foreach($terms as $t)
-            <option value="{{ $t->id }}" @selected($v['term_id']==$t->id)>{{ $t->name }}</option>
-          @endforeach
-        </select>
-      </div>
+      @include('partials.academic_year_term_selects', [
+        'years' => $years,
+        'terms' => $terms,
+        'selectedYearId' => $v['academic_year_id'],
+        'selectedTermId' => $v['term_id'],
+        'yearRequired' => true,
+        'termRequired' => true,
+      ])
       <div class="col-md-4">
         <label class="form-label">Classroom</label>
         <select name="classroom_id" class="form-select">

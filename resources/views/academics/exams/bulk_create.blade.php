@@ -54,22 +54,14 @@
             </select>
             <div class="form-text">Max and min marks are inherited from this exam type.</div>
           </div>
-          <div class="col-md-3">
-            <label class="form-label">Academic year</label>
-            <select name="academic_year_id" class="form-select" required>
-              @foreach($years as $y)
-                <option value="{{ $y->id }}" @selected(old('academic_year_id')==$y->id)>{{ $y->year }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Term</label>
-            <select name="term_id" class="form-select" required>
-              @foreach($terms as $t)
-                <option value="{{ $t->id }}" @selected(old('term_id')==$t->id)>{{ $t->name }}</option>
-              @endforeach
-            </select>
-          </div>
+          @include('partials.academic_year_term_selects', [
+            'years' => $years,
+            'terms' => $terms,
+            'selectedYearId' => old('academic_year_id', $group->academic_year_id ?? $selectedYearId),
+            'selectedTermId' => old('term_id', $group->term_id ?? $selectedTermId),
+            'yearRequired' => true,
+            'termRequired' => true,
+          ])
           <div class="col-md-3">
             <label class="form-label">Stream (optional)</label>
             <select name="stream_id" class="form-select">

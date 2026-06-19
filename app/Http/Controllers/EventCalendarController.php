@@ -21,7 +21,7 @@ class EventCalendarController extends Controller
             ->orderBy('start_date')
             ->get();
 
-        $years = AcademicYear::orderByDesc('year')->get();
+        $years = \App\Support\AcademicContext::years();
 
         return view('events.calendar', compact('events', 'years', 'year'));
     }
@@ -33,7 +33,7 @@ class EventCalendarController extends Controller
             abort(403, 'You do not have permission to create events.');
         }
 
-        $years = AcademicYear::orderByDesc('year')->get();
+        $years = \App\Support\AcademicContext::years();
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
         return view('events.create', compact('years', 'classrooms'));
     }
@@ -83,7 +83,7 @@ class EventCalendarController extends Controller
             abort(403, 'You do not have permission to edit events.');
         }
 
-        $years = AcademicYear::orderByDesc('year')->get();
+        $years = \App\Support\AcademicContext::years();
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
         return view('events.edit', compact('event', 'years', 'classrooms'));
     }

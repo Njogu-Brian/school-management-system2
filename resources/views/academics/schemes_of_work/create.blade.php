@@ -9,7 +9,7 @@
   <div class="settings-shell">
     <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
       <div>
-        <div class="crumb">Academics · Schemes of Work</div>
+        <div class="crumb">Academics ? Schemes of Work</div>
         <h1 class="mb-1">Create Scheme of Work</h1>
         <p class="text-muted mb-0">Generate or build a scheme with strands and lesson options.</p>
       </div>
@@ -46,7 +46,7 @@
             <select name="academic_year_id" class="form-select" required>
               <option value="">Select Year</option>
               @foreach($years as $year)
-                <option value="{{ $year->id }}">{{ $year->year }}</option>
+                <option value="{{ $year->id }}" @selected((int) ($selectedYearId ?? old('academic_year_id')) === (int) $year->id)>{{ $year->year }}</option>
               @endforeach
             </select>
           </div>
@@ -55,7 +55,7 @@
             <select name="term_id" class="form-select" required>
               <option value="">Select Term</option>
               @foreach($terms as $term)
-                <option value="{{ $term->id }}">{{ $term->name }}</option>
+                <option value="{{ $term->id }}" data-academic-year-id="{{ $term->academic_year_id }}">{{ ($term->academicYear->year ?? '') ? ($term->academicYear->year . ' ? ' . $term->name) : $term->name }}</option>
               @endforeach
             </select>
           </div>
@@ -151,7 +151,7 @@
             <select name="academic_year_id" class="form-select @error('academic_year_id') is-invalid @enderror" required>
               <option value="">Select Year</option>
               @foreach($years as $year)
-                <option value="{{ $year->id }}" {{ old('academic_year_id', $currentYearId ?? null) == $year->id ? 'selected' : '' }}>{{ $year->year }}</option>
+                <option value="{{ $year->id }}" {{ old('academic_year_id', $currentYearId ?? $selectedYearId ?? null) == $year->id ? 'selected' : '' }}>{{ $year->year }}</option>
               @endforeach
             </select>
             @error('academic_year_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -161,7 +161,7 @@
             <select name="term_id" class="form-select @error('term_id') is-invalid @enderror" required>
               <option value="">Select Term</option>
               @foreach($terms as $term)
-                <option value="{{ $term->id }}" {{ old('term_id', $currentTermId ?? null) == $term->id ? 'selected' : '' }}>{{ $term->name }}</option>
+                <option value="{{ $term->id }}" data-academic-year-id="{{ $term->academic_year_id }}" {{ old('term_id', $currentTermId ?? $selectedTermId ?? null) == $term->id ? 'selected' : '' }}>{{ ($term->academicYear->year ?? '') ? ($term->academicYear->year . ' ? ' . $term->name) : $term->name }}</option>
               @endforeach
             </select>
             @error('term_id')<div class="invalid-feedback">{{ $message }}</div>@enderror

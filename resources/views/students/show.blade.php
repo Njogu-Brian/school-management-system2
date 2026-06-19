@@ -701,23 +701,15 @@
             <small class="text-muted">Select a stream after choosing a class</small>
           </div>
 
-          <div class="mb-3">
-            <label class="form-label">Academic Year <span class="text-danger">*</span></label>
-            <select name="academic_year_id" class="form-select" required>
-              @foreach(\App\Models\AcademicYear::orderBy('year', 'desc')->get() as $year)
-                <option value="{{ $year->id }}" {{ $year->is_active ? 'selected' : '' }}>{{ $year->year }}</option>
-              @endforeach
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Term <span class="text-danger">*</span></label>
-            <select name="term_id" class="form-select" required>
-              @foreach(\App\Models\Term::orderBy('name')->get() as $term)
-                <option value="{{ $term->id }}" {{ $term->is_current ? 'selected' : '' }}>{{ $term->name }}</option>
-              @endforeach
-            </select>
-          </div>
+          @php
+            $demotionAcademic = \App\Support\AcademicContext::forView();
+          @endphp
+          @include('partials.academic_year_term_selects', array_merge($demotionAcademic, [
+            'yearCol' => 'mb-3',
+            'termCol' => 'mb-3',
+            'yearRequired' => true,
+            'termRequired' => true,
+          ]))
 
           <div class="mb-3">
             <label class="form-label">Demotion Date <span class="text-danger">*</span></label>

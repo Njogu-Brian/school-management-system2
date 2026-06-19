@@ -17,7 +17,7 @@ use App\Services\ExcelExportService;
 use App\Jobs\GeneratePDFJob;
 use App\Jobs\GenerateExcelJob;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use App\Support\AcademicContext;
 use Illuminate\Support\Facades\Gate;
 
 class SchemeOfWorkController extends Controller
@@ -85,18 +85,22 @@ class SchemeOfWorkController extends Controller
 
         $classrooms = Classroom::orderBy('name')->get();
         $subjects = Subject::active()->orderBy('name')->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
-
-        return view('academics.schemes_of_work.index', compact('schemes', 'classrooms', 'subjects', 'years', 'terms'));
+        return view('academics.schemes_of_work.index', array_merge(
+            AcademicContext::forView(
+                requestedYearId: $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+                requestedTermId: $request->filled('term_id') ? (int) $request->term_id : null,
+            ),
+            compact('schemes', 'classrooms', 'subjects')
+        ));
     }
 
     public function create(Request $request)
     {
         $subjects = Subject::active()->orderBy('name')->get();
         $classrooms = $this->getAccessibleClassrooms();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = AcademicContext::years();
+        $terms = AcademicContext::allTermsForSelect();
+        $academic = AcademicContext::forView();
         
         // Get learning areas for selection
         $learningAreas = LearningArea::active()->ordered()->get();
@@ -136,7 +140,7 @@ class SchemeOfWorkController extends Controller
             }
         }
 
-        return view('academics.schemes_of_work.create', compact(
+        return view('academics.schemes_of_work.create', array_merge($academic, compact(
             'subjects', 
             'classrooms', 
             'years', 
@@ -144,7 +148,10 @@ class SchemeOfWorkController extends Controller
             'strands',
             'learningAreas',
             'learningArea'
-        ));
+        ), [
+            'currentYearId' => $academic['selectedYearId'],
+            'currentTermId' => $academic['selectedTermId'],
+        ]));
     }
 
     public function store(Request $request)
@@ -200,11 +207,17 @@ class SchemeOfWorkController extends Controller
 
         $subjects = Subject::active()->orderBy('name')->get();
         $classrooms = $this->getAccessibleClassrooms();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = AcademicContext::years();
+        $terms = AcademicContext::allTermsForSelect();
         $strands = CBCStrand::active()->ordered()->get();
 
-        return view('academics.schemes_of_work.edit', compact('schemes_of_work', 'subjects', 'classrooms', 'years', 'terms', 'strands'));
+        return view('academics.schemes_of_work.edit', array_merge(
+            AcademicContext::forView(
+                requestedYearId: (int) old('academic_year_id', $schemes_of_work->academic_year_id),
+                requestedTermId: (int) old('term_id', $schemes_of_work->term_id),
+            ),
+            compact('schemes_of_work', 'subjects', 'classrooms', 'years', 'terms', 'strands')
+        ));
     }
 
     public function update(Request $request, SchemeOfWork $schemes_of_work)

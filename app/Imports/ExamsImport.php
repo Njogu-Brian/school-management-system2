@@ -19,7 +19,9 @@ class ExamsImport implements ToCollection
             [$name,$type,$modality,$year,$termName,$className,$subjectName,$start,$end,$max,$weight] = array_pad($row->toArray(), 11, null);
 
             $yearModel  = AcademicYear::where('year', $year)->first();
-            $termModel  = Term::where('name', $termName)->first();
+            $termModel = $yearModel
+                ? Term::where('academic_year_id', $yearModel->id)->where('name', $termName)->first()
+                : null;
             $classroom  = Classroom::where('name', $className)->first();
             $subject    = Subject::where('name', $subjectName)->first();
 

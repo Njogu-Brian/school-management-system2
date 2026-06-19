@@ -38,7 +38,7 @@ class FeeStructureController extends Controller
                 return $q->where('id', '!=', $balanceBroughtForwardVoteheadId);
             })
             ->get();
-        $academicYears = \App\Models\AcademicYear::orderByDesc('year')->get();
+        $academicYears = \App\Support\AcademicContext::years();
 
         $selectedClassroom = $request->query('classroom_id');
         $selectedCategory = $request->query('student_category_id') ?? $categories->first()?->id;
@@ -393,7 +393,7 @@ class FeeStructureController extends Controller
     {
         $classrooms = \App\Models\Academics\Classroom::all();
         $academicYears = \App\Models\AcademicYear::all();
-        $terms = \App\Models\Term::all();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $streams = \App\Models\Academics\Stream::all();
         $transportVoteheadId = TransportFeeService::transportVotehead()->id;
         $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();

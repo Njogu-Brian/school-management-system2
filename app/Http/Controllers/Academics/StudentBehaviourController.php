@@ -64,8 +64,8 @@ class StudentBehaviourController extends Controller
         return view('academics.student_behaviours.create', [
             'students' => $studentsQuery->get(),
             'behaviours' => Behaviour::orderBy('name')->get(),
-            'years' => AcademicYear::orderByDesc('year')->get(),
-            'terms' => Term::orderBy('name')->get(),
+            'years' => \App\Support\AcademicContext::years(),
+            'terms' => \App\Support\AcademicContext::allTermsForSelect(),
         ]);
     }
 

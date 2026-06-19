@@ -51,8 +51,8 @@ class RequirementTemplateAssignmentController extends Controller
         $requirementTypes = RequirementType::active()->orderBy('name')->get();
         $categories = RequirementType::presetCategories();
         $classrooms = Classroom::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $academicYears = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('inventory.requirement-template-assignments.index', compact(
             'assignments', 'templates', 'requirementTypes', 'categories', 'classrooms', 'academicYears', 'terms'
@@ -63,8 +63,8 @@ class RequirementTemplateAssignmentController extends Controller
     {
         $templates = RequirementTemplate::with('requirementType')->orderByDesc('id')->get();
         $classrooms = Classroom::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $academicYears = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('inventory.requirement-template-assignments.create', compact(
             'templates', 'classrooms', 'academicYears', 'terms'
@@ -99,8 +99,8 @@ class RequirementTemplateAssignmentController extends Controller
         $assignment = $requirement_template_assignment->load(['template.requirementType']);
         $templates = RequirementTemplate::with('requirementType')->orderByDesc('id')->get();
         $classrooms = Classroom::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $academicYears = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('inventory.requirement-template-assignments.edit', compact(
             'assignment', 'templates', 'classrooms', 'academicYears', 'terms'

@@ -73,8 +73,8 @@ class SubjectController extends Controller
     {
         $classrooms = Classroom::orderBy('name')->get();
         $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('academics.subjects.create', compact('classrooms', 'teachers', 'years', 'terms'));
     }
@@ -133,8 +133,8 @@ class SubjectController extends Controller
     {
         $classrooms = Classroom::orderBy('name')->get();
         $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         $classroomAssignments = $subject->classroomSubjects()
             ->with(['classroom', 'teacher'])

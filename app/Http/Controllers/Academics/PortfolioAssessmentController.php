@@ -67,8 +67,8 @@ class PortfolioAssessmentController extends Controller
 
         $classrooms = $this->getAccessibleClassrooms();
         $subjects = Subject::active()->orderBy('name')->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('academics.portfolio_assessments.index', compact('portfolios', 'classrooms', 'subjects', 'years', 'terms'));
     }
@@ -78,8 +78,8 @@ class PortfolioAssessmentController extends Controller
         $students = $this->getAccessibleStudents();
         $subjects = Subject::active()->orderBy('name')->get();
         $classrooms = $this->getAccessibleClassrooms();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $performanceLevels = CBCPerformanceLevel::where('is_active', true)->ordered()->get();
 
         return view('academics.portfolio_assessments.create', compact('students', 'subjects', 'classrooms', 'years', 'terms', 'performanceLevels'));
@@ -144,8 +144,8 @@ class PortfolioAssessmentController extends Controller
         $students = $this->getAccessibleStudents();
         $subjects = Subject::active()->orderBy('name')->get();
         $classrooms = $this->getAccessibleClassrooms();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $performanceLevels = CBCPerformanceLevel::where('is_active', true)->ordered()->get();
 
         return view('academics.portfolio_assessments.edit', compact('portfolio_assessment', 'students', 'subjects', 'classrooms', 'years', 'terms', 'performanceLevels'));

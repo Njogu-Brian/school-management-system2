@@ -45,7 +45,7 @@
             <select name="academic_year_id" class="form-select" id="academic_year_id_field">
               <option value="">Select year</option>
               @foreach($academicYears ?? [] as $y)
-                <option value="{{ $y->id }}" @selected(request('academic_year_id') == $y->id)>{{ $y->year }}</option>
+                <option value="{{ $y->id }}" @selected((int) ($selectedYearId ?? request('academic_year_id')) === (int) $y->id)>{{ $y->year }}</option>
               @endforeach
             </select>
           </div>
@@ -56,7 +56,7 @@
               @foreach($terms ?? [] as $t)
                 <option value="{{ $t->id }}"
                         data-academic-year-id="{{ $t->academic_year_id }}"
-                        @selected(request('term_id') == $t->id)>
+                        @selected((int) ($selectedTermId ?? request('term_id')) === (int) $t->id)>
                   {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
                 </option>
               @endforeach

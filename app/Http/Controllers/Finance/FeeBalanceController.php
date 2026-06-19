@@ -310,7 +310,7 @@ class FeeBalanceController extends Controller
         
         // Get classrooms and terms for filter (align with Admin Dashboard)
         $classrooms = Classroom::orderBy('name')->get();
-        $terms = Term::with('academicYear')->orderBy('academic_year_id')->orderBy('name')->get();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $years = \App\Models\AcademicYear::orderBy('year', 'desc')->get();
         
         return view('finance.fee_balances.index', [

@@ -220,7 +220,7 @@ class SeniorTeacherController extends Controller
             'upcomingExams' => $upcomingExams,
             'attendanceTrends' => $attendanceTrends,
             'years' => AcademicYear::all(),
-            'terms' => Term::all(),
+            'terms' => \App\Support\AcademicContext::allTermsForSelect(),
             'classrooms' => empty($classroomIds) ? collect() : Classroom::whereIn('id', $classroomIds)->get(),
             'role' => 'senior_teacher',
         ];

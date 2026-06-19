@@ -1282,7 +1282,7 @@ class StudentStatementController extends Controller
         }
         
         // Get terms for display
-        $terms = \App\Models\Term::orderBy('name')->get();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $branding = $this->branding();
         $statementHeader = \App\Models\Setting::get('statement_header', '');
         $statementFooter = \App\Models\Setting::get('statement_footer', '');

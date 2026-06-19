@@ -72,8 +72,8 @@ class TeacherRequirementsController extends Controller
 
         $requirements = $query->latest()->paginate(30);
         $classrooms = Classroom::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $academicYears = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         // Statistics
         $stats = [

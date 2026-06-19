@@ -86,24 +86,16 @@
                 </select>
               </div>
               <div class="row g-2">
-                <div class="col-md-6">
-                  <label class="form-label">Academic Year</label>
-                  <select name="academic_year_id" class="form-select" required>
-                    <option value="">Select year</option>
-                    @foreach($years as $y)
-                      <option value="{{ $y->id }}" @selected(old('academic_year_id')==$y->id)>{{ $y->year }}</option>
-                    @endforeach
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Term</label>
-                  <select name="term_id" class="form-select" required>
-                    <option value="">Select term</option>
-                    @foreach($terms as $t)
-                      <option value="{{ $t->id }}" @selected(old('term_id')==$t->id)>{{ $t->name }}</option>
-                    @endforeach
-                  </select>
-                </div>
+                @include('partials.academic_year_term_selects', [
+                  'years' => $years,
+                  'terms' => $terms,
+                  'selectedYearId' => old('academic_year_id', $selectedYearId),
+                  'selectedTermId' => old('term_id', $selectedTermId),
+                  'yearCol' => 'col-md-6',
+                  'termCol' => 'col-md-6',
+                  'yearRequired' => true,
+                  'termRequired' => true,
+                ])
               </div>
               <div class="mb-3">
                 <label class="form-label">Description (optional)</label>

@@ -66,24 +66,18 @@
               @endforeach
             </select>
           </div>
-          <div class="col-md-2">
-            <label class="form-label">Academic Year</label>
-            <select name="year_id" class="form-select">
-              <option value="">All Years</option>
-              @foreach($years ?? [] as $y)
-                <option value="{{ $y->id }}" @selected(request('year_id')==$y->id)>{{ $y->year }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Term</label>
-            <select name="term_id" class="form-select">
-              <option value="">All Terms</option>
-              @foreach($terms ?? [] as $t)
-                <option value="{{ $t->id }}" @selected(request('term_id')==$t->id)>{{ $t->name }}</option>
-              @endforeach
-            </select>
-          </div>
+          @include('partials.academic_year_term_selects', [
+              'yearName' => 'year_id',
+              'termName' => 'term_id',
+              'yearSelectId' => 'exam_index_year_id',
+              'termSelectId' => 'exam_index_term_id',
+              'selectedYearId' => $selectedYearId ?? null,
+              'selectedTermId' => $selectedTermId ?? null,
+              'allowEmptyYear' => true,
+              'allowEmptyTerm' => true,
+              'yearCol' => 'col-md-2',
+              'termCol' => 'col-md-2',
+            ])
           <div class="col-md-2">
             <label class="form-label">Exam type</label>
             <select name="exam_type_id" class="form-select">

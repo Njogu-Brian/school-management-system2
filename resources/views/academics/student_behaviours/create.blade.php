@@ -47,7 +47,7 @@
             <label class="form-label">Term</label>
             <select name="term_id" class="form-select" required>
               @foreach($terms as $t)
-                <option value="{{ $t->id }}">{{ $t->name }}</option>
+                <option value="{{ $t->id }}" data-academic-year-id="{{ $t->academic_year_id }}">{{ ($t->academicYear->year ?? '') ? ($t->academicYear->year . ' · ' . $t->name) : $t->name }}</option>
               @endforeach
             </select>
           </div>

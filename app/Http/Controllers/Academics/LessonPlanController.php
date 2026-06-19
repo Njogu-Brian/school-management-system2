@@ -95,8 +95,8 @@ class LessonPlanController extends Controller
 
         $classrooms = $this->getAccessibleClassrooms();
         $subjects = Subject::active()->orderBy('name')->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('academics.lesson_plans.index', compact('lessonPlans', 'classrooms', 'subjects', 'years', 'terms'));
     }
@@ -106,8 +106,8 @@ class LessonPlanController extends Controller
         $subjects = Subject::active()->orderBy('name')->get();
         $classrooms = $this->getAccessibleClassrooms();
         $schemes = SchemeOfWork::where('status', 'active')->with('subject', 'classroom')->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         
         // Filter substrands based on selected subject and classroom
         $substrands = collect();
@@ -224,8 +224,8 @@ class LessonPlanController extends Controller
         $subjects = Subject::active()->orderBy('name')->get();
         $classrooms = $this->getAccessibleClassrooms();
         $schemes = SchemeOfWork::where('status', 'active')->with('subject', 'classroom')->get();
-        $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $substrands = CBCSubstrand::active()->with('strand')->ordered()->get();
 
         return view('academics.lesson_plans.edit', compact('lesson_plan', 'subjects', 'classrooms', 'schemes', 'years', 'terms', 'substrands'));

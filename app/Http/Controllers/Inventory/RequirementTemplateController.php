@@ -37,8 +37,8 @@ class RequirementTemplateController extends Controller
         $requirementTypes = RequirementType::active()->orderBy('name')->get();
         $categories = RequirementType::presetCategories();
         $classrooms = Classroom::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $academicYears = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('inventory.requirement-templates.index', compact(
             'templates', 'requirementTypes', 'categories', 'classrooms', 'academicYears', 'terms'
@@ -49,8 +49,8 @@ class RequirementTemplateController extends Controller
     {
         $requirementTypes = RequirementType::active()->orderBy('name')->get();
         $classrooms = Classroom::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $academicYears = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('inventory.requirement-templates.create', compact(
             'requirementTypes', 'classrooms', 'academicYears', 'terms'
@@ -96,8 +96,8 @@ class RequirementTemplateController extends Controller
     {
         $requirementTypes = RequirementType::active()->orderBy('name')->get();
         $classrooms = Classroom::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $academicYears = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('inventory.requirement-templates.edit', compact(
             'template', 'requirementTypes', 'classrooms', 'academicYears', 'terms'

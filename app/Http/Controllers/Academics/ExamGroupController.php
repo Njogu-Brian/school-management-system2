@@ -7,6 +7,8 @@ use App\Models\Academics\ExamGroup;
 use App\Models\Academics\ExamType;
 use App\Models\AcademicYear;
 use App\Models\Term;
+use App\Rules\TermBelongsToAcademicYear;
+use App\Support\AcademicContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -19,12 +21,13 @@ class ExamGroupController extends Controller
             ->orderByDesc('id')
             ->paginate(20);
 
-        return view('academics.exam_groups.index', [
-            'groups' => $groups,
-            'types'  => ExamType::orderBy('name')->get(),
-            'years'  => AcademicYear::orderByDesc('year')->get(),
-            'terms'  => Term::orderBy('name')->get(),
-        ]);
+        return view('academics.exam_groups.index', array_merge(
+            AcademicContext::forView(),
+            [
+                'groups' => $groups,
+                'types'  => ExamType::orderBy('name')->get(),
+            ]
+        ));
     }
 
     public function store(Request $r)
@@ -33,7 +36,11 @@ class ExamGroupController extends Controller
             'name' => 'required|string|max:255',
             'exam_type_id' => 'required|exists:exam_types,id',
             'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id' => 'required|exists:terms,id',
+            'term_id' => [
+                'required',
+                'exists:terms,id',
+                new TermBelongsToAcademicYear((int) $r->input('academic_year_id')),
+            ],
             'description' => 'nullable|string|max:1000',
             'is_active' => 'nullable|boolean',
         ]);
@@ -45,12 +52,16 @@ class ExamGroupController extends Controller
 
     public function edit(ExamGroup $group)
     {
-        return view('academics.exam_groups.edit', [
-            'group'=>$group,
-            'types'=>ExamType::orderBy('name')->get(),
-            'years'=>AcademicYear::orderByDesc('year')->get(),
-            'terms'=>Term::orderBy('name')->get(),
-        ]);
+        return view('academics.exam_groups.edit', array_merge(
+            AcademicContext::forView(
+                requestedYearId: (int) old('academic_year_id', $group->academic_year_id),
+                requestedTermId: (int) old('term_id', $group->term_id),
+            ),
+            [
+                'group' => $group,
+                'types' => ExamType::orderBy('name')->get(),
+            ]
+        ));
     }
 
     public function update(Request $r, ExamGroup $group)
@@ -59,7 +70,11 @@ class ExamGroupController extends Controller
             'name' => 'required|string|max:255',
             'exam_type_id' => 'required|exists:exam_types,id',
             'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id' => 'required|exists:terms,id',
+            'term_id' => [
+                'required',
+                'exists:terms,id',
+                new TermBelongsToAcademicYear((int) $r->input('academic_year_id')),
+            ],
             'description' => 'nullable|string|max:1000',
             'is_active' => 'nullable|boolean',
         ]);

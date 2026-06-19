@@ -34,7 +34,7 @@ class FeesComparisonImportController extends Controller
         return view('finance.fees_comparison_import.index', [
             'year' => $year,
             'term' => $termNumber,
-            'terms' => Term::orderBy('name')->get(),
+            'terms' => \App\Support\AcademicContext::allTermsForSelect(),
         ]);
     }
 

@@ -16,12 +16,15 @@ class RolePermissionController extends Controller
     /**
      * Combined Roles & HR Lookups page
      */
-    public function accessAndLookups()
+    public function accessAndLookups(Request $request)
     {
         // Roles and Permissions
         $roles = \App\Support\NavAccess::orderedRoles(
             Role::with('permissions')->get()
         );
+
+        $selectedRole = $this->resolveSelectedRole($request, $roles);
+
         $permissions = Permission::orderBy('name')->get()->groupBy(function ($perm) {
             return explode('.', $perm->name)[0];
         })->sortKeys();
@@ -35,8 +38,37 @@ class RolePermissionController extends Controller
         $customFields = CustomField::where('module', 'staff')->get();
 
         return view('hr.access_lookups', compact(
-            'roles', 'permissions', 'categories', 'departments', 'jobTitles', 'customFields', 'moduleLabels'
+            'roles',
+            'selectedRole',
+            'permissions',
+            'categories',
+            'departments',
+            'jobTitles',
+            'customFields',
+            'moduleLabels'
         ));
+    }
+
+    protected function resolveSelectedRole(Request $request, $roles)
+    {
+        if ($roles->isEmpty()) {
+            return null;
+        }
+
+        $key = $request->query('role');
+        if ($key !== null && $key !== '') {
+            if (is_numeric($key)) {
+                $match = $roles->firstWhere('id', (int) $key);
+            } else {
+                $match = $roles->first(fn ($role) => strcasecmp($role->name, (string) $key) === 0);
+            }
+
+            if ($match) {
+                return $match;
+            }
+        }
+
+        return $roles->first();
     }
 
     /**
@@ -74,7 +106,7 @@ class RolePermissionController extends Controller
         // Sync permissions with the role
         $role->syncPermissions($permissions);
 
-        return redirect()->route('hr.access-lookups')
-            ->with('success', 'Permissions updated successfully.');
+        return redirect()->route('hr.access-lookups', ['role' => $role->id])
+            ->with('success', "Permissions updated for {$role->name}.");
     }
 }

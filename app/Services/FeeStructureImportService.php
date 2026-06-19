@@ -422,7 +422,7 @@ class FeeStructureImportService
         $yearList = $academicYears->pluck('year')->toArray();
         
         // Get terms
-        $terms = \App\Models\Term::orderBy('academic_year_id')->orderBy('name')->get();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
         $termList = $terms->pluck('name')->unique()->toArray();
         
         // Get student categories
