@@ -3,6 +3,8 @@ import { Playfair_Display, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AnalyticsTracker } from "@/components/analytics/AnalyticsTracker";
+import { BRAND } from "@/content/schoolContent";
+import { assetPath } from "@/lib/assetPath";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -16,22 +18,35 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Royal Kings Education Centre",
-    template: "%s | Royal Kings Education Centre",
+    default: BRAND.shortName,
+    template: `%s | ${BRAND.shortName}`,
   },
-  description: "Where Little Steps Grow Into Great Futures — Creche to Grade 9 Christian-centered education.",
+  description: `${BRAND.tagline} — Creche to Grade 9 Christian-centered education in Wangige, Kenya.`,
+  icons: {
+    icon: [{ url: assetPath("/logo.png"), type: "image/png" }],
+    apple: [{ url: assetPath("/logo.png") }],
+  },
   openGraph: {
     type: "website",
     locale: "en_KE",
-    siteName: "Royal Kings Education Centre",
+    siteName: BRAND.shortName,
+    images: [{ url: BRAND.logoUrl }],
   },
 };
 
 const schoolSchema = {
   "@context": "https://schema.org",
   "@type": "School",
-  name: "Royal Kings Education Centre",
-  description: "Where Little Steps Grow Into Great Futures",
+  name: BRAND.name,
+  alternateName: BRAND.shortName,
+  description: BRAND.tagline,
+  foundingDate: String(BRAND.founded),
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Wangige",
+    addressRegion: "Kiambu",
+    addressCountry: "KE",
+  },
 };
 
 export default function RootLayout({
@@ -47,7 +62,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(schoolSchema) }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-white font-sans text-[#2a1145] antialiased">
+      <body className="min-h-full flex flex-col bg-white font-sans text-[var(--rk-purple-deep)] antialiased">
         <QueryProvider>
           <AnalyticsTracker />
           {children}

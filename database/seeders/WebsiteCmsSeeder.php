@@ -16,9 +16,9 @@ class WebsiteCmsSeeder extends Seeder
     public function run(): void
     {
         WebsiteSetting::query()->firstOrCreate([], [
-            'school_name' => 'Royal Kings Education Centre',
+            'school_name' => 'Royal Kings Premier School LTD',
             'tagline' => 'Where Little Steps Grow Into Great Futures',
-            'primary_color' => '#8B00CC',
+            'primary_color' => '#9B1FE8',
             'secondary_color' => '#D4AF37',
             'phone' => '+254 719 396 233',
             'email' => 'info@royalkingsschools.sc.ke',
@@ -28,9 +28,9 @@ class WebsiteCmsSeeder extends Seeder
             'current_term' => 'Term 1, 2026',
             'google_map' => '<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15955.5!2d36.705!3d-1.245!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sRoyal%20Kings%20School%20Wangige!5e0!3m2!1sen!2ske!4v1719000000000!5m2!1sen!2ske" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy"></iframe>',
             'seo_defaults' => [
-                'title' => 'Royal Kings Education Centre | Creche to Grade 9',
-                'description' => 'A Christian-centered, family-friendly school nurturing learners from age 3 to Grade 9.',
-                'keywords' => 'Royal Kings, school, Nairobi, Christian school, creche, primary',
+                'title' => 'Royal Kings Premier School | Creche to Grade 9',
+                'description' => 'Royal Kings Premier School LTD — Christian-centered education in Wangige, Kiambu. Creche to Grade 9.',
+                'keywords' => 'Royal Kings Premier School, Wangige, Kiambu, Christian school, creche, primary',
             ],
         ]);
 
@@ -38,7 +38,7 @@ class WebsiteCmsSeeder extends Seeder
             ['slug' => 'home'],
             [
                 'name' => 'Homepage',
-                'title' => 'Royal Kings Education Centre',
+                'title' => 'Royal Kings Premier School',
                 'status' => Page::STATUS_PUBLISHED,
                 'is_homepage' => true,
                 'published_at' => now(),

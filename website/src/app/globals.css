@@ -1,17 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  /* Sampled from official logo (royal-logo-small-192x192.png) */
+  /* Logo purple #B400FF — UI uses readable purple tones (no navy) */
   --rk-purple-bright: #B400FF;
-  --rk-purple: #8B00CC;
-  --rk-purple-dark: #3D0066;
-  --rk-purple-deep: #1F0033;
+  --rk-purple: #9B1FE8;
+  --rk-purple-mid: #7A12C4;
+  --rk-purple-dark: #5C0D96;
+  --rk-purple-deep: #4A0078;
   --rk-gold: #D4AF37;
-  --rk-surface: #faf7ff;
-  --rk-border: #e8dff5;
-  --rk-muted: #4a3a5c;
+  --rk-gold-light: #F0D878;
+  --rk-surface: #f9f2ff;
+  --rk-border: #e4c8f5;
+  --rk-muted: #5a3d6e;
   --background: #ffffff;
-  --foreground: var(--rk-purple-deep);
+  --foreground: #4A0078;
 }
 
 @theme inline {
@@ -40,6 +42,21 @@ body {
   animation: marquee 30s linear infinite;
 }
 
+@keyframes rk-ring-pulse {
+  0% { transform: scale(1); opacity: 0.75; }
+  70% { transform: scale(1.85); opacity: 0; }
+  100% { transform: scale(1.85); opacity: 0; }
+}
+
+@keyframes rk-bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-rk-bounce-subtle {
+  animation: rk-bounce-subtle 2.5s ease-in-out infinite;
+}
+
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -49,77 +66,81 @@ body {
   display: none;
 }
 
-/* Floating action buttons */
-@keyframes rk-glow-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.55; }
-  50% { transform: scale(1.18); opacity: 0.15; }
-}
-
+/* Floating action buttons — high visibility */
 .rk-fab {
   position: fixed;
   right: 1rem;
   z-index: 50;
   display: flex;
-  height: 3.5rem;
-  width: 3.5rem;
+  height: 4rem;
+  width: 4rem;
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  color: white;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 4px rgba(180, 0, 255, 0.35), 0 12px 40px rgba(74, 0, 120, 0.45);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 @media (min-width: 640px) {
   .rk-fab {
     right: 1.5rem;
-    height: 3.75rem;
-    width: 3.75rem;
+    height: 4.25rem;
+    width: 4.25rem;
   }
 }
 
 .rk-fab:hover {
-  transform: scale(1.08);
+  transform: scale(1.12) rotate(-3deg);
+  box-shadow: 0 0 0 6px rgba(180, 0, 255, 0.5), 0 16px 48px rgba(74, 0, 120, 0.55);
 }
 
 .rk-fab-whatsapp {
-  bottom: 7.5rem;
-  background: linear-gradient(135deg, #25d366, #128c7e);
+  bottom: 8rem;
+  background: linear-gradient(145deg, #2ee06a, #128C7E);
 }
 
 .rk-fab-maps {
-  bottom: 11.75rem;
-  background: linear-gradient(135deg, var(--rk-purple-bright), var(--rk-purple));
+  bottom: 13.25rem;
+  background: linear-gradient(145deg, #ffffff, #f3e8ff);
 }
 
-.rk-fab-pulse {
+.rk-fab-ring {
   position: absolute;
-  inset: 0;
+  inset: -4px;
   border-radius: 9999px;
-  animation: rk-glow-pulse 2.2s ease-in-out infinite;
+  border: 3px solid currentColor;
+  animation: rk-ring-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
 }
 
-.rk-fab-pulse-whatsapp {
-  background: #25d366;
+.rk-fab-ring-whatsapp {
+  color: #25d366;
 }
 
-.rk-fab-pulse-maps {
-  background: var(--rk-purple-bright);
+.rk-fab-ring-maps {
+  color: var(--rk-purple-bright);
+}
+
+.rk-fab-ring-delay {
+  animation-delay: 1s;
 }
 
 .rk-fab-label {
   pointer-events: none;
   position: absolute;
-  right: calc(100% + 0.5rem);
+  right: calc(100% + 0.65rem);
   white-space: nowrap;
   border-radius: 9999px;
-  background: rgba(31, 0, 51, 0.92);
-  padding: 0.35rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
+  background: var(--rk-purple-deep);
+  color: white;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   opacity: 0;
-  transform: translateX(0.5rem);
+  transform: translateX(0.75rem);
   transition: opacity 0.2s, transform 0.2s;
+  box-shadow: 0 4px 20px rgba(74, 0, 120, 0.4);
 }
 
 .group:hover .rk-fab-label,
@@ -134,33 +155,70 @@ body {
   right: 1rem;
   z-index: 50;
   border-radius: 9999px;
-  background: var(--rk-gold);
-  padding: 0.75rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 700;
+  background: linear-gradient(135deg, var(--rk-gold-light), var(--rk-gold));
+  padding: 0.85rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 800;
   color: var(--rk-purple-deep);
-  box-shadow: 0 8px 28px rgba(180, 0, 255, 0.25);
+  border: 2px solid white;
+  box-shadow: 0 0 0 3px rgba(180, 0, 255, 0.3), 0 10px 32px rgba(74, 0, 120, 0.35);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
 @media (min-width: 640px) {
   .rk-fab-admissions {
     right: 1.5rem;
-    padding: 0.85rem 1.5rem;
   }
 }
 
 .rk-fab-admissions:hover {
-  transform: scale(1.05);
-  box-shadow: 0 10px 36px rgba(180, 0, 255, 0.35);
+  transform: scale(1.06);
+}
+
+/* Social bar */
+.rk-social-link {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.rk-social-link:hover {
+  background: var(--rk-purple-bright);
+  transform: scale(1.1);
+}
+
+/* Rich content blocks */
+.rk-photo-card {
+  overflow: hidden;
+  border-radius: 1rem;
+  box-shadow: 0 12px 40px rgba(74, 0, 120, 0.15);
+  ring: 1px solid var(--rk-border);
+}
+
+.rk-stat-pill {
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--rk-purple), var(--rk-purple-mid));
+  color: white;
+  padding: 1.25rem;
+  text-align: center;
 }
 
 .prose-rk p {
   margin-top: 0.75rem;
-  line-height: 1.7;
+  line-height: 1.75;
   color: var(--rk-muted);
 }
 
 .prose-rk p:first-child {
   margin-top: 0;
+}
+
+.prose-rk strong {
+  color: var(--rk-purple-dark);
 }

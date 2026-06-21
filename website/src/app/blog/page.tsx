@@ -7,7 +7,7 @@ import { useBlogs } from "@/hooks/useWebsiteData";
 const FALLBACK_POSTS = [
   {
     id: 1,
-    title: "Welcome to Royal Kings Education Centre",
+    title: "Welcome to Royal Kings Premier School",
     excerpt: "Discover a warm, Christian-centered community where every child is known and nurtured.",
     published_at: "2026",
   },

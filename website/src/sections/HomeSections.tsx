@@ -6,7 +6,7 @@ import { Autoplay, Pagination } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/pagination";
 import type { Testimonial, GalleryItem, WebsiteEvent, HomepageData } from "@/types/website";
-import { LEGACY_TESTIMONIALS } from "@/content/schoolContent";
+import { LEGACY_TESTIMONIALS, GALLERY_PHOTOS } from "@/content/schoolContent";
 import { fadeUp } from "@/animations/variants";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -16,11 +16,11 @@ export function TestimonialsCarousel({ testimonials }: { testimonials: Testimoni
   const items: Testimonial[] =
     testimonials.length > 0
       ? testimonials
-      : LEGACY_TESTIMONIALS.map((message, id) => ({
+      : LEGACY_TESTIMONIALS.map((t, id) => ({
           id,
-          name: "Parent",
-          relationship: "Royal Kings Family",
-          message,
+          name: t.role,
+          relationship: "Royal Kings Premier School",
+          message: t.quote,
           featured: true,
         }));
 
@@ -29,13 +29,13 @@ export function TestimonialsCarousel({ testimonials }: { testimonials: Testimoni
   return (
     <section className="bg-[#faf7ff] py-20">
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
-        <h2 className="text-center font-serif text-3xl font-bold text-[#2a1145]">What Parents Say</h2>
+        <h2 className="text-center font-serif text-3xl font-bold text-[var(--rk-purple-deep)]">What Parents Say</h2>
         <Swiper modules={[Autoplay, Pagination]} autoplay={{ delay: 5000 }} pagination={{ clickable: true }} className="mt-10 !pb-12">
           {items.map((t) => (
             <SwiperSlide key={t.id}>
               <blockquote className="mx-auto max-w-3xl rounded-3xl bg-white p-8 text-center shadow-lg">
                 <p className="text-lg italic text-[#4a3a5c]">&ldquo;{t.message}&rdquo;</p>
-                <footer className="mt-6 font-semibold text-[#5B2C8E]">{t.name}{t.relationship ? ` · ${t.relationship}` : ""}</footer>
+                <footer className="mt-6 font-semibold text-[var(--rk-purple)]">{t.name}{t.relationship ? ` · ${t.relationship}` : ""}</footer>
               </blockquote>
             </SwiperSlide>
           ))}
@@ -47,25 +47,38 @@ export function TestimonialsCarousel({ testimonials }: { testimonials: Testimoni
 
 export function CampusGallery({ items }: { items: GalleryItem[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const displayItems: GalleryItem[] =
+    items.length > 0
+      ? items
+      : GALLERY_PHOTOS.map((p, id) => ({
+          id,
+          url: p.src,
+          title: p.title,
+          alt_text: p.caption || p.title,
+          category: "campus",
+          type: "image",
+          is_featured: id === 0,
+        }));
 
   useEffect(() => {
-    if (!scrollRef.current || items.length < 2) return;
+    if (!scrollRef.current || displayItems.length < 2) return;
     const el = scrollRef.current;
     gsap.to(el, { scrollLeft: el.scrollWidth / 2, duration: 20, repeat: -1, yoyo: true, ease: "none" });
-  }, [items]);
-
-  if (!items.length) return null;
+  }, [displayItems.length]);
 
   return (
     <section className="py-20">
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
-        <h2 className="font-serif text-3xl font-bold text-[#2a1145]">Campus Life</h2>
+        <div className="flex items-end justify-between">
+          <h2 className="font-serif text-3xl font-bold text-[var(--rk-purple-deep)]">Campus Life</h2>
+          <Link href="/campus-life#gallery" className="text-sm text-[var(--rk-purple)] hover:underline">View gallery →</Link>
+        </div>
         <div ref={scrollRef} className="mt-8 flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-          {items.map((item) => (
+          {displayItems.map((item) => (
             <motion.div key={item.id} whileHover={{ scale: 1.03 }} className="min-w-[280px] shrink-0 overflow-hidden rounded-2xl shadow-lg">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={item.url} alt={item.alt_text || item.title} className="h-56 w-full object-cover" loading="lazy" />
-              <p className="bg-white p-3 text-sm font-medium text-[#5B2C8E]">{item.title}</p>
+              <p className="bg-white p-3 text-sm font-medium text-[var(--rk-purple)]">{item.title}</p>
             </motion.div>
           ))}
         </div>
@@ -92,7 +105,7 @@ function EventCountdown({ date }: { date: string }) {
     return () => clearInterval(id);
   }, [target]);
 
-  return <span className="text-xs text-[#D4AF37]">{left.d}d {left.h}h {left.m}m</span>;
+  return <span className="text-xs text-[var(--rk-gold)]">{left.d}d {left.h}h {left.m}m</span>;
 }
 
 export function LatestEvents({ events }: { events: WebsiteEvent[] }) {
@@ -100,11 +113,11 @@ export function LatestEvents({ events }: { events: WebsiteEvent[] }) {
   if (!upcoming.length) return null;
 
   return (
-    <section className="bg-[#2a1145] py-20 text-white">
+    <section className="bg-[var(--rk-purple-deep)] py-20 text-white">
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
         <div className="flex items-end justify-between">
           <h2 className="font-serif text-3xl font-bold">Latest Events</h2>
-          <Link href="/events" className="text-sm text-[#D4AF37] hover:underline">View all</Link>
+          <Link href="/campus-life#events" className="text-sm text-[var(--rk-gold)] hover:underline">View all</Link>
         </div>
         <div className="mt-10 grid gap-6 md:grid-cols-2">
           {upcoming.map((event) => (
@@ -149,15 +162,15 @@ export function StatsCounters({ stats }: { stats: HomepageData["live_stats"] }) 
     <section className="py-16">
       <div className="mx-auto flex max-w-4xl flex-wrap justify-center gap-10 px-4 text-center">
         <div>
-          <p className="font-serif text-5xl font-bold text-[#5B2C8E]">{count}+</p>
+          <p className="font-serif text-5xl font-bold text-[var(--rk-purple)]">{count}+</p>
           <p className="mt-2 text-[#4a3a5c]">Happy Learners</p>
         </div>
         <div>
-          <p className="font-serif text-5xl font-bold text-[#5B2C8E]">{stats.class_structure.length}</p>
+          <p className="font-serif text-5xl font-bold text-[var(--rk-purple)]">{stats.class_structure.length}</p>
           <p className="mt-2 text-[#4a3a5c]">Class Levels</p>
         </div>
         <div>
-          <p className="font-serif text-5xl font-bold text-[#5B2C8E]">3–15</p>
+          <p className="font-serif text-5xl font-bold text-[var(--rk-purple)]">3–15</p>
           <p className="mt-2 text-[#4a3a5c]">Age Range</p>
         </div>
       </div>
@@ -169,7 +182,7 @@ export function AnnouncementsTicker({ announcements }: { announcements: Homepage
   if (!announcements.length) return null;
 
   return (
-    <div className="overflow-hidden bg-[#D4AF37] py-2 text-[#2a1145]">
+    <div className="overflow-hidden bg-[var(--rk-gold)] py-2 text-[var(--rk-purple-deep)]">
       <div className="animate-marquee whitespace-nowrap text-sm font-medium">
         {announcements.map((a) => (
           <span key={a.id} className="mx-8 inline-block">📢 {a.title}: {a.content.replace(/<[^>]+>/g, "").slice(0, 120)}</span>
@@ -180,18 +193,18 @@ export function AnnouncementsTicker({ announcements }: { announcements: Homepage
 }
 
 export function TransportPreview() {
-  const routes = ["Route A · Westlands", "Route B · Parklands", "Route C · Lavington", "Route D · Kilimani"];
+  const routes = ["Wangige", "Lower Kabete", "Kikuyu", "Gitaru", "Uthiru"];
 
   return (
     <section className="py-20">
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
-        <h2 className="font-serif text-3xl font-bold text-[#2a1145]">Safe Transport Routes</h2>
+        <h2 className="font-serif text-3xl font-bold text-[var(--rk-purple-deep)]">Safe Transport Routes</h2>
         <p className="mt-3 max-w-2xl text-[#4a3a5c]">GPS-tracked buses with caring drivers — tap a route to preview (full map in Parent Portal).</p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {routes.map((route) => (
-            <button key={route} type="button" className="rounded-2xl border-2 border-[#e8dff5] bg-white p-5 text-left transition hover:border-[#5B2C8E] hover:shadow-lg">
+            <button key={route} type="button" className="rounded-2xl border-2 border-[var(--rk-border)] bg-white p-5 text-left transition hover:border-[var(--rk-purple)] hover:shadow-lg">
               <span className="text-2xl">🚌</span>
-              <p className="mt-3 font-semibold text-[#5B2C8E]">{route}</p>
+              <p className="mt-3 font-semibold text-[var(--rk-purple)]">{route}</p>
             </button>
           ))}
         </div>
@@ -202,12 +215,12 @@ export function TransportPreview() {
 
 export function ParentPortalPreview() {
   return (
-    <section className="bg-gradient-to-r from-[#5B2C8E] to-[#3d1d61] py-20 text-white">
+    <section className="bg-gradient-to-r from-[var(--rk-purple)] to-[var(--rk-purple-dark)] py-20 text-white">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-8 px-4 text-center lg:flex-row lg:text-left lg:px-8">
         <div className="flex-1">
           <h2 className="font-serif text-3xl font-bold">Parent Portal</h2>
           <p className="mt-4 text-white/85">Fees, attendance, report cards, transport, and school announcements — all in one secure place.</p>
-          <Link href="/parent-portal" className="mt-6 inline-block rounded-full bg-[#D4AF37] px-6 py-3 font-semibold text-[#2a1145]">
+          <Link href="/parent-portal" className="mt-6 inline-block rounded-full bg-[var(--rk-gold)] px-6 py-3 font-semibold text-[var(--rk-purple-deep)]">
             Access Portal
           </Link>
         </div>
@@ -227,12 +240,12 @@ export function AdmissionsCTA() {
   return (
     <section className="py-20">
       <div className="mx-auto max-w-4xl rounded-3xl bg-[#faf7ff] px-8 py-16 text-center shadow-xl">
-        <h2 className="font-serif text-3xl font-bold text-[#2a1145]">Begin Your Journey Today</h2>
+        <h2 className="font-serif text-3xl font-bold text-[var(--rk-purple-deep)]">Begin Your Journey Today</h2>
         <p className="mx-auto mt-4 max-w-xl text-[#4a3a5c]">Join a community where faith, excellence, and warmth guide every step from Creche to Grade 9.</p>
-        <Link href="/admissions" className="mt-6 inline-block rounded-full bg-[#5B2C8E] px-6 py-3 font-semibold text-white hover:bg-[#4a2475]">
+        <Link href="/admissions" className="mt-6 inline-block rounded-full bg-[var(--rk-purple)] px-6 py-3 font-semibold text-white hover:bg-[var(--rk-purple-dark)]">
             Apply for Admission
           </Link>
-          <Link href="/admissions/apply" className="ml-3 mt-6 inline-block rounded-full border border-[#5B2C8E] px-6 py-3 font-semibold text-[#5B2C8E]">
+          <Link href="/admissions/apply" className="ml-3 mt-6 inline-block rounded-full border border-[var(--rk-purple)] px-6 py-3 font-semibold text-[var(--rk-purple)]">
             Full Application
           </Link>
       </div>

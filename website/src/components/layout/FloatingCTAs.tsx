@@ -2,6 +2,7 @@
 
 import type { WebsiteSettings } from "@/types/website";
 import { CONTACT } from "@/content/schoolContent";
+import { GoogleMapsIcon, WhatsAppIcon } from "@/components/icons/BrandIcons";
 
 function whatsappNumber(settings?: WebsiteSettings) {
   const raw = settings?.whatsapp || CONTACT.whatsapp;
@@ -10,7 +11,7 @@ function whatsappNumber(settings?: WebsiteSettings) {
 
 export function FloatingWhatsApp({ settings }: { settings?: WebsiteSettings }) {
   const number = whatsappNumber(settings);
-  const href = `https://wa.me/${number}?text=${encodeURIComponent("Hello Royal Kings, I would like to enquire about admissions.")}`;
+  const href = `https://wa.me/${number}?text=${encodeURIComponent("Hello Royal Kings Premier School, I would like to enquire about admissions.")}`;
 
   return (
     <a
@@ -21,30 +22,33 @@ export function FloatingWhatsApp({ settings }: { settings?: WebsiteSettings }) {
       aria-label="Chat on WhatsApp"
       title="Chat on WhatsApp"
     >
-      <span className="rk-fab-pulse rk-fab-pulse-whatsapp" aria-hidden />
-      <span className="relative z-10 text-2xl">💬</span>
-      <span className="rk-fab-label">WhatsApp</span>
+      <span className="rk-fab-ring rk-fab-ring-whatsapp" aria-hidden />
+      <span className="rk-fab-ring rk-fab-ring-whatsapp rk-fab-ring-delay" aria-hidden />
+      <span className="relative z-10 flex items-center justify-center text-white">
+        <WhatsAppIcon className="h-8 w-8" />
+      </span>
+      <span className="rk-fab-label">WhatsApp Us</span>
     </a>
   );
 }
 
 export function FloatingMaps({ settings }: { settings?: WebsiteSettings }) {
-  const mapsUrl = settings?.google_map?.includes("http")
-    ? CONTACT.mapsUrl
-    : CONTACT.mapsUrl;
-
+  void settings;
   return (
     <a
-      href={mapsUrl}
+      href={CONTACT.mapsUrl}
       target="_blank"
       rel="noopener noreferrer"
       className="rk-fab rk-fab-maps group"
       aria-label="Find us on Google Maps"
       title="Find us on Google Maps"
     >
-      <span className="rk-fab-pulse rk-fab-pulse-maps" aria-hidden />
-      <span className="relative z-10 text-2xl">📍</span>
-      <span className="rk-fab-label">Find Us</span>
+      <span className="rk-fab-ring rk-fab-ring-maps" aria-hidden />
+      <span className="rk-fab-ring rk-fab-ring-maps rk-fab-ring-delay" aria-hidden />
+      <span className="relative z-10 flex items-center justify-center rounded-full bg-white p-1.5 shadow-inner">
+        <GoogleMapsIcon className="h-7 w-7" />
+      </span>
+      <span className="rk-fab-label">Google Maps</span>
     </a>
   );
 }
@@ -53,7 +57,7 @@ export function StickyAdmissionsButton({ settings }: { settings?: WebsiteSetting
   if (settings?.admissions_open === false) return null;
 
   return (
-    <a href="/admissions" className="rk-fab-admissions">
+    <a href="/admissions" className="rk-fab-admissions animate-rk-bounce-subtle">
       Enroll Now
     </a>
   );

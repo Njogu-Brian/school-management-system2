@@ -18,13 +18,13 @@ import {
 import { LiveOperationsPanel } from "@/components/live/LiveOperationsPanel";
 
 function HomeLoading() {
-  return <div className="flex min-h-[50vh] items-center justify-center text-[#5B2C8E]">Loading Royal Kings experience...</div>;
+  return <div className="flex min-h-[50vh] items-center justify-center text-[var(--rk-purple)]">Loading Royal Kings experience...</div>;
 }
 
 function HomeError() {
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center">
-      <h2 className="font-serif text-2xl text-[#2a1145]">We&apos;re preparing something beautiful</h2>
+      <h2 className="font-serif text-2xl text-[var(--rk-purple-deep)]">We&apos;re preparing something beautiful</h2>
       <p className="mt-4 text-[#4a3a5c]">Connect the Laravel API and run migrations to load live homepage content. Static sections still render below.</p>
     </div>
   );
