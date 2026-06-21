@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Website;
 
 use App\Http\Controllers\Controller;
 use App\Models\Website\AlumniStory;
+use App\Models\Website\FamilyStory;
 use App\Models\Website\PrayerRequest;
 use App\Models\Website\Referral;
 use App\Models\Website\Testimonial;
@@ -30,9 +31,17 @@ class CommunityApiController extends Controller
         $prayers = PrayerRequest::query()
             ->where('is_public', true)
             ->where('status', 'approved')
+            ->orderByDesc('featured')
             ->latest()
             ->limit(20)
-            ->get(['id', 'name', 'request', 'is_anonymous', 'created_at']);
+            ->get(['id', 'name', 'request', 'is_anonymous', 'featured', 'answered', 'answered_testimony', 'created_at']);
+
+        $families = FamilyStory::query()
+            ->where('published', true)
+            ->orderByDesc('featured')
+            ->latest()
+            ->limit(12)
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -40,6 +49,7 @@ class CommunityApiController extends Controller
                 'video_testimonials' => $videoTestimonials,
                 'alumni_stories' => $alumni,
                 'prayer_wall' => $prayers,
+                'family_stories' => $families,
             ],
         ]);
     }
