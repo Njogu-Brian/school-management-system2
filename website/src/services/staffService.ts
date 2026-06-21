@@ -30,6 +30,8 @@ export const staffService = {
   lessonPlans: () => api.get("/website/staff/lesson-plans", { headers: authHeaders() }).then((r) => r.data),
   announcements: () => api.get("/website/staff/announcements", { headers: authHeaders() }).then((r) => r.data),
   clockToday: () => api.get("/website/staff/clock/today", { headers: authHeaders() }).then((r) => r.data),
+  classAttendance: (params: { date: string; class_id: number; stream_id?: number }) =>
+    api.get("/website/staff/attendance/class", { headers: authHeaders(), params }).then((r) => r.data),
 };
 
 // Re-export parent token helper for shared login component patterns

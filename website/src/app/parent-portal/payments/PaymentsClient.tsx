@@ -11,7 +11,10 @@ export default function PaymentsClient() {
   const studentId = Number(params.get("student"));
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
-  const [summary, setSummary] = useState<{ outstanding?: number } | null>(null);
+  const [summary, setSummary] = useState<{
+    outstanding?: number;
+    payment_options?: { methods?: { id: string; label: string; url?: string }[] };
+  } | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -56,6 +59,21 @@ export default function PaymentsClient() {
             Request installment plan
           </button>
         </div>
+        {summary?.payment_options?.methods && (
+          <div className="mt-6 space-y-2 text-sm">
+            <p className="font-medium text-[#5B2C8E]">Payment methods</p>
+            {summary.payment_options.methods.map((m) => (
+              <div key={m.id} className="rounded-lg border p-3">
+                <strong>{m.label}</strong>
+                {m.url && (
+                  <a href={m.url} target="_blank" rel="noreferrer" className="ml-2 text-[#5B2C8E] underline">
+                    Open link
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         {message && <p className="mt-4 text-sm text-[#4a3a5c]">{message}</p>}
       </div>
     </SiteShell>

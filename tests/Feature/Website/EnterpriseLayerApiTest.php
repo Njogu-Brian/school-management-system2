@@ -54,9 +54,30 @@ class EnterpriseLayerApiTest extends TestCase
         $response->assertStatus(401);
     }
 
-    public function test_mobile_v1_notifications_require_auth(): void
+    public function test_parent_homework_requires_auth(): void
     {
-        $response = $this->getJson('/api/mobile/v1/notifications');
+        $response = $this->getJson('/api/website/parent/children/1/homework');
+
+        $response->assertStatus(401);
+    }
+
+    public function test_parent_payment_options_require_auth(): void
+    {
+        $response = $this->getJson('/api/website/parent/children/1/payments/options');
+
+        $response->assertStatus(401);
+    }
+
+    public function test_staff_attendance_requires_auth(): void
+    {
+        $response = $this->getJson('/api/website/staff/attendance/class');
+
+        $response->assertStatus(401);
+    }
+
+    public function test_mobile_homework_requires_auth(): void
+    {
+        $response = $this->getJson('/api/mobile/v1/parent/children/1/homework');
 
         $response->assertStatus(401);
     }
