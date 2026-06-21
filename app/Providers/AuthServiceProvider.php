@@ -15,6 +15,7 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\BankStatementTransaction::class => \App\Policies\BankStatementTransactionPolicy::class,
         \App\Models\Expense::class => \App\Policies\ExpensePolicy::class,
         \App\Models\ExpenseStatementImport::class => \App\Policies\ExpenseStatementImportPolicy::class,
+        \App\Models\Website\Page::class => \App\Policies\Website\PagePolicy::class,
     ];
 
     public function boot(): void

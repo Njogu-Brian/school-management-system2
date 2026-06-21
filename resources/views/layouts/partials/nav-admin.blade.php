@@ -952,6 +952,32 @@ class="{{ $posActive ? 'parent-active' : '' }}">
 </a>
 @endif
 
+<!-- Website CMS -->
+@if(nav_can('website_cms'))
+@php $websiteCmsActive = Request::is('website-cms*'); @endphp
+<a href="#websiteCmsMenu" data-bs-toggle="collapse"
+aria-expanded="{{ $websiteCmsActive ? 'true' : 'false' }}"
+class="{{ $websiteCmsActive ? 'parent-active' : '' }}">
+<i class="bi bi-globe2"></i><span> Website CMS</span>
+</a>
+<div class="collapse {{ $websiteCmsActive ? 'show' : '' }}" id="websiteCmsMenu">
+    <a href="{{ route('website.settings.edit') }}" class="sublink {{ Request::is('website-cms/settings*') ? 'active' : '' }}"><i class="bi bi-sliders"></i> Site Settings</a>
+    <a href="{{ route('website.pages.index') }}" class="sublink {{ Request::is('website-cms/pages*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Pages</a>
+    <a href="{{ route('website.homepage.index') }}" class="sublink {{ Request::is('website-cms/homepage*') ? 'active' : '' }}"><i class="bi bi-layout-wtf"></i> Homepage Builder</a>
+    <a href="{{ route('website.media.index') }}" class="sublink {{ Request::is('website-cms/media*') ? 'active' : '' }}"><i class="bi bi-images"></i> Media Library</a>
+    <a href="{{ route('website.testimonials.index') }}" class="sublink {{ Request::is('website-cms/testimonials*') ? 'active' : '' }}"><i class="bi bi-chat-quote"></i> Testimonials</a>
+    <a href="{{ route('website.blogs.index') }}" class="sublink {{ Request::is('website-cms/blogs*') ? 'active' : '' }}"><i class="bi bi-journal-richtext"></i> Blogs</a>
+    <a href="{{ route('website.events.index') }}" class="sublink {{ Request::is('website-cms/events*') ? 'active' : '' }}"><i class="bi bi-calendar-event"></i> Events</a>
+    <a href="{{ route('website.faqs.index') }}" class="sublink {{ Request::is('website-cms/faqs*') ? 'active' : '' }}"><i class="bi bi-question-circle"></i> FAQs</a>
+    <a href="{{ route('website.enquiries.index') }}" class="sublink {{ Request::is('website-cms/enquiries*') ? 'active' : '' }}"><i class="bi bi-envelope-paper"></i> Admissions Leads</a>
+    <a href="{{ route('website.admissions.index') }}" class="sublink {{ Request::is('website-cms/admissions*') ? 'active' : '' }}"><i class="bi bi-file-earmark-person"></i> Applications</a>
+    <a href="{{ route('website.analytics.index') }}" class="sublink {{ Request::is('website-cms/analytics*') ? 'active' : '' }}"><i class="bi bi-graph-up"></i> Analytics</a>
+    <a href="{{ route('website.newsletter.index') }}" class="sublink {{ Request::is('website-cms/newsletter*') ? 'active' : '' }}"><i class="bi bi-mailbox"></i> Newsletter</a>
+    <a href="{{ route('website.campaigns.index') }}" class="sublink {{ Request::is('website-cms/campaigns*') ? 'active' : '' }}"><i class="bi bi-megaphone"></i> Campaigns</a>
+    <a href="{{ route('website.seo.index') }}" class="sublink {{ Request::is('website-cms/seo*') ? 'active' : '' }}"><i class="bi bi-search"></i> SEO Manager</a>
+</div>
+@endif
+
 <!-- Settings -->
 @if(nav_can('settings'))
 @php $isSettingsActive = Request::is('settings*'); @endphp

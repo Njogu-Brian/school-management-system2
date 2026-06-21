@@ -2055,6 +2055,88 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('/{id}/acknowledge', [\App\Http\Controllers\AdminAlertController::class, 'acknowledge'])->name('acknowledge');
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Website CMS (Royal Kings public site content management)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('website-cms')->name('website.')
+        ->middleware('role:Super Admin|Director|Admin|Secretary')
+        ->group(function () {
+            Route::get('/settings', [\App\Http\Controllers\Website\WebsiteSettingController::class, 'edit'])->name('settings.edit');
+            Route::put('/settings', [\App\Http\Controllers\Website\WebsiteSettingController::class, 'update'])->name('settings.update');
+
+            Route::resource('pages', \App\Http\Controllers\Website\PageController::class)->except(['show']);
+
+            Route::get('/homepage', [\App\Http\Controllers\Website\HomepageBuilderController::class, 'index'])->name('homepage.index');
+            Route::post('/homepage/sections', [\App\Http\Controllers\Website\HomepageBuilderController::class, 'store'])->name('homepage.sections.store');
+            Route::put('/homepage/sections/{section}', [\App\Http\Controllers\Website\HomepageBuilderController::class, 'update'])->name('homepage.sections.update');
+            Route::delete('/homepage/sections/{section}', [\App\Http\Controllers\Website\HomepageBuilderController::class, 'destroy'])->name('homepage.sections.destroy');
+            Route::post('/homepage/sections/reorder', [\App\Http\Controllers\Website\HomepageBuilderController::class, 'reorder'])->name('homepage.sections.reorder');
+
+            Route::get('/media', [\App\Http\Controllers\Website\MediaLibraryController::class, 'index'])->name('media.index');
+            Route::post('/media', [\App\Http\Controllers\Website\MediaLibraryController::class, 'store'])->name('media.store');
+            Route::delete('/media/{mediaLibraryItem}', [\App\Http\Controllers\Website\MediaLibraryController::class, 'destroy'])->name('media.destroy');
+
+            Route::get('/testimonials', [\App\Http\Controllers\Website\TestimonialController::class, 'index'])->name('testimonials.index');
+            Route::post('/testimonials', [\App\Http\Controllers\Website\TestimonialController::class, 'store'])->name('testimonials.store');
+            Route::put('/testimonials/{testimonial}', [\App\Http\Controllers\Website\TestimonialController::class, 'update'])->name('testimonials.update');
+            Route::delete('/testimonials/{testimonial}', [\App\Http\Controllers\Website\TestimonialController::class, 'destroy'])->name('testimonials.destroy');
+
+            Route::resource('blogs', \App\Http\Controllers\Website\BlogController::class)->except(['show']);
+
+            Route::resource('events', \App\Http\Controllers\Website\WebsiteEventController::class)
+                ->parameters(['events' => 'websiteEvent'])
+                ->except(['show']);
+
+            Route::get('/faqs', [\App\Http\Controllers\Website\FaqController::class, 'index'])->name('faqs.index');
+            Route::post('/faqs', [\App\Http\Controllers\Website\FaqController::class, 'store'])->name('faqs.store');
+            Route::put('/faqs/{faq}', [\App\Http\Controllers\Website\FaqController::class, 'update'])->name('faqs.update');
+            Route::delete('/faqs/{faq}', [\App\Http\Controllers\Website\FaqController::class, 'destroy'])->name('faqs.destroy');
+
+            Route::get('/enquiries', [\App\Http\Controllers\Website\EnquiryController::class, 'index'])->name('enquiries.index');
+            Route::get('/enquiries/{enquiry}', [\App\Http\Controllers\Website\EnquiryController::class, 'show'])->name('enquiries.show');
+            Route::patch('/enquiries/{enquiry}/status', [\App\Http\Controllers\Website\EnquiryController::class, 'updateStatus'])->name('enquiries.status');
+
+            Route::get('/seo', [\App\Http\Controllers\Website\SeoManagerController::class, 'index'])->name('seo.index');
+            Route::put('/seo/defaults', [\App\Http\Controllers\Website\SeoManagerController::class, 'updateDefaults'])->name('seo.defaults');
+            Route::put('/seo/pages/{page}', [\App\Http\Controllers\Website\SeoManagerController::class, 'updatePage'])->name('seo.page');
+
+            // Sprint 6: Admissions admin
+            Route::get('/admissions', [\App\Http\Controllers\Website\AdmissionApplicationController::class, 'index'])->name('admissions.index');
+            Route::get('/admissions/{application}', [\App\Http\Controllers\Website\AdmissionApplicationController::class, 'show'])->name('admissions.show');
+            Route::patch('/admissions/{application}/status', [\App\Http\Controllers\Website\AdmissionApplicationController::class, 'updateStatus'])->name('admissions.status');
+            Route::post('/admissions/{application}/enroll', [\App\Http\Controllers\Website\AdmissionApplicationController::class, 'enroll'])->name('admissions.enroll');
+            Route::patch('/admissions/{application}/documents/{document}', [\App\Http\Controllers\Website\AdmissionApplicationController::class, 'verifyDocument'])->name('admissions.documents.verify');
+
+            // Sprint 8: CMS builder
+            Route::get('/menus', [\App\Http\Controllers\Website\MenuController::class, 'index'])->name('menus.index');
+            Route::post('/menus', [\App\Http\Controllers\Website\MenuController::class, 'store'])->name('menus.store');
+            Route::get('/blocks', [\App\Http\Controllers\Website\ReusableBlockController::class, 'index'])->name('blocks.index');
+            Route::post('/blocks', [\App\Http\Controllers\Website\ReusableBlockController::class, 'store'])->name('blocks.store');
+            Route::post('/pages/{page}/clone', [\App\Http\Controllers\Website\PageController::class, 'clone'])->name('pages.clone');
+            Route::get('/pages/{page}/preview', [\App\Http\Controllers\Website\PageController::class, 'preview'])->name('pages.preview');
+
+            // Sprint 9: Blog taxonomy + AI helper
+            Route::get('/blog-categories', [\App\Http\Controllers\Website\BlogCategoryController::class, 'index'])->name('blog-categories.index');
+            Route::post('/blog-categories', [\App\Http\Controllers\Website\BlogCategoryController::class, 'store'])->name('blog-categories.store');
+            Route::post('/content-assistant/prompt', [\App\Http\Controllers\Website\ContentAssistantController::class, 'prompt'])->name('content-assistant.prompt');
+
+            // Sprint 10: Media albums + virtual tour admin
+            Route::get('/albums', [\App\Http\Controllers\Website\MediaAlbumController::class, 'index'])->name('albums.index');
+            Route::post('/albums', [\App\Http\Controllers\Website\MediaAlbumController::class, 'store'])->name('albums.store');
+            Route::get('/virtual-tour', [\App\Http\Controllers\Website\VirtualTourController::class, 'index'])->name('virtual-tour.index');
+            Route::post('/virtual-tour', [\App\Http\Controllers\Website\VirtualTourController::class, 'store'])->name('virtual-tour.store');
+
+            // Sprint 11: Marketing automation admin
+            Route::get('/newsletter', [\App\Http\Controllers\Website\NewsletterController::class, 'index'])->name('newsletter.index');
+            Route::get('/campaigns', [\App\Http\Controllers\Website\CampaignController::class, 'index'])->name('campaigns.index');
+            Route::post('/campaigns', [\App\Http\Controllers\Website\CampaignController::class, 'store'])->name('campaigns.store');
+
+            // Sprint 12: Analytics dashboard
+            Route::get('/analytics', [\App\Http\Controllers\Website\WebsiteAnalyticsController::class, 'index'])->name('analytics.index');
+        });
+
 });
 
 /*

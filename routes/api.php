@@ -34,7 +34,64 @@ Route::post('/password/reset', [AuthApiController::class, 'resetPassword']);
 /** School name + logo from portal Settings (General); no auth — for mobile sign-in screen. */
 Route::get('/app-branding', [\App\Http\Controllers\Api\ApiAppBrandingController::class, 'show']);
 
+/*
+|--------------------------------------------------------------------------
+| Public Website API (Next.js frontend — no auth)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('website')->group(function () {
+    $api = \App\Http\Controllers\Api\Website\WebsiteApiController::class;
+    Route::get('/settings', [$api, 'settings']);
+    Route::get('/homepage', [$api, 'homepage']);
+    Route::get('/pages/{slug}', [$api, 'page']);
+    Route::get('/blogs', [$api, 'blogs']);
+    Route::get('/blogs/search', [$api, 'searchBlogs']);
+    Route::get('/blogs/{slug}', [$api, 'blog']);
+    Route::get('/events', [$api, 'events']);
+    Route::get('/events/{slug}', [$api, 'event']);
+    Route::get('/testimonials', [$api, 'testimonials']);
+    Route::get('/gallery', [$api, 'gallery']);
+    Route::get('/faqs', [$api, 'faqs']);
+    Route::post('/enquiry', [$api, 'enquiry']);
+
+    // Sprint 6: Admissions engine
+    $admissions = \App\Http\Controllers\Api\Website\AdmissionApplicationApiController::class;
+    Route::post('/admissions/start', [$admissions, 'start']);
+    Route::post('/admissions/{token}/step', [$admissions, 'saveStep']);
+    Route::post('/admissions/{token}/documents', [$admissions, 'uploadDocument']);
+    Route::post('/admissions/{token}/submit', [$admissions, 'submit']);
+    Route::get('/admissions/track/{applicationNo}', [$admissions, 'track']);
+
+    // Sprint 9: SEO public endpoints
+    Route::get('/sitemap.xml', [\App\Http\Controllers\Api\Website\WebsiteSeoController::class, 'sitemap']);
+    Route::get('/robots.txt', [\App\Http\Controllers\Api\Website\WebsiteSeoController::class, 'robots']);
+
+    // Sprint 10: Virtual tour
+    Route::get('/virtual-tour', [\App\Http\Controllers\Api\Website\WebsiteMediaApiController::class, 'virtualTour']);
+    Route::get('/gallery/albums', [\App\Http\Controllers\Api\Website\WebsiteMediaApiController::class, 'albums']);
+
+    // Sprint 11: Newsletter
+    Route::post('/newsletter/subscribe', [\App\Http\Controllers\Api\Website\NewsletterApiController::class, 'subscribe']);
+
+    // Sprint 12: Analytics tracking (public)
+    $analytics = \App\Http\Controllers\Api\Website\WebsiteAnalyticsApiController::class;
+    Route::post('/analytics/page-view', [$analytics, 'trackView']);
+    Route::post('/analytics/event', [$analytics, 'trackEvent']);
+});
+
 Route::middleware('auth:sanctum')->group(function () {
+    // Sprint 7: Parent portal website connector
+    Route::prefix('website/parent')->group(function () {
+        $parent = \App\Http\Controllers\Api\Website\ParentPortalApiController::class;
+        Route::get('/dashboard', [$parent, 'dashboard']);
+        Route::get('/children', [$parent, 'children']);
+        Route::get('/children/{student}', [$parent, 'child']);
+        Route::get('/children/{student}/statement', [$parent, 'statement']);
+        Route::get('/children/{student}/attendance', [$parent, 'attendance']);
+        Route::get('/report-cards', [$parent, 'reportCards']);
+        Route::get('/announcements', [$parent, 'announcements']);
+    });
+
     Route::get('/user', [AuthApiController::class, 'user']);
     Route::post('/logout', [AuthApiController::class, 'logout']);
     Route::post('/password/change', [ApiAccountController::class, 'changePassword']);

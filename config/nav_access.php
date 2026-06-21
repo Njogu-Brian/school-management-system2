@@ -66,6 +66,7 @@ return [
         'manage' => 'Legacy / Manage',
         'senior_teacher' => 'Senior Teacher',
         'extra_curricular' => 'Extra Curricular',
+        'website_cms' => 'Website CMS',
     ],
 
     'dashboards' => [
@@ -104,5 +105,6 @@ return [
         'pos' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
         'documents' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
         'settings' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
+        'website_cms' => ['Super Admin', 'Director', 'Admin', 'Secretary'],
     ],
 ];
