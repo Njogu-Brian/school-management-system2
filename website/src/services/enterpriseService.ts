@@ -1,8 +1,8 @@
 import { api } from "@/lib/api";
 
 export const enterpriseService = {
-  assistantChat: (message: string, sessionKey?: string) =>
-    api.post("/website/assistant/chat", { message, session_key: sessionKey }).then((r) => r.data),
+  assistantChat: (message: string, sessionKey?: string, pagePath?: string) =>
+    api.post("/website/assistant/chat", { message, session_key: sessionKey, page_path: pagePath }).then((r) => r.data),
 
   showcase: () => api.get("/website/showcase").then((r) => r.data),
 

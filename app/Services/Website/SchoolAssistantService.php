@@ -4,10 +4,9 @@ namespace App\Services\Website;
 
 use App\Models\Website\AiChatMessage;
 use App\Models\Website\AiChatSession;
+use App\Models\Website\AssistantKnowledgeArticle;
 use App\Models\Website\Faq;
 use App\Models\Website\WebsiteSetting;
-use App\Services\Website\WebsiteLlmService;
-use Illuminate\Support\Str;
 
 class SchoolAssistantService
 {
@@ -16,23 +15,35 @@ class SchoolAssistantService
         protected WebsiteErpIntegrationService $erp
     ) {}
 
-    public function getOrCreateSession(?string $sessionKey = null): AiChatSession
+    public function getOrCreateSession(?string $sessionKey = null, ?string $pagePath = null): AiChatSession
     {
         if ($sessionKey) {
             $session = AiChatSession::where('session_key', $sessionKey)->first();
             if ($session) {
+                if ($pagePath) {
+                    $ctx = $session->context ?? [];
+                    $ctx['current_page'] = $pagePath;
+                    $session->update(['context' => $ctx]);
+                }
+
                 return $session;
             }
         }
 
         return AiChatSession::create([
-            'session_key' => (string) Str::uuid(),
-            'context' => $this->buildKnowledgeContext(),
+            'session_key' => (string) \Illuminate\Support\Str::uuid(),
+            'context' => $this->buildKnowledgeContext($pagePath),
         ]);
     }
 
-    public function chat(AiChatSession $session, string $userMessage): array
+    public function chat(AiChatSession $session, string $userMessage, ?string $pagePath = null): array
     {
+        if ($pagePath) {
+            $ctx = $session->context ?? $this->buildKnowledgeContext($pagePath);
+            $ctx['current_page'] = $pagePath;
+            $session->update(['context' => $ctx]);
+        }
+
         AiChatMessage::create([
             'session_id' => $session->id,
             'role' => 'user',
@@ -41,20 +52,25 @@ class SchoolAssistantService
 
         $history = $session->messages()
             ->latest()
-            ->limit(8)
+            ->limit(10)
             ->get()
             ->reverse()
             ->map(fn ($m) => "{$m->role}: {$m->message}")
             ->implode("\n");
 
-        $context = $session->context ?? $this->buildKnowledgeContext();
+        $context = $session->context ?? $this->buildKnowledgeContext($pagePath);
+        $pageHint = $this->pageAwareHint($pagePath);
+
         $prompt = "School knowledge base:\n".json_encode($context, JSON_PRETTY_PRINT)
-            ."\n\nRecent conversation:\n{$history}\n\nParent/visitor question: {$userMessage}\n\nAnswer helpfully. If unsure, suggest contacting the school office or visiting the admissions page. Keep answers concise (under 200 words).";
+            ."\n\nPage context: {$pageHint}"
+            ."\n\nRecent conversation:\n{$history}"
+            ."\n\nVisitor question: {$userMessage}"
+            ."\n\nAnswer helpfully using only the context. If on admissions pages, prioritize application steps and tour booking. Keep under 200 words.";
 
         $reply = $this->llm->generate($prompt, [
-            'system_prompt' => 'You are the Royal Kings School Assistant — warm, Christian, family-centered. Answer admissions, fees, transport, curriculum, calendar, and policy questions using only the provided context. Never invent fee amounts.',
+            'system_prompt' => 'You are the Royal Kings School Assistant — warm, Christian, family-centered. Never invent fee amounts.',
             'max_tokens' => 600,
-        ]) ?? 'Thank you for your question. Please contact our office at Royal Kings Education Centre or submit an enquiry on our website for personalised assistance.';
+        ]) ?? 'Please contact our office or submit an enquiry on our website.';
 
         AiChatMessage::create([
             'session_id' => $session->id,
@@ -65,18 +81,27 @@ class SchoolAssistantService
         return [
             'session_key' => $session->session_key,
             'reply' => $reply,
+            'page_context' => $pagePath,
         ];
     }
 
-    public function buildKnowledgeContext(): array
+    public function buildKnowledgeContext(?string $pagePath = null): array
     {
         $settings = WebsiteSetting::current();
 
-        $faqs = Faq::query()
-            ->orderBy('order')
-            ->limit(30)
-            ->get(['question', 'answer'])
-            ->map(fn ($f) => ['q' => $f->question, 'a' => $f->answer])
+        $faqs = Faq::query()->orderBy('order')->limit(40)->get(['question', 'answer'])
+            ->map(fn ($f) => ['q' => $f->question, 'a' => $f->answer])->all();
+
+        $articles = AssistantKnowledgeArticle::query()
+            ->where('published', true)
+            ->when($pagePath, fn ($q) => $q->where(function ($q) use ($pagePath) {
+                $q->whereNull('page_context')
+                    ->orWhereJsonContains('page_context', $pagePath);
+            }))
+            ->orderByDesc('priority')
+            ->limit(20)
+            ->get(['title', 'topic', 'content'])
+            ->map(fn ($a) => ['title' => $a->title, 'topic' => $a->topic, 'content' => $a->content])
             ->all();
 
         return [
@@ -85,17 +110,29 @@ class SchoolAssistantService
             'contact_phone' => $settings->phone ?? null,
             'contact_email' => $settings->email ?? null,
             'address' => $settings->address ?? null,
-            'admissions_info' => $settings->admissions_open ? 'Applications are currently open.' : 'Contact admissions for availability.',
+            'admissions_info' => $settings->admissions_open ? 'Applications open — apply online.' : 'Contact admissions for availability.',
             'faqs' => $faqs,
-            'recent_announcements' => $this->erp->announcements(5),
+            'knowledge_articles' => $articles,
             'upcoming_events' => $this->erp->upcomingErpEvents(5),
-            'topics' => [
-                'admissions' => 'Online application available; track status with application number.',
-                'fees' => 'Fee statements available in parent portal; M-Pesa and payment links supported.',
-                'transport' => 'School bus routes available; contact office for route assignment.',
-                'curriculum' => 'CBC competency-based learning from Creche to Grade 9.',
-                'calendar' => 'Term dates and events published on website events page.',
-            ],
+            'current_page' => $pagePath,
         ];
+    }
+
+    protected function pageAwareHint(?string $pagePath): string
+    {
+        if (! $pagePath) {
+            return 'General website visitor';
+        }
+        if (str_contains($pagePath, 'admission')) {
+            return 'User is on admissions — prioritize apply steps, documents, tours, and age groups.';
+        }
+        if (str_contains($pagePath, 'contact')) {
+            return 'User is on contact — share phone, email, WhatsApp, visit booking.';
+        }
+        if (str_contains($pagePath, 'academic')) {
+            return 'User is exploring academics — explain CBC pathway Creche to Grade 9.';
+        }
+
+        return "User is viewing: {$pagePath}";
     }
 }

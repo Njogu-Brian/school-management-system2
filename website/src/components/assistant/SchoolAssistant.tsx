@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { enterpriseService } from "@/services/enterpriseService";
 
 export function SchoolAssistant() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [sessionKey, setSessionKey] = useState<string | undefined>();
   const [input, setInput] = useState("");
@@ -17,7 +19,7 @@ export function SchoolAssistant() {
     setMessages((m) => [...m, { role: "user", text: question }]);
     setLoading(true);
     try {
-      const res = await enterpriseService.assistantChat(question, sessionKey);
+      const res = await enterpriseService.assistantChat(question, sessionKey, pathname);
       const data = res.data;
       if (data?.session_key) setSessionKey(data.session_key);
       setMessages((m) => [...m, { role: "assistant", text: data?.reply || "How can we help you today?" }]);
