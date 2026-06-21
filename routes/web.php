@@ -2135,6 +2135,21 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
             // Sprint 12: Analytics dashboard
             Route::get('/analytics', [\App\Http\Controllers\Website\WebsiteAnalyticsController::class, 'index'])->name('analytics.index');
+
+            // Sprints 13–20: Enterprise layer admin
+            Route::get('/ai-content', [\App\Http\Controllers\Website\AiContentController::class, 'index'])->name('ai.index');
+            Route::post('/ai-content/generate', [\App\Http\Controllers\Website\AiContentController::class, 'generate'])->name('ai.generate');
+            Route::get('/showcase', [\App\Http\Controllers\Website\StudentSpotlightController::class, 'index'])->name('showcase.index');
+            Route::post('/showcase/spotlights', [\App\Http\Controllers\Website\StudentSpotlightController::class, 'storeSpotlight'])->name('showcase.spotlights.store');
+            Route::post('/showcase/competitions', [\App\Http\Controllers\Website\StudentSpotlightController::class, 'storeCompetition'])->name('showcase.competitions.store');
+            Route::get('/meals', [\App\Http\Controllers\Website\SchoolMealController::class, 'index'])->name('meals.index');
+            Route::post('/meals', [\App\Http\Controllers\Website\SchoolMealController::class, 'store'])->name('meals.store');
+            Route::get('/community', [\App\Http\Controllers\Website\CommunityAdminController::class, 'index'])->name('community.index');
+            Route::patch('/community/prayers/{prayer}/approve', [\App\Http\Controllers\Website\CommunityAdminController::class, 'approvePrayer'])->name('community.prayers.approve');
+            Route::post('/community/alumni', [\App\Http\Controllers\Website\CommunityAdminController::class, 'storeAlumni'])->name('community.alumni.store');
+            Route::patch('/community/payment-plans/{plan}', [\App\Http\Controllers\Website\CommunityAdminController::class, 'reviewPaymentPlan'])->name('community.payment-plans.review');
+            Route::get('/executive', [\App\Http\Controllers\Website\ExecutiveDashboardController::class, 'index'])->name('executive.index');
+            Route::post('/executive/refresh-alerts', [\App\Http\Controllers\Website\ExecutiveDashboardController::class, 'refreshAlerts'])->name('executive.refresh-alerts');
         });
 
 });
