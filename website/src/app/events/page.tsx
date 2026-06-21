@@ -1,24 +1,46 @@
 "use client";
 
-import { SiteShell } from "@/components/layout/SiteShell";
+import { RichPage, PageHero, SectionBlock } from "@/components/layout/RichPage";
+import { HIGHLIGHTS } from "@/content/schoolContent";
 import { useEvents } from "@/hooks/useWebsiteData";
+import Link from "next/link";
 
 export default function EventsPage() {
   const { data, isLoading } = useEvents();
 
   return (
-    <SiteShell>
-      <section className="bg-[#5B2C8E] py-16 text-white"><div className="mx-auto max-w-6xl px-4 text-center"><h1 className="font-serif text-4xl font-bold">Events</h1></div></section>
-      <section className="mx-auto max-w-4xl space-y-6 px-4 py-16">
+    <RichPage>
+      <PageHero title="Events" subtitle="Open days, talent camps, sports days, and family celebrations at Royal Kings." />
+      <SectionBlock title="Upcoming Highlights">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {HIGHLIGHTS.map((h) => (
+            <article key={h.title} className="rounded-2xl bg-[var(--rk-surface)] p-5 sm:p-6">
+              <h3 className="font-serif text-lg font-bold text-[var(--rk-purple)]">{h.title}</h3>
+              <p className="mt-2 text-sm text-[var(--rk-muted)]">{h.subtitle}</p>
+            </article>
+          ))}
+        </div>
+      </SectionBlock>
+      <SectionBlock title="School Calendar" alt>
         {isLoading && <p>Loading events...</p>}
-        {(data || []).map((event) => (
-          <article key={`${event.source}-${event.id}`} className="rounded-2xl border border-[#e8dff5] p-6">
-            <h2 className="font-serif text-xl font-bold text-[#2a1145]">{event.title}</h2>
-            <p className="mt-2 text-sm text-[#4a3a5c]">{event.start_date} · {event.location}</p>
-            <p className="mt-3 text-[#4a3a5c]">{event.description}</p>
-          </article>
-        ))}
-      </section>
-    </SiteShell>
+        <div className="space-y-4">
+          {(data || []).length === 0 && !isLoading && (
+            <p className="text-center text-[var(--rk-muted)]">More events coming soon. Contact us about Open Day and November Talent Camp.</p>
+          )}
+          {(data || []).map((event) => (
+            <article key={`${event.source}-${event.id}`} className="rounded-2xl border border-[var(--rk-border)] bg-white p-5 sm:p-6">
+              <h2 className="font-serif text-xl font-bold text-[var(--rk-purple-dark)]">{event.title}</h2>
+              <p className="mt-2 text-sm text-[var(--rk-muted)]">{event.start_date} · {event.location}</p>
+              <p className="mt-3 text-sm text-[var(--rk-muted)] sm:text-base">{event.description}</p>
+            </article>
+          ))}
+        </div>
+        <div className="mt-8 text-center">
+          <Link href="/admissions" className="rounded-full bg-[var(--rk-purple)] px-6 py-3 text-sm font-semibold text-white">
+            RSVP / Enquire
+          </Link>
+        </div>
+      </SectionBlock>
+    </RichPage>
   );
 }

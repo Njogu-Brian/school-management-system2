@@ -1,11 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --rk-purple: #5B2C8E;
-  --rk-purple-dark: #2a1145;
+  /* Sampled from official logo (royal-logo-small-192x192.png) */
+  --rk-purple-bright: #B400FF;
+  --rk-purple: #8B00CC;
+  --rk-purple-dark: #3D0066;
+  --rk-purple-deep: #1F0033;
   --rk-gold: #D4AF37;
+  --rk-surface: #faf7ff;
+  --rk-border: #e8dff5;
+  --rk-muted: #4a3a5c;
   --background: #ffffff;
-  --foreground: #2a1145;
+  --foreground: var(--rk-purple-deep);
 }
 
 @theme inline {
@@ -18,6 +24,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  overflow-x: hidden;
 }
 
 .font-serif {
@@ -40,4 +47,120 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Floating action buttons */
+@keyframes rk-glow-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.18); opacity: 0.15; }
+}
+
+.rk-fab {
+  position: fixed;
+  right: 1rem;
+  z-index: 50;
+  display: flex;
+  height: 3.5rem;
+  width: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+@media (min-width: 640px) {
+  .rk-fab {
+    right: 1.5rem;
+    height: 3.75rem;
+    width: 3.75rem;
+  }
+}
+
+.rk-fab:hover {
+  transform: scale(1.08);
+}
+
+.rk-fab-whatsapp {
+  bottom: 7.5rem;
+  background: linear-gradient(135deg, #25d366, #128c7e);
+}
+
+.rk-fab-maps {
+  bottom: 11.75rem;
+  background: linear-gradient(135deg, var(--rk-purple-bright), var(--rk-purple));
+}
+
+.rk-fab-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  animation: rk-glow-pulse 2.2s ease-in-out infinite;
+}
+
+.rk-fab-pulse-whatsapp {
+  background: #25d366;
+}
+
+.rk-fab-pulse-maps {
+  background: var(--rk-purple-bright);
+}
+
+.rk-fab-label {
+  pointer-events: none;
+  position: absolute;
+  right: calc(100% + 0.5rem);
+  white-space: nowrap;
+  border-radius: 9999px;
+  background: rgba(31, 0, 51, 0.92);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateX(0.5rem);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.group:hover .rk-fab-label,
+.group:focus-visible .rk-fab-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.rk-fab-admissions {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1rem;
+  z-index: 50;
+  border-radius: 9999px;
+  background: var(--rk-gold);
+  padding: 0.75rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--rk-purple-deep);
+  box-shadow: 0 8px 28px rgba(180, 0, 255, 0.25);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+@media (min-width: 640px) {
+  .rk-fab-admissions {
+    right: 1.5rem;
+    padding: 0.85rem 1.5rem;
+  }
+}
+
+.rk-fab-admissions:hover {
+  transform: scale(1.05);
+  box-shadow: 0 10px 36px rgba(180, 0, 255, 0.35);
+}
+
+.prose-rk p {
+  margin-top: 0.75rem;
+  line-height: 1.7;
+  color: var(--rk-muted);
+}
+
+.prose-rk p:first-child {
+  margin-top: 0;
 }

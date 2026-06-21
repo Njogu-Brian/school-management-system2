@@ -11,10 +11,11 @@ export function WhyRoyalKings() {
         <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} className="text-center font-serif text-3xl font-bold text-[#2a1145]">
           Why Royal Kings
         </motion.h2>
-        <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true }} className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true }} className="mt-12 grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {WHY_ROYAL_KINGS.map((card, i) => (
-            <motion.div key={card.title} variants={fadeUp} custom={i} className="rounded-2xl border border-[#e8dff5] bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-              <h3 className="font-serif text-xl font-semibold text-[#5B2C8E]">{card.title}</h3>
+            <motion.div key={card.title} variants={fadeUp} custom={i} className="rounded-2xl border border-[var(--rk-border)] bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:p-6">
+              {"icon" in card && card.icon && <span className="text-2xl">{card.icon}</span>}
+              <h3 className="mt-2 font-serif text-lg font-semibold text-[var(--rk-purple)] sm:text-xl">{card.title}</h3>
               <p className="mt-3 text-sm leading-relaxed text-[#4a3a5c]">{card.description}</p>
             </motion.div>
           ))}

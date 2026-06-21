@@ -6,20 +6,32 @@ import { Autoplay, Pagination } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/pagination";
 import type { Testimonial, GalleryItem, WebsiteEvent, HomepageData } from "@/types/website";
+import { LEGACY_TESTIMONIALS } from "@/content/schoolContent";
 import { fadeUp } from "@/animations/variants";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 
 export function TestimonialsCarousel({ testimonials }: { testimonials: Testimonial[] }) {
-  if (!testimonials.length) return null;
+  const items: Testimonial[] =
+    testimonials.length > 0
+      ? testimonials
+      : LEGACY_TESTIMONIALS.map((message, id) => ({
+          id,
+          name: "Parent",
+          relationship: "Royal Kings Family",
+          message,
+          featured: true,
+        }));
+
+  if (!items.length) return null;
 
   return (
     <section className="bg-[#faf7ff] py-20">
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
         <h2 className="text-center font-serif text-3xl font-bold text-[#2a1145]">What Parents Say</h2>
         <Swiper modules={[Autoplay, Pagination]} autoplay={{ delay: 5000 }} pagination={{ clickable: true }} className="mt-10 !pb-12">
-          {testimonials.map((t) => (
+          {items.map((t) => (
             <SwiperSlide key={t.id}>
               <blockquote className="mx-auto max-w-3xl rounded-3xl bg-white p-8 text-center shadow-lg">
                 <p className="text-lg italic text-[#4a3a5c]">&ldquo;{t.message}&rdquo;</p>

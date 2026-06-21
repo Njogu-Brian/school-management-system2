@@ -1,34 +1,60 @@
 "use client";
 
 import type { WebsiteSettings } from "@/types/website";
+import { CONTACT } from "@/content/schoolContent";
+
+function whatsappNumber(settings?: WebsiteSettings) {
+  const raw = settings?.whatsapp || CONTACT.whatsapp;
+  return raw.replace(/\D/g, "");
+}
 
 export function FloatingWhatsApp({ settings }: { settings?: WebsiteSettings }) {
-  if (!settings?.whatsapp) return null;
-
-  const href = `https://wa.me/${settings.whatsapp.replace(/\D/g, "")}`;
+  const number = whatsappNumber(settings);
+  const href = `https://wa.me/${number}?text=${encodeURIComponent("Hello Royal Kings, I would like to enquire about admissions.")}`;
 
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-24 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-2xl text-white shadow-2xl transition hover:scale-110"
+      className="rk-fab rk-fab-whatsapp group"
       aria-label="Chat on WhatsApp"
+      title="Chat on WhatsApp"
     >
-      💬
+      <span className="rk-fab-pulse rk-fab-pulse-whatsapp" aria-hidden />
+      <span className="relative z-10 text-2xl">💬</span>
+      <span className="rk-fab-label">WhatsApp</span>
+    </a>
+  );
+}
+
+export function FloatingMaps({ settings }: { settings?: WebsiteSettings }) {
+  const mapsUrl = settings?.google_map?.includes("http")
+    ? CONTACT.mapsUrl
+    : CONTACT.mapsUrl;
+
+  return (
+    <a
+      href={mapsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="rk-fab rk-fab-maps group"
+      aria-label="Find us on Google Maps"
+      title="Find us on Google Maps"
+    >
+      <span className="rk-fab-pulse rk-fab-pulse-maps" aria-hidden />
+      <span className="relative z-10 text-2xl">📍</span>
+      <span className="rk-fab-label">Find Us</span>
     </a>
   );
 }
 
 export function StickyAdmissionsButton({ settings }: { settings?: WebsiteSettings }) {
-  if (!settings?.admissions_open) return null;
+  if (settings?.admissions_open === false) return null;
 
   return (
-    <a
-      href="/admissions"
-      className="fixed bottom-6 right-6 z-50 rounded-full bg-[#D4AF37] px-5 py-3 text-sm font-bold text-[#2a1145] shadow-2xl transition hover:scale-105"
-    >
-      Admissions Open
+    <a href="/admissions" className="rk-fab-admissions">
+      Enroll Now
     </a>
   );
 }

@@ -1,4 +1,5 @@
 import type { AgeJourneyStep } from "@/types/website";
+import { PILLARS } from "@/content/schoolContent";
 
 export const AGE_JOURNEY: AgeJourneyStep[] = [
   { age: 3, level: "Creche", classroom: "Baby Class", activities: ["Play-based learning", "Bible stories", "Motor skills"], milestones: ["First friendships", "Routine & independence"] },
@@ -35,11 +36,8 @@ export const PROGRAMS = [
   { name: "Worship", icon: "✝️" },
 ];
 
-export const WHY_ROYAL_KINGS = [
-  { title: "Christian Foundation", description: "Faith-centred values woven into daily learning and character formation." },
-  { title: "Academic Excellence", description: "Rigorous CBC-aligned curriculum with caring, qualified educators." },
-  { title: "Nurturing Environment", description: "Every child is known, loved, and supported on their unique journey." },
-  { title: "Affordable Fees", description: "Premium education structured for families seeking lasting value." },
-  { title: "Co-curricular Excellence", description: "Coding, music, sports, and arts that unlock hidden talents." },
-  { title: "Safe Transport", description: "Reliable routes and caring drivers for peace of mind every day." },
-];
+export const WHY_ROYAL_KINGS = PILLARS.map((p) => ({
+  title: p.title,
+  description: p.description,
+  icon: p.icon,
+}));

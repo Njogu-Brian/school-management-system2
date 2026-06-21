@@ -35,7 +35,7 @@ export function SchoolAssistant() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-24 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#5B2C8E] text-white shadow-lg hover:bg-[#4a2475]"
+        className="fixed bottom-24 left-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--rk-purple)] text-white shadow-lg hover:bg-[var(--rk-purple-dark)] sm:left-6"
         aria-label="School assistant"
       >
         💬

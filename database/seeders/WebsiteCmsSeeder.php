@@ -18,13 +18,15 @@ class WebsiteCmsSeeder extends Seeder
         WebsiteSetting::query()->firstOrCreate([], [
             'school_name' => 'Royal Kings Education Centre',
             'tagline' => 'Where Little Steps Grow Into Great Futures',
-            'primary_color' => '#5B2C8E',
+            'primary_color' => '#8B00CC',
             'secondary_color' => '#D4AF37',
-            'phone' => '+254 700 000 000',
-            'email' => 'info@royalkings.ac.ke',
-            'address' => 'Nairobi, Kenya',
+            'phone' => '+254 719 396 233',
+            'email' => 'info@royalkingsschools.sc.ke',
+            'whatsapp' => '254719396233',
+            'address' => 'Wangige, Kiambu County, Kenya',
             'admissions_open' => true,
             'current_term' => 'Term 1, 2026',
+            'google_map' => '<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15955.5!2d36.705!3d-1.245!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sRoyal%20Kings%20School%20Wangige!5e0!3m2!1sen!2ske!4v1719000000000!5m2!1sen!2ske" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy"></iframe>',
             'seo_defaults' => [
                 'title' => 'Royal Kings Education Centre | Creche to Grade 9',
                 'description' => 'A Christian-centered, family-friendly school nurturing learners from age 3 to Grade 9.',
@@ -84,10 +86,10 @@ class WebsiteCmsSeeder extends Seeder
         }
 
         Testimonial::query()->firstOrCreate(
-            ['name' => 'Mrs. Wanjiku K.'],
+            ['name' => 'Parent — Royal Kings Family'],
             [
-                'relationship' => 'Parent, Grade 4',
-                'message' => 'Royal Kings has been a blessing for our family. Our children are growing in faith, character, and academic excellence.',
+                'relationship' => 'Parent',
+                'message' => 'Royal Kings School transformed my child\'s life, fostering a love for learning and instilling strong values.',
                 'featured' => true,
                 'approved' => true,
             ]
