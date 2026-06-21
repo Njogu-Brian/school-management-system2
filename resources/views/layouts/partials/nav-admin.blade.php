@@ -979,6 +979,11 @@ class="{{ $websiteCmsActive ? 'parent-active' : '' }}">
     <a href="{{ route('website.showcase.index') }}" class="sublink {{ Request::is('website-cms/showcase*') ? 'active' : '' }}"><i class="bi bi-trophy"></i> Student Showcase</a>
     <a href="{{ route('website.meals.index') }}" class="sublink {{ Request::is('website-cms/meals*') ? 'active' : '' }}"><i class="bi bi-cup-hot"></i> Lunch Menu</a>
     <a href="{{ route('website.community.index') }}" class="sublink {{ Request::is('website-cms/community*') ? 'active' : '' }}"><i class="bi bi-people"></i> Community</a>
+    <a href="{{ route('website.conversion.index') }}" class="sublink {{ Request::is('website-cms/conversion*') ? 'active' : '' }}"><i class="bi bi-bullseye"></i> Conversion</a>
+    <a href="{{ route('website.seo-engine.index') }}" class="sublink {{ Request::is('website-cms/seo-engine*') ? 'active' : '' }}"><i class="bi bi-search-heart"></i> SEO Engine</a>
+    <a href="{{ route('website.brand.index') }}" class="sublink {{ Request::is('website-cms/brand-intelligence*') ? 'active' : '' }}"><i class="bi bi-lightning"></i> Brand Intel</a>
+    <a href="{{ route('website.assistant.index') }}" class="sublink {{ Request::is('website-cms/assistant-knowledge*') ? 'active' : '' }}"><i class="bi bi-chat-dots"></i> Assistant KB</a>
+    <a href="{{ route('website.calendar.index') }}" class="sublink {{ Request::is('website-cms/content-calendar*') ? 'active' : '' }}"><i class="bi bi-calendar3"></i> Content Calendar</a>
 </div>
 @endif
 

@@ -2146,7 +2146,40 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/meals', [\App\Http\Controllers\Website\SchoolMealController::class, 'store'])->name('meals.store');
             Route::get('/community', [\App\Http\Controllers\Website\CommunityAdminController::class, 'index'])->name('community.index');
             Route::patch('/community/prayers/{prayer}/approve', [\App\Http\Controllers\Website\CommunityAdminController::class, 'approvePrayer'])->name('community.prayers.approve');
+            Route::patch('/community/prayers/{prayer}/feature', [\App\Http\Controllers\Website\CommunityAdminController::class, 'featurePrayer'])->name('community.prayers.feature');
+            Route::patch('/community/prayers/{prayer}/answered', [\App\Http\Controllers\Website\CommunityAdminController::class, 'markPrayerAnswered'])->name('community.prayers.answered');
             Route::post('/community/alumni', [\App\Http\Controllers\Website\CommunityAdminController::class, 'storeAlumni'])->name('community.alumni.store');
+            Route::post('/community/family-stories', [\App\Http\Controllers\Website\CommunityAdminController::class, 'storeFamilyStory'])->name('community.families.store');
+
+            // Sprints 21–30: Website brand layer
+            $builder = \App\Http\Controllers\Website\VisualPageBuilderController::class;
+            Route::get('/pages/{page}/builder', [$builder, 'show'])->name('builder.show');
+            Route::post('/pages/{page}/builder/sections', [$builder, 'addSection'])->name('builder.add-section');
+            Route::post('/builder/sections/{section}/clone', [$builder, 'cloneSection'])->name('builder.clone-section');
+            Route::post('/builder/sections/{section}/toggle', [$builder, 'toggleSection'])->name('builder.toggle-section');
+            Route::delete('/builder/sections/{section}', [$builder, 'destroySection'])->name('builder.destroy-section');
+            Route::post('/pages/{page}/builder/reorder', [$builder, 'reorder'])->name('builder.reorder');
+            Route::post('/pages/{page}/builder/autosave', [$builder, 'autosave'])->name('builder.autosave');
+            Route::post('/pages/{page}/builder/snapshot', [$builder, 'snapshot'])->name('builder.snapshot');
+            Route::post('/builder/snapshots/{snapshot}/restore', [$builder, 'restoreSnapshot'])->name('builder.restore-snapshot');
+
+            Route::get('/conversion', [\App\Http\Controllers\Website\ConversionManagerController::class, 'index'])->name('conversion.index');
+            Route::post('/conversion/ctas', [\App\Http\Controllers\Website\ConversionManagerController::class, 'storeCta'])->name('conversion.ctas.store');
+            Route::post('/conversion/exit-intent', [\App\Http\Controllers\Website\ConversionManagerController::class, 'storeExitIntent'])->name('conversion.exit-intent.store');
+            Route::post('/conversion/lead-magnets', [\App\Http\Controllers\Website\ConversionManagerController::class, 'storeLeadMagnet'])->name('conversion.magnets.store');
+
+            Route::get('/seo-engine', [\App\Http\Controllers\Website\SeoDominanceController::class, 'index'])->name('seo-engine.index');
+            Route::post('/seo-engine/keywords', [\App\Http\Controllers\Website\SeoDominanceController::class, 'storeKeyword'])->name('seo-engine.keywords.store');
+            Route::put('/seo-engine/areas/{area}', [\App\Http\Controllers\Website\SeoDominanceController::class, 'updateArea'])->name('seo-engine.areas.update');
+
+            Route::get('/brand-intelligence', [\App\Http\Controllers\Website\BrandIntelligenceController::class, 'index'])->name('brand.index');
+            Route::get('/assistant-knowledge', [\App\Http\Controllers\Website\AssistantKnowledgeController::class, 'index'])->name('assistant.index');
+            Route::post('/assistant-knowledge', [\App\Http\Controllers\Website\AssistantKnowledgeController::class, 'store'])->name('assistant.store');
+            Route::delete('/assistant-knowledge/{article}', [\App\Http\Controllers\Website\AssistantKnowledgeController::class, 'destroy'])->name('assistant.destroy');
+
+            Route::get('/content-calendar', [\App\Http\Controllers\Website\ContentCalendarController::class, 'index'])->name('calendar.index');
+            Route::post('/content-calendar', [\App\Http\Controllers\Website\ContentCalendarController::class, 'store'])->name('calendar.store');
+            Route::put('/content-calendar/{item}', [\App\Http\Controllers\Website\ContentCalendarController::class, 'update'])->name('calendar.update');
         });
 
 });

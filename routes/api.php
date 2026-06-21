@@ -96,6 +96,23 @@ Route::prefix('website')->group(function () {
     Route::get('/community', [$community, 'index']);
     Route::post('/community/referrals', [$community, 'submitReferral']);
     Route::post('/community/prayer-requests', [$community, 'submitPrayer']);
+
+    // Sprints 21–30: Conversion, SEO, events
+    $conversion = \App\Http\Controllers\Api\Website\ConversionApiController::class;
+    Route::get('/conversion/ctas', [$conversion, 'ctas']);
+    Route::post('/conversion/cta-click', [$conversion, 'trackCta']);
+    Route::get('/conversion/exit-intent', [$conversion, 'exitIntent']);
+    Route::post('/conversion/exit-intent/convert', [$conversion, 'exitConvert']);
+    Route::get('/conversion/lead-magnets', [$conversion, 'leadMagnets']);
+    Route::post('/conversion/lead-magnets/{slug}/download', [$conversion, 'downloadLeadMagnet']);
+
+    $seoEngine = \App\Http\Controllers\Api\Website\SeoDominanceApiController::class;
+    Route::get('/seo/schema', [$seoEngine, 'schema']);
+    Route::post('/seo/score', [$seoEngine, 'score']);
+    Route::get('/seo/local-areas', [$seoEngine, 'localAreas']);
+    Route::get('/seo/local-areas/{slug}', [$seoEngine, 'area']);
+
+    Route::post('/events/{slug}/register', [\App\Http\Controllers\Api\Website\EventRegistrationApiController::class, 'register']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
