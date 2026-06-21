@@ -60,7 +60,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // ── Sprint 15: Live operations ───────────────────────────────────
+        // ── Sprint 15: Lunch menu (CMS) ──────────────────────────────────
         Schema::create('school_meals', function (Blueprint $table) {
             $table->id();
             $table->date('meal_date');
@@ -74,21 +74,7 @@ return new class extends Migration
             $table->unique('meal_date');
         });
 
-        // ── Sprint 17: Payment automation ────────────────────────────────
-        Schema::create('payment_plan_requests', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('parent_user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignId('student_id')->constrained('students')->cascadeOnDelete();
-            $table->decimal('requested_amount', 12, 2)->nullable();
-            $table->unsignedTinyInteger('installment_count')->default(3);
-            $table->text('reason')->nullable();
-            $table->enum('status', ['pending', 'approved', 'rejected', 'active', 'completed'])->default('pending');
-            $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('reviewed_at')->nullable();
-            $table->timestamps();
-        });
-
-        // ── Sprint 18: Community ─────────────────────────────────────────
+        // ── Community (website CMS) ──────────────────────────────────────
         Schema::create('referrals', function (Blueprint $table) {
             $table->id();
             $table->string('referrer_name');
@@ -124,29 +110,13 @@ return new class extends Migration
             $table->boolean('is_public')->default(false);
             $table->timestamps();
         });
-
-        // ── Sprint 20: Executive intelligence ────────────────────────────
-        Schema::create('executive_alerts', function (Blueprint $table) {
-            $table->id();
-            $table->string('alert_type');
-            $table->string('severity')->default('info');
-            $table->string('title');
-            $table->text('message');
-            $table->json('metadata')->nullable();
-            $table->boolean('acknowledged')->default(false);
-            $table->foreignId('acknowledged_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('acknowledged_at')->nullable();
-            $table->timestamps();
-        });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('executive_alerts');
         Schema::dropIfExists('prayer_requests');
         Schema::dropIfExists('alumni_stories');
         Schema::dropIfExists('referrals');
-        Schema::dropIfExists('payment_plan_requests');
         Schema::dropIfExists('school_meals');
         Schema::dropIfExists('website_competitions');
         Schema::dropIfExists('student_spotlights');

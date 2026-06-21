@@ -979,7 +979,6 @@ class="{{ $websiteCmsActive ? 'parent-active' : '' }}">
     <a href="{{ route('website.showcase.index') }}" class="sublink {{ Request::is('website-cms/showcase*') ? 'active' : '' }}"><i class="bi bi-trophy"></i> Student Showcase</a>
     <a href="{{ route('website.meals.index') }}" class="sublink {{ Request::is('website-cms/meals*') ? 'active' : '' }}"><i class="bi bi-cup-hot"></i> Lunch Menu</a>
     <a href="{{ route('website.community.index') }}" class="sublink {{ Request::is('website-cms/community*') ? 'active' : '' }}"><i class="bi bi-people"></i> Community</a>
-    <a href="{{ route('website.executive.index') }}" class="sublink {{ Request::is('website-cms/executive*') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Executive Intel</a>
 </div>
 @endif
 

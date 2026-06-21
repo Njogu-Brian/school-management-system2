@@ -53,7 +53,7 @@ class LLMService
                 ->post('https://api.openai.com/v1/chat/completions', [
                     'model' => $options['model'] ?? $this->config['model'] ?? 'gpt-4-turbo-preview',
                     'messages' => [
-                        ['role' => 'system', 'content' => $options['system_prompt'] ?? 'You are an expert curriculum designer and teacher trainer specializing in Kenyan CBC/CBE curriculum.'],
+                        ['role' => 'system', 'content' => 'You are an expert curriculum designer and teacher trainer specializing in Kenyan CBC/CBE curriculum.'],
                         ['role' => 'user', 'content' => $prompt],
                     ],
                     'temperature' => $options['temperature'] ?? $this->config['temperature'] ?? 0.7,
@@ -133,7 +133,7 @@ class LLMService
                 ->post($endpoint, [
                     'model' => $options['model'] ?? $this->config['model'] ?? 'local-llm',
                     'messages' => [
-                        ['role' => 'system', 'content' => $options['system_prompt'] ?? 'You are an expert curriculum designer.'],
+                        ['role' => 'system', 'content' => 'You are an expert curriculum designer.'],
                         ['role' => 'user', 'content' => $prompt],
                     ],
                     'temperature' => $options['temperature'] ?? $this->config['temperature'] ?? 0.7,

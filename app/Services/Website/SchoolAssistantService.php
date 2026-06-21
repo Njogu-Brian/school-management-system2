@@ -6,13 +6,13 @@ use App\Models\Website\AiChatMessage;
 use App\Models\Website\AiChatSession;
 use App\Models\Website\Faq;
 use App\Models\Website\WebsiteSetting;
-use App\Services\LLMService;
+use App\Services\Website\WebsiteLlmService;
 use Illuminate\Support\Str;
 
 class SchoolAssistantService
 {
     public function __construct(
-        protected LLMService $llm,
+        protected WebsiteLlmService $llm,
         protected WebsiteErpIntegrationService $erp
     ) {}
 

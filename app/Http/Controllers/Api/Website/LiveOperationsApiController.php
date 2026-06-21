@@ -27,14 +27,4 @@ class LiveOperationsApiController extends Controller
     {
         return response()->json(['success' => true, 'data' => $live->weeklyMeals()]);
     }
-
-    public function transport(LiveOperationsService $live): JsonResponse
-    {
-        return response()->json(['success' => true, 'data' => $live->transportPreview()]);
-    }
-
-    public function homeworkTeaser(LiveOperationsService $live): JsonResponse
-    {
-        return response()->json(['success' => true, 'data' => $live->homeworkTeaser()]);
-    }
 }

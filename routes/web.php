@@ -2147,9 +2147,6 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/community', [\App\Http\Controllers\Website\CommunityAdminController::class, 'index'])->name('community.index');
             Route::patch('/community/prayers/{prayer}/approve', [\App\Http\Controllers\Website\CommunityAdminController::class, 'approvePrayer'])->name('community.prayers.approve');
             Route::post('/community/alumni', [\App\Http\Controllers\Website\CommunityAdminController::class, 'storeAlumni'])->name('community.alumni.store');
-            Route::patch('/community/payment-plans/{plan}', [\App\Http\Controllers\Website\CommunityAdminController::class, 'reviewPaymentPlan'])->name('community.payment-plans.review');
-            Route::get('/executive', [\App\Http\Controllers\Website\ExecutiveDashboardController::class, 'index'])->name('executive.index');
-            Route::post('/executive/refresh-alerts', [\App\Http\Controllers\Website\ExecutiveDashboardController::class, 'refreshAlerts'])->name('executive.refresh-alerts');
         });
 
 });

@@ -84,16 +84,14 @@ Route::prefix('website')->group(function () {
     // Sprint 14: Student showcase
     Route::get('/showcase', [\App\Http\Controllers\Api\Website\StudentShowcaseApiController::class, 'index']);
 
-    // Sprint 15: Live operations
+    // Sprint 15: Live website panel (CMS meals + public noticeboard)
     $live = \App\Http\Controllers\Api\Website\LiveOperationsApiController::class;
     Route::get('/live', [$live, 'dashboard']);
     Route::get('/live/noticeboard', [$live, 'noticeboard']);
     Route::get('/live/status', [$live, 'schoolStatus']);
     Route::get('/live/meals', [$live, 'meals']);
-    Route::get('/live/transport', [$live, 'transport']);
-    Route::get('/live/homework', [$live, 'homeworkTeaser']);
 
-    // Sprint 18: Community (public read + submit)
+    // Community (public website)
     $community = \App\Http\Controllers\Api\Website\CommunityApiController::class;
     Route::get('/community', [$community, 'index']);
     Route::post('/community/referrals', [$community, 'submitReferral']);
@@ -111,69 +109,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/children/{student}/attendance', [$parent, 'attendance']);
         Route::get('/report-cards', [$parent, 'reportCards']);
         Route::get('/announcements', [$parent, 'announcements']);
-        Route::get('/children/{student}/homework', [$parent, 'homework']);
-
-        // Sprint 17: Parent payments
-        $pay = \App\Http\Controllers\Api\Website\ParentPaymentApiController::class;
-        Route::get('/children/{student}/payments/summary', [$pay, 'summary']);
-        Route::get('/children/{student}/payments/options', [$pay, 'paymentOptions']);
-        Route::post('/children/{student}/payments/mpesa', [$pay, 'mpesaPrompt']);
-        Route::get('/children/{student}/payments/link', [$pay, 'paymentLink']);
-        Route::post('/children/{student}/payments/plan-request', [$pay, 'requestPlan']);
-        Route::get('/children/{student}/payments/receipts', [$pay, 'receipts']);
     });
 
-    // Sprint 13: AI content (CMS staff)
+    // Sprint 13: AI content (website CMS staff)
     Route::prefix('website/ai')->group(function () {
         $ai = \App\Http\Controllers\Api\Website\AiContentApiController::class;
         Route::get('/logs', [$ai, 'index']);
         Route::post('/generate', [$ai, 'generate']);
         Route::get('/logs/{id}', [$ai, 'show']);
-    });
-
-    // Sprint 16: Staff portal connector
-    Route::prefix('website/staff')->group(function () {
-        $staff = \App\Http\Controllers\Api\Website\StaffPortalApiController::class;
-        Route::get('/dashboard', [$staff, 'dashboard']);
-        Route::get('/timetable', [$staff, 'timetable']);
-        Route::get('/lesson-plans', [$staff, 'lessonPlans']);
-        Route::get('/clock/today', [$staff, 'clockToday']);
-        Route::get('/announcements', [$staff, 'announcements']);
-        Route::get('/payroll-slips', [$staff, 'payrollSlips']);
-        Route::get('/leave-requests', [$staff, 'leaveRequests']);
-        Route::get('/attendance/class', [$staff, 'classAttendance']);
-        Route::post('/attendance/mark', [$staff, 'markAttendance']);
-    });
-
-    // Sprint 20: Executive intelligence
-    Route::prefix('website/executive')->middleware('role:Super Admin|Director|Admin')->group(function () {
-        $exec = \App\Http\Controllers\Api\Website\ExecutiveIntelligenceApiController::class;
-        Route::get('/kpis', [$exec, 'kpis']);
-        Route::get('/trends', [$exec, 'trends']);
-        Route::get('/alerts', [$exec, 'alerts']);
-        Route::post('/alerts/{id}/acknowledge', [$exec, 'acknowledge']);
-    });
-
-    // Sprint 19: Unified mobile API v1
-    Route::prefix('mobile/v1')->group(function () {
-        $mobile = \App\Http\Controllers\Api\Mobile\MobileApiController::class;
-        Route::get('/parent/dashboard', [$mobile, 'parentDashboard']);
-        Route::get('/parent/children', [$mobile, 'parentChildren']);
-        Route::get('/parent/children/{student}', [$mobile, 'parentChild']);
-        Route::get('/parent/children/{student}/statement', [$mobile, 'parentStatement']);
-        Route::get('/parent/children/{student}/homework', [$mobile, 'parentHomework']);
-        Route::get('/parent/children/{student}/attendance', [$mobile, 'studentAttendanceCalendar']);
-        Route::get('/teacher/dashboard', [$mobile, 'teacherDashboard']);
-        Route::get('/teacher/homework', [$mobile, 'teacherHomework']);
-        Route::get('/teacher/attendance/class', [$mobile, 'classAttendance']);
-        Route::post('/teacher/attendance/mark', [$mobile, 'markAttendance']);
-        Route::get('/student/{student}', [$mobile, 'studentProfile']);
-        Route::get('/notifications', [$mobile, 'notifications']);
-        Route::get('/finance/payments', [$mobile, 'financePayments']);
-        Route::post('/device-tokens', [$mobile, 'registerDevice']);
-        Route::post('/device-tokens/revoke', [$mobile, 'revokeDevice']);
-        Route::get('/notification-preferences', [$mobile, 'notificationPreferences']);
-        Route::put('/notification-preferences', [$mobile, 'updateNotificationPreferences']);
     });
 
     Route::get('/user', [AuthApiController::class, 'user']);

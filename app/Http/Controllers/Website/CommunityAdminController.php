@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Website;
 
 use App\Http\Controllers\Controller;
-use App\Models\Website\PaymentPlanRequest;
 use App\Models\Website\Referral;
 use App\Models\Website\PrayerRequest;
 use App\Models\Website\AlumniStory;
@@ -25,7 +24,6 @@ class CommunityAdminController extends Controller
             'referrals' => Referral::latest()->limit(50)->get(),
             'prayers' => PrayerRequest::latest()->limit(50)->get(),
             'alumni' => AlumniStory::latest()->paginate(20),
-            'paymentPlans' => PaymentPlanRequest::with(['student', 'parentUser'])->latest()->limit(30)->get(),
         ]);
     }
 
@@ -49,18 +47,5 @@ class CommunityAdminController extends Controller
         AlumniStory::create($data);
 
         return back()->with('success', 'Alumni story added.');
-    }
-
-    public function reviewPaymentPlan(Request $request, PaymentPlanRequest $plan)
-    {
-        $data = $request->validate(['status' => 'required|in:approved,rejected']);
-
-        $plan->update([
-            'status' => $data['status'],
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-        ]);
-
-        return back()->with('success', 'Payment plan request updated.');
     }
 }

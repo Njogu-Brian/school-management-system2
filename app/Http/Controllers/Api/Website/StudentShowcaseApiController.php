@@ -5,12 +5,11 @@ namespace App\Http\Controllers\Api\Website;
 use App\Http\Controllers\Controller;
 use App\Models\Website\StudentSpotlight;
 use App\Models\Website\WebsiteCompetition;
-use App\Services\Website\WebsiteErpIntegrationService;
 use Illuminate\Http\JsonResponse;
 
 class StudentShowcaseApiController extends Controller
 {
-    public function index(WebsiteErpIntegrationService $erp): JsonResponse
+    public function index(): JsonResponse
     {
         $spotlights = StudentSpotlight::query()
             ->where('published', true)
@@ -41,7 +40,6 @@ class StudentShowcaseApiController extends Controller
             'data' => [
                 'spotlights' => $spotlights,
                 'competitions' => $competitions,
-                'erp_achievements' => $erp->achievements(12),
             ],
         ]);
     }

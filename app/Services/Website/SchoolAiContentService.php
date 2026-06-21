@@ -5,7 +5,7 @@ namespace App\Services\Website;
 use App\Jobs\Website\GenerateAiContentJob;
 use App\Models\Website\AiContentLog;
 use App\Models\User;
-use App\Services\LLMService;
+use App\Services\Website\WebsiteLlmService;
 
 class SchoolAiContentService
 {
@@ -27,7 +27,7 @@ PROMPT;
     ];
 
     public function __construct(
-        protected LLMService $llm
+        protected WebsiteLlmService $llm
     ) {}
 
     public function generate(?User $user, string $contentType, string $subject, bool $queue = true): AiContentLog
