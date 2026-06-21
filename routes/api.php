@@ -111,10 +111,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/children/{student}/attendance', [$parent, 'attendance']);
         Route::get('/report-cards', [$parent, 'reportCards']);
         Route::get('/announcements', [$parent, 'announcements']);
+        Route::get('/children/{student}/homework', [$parent, 'homework']);
 
         // Sprint 17: Parent payments
         $pay = \App\Http\Controllers\Api\Website\ParentPaymentApiController::class;
         Route::get('/children/{student}/payments/summary', [$pay, 'summary']);
+        Route::get('/children/{student}/payments/options', [$pay, 'paymentOptions']);
         Route::post('/children/{student}/payments/mpesa', [$pay, 'mpesaPrompt']);
         Route::get('/children/{student}/payments/link', [$pay, 'paymentLink']);
         Route::post('/children/{student}/payments/plan-request', [$pay, 'requestPlan']);
@@ -139,6 +141,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/announcements', [$staff, 'announcements']);
         Route::get('/payroll-slips', [$staff, 'payrollSlips']);
         Route::get('/leave-requests', [$staff, 'leaveRequests']);
+        Route::get('/attendance/class', [$staff, 'classAttendance']);
+        Route::post('/attendance/mark', [$staff, 'markAttendance']);
     });
 
     // Sprint 20: Executive intelligence
@@ -157,7 +161,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/parent/children', [$mobile, 'parentChildren']);
         Route::get('/parent/children/{student}', [$mobile, 'parentChild']);
         Route::get('/parent/children/{student}/statement', [$mobile, 'parentStatement']);
+        Route::get('/parent/children/{student}/homework', [$mobile, 'parentHomework']);
+        Route::get('/parent/children/{student}/attendance', [$mobile, 'studentAttendanceCalendar']);
         Route::get('/teacher/dashboard', [$mobile, 'teacherDashboard']);
+        Route::get('/teacher/homework', [$mobile, 'teacherHomework']);
+        Route::get('/teacher/attendance/class', [$mobile, 'classAttendance']);
+        Route::post('/teacher/attendance/mark', [$mobile, 'markAttendance']);
         Route::get('/student/{student}', [$mobile, 'studentProfile']);
         Route::get('/notifications', [$mobile, 'notifications']);
         Route::get('/finance/payments', [$mobile, 'financePayments']);

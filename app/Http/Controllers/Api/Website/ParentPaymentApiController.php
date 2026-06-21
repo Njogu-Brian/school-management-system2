@@ -23,7 +23,18 @@ class ParentPaymentApiController extends Controller
             'data' => [
                 'outstanding' => $this->payments->outstandingBalance($student),
                 'recent_receipts' => $this->payments->recentReceipts($student),
+                'payment_options' => $this->payments->paymentOptions($student),
             ],
+        ]);
+    }
+
+    public function paymentOptions(Request $request, int $student): JsonResponse
+    {
+        $this->assertParent($request);
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->payments->paymentOptions($student),
         ]);
     }
 

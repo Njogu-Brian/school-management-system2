@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Website;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\ApiAnnouncementController;
+use App\Http\Controllers\Api\ApiAttendanceController;
 use App\Http\Controllers\Api\ApiDashboardController;
 use App\Http\Controllers\Api\ApiLessonPlansController;
 use App\Http\Controllers\Api\ApiStaffClockController;
@@ -74,6 +75,20 @@ class StaffPortalApiController extends Controller
             'data' => [],
             'message' => 'Submit leave requests via ERP HR module.',
         ]);
+    }
+
+    public function classAttendance(Request $request): JsonResponse
+    {
+        $this->assertStaff($request);
+
+        return app(ApiAttendanceController::class)->classAttendance($request);
+    }
+
+    public function markAttendance(Request $request): JsonResponse
+    {
+        $this->assertStaff($request);
+
+        return app(ApiAttendanceController::class)->mark($request);
     }
 
     protected function assertStaff(Request $request): User

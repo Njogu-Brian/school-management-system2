@@ -2,6 +2,7 @@
 
 namespace App\Services\Website;
 
+use App\Models\BankAccount;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\PaymentTransaction;
@@ -105,6 +106,7 @@ class WebsitePaymentService
                 'date' => $p->payment_date?->toDateString(),
                 'receipt_number' => $p->receipt_number,
                 'method' => $p->payment_method,
+                'receipt_url' => $p->public_token ? url('/receipt/'.$p->public_token) : null,
             ])
             ->all();
     }
@@ -116,5 +118,64 @@ class WebsitePaymentService
         return round((float) Invoice::where('student_id', $studentId)
             ->whereNull('reversed_at')
             ->sum('balance'), 2);
+    }
+
+    /**
+     * Available payment channels for parent portal (reuses ERP payment link + M-Pesa + bank accounts).
+     */
+    public function paymentOptions(int $studentId): array
+    {
+        abort_unless(Auth::user()?->canAccessStudent($studentId), 403);
+
+        $student = Student::findOrFail($studentId);
+        $linkData = $this->paymentLinkForStudent($studentId);
+        $payUrl = $linkData['data']['url'] ?? null;
+
+        $banks = BankAccount::active()
+            ->get(['bank_name', 'account_number', 'branch', 'account_type', 'currency'])
+            ->map(fn ($b) => [
+                'bank_name' => $b->bank_name,
+                'account_number' => $b->account_number,
+                'branch' => $b->branch,
+                'account_type' => $b->account_type,
+                'currency' => $b->currency,
+                'reference' => $student->admission_number,
+            ])
+            ->all();
+
+        return [
+            'outstanding' => $this->outstandingBalance($studentId),
+            'methods' => [
+                [
+                    'id' => 'mpesa_stk',
+                    'label' => 'M-Pesa STK Push',
+                    'description' => 'Instant prompt on your phone',
+                ],
+                [
+                    'id' => 'mpesa_link',
+                    'label' => 'M-Pesa / Card via Payment Link',
+                    'description' => 'Pay online via secure family payment link',
+                    'url' => $payUrl,
+                ],
+                [
+                    'id' => 'bank_transfer',
+                    'label' => 'Bank Transfer',
+                    'description' => 'Use admission number as payment reference',
+                    'accounts' => $banks,
+                ],
+            ],
+        ];
+    }
+
+    public function receiptUrl(int $paymentId, int $studentId): ?string
+    {
+        abort_unless(Auth::user()?->canAccessStudent($studentId), 403);
+
+        $payment = Payment::where('student_id', $studentId)->find($paymentId);
+        if (! $payment || ! $payment->public_token) {
+            return null;
+        }
+
+        return url('/receipt/'.$payment->public_token);
     }
 }

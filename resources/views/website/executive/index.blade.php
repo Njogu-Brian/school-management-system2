@@ -9,6 +9,8 @@
 <div class="col-md-3"><div class="settings-card p-4 text-center"><div class="h4">{{ $kpis['admissions']['conversion_rate'] ?? 0 }}%</div><small>Conversion rate</small></div></div>
 <div class="col-md-3"><div class="settings-card p-4 text-center"><div class="h4">KES {{ number_format($kpis['finance']['outstanding_balances'] ?? 0) }}</div><small>Outstanding</small></div></div>
 <div class="col-md-3"><div class="settings-card p-4 text-center"><div class="h4">{{ $kpis['attendance']['absentee_rate'] ?? 0 }}%</div><small>Absentee rate (14d)</small></div></div>
+<div class="col-md-3"><div class="settings-card p-4 text-center"><div class="h4">{{ $kpis['website']['conversion_funnel']['enquiries'] ?? 0 }}</div><small>Enquiries (30d)</small></div></div>
+<div class="col-md-3"><div class="settings-card p-4 text-center"><div class="h4">{{ $kpis['parent_engagement']['portal_logins_30d'] ?? 0 }}</div><small>Parent logins (30d)</small></div></div>
 </div>
 <div class="settings-card"><div class="card-header">Active alerts</div><div class="card-body">
 @forelse($alerts as $a)<div class="border-bottom py-2"><span class="badge bg-warning text-dark">{{ $a->severity }}</span> <strong>{{ $a->title }}</strong><br><small>{{ $a->message }}</small></div>@empty<p class="text-muted mb-0">No unacknowledged alerts.</p>@endforelse

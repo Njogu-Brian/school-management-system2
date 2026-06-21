@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api\Mobile;
 
 use App\Http\Controllers\Api\ApiAnnouncementController;
+use App\Http\Controllers\Api\ApiAttendanceController;
 use App\Http\Controllers\Api\ApiDashboardController;
 use App\Http\Controllers\Api\ApiDeviceTokenController;
+use App\Http\Controllers\Api\ApiHomeworkController;
 use App\Http\Controllers\Api\ApiNotificationPreferencesController;
 use App\Http\Controllers\Api\ApiPaymentController;
 use App\Http\Controllers\Api\ApiStudentController;
 use App\Http\Controllers\Api\ApiStudentStatementController;
+use App\Services\Website\ParentHomeworkService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -76,5 +79,33 @@ class MobileApiController extends Controller
     public function updateNotificationPreferences(Request $request): JsonResponse
     {
         return app(ApiNotificationPreferencesController::class)->update($request);
+    }
+
+    public function parentHomework(Request $request, int $student, ParentHomeworkService $homework): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $homework->forStudent($student),
+        ]);
+    }
+
+    public function teacherHomework(Request $request): JsonResponse
+    {
+        return app(ApiHomeworkController::class)->index($request);
+    }
+
+    public function classAttendance(Request $request): JsonResponse
+    {
+        return app(ApiAttendanceController::class)->classAttendance($request);
+    }
+
+    public function markAttendance(Request $request): JsonResponse
+    {
+        return app(ApiAttendanceController::class)->mark($request);
+    }
+
+    public function studentAttendanceCalendar(Request $request, int $student): JsonResponse
+    {
+        return app(ApiStudentController::class)->attendanceCalendar($request, $student);
     }
 }

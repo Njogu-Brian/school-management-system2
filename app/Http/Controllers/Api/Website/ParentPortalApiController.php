@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\Api\Website;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\ApiAnnouncementController;
 use App\Http\Controllers\Api\ApiDashboardController;
+use App\Http\Controllers\Api\ApiReportCardController;
 use App\Http\Controllers\Api\ApiStudentController;
 use App\Http\Controllers\Api\ApiStudentStatementController;
-use App\Http\Controllers\Api\ApiReportCardController;
-use App\Http\Controllers\Api\ApiAnnouncementController;
+use App\Services\Website\ParentHomeworkService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -66,6 +67,17 @@ class ParentPortalApiController extends Controller
         $this->assertParent($request);
 
         return app(ApiAnnouncementController::class)->index($request);
+    }
+
+    public function homework(Request $request, int $student, ParentHomeworkService $homework): JsonResponse
+    {
+        $this->assertParent($request);
+        abort_unless($request->user()->canAccessStudent($student), 403);
+
+        return response()->json([
+            'success' => true,
+            'data' => $homework->forStudent($student),
+        ]);
     }
 
     protected function assertParent(Request $request): User
