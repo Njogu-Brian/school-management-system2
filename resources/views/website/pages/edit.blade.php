@@ -20,6 +20,7 @@
                     @include('website.pages._form', ['page' => $page])
                     <div class="mt-4 d-flex gap-2">
                         <button type="submit" class="btn btn-settings-primary">Update Page</button>
+                        <a href="{{ route('website.builder.show', $page) }}" class="btn btn-outline-primary"><i class="bi bi-columns-gap"></i> Visual Builder</a>
                         <a href="{{ route('website.pages.index') }}" class="btn btn-outline-secondary">Back</a>
                     </div>
                 </form>
