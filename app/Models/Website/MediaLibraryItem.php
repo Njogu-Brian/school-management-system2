@@ -5,6 +5,7 @@ namespace App\Models\Website;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class MediaLibraryItem extends Model
 {
@@ -13,15 +14,23 @@ class MediaLibraryItem extends Model
     protected $fillable = [
         'title',
         'file_path',
+        'optimized_path',
         'type',
         'category',
         'alt_text',
+        'focal_x',
+        'focal_y',
+        'scheduled_publish_at',
+        'embed_url',
+        'embed_provider',
         'is_featured',
         'uploaded_by',
+        'album_id',
     ];
 
     protected $casts = [
         'is_featured' => 'boolean',
+        'scheduled_publish_at' => 'datetime',
     ];
 
     public function uploader(): BelongsTo
@@ -32,6 +41,11 @@ class MediaLibraryItem extends Model
     public function album(): BelongsTo
     {
         return $this->belongsTo(MediaAlbum::class, 'album_id');
+    }
+
+    public function tags(): MorphToMany
+    {
+        return $this->morphToMany(MediaTag::class, 'taggable', 'media_taggables');
     }
 
     public function url(): string

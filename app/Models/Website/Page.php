@@ -59,6 +59,11 @@ class Page extends Model
         return $this->sections()->where('is_active', true);
     }
 
+    public function builderSnapshots(): HasMany
+    {
+        return $this->hasMany(PageBuilderSnapshot::class);
+    }
+
     public static function homepage(): ?self
     {
         return static::query()
