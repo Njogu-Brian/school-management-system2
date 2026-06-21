@@ -3,6 +3,7 @@
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { FloatingWhatsApp, StickyAdmissionsButton } from "@/components/layout/FloatingCTAs";
+import { SchoolAssistant } from "@/components/assistant/SchoolAssistant";
 import { useWebsiteSettings } from "@/hooks/useWebsiteData";
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
@@ -15,6 +16,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       <SiteFooter settings={settings} />
       <FloatingWhatsApp settings={settings} />
       <StickyAdmissionsButton settings={settings} />
+      <SchoolAssistant />
     </>
   );
 }

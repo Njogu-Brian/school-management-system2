@@ -46,4 +46,19 @@ export const parentService = {
   reportCards: (studentId?: number) =>
     api.get("/website/parent/report-cards", { headers: authHeaders(), params: { student_id: studentId } }).then((r) => r.data),
   announcements: () => api.get("/website/parent/announcements", { headers: authHeaders() }).then((r) => r.data),
+
+  paymentSummary: (studentId: number) =>
+    api.get(`/website/parent/children/${studentId}/payments/summary`, { headers: authHeaders() }).then((r) => r.data),
+
+  mpesaPay: (studentId: number, phone: string, amount: number) =>
+    api.post(`/website/parent/children/${studentId}/payments/mpesa`, { phone_number: phone, amount }, { headers: authHeaders() }).then((r) => r.data),
+
+  paymentLink: (studentId: number) =>
+    api.get(`/website/parent/children/${studentId}/payments/link`, { headers: authHeaders() }).then((r) => r.data),
+
+  requestPaymentPlan: (studentId: number, payload: { installment_count: number; reason?: string; requested_amount?: number }) =>
+    api.post(`/website/parent/children/${studentId}/payments/plan-request`, payload, { headers: authHeaders() }).then((r) => r.data),
+
+  receipts: (studentId: number) =>
+    api.get(`/website/parent/children/${studentId}/payments/receipts`, { headers: authHeaders() }).then((r) => r.data),
 };

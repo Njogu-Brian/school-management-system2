@@ -14,7 +14,8 @@ const NAV = [
   { href: "/co-curricular", label: "Co-curricular" },
   { href: "/gallery", label: "Gallery" },
   { href: "/events", label: "Events" },
-  { href: "/blog", label: "Blog" },
+  { href: "/spotlights", label: "Spotlights" },
+  { href: "/community", label: "Community" },
   { href: "/contact", label: "Contact" },
   { href: "/parent-portal", label: "Parent Portal" },
 ];

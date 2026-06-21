@@ -1,7 +1,7 @@
 "use client";
 
 import { SiteShell } from "@/components/layout/SiteShell";
-import { useHomepage, useEvents, useTestimonials, useGallery } from "@/hooks/useWebsiteData";
+import { useHomepage, useEvents, useTestimonials, useGallery, useWebsiteSettings } from "@/hooks/useWebsiteData";
 import { HeroSection } from "@/sections/HeroSection";
 import { AgeJourneySlider } from "@/sections/AgeJourneySlider";
 import { WhyRoyalKings, LearningPathway, ProgramsGrid } from "@/sections/WhyAndPrograms";
@@ -15,7 +15,7 @@ import {
   ParentPortalPreview,
   AdmissionsCTA,
 } from "@/sections/HomeSections";
-import { useWebsiteSettings } from "@/hooks/useWebsiteData";
+import { LiveOperationsPanel } from "@/components/live/LiveOperationsPanel";
 
 function HomeLoading() {
   return <div className="flex min-h-[50vh] items-center justify-center text-[#5B2C8E]">Loading Royal Kings experience...</div>;
@@ -44,6 +44,7 @@ export default function HomePage() {
       {homepage.isLoading && <HomeLoading />}
       {homepage.isError && <HomeError />}
       {homepage.data && <StatsCounters stats={homepage.data.live_stats} />}
+      <LiveOperationsPanel />
       <AgeJourneySlider />
       <WhyRoyalKings />
       <LearningPathway />
