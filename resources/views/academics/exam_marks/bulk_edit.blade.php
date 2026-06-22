@@ -25,6 +25,8 @@
 
     @includeIf('partials.alerts')
 
+    @include('academics.exam_marks.partials.entry_audit', ['entryAudit' => $entryAudit ?? null])
+
     <form method="post" action="{{ route('academics.exam-marks.bulk.store') }}" class="settings-card" id="marks-form">
       @csrf
       <input type="hidden" name="exam_id" value="{{ $exam->id }}">
@@ -38,6 +40,7 @@
               <tr>
                 <th style="width:60px">#</th>
                 <th>Student</th>
+                <th style="width:100px" class="text-center">Absent</th>
                 <th style="width:160px" class="text-center">Score</th>
                 <th>Remark</th>
               </tr>
@@ -46,18 +49,22 @@
               @foreach($students as $i => $s)
                 @php
                   $m = $existing[$s->id] ?? null;
-                  $score = $m?->score_raw;
+                  $score = $m?->is_absent ? null : $m?->score_raw;
                   $remark = $m?->subject_remark;
+                  $isAbsent = (bool) old("rows.$i.is_absent", $m?->is_absent ?? false);
                 @endphp
-                <tr>
+                <tr data-row-index="{{ $i }}">
                   <td>{{ $loop->iteration }}</td>
                   <td>
                     <div class="fw-semibold">{{ $s->full_name }}</div>
                     <div class="small text-muted">Adm: {{ $s->admission_number ?? '—' }}</div>
                     <input type="hidden" name="rows[{{ $i }}][student_id]" value="{{ $s->id }}" data-student-id="{{ $s->id }}">
                   </td>
+                  <td class="text-center">
+                    <input type="checkbox" class="form-check-input absent-toggle mark-field" name="rows[{{ $i }}][is_absent]" value="1" @checked($isAbsent) @disabled(!$canEdit)>
+                  </td>
                   <td>
-                    <input type="number" step="0.01" min="0" class="form-control text-center score-input mark-field" name="rows[{{ $i }}][score]" value="{{ old("rows.$i.score", $score) }}" placeholder="e.g. 64.5" @disabled(!$canEdit)>
+                    <input type="number" step="0.01" min="0" class="form-control text-center score-input mark-field" name="rows[{{ $i }}][score]" value="{{ old("rows.$i.score", $score) }}" placeholder="e.g. 64.5" @disabled(!$canEdit || $isAbsent)>
                   </td>
                   <td>
                     <input type="text" class="form-control mark-field" name="rows[{{ $i }}][subject_remark]" value="{{ old("rows.$i.subject_remark", $remark) }}" maxlength="500" placeholder="Optional remark" @disabled(!$canEdit)>
@@ -65,7 +72,7 @@
                 </tr>
               @endforeach
               @if($students->isEmpty())
-                <tr><td colspan="4" class="text-center text-muted py-4">No students in this class.</td></tr>
+                <tr><td colspan="5" class="text-center text-muted py-4">No students in this class.</td></tr>
               @endif
             </tbody>
           </table>
@@ -74,7 +81,7 @@
 
       <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
-          <div class="small text-muted">Marks autosave as you type. Click <strong>Submit for review</strong> when finished — the exam locks for teachers.</div>
+          <div class="small text-muted">Marks autosave as you type. Mark <strong>Absent</strong> for students who missed the exam — they are excluded from mean score.</div>
           <div id="autosave-status" class="small text-muted mt-1"></div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
@@ -115,6 +122,24 @@
       if (n < 0) n = 0;
       if (n > 100) n = 100;
       inp.value = n.toFixed(2);
+      const row = inp.closest('tr');
+      const absent = row?.querySelector('.absent-toggle');
+      if (absent) absent.checked = false;
+    });
+  });
+
+  document.querySelectorAll('.absent-toggle').forEach(box => {
+    box.addEventListener('change', () => {
+      const row = box.closest('tr');
+      const score = row?.querySelector('.score-input');
+      if (!score) return;
+      if (box.checked) {
+        score.value = '';
+        score.disabled = true;
+      } else if (canEdit) {
+        score.disabled = false;
+      }
+      scheduleAutosave();
     });
   });
 
@@ -123,10 +148,12 @@
     document.querySelectorAll('input[data-student-id]').forEach((hidden, i) => {
       const score = document.querySelector(`input[name="rows[${i}][score]"]`);
       const remark = document.querySelector(`input[name="rows[${i}][subject_remark]"]`);
+      const absent = document.querySelector(`input[name="rows[${i}][is_absent]"][type="checkbox"]`);
       rows.push({
         student_id: parseInt(hidden.value, 10),
-        score: score?.value?.trim() || null,
+        score: absent?.checked ? null : (score?.value?.trim() || null),
         subject_remark: remark?.value?.trim() || null,
+        is_absent: absent?.checked ? 1 : 0,
       });
     });
     return rows;

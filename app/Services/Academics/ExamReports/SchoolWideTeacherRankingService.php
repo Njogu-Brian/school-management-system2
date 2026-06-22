@@ -32,11 +32,8 @@ class SchoolWideTeacherRankingService
             $query->where('subject_id', $subjectId);
         }
 
-        $marks = $query->get(['teacher_id', 'subject_id', 'score_raw', 'score_moderated', 'grade_label'])
-            ->map(function (ExamMark $m) {
-                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
-                return $m;
-            })
+        $marks = $query->get(['teacher_id', 'subject_id', 'score_raw', 'score_moderated', 'grade_label', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained())
             ->filter(fn (ExamMark $m) => $m->marks_obtained !== null)
             ->values();
 

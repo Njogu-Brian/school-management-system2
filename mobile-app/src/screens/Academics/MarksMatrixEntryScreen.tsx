@@ -5,6 +5,7 @@ import {
     StyleSheet,
     Text,
     TextInput,
+    Switch,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -31,7 +32,7 @@ interface Props {
     route: { params: { examTypeId: number; classroomId: number; streamId?: number } };
 }
 
-type EntryValue = { marks: string; remarks: string };
+type EntryValue = { marks: string; remarks: string; isAbsent: boolean };
 
 export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) => {
     const { examTypeId, classroomId, streamId } = route.params;
@@ -74,8 +75,9 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
             const next: Record<string, EntryValue> = {};
             (res.data.existing_marks || []).forEach((m: MarksMatrixExistingMark) => {
                 next[keyOf(m.student_id, m.exam_id)] = {
-                    marks: m.marks === null || typeof m.marks === 'undefined' ? '' : String(m.marks),
+                    marks: m.is_absent ? '' : (m.marks === null || typeof m.marks === 'undefined' ? '' : String(m.marks)),
                     remarks: m.remarks || '',
+                    isAbsent: !!m.is_absent,
                 };
             });
             setValues(next);
@@ -110,35 +112,59 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
         );
     }, [students, search]);
 
-    const setCell = (studentId: number, examId: number, field: keyof EntryValue, value: string) => {
+    const setCell = (studentId: number, examId: number, field: keyof EntryValue, value: string | boolean) => {
         const k = keyOf(studentId, examId);
-        setValues((prev) => ({
-            ...prev,
-            [k]: {
-                marks: prev[k]?.marks || '',
-                remarks: prev[k]?.remarks || '',
-                [field]: value,
-            },
-        }));
+        setValues((prev) => {
+            const current = prev[k] || { marks: '', remarks: '', isAbsent: false };
+            if (field === 'isAbsent') {
+                return {
+                    ...prev,
+                    [k]: {
+                        marks: value ? '' : current.marks,
+                        remarks: current.remarks,
+                        isAbsent: !!value,
+                    },
+                };
+            }
+            if (field === 'marks') {
+                return {
+                    ...prev,
+                    [k]: {
+                        ...current,
+                        marks: String(value),
+                        isAbsent: false,
+                    },
+                };
+            }
+            return {
+                ...prev,
+                [k]: {
+                    ...current,
+                    [field]: value,
+                },
+            };
+        });
         scheduleAutosave();
     };
 
     const nonEmptyEntries = useMemo(() => {
-        const entries: { student_id: number; exam_id: number; marks?: number; remarks?: string }[] = [];
+        const entries: { student_id: number; exam_id: number; marks?: number; remarks?: string; is_absent?: boolean }[] = [];
         students.forEach((s) => {
             exams.forEach((e) => {
                 const v = values[keyOf(s.id, e.id)];
                 if (!v) return;
                 const hasScore = v.marks.trim() !== '';
                 const hasRemark = v.remarks.trim() !== '';
-                if (!hasScore && !hasRemark) return;
-                const marks = hasScore ? Number(v.marks) : undefined;
-                if (hasScore && Number.isNaN(marks)) return;
+                const isAbsent = !!v.isAbsent;
+                if (!hasScore && !hasRemark && !isAbsent) return;
+                const marks = hasScore && !isAbsent ? Number(v.marks) : undefined;
+                if (hasScore && !isAbsent && Number.isNaN(marks)) return;
                 entries.push({
                     student_id: s.id,
                     exam_id: e.id,
                     marks,
                     remarks: hasRemark ? v.remarks.trim() : undefined,
+                    is_absent: isAbsent,
                 });
             });
         });
@@ -341,7 +367,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                                     >
                                         {exams.map((e) => {
                                             const k = keyOf(s.id, e.id);
-                                            const v = values[k] || { marks: '', remarks: '' };
+                                            const v = values[k] || { marks: '', remarks: '', isAbsent: false };
                                             const editable = e.can_edit !== false;
                                             return (
                                                 <View
@@ -359,6 +385,20 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                                                         {e.min_marks}–{e.max_marks}
                                                         {e.status === 'moderation' ? ' · Under review' : ''}
                                                     </Text>
+                                                    {e.marking_submitted_at ? (
+                                                        <Text style={[styles.examRange, { color: textSub }]} numberOfLines={2}>
+                                                            Submitted {new Date(e.marking_submitted_at).toLocaleDateString()}
+                                                            {e.marking_submitted_by ? ` · ${e.marking_submitted_by}` : ''}
+                                                        </Text>
+                                                    ) : null}
+                                                    <View style={styles.absentRow}>
+                                                        <Text style={[styles.absentLabel, { color: textSub }]}>Absent</Text>
+                                                        <Switch
+                                                            value={v.isAbsent}
+                                                            onValueChange={(checked) => setCell(s.id, e.id, 'isAbsent', checked)}
+                                                            disabled={!editable}
+                                                        />
+                                                    </View>
                                                     <TextInput
                                                         style={[
                                                             styles.scoreInput,
@@ -368,12 +408,12 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                                                                 color: text,
                                                             },
                                                         ]}
-                                                        value={v.marks}
+                                                        value={v.isAbsent ? '' : v.marks}
                                                         onChangeText={(t) => setCell(s.id, e.id, 'marks', t)}
                                                         keyboardType="numeric"
-                                                        placeholder="Score"
+                                                        placeholder={v.isAbsent ? 'ABS' : 'Score'}
                                                         placeholderTextColor={textSub}
-                                                        editable={editable}
+                                                        editable={editable && !v.isAbsent}
                                                     />
                                                     <TextInput
                                                         style={[
@@ -537,10 +577,19 @@ const styles = StyleSheet.create({
         paddingRight: SPACING.md,
     },
     examCell: {
-        width: 148,
+        width: 160,
         borderWidth: 1,
         borderRadius: BORDER_RADIUS.md,
         padding: SPACING.sm,
+    },
+    absentRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: SPACING.xs,
+    },
+    absentLabel: {
+        fontSize: FONT_SIZES.xs,
     },
     examTitle: {
         fontSize: FONT_SIZES.xs,

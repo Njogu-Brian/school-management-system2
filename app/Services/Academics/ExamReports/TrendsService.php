@@ -53,11 +53,8 @@ class TrendsService
                     if ($streamId) $qs->where('stream_id', $streamId);
                 });
             })
-            ->get(['exam_id', 'score_raw', 'score_moderated'])
-            ->map(function (ExamMark $m) {
-                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
-                return $m;
-            })
+            ->get(['exam_id', 'score_raw', 'score_moderated', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained())
             ->filter(fn (ExamMark $m) => $m->marks_obtained !== null)
             ->values()
             ->groupBy('exam_id');

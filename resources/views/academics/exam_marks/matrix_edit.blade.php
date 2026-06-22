@@ -20,6 +20,28 @@
 
     @includeIf('partials.alerts')
 
+    @if(!empty($examAudits) && $exams->isNotEmpty())
+      <div class="settings-card mb-3">
+        <div class="card-body">
+          <h2 class="h6 mb-2">Exam submission status</h2>
+          <div class="d-flex flex-wrap gap-2">
+            @foreach($exams as $exam)
+              @php $audit = $examAudits[$exam->id] ?? null; @endphp
+              <div class="border rounded px-3 py-2 small">
+                <div class="fw-semibold">{{ $exam->name }}</div>
+                @if(!empty($audit['marking_submitted_at']))
+                  <div class="text-muted">Submitted {{ \Carbon\Carbon::parse($audit['marking_submitted_at'])->format('d M Y H:i') }}</div>
+                  <div>By {{ $audit['marking_submitted_by'] ?? '—' }}</div>
+                @else
+                  <div class="text-muted">Not submitted yet</div>
+                @endif
+              </div>
+            @endforeach
+          </div>
+        </div>
+      </div>
+    @endif
+
     @if($exams->isEmpty())
       <div class="alert alert-warning">No open, marking, or under-review exams found for this exam type and class context.</div>
     @elseif($students->isEmpty())
@@ -64,19 +86,33 @@
                     @php
                       $mark = $existing[$s->id.'-'.$exam->id] ?? null;
                       $meta = $examMeta[$exam->id] ?? ['can_edit' => false];
+                      $isAbsent = (bool) old("rows.$s->id.$exam->id.is_absent", $mark?->is_absent ?? false);
                     @endphp
                     <td>
+                      <div class="form-check form-check-inline mb-1">
+                        <input
+                          type="checkbox"
+                          class="form-check-input matrix-absent matrix-field"
+                          data-student-id="{{ $s->id }}"
+                          data-exam-id="{{ $exam->id }}"
+                          data-field="is_absent"
+                          name="rows[{{ $s->id }}][{{ $exam->id }}][is_absent]"
+                          value="1"
+                          @checked($isAbsent)
+                          @disabled(!$meta['can_edit'])>
+                        <label class="form-check-label small">Absent</label>
+                      </div>
                       <input
                         type="number"
                         step="0.01"
-                        class="form-control form-control-sm mb-1 matrix-field"
+                        class="form-control form-control-sm mb-1 matrix-field matrix-score"
                         data-student-id="{{ $s->id }}"
                         data-exam-id="{{ $exam->id }}"
                         data-field="score"
                         name="rows[{{ $s->id }}][{{ $exam->id }}][score]"
-                        value="{{ old("rows.$s->id.$exam->id.score", $mark?->score_raw) }}"
+                        value="{{ old("rows.$s->id.$exam->id.score", $isAbsent ? '' : $mark?->score_raw) }}"
                         placeholder="Score"
-                        @disabled(!$meta['can_edit'])>
+                        @disabled(!$meta['can_edit'] || $isAbsent)>
                       <input
                         type="text"
                         class="form-control form-control-sm matrix-field"
@@ -103,7 +139,7 @@
 
       <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
-          <div class="small text-muted">Matrix entries autosave as draft. Submit individual exams when marking is complete.</div>
+          <div class="small text-muted">Matrix entries autosave as draft. Mark absent students to exclude them from mean score.</div>
           <div id="matrix-autosave-status" class="small text-muted mt-1"></div>
         </div>
         <div class="d-flex gap-2 flex-wrap align-items-center">
@@ -146,10 +182,39 @@
       const field = el.dataset.field;
       if (!rows[sid]) rows[sid] = {};
       if (!rows[sid][eid]) rows[sid][eid] = {};
-      rows[sid][eid][field] = el.value.trim();
+      if (field === 'is_absent') {
+        rows[sid][eid][field] = el.checked ? '1' : '0';
+      } else {
+        rows[sid][eid][field] = el.value.trim();
+      }
     });
     return rows;
   }
+
+  document.querySelectorAll('.matrix-absent').forEach(box => {
+    box.addEventListener('change', () => {
+      const sid = box.dataset.studentId;
+      const eid = box.dataset.examId;
+      const score = document.querySelector(`.matrix-score[data-student-id="${sid}"][data-exam-id="${eid}"]`);
+      if (!score) return;
+      if (box.checked) {
+        score.value = '';
+        score.disabled = true;
+      } else {
+        score.disabled = false;
+      }
+      scheduleAutosave();
+    });
+  });
+
+  document.querySelectorAll('.matrix-score').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const sid = inp.dataset.studentId;
+      const eid = inp.dataset.examId;
+      const absent = document.querySelector(`.matrix-absent[data-student-id="${sid}"][data-exam-id="${eid}"]`);
+      if (inp.value.trim() !== '' && absent) absent.checked = false;
+    });
+  });
 
   async function autosave() {
     if (saving) return;
@@ -163,6 +228,7 @@
     const rows = collectPayload();
     Object.entries(rows).forEach(([sid, exams]) => {
       Object.entries(exams).forEach(([eid, payload]) => {
+        if (payload.is_absent === '1') body.append(`rows[${sid}][${eid}][is_absent]`, '1');
         if (payload.score) body.append(`rows[${sid}][${eid}][score]`, payload.score);
         if (payload.subject_remark) body.append(`rows[${sid}][${eid}][subject_remark]`, payload.subject_remark);
       });

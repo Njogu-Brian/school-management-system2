@@ -373,6 +373,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/exams/{id}', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'showExam']);
     Route::get('/marks', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marks']);
     Route::post('/exam-marks/batch', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'batchMarks']);
+    Route::get('/exams/{exam}/mark-entry-audit', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examMarkEntryAudit']);
     Route::post('/exam-marks/{exam}/submit', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'submitExamMarks']);
     Route::get('/marks/matrix/context', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marksMatrixContext']);
     Route::get('/marks/matrix', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marksMatrix']);

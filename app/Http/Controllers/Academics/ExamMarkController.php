@@ -9,6 +9,7 @@ use App\Models\Academics\ExamMark;
 use App\Models\Academics\Subject;
 use App\Services\Academics\ClassroomGradingService;
 use App\Services\Academics\ExamMarkEntryService;
+use App\Services\Academics\ExamMarkEntryAuditService;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Models\Student;
@@ -213,6 +214,7 @@ class ExamMarkController extends Controller
                     'exam_id' => $examId,
                     'score' => data_get($payload, 'score'),
                     'subject_remark' => data_get($payload, 'subject_remark'),
+                    'is_absent' => filter_var(data_get($payload, 'is_absent', false), FILTER_VALIDATE_BOOLEAN),
                 ];
             }
         }
@@ -311,8 +313,14 @@ class ExamMarkController extends Controller
             $exam->id => [
                 'status' => $exam->status,
                 'can_edit' => $entryService->examAcceptsTeacherEntry($exam, $authUser),
+                'marking_submitted_at' => $exam->marking_submitted_at?->format('d M Y H:i'),
+                'marking_submitted_by' => $exam->marking_submitted_by
+                    ? \App\Models\User::query()->where('id', $exam->marking_submitted_by)->value('name')
+                    : null,
             ],
         ]);
+
+        $examAudits = app(ExamMarkEntryAuditService::class)->summariesForExams($exams);
 
         return view('academics.exam_marks.matrix_edit', [
             'examType' => $examType,
@@ -322,6 +330,7 @@ class ExamMarkController extends Controller
             'exams' => $exams,
             'existing' => $existing,
             'examMeta' => $examMeta,
+            'examAudits' => $examAudits,
         ]);
     }
 
@@ -517,7 +526,13 @@ class ExamMarkController extends Controller
             ->whereIn('student_id', $students->pluck('id'))
             ->get()->keyBy('student_id');
 
-        return view('academics.exam_marks.bulk_edit', compact('exam', 'class', 'subject', 'students', 'existing', 'canEdit'));
+        $entryAudit = app(ExamMarkEntryAuditService::class)->summaryForExam(
+            $exam,
+            $subjectId,
+            $students->pluck('id')
+        );
+
+        return view('academics.exam_marks.bulk_edit', compact('exam', 'class', 'subject', 'students', 'existing', 'canEdit', 'entryAudit'));
     }
 
     /** STEP 4: Save rows */
@@ -531,6 +546,7 @@ class ExamMarkController extends Controller
             'rows.*.student_id'    => 'required|exists:students,id',
             'rows.*.score'         => 'nullable|numeric',
             'rows.*.subject_remark'=> 'nullable|string|max:500',
+            'rows.*.is_absent'     => 'nullable|boolean',
         ]);
 
         $exam = Exam::findOrFail($data['exam_id']);
@@ -603,6 +619,7 @@ class ExamMarkController extends Controller
             'student_id' => (int) $row['student_id'],
             'score' => $row['score'] ?? null,
             'subject_remark' => $row['subject_remark'] ?? null,
+            'is_absent' => filter_var($row['is_absent'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ])->all();
 
         try {
@@ -651,6 +668,7 @@ class ExamMarkController extends Controller
             'rows.*.student_id' => 'required|exists:students,id',
             'rows.*.score' => 'nullable|numeric',
             'rows.*.subject_remark' => 'nullable|string|max:500',
+            'rows.*.is_absent' => 'nullable|boolean',
         ]);
 
         $exam = Exam::findOrFail($data['exam_id']);

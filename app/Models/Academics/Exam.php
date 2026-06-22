@@ -26,6 +26,8 @@ class Exam extends Model
         'max_marks',
         'weight',
         'status',
+        'marking_submitted_at',
+        'marking_submitted_by',
         'publish_exam',
         'publish_result',
         'published_at',
@@ -51,6 +53,7 @@ class Exam extends Model
     protected $casts = [
         'published_at' => 'datetime',
         'locked_at'    => 'datetime',
+        'marking_submitted_at' => 'datetime',
         'settings'     => 'array',
         'starts_on'    => 'date',
         'ends_on'      => 'date',

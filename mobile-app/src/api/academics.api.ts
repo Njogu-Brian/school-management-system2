@@ -2,6 +2,7 @@ import { apiClient } from './client';
 import {
     Exam,
     Mark,
+    ExamMarkEntryAudit,
     ReportCard,
     Timetable,
     Assignment,
@@ -38,10 +39,21 @@ export const academicsApi = {
         exam_id: number;
         subject_id: number;
         classroom_id: number;
-        marks: { student_id: number; marks?: number; remarks?: string }[];
+        marks: { student_id: number; marks?: number; remarks?: string; is_absent?: boolean }[];
         submit_for_review?: boolean;
     }): Promise<ApiResponse<{ count: number; message: string; exam_status?: string }>> {
         return apiClient.post('/exam-marks/batch', data);
+    },
+
+    async getExamMarkEntryAudit(
+        examId: number,
+        classroomId: number,
+        subjectId?: number
+    ): Promise<ApiResponse<ExamMarkEntryAudit>> {
+        return apiClient.get<ExamMarkEntryAudit>(`/exams/${examId}/mark-entry-audit`, {
+            classroom_id: classroomId,
+            ...(subjectId ? { subject_id: subjectId } : {}),
+        });
     },
 
     async submitExamMarks(examId: number): Promise<ApiResponse<{ message: string; exam_status?: string }>> {
@@ -64,7 +76,7 @@ export const academicsApi = {
         exam_type_id: number;
         classroom_id: number;
         stream_id?: number;
-        entries: { student_id: number; exam_id: number; marks?: number; remarks?: string }[];
+        entries: { student_id: number; exam_id: number; marks?: number; remarks?: string; is_absent?: boolean }[];
         submit_for_review?: boolean;
         submit_exam_ids?: number[];
     }): Promise<ApiResponse<{ count: number; skipped: number; message: string }>> {

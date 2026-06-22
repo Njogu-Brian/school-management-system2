@@ -9,6 +9,7 @@ import {
     Platform,
     Alert,
     TextInput,
+    Switch,
 } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '@contexts/ThemeContext';
@@ -16,7 +17,7 @@ import { Button } from '@components/common/Button';
 import { Card } from '@components/common/Card';
 import { academicsApi } from '@api/academics.api';
 import { studentsApi } from '@api/students.api';
-import { Exam, Mark } from 'types/academics.types';
+import { Exam, Mark, ExamMarkEntryAudit } from 'types/academics.types';
 import { Student } from 'types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
@@ -38,7 +39,8 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
 
     const [exam, setExam] = useState<Exam | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
-    const [marks, setMarks] = useState<{ [key: number]: { marks: string; remarks: string } }>({});
+    const [marks, setMarks] = useState<{ [key: number]: { marks: string; remarks: string; isAbsent: boolean } }>({});
+    const [entryAudit, setEntryAudit] = useState<ExamMarkEntryAudit | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [canEdit, setCanEdit] = useState(true);
@@ -72,10 +74,11 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
         try {
             setLoading(true);
 
-            const [examRes, studentsRes, marksRes] = await Promise.all([
+            const [examRes, studentsRes, marksRes, auditRes] = await Promise.all([
                 academicsApi.getExam(examId),
                 studentsApi.getStudents({ class_id: classId, per_page: 100 }),
                 academicsApi.getMarks({ exam_id: examId, subject_id: subjectId, classroom_id: classId }),
+                academicsApi.getExamMarkEntryAudit(examId, classId, subjectId),
             ]);
 
             if (examRes.success && examRes.data) {
@@ -88,14 +91,19 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
             }
 
             if (marksRes.success && marksRes.data) {
-                const marksMap: Record<number, { marks: string; remarks: string }> = {};
+                const marksMap: Record<number, { marks: string; remarks: string; isAbsent: boolean }> = {};
                 marksRes.data.data.forEach((mark: Mark) => {
                     marksMap[mark.student_id] = {
-                        marks: mark.marks?.toString() ?? '',
+                        marks: mark.is_absent ? '' : (mark.marks?.toString() ?? ''),
                         remarks: mark.remarks || '',
+                        isAbsent: !!mark.is_absent,
                     };
                 });
                 setMarks(marksMap);
+            }
+
+            if (auditRes.success && auditRes.data) {
+                setEntryAudit(auditRes.data);
             }
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to load data');
@@ -110,11 +118,13 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                 const studentMarks = marks[student.id];
                 const hasScore = studentMarks?.marks?.trim();
                 const hasRemark = studentMarks?.remarks?.trim();
-                if (!hasScore && !hasRemark) return null;
+                const isAbsent = !!studentMarks?.isAbsent;
+                if (!hasScore && !hasRemark && !isAbsent) return null;
                 return {
                     student_id: student.id,
-                    marks: hasScore ? parseFloat(studentMarks!.marks) : undefined,
+                    marks: hasScore && !isAbsent ? parseFloat(studentMarks!.marks) : undefined,
                     remarks: hasRemark ? studentMarks!.remarks.trim() : undefined,
+                    is_absent: isAbsent,
                 };
             })
             .filter((m): m is NonNullable<typeof m> => m !== null);
@@ -166,8 +176,9 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
         setMarks((prev) => ({
             ...prev,
             [studentId]: {
-                ...prev[studentId],
                 marks: value,
+                remarks: prev[studentId]?.remarks || '',
+                isAbsent: false,
             },
         }));
         scheduleAutosave();
@@ -177,8 +188,21 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
         setMarks((prev) => ({
             ...prev,
             [studentId]: {
-                ...prev[studentId],
+                marks: prev[studentId]?.marks || '',
                 remarks: value,
+                isAbsent: prev[studentId]?.isAbsent || false,
+            },
+        }));
+        scheduleAutosave();
+    };
+
+    const handleAbsentToggle = (studentId: number, value: boolean) => {
+        setMarks((prev) => ({
+            ...prev,
+            [studentId]: {
+                marks: value ? '' : (prev[studentId]?.marks || ''),
+                remarks: prev[studentId]?.remarks || '',
+                isAbsent: value,
             },
         }));
         scheduleAutosave();
@@ -189,6 +213,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
 
         for (const student of students) {
             const studentMarks = marks[student.id];
+            if (studentMarks?.isAbsent) continue;
             if (studentMarks?.marks) {
                 const marksValue = parseFloat(studentMarks.marks);
                 if (isNaN(marksValue) || marksValue < 0 || marksValue > totalMarks) {
@@ -288,9 +313,29 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                             {pendingCount > 0 ? ` · ${pendingCount} pending offline` : ''}
                         </Text>
                     )}
+                    {entryAudit && (
+                        <Card style={styles.auditCard}>
+                            <Text style={[styles.auditTitle, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                                Submission status
+                            </Text>
+                            {entryAudit.exam.marking_submitted_at ? (
+                                <Text style={[styles.auditLine, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                    Submitted {new Date(entryAudit.exam.marking_submitted_at).toLocaleString()}
+                                    {entryAudit.exam.marking_submitted_by ? ` by ${entryAudit.exam.marking_submitted_by}` : ''}
+                                </Text>
+                            ) : (
+                                <Text style={[styles.auditLine, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                                    Draft in progress · {entryAudit.counts.submitted} submitted rows · {entryAudit.counts.absent} absent
+                                </Text>
+                            )}
+                        </Card>
+                    )}
                     <View style={styles.tableHeader}>
                         <Text style={[styles.columnHeader, styles.studentColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                             Student
+                        </Text>
+                        <Text style={[styles.columnHeader, styles.absColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
+                            Abs
                         </Text>
                         <Text style={[styles.columnHeader, styles.marksColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                             Marks
@@ -312,6 +357,14 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                                     </Text>
                                 </View>
 
+                                <View style={styles.absColumn}>
+                                    <Switch
+                                        value={!!marks[student.id]?.isAbsent}
+                                        onValueChange={(value) => handleAbsentToggle(student.id, value)}
+                                        disabled={!canEdit}
+                                    />
+                                </View>
+
                                 <View style={styles.marksColumn}>
                                     <TextInput
                                         style={[
@@ -322,13 +375,13 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                                                 borderColor: isDark ? colors.borderDark : colors.borderLight,
                                             },
                                         ]}
-                                        value={marks[student.id]?.marks || ''}
+                                        value={marks[student.id]?.isAbsent ? '' : (marks[student.id]?.marks || '')}
                                         onChangeText={(value) => handleMarksChange(student.id, value)}
                                         keyboardType="numeric"
-                                        placeholder="0"
+                                        placeholder={marks[student.id]?.isAbsent ? 'ABS' : '0'}
                                         placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
                                         maxLength={5}
-                                        editable={canEdit}
+                                        editable={canEdit && !marks[student.id]?.isAbsent}
                                     />
                                 </View>
 
@@ -418,6 +471,24 @@ const styles = StyleSheet.create({
     marksColumn: {
         flex: 1,
         alignItems: 'center',
+    },
+    absColumn: {
+        width: 52,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    auditCard: {
+        marginHorizontal: SPACING.xl,
+        marginBottom: SPACING.sm,
+        padding: SPACING.sm,
+    },
+    auditTitle: {
+        fontSize: FONT_SIZES.sm,
+        fontWeight: '700',
+        marginBottom: SPACING.xs,
+    },
+    auditLine: {
+        fontSize: FONT_SIZES.xs,
     },
     remarksColumn: {
         flex: 1.5,

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\Student;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Exam;
@@ -11,6 +12,7 @@ use App\Models\Academics\ExamMark;
 use App\Models\Academics\Stream;
 use App\Services\Academics\ClassroomGradingService;
 use App\Services\Academics\ExamMarkEntryService;
+use App\Services\Academics\ExamMarkEntryAuditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -156,19 +158,32 @@ class ApiAcademicsController extends Controller
             ->get();
 
         $data = $marks->map(function ($m) use ($exam) {
-            $score = $m->score_raw ?? $m->final_score;
+            $score = $m->is_absent ? null : ($m->score_raw ?? $m->final_score);
+            $submittedBy = $m->submitted_by
+                ? User::query()->where('id', $m->submitted_by)->value('name')
+                : null;
+            $updatedBy = $m->updated_by
+                ? User::query()->where('id', $m->updated_by)->value('name')
+                : null;
+
             return [
                 'id' => $m->id,
                 'exam_id' => $m->exam_id,
                 'student_id' => $m->student_id,
                 'student_name' => $m->student->full_name ?? '',
                 'subject_id' => $m->subject_id,
-                'marks' => $score !== null ? (float) $score : 0,
+                'marks' => $score !== null ? (float) $score : null,
+                'is_absent' => (bool) $m->is_absent,
+                'status' => $m->status,
                 'total_marks' => (float) ($exam->max_marks ?? 100),
                 'remarks' => $m->subject_remark,
                 'percentage' => $exam->max_marks > 0 && $score !== null
                     ? round(((float) $score / (float) $exam->max_marks) * 100, 2)
-                    : 0,
+                    : null,
+                'entered_by' => $m->entered_by,
+                'updated_by_name' => $updatedBy,
+                'submitted_at' => $m->submitted_at?->toIso8601String(),
+                'submitted_by_name' => $submittedBy,
                 'created_at' => $m->created_at->toIso8601String(),
                 'updated_at' => $m->updated_at->toIso8601String(),
             ];
@@ -196,6 +211,7 @@ class ApiAcademicsController extends Controller
             'marks.*.student_id' => 'required|exists:students,id',
             'marks.*.marks' => 'nullable|numeric',
             'marks.*.remarks' => 'nullable|string|max:500',
+            'marks.*.is_absent' => 'nullable|boolean',
         ]);
 
         $exam = Exam::findOrFail($data['exam_id']);
@@ -234,6 +250,7 @@ class ApiAcademicsController extends Controller
             'student_id' => (int) $row['student_id'],
             'marks' => $row['marks'] ?? null,
             'remarks' => $row['remarks'] ?? null,
+            'is_absent' => filter_var($row['is_absent'] ?? false, FILTER_VALIDATE_BOOLEAN),
         ])->all();
 
         try {
@@ -281,6 +298,34 @@ class ApiAcademicsController extends Controller
                 'exam_status' => $exam->fresh()->status,
             ],
         ]);
+    }
+
+    public function examMarkEntryAudit(Request $request, Exam $exam)
+    {
+        $data = $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+            'subject_id' => 'nullable|exists:subjects,id',
+        ]);
+
+        $subjectId = (int) ($data['subject_id'] ?? $exam->subject_id);
+        abort_unless($subjectId > 0, 422, 'Subject is required for this exam.');
+
+        $user = $request->user();
+        $studentQuery = Student::query()
+            ->where('classroom_id', $data['classroom_id'])
+            ->where('archive', 0)
+            ->where('is_alumni', false);
+        if ($user && $user->hasTeacherLikeRole()) {
+            $user->applyTeacherStudentFilter($studentQuery);
+        }
+
+        $summary = app(ExamMarkEntryAuditService::class)->summaryForExam(
+            $exam,
+            $subjectId,
+            $studentQuery->pluck('id')
+        );
+
+        return response()->json(['success' => true, 'data' => $summary]);
     }
 
     public function marksMatrixContext(Request $request)
@@ -383,8 +428,9 @@ class ApiAcademicsController extends Controller
                 ->map(fn ($m) => [
                     'student_id' => (int) $m->student_id,
                     'exam_id' => (int) $m->exam_id,
-                    'marks' => is_null($m->score_raw) ? null : (float) $m->score_raw,
+                    'marks' => $m->is_absent ? null : (is_null($m->score_raw) ? null : (float) $m->score_raw),
                     'remarks' => $m->subject_remark,
+                    'is_absent' => (bool) $m->is_absent,
                 ])
                 ->values();
         }
@@ -403,6 +449,10 @@ class ApiAcademicsController extends Controller
                     'id' => (int) $e->id,
                     'name' => $e->name,
                     'status' => $e->status,
+                    'marking_submitted_at' => $e->marking_submitted_at?->toIso8601String(),
+                    'marking_submitted_by' => $e->marking_submitted_by
+                        ? User::query()->where('id', $e->marking_submitted_by)->value('name')
+                        : null,
                     'can_edit' => app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($e, $user),
                     'subject_id' => (int) $e->subject_id,
                     'subject_name' => $e->subject->name ?? null,
@@ -425,6 +475,7 @@ class ApiAcademicsController extends Controller
             'entries.*.exam_id' => 'required|exists:exams,id',
             'entries.*.marks' => 'nullable|numeric',
             'entries.*.remarks' => 'nullable|string|max:500',
+            'entries.*.is_absent' => 'nullable|boolean',
             'submit_for_review' => 'nullable|boolean',
             'submit_exam_ids' => 'nullable|array',
             'submit_exam_ids.*' => 'integer|exists:exams,id',
@@ -597,6 +648,10 @@ class ApiAcademicsController extends Controller
             $out['subject_name'] = $e->subject->name ?? null;
             $user = request()->user();
             $out['can_edit'] = app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($e, $user);
+            $out['marking_submitted_at'] = $e->marking_submitted_at?->toIso8601String();
+            $out['marking_submitted_by'] = $e->marking_submitted_by
+                ? User::query()->where('id', $e->marking_submitted_by)->value('name')
+                : null;
         }
 
         return $out;

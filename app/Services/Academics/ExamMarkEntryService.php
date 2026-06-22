@@ -96,11 +96,12 @@ class ExamMarkEntryService
 
                 $scoreInput = $row['score'] ?? $row['marks'] ?? null;
                 $remarkInput = $row['subject_remark'] ?? $row['remarks'] ?? null;
+                $isAbsent = filter_var($row['is_absent'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
                 $hasScore = ! is_null($scoreInput) && $scoreInput !== '';
                 $hasRemark = ! is_null($remarkInput) && trim((string) $remarkInput) !== '';
 
-                if (! $hasScore && ! $hasRemark) {
+                if (! $hasScore && ! $hasRemark && ! $isAbsent) {
                     continue;
                 }
 
@@ -109,6 +110,34 @@ class ExamMarkEntryService
                     'student_id' => $studentId,
                     'subject_id' => $subjectId,
                 ]);
+
+                if ($isAbsent) {
+                    $fill = [
+                        'teacher_id' => $staffId ?? $mark->teacher_id,
+                        'status' => $finalize ? 'submitted' : 'draft',
+                        'is_absent' => true,
+                        'score_raw' => null,
+                        'final_score' => null,
+                        'score_moderated' => null,
+                        'grade_label' => 'ABS',
+                        'pl_level' => null,
+                    ];
+
+                    if ($hasRemark) {
+                        $fill['subject_remark'] = trim((string) $remarkInput);
+                    }
+
+                    $mark->fill($fill);
+                    app(ExamMarkEntryAuditService::class)->recordMarkSave(
+                        $mark,
+                        $finalize ? 'submitted_absent' : 'draft_absent',
+                        $user,
+                        $finalize
+                    );
+                    $mark->save();
+                    $saved++;
+                    continue;
+                }
 
                 $score = null;
                 if ($hasScore) {
@@ -126,6 +155,7 @@ class ExamMarkEntryService
                 $fill = [
                     'teacher_id' => $staffId ?? $mark->teacher_id,
                     'status' => $finalize ? 'submitted' : 'draft',
+                    'is_absent' => false,
                 ];
 
                 if ($hasScore) {
@@ -140,12 +170,19 @@ class ExamMarkEntryService
                     $fill['subject_remark'] = trim((string) $remarkInput);
                 }
 
-                $mark->fill($fill)->save();
+                $mark->fill($fill);
+                app(ExamMarkEntryAuditService::class)->recordMarkSave(
+                    $mark,
+                    $finalize ? 'submitted' : 'draft_saved',
+                    $user,
+                    $finalize
+                );
+                $mark->save();
                 $saved++;
             }
 
-            if ($finalize && $saved > 0 && $exam->canTransitionTo('moderation')) {
-                $exam->update(['status' => 'moderation']);
+            if ($finalize && $saved > 0) {
+                app(ExamMarkEntryAuditService::class)->recordExamSubmission($exam, $user);
             }
         });
 
@@ -173,6 +210,7 @@ class ExamMarkEntryService
                 'student_id' => (int) $entry['student_id'],
                 'score' => $entry['marks'] ?? $entry['score'] ?? null,
                 'subject_remark' => $entry['remarks'] ?? $entry['subject_remark'] ?? null,
+                'is_absent' => $entry['is_absent'] ?? false,
             ];
         }
 
@@ -231,15 +269,18 @@ class ExamMarkEntryService
             throw new \RuntimeException('This exam cannot be submitted for review.');
         }
 
-        DB::transaction(function () use ($exam) {
+        DB::transaction(function () use ($exam, $user) {
             ExamMark::query()
                 ->where('exam_id', $exam->id)
                 ->where('status', 'draft')
-                ->update(['status' => 'submitted']);
+                ->get()
+                ->each(function (ExamMark $mark) use ($user) {
+                    $mark->status = 'submitted';
+                    app(ExamMarkEntryAuditService::class)->recordMarkSave($mark, 'exam_submitted', $user, true);
+                    $mark->save();
+                });
 
-            if ($exam->canTransitionTo('moderation')) {
-                $exam->update(['status' => 'moderation']);
-            }
+            app(ExamMarkEntryAuditService::class)->recordExamSubmission($exam, $user);
         });
 
         return $exam->fresh();

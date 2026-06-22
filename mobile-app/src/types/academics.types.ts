@@ -17,6 +17,8 @@ export interface Exam {
     end_date: string;
     status: string;
     can_edit?: boolean;
+    marking_submitted_at?: string | null;
+    marking_submitted_by?: string | null;
     total_marks?: number;
     classroom_id?: number | null;
     stream_id?: number | null;
@@ -49,15 +51,47 @@ export interface Mark {
     student_admission_number?: string;
     subject_id: number;
     subject_name?: string;
-    marks: number;
+    marks: number | null;
+    is_absent?: boolean;
+    status?: string;
     total_marks: number;
-    percentage: number;
+    percentage: number | null;
     grade?: string;
     remarks?: string;
-    entered_by: number;
+    entered_by?: number;
     entered_by_name?: string;
+    updated_by_name?: string;
+    submitted_at?: string | null;
+    submitted_by_name?: string | null;
     created_at: string;
     updated_at: string;
+}
+
+export interface ExamMarkEntryAudit {
+    exam: {
+        id: number;
+        name: string;
+        status: string;
+        marking_submitted_at?: string | null;
+        marking_submitted_by?: string | null;
+    };
+    counts: {
+        total_marks: number;
+        draft: number;
+        submitted: number;
+        approved: number;
+        absent: number;
+    };
+    recent_activity: Array<{
+        student_id: number;
+        student_name?: string;
+        admission_number?: string;
+        status?: string;
+        is_absent?: boolean;
+        score?: string | number | null;
+        last_action_at?: string;
+        last_action_by?: string;
+    }>;
 }
 
 export interface ReportCard {
@@ -223,6 +257,8 @@ export interface MarksMatrixExam {
     name: string;
     status?: string;
     can_edit?: boolean;
+    marking_submitted_at?: string | null;
+    marking_submitted_by?: string | null;
     subject_id: number;
     subject_name?: string | null;
     min_marks: number;
@@ -242,4 +278,5 @@ export interface MarksMatrixExistingMark {
     exam_id: number;
     marks?: number | null;
     remarks?: string | null;
+    is_absent?: boolean;
 }

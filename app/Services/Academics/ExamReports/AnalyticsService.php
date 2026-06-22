@@ -184,11 +184,8 @@ class AnalyticsService
             ->whereIn('exam_id', $paperIds)
             ->whereIn('student_id', $students)
             ->whereIn('subject_id', $subjects->pluck('id'))
-            ->get(['student_id', 'subject_id', 'score_raw', 'score_moderated', 'grade_label'])
-            ->map(function (ExamMark $m) {
-                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
-                return $m;
-            });
+            ->get(['student_id', 'subject_id', 'score_raw', 'score_moderated', 'grade_label', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained());
 
         $assignments = ClassroomSubject::query()
             ->where('classroom_id', $classroom->id)
@@ -334,12 +331,8 @@ class AnalyticsService
             ->whereIn('exam_id', $paperIds)
             ->whereIn('student_id', $students)
             ->whereIn('subject_id', $subjects->pluck('id'))
-            ->get(['subject_id', 'score_raw', 'score_moderated', 'grade_label'])
-            ->map(function (ExamMark $m) {
-                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
-
-                return $m;
-            });
+            ->get(['subject_id', 'score_raw', 'score_moderated', 'grade_label', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained());
 
         $passThreshold = ($this->passMarkPercent() / 100.0) * $maxMarks;
 

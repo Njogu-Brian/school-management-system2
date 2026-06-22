@@ -39,11 +39,8 @@ class ClassSheetBuilder
             ->where('exam_id', $exam->id)
             ->whereIn('student_id', $students->pluck('id'))
             ->whereIn('subject_id', $subjects->pluck('id'))
-            ->get(['id', 'exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated'])
-            ->map(function (ExamMark $m) {
-                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
-                return $m;
-            })
+            ->get(['id', 'exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained())
             ->keyBy(fn (ExamMark $m) => $m->student_id . ':' . $m->subject_id);
 
         $rows = $students->map(function (Student $s) use ($subjects, $marks) {
@@ -53,10 +50,11 @@ class ClassSheetBuilder
 
             foreach ($subjects as $subject) {
                 $key = $s->id . ':' . $subject->id;
-                $score = $marks->get($key)?->marks_obtained;
-                $subjectScores[$subject->id] = $score;
-                if ($score !== null) {
-                    $total += (float) $score;
+                $mark = $marks->get($key);
+                $averageScore = $mark?->scoreForAverage();
+                $subjectScores[$subject->id] = $mark?->displayScore();
+                if ($averageScore !== null) {
+                    $total += $averageScore;
                     $taken++;
                 }
             }
@@ -165,12 +163,8 @@ class ClassSheetBuilder
             ->where('exam_id', $exam->id)
             ->whereIn('student_id', $students->pluck('id'))
             ->where('subject_id', $subject->id)
-            ->get(['id', 'exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated'])
-            ->map(function (ExamMark $m) {
-                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
-
-                return $m;
-            })
+            ->get(['id', 'exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained())
             ->keyBy(fn (ExamMark $m) => $m->student_id.':'.$m->subject_id);
 
         $rows = $students->map(function (Student $s) use ($subjects, $marks) {
@@ -180,10 +174,11 @@ class ClassSheetBuilder
 
             foreach ($subjects as $subj) {
                 $key = $s->id.':'.$subj->id;
-                $score = $marks->get($key)?->marks_obtained;
-                $subjectScores[$subj->id] = $score;
-                if ($score !== null) {
-                    $total += (float) $score;
+                $mark = $marks->get($key);
+                $averageScore = $mark?->scoreForAverage();
+                $subjectScores[$subj->id] = $mark?->displayScore();
+                if ($averageScore !== null) {
+                    $total += $averageScore;
                     $taken++;
                 }
             }
@@ -304,12 +299,8 @@ class ClassSheetBuilder
             ->whereIn('exam_id', $paperIds)
             ->whereIn('student_id', $students->pluck('id'))
             ->whereIn('subject_id', $subjects->pluck('id'))
-            ->get(['id', 'exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated'])
-            ->map(function (ExamMark $m) {
-                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
-
-                return $m;
-            })
+            ->get(['id', 'exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained())
             ->keyBy(fn (ExamMark $m) => $m->student_id . ':' . $m->subject_id);
 
         $rows = $students->map(function (Student $s) use ($subjects, $marks) {
@@ -319,10 +310,11 @@ class ClassSheetBuilder
 
             foreach ($subjects as $subject) {
                 $key = $s->id . ':' . $subject->id;
-                $score = $marks->get($key)?->marks_obtained;
-                $subjectScores[$subject->id] = $score;
-                if ($score !== null) {
-                    $total += (float) $score;
+                $mark = $marks->get($key);
+                $averageScore = $mark?->scoreForAverage();
+                $subjectScores[$subject->id] = $mark?->displayScore();
+                if ($averageScore !== null) {
+                    $total += $averageScore;
                     $taken++;
                 }
             }
@@ -426,11 +418,8 @@ class ClassSheetBuilder
             ->whereIn('exam_id', $examIds)
             ->whereIn('student_id', $students->pluck('id'))
             ->whereIn('subject_id', $subjects->pluck('id'))
-            ->get(['exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated'])
-            ->map(function (ExamMark $m) {
-                $m->marks_obtained = $m->score_moderated ?? $m->score_raw ?? null;
-                return $m;
-            });
+            ->get(['exam_id', 'student_id', 'subject_id', 'score_raw', 'score_moderated', 'is_absent'])
+            ->map(fn (ExamMark $m) => $m->applyMarksObtained());
 
         $byStudentSubject = $marks->groupBy(fn (ExamMark $m) => $m->student_id . ':' . $m->subject_id);
 
