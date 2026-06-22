@@ -2181,7 +2181,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/seo-engine/keywords', [\App\Http\Controllers\Website\SeoDominanceController::class, 'storeKeyword'])->name('seo-engine.keywords.store');
             Route::put('/seo-engine/areas/{area}', [\App\Http\Controllers\Website\SeoDominanceController::class, 'updateArea'])->name('seo-engine.areas.update');
 
-            Route::get('/brand-intelligence', [\App\Http\Controllers\Website\BrandIntelligenceController::class, 'index'])->name('brand.index');
+            Route::get('/brand-intelligence', [\App\Http\Controllers\Website\BrandIntelligenceController::class, 'index'])->name('brand-intelligence.index');
             Route::get('/assistant-knowledge', [\App\Http\Controllers\Website\AssistantKnowledgeController::class, 'index'])->name('assistant.index');
             Route::post('/assistant-knowledge', [\App\Http\Controllers\Website\AssistantKnowledgeController::class, 'store'])->name('assistant.store');
             Route::delete('/assistant-knowledge/{article}', [\App\Http\Controllers\Website\AssistantKnowledgeController::class, 'destroy'])->name('assistant.destroy');
