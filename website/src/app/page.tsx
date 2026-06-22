@@ -1,60 +1,38 @@
 "use client";
 
 import { SiteShell } from "@/components/layout/SiteShell";
-import { useHomepage, useEvents, useTestimonials, useGallery, useWebsiteSettings } from "@/hooks/useWebsiteData";
+import { useEvents, useTestimonials, useGallery, useWebsiteSettings } from "@/hooks/useWebsiteData";
+import { useBrandContent } from "@/hooks/useBrandContent";
 import { HeroSection } from "@/sections/HeroSection";
-import { AgeJourneySlider } from "@/sections/AgeJourneySlider";
-import { WhyRoyalKings, LearningPathway, ProgramsGrid } from "@/sections/WhyAndPrograms";
-import {
-  TestimonialsCarousel,
-  CampusGallery,
-  LatestEvents,
-  StatsCounters,
-  AnnouncementsTicker,
-  TransportPreview,
-  ParentPortalPreview,
-  AdmissionsCTA,
-} from "@/sections/HomeSections";
-import { LiveOperationsPanel } from "@/components/live/LiveOperationsPanel";
-
-function HomeLoading() {
-  return <div className="flex min-h-[50vh] items-center justify-center text-[var(--rk-purple)]">Loading Royal Kings experience...</div>;
-}
-
-function HomeError() {
-  return (
-    <div className="mx-auto max-w-lg px-4 py-20 text-center">
-      <h2 className="font-serif text-2xl text-[var(--rk-purple-deep)]">We&apos;re preparing something beautiful</h2>
-      <p className="mt-4 text-[#4a3a5c]">Connect the Laravel API and run migrations to load live homepage content. Static sections still render below.</p>
-    </div>
-  );
-}
+import { OurSchools } from "@/sections/brand/OurSchools";
+import { DistinctiveEdge } from "@/sections/brand/DistinctiveEdge";
+import { OneJourney } from "@/sections/brand/OneJourney";
+import { BeyondClassroom } from "@/sections/brand/BeyondClassroom";
+import { ScriptureBanner, FaithPillars } from "@/sections/brand/ChristianLayer";
+import { AdmissionsBanner } from "@/sections/brand/AdmissionsBanner";
+import { TestimonialsCarousel, LatestEvents } from "@/sections/HomeSections";
 
 export default function HomePage() {
   const { data: settings } = useWebsiteSettings();
-  const homepage = useHomepage();
+  const brand = useBrandContent();
   const events = useEvents();
   const testimonials = useTestimonials();
   const gallery = useGallery("campus");
 
+  void gallery;
+
   return (
     <SiteShell>
-      <HeroSection settings={settings} />
-      {homepage.data && <AnnouncementsTicker announcements={homepage.data.announcements} />}
-      {homepage.isLoading && <HomeLoading />}
-      {homepage.isError && <HomeError />}
-      {homepage.data && <StatsCounters stats={homepage.data.live_stats} />}
-      <LiveOperationsPanel />
-      <AgeJourneySlider />
-      <WhyRoyalKings />
-      <LearningPathway />
-      <ProgramsGrid />
+      <HeroSection settings={settings} trustPills={brand.items("trust_pill")} />
+      <ScriptureBanner items={brand.items("scripture")} />
+      <OurSchools cards={brand.items("school_card")} />
+      <DistinctiveEdge />
+      <OneJourney milestones={brand.items("journey_milestone")} />
+      <BeyondClassroom items={brand.items("cocurricular")} />
       <TestimonialsCarousel testimonials={testimonials.data || []} />
-      <CampusGallery items={gallery.data?.data || []} />
       <LatestEvents events={events.data || []} />
-      <TransportPreview />
-      <ParentPortalPreview />
-      <AdmissionsCTA />
+      <FaithPillars pillars={brand.items("faith_pillar")} />
+      <AdmissionsBanner />
     </SiteShell>
   );
 }

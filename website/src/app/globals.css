@@ -12,6 +12,9 @@
   --rk-surface: #f9f2ff;
   --rk-border: #e4c8f5;
   --rk-muted: #5a3d6e;
+  --rk-cream: #FFFBF7;
+  --rk-shadow-soft: 0 8px 32px rgba(74, 0, 120, 0.08);
+  --rk-shadow-card: 0 12px 40px rgba(74, 0, 120, 0.12);
   --background: #ffffff;
   --foreground: #4A0078;
 }

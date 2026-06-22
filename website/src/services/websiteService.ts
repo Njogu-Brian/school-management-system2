@@ -42,6 +42,9 @@ export const websiteService = {
   getFaqs: (category?: string) =>
     api.get<ApiResponse<FaqItem[]>>("/website/faqs", { params: { category } }).then((r) => r.data.data),
 
+  getBrand: () =>
+    api.get<{ data: import("@/types/brand").BrandContent }>("/website/brand").then((r) => r.data.data),
+
   submitEnquiry: (payload: Record<string, string>) =>
     api.post("/website/enquiry", payload).then((r) => r.data),
 };

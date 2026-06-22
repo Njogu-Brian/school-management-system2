@@ -10,8 +10,10 @@ export const BRAND = {
   shortName: "Royal Kings Premier School",
   legalName: "Royal Kings Premier School LTD",
   tagline: "Where Little Steps Grow Into Great Futures",
-  heroHeadline: "Building a Sure Foundation",
+  heroHeadline: "Building a Sure Foundation for Lifelong Learning",
   heroSubheadline: "Where Learning is Fun!",
+  heroIntro:
+    "A warm Christian school where children grow in faith, confidence, and excellence from age 3 to Grade 9.",
   founded: 2006,
   location: "Wangige, Kiambu County, Kenya",
   purpleBright: "#B400FF",
