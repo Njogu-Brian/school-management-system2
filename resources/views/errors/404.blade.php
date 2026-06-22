@@ -10,12 +10,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Page Not Found | 404 | {{ $appName }}</title>
     <link rel="icon" type="image/png" href="{{ $faviconUrl }}">
-    @php
-        $cssUrl = file_exists(public_path('build/manifest.json')) 
-            ? mix('css/app.css') 
-            : (file_exists(public_path('css/app.css')) ? asset('css/app.css') : 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css');
-    @endphp
-    <link rel="stylesheet" href="{{ $cssUrl }}">
+    <link rel="stylesheet" href="{{ app_stylesheet_url() }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     @include('finance.partials.styles')
     <style>
         body { background: var(--fin-bg, #f5f7fb); color: var(--fin-text, #0f172a); }

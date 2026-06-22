@@ -19,11 +19,11 @@
       <div class="flex-shrink-0">
         <div class="crumb">Academics · Exams</div>
         <h1 class="mb-1">Exam Results</h1>
-        <p class="text-muted mb-0">Review and publish results to report cards.</p>
+        <p class="mb-0">Review and publish results to report cards.</p>
       </div>
       <form method="get" class="exam-results-filters d-flex flex-wrap align-items-end gap-3">
         <div class="filter-field filter-field--wide d-flex flex-column">
-          <label for="erf_exam_type" class="form-label small text-muted mb-1">Exam type</label>
+          <label for="erf_exam_type" class="form-label small mb-1">Exam type</label>
           <select id="erf_exam_type" name="exam_type_id" class="form-select" onchange="this.form.submit()">
             <option value="">All types</option>
             @foreach($examTypes ?? [] as $et)
@@ -32,7 +32,7 @@
           </select>
         </div>
         <div class="filter-field d-flex flex-column flex-grow-1" style="min-width: 12rem;">
-          <label for="erf_session" class="form-label small text-muted mb-1">Sitting</label>
+          <label for="erf_session" class="form-label small mb-1">Sitting</label>
           <select id="erf_session" name="exam_session_id" class="form-select" onchange="this.form.submit()">
             <option value="">All sittings</option>
             @foreach($sessions ?? [] as $s)
@@ -43,7 +43,7 @@
           </select>
         </div>
         <div class="filter-field filter-field--paper d-flex flex-column flex-grow-1" style="min-width: 14rem;">
-          <label for="erf_paper" class="form-label small text-muted mb-1">Paper / subject</label>
+          <label for="erf_paper" class="form-label small mb-1">Paper / subject</label>
           <select id="erf_paper" name="exam_id" class="form-select" onchange="this.form.submit()">
             <option value="">All papers in scope</option>
             @foreach($papers ?? [] as $e)
@@ -85,14 +85,26 @@
                   <td>{{ $m->student?->full_name ?? '-' }}</td>
                   <td>{{ $m->subject?->name ?? '-' }}</td>
                   <td>{{ $m->exam?->name ?? '-' }}</td>
-                  <td class="text-center">{{ $m->score_raw ?? '-' }}</td>
-                  <td class="text-center"><span class="pill-badge pill-success">{{ $m->grade_label ?? '-' }}</span></td>
-                  <td class="text-center"><span class="pill-badge pill-info">{{ $m->pl_level ?? '-' }}</span></td>
-                  <td>{{ $m->subject_remark ?? '-' }}</td>
+                  <td class="text-center">{{ $m->score_raw ?? '—' }}</td>
+                  <td class="text-center">
+                    @if(filled($m->grade_label) && $m->grade_label !== '-')
+                      <span class="pill-badge pill-success">{{ $m->grade_label }}</span>
+                    @else
+                      <span class="text-muted">—</span>
+                    @endif
+                  </td>
+                  <td class="text-center">
+                    @if(filled($m->pl_level) && $m->pl_level !== '-')
+                      <span class="pill-badge pill-info">{{ $m->pl_level }}</span>
+                    @else
+                      <span class="text-muted">—</span>
+                    @endif
+                  </td>
+                  <td>{{ $m->subject_remark ?? '—' }}</td>
                   <td>
-                    @if($m->status=='submitted')
-                      <span class="pill-badge pill-muted">Submitted</span>
-                    @elseif($m->status=='approved')
+                    @if($m->status === 'submitted')
+                      <span class="pill-badge pill-info">Submitted</span>
+                    @elseif($m->status === 'approved')
                       <span class="pill-badge pill-success">Approved</span>
                     @else
                       <span class="pill-badge pill-muted">{{ ucfirst($m->status) }}</span>

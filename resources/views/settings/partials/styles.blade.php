@@ -58,6 +58,36 @@
         color: #e0f7f4;
     }
 
+    /* Readable labels/subtitles on the gradient header (Bootstrap text-muted is too dark) */
+    .settings-page .page-header .text-muted,
+    .settings-page .page-header .form-label,
+    .settings-page .page-header .form-text,
+    .settings-page .page-header label:not(.btn):not(.form-check-label) {
+        color: rgba(255, 255, 255, 0.88) !important;
+    }
+
+    .settings-page .page-header .form-select,
+    .settings-page .page-header .form-control {
+        color: var(--settings-text);
+        background-color: #fff;
+        border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    .settings-page .page-header .btn-ghost-strong {
+        background: rgba(255, 255, 255, 0.94);
+        border-color: rgba(255, 255, 255, 0.4);
+        color: var(--settings-primary);
+    }
+
+    .settings-page .page-header .btn-ghost-strong:hover {
+        background: #fff;
+        color: var(--settings-primary-dark);
+    }
+
+    .settings-page .page-header a:not(.btn) {
+        color: #fff;
+    }
+
     .settings-chip {
         display: inline-flex;
         align-items: center;
@@ -211,6 +241,48 @@
         border: 1px solid #bbf7d0;
     }
 
+    .pill-badge.pill-success {
+        background: #f0fdf4;
+        color: #166534;
+        border-color: #bbf7d0;
+    }
+
+    .pill-badge.pill-info {
+        background: #ecfeff;
+        color: #0e7490;
+        border-color: #a5f3fc;
+    }
+
+    .pill-badge.pill-primary {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border-color: #bfdbfe;
+    }
+
+    .pill-badge.pill-secondary {
+        background: #f1f5f9;
+        color: #475569;
+        border-color: #e2e8f0;
+    }
+
+    .pill-badge.pill-muted {
+        background: #f8fafc;
+        color: #64748b;
+        border-color: #e2e8f0;
+    }
+
+    .pill-badge.pill-warning {
+        background: #fffbeb;
+        color: #b45309;
+        border-color: #fde68a;
+    }
+
+    .pill-badge.pill-danger {
+        background: #fef2f2;
+        color: #b91c1c;
+        border-color: #fecaca;
+    }
+
     .table-modern thead th {
         background: #f8fafc;
         font-weight: 700;
@@ -292,6 +364,17 @@
         background: #11211c;
         border-color: #1f2937;
         color: #c0e8db;
+    }
+    .theme-dark .pill-badge.pill-info {
+        background: #0c2a32;
+        color: #a5f3fc;
+        border-color: #164e63;
+    }
+    .theme-dark .pill-badge.pill-muted,
+    .theme-dark .pill-badge.pill-secondary {
+        background: #1e293b;
+        color: #cbd5e1;
+        border-color: #334155;
     }
 </style>
 @endonce

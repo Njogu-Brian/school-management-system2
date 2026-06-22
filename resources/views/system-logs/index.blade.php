@@ -103,11 +103,21 @@
         </div>
 
         <div class="settings-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0"><i class="bi bi-file-text"></i> Log Entries</h5>
-                @if(isset($total))
-                    <span class="input-chip">{{ $total }} entries</span>
-                @endif
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    @if(!$logs->isEmpty())
+                        <button type="button" class="btn btn-sm btn-ghost-strong" id="copySelectedLogs" disabled title="Copy selected entries">
+                            <i class="bi bi-clipboard"></i> Copy selected
+                        </button>
+                        <button type="button" class="btn btn-sm btn-ghost-strong" id="copyAllLogsOnPage" title="Copy all entries on this page">
+                            <i class="bi bi-clipboard-check"></i> Copy page
+                        </button>
+                    @endif
+                    @if(isset($total))
+                        <span class="input-chip">{{ $total }} entries</span>
+                    @endif
+                </div>
             </div>
             <div class="card-body p-0">
                 @if($logs->isEmpty())
@@ -123,16 +133,22 @@
                         <table class="table table-sm table-hover mb-0">
                             <thead class="table-light sticky-top">
                                 <tr>
+                                    <th style="width: 36px;">
+                                        <input type="checkbox" class="form-check-input" id="selectAllLogs" title="Select all on this page" aria-label="Select all log entries">
+                                    </th>
                                     <th style="width: 180px;">Timestamp</th>
                                     <th style="width: 100px;">Level</th>
                                     <th style="width: 140px;">Category</th>
                                     <th>Message</th>
-                                    <th style="width: 100px;">Actions</th>
+                                    <th style="width: 120px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($logs as $log)
-                                    <tr class="log-row" data-level="{{ strtolower($log['level']) }}">
+                                    <tr class="log-row" data-level="{{ strtolower($log['level']) }}" data-log-index="{{ $loop->index }}">
+                                        <td>
+                                            <input type="checkbox" class="form-check-input log-select" value="{{ $loop->index }}" aria-label="Select log entry">
+                                        </td>
                                         <td class="text-muted small">
                                             {{ $log['timestamp'] }}
                                         </td>
@@ -170,11 +186,19 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <button type="button" class="btn btn-sm btn-ghost-strong" 
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#logDetailModal{{ $loop->index }}">
-                                                <i class="bi bi-eye"></i> View
-                                            </button>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-ghost-strong"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#logDetailModal{{ $loop->index }}"
+                                                        title="View details">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-ghost-strong"
+                                                        onclick="copyLogDetails({{ $loop->index }})"
+                                                        title="Copy entry">
+                                                    <i class="bi bi-clipboard"></i>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
 
@@ -269,19 +293,114 @@
 </div>
 
 @push('scripts')
+@if(!$logs->isEmpty())
+<script type="application/json" id="system-logs-data">@json($logs->values())</script>
+@endif
 <script>
-    function copyLogDetails(index) {
-        const modal = document.getElementById('logDetailModal' + index);
-        const message = modal.querySelector('pre').textContent;
-        const stack = modal.querySelectorAll('pre')[1]?.textContent || '';
-        const fullText = message + '\n\n' + stack;
-        
-        navigator.clipboard.writeText(fullText).then(() => {
-            alert('Log details copied to clipboard!');
+    const systemLogsData = (() => {
+        const el = document.getElementById('system-logs-data');
+        if (!el) return [];
+        try {
+            return JSON.parse(el.textContent || '[]');
+        } catch (e) {
+            console.error('Failed to parse log data', e);
+            return [];
+        }
+    })();
+
+    function formatLogEntry(log) {
+        if (!log) return '';
+        const lines = [
+            `[${log.timestamp || 'unknown'}] ${log.level || 'LOG'} (${log.category || 'system'})`,
+            `Environment: ${log.environment || 'n/a'}`,
+            '',
+            log.message || '',
+        ];
+        if (log.stack) {
+            lines.push('', 'Stack trace:', log.stack);
+        }
+        return lines.join('\n');
+    }
+
+    function copyTextToClipboard(text) {
+        return navigator.clipboard.writeText(text).then(() => {
+            showCopyToast('Copied to clipboard');
         }).catch(err => {
             console.error('Failed to copy:', err);
+            alert('Could not copy to clipboard. Try selecting the text manually.');
         });
     }
+
+    function showCopyToast(message) {
+        const existing = document.getElementById('log-copy-toast');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'log-copy-toast';
+        toast.className = 'position-fixed bottom-0 end-0 m-3 alert alert-success py-2 px-3 shadow-sm';
+        toast.style.zIndex = '2000';
+        toast.innerHTML = '<i class="bi bi-check-circle"></i> ' + message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2200);
+    }
+
+    function copyLogDetails(index) {
+        const log = systemLogsData[index];
+        if (!log) return;
+        copyTextToClipboard(formatLogEntry(log));
+    }
+
+    function copyLogsByIndices(indices) {
+        const text = indices
+            .map(i => formatLogEntry(systemLogsData[i]))
+            .filter(Boolean)
+            .join('\n\n---\n\n');
+        if (!text) return;
+        copyTextToClipboard(text);
+    }
+
+    function getSelectedLogIndices() {
+        return Array.from(document.querySelectorAll('.log-select:checked'))
+            .map(cb => parseInt(cb.value, 10))
+            .filter(n => !Number.isNaN(n));
+    }
+
+    function updateCopySelectedState() {
+        const btn = document.getElementById('copySelectedLogs');
+        if (!btn) return;
+        const count = getSelectedLogIndices().length;
+        btn.disabled = count === 0;
+        btn.innerHTML = count > 0
+            ? `<i class="bi bi-clipboard"></i> Copy selected (${count})`
+            : '<i class="bi bi-clipboard"></i> Copy selected';
+    }
+
+    document.getElementById('copySelectedLogs')?.addEventListener('click', () => {
+        copyLogsByIndices(getSelectedLogIndices());
+    });
+
+    document.getElementById('copyAllLogsOnPage')?.addEventListener('click', () => {
+        const indices = systemLogsData.map((_, i) => i);
+        copyLogsByIndices(indices);
+    });
+
+    document.getElementById('selectAllLogs')?.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.log-select').forEach(cb => { cb.checked = checked; });
+        updateCopySelectedState();
+    });
+
+    document.querySelectorAll('.log-select').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const all = document.querySelectorAll('.log-select');
+            const selectAll = document.getElementById('selectAllLogs');
+            if (selectAll) {
+                selectAll.checked = all.length > 0 && Array.from(all).every(c => c.checked);
+                selectAll.indeterminate = !selectAll.checked && getSelectedLogIndices().length > 0;
+            }
+            updateCopySelectedState();
+        });
+    });
 
     // Highlight error rows
     document.querySelectorAll('.log-row[data-level="error"], .log-row[data-level="critical"], .log-row[data-level="emergency"]').forEach(row => {

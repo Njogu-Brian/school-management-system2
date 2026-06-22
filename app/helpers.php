@@ -1139,6 +1139,46 @@ if (!function_exists('storage_local_path')) {
     }
 }
 
+if (!function_exists('app_stylesheet_url')) {
+    /**
+     * Resolve the main app stylesheet for standalone pages (errors, etc.).
+     * Supports Vite build manifest, legacy Mix, static public file, then CDN fallback.
+     */
+    function app_stylesheet_url(string $bootstrapCdn = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'): string
+    {
+        $viteManifest = public_path('build/manifest.json');
+        if (file_exists($viteManifest)) {
+            $manifest = json_decode((string) file_get_contents($viteManifest), true);
+            if (is_array($manifest)) {
+                foreach (['resources/sass/app.scss', 'resources/css/app.css'] as $key) {
+                    if (! empty($manifest[$key]['file'])) {
+                        return asset('build/'.$manifest[$key]['file']);
+                    }
+                }
+                foreach ($manifest as $entry) {
+                    if (is_array($entry) && ! empty($entry['file']) && str_ends_with((string) $entry['file'], '.css')) {
+                        return asset('build/'.$entry['file']);
+                    }
+                }
+            }
+        }
+
+        if (file_exists(public_path('mix-manifest.json'))) {
+            try {
+                return mix('css/app.css');
+            } catch (\Throwable $e) {
+                // continue to fallbacks
+            }
+        }
+
+        if (file_exists(public_path('css/app.css'))) {
+            return asset('css/app.css');
+        }
+
+        return $bootstrapCdn;
+    }
+}
+
 if (!function_exists('flash_sms_credit_warning')) {
     function flash_sms_credit_warning(\Throwable $e): void
     {
