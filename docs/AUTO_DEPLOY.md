@@ -2,7 +2,24 @@
 
 When you push to `main`, GitHub Actions SSHs into your server and runs `scripts/deploy-production.sh` (Laravel + Next.js website).
 
-## One-time setup (about 15 minutes)
+## Quick start (if `git pull` already works on the server)
+
+You **do not** need to generate SSH keys on your Windows PC. Your server already pulls from GitHub over HTTPS.
+
+1. On the server once (SSH in):
+   ```bash
+   cd /var/www/erp
+   chmod +x scripts/deploy-production.sh scripts/deploy-ec2.sh scripts/deploy-public-website.sh
+   ```
+2. On GitHub: **Repo → Settings → Secrets and variables → Actions** — add:
+   - `DEPLOY_HOST` = `13.245.211.78` (or `erp.royalkingsschools.sc.ke`)
+   - `DEPLOY_USER` = `ubuntu`
+   - `DEPLOY_SSH_KEY` = entire contents of your `erp-key.pem` file (the private key you use for `ssh school-erp`)
+3. Push to `main` or run **Actions → Deploy Production → Run workflow**.
+
+> **Windows note:** Do not run `ssh-keygen` in PowerShell for this unless you know you need it. The deploy key (if used) belongs **on the server**, not your laptop. PowerShell also breaks `-N ""` — use SSH into the server instead.
+
+## One-time setup (full detail)
 
 ### 1. Server: allow `git pull` without a password
 
@@ -13,12 +30,14 @@ cd /var/www/erp
 git remote -v
 ```
 
-**Option A — Deploy key (recommended)**
+If `git pull origin main` already works (as on your EC2 box with HTTPS), **skip the deploy key** and go to step 2.
 
-On the server:
+**Option A — Deploy key (only if `git fetch` fails without a password)**
+
+Run these **on the server** after `ssh school-erp`, not on Windows:
 
 ```bash
-ssh-keygen -t ed25519 -C "erp-deploy" -f ~/.ssh/erp_deploy -N ""
+ssh-keygen -t ed25519 -C "erp-deploy" -f ~/.ssh/erp_deploy -N ''
 cat ~/.ssh/erp_deploy.pub
 ```
 
@@ -30,20 +49,17 @@ Then on the server:
 ```bash
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/erp_deploy
-# Persist for future pulls (ubuntu user):
 echo 'Host github.com
   IdentityFile ~/.ssh/erp_deploy
   IdentitiesOnly yes' >> ~/.ssh/config
 chmod 600 ~/.ssh/config
-
-# Point origin at SSH (if it uses HTTPS today):
 git remote set-url origin git@github.com:Njogu-Brian/school-management-system2.git
-git pull origin main   # should work without typing a password
+git pull origin main
 ```
 
-**Option B — HTTPS + Personal Access Token**
+**Option B — HTTPS + Personal Access Token** (if fetch starts asking for credentials)
 
-Create a GitHub PAT (repo read scope), then:
+Create a GitHub PAT (repo read scope), then on the server:
 
 ```bash
 git remote set-url origin https://<TOKEN>@github.com/Njogu-Brian/school-management-system2.git
@@ -71,7 +87,15 @@ cd /var/www/erp && bash scripts/deploy-production.sh
 |--------|--------|
 | `DEPLOY_HOST` | `erp.royalkingsschools.sc.ke` or server IP |
 | `DEPLOY_USER` | SSH user (`ubuntu` or whoever owns `/var/www/erp`) |
-| `DEPLOY_SSH_KEY` | Full contents of your `erp-key.pem` (private key) |
+| `DEPLOY_SSH_KEY` | Full contents of your `erp-key.pem` (private key used for `ssh school-erp`) |
+
+**Important when pasting the key on Windows:** copy the entire PEM including `BEGIN`/`END` lines. If deploy fails with "ssh: handshake failed", delete the secret and re-paste — GitHub sometimes stores Windows line endings (CRLF) that break SSH. Re-copy from:
+
+```powershell
+Get-Content "$env:USERPROFILE\.ssh\erp-key.pem" -Raw
+```
+
+Secret **names** must be exactly `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` — not `UBUNTU` or the IP address.
 | `DEPLOY_PORT` | `22` (optional; omit if default) |
 
 ### 4. Push the workflow
@@ -97,6 +121,9 @@ Manual deploy anytime: **Actions → Deploy Production → Run workflow**.
 
 | Problem | Fix |
 |---------|-----|
+| `Missing secret DEPLOY_*` | Create all 3 secrets with exact names (not `UBUNTU`) |
+| Deploy fails in ~3 seconds | Re-paste `DEPLOY_SSH_KEY` without CRLF; confirm `DEPLOY_HOST` = `13.245.211.78` |
+| `ssh: handshake failed` | Delete and re-add `DEPLOY_SSH_KEY`; key must include BEGIN/END lines |
 | Deploy fails on `git pull` | Fix deploy key / PAT on server (step 1) |
 | Permission denied (publickey) | Check `DEPLOY_SSH_KEY` secret matches `erp-key.pem` |
 | Website still old after deploy | PM2: `pm2 logs royal-kings-website`; re-run `deploy-public-website.sh` |

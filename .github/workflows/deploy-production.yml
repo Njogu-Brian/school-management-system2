@@ -1,12 +1,12 @@
 name: Deploy Production
 
 # Auto-deploy to erp.royalkingsschools.sc.ke when main is updated.
-# One-time setup: docs/AUTO_DEPLOY.md
+# Setup: docs/AUTO_DEPLOY.md
 
 on:
   push:
     branches: [main]
-  workflow_dispatch: # manual "Run workflow" from GitHub Actions tab
+  workflow_dispatch:
 
 concurrency:
   group: production-deploy
@@ -16,17 +16,24 @@ jobs:
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
-    # Optional: only deploy after CI passes (uncomment when CI is stable)
-    # needs: [test]
 
     steps:
+      - name: Verify deploy secrets exist
+        run: |
+          missing=0
+          if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then echo "::error::Missing secret DEPLOY_HOST (use 13.245.211.78)"; missing=1; fi
+          if [ -z "${{ secrets.DEPLOY_USER }}" ]; then echo "::error::Missing secret DEPLOY_USER (use ubuntu)"; missing=1; fi
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then echo "::error::Missing secret DEPLOY_SSH_KEY (full erp-key.pem)"; missing=1; fi
+          exit $missing
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          port: 22
+          fingerprint: SHA256:COLj0Y7VlN8EeKA4vt89WnH4E+3hPnnad+P+pZXiqeA
           command_timeout: 30m
           script: |
             set -e
