@@ -954,37 +954,7 @@ class="{{ $posActive ? 'parent-active' : '' }}">
 
 <!-- Website CMS -->
 @if(nav_can('website_cms'))
-@php $websiteCmsActive = Request::is('website-cms*'); @endphp
-<a href="#websiteCmsMenu" data-bs-toggle="collapse"
-aria-expanded="{{ $websiteCmsActive ? 'true' : 'false' }}"
-class="{{ $websiteCmsActive ? 'parent-active' : '' }}">
-<i class="bi bi-globe2"></i><span> Website CMS</span>
-</a>
-<div class="collapse {{ $websiteCmsActive ? 'show' : '' }}" id="websiteCmsMenu">
-    <a href="{{ route('website.settings.edit') }}" class="sublink {{ Request::is('website-cms/settings*') ? 'active' : '' }}"><i class="bi bi-sliders"></i> Site Settings</a>
-    <a href="{{ route('website.pages.index') }}" class="sublink {{ Request::is('website-cms/pages*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Pages</a>
-    <a href="{{ route('website.homepage.index') }}" class="sublink {{ Request::is('website-cms/homepage*') ? 'active' : '' }}"><i class="bi bi-layout-wtf"></i> Homepage Builder</a>
-    <a href="{{ route('website.media.index') }}" class="sublink {{ Request::is('website-cms/media*') ? 'active' : '' }}"><i class="bi bi-images"></i> Media Library</a>
-    <a href="{{ route('website.testimonials.index') }}" class="sublink {{ Request::is('website-cms/testimonials*') ? 'active' : '' }}"><i class="bi bi-chat-quote"></i> Testimonials</a>
-    <a href="{{ route('website.blogs.index') }}" class="sublink {{ Request::is('website-cms/blogs*') ? 'active' : '' }}"><i class="bi bi-journal-richtext"></i> Blogs</a>
-    <a href="{{ route('website.events.index') }}" class="sublink {{ Request::is('website-cms/events*') ? 'active' : '' }}"><i class="bi bi-calendar-event"></i> Events</a>
-    <a href="{{ route('website.faqs.index') }}" class="sublink {{ Request::is('website-cms/faqs*') ? 'active' : '' }}"><i class="bi bi-question-circle"></i> FAQs</a>
-    <a href="{{ route('website.enquiries.index') }}" class="sublink {{ Request::is('website-cms/enquiries*') ? 'active' : '' }}"><i class="bi bi-envelope-paper"></i> Admissions Leads</a>
-    <a href="{{ route('website.admissions.index') }}" class="sublink {{ Request::is('website-cms/admissions*') ? 'active' : '' }}"><i class="bi bi-file-earmark-person"></i> Applications</a>
-    <a href="{{ route('website.analytics.index') }}" class="sublink {{ Request::is('website-cms/analytics*') ? 'active' : '' }}"><i class="bi bi-graph-up"></i> Analytics</a>
-    <a href="{{ route('website.newsletter.index') }}" class="sublink {{ Request::is('website-cms/newsletter*') ? 'active' : '' }}"><i class="bi bi-mailbox"></i> Newsletter</a>
-    <a href="{{ route('website.campaigns.index') }}" class="sublink {{ Request::is('website-cms/campaigns*') ? 'active' : '' }}"><i class="bi bi-megaphone"></i> Campaigns</a>
-    <a href="{{ route('website.seo.index') }}" class="sublink {{ Request::is('website-cms/seo*') ? 'active' : '' }}"><i class="bi bi-search"></i> SEO Manager</a>
-    <a href="{{ route('website.ai.index') }}" class="sublink {{ Request::is('website-cms/ai-content*') ? 'active' : '' }}"><i class="bi bi-robot"></i> AI Content</a>
-    <a href="{{ route('website.showcase.index') }}" class="sublink {{ Request::is('website-cms/showcase*') ? 'active' : '' }}"><i class="bi bi-trophy"></i> Student Showcase</a>
-    <a href="{{ route('website.meals.index') }}" class="sublink {{ Request::is('website-cms/meals*') ? 'active' : '' }}"><i class="bi bi-cup-hot"></i> Lunch Menu</a>
-    <a href="{{ route('website.community.index') }}" class="sublink {{ Request::is('website-cms/community*') ? 'active' : '' }}"><i class="bi bi-people"></i> Community</a>
-    <a href="{{ route('website.conversion.index') }}" class="sublink {{ Request::is('website-cms/conversion*') ? 'active' : '' }}"><i class="bi bi-bullseye"></i> Conversion</a>
-    <a href="{{ route('website.seo-engine.index') }}" class="sublink {{ Request::is('website-cms/seo-engine*') ? 'active' : '' }}"><i class="bi bi-search-heart"></i> SEO Engine</a>
-    <a href="{{ route('website.brand.index') }}" class="sublink {{ Request::is('website-cms/brand-intelligence*') ? 'active' : '' }}"><i class="bi bi-lightning"></i> Brand Intel</a>
-    <a href="{{ route('website.assistant.index') }}" class="sublink {{ Request::is('website-cms/assistant-knowledge*') ? 'active' : '' }}"><i class="bi bi-chat-dots"></i> Assistant KB</a>
-    <a href="{{ route('website.calendar.index') }}" class="sublink {{ Request::is('website-cms/content-calendar*') ? 'active' : '' }}"><i class="bi bi-calendar3"></i> Content Calendar</a>
-</div>
+@include('layouts.partials.nav-website-cms')
 @endif
 
 <!-- Settings -->

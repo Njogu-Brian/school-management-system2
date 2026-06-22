@@ -13,6 +13,8 @@ The Royal Kings **public marketing site** is **not** part of Laravel routing. Af
 
 `/website` returning Laravel 404 means the Next.js process is not running or nginx is not proxying to it.
 
+**`/website-cms` returning Next.js 404:** nginx `location /website` also matches `/website-cms`. Use the exact + prefix locations in `docs/nginx-website-snippet.conf` (`location = /website` and `location /website/` only).
+
 ## One-time server setup
 
 ```bash
@@ -23,7 +25,19 @@ Add to `/etc/nginx/sites-available/erp` **inside** the `server { ... }` block (b
 
 ```nginx
     # Public marketing website (Next.js on port 3001)
-    location /website {
+    # Do NOT use "location /website" — it steals /website-cms from Laravel
+    location = /website {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+    location /website/ {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;

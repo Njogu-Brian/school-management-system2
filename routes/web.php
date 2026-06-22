@@ -2063,6 +2063,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::prefix('website-cms')->name('website.')
         ->middleware('role:Super Admin|Director|Admin|Secretary')
         ->group(function () {
+            Route::redirect('/', '/website-cms/settings')->name('dashboard');
+
             Route::get('/settings', [\App\Http\Controllers\Website\WebsiteSettingController::class, 'edit'])->name('settings.edit');
             Route::put('/settings', [\App\Http\Controllers\Website\WebsiteSettingController::class, 'update'])->name('settings.update');
 
