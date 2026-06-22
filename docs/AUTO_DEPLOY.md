@@ -137,3 +137,34 @@ Manual deploy anytime: **Actions → Deploy Production → Run workflow**.
 ```
 
 GitHub Actions is preferred: deploys only when you push, with a clear log in the Actions tab.
+
+## GitHub Actions blocked (billing)
+
+If you see: **"The job was not started because your account is locked due to a billing issue"**:
+
+1. Fix billing: GitHub profile → **Settings → Billing** (update payment or use free tier limits).
+2. Until that is fixed, use **server auto-deploy** below (no GitHub Actions needed).
+
+### Server auto-deploy (cron — works without GitHub Actions)
+
+SSH in **once** and run:
+
+```bash
+cd /var/www/erp
+git pull origin main
+chmod +x scripts/server-auto-deploy.sh scripts/deploy-production.sh
+
+sudo cp scripts/server-auto-deploy.sh /usr/local/bin/erp-auto-deploy
+sudo chmod +x /usr/local/bin/erp-auto-deploy
+
+# Every 5 minutes: pull + deploy if main changed
+(sudo crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/erp-auto-deploy >> /var/log/erp-auto-deploy.log 2>&1") | sudo crontab -
+
+# Test once
+sudo /usr/local/bin/erp-auto-deploy
+tail -20 /var/log/erp-auto-deploy.log
+```
+
+After this, every `git push` to `main` is picked up within ~5 minutes automatically — no SSH from your PC.
+
+To watch logs: `ssh school-erp "tail -f /var/log/erp-auto-deploy.log"`
