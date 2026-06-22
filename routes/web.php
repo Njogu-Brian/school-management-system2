@@ -2189,6 +2189,13 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/content-calendar', [\App\Http\Controllers\Website\ContentCalendarController::class, 'index'])->name('calendar.index');
             Route::post('/content-calendar', [\App\Http\Controllers\Website\ContentCalendarController::class, 'store'])->name('calendar.store');
             Route::put('/content-calendar/{item}', [\App\Http\Controllers\Website\ContentCalendarController::class, 'update'])->name('calendar.update');
+
+            // Sprints 31–38: Brand elevation CMS
+            Route::get('/brand', [\App\Http\Controllers\Website\BrandContentController::class, 'index'])->name('brand.index');
+            Route::post('/brand', [\App\Http\Controllers\Website\BrandContentController::class, 'store'])->name('brand.store');
+            Route::put('/brand/{brandItem}', [\App\Http\Controllers\Website\BrandContentController::class, 'update'])->name('brand.update');
+            Route::delete('/brand/{brandItem}', [\App\Http\Controllers\Website\BrandContentController::class, 'destroy'])->name('brand.destroy');
+            Route::patch('/media/{mediaLibraryItem}/quality', [\App\Http\Controllers\Website\MediaLibraryController::class, 'updateQuality'])->name('media.quality');
         });
 
 });

@@ -92,6 +92,12 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
         Route::post('/bulk/store', [ExamMarkController::class, 'bulkStore'])
             ->name('academics.exam-marks.bulk.store');
 
+        Route::post('/bulk/draft', [ExamMarkController::class, 'bulkDraftAutosave'])
+            ->name('academics.exam-marks.bulk.draft');
+
+        Route::post('/{exam}/submit', [ExamMarkController::class, 'submitExamMarks'])
+            ->name('academics.exam-marks.submit');
+
         Route::post('/matrix', [ExamMarkController::class, 'matrixEdit'])
             ->name('academics.exam-marks.matrix.edit');
 

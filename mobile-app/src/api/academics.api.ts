@@ -38,9 +38,14 @@ export const academicsApi = {
         exam_id: number;
         subject_id: number;
         classroom_id: number;
-        marks: { student_id: number; marks: number; remarks?: string }[];
-    }): Promise<ApiResponse<{ count: number; message: string }>> {
+        marks: { student_id: number; marks?: number; remarks?: string }[];
+        submit_for_review?: boolean;
+    }): Promise<ApiResponse<{ count: number; message: string; exam_status?: string }>> {
         return apiClient.post('/exam-marks/batch', data);
+    },
+
+    async submitExamMarks(examId: number): Promise<ApiResponse<{ message: string; exam_status?: string }>> {
+        return apiClient.post(`/exam-marks/${examId}/submit`);
     },
 
     async getMarksMatrixContext(classroomId?: number): Promise<ApiResponse<MarksMatrixContext>> {
@@ -60,6 +65,8 @@ export const academicsApi = {
         classroom_id: number;
         stream_id?: number;
         entries: { student_id: number; exam_id: number; marks?: number; remarks?: string }[];
+        submit_for_review?: boolean;
+        submit_exam_ids?: number[];
     }): Promise<ApiResponse<{ count: number; skipped: number; message: string }>> {
         return apiClient.post('/exam-marks/matrix/batch', data);
     },

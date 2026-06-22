@@ -17,6 +17,10 @@ if [[ -f "$APP_ROOT/scripts/deploy-public-website.sh" ]]; then
   echo ""
   echo "==> Deploying public website (Next.js)..."
   bash "$APP_ROOT/scripts/deploy-public-website.sh"
+
+echo ""
+echo "==> Seeding brand elevation content..."
+php artisan db:seed --class=WebsiteBrandElevationSeeder --force
 fi
 
 echo ""

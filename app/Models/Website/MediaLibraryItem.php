@@ -43,6 +43,11 @@ class MediaLibraryItem extends Model
         return $this->belongsTo(MediaAlbum::class, 'album_id');
     }
 
+    public function qualityFlag(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(MediaQualityFlag::class, 'media_id');
+    }
+
     public function tags(): MorphToMany
     {
         return $this->morphToMany(MediaTag::class, 'taggable', 'media_taggables');

@@ -157,9 +157,20 @@ class WebsiteApiController extends Controller
     public function gallery(Request $request): JsonResponse
     {
         $items = MediaLibraryItem::query()
+            ->with('qualityFlag')
             ->when($request->category, fn ($q, $c) => $q->where('category', $c))
-            ->when($request->featured, fn ($q) => $q->where('is_featured', true))
-            ->latest()
+            ->when($request->boolean('featured'), fn ($q) => $q->where('is_featured', true))
+            ->when($request->boolean('premium'), function ($q) {
+                $q->whereHas('qualityFlag', fn ($f) => $f->where('approved', true)->where('homepage_ready', true));
+            })
+            ->when($request->boolean('hero'), function ($q) {
+                $q->whereHas('qualityFlag', fn ($f) => $f->where('hero_ready', true)->where('approved', true));
+            })
+            ->when($request->boolean('premium') || $request->boolean('hero'), function ($q) {
+                $q->join('media_quality_flags', 'media_library.id', '=', 'media_quality_flags.media_id')
+                    ->orderByDesc('media_quality_flags.priority');
+            }, fn ($q) => $q->latest())
+            ->select('media_library.*')
             ->paginate((int) $request->get('per_page', 24));
 
         return MediaLibraryResource::collection($items)->response();

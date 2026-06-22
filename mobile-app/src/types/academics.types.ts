@@ -15,7 +15,8 @@ export interface Exam {
     term_id: number;
     start_date: string;
     end_date: string;
-    status: 'draft' | 'published' | 'ongoing' | 'completed';
+    status: string;
+    can_edit?: boolean;
     total_marks?: number;
     classroom_id?: number | null;
     stream_id?: number | null;
@@ -220,6 +221,8 @@ export interface MarksMatrixContext {
 export interface MarksMatrixExam {
     id: number;
     name: string;
+    status?: string;
+    can_edit?: boolean;
     subject_id: number;
     subject_name?: string | null;
     min_marks: number;

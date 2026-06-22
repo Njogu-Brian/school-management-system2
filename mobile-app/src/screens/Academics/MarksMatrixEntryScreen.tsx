@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
     Alert,
     ScrollView,
@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { formatDistanceToNow } from 'date-fns';
+import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '@contexts/ThemeContext';
 import { academicsApi } from '@api/academics.api';
 import { Button } from '@components/common/Button';
@@ -18,6 +19,12 @@ import { EmptyState } from '@components/common/EmptyState';
 import { ListLoadingSkeleton } from '@components/common/ListLoadingSkeleton';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '@constants/theme';
 import type { MarksMatrixExam, MarksMatrixStudent, MarksMatrixExistingMark } from 'types/academics.types';
+import {
+    queueMarksDraft,
+    flushMarksDraftQueue,
+    removeMarksDraftQueueItem,
+    getPendingMarksQueueCount,
+} from '@utils/marksDraftSync';
 
 interface Props {
     navigation: any;
@@ -37,6 +44,10 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
     const [values, setValues] = useState<Record<string, EntryValue>>({});
     const [search, setSearch] = useState('');
     const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
+    const [syncStatus, setSyncStatus] = useState('');
+    const [pendingCount, setPendingCount] = useState(0);
+    const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const draftQueueId = `matrix-${examTypeId}-${classroomId}-${streamId ?? 'all'}`;
 
     const bg = isDark ? colors.backgroundDark : colors.backgroundLight;
     const text = isDark ? colors.textMainDark : colors.textMainLight;
@@ -79,6 +90,16 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
         void load();
     }, [examTypeId, classroomId, streamId]);
 
+    useEffect(() => {
+        const refresh = async () => setPendingCount(await getPendingMarksQueueCount());
+        void refresh();
+        void flushMarksDraftQueue().then(() => refresh());
+        const unsub = NetInfo.addEventListener((state) => {
+            if (state.isConnected) void flushMarksDraftQueue().then(() => refresh());
+        });
+        return () => unsub();
+    }, []);
+
     const filteredStudents = useMemo(() => {
         const q = search.trim().toLowerCase();
         if (!q) return students;
@@ -99,6 +120,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                 [field]: value,
             },
         }));
+        scheduleAutosave();
     };
 
     const nonEmptyEntries = useMemo(() => {
@@ -123,34 +145,105 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
         return entries;
     }, [students, exams, values]);
 
-    const save = async () => {
+    const persistDraft = useCallback(async () => {
+        if (nonEmptyEntries.length === 0) return;
+
+        const payload = {
+            exam_type_id: examTypeId,
+            classroom_id: classroomId,
+            stream_id: streamId,
+            entries: nonEmptyEntries,
+        };
+
+        await queueMarksDraft({ id: draftQueueId, type: 'matrix', payload });
+
+        const net = await NetInfo.fetch();
+        if (!net.isConnected) {
+            setSyncStatus('Saved offline');
+            setPendingCount(await getPendingMarksQueueCount());
+            return;
+        }
+
+        try {
+            const res = await academicsApi.enterMarksMatrix(payload);
+            if (res.success) {
+                await removeMarksDraftQueueItem(draftQueueId);
+                setSyncStatus(`Draft saved · ${new Date().toLocaleTimeString()}`);
+            }
+        } catch {
+            setSyncStatus('Saved offline — sync pending');
+        }
+        setPendingCount(await getPendingMarksQueueCount());
+    }, [nonEmptyEntries, examTypeId, classroomId, streamId, draftQueueId]);
+
+    const scheduleAutosave = useCallback(() => {
+        if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = setTimeout(() => {
+            void persistDraft();
+        }, 1500);
+    }, [persistDraft]);
+
+    const saveDraft = async () => {
         if (nonEmptyEntries.length === 0) {
             Alert.alert('Nothing to save', 'Enter at least one score or remark.');
             return;
         }
         setSaving(true);
         try {
-            const res = await academicsApi.enterMarksMatrix({
-                exam_type_id: examTypeId,
-                classroom_id: classroomId,
-                stream_id: streamId,
-                entries: nonEmptyEntries,
-            });
-            if (res.success) {
-                Alert.alert('Success', res.data?.message || 'Marks saved.', [
-                    { text: 'OK', onPress: () => navigation.goBack() },
-                ]);
-            }
-        } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Failed to save marks');
+            await persistDraft();
+            Alert.alert('Saved', 'Draft saved.');
         } finally {
             setSaving(false);
         }
     };
 
-    const syncLabel = lastLoadedAt
-        ? `Updated ${formatDistanceToNow(lastLoadedAt, { addSuffix: true })}`
-        : 'Not loaded yet';
+    const submitExam = (exam: MarksMatrixExam) => {
+        if (exam.can_edit === false || exam.status === 'moderation') return;
+
+        Alert.alert(
+            'Submit for review',
+            `Submit "${exam.name}" for review? Teachers cannot edit after submission.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Submit',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setSaving(true);
+                        try {
+                            await persistDraft();
+                            const res = await academicsApi.enterMarksMatrix({
+                                exam_type_id: examTypeId,
+                                classroom_id: classroomId,
+                                stream_id: streamId,
+                                entries: nonEmptyEntries,
+                                submit_for_review: true,
+                                submit_exam_ids: [exam.id],
+                            });
+                            if (res.success) {
+                                setExams((prev) =>
+                                    prev.map((e) =>
+                                        e.id === exam.id ? { ...e, status: 'moderation', can_edit: false } : e
+                                    )
+                                );
+                                Alert.alert('Submitted', `${exam.name} is now under review.`);
+                            }
+                        } catch (e: any) {
+                            Alert.alert('Error', e?.message || 'Failed to submit exam');
+                        } finally {
+                            setSaving(false);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const syncLabel = syncStatus
+        ? syncStatus
+        : lastLoadedAt
+          ? `Updated ${formatDistanceToNow(lastLoadedAt, { addSuffix: true })}`
+          : 'Not loaded yet';
 
     return (
         <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['top']}>
@@ -173,13 +266,14 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.h1, { color: text }]}>Marks entry matrix</Text>
                         <Text style={[styles.subtitle, { color: textSub }]}>
-                            Enter and verify scores. Save sends all pending cells to the server.
+                            Marks autosave as draft. Submit each exam when marking is complete.
                         </Text>
                     </View>
                     <View style={[styles.syncPill, { borderColor: border, backgroundColor: surfaceMuted }]}>
                         <Icon name="cloud-done" size={16} color={textSub} />
-                        <Text style={[styles.syncText, { color: textSub }]} numberOfLines={2}>
+                        <Text style={[styles.syncText, { color: textSub }]} numberOfLines={3}>
                             {syncLabel}
+                            {pendingCount > 0 ? ` · ${pendingCount} offline` : ''}
                         </Text>
                     </View>
                 </View>
@@ -248,6 +342,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                                         {exams.map((e) => {
                                             const k = keyOf(s.id, e.id);
                                             const v = values[k] || { marks: '', remarks: '' };
+                                            const editable = e.can_edit !== false;
                                             return (
                                                 <View
                                                     key={k}
@@ -262,6 +357,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                                                     </Text>
                                                     <Text style={[styles.examRange, { color: textSub }]}>
                                                         {e.min_marks}–{e.max_marks}
+                                                        {e.status === 'moderation' ? ' · Under review' : ''}
                                                     </Text>
                                                     <TextInput
                                                         style={[
@@ -277,6 +373,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                                                         keyboardType="numeric"
                                                         placeholder="Score"
                                                         placeholderTextColor={textSub}
+                                                        editable={editable}
                                                     />
                                                     <TextInput
                                                         style={[
@@ -291,6 +388,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                                                         onChangeText={(t) => setCell(s.id, e.id, 'remarks', t)}
                                                         placeholder="Remark"
                                                         placeholderTextColor={textSub}
+                                                        editable={editable}
                                                     />
                                                 </View>
                                             );
@@ -302,11 +400,24 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
 
                         <View style={styles.actions}>
                             <Button
-                                title="Submit marks"
-                                onPress={save}
+                                title="Save draft"
+                                onPress={saveDraft}
                                 loading={saving}
+                                variant="outline"
                                 fullWidth
                             />
+                            {exams
+                                .filter((e) => e.can_edit !== false && e.status !== 'moderation')
+                                .map((e) => (
+                                    <Button
+                                        key={e.id}
+                                        title={`Submit ${e.name}`}
+                                        onPress={() => submitExam(e)}
+                                        loading={saving}
+                                        fullWidth
+                                        style={{ marginTop: SPACING.sm }}
+                                    />
+                                ))}
                         </View>
                     </>
                 )}

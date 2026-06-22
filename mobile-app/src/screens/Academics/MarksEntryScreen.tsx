@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
     Alert,
     TextInput,
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '@contexts/ThemeContext';
 import { Button } from '@components/common/Button';
 import { Card } from '@components/common/Card';
@@ -19,6 +20,12 @@ import { Exam, Mark } from 'types/academics.types';
 import { Student } from 'types/student.types';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import { Palette } from '@styles/palette';
+import {
+    queueMarksDraft,
+    flushMarksDraftQueue,
+    removeMarksDraftQueueItem,
+    getPendingMarksQueueCount,
+} from '@utils/marksDraftSync';
 
 interface MarksEntryScreenProps {
     navigation: any;
@@ -32,13 +39,33 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
     const [exam, setExam] = useState<Exam | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
     const [marks, setMarks] = useState<{ [key: number]: { marks: string; remarks: string } }>({});
-    const [_existingMarks, setExistingMarks] = useState<Mark[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [canEdit, setCanEdit] = useState(true);
+    const [syncStatus, setSyncStatus] = useState('');
+    const [pendingCount, setPendingCount] = useState(0);
+
+    const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const draftQueueId = `bulk-${examId}-${classId}`;
 
     useEffect(() => {
         if (examId && subjectId && classId) loadData();
     }, [examId, subjectId, classId]);
+
+    useEffect(() => {
+        const refreshPending = async () => {
+            setPendingCount(await getPendingMarksQueueCount());
+        };
+        void refreshPending();
+        void flushMarksDraftQueue().then(() => refreshPending());
+
+        const unsub = NetInfo.addEventListener((state) => {
+            if (state.isConnected) {
+                void flushMarksDraftQueue().then(() => refreshPending());
+            }
+        });
+        return () => unsub();
+    }, []);
 
     const loadData = async () => {
         if (!examId || !subjectId || !classId) return;
@@ -53,6 +80,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
 
             if (examRes.success && examRes.data) {
                 setExam(examRes.data);
+                setCanEdit(examRes.data.can_edit !== false);
             }
 
             if (studentsRes.success && studentsRes.data) {
@@ -60,12 +88,10 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
             }
 
             if (marksRes.success && marksRes.data) {
-                setExistingMarks(marksRes.data.data);
-                // Pre-fill existing marks
-                const marksMap: any = {};
-                marksRes.data.data.forEach((mark) => {
+                const marksMap: Record<number, { marks: string; remarks: string }> = {};
+                marksRes.data.data.forEach((mark: Mark) => {
                     marksMap[mark.student_id] = {
-                        marks: mark.marks.toString(),
+                        marks: mark.marks?.toString() ?? '',
                         remarks: mark.remarks || '',
                     };
                 });
@@ -78,6 +104,64 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
         }
     };
 
+    const buildMarksPayload = useCallback(() => {
+        return students
+            .map((student) => {
+                const studentMarks = marks[student.id];
+                const hasScore = studentMarks?.marks?.trim();
+                const hasRemark = studentMarks?.remarks?.trim();
+                if (!hasScore && !hasRemark) return null;
+                return {
+                    student_id: student.id,
+                    marks: hasScore ? parseFloat(studentMarks!.marks) : undefined,
+                    remarks: hasRemark ? studentMarks!.remarks.trim() : undefined,
+                };
+            })
+            .filter((m): m is NonNullable<typeof m> => m !== null);
+    }, [students, marks]);
+
+    const persistDraft = useCallback(async () => {
+        if (!examId || !subjectId || !classId || !canEdit) return;
+
+        const marksData = buildMarksPayload();
+        const payload = {
+            exam_id: examId,
+            subject_id: subjectId,
+            classroom_id: classId,
+            marks: marksData,
+        };
+
+        await queueMarksDraft({ id: draftQueueId, type: 'bulk', payload });
+
+        const net = await NetInfo.fetch();
+        if (!net.isConnected) {
+            setSyncStatus('Saved offline — will sync when online');
+            setPendingCount(await getPendingMarksQueueCount());
+            return;
+        }
+
+        try {
+            const response = await academicsApi.enterMarks(payload);
+            if (response.success) {
+                await removeMarksDraftQueueItem(draftQueueId);
+                setSyncStatus(`Draft saved · ${new Date().toLocaleTimeString()}`);
+            } else {
+                setSyncStatus('Saved offline — sync pending');
+            }
+        } catch {
+            setSyncStatus('Saved offline — sync pending');
+        }
+        setPendingCount(await getPendingMarksQueueCount());
+    }, [examId, subjectId, classId, canEdit, buildMarksPayload, draftQueueId]);
+
+    const scheduleAutosave = useCallback(() => {
+        if (!canEdit) return;
+        if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = setTimeout(() => {
+            void persistDraft();
+        }, 1200);
+    }, [canEdit, persistDraft]);
+
     const handleMarksChange = (studentId: number, value: string) => {
         setMarks((prev) => ({
             ...prev,
@@ -86,6 +170,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                 marks: value,
             },
         }));
+        scheduleAutosave();
     };
 
     const handleRemarksChange = (studentId: number, value: string) => {
@@ -96,6 +181,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                 remarks: value,
             },
         }));
+        scheduleAutosave();
     };
 
     const validateMarks = (): boolean => {
@@ -103,7 +189,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
 
         for (const student of students) {
             const studentMarks = marks[student.id];
-            if (studentMarks && studentMarks.marks) {
+            if (studentMarks?.marks) {
                 const marksValue = parseFloat(studentMarks.marks);
                 if (isNaN(marksValue) || marksValue < 0 || marksValue > totalMarks) {
                     Alert.alert('Validation Error', `Marks for ${student.full_name} must be between 0 and ${totalMarks}`);
@@ -115,47 +201,47 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
         return true;
     };
 
-    const handleSave = async () => {
+    const handleSubmitForReview = async () => {
         if (!validateMarks()) return;
 
-        setSaving(true);
-        try {
-            const marksData = students
-                .map((student) => {
-                    const studentMarks = marks[student.id];
-                    if (studentMarks && studentMarks.marks) {
-                        return {
-                            student_id: student.id,
-                            marks: parseFloat(studentMarks.marks),
-                            remarks: studentMarks.remarks || undefined,
-                        };
-                    }
-                    return null;
-                })
-                .filter((m) => m !== null);
-
-            if (marksData.length === 0) {
-                Alert.alert('Error', 'Please enter marks for at least one student');
-                return;
-            }
-
-            const response = await academicsApi.enterMarks({
-                exam_id: examId,
-                subject_id: subjectId,
-                classroom_id: classId,
-                marks: marksData as any,
-            });
-
-            if (response.success) {
-                Alert.alert('Success', `Marks saved successfully for ${marksData.length} students`, [
-                    { text: 'OK', onPress: () => navigation.goBack() },
-                ]);
-            }
-        } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to save marks');
-        } finally {
-            setSaving(false);
-        }
+        Alert.alert(
+            'Submit for review',
+            'Submit all marks for this exam? Teachers will not be able to edit after submission.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Submit',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setSaving(true);
+                        try {
+                            await persistDraft();
+                            const net = await NetInfo.fetch();
+                            if (!net.isConnected) {
+                                await queueMarksDraft({
+                                    id: `submit-${examId}`,
+                                    type: 'submit',
+                                    payload: { exam_id: examId },
+                                });
+                                Alert.alert('Queued', 'Submit will complete when you are back online.');
+                                return;
+                            }
+                            const response = await academicsApi.submitExamMarks(examId);
+                            if (response.success) {
+                                setCanEdit(false);
+                                Alert.alert('Submitted', 'Marks submitted for review.', [
+                                    { text: 'OK', onPress: () => navigation.goBack() },
+                                ]);
+                            }
+                        } catch (error: any) {
+                            Alert.alert('Error', error.message || 'Failed to submit marks');
+                        } finally {
+                            setSaving(false);
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     if (!examId || !subjectId || !classId) {
@@ -180,6 +266,8 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
         );
     }
 
+    const showSubmit = canEdit && exam?.status !== 'moderation';
+
     return (
         <SafeAreaView
             style={[styles.container, { backgroundColor: isDark ? colors.backgroundDark : colors.backgroundLight }]}
@@ -189,11 +277,17 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={0}
             >
-                {/* Students List */}
                 <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
                     <Text style={[styles.subtitle, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
                         {exam?.name} - Total: {exam?.total_marks ?? 100} marks
+                        {exam?.status === 'moderation' ? ' · Under review' : ''}
                     </Text>
+                    {(syncStatus || pendingCount > 0) && (
+                        <Text style={[styles.syncLine, { color: isDark ? colors.textSubDark : colors.textSubLight }]}>
+                            {syncStatus}
+                            {pendingCount > 0 ? ` · ${pendingCount} pending offline` : ''}
+                        </Text>
+                    )}
                     <View style={styles.tableHeader}>
                         <Text style={[styles.columnHeader, styles.studentColumn, { color: isDark ? colors.textMainDark : colors.textMainLight }]}>
                             Student
@@ -234,6 +328,7 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                                         placeholder="0"
                                         placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
                                         maxLength={5}
+                                        editable={canEdit}
                                     />
                                 </View>
 
@@ -252,19 +347,32 @@ export const MarksEntryScreen: React.FC<MarksEntryScreenProps> = ({ navigation, 
                                         placeholder="Optional"
                                         placeholderTextColor={isDark ? colors.textSubDark : colors.textSubLight}
                                         maxLength={100}
+                                        editable={canEdit}
                                     />
                                 </View>
                             </View>
                         </Card>
                     ))}
 
-                    <Button
-                        title="Save Marks"
-                        onPress={handleSave}
-                        loading={saving}
-                        fullWidth
-                        style={styles.saveButton}
-                    />
+                    {canEdit && (
+                        <Button
+                            title="Save draft now"
+                            onPress={() => void persistDraft()}
+                            loading={saving}
+                            variant="outline"
+                            fullWidth
+                            style={styles.saveButton}
+                        />
+                    )}
+                    {showSubmit && (
+                        <Button
+                            title="Submit for review"
+                            onPress={handleSubmitForReview}
+                            loading={saving}
+                            fullWidth
+                            style={styles.saveButton}
+                        />
+                    )}
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -278,6 +386,11 @@ const styles = StyleSheet.create({
     subtitle: {
         fontSize: FONT_SIZES.sm,
         marginTop: SPACING.sm,
+        marginBottom: SPACING.sm,
+        paddingHorizontal: SPACING.xl,
+    },
+    syncLine: {
+        fontSize: FONT_SIZES.xs,
         marginBottom: SPACING.sm,
         paddingHorizontal: SPACING.xl,
     },

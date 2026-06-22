@@ -38,7 +38,16 @@
                                 <div class="bg-light rounded p-4 text-center mb-2"><i class="bi bi-file-earmark-play fs-1"></i></div>
                             @endif
                             <div class="fw-semibold">{{ $item->title }}</div>
-                            <small class="text-muted">{{ $item->category ?? 'general' }} · {{ $item->type }}</small>
+                            <small class="text-muted d-block mb-2">{{ $item->category ?? 'general' }} · {{ $item->type }}</small>
+                            <form action="{{ route('website.media.quality', $item) }}" method="POST" class="mb-2 small">
+                                @csrf @method('PATCH')
+                                @php $qf = $item->qualityFlag; @endphp
+                                <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="approved" value="1" {{ $qf?->approved ? 'checked' : '' }} id="ap{{ $item->id }}"><label class="form-check-label" for="ap{{ $item->id }}">Approved</label></div>
+                                <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="hero_ready" value="1" {{ $qf?->hero_ready ? 'checked' : '' }} id="hr{{ $item->id }}"><label class="form-check-label" for="hr{{ $item->id }}">Hero</label></div>
+                                <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="homepage_ready" value="1" {{ $qf?->homepage_ready ? 'checked' : '' }} id="hp{{ $item->id }}"><label class="form-check-label" for="hp{{ $item->id }}">Homepage</label></div>
+                                <input type="number" name="priority" class="form-control form-control-sm d-inline-block w-auto" value="{{ $qf?->priority ?? 0 }}" min="0" max="100" placeholder="Priority">
+                                <button class="btn btn-sm btn-outline-primary">Save flags</button>
+                            </form>
                             <form action="{{ route('website.media.destroy', $item) }}" method="POST" class="mt-2" onsubmit="return confirm('Delete media?');">
                                 @csrf @method('DELETE')
                                 <button class="btn btn-sm btn-outline-danger w-100">Delete</button>

@@ -10,6 +10,7 @@ use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamMark;
 use App\Models\Academics\Stream;
 use App\Services\Academics\ClassroomGradingService;
+use App\Services\Academics\ExamMarkEntryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -224,68 +225,60 @@ class ApiAcademicsController extends Controller
             }
         }
 
-        if (!in_array($exam->status, ['open', 'marking'])) {
+        if (! app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($exam, $user)) {
             return response()->json(['success' => false, 'message' => 'This exam is not open for mark entry.'], 422);
         }
 
-        $exam->loadMissing('examType');
-        $maxMarks = (float) ($exam->examType?->default_max_mark ?? $exam->max_marks ?? 100);
-        $minMarks = (float) ($exam->examType?->default_min_mark ?? 0);
-        $classroomId = (int) $data['classroom_id'];
-        $grading = app(ClassroomGradingService::class);
-        $rows = $data['marks'] ?? [];
-        $count = 0;
+        $finalize = $request->boolean('submit_for_review');
+        $rows = collect($data['marks'] ?? [])->map(fn ($row) => [
+            'student_id' => (int) $row['student_id'],
+            'marks' => $row['marks'] ?? null,
+            'remarks' => $row['remarks'] ?? null,
+        ])->all();
 
-        foreach ($rows as $row) {
-            if (!isset($row['marks']) || $row['marks'] === '' || $row['marks'] === null) {
-                continue;
-            }
-            $score = (float) $row['marks'];
-            if ($score < $minMarks || $score > $maxMarks) {
-                continue;
-            }
-
-            $student = Student::find($row['student_id']);
-            if (! $student || $student->archive || $student->is_alumni) {
-                continue;
-            }
-            if ((int) $student->classroom_id !== $classroomId) {
-                continue;
-            }
-            if ($user && $user->hasTeacherLikeRole()) {
-                $scope = Student::where('id', $student->id)->where('archive', 0)->where('is_alumni', false);
-                $user->applyTeacherStudentFilter($scope);
-                if (! $scope->exists()) {
-                    continue;
-                }
-            }
-
-            $mark = ExamMark::firstOrNew([
-                'exam_id' => $exam->id,
-                'student_id' => $row['student_id'],
-                'subject_id' => $data['subject_id'],
-            ]);
-
-            $g = $grading->gradeForRawScore($score, $maxMarks, $classroomId);
-
-            $mark->fill([
-                'score_raw' => $score,
-                'final_score' => $score,
-                'grade_label' => $g['label'],
-                'pl_level' => $g['points'],
-                'subject_remark' => $row['remarks'] ?? null,
-                'status' => 'submitted',
-                'teacher_id' => optional($user->staff)->id,
-            ])->save();
-
-            $count++;
+        try {
+            $result = app(ExamMarkEntryService::class)->saveDraftForExam(
+                $exam,
+                (int) $data['classroom_id'],
+                $rows,
+                $user,
+                $finalize
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
         return response()->json([
             'success' => true,
             'data' => [
-                'message' => "Marks saved for {$count} students.",
-                'count' => $count,
+                'message' => $finalize
+                    ? "Submitted {$result['saved']} marks for review."
+                    : "Saved {$result['saved']} marks as draft.",
+                'count' => $result['saved'],
+                'skipped' => $result['skipped'],
+                'exam_status' => $exam->fresh()->status,
+            ],
+        ]);
+    }
+
+    public function submitExamMarks(Request $request, Exam $exam)
+    {
+        $user = $request->user();
+        if ($user && $user->hasRole('Academic Administrator')) {
+            return response()->json(['success' => false, 'message' => 'Academic administrators cannot submit marks.'], 403);
+        }
+
+        try {
+            app(ExamMarkEntryService::class)->submitExam($exam, $user);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'message' => 'Marks submitted for review.',
+                'exam_status' => $exam->fresh()->status,
             ],
         ]);
     }
@@ -366,7 +359,7 @@ class ApiAcademicsController extends Controller
             ->with(['subject', 'examType'])
             ->where('exam_type_id', $examTypeId)
             ->where('classroom_id', $classroomId)
-            ->whereIn('status', ['open', 'marking'])
+            ->whereIn('status', ['open', 'marking', 'moderation'])
             ->whereNotNull('subject_id')
             ->when($streamId, function ($q) use ($streamId) {
                 $q->where(function ($subQ) use ($streamId) {
@@ -409,6 +402,8 @@ class ApiAcademicsController extends Controller
                 'exams' => $exams->map(fn ($e) => [
                     'id' => (int) $e->id,
                     'name' => $e->name,
+                    'status' => $e->status,
+                    'can_edit' => app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($e, $user),
                     'subject_id' => (int) $e->subject_id,
                     'subject_name' => $e->subject->name ?? null,
                     'max_marks' => (float) ($e->examType?->default_max_mark ?? $e->max_marks ?? 100),
@@ -430,6 +425,9 @@ class ApiAcademicsController extends Controller
             'entries.*.exam_id' => 'required|exists:exams,id',
             'entries.*.marks' => 'nullable|numeric',
             'entries.*.remarks' => 'nullable|string|max:500',
+            'submit_for_review' => 'nullable|boolean',
+            'submit_exam_ids' => 'nullable|array',
+            'submit_exam_ids.*' => 'integer|exists:exams,id',
         ]);
 
         $examTypeId = (int) $v['exam_type_id'];
@@ -461,7 +459,7 @@ class ApiAcademicsController extends Controller
             ->with(['examType'])
             ->where('exam_type_id', $examTypeId)
             ->where('classroom_id', $classroomId)
-            ->whereIn('status', ['open', 'marking'])
+            ->whereIn('status', ['open', 'marking', 'moderation'])
             ->whereNotNull('subject_id')
             ->when($streamId, function ($q) use ($streamId) {
                 $q->where(function ($subQ) use ($streamId) {
@@ -475,72 +473,31 @@ class ApiAcademicsController extends Controller
         })->keyBy('id');
         $allowedExamSet = array_flip($allowedExams->keys()->map(fn ($id) => (int) $id)->all());
 
-        $saved = 0;
-        $skipped = 0;
-        $grading = app(ClassroomGradingService::class);
-        foreach ($entries as $entry) {
-            $studentId = (int) $entry['student_id'];
-            $examId = (int) $entry['exam_id'];
-            $scoreInput = $entry['marks'] ?? null;
-            $remarks = $entry['remarks'] ?? null;
+        $finalizeExamIds = $request->boolean('submit_for_review')
+            ? collect($request->input('submit_exam_ids', $allowedExams->keys()->all()))->map(fn ($id) => (int) $id)->all()
+            : [];
 
-            if (!isset($allowedStudentSet[$studentId]) || !isset($allowedExamSet[$examId])) {
-                $skipped++;
-                continue;
-            }
-
-            $hasScore = !is_null($scoreInput) && $scoreInput !== '';
-            $hasRemark = !is_null($remarks) && trim((string) $remarks) !== '';
-            if (!$hasScore && !$hasRemark) {
-                continue;
-            }
-
-            $exam = $allowedExams[$examId];
-            $maxMarks = (float) ($exam->examType?->default_max_mark ?? $exam->max_marks ?? 100);
-            $minMarks = (float) ($exam->examType?->default_min_mark ?? 0);
-
-            $score = null;
-            if ($hasScore) {
-                $score = (float) $scoreInput;
-                if ($score < $minMarks || $score > $maxMarks) {
-                    $skipped++;
-                    continue;
-                }
-            }
-
-            $mark = ExamMark::firstOrNew([
-                'exam_id' => $examId,
-                'student_id' => $studentId,
-                'subject_id' => (int) $exam->subject_id,
-            ]);
-
-            if ($score !== null) {
-                $g = $grading->gradeForRawScore($score, $maxMarks, $classroomId);
-                $gradeLabel = $g['label'];
-                $plLevel = $g['points'];
-            } else {
-                $gradeLabel = $mark->grade_label;
-                $plLevel = $mark->pl_level;
-            }
-
-            $mark->fill([
-                'score_raw' => $score,
-                'final_score' => $score,
-                'grade_label' => $gradeLabel,
-                'pl_level' => $plLevel,
-                'subject_remark' => $hasRemark ? trim((string) $remarks) : $mark->subject_remark,
-                'status' => 'submitted',
-                'teacher_id' => optional($user->staff)->id,
-            ])->save();
-            $saved++;
+        try {
+            $result = app(ExamMarkEntryService::class)->saveDraftMatrixEntries(
+                $examTypeId,
+                $classroomId,
+                $streamId,
+                $entries,
+                $user,
+                $finalizeExamIds
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
         return response()->json([
             'success' => true,
             'data' => [
-                'message' => "Saved {$saved} mark entries.".($skipped > 0 ? " Skipped {$skipped} invalid or unauthorized entries." : ''),
-                'count' => $saved,
-                'skipped' => $skipped,
+                'message' => ! empty($finalizeExamIds)
+                    ? "Saved {$result['saved']} entries and submitted selected exams for review."
+                    : "Saved {$result['saved']} mark entries as draft.",
+                'count' => $result['saved'],
+                'skipped' => $result['skipped'],
             ],
         ]);
     }
@@ -638,6 +595,8 @@ class ApiAcademicsController extends Controller
         if ($detail) {
             $out['classroom_name'] = $e->classroom->name ?? null;
             $out['subject_name'] = $e->subject->name ?? null;
+            $user = request()->user();
+            $out['can_edit'] = app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($e, $user);
         }
 
         return $out;

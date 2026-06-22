@@ -45,6 +45,9 @@
     <a href="{{ route('website.seo.index') }}" class="sublink {{ Request::is('website-cms/seo') || Request::is('website-cms/seo/*') ? 'active' : '' }}">
         <i class="bi bi-search"></i> SEO
     </a>
+    <a href="{{ route('website.brand.index') }}" class="sublink {{ Request::is('website-cms/brand*') ? 'active' : '' }}">
+        <i class="bi bi-palette"></i> Brand Content
+    </a>
     <a href="/website" target="_blank" rel="noopener" class="sublink" style="color: #d4af37;">
         <i class="bi bi-box-arrow-up-right"></i> View Public Site
     </a>
