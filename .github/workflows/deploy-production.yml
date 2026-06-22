@@ -1,0 +1,36 @@
+name: Deploy Production
+
+# Auto-deploy to erp.royalkingsschools.sc.ke when main is updated.
+# One-time setup: docs/AUTO_DEPLOY.md
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # manual "Run workflow" from GitHub Actions tab
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    # Optional: only deploy after CI passes (uncomment when CI is stable)
+    # needs: [test]
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          command_timeout: 30m
+          script: |
+            set -e
+            cd /var/www/erp
+            git fetch origin main
+            git reset --hard origin/main
+            bash scripts/deploy-production.sh
