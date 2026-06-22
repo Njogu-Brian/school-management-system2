@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
 use App\Models\Staff;
+use App\Models\AssistantClassTeacherAssignment;
 use App\Models\ClassTeacherAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,10 +30,18 @@ class AssignTeachersController extends Controller
             $assignmentMap[$key] = (int) $a->staff_id;
         }
 
+        $assistantAssignments = DB::table('assistant_class_teacher_assignments')->get(['classroom_id', 'stream_id', 'staff_id']);
+        $assistantMap = [];
+        foreach ($assistantAssignments as $a) {
+            $key = (int) $a->classroom_id . ':' . ($a->stream_id === null ? 'null' : (int) $a->stream_id);
+            $assistantMap[$key] = (int) $a->staff_id;
+        }
+
         return view('academics.assign_teachers', [
             'classrooms' => $classrooms,
             'staffTeachers' => $staffTeachers,
             'assignmentMap' => $assignmentMap,
+            'assistantMap' => $assistantMap,
         ]);
     }
 
@@ -64,6 +73,36 @@ class AssignTeachersController extends Controller
 
         return redirect()->route('academics.assign-teachers')
             ->with('success', 'Class teacher updated for ' . $classroom->name . ' successfully.');
+    }
+
+    /**
+     * Assign/clear assistant class teacher for a classroom or classroom-stream.
+     */
+    public function assignAssistantClassTeacher(Request $request, $id)
+    {
+        $classroom = Classroom::findOrFail($id);
+
+        $request->validate([
+            'staff_id' => 'nullable|integer|exists:staff,id',
+            'stream_id' => 'nullable|integer|exists:streams,id',
+        ]);
+
+        $streamId = $request->filled('stream_id') ? (int) $request->stream_id : null;
+
+        if (! $request->filled('staff_id')) {
+            AssistantClassTeacherAssignment::query()
+                ->where('classroom_id', $classroom->id)
+                ->when($streamId === null, fn ($q) => $q->whereNull('stream_id'), fn ($q) => $q->where('stream_id', $streamId))
+                ->delete();
+        } else {
+            AssistantClassTeacherAssignment::updateOrCreate(
+                ['classroom_id' => $classroom->id, 'stream_id' => $streamId],
+                ['staff_id' => (int) $request->staff_id]
+            );
+        }
+
+        return redirect()->route('academics.assign-teachers')
+            ->with('success', 'Assistant class teacher updated for ' . $classroom->name . ' successfully.');
     }
 
     /**

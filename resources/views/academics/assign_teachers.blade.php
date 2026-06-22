@@ -11,7 +11,7 @@
       <div>
         <div class="crumb">Academics</div>
         <h1 class="mb-1">Assign Class Teachers</h1>
-        <p class="text-muted mb-0">Each classroom has one class teacher (homeroom). Subject teachers are assigned separately in Subject Teacher Map.</p>
+        <p class="text-muted mb-0">Each classroom has one class teacher and one assistant teacher (homeroom). Use <a href="{{ route('academics.teacher-assignments.index') }}">Teacher Assignments</a> to assign streams and subjects at once.</p>
       </div>
     </div>
 
@@ -69,7 +69,8 @@
                 <tr>
                   <th>Classroom</th>
                   <th>Stream</th>
-                  <th>Current Class Teacher</th>
+                  <th>Class Teacher</th>
+                  <th>Assistant Teacher</th>
                   <th class="text-end">Actions</th>
                 </tr>
               </thead>
@@ -85,7 +86,10 @@
                       $key = $classroom->id . ':' . (($stream->id ?? null) === null ? 'null' : $stream->id);
                       $assignedStaffId = $assignmentMap[$key] ?? null;
                       $assignedStaff = $assignedStaffId ? $staffTeachers->firstWhere('id', $assignedStaffId) : null;
+                      $assistantStaffId = $assistantMap[$key] ?? null;
+                      $assistantStaff = $assistantStaffId ? $staffTeachers->firstWhere('id', $assistantStaffId) : null;
                       $modalId = 'assignClassTeacherModal' . $classroom->id . '_' . (($stream->id ?? null) === null ? 'null' : $stream->id);
+                      $assistantModalId = 'assignAssistantModal' . $classroom->id . '_' . (($stream->id ?? null) === null ? 'null' : $stream->id);
                     @endphp
                     <tr>
                       <td class="fw-semibold">{{ $classroom->name }}</td>
@@ -97,9 +101,19 @@
                           <span class="text-muted">Unassigned</span>
                         @endif
                       </td>
+                      <td>
+                        @if($assistantStaff)
+                          <span class="pill-badge pill-secondary">{{ $assistantStaff->full_name }}</span>
+                        @else
+                          <span class="text-muted">Unassigned</span>
+                        @endif
+                      </td>
                       <td class="text-end">
                         <button type="button" class="btn btn-sm btn-ghost-strong" data-bs-toggle="modal" data-bs-target="#{{ $modalId }}">
-                          <i class="bi bi-pencil"></i> Assign
+                          <i class="bi bi-pencil"></i> Class
+                        </button>
+                        <button type="button" class="btn btn-sm btn-ghost-strong" data-bs-toggle="modal" data-bs-target="#{{ $assistantModalId }}">
+                          <i class="bi bi-pencil"></i> Assistant
                         </button>
                       </td>
                     </tr>
@@ -126,6 +140,39 @@
                               </select>
                               <small class="text-muted">
                                 If the classroom has streams, each stream can have its own class teacher (streams are treated as separate classes).
+                              </small>
+                            </div>
+                            <div class="modal-footer border-0 pt-0">
+                              <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
+                              <button type="submit" class="btn btn-settings-primary">Save</button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="modal fade" id="{{ $assistantModalId }}" tabindex="-1">
+                      <div class="modal-dialog">
+                        <div class="modal-content settings-card mb-0">
+                          <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title">Assign Assistant Teacher — {{ $classroom->name }} @if(($stream->id ?? null) !== null) ({{ $stream->name }}) @endif</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                          </div>
+                          <form action="{{ route('academics.classrooms.assign-assistant-class-teacher', $classroom->id) }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="stream_id" value="{{ $stream->id ?? '' }}">
+                            <div class="modal-body">
+                              <label class="form-label">Select Staff (Assistant Teacher)</label>
+                              <select name="staff_id" class="form-select">
+                                <option value="">— Unassigned —</option>
+                                @foreach($staffTeachers as $st)
+                                  <option value="{{ $st->id }}" @selected((string) $assistantStaffId === (string) $st->id)>
+                                    {{ $st->full_name }}
+                                  </option>
+                                @endforeach
+                              </select>
+                              <small class="text-muted">
+                                Assistant teachers share homeroom duties: attendance, transport, bio-data, diary control, and read-only academic access.
                               </small>
                             </div>
                             <div class="modal-footer border-0 pt-0">

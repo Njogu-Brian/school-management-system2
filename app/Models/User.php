@@ -100,13 +100,50 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     }
 
     /**
+     * Assistant class-teacher assignments for this user.
+     *
+     * @return array<int, object{classroom_id:int, stream_id:?int}>
+     */
+    public function getAssistantClassTeacherAssignments(): array
+    {
+        if (! $this->staff) {
+            return [];
+        }
+
+        $rows = \Illuminate\Support\Facades\DB::table('assistant_class_teacher_assignments')
+            ->where('staff_id', $this->staff->id)
+            ->get(['classroom_id', 'stream_id']);
+
+        return $rows
+            ->map(fn ($r) => (object) [
+                'classroom_id' => (int) $r->classroom_id,
+                'stream_id' => $r->stream_id !== null ? (int) $r->stream_id : null,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Class teacher or assistant class teacher slots (homeroom pastoral access).
+     *
+     * @return array<int, object{classroom_id:int, stream_id:?int}>
+     */
+    public function getHomeroomAssignments(): array
+    {
+        return array_values(array_merge(
+            $this->getClassTeacherAssignments(),
+            $this->getAssistantClassTeacherAssignments()
+        ));
+    }
+
+    /**
      * @return int[]
      */
     public function getClassTeacherClassroomIds(): array
     {
         return array_values(array_unique(array_map(
             fn ($a) => (int) $a->classroom_id,
-            $this->getClassTeacherAssignments()
+            $this->getHomeroomAssignments()
         )));
     }
 
@@ -117,7 +154,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     {
         return array_values(array_unique(array_values(array_filter(array_map(
             fn ($a) => $a->stream_id === null ? null : (int) $a->stream_id,
-            $this->getClassTeacherAssignments()
+            $this->getHomeroomAssignments()
         ), fn ($v) => $v !== null))));
     }
 
@@ -525,7 +562,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         $supervisedClassroomIds = ($this->isSeniorTeacherUser() || $this->isDeputySeniorTeacherUser())
             ? $this->getSupervisedClassroomIds()
             : [];
-        $classTeacherAssignments = $this->getClassTeacherAssignments();
+        $classTeacherAssignments = $this->getHomeroomAssignments();
 
         $query->where(function ($outer) use ($streamAssignments, $assignedClassroomIds, $supervisedClassroomIds, $classTeacherAssignments) {
             $matchedAny = false;

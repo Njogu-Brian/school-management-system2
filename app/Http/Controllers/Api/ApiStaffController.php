@@ -10,6 +10,8 @@ use App\Models\StaffAttendance;
 use App\Models\StaffCategory;
 use App\Models\StaffLeaveBalance;
 use App\Models\SalaryStructure;
+use App\Services\Academics\StaffTeachingAssignmentReleaseService;
+use App\Services\Academics\TeacherAssignmentService;
 use App\Services\PhoneNumberService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -563,5 +565,79 @@ class ApiStaffController extends Controller
             'marked_by' => $record->marked_by,
             'source' => $hasClock ? 'clock' : 'manual',
         ];
+    }
+
+    /**
+     * GET /api/staff/{id}/archive-preview
+     */
+    public function archivePreview(Request $request, int $id)
+    {
+        $this->assertStaffManageAccess($request);
+        $staff = Staff::with('user.roles')->findOrFail($id);
+
+        $releaseService = app(StaffTeachingAssignmentReleaseService::class);
+        $summary = $releaseService->summarize($id);
+
+        $replacementCandidates = Staff::with('user')
+            ->where('status', 'active')
+            ->where('id', '!=', $id)
+            ->whereHas('user.roles', fn ($q) => $q->whereIn('name', TeacherAssignmentService::TEACHER_ROLE_NAMES))
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(fn (Staff $s) => [
+                'id' => $s->id,
+                'full_name' => $s->full_name,
+                'staff_id' => $s->staff_id,
+            ]);
+
+        return response()->json([
+            'data' => [
+                'staff_id' => $staff->id,
+                'staff_name' => $staff->full_name,
+                'status' => $staff->status,
+                'assignments' => $summary,
+                'replacement_candidates' => $replacementCandidates,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/staff/{id}/archive
+     */
+    public function archive(Request $request, int $id)
+    {
+        $this->assertStaffManageAccess($request);
+        $staff = Staff::findOrFail($id);
+
+        if ($staff->status === 'archived') {
+            return response()->json(['message' => 'Staff member is already archived.'], 422);
+        }
+
+        $request->validate([
+            'assignment_action' => 'required|in:leave_blank,transfer',
+            'replacement_staff_id' => 'nullable|integer|exists:staff,id|different:' . $id,
+        ]);
+
+        if ($request->assignment_action === 'transfer' && ! $request->filled('replacement_staff_id')) {
+            return response()->json(['message' => 'replacement_staff_id is required when transferring assignments.'], 422);
+        }
+
+        $replacementId = $request->assignment_action === 'transfer'
+            ? (int) $request->replacement_staff_id
+            : null;
+
+        $releaseService = app(StaffTeachingAssignmentReleaseService::class);
+        $result = $releaseService->release($id, $replacementId);
+        $staff->update(['status' => 'archived']);
+
+        return response()->json([
+            'message' => 'Staff archived successfully.',
+            'data' => [
+                'staff_id' => $staff->id,
+                'transferred' => $result['transferred'],
+                'released' => $result['summary'],
+            ],
+        ]);
     }
 }

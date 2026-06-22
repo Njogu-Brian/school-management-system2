@@ -239,6 +239,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/classes', [\App\Http\Controllers\Api\ApiClassroomController::class, 'index']);
     Route::get('/classes/{classId}/streams', [\App\Http\Controllers\Api\ApiClassroomController::class, 'streams']);
     Route::get('/classes/{classId}/subjects', [\App\Http\Controllers\Api\ApiClassroomController::class, 'subjects']);
+    Route::get('/teacher-assignments/stream-slots', [\App\Http\Controllers\Api\ApiTeacherAssignmentController::class, 'streamSlots']);
+    Route::get('/staff/{id}/teaching-assignments', [\App\Http\Controllers\Api\ApiTeacherAssignmentController::class, 'show']);
+    Route::put('/staff/{id}/teaching-assignments', [\App\Http\Controllers\Api\ApiTeacherAssignmentController::class, 'update']);
+    Route::get('/staff/{id}/archive-preview', [\App\Http\Controllers\Api\ApiStaffController::class, 'archivePreview']);
+    Route::post('/staff/{id}/archive', [\App\Http\Controllers\Api\ApiStaffController::class, 'archive']);
     Route::get('/staff/filter-options', [\App\Http\Controllers\Api\ApiStaffController::class, 'filterOptions']);
     Route::get('/staff', [\App\Http\Controllers\Api\ApiStaffController::class, 'index']);
     Route::get('/staff/{id}/leave-balances', [\App\Http\Controllers\Api\ApiStaffController::class, 'leaveBalances']);

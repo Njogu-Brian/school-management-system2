@@ -18,6 +18,7 @@ export * from './hooks/useAdmissions';
 export * from './hooks/useAdmissionActions';
 export * from './hooks/useStaffList';
 export * from './hooks/useStaffDetail';
+export * from './hooks/useTeacherAssignments';
 export * from './hooks/useStaff360';
 export * from './hooks/useFinance';
 export * from './hooks/useAcademicsWorkspace';

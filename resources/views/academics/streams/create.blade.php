@@ -35,7 +35,7 @@
             <select name="classroom_id" class="form-select" required>
               <option value="">-- Select Primary Classroom --</option>
               @foreach ($classrooms as $classroom)
-                <option value="{{ $classroom->id }}" @selected(old('classroom_id') == $classroom->id)>{{ $classroom->name }}</option>
+                <option value="{{ $classroom->id }}" @selected(old('classroom_id', request('classroom_id')) == $classroom->id)>{{ $classroom->name }}</option>
               @endforeach
             </select>
             <small class="text-muted">Select the primary classroom this stream belongs to</small>

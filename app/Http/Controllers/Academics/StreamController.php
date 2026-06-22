@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Classroom;
+use App\Models\AssistantClassTeacherAssignment;
+use App\Models\ClassTeacherAssignment;
+use App\Models\Staff;
 use App\Models\Student;
 use App\Services\StreamLifecycleService;
 
@@ -32,35 +35,57 @@ class StreamController extends Controller
 
     public function index(Request $request)
     {
-        $query = Stream::with(['classroom', 'classrooms', 'teachers'])->orderBy('classroom_id')->orderBy('name');
         $supervisedIds = $this->supervisedClassroomIds();
-        if (!empty($supervisedIds)) {
-            $query->where(function ($q) use ($supervisedIds) {
-                $q->whereIn('classroom_id', $supervisedIds)
-                    ->orWhereHas('classrooms', fn ($c) => $c->whereIn('classrooms.id', $supervisedIds));
-            });
+
+        $classroomQuery = Classroom::with(['primaryStreams'])
+            ->withCount(['students' => fn ($q) => $q->where('archive', 0)])
+            ->orderBy('name');
+
+        if (! empty($supervisedIds)) {
+            $classroomQuery->whereIn('id', $supervisedIds);
         }
 
-        // Show streams whose primary OR additional (pivot) classroom matches — matches Assign Teachers logic
-        if ($request->filled('classroom_id')) {
-            $cid = (int) $request->classroom_id;
-            if (!empty($supervisedIds) && !in_array($cid, $supervisedIds, true)) {
-                abort(403, 'You can only filter by classes you supervise.');
-            }
-            $query->where(function ($q) use ($cid) {
-                $q->where('classroom_id', $cid)
-                    ->orWhereHas('classrooms', fn ($c) => $c->where('classrooms.id', $cid));
-            });
+        $classrooms = $classroomQuery->get();
+
+        $classTeacherRows = ClassTeacherAssignment::query()
+            ->with('staff')
+            ->get();
+        $classTeacherMap = [];
+        foreach ($classTeacherRows as $row) {
+            $key = (int) $row->classroom_id . ':' . ($row->stream_id === null ? 'null' : (int) $row->stream_id);
+            $classTeacherMap[$key] = $row->staff;
         }
 
-        $streams = $query->get();
-
-        $filterClassrooms = Classroom::orderBy('name')->get();
-        if (!empty($supervisedIds)) {
-            $filterClassrooms = $filterClassrooms->whereIn('id', $supervisedIds)->values();
+        $assistantRows = AssistantClassTeacherAssignment::query()
+            ->with('staff')
+            ->get();
+        $assistantMap = [];
+        foreach ($assistantRows as $row) {
+            $key = (int) $row->classroom_id . ':' . ($row->stream_id === null ? 'null' : (int) $row->stream_id);
+            $assistantMap[$key] = $row->staff;
         }
 
-        return view('academics.streams.index', compact('streams', 'filterClassrooms'));
+        $teacherRoleNames = ['Teacher', 'teacher', 'Senior Teacher', 'senior teacher', 'Supervisor', 'supervisor'];
+        $staffTeachers = Staff::with('user')
+            ->whereHas('user.roles', fn ($q) => $q->whereIn('name', $teacherRoleNames))
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        $studentCountsByStream = Student::query()
+            ->where('archive', 0)
+            ->whereNotNull('stream_id')
+            ->selectRaw('stream_id, count(*) as total')
+            ->groupBy('stream_id')
+            ->pluck('total', 'stream_id');
+
+        return view('academics.streams.index', compact(
+            'classrooms',
+            'classTeacherMap',
+            'assistantMap',
+            'staffTeachers',
+            'studentCountsByStream',
+        ));
     }
 
     public function create()
@@ -202,6 +227,111 @@ class StreamController extends Controller
 
         return redirect()->route('academics.streams.index')
             ->with('success', 'Stream updated successfully. Related teacher, subject, fee, and student links for removed classes were updated.');
+    }
+
+    /**
+     * Quick update from Class Streams card modal (name + homeroom teachers).
+     */
+    public function quickUpdate(Request $request, $id)
+    {
+        $stream = Stream::with('classrooms')->findOrFail($id);
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (! empty($supervisedIds)) {
+            $allowed = in_array((int) $stream->classroom_id, $supervisedIds, true) ||
+                $stream->classrooms->contains(fn ($c) => in_array((int) $c->id, $supervisedIds, true));
+            if (! $allowed) {
+                abort(403, 'You can only edit streams for classes you supervise.');
+            }
+        }
+
+        $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('streams')->where(fn ($q) => $q->where('classroom_id', $stream->classroom_id))->ignore($id),
+            ],
+            'class_teacher_staff_id' => 'nullable|integer|exists:staff,id',
+            'assistant_teacher_staff_id' => 'nullable|integer|exists:staff,id',
+        ]);
+
+        $stream->update(['name' => $request->name]);
+
+        $classroomId = (int) $stream->classroom_id;
+        $streamId = (int) $stream->id;
+
+        if ($request->filled('class_teacher_staff_id')) {
+            ClassTeacherAssignment::updateOrCreate(
+                ['classroom_id' => $classroomId, 'stream_id' => $streamId],
+                ['staff_id' => (int) $request->class_teacher_staff_id]
+            );
+        } else {
+            ClassTeacherAssignment::query()
+                ->where('classroom_id', $classroomId)
+                ->where('stream_id', $streamId)
+                ->delete();
+        }
+
+        if ($request->filled('assistant_teacher_staff_id')) {
+            AssistantClassTeacherAssignment::updateOrCreate(
+                ['classroom_id' => $classroomId, 'stream_id' => $streamId],
+                ['staff_id' => (int) $request->assistant_teacher_staff_id]
+            );
+        } else {
+            AssistantClassTeacherAssignment::query()
+                ->where('classroom_id', $classroomId)
+                ->where('stream_id', $streamId)
+                ->delete();
+        }
+
+        return redirect()->route('academics.streams.index')
+            ->with('success', 'Stream details updated successfully.');
+    }
+
+    /**
+     * Quick update for classrooms without streams (homeroom only).
+     */
+    public function quickUpdateClassroom(Request $request, $classroomId)
+    {
+        $classroom = Classroom::findOrFail($classroomId);
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (! empty($supervisedIds) && ! in_array((int) $classroom->id, $supervisedIds, true)) {
+            abort(403, 'You can only edit classes you supervise.');
+        }
+
+        $request->validate([
+            'class_teacher_staff_id' => 'nullable|integer|exists:staff,id',
+            'assistant_teacher_staff_id' => 'nullable|integer|exists:staff,id',
+        ]);
+
+        $cid = (int) $classroom->id;
+
+        if ($request->filled('class_teacher_staff_id')) {
+            ClassTeacherAssignment::updateOrCreate(
+                ['classroom_id' => $cid, 'stream_id' => null],
+                ['staff_id' => (int) $request->class_teacher_staff_id]
+            );
+        } else {
+            ClassTeacherAssignment::query()
+                ->where('classroom_id', $cid)
+                ->whereNull('stream_id')
+                ->delete();
+        }
+
+        if ($request->filled('assistant_teacher_staff_id')) {
+            AssistantClassTeacherAssignment::updateOrCreate(
+                ['classroom_id' => $cid, 'stream_id' => null],
+                ['staff_id' => (int) $request->assistant_teacher_staff_id]
+            );
+        } else {
+            AssistantClassTeacherAssignment::query()
+                ->where('classroom_id', $cid)
+                ->whereNull('stream_id')
+                ->delete();
+        }
+
+        return redirect()->route('academics.streams.index')
+            ->with('success', $classroom->name . ' class teacher updated successfully.');
     }
 
     public function assignTeachers(Request $request, $id)

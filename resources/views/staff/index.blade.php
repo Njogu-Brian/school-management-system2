@@ -305,12 +305,9 @@
                                                         @endif
                                                         @if($s->status === 'active')
                                                             <li>
-                                                                <form action="{{ route('staff.archive', $s->id) }}" method="POST" onsubmit="return confirm('Archive this staff member?')">
-                                                                    @csrf @method('PATCH')
-                                                                    <button type="submit" class="dropdown-item text-danger">
-                                                                        <i class="bi bi-archive"></i> Archive
-                                                                    </button>
-                                                                </form>
+                                                                <a href="{{ route('staff.archive.form', $s->id) }}" class="dropdown-item text-danger">
+                                                                    <i class="bi bi-archive"></i> Archive
+                                                                </a>
                                                             </li>
                                                         @else
                                                             <li>

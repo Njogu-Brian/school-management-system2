@@ -139,13 +139,18 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
 </a>
 <div class="collapse {{ $academicsActive ? 'show' : '' }}" id="academicsMenu">
     <a href="{{ route('academics.classrooms.index') }}" class="{{ Request::is('academics/classrooms*') ? 'active' : '' }}">Classrooms</a>
-    <a href="{{ route('academics.streams.index') }}" class="{{ Request::is('academics/streams*') ? 'active' : '' }}">Streams</a>
+    <a href="{{ route('academics.streams.index') }}" class="{{ Request::is('academics/streams*') ? 'active' : '' }}">
+        <i class="bi bi-diagram-3"></i> Class Streams
+    </a>
     <a href="{{ route('academics.subjects.index') }}" class="{{ Request::is('academics/subjects*') && !Request::is('academics/subjects/teacher-assignments*') ? 'active' : '' }}">Subjects</a>
     <a href="{{ route('academics.subjects.teacher-assignments') }}" class="sublink {{ Request::is('academics/subjects/teacher-assignments*') ? 'active' : '' }}">
         <i class="bi bi-person-lines-fill"></i> Subject Teacher Map
     </a>
     <a href="{{ route('academics.assign-teachers') }}" class="{{ Request::is('academics/assign-teachers*') ? 'active' : '' }}">
         <i class="bi bi-person-check"></i> Assign Class Teachers
+    </a>
+    <a href="{{ route('academics.teacher-assignments.index') }}" class="sublink {{ Request::is('academics/teacher-assignments*') ? 'active' : '' }}">
+        <i class="bi bi-mortarboard"></i> Teacher Assignments
     </a>
     <a href="{{ route('academics.promotions.index') }}" class="{{ Request::is('academics/promotions*') ? 'active' : '' }}">
         <i class="bi bi-arrow-up-circle"></i> Student Promotions

@@ -14,5 +14,10 @@ class ClassTeacherAssignment extends Model
         'stream_id',
         'staff_id',
     ];
+
+    public function staff()
+    {
+        return $this->belongsTo(Staff::class);
+    }
 }
 

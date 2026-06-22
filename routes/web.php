@@ -451,6 +451,8 @@ Route::middleware('auth')->group(function () {
         // Core setup
         Route::resource('classrooms',      ClassroomController::class)->except(['show']);
         Route::resource('streams',         StreamController::class)->except(['show']);
+        Route::post('streams/{id}/quick-update', [StreamController::class, 'quickUpdate'])->name('streams.quick-update');
+        Route::post('classrooms/{classroom}/quick-homeroom', [StreamController::class, 'quickUpdateClassroom'])->name('classrooms.quick-homeroom');
         Route::post('streams/{id}/assign-teachers', [StreamController::class, 'assignTeachers'])->name('streams.assign-teachers');
         Route::get('subjects/teacher-assignments', [SubjectController::class, 'teacherAssignments'])->name('subjects.teacher-assignments');
         Route::post('subjects/teacher-assignments', [SubjectController::class, 'saveTeacherAssignments'])->name('subjects.teacher-assignments.save');
@@ -462,6 +464,12 @@ Route::middleware('auth')->group(function () {
         Route::get('assign-teachers', [AssignTeachersController::class, 'index'])->name('assign-teachers');
         Route::post('assign-teachers/clear', [AssignTeachersController::class, 'clearAllAssignments'])->name('assign-teachers.clear');
         Route::post('classrooms/{id}/assign-class-teacher', [AssignTeachersController::class, 'assignClassTeacher'])->name('classrooms.assign-class-teacher');
+        Route::post('classrooms/{id}/assign-assistant-class-teacher', [AssignTeachersController::class, 'assignAssistantClassTeacher'])->name('classrooms.assign-assistant-class-teacher');
+
+        // Unified teacher-centric assignments (streams + subjects + class/assistant teacher)
+        Route::get('teacher-assignments', [\App\Http\Controllers\Academics\TeacherAssignmentController::class, 'index'])->name('teacher-assignments.index');
+        Route::get('teacher-assignments/{staff}/edit', [\App\Http\Controllers\Academics\TeacherAssignmentController::class, 'edit'])->name('teacher-assignments.edit');
+        Route::post('teacher-assignments/{staff}', [\App\Http\Controllers\Academics\TeacherAssignmentController::class, 'update'])->name('teacher-assignments.update');
         
         // Student Promotions
         Route::get('promotions', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'index'])->name('promotions.index');
@@ -799,14 +807,13 @@ Route::middleware('auth')->group(function () {
             });
 
             // CRUD - Individual staff routes (must come AFTER all specific routes)
+            Route::get('/{id}/archive', [StaffController::class, 'showArchiveForm'])->name('archive.form');
+            Route::patch('/{id}/archive', [StaffController::class, 'archive'])->name('archive');
+            Route::patch('/{id}/restore', [StaffController::class, 'restore'])->name('restore');
             Route::get('/{id}',      [StaffController::class, 'show'])->name('show');
             Route::get('/{id}/edit', [StaffController::class, 'edit'])->name('edit');
             Route::put('/{id}',      [StaffController::class, 'update'])->name('update');
 
-            // Archive / Restore
-            Route::patch('/{id}/archive', [StaffController::class, 'archive'])->name('archive');
-            Route::patch('/{id}/restore', [StaffController::class, 'restore'])->name('restore');
-            
             // Bulk supervisor assignment
             Route::post('/bulk-assign-supervisor', [StaffController::class, 'bulkAssignSupervisor'])->name('bulk-assign-supervisor');
             

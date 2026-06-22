@@ -24,6 +24,7 @@ export * from './analytics.api';
 export * from './branding.api';
 export * from './staffClock.api';
 export * from './teacherTransport.api';
+export * from './teacherAssignments.api';
 export * from './driverTransport.api';
 export * from './device.api';
 export * from './cbc.api';

@@ -1,6 +1,7 @@
 export type Staff360TabId =
   | 'overview'
   | 'employment'
+  | 'teaching'
   | 'leave'
   | 'attendance'
   | 'payroll'

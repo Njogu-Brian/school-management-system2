@@ -22,12 +22,14 @@ import { OverviewTab } from '../staff360/tabs/OverviewTab';
 import { PayrollTab } from '../staff360/tabs/PayrollTab';
 import { PerformanceTab } from '../staff360/tabs/PerformanceTab';
 import { TrainingTab } from '../staff360/tabs/TrainingTab';
+import { TeachingTab } from '../staff360/tabs/TeachingTab';
 
 type Props = StackScreenProps<PeopleStackParamList, 'StaffDetail'>;
 
 const TABS: Array<{ id: Staff360TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'employment', label: 'Employment' },
+  { id: 'teaching', label: 'Teaching' },
   { id: 'leave', label: 'Leave' },
   { id: 'attendance', label: 'Attendance' },
   { id: 'payroll', label: 'Payroll' },
@@ -155,6 +157,8 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         );
       case 'employment':
         return <EmploymentTab staff={staff} canViewFinance={canViewFinance} />;
+      case 'teaching':
+        return <TeachingTab staffId={staffId} systemRole={staff.systemRole} />;
       case 'leave':
         return (
           <LeaveTab

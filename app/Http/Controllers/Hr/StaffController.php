@@ -23,8 +23,8 @@ use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Models\Role;
 use App\Exports\StaffTemplateExport;
-use App\Imports\StaffImportPreviewOnly;
-use Illuminate\Support\Arr;
+use App\Services\Academics\StaffTeachingAssignmentReleaseService;
+use App\Services\Academics\TeacherAssignmentService;
 
 class StaffController extends Controller
 {
@@ -360,8 +360,28 @@ class StaffController extends Controller
         $customFields = CustomField::where('module','staff')->get();
         $spatieRoles  = Role::all();
 
+        $assignmentService = app(TeacherAssignmentService::class);
+        $showTeachingAssignments = $assignmentService->staffHasTeachingRole($staff);
+        $streamSlots = collect();
+        $subjectsBySlot = [];
+        $selectedSlotKeys = [];
+        $slotData = [];
+
+        if ($showTeachingAssignments) {
+            $streamSlots = $assignmentService->getStreamSlots();
+            $assignments = $assignmentService->getAssignmentsForStaff($staff->id);
+            $selectedSlotKeys = collect($assignments['slots'])->pluck('key')->all();
+            $slotData = collect($assignments['slots'])->keyBy('key')->all();
+            foreach ($streamSlots as $slot) {
+                $subjectsBySlot[$slot->key] = $assignmentService
+                    ->getSubjectsForSlot($slot->classroom_id, $slot->stream_id)
+                    ->all();
+            }
+        }
+
         return view('staff.edit', compact(
-            'staff','supervisors','categories','departments','jobTitles','customFields','spatieRoles'
+            'staff','supervisors','categories','departments','jobTitles','customFields','spatieRoles',
+            'showTeachingAssignments','streamSlots','subjectsBySlot','selectedSlotKeys','slotData'
         ));
     }
 
@@ -508,10 +528,66 @@ class StaffController extends Controller
         }
     }
 
-    public function archive($id)
+    public function showArchiveForm($id)
     {
-        Staff::where('id', $id)->update(['status' => 'archived']);
-        return back()->with('success', 'Staff archived');
+        $staff = Staff::with('user.roles')->findOrFail($id);
+        if ($staff->status === 'archived') {
+            return redirect()->route('staff.index')->with('error', 'This staff member is already archived.');
+        }
+
+        $releaseService = app(StaffTeachingAssignmentReleaseService::class);
+        $assignmentSummary = $releaseService->summarize((int) $staff->id);
+
+        $replacementCandidates = Staff::with('user')
+            ->where('status', 'active')
+            ->where('id', '!=', $staff->id)
+            ->whereHas('user.roles', fn ($q) => $q->whereIn('name', TeacherAssignmentService::TEACHER_ROLE_NAMES))
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        return view('staff.archive', compact('staff', 'assignmentSummary', 'replacementCandidates'));
+    }
+
+    public function archive(Request $request, $id)
+    {
+        $staff = Staff::findOrFail($id);
+        if ($staff->status === 'archived') {
+            return back()->with('error', 'This staff member is already archived.');
+        }
+
+        $request->validate([
+            'assignment_action' => 'required|in:leave_blank,transfer',
+            'replacement_staff_id' => 'nullable|integer|exists:staff,id|different:' . $staff->id,
+        ]);
+
+        if ($request->assignment_action === 'transfer' && ! $request->filled('replacement_staff_id')) {
+            return back()
+                ->withInput()
+                ->with('error', 'Select a replacement teacher to transfer assignments to.');
+        }
+
+        $replacementId = $request->assignment_action === 'transfer'
+            ? (int) $request->replacement_staff_id
+            : null;
+
+        $releaseService = app(StaffTeachingAssignmentReleaseService::class);
+        $result = $releaseService->release((int) $staff->id, $replacementId);
+
+        $staff->update(['status' => 'archived']);
+
+        $total = array_sum($result['summary']);
+        if ($total === 0) {
+            $message = $staff->full_name . ' has been archived.';
+        } elseif ($result['transferred']) {
+            $replacement = Staff::find($replacementId);
+            $message = $staff->full_name . ' archived. ' . $total . ' teaching assignment(s) transferred to '
+                . ($replacement?->full_name ?? 'the selected teacher') . '.';
+        } else {
+            $message = $staff->full_name . ' archived. ' . $total . ' teaching assignment(s) left unassigned.';
+        }
+
+        return redirect()->route('staff.index')->with('success', $message);
     }
 
     public function restore($id)

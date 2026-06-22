@@ -21,6 +21,9 @@
         @if(session('error'))
             <div class="alert alert-danger">{{ session('error') }}</div>
         @endif
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
         @if($errors->any())
             <div class="alert alert-danger">
                 <ul class="mb-0">
@@ -50,6 +53,40 @@
                 </form>
             </div>
         </div>
+
+        @if(!empty($showTeachingAssignments))
+        <div class="settings-card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-0"><i class="bi bi-mortarboard"></i> Teaching Assignments</h5>
+                    <p class="text-muted small mb-0">Streams, subjects, class teacher, and assistant teacher roles.</p>
+                </div>
+                <a href="{{ route('academics.teacher-assignments.edit', $staff->id) }}" class="btn btn-sm btn-ghost-strong">
+                    Open full page
+                </a>
+            </div>
+            <div class="card-body">
+                <form action="{{ route('academics.teacher-assignments.update', $staff->id) }}" method="POST">
+                    @csrf
+                    @include('academics.teacher_assignments.partials.streams_form', [
+                        'staff' => $staff,
+                        'streamSlots' => $streamSlots,
+                        'subjectsBySlot' => $subjectsBySlot,
+                        'selectedSlotKeys' => $selectedSlotKeys,
+                        'slotData' => $slotData,
+                        'redirectTo' => 'staff.edit',
+                    ])
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+                        <button type="submit" class="btn btn-settings-primary">
+                            <i class="bi bi-check-circle"></i> Save Teaching Assignments
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        @endif
     </div>
 </div>
 @endsection
+
+@stack('scripts')

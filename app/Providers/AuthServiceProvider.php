@@ -63,12 +63,22 @@ class AuthServiceProvider extends ServiceProvider
                 ->where('classroom_id', $classroomId)
                 ->exists();
 
-            $isClassTeacher = DB::table('classroom_teacher')
-                ->where('teacher_id', $user->id) // users.id
+            $isClassTeacher = DB::table('class_teacher_assignments')
+                ->where('staff_id', $staff->id)
                 ->where('classroom_id', $classroomId)
                 ->exists();
 
-            return $teachesInClass || $isClassTeacher;
+            $isAssistantClassTeacher = DB::table('assistant_class_teacher_assignments')
+                ->where('staff_id', $staff->id)
+                ->where('classroom_id', $classroomId)
+                ->exists();
+
+            $isLegacyClassTeacher = DB::table('classroom_teacher')
+                ->where('teacher_id', $user->id)
+                ->where('classroom_id', $classroomId)
+                ->exists();
+
+            return $teachesInClass || $isClassTeacher || $isAssistantClassTeacher || $isLegacyClassTeacher;
         });
     }
 }

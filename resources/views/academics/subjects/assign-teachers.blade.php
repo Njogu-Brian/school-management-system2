@@ -20,6 +20,9 @@
         <a href="{{ route('academics.assign-teachers') }}" class="btn btn-ghost-strong">
           <i class="bi bi-people"></i> Classroom Teacher Assignments
         </a>
+        <a href="{{ route('academics.teacher-assignments.index') }}" class="btn btn-settings-primary">
+          <i class="bi bi-mortarboard"></i> Teacher Assignments (All Roles)
+        </a>
       </div>
     </div>
 
