@@ -7,6 +7,7 @@ import { useBrandContent } from "@/hooks/useBrandContent";
 import { useSchoolPathways } from "@/hooks/useSchoolPathways";
 import { enrichBrandItemsWithMedia } from "@/lib/premiumMedia";
 import { HeroSection } from "@/sections/HeroSection";
+import { SchoolStorySection } from "@/sections/brand/SchoolStorySection";
 import { FindYourPlaceSection } from "@/sections/brand/FindYourPlaceSection";
 import { OneJourney } from "@/sections/brand/OneJourney";
 import { BeyondClassroom } from "@/sections/brand/BeyondClassroom";
@@ -28,6 +29,7 @@ export default function HomePage() {
   return (
     <SiteShell>
       <HeroSection settings={settings} trustPills={brand.items("trust_pill")} heroMedia={heroMedia ?? undefined} />
+      <SchoolStorySection />
       <FindYourPlaceSection pathways={pathways} subtitle={intro.subtitle} />
       <OneJourney milestones={journeyMilestones} />
       <BeyondClassroom items={cocurricular} />

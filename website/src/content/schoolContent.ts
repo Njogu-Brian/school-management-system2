@@ -3,6 +3,8 @@
  * Logo purple sampled: #B400FF
  */
 
+import { LEGACY_GALLERY, LEGACY_HEROES } from "./legacyGallery";
+
 const BASE = "https://royalkingsschools.sc.ke/assets/images";
 
 export const BRAND = {
@@ -49,22 +51,22 @@ export const CONTACT = {
 
 export const LEGACY_IMAGES = {
   logo: `${BASE}/royal-logo-small-192x192.png`,
-  campus: `${BASE}/whatsapp-image-2024-10-28-at-18.13.54-cb80dc6a-705x999.jpg`,
-  admissions: `${BASE}/2025-admissions-815x815.png`,
-  classroom: `${BASE}/332419888-1246340212647102-4730361110570400332-n-1101x734.jpeg`,
-  students: `${BASE}/325404592-1597148387416946-3846122370734442560-n-1-906x604.jpeg`,
+  campus: LEGACY_HEROES.homeMural,
+  admissions: LEGACY_HEROES.admissionsPromo,
+  classroom: LEGACY_HEROES.classroom,
+  students: LEGACY_HEROES.empowering,
+  mission: LEGACY_HEROES.mission,
+  about: LEGACY_HEROES.aboutWelcome,
+  fees: LEGACY_HEROES.fees,
   family1: `${BASE}/family-grandparents-parents-kids-cartoons-18591-52188-160x160.jpg`,
   family2: `${BASE}/happy-family-portrait-vectorized-character-design-23-2148163542-160x160.jpg`,
 };
 
-export const GALLERY_PHOTOS = [
-  { src: LEGACY_IMAGES.campus, title: "Our Beautiful Campus", caption: "Royal Kings Premier School, Wangige" },
-  { src: LEGACY_IMAGES.classroom, title: "Learning in Action", caption: "Engaged learners in our classrooms" },
-  { src: LEGACY_IMAGES.students, title: "Happy Students", caption: "Joyful moments on campus" },
-  { src: LEGACY_IMAGES.admissions, title: "2025 Admissions Open", caption: "Enroll your child today" },
-  { src: LEGACY_IMAGES.campus, title: "Campus Life", caption: "Where learning is fun" },
-  { src: LEGACY_IMAGES.students, title: "Growing Together", caption: "Christian family-centered education" },
-];
+export const GALLERY_PHOTOS = LEGACY_GALLERY.map((p) => ({
+  src: p.src,
+  title: p.title,
+  caption: p.caption,
+}));
 
 export const STATS = [
   { value: "2006", label: "Founded" },
@@ -114,14 +116,20 @@ export const LEGACY_TESTIMONIALS = [
 ];
 
 export const HIGHLIGHTS = [
-  { title: "November Talent Camp", subtitle: "Holiday enrichment & creative discovery for all ages", image: LEGACY_IMAGES.students },
-  { title: "2025 Admissions Open", subtitle: "Limited spaces — enroll your child today", image: LEGACY_IMAGES.admissions },
-  { title: "Nearly 20 Years", subtitle: "Shaping leaders since 2006 in Wangige", image: LEGACY_IMAGES.campus },
+  { title: "November Talent Camp", subtitle: "Holiday enrichment & creative discovery for all ages", image: LEGACY_HEROES.novemberCamp },
+  { title: "2025 Admissions Open", subtitle: "Limited spaces — enroll your child today", image: LEGACY_HEROES.admissionsPromo },
+  { title: "Nearly 20 Years", subtitle: "Shaping leaders since 2006 in Wangige", image: LEGACY_HEROES.community },
 ];
 
 export const FEES_NOTE = {
   title: "School Fees & Value",
   intro: "Royal Kings Premier School offers premium Christian education structured for families seeking lasting value. We believe every child deserves excellence without compromise.",
+  included: [
+    "Academic tuition (CBC-aligned, Creche to Grade 9)",
+    "Meals",
+    "Sports and clubs",
+    "House and inter-class activities",
+  ],
   points: [
     "Transparent fee structure shared during school tour or admissions consultation",
     "Flexible payment plans discussed with our finance office",
@@ -130,16 +138,87 @@ export const FEES_NOTE = {
     "Transport routes available for surrounding areas",
   ],
   cta: "Contact admissions or WhatsApp us for the current fee structure.",
+  payment: {
+    bank: {
+      name: "Equity Bank Kenya",
+      branch: "Tom Mboya",
+      accountName: "ROYAL KINGS EDUCATION CENTRE LTD",
+      accountNumber: "0120263149140",
+      swift: "EQBLKENA XXX",
+      bankCode: "68-012",
+    },
+    mpesa: {
+      paybill: "4068473",
+      accountHint: "Student number or learner name",
+      steps: [
+        "Open M-Pesa → Lipa na M-Pesa → Pay Bill",
+        "Business No: 4068473",
+        "Account No: Student number or name",
+        "Enter amount and confirm with your M-Pesa PIN",
+      ],
+    },
+    equityPaybill: {
+      paybill: "247247",
+      accountHint: "149140#(Child's name or admission number)",
+    },
+    notice: "We do not accept cash payments or M-Pesa Send Money.",
+  },
+};
+
+export const FACILITIES = {
+  location:
+    "Our school is situated at Riverside Wangige, along the newly constructed Western Bypass, Nairobi, Kenya — a trusted, affordable choice for families in the Lower Kabete area and surrounding communities.",
+  items: [
+    "ICT computer rooms and high-speed internet for learners and staff",
+    "Laboratories for Science, Technology, Engineering, Art & Mathematics (STEAM)",
+    "Dance, drama, music, and art studios",
+    "Multipurpose sport and cultural hall",
+    "Library and reading spaces",
+    "Swimming pool with change rooms and pavilion (phased development)",
+    "Sports fields for football, volleyball, and netball; basketball and tennis courts",
+    "Fleet of buses and vans for daily school transport",
+    "Modern classrooms with quality furniture and learning resources",
+  ],
+};
+
+export const ADMISSIONS_CONTENT = {
+  welcome:
+    "Welcome to a journey of excellence, empowerment, and endless opportunities. Discover a nurturing environment where every child's potential is unlocked and dreams are realised. Join our Royal Kings family — where excellence in education meets boundless opportunities for growth and success.",
+  procedure: [
+    "Complete and submit the online application",
+    "An admissions representative will contact you",
+    "A school visit and learner evaluation will be scheduled",
+    "You will receive feedback on your child's assessment",
+  ],
+  newStudent: {
+    title: "New Student (beginners)",
+    items: [
+      "Preschool learners should be at least 2.5 years old by January of the school year",
+      "Authentic birth certificate required for age verification",
+      "All applicants undergo screening and assessment to ensure readiness for our programme",
+      "Complete the online application form",
+    ],
+  },
+  transfer: {
+    title: "Transfer (joining from another school)",
+    items: [
+      "Complete the online application form",
+      "Learners are invited for an entry assessment after application",
+      "Upon clearance: birth certificate copy, transfer letter, learner's NEMIS number, and KNEC assessment number",
+    ],
+  },
+  journeyNote:
+    "Your application marks the beginning of an exciting chapter. Our admissions procedure is designed to ensure a smooth, seamless enrollment process for your family.",
 };
 
 export const ACADEMICS_CONTENT = {
   intro: "Our CBC-aligned curriculum guides learners from Creche through Grade 9 with competency-based assessment, dedicated teachers, and a clear pathway from early years to junior secondary.",
   stages: [
-    { name: "Creche (Baby–Top Class)", ages: "3–5", focus: "Play-based learning, Bible stories, phonics introduction, school readiness", image: LEGACY_IMAGES.family2 },
-    { name: "Foundation & Pre-Primary", ages: "5–6", focus: "Literacy foundations, numeracy, creative arts, confidence building", image: LEGACY_IMAGES.classroom },
-    { name: "Lower Primary (Grades 1–3)", ages: "6–9", focus: "Core CBC competencies, creativity, Christian character formation", image: LEGACY_IMAGES.students },
-    { name: "Upper Primary (Grades 4–6)", ages: "9–12", focus: "STEM integration, research projects, leadership opportunities", image: LEGACY_IMAGES.classroom },
-    { name: "Junior Secondary (Grades 7–9)", ages: "12–15", focus: "Exam readiness, mentorship, career awareness, co-curricular mastery", image: LEGACY_IMAGES.campus },
+    { name: "Creche (Baby–Top Class)", ages: "3–5", focus: "Play-based learning, Bible stories, phonics introduction, school readiness", image: LEGACY_HEROES.earlyYears },
+    { name: "Foundation & Pre-Primary", ages: "5–6", focus: "Literacy foundations, numeracy, creative arts, confidence building", image: LEGACY_HEROES.playground },
+    { name: "Lower Primary (Grades 1–3)", ages: "6–9", focus: "Core CBC competencies, creativity, Christian character formation", image: LEGACY_HEROES.primary },
+    { name: "Upper Primary (Grades 4–6)", ages: "9–12", focus: "STEM integration, research projects, leadership opportunities", image: LEGACY_HEROES.classroom },
+    { name: "Junior Secondary (Grades 7–9)", ages: "12–15", focus: "Exam readiness, mentorship, career awareness, co-curricular mastery", image: LEGACY_HEROES.junior },
   ],
 };
 

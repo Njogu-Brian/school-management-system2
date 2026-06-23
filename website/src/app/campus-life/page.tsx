@@ -1,19 +1,27 @@
 import Link from "next/link";
 import { RichPage, PageHero, SectionBlock, PhotoGrid, CtaBanner } from "@/components/layout/RichPage";
-import { CAMPUS_LIFE, GALLERY_PHOTOS, HIGHLIGHTS, LEGACY_IMAGES, CONTACT } from "@/content/schoolContent";
+import { CAMPUS_LIFE, HIGHLIGHTS, CONTACT } from "@/content/schoolContent";
+import { LEGACY_GALLERY, LEGACY_HEROES } from "@/content/legacyGallery";
 
 export default function CampusLifePage() {
   return (
     <RichPage>
-      <PageHero title="Campus & Gallery" subtitle={CAMPUS_LIFE.intro} image={LEGACY_IMAGES.campus} />
+      <PageHero title="Campus & Gallery" subtitle={CAMPUS_LIFE.intro} image={LEGACY_HEROES.playground} />
       <SectionBlock title="Life at Royal Kings Premier School">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {CAMPUS_LIFE.features.map((feature) => (
-            <article key={feature.title} className="rounded-2xl bg-[var(--rk-surface)] p-5 ring-1 ring-[var(--rk-border)] sm:p-6">
-              <h3 className="font-serif text-lg font-semibold text-[var(--rk-purple)]">{feature.title}</h3>
-              <p className="mt-2 text-sm text-[var(--rk-muted)] sm:text-base">{feature.detail}</p>
-            </article>
-          ))}
+          {CAMPUS_LIFE.features.map((feature, i) => {
+            const thumb = LEGACY_GALLERY[i % LEGACY_GALLERY.length];
+            return (
+              <article key={feature.title} className="overflow-hidden rounded-2xl bg-[var(--rk-surface)] ring-1 ring-[var(--rk-border)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={thumb.src} alt={feature.title} className="aspect-[16/10] w-full object-cover" />
+                <div className="p-5 sm:p-6">
+                  <h3 className="font-serif text-lg font-semibold text-[var(--rk-purple)]">{feature.title}</h3>
+                  <p className="mt-2 text-sm text-[var(--rk-muted)] sm:text-base">{feature.detail}</p>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </SectionBlock>
       <SectionBlock alt>
@@ -25,6 +33,10 @@ export default function CampusLifePage() {
               loved, and inspired. Our Wangige campus blends modern learning spaces with warm, family-centered care — the same experience
               families have trusted since 2006.
             </p>
+            <p className="prose-rk mt-4">
+              <strong>Learning is Fun!</strong> — that is not just a slogan on our walls. It is how we teach, play, worship, and grow together
+              every single day.
+            </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <a href={CONTACT.mapsUrl} target="_blank" rel="noreferrer" className="rounded-full bg-[var(--rk-purple)] px-5 py-2 text-sm font-semibold text-white">
                 Visit Us on Maps
@@ -35,11 +47,11 @@ export default function CampusLifePage() {
             </div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={LEGACY_IMAGES.campus} alt="Royal Kings campus" className="w-full rounded-2xl object-cover shadow-xl" />
+          <img src={LEGACY_HEROES.community} alt="Royal Kings campus community" className="w-full rounded-2xl object-cover shadow-xl" />
         </div>
       </SectionBlock>
-      <SectionBlock title="Photo Gallery" id="gallery">
-        <PhotoGrid photos={GALLERY_PHOTOS} />
+      <SectionBlock title="A Sneak Peek — Learning is Fun!" intro="Real moments from our Wangige campus — classrooms, sports, arts, devotions, and celebrations." id="gallery">
+        <PhotoGrid photos={LEGACY_GALLERY.map((p) => ({ src: p.src, title: p.title, caption: p.caption }))} />
       </SectionBlock>
       <SectionBlock title="Upcoming Highlights" alt id="events">
         <div className="grid gap-6 md:grid-cols-3">
@@ -54,9 +66,6 @@ export default function CampusLifePage() {
             </article>
           ))}
         </div>
-        <p className="mt-8 text-center text-sm text-[var(--rk-muted)]">
-          Follow us on social media for the latest events, open days, and talent camp updates.
-        </p>
       </SectionBlock>
       <SectionBlock title="Virtual Campus Tour" id="tour">
         <div className="grid items-center gap-8 lg:grid-cols-2">
@@ -73,25 +82,19 @@ export default function CampusLifePage() {
           <div>
             <h3 className="font-serif text-xl font-bold text-[var(--rk-purple-dark)]">Explore Wangige Campus</h3>
             <p className="prose-rk mt-4">
-              Walk our grounds, meet our teachers, and see why families from Wangige, Lower Kabete, Kikuyu, Gitaru, and Uthiru choose
-              Royal Kings Premier School. Schedule an in-person tour or explore our location on Google Maps.
+              Riverside Wangige, along the Western Bypass — walk our grounds, meet our teachers, and see why families choose Royal Kings.
             </p>
             <div className="mt-6 grid grid-cols-2 gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={LEGACY_IMAGES.classroom} alt="Classroom" className="rounded-xl object-cover shadow" />
+              <img src={LEGACY_HEROES.sports} alt="Sports at Royal Kings" className="rounded-xl object-cover shadow" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={LEGACY_IMAGES.students} alt="Students" className="rounded-xl object-cover shadow" />
+              <img src={LEGACY_HEROES.arts} alt="Arts at Royal Kings" className="rounded-xl object-cover shadow" />
             </div>
           </div>
         </div>
       </SectionBlock>
       <SectionBlock alt>
-        <CtaBanner
-          title="2025 Admissions Open"
-          body="Limited spaces available. Enroll your child at Royal Kings Premier School today."
-          href="/admissions"
-          label="Apply Now"
-        />
+        <CtaBanner title="2025 Admissions Open" body="Limited spaces available. Enroll your child at Royal Kings Premier School today." href="/admissions" label="Apply Now" />
       </SectionBlock>
     </RichPage>
   );

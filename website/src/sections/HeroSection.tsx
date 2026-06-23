@@ -5,7 +5,8 @@ import Link from "next/link";
 import type { WebsiteSettings, GalleryItem } from "@/types/website";
 import type { BrandItem } from "@/types/brand";
 import { heroMediaReveal, heroPillReveal, heroReveal } from "@/animations/variants";
-import { BRAND, LEGACY_IMAGES } from "@/content/schoolContent";
+import { BRAND } from "@/content/schoolContent";
+import { LEGACY_HEROES } from "@/content/legacyGallery";
 import { ResponsiveImage } from "@/components/media/ResponsiveImage";
 import { mediaUrl } from "@/lib/premiumMedia";
 
@@ -28,7 +29,7 @@ export function HeroSection({
 }) {
   const reduceMotion = useReducedMotion();
   const pills = trustPills.length > 0 ? trustPills : FALLBACK_PILLS.map((title) => ({ title }));
-  const heroImage = heroMedia ? mediaUrl(heroMedia, "xl") ?? heroMedia.url : LEGACY_IMAGES.campus;
+  const heroImage = heroMedia ? mediaUrl(heroMedia, "xl") ?? heroMedia.url : LEGACY_HEROES.homeMural;
 
   const reveal = (index: number) =>
     reduceMotion
