@@ -18,7 +18,7 @@ function reveal(index: number, reduceMotion: boolean | null) {
       };
 }
 
-export function SchoolStorySection() {
+export function SchoolStorySectionFallback() {
   const reduceMotion = useReducedMotion();
 
   return (

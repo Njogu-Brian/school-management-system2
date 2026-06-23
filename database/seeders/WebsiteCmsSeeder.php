@@ -104,6 +104,7 @@ class WebsiteCmsSeeder extends Seeder
         }
 
         $pages = [
+            ['name' => 'Fees', 'slug' => 'fees', 'title' => 'School Fees'],
             ['name' => 'About', 'slug' => 'about', 'title' => 'About Royal Kings'],
             ['name' => 'Academics', 'slug' => 'academics', 'title' => 'Academics'],
             ['name' => 'Admissions', 'slug' => 'admissions', 'title' => 'Admissions'],
@@ -163,5 +164,7 @@ class WebsiteCmsSeeder extends Seeder
                 'published_at' => now(),
             ]
         );
+
+        $this->call(WebsiteCmsPageSectionsSeeder::class);
     }
 }

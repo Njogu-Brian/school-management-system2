@@ -35,6 +35,7 @@
                                     <td><span class="pill-badge">{{ ucfirst($page->status) }}</span></td>
                                     <td>@if($page->is_homepage)<i class="bi bi-house-fill text-success"></i>@endif</td>
                                     <td class="text-end">
+                                        <a href="{{ route('website.builder.show', $page) }}" class="btn btn-sm btn-ghost-strong" title="Edit sections"><i class="bi bi-columns-gap"></i></a>
                                         <a href="{{ route('website.pages.edit', $page) }}" class="btn btn-sm btn-ghost-strong"><i class="bi bi-pencil"></i></a>
                                         @if(!$page->is_homepage)
                                             <form action="{{ route('website.pages.destroy', $page) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this page?');">

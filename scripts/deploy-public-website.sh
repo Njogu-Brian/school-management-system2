@@ -16,6 +16,7 @@ PM2_NAME="${PM2_NAME:-royal-kings-website}"
 echo "==> Seeding CMS content (homepage + settings) if missing..."
 cd "$APP_ROOT"
 php artisan db:seed --class=WebsiteCmsSeeder --force
+php artisan db:seed --class=WebsiteCmsPageSectionsSeeder --force
 php artisan db:seed --class=WebsiteSprints2130Seeder --force
 
 echo "==> Building Next.js website..."

@@ -58,6 +58,10 @@
                             </form>
                         </div>
                     </div>
+                    @include('website.partials.section-edit-form', [
+                        'section' => $section,
+                        'updateRoute' => route('website.builder.update-section', $section),
+                    ])
                     <input type="hidden" name="order[]" value="{{ $section->id }}">
                 </li>
                 @endforeach

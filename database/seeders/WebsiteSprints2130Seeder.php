@@ -13,7 +13,17 @@ class WebsiteSprints2130Seeder extends Seeder
     {
         $blocks = [
             ['name' => 'Hero Banner', 'type' => 'hero', 'default_content' => ['title' => 'Welcome to Royal Kings', 'subtitle' => 'Where Little Steps Grow Into Great Futures']],
+            ['name' => 'Page Hero', 'type' => 'page_hero'],
+            ['name' => 'Rich Text + Image', 'type' => 'rich_text'],
+            ['name' => 'School Story Block', 'type' => 'school_story'],
+            ['name' => 'Editorial Intro', 'type' => 'editorial_intro'],
+            ['name' => 'Payment Methods', 'type' => 'payment_methods'],
+            ['name' => 'List Columns', 'type' => 'list_columns'],
+            ['name' => 'Info Card Grid', 'type' => 'info_grid'],
+            ['name' => 'Card Grid', 'type' => 'card_grid'],
+            ['name' => 'Social + CTA', 'type' => 'social_cta'],
             ['name' => 'Image Gallery', 'type' => 'gallery'],
+            ['name' => 'Photo Grid', 'type' => 'photo_grid'],
             ['name' => 'Stats Counters', 'type' => 'stats'],
             ['name' => 'Testimonials', 'type' => 'testimonials'],
             ['name' => 'Timeline', 'type' => 'timeline'],

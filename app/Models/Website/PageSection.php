@@ -24,6 +24,16 @@ class PageSection extends Model
         'is_active' => 'boolean',
     ];
 
+    protected static function booted(): void
+    {
+        $bust = function (PageSection $section): void {
+            app(\App\Services\Website\WebsitePageCacheService::class)->bustForSection($section);
+        };
+
+        static::saved($bust);
+        static::deleted($bust);
+    }
+
     public function page(): BelongsTo
     {
         return $this->belongsTo(Page::class);

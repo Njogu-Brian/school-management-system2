@@ -2168,6 +2168,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             $builder = \App\Http\Controllers\Website\VisualPageBuilderController::class;
             Route::get('/pages/{page}/builder', [$builder, 'show'])->name('builder.show');
             Route::post('/pages/{page}/builder/sections', [$builder, 'addSection'])->name('builder.add-section');
+            Route::put('/builder/sections/{section}', [$builder, 'updateSection'])->name('builder.update-section');
             Route::post('/builder/sections/{section}/clone', [$builder, 'cloneSection'])->name('builder.clone-section');
             Route::post('/builder/sections/{section}/toggle', [$builder, 'toggleSection'])->name('builder.toggle-section');
             Route::delete('/builder/sections/{section}', [$builder, 'destroySection'])->name('builder.destroy-section');
