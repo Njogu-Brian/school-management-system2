@@ -35,7 +35,9 @@ final class TermScopeResolver
             });
         }
         if ($streamId) {
-            $paperQuery->where('stream_id', $streamId);
+            $paperQuery->where(function ($q) use ($streamId) {
+                $q->where('stream_id', $streamId)->orWhereNull('stream_id');
+            });
         } else {
             $paperQuery->whereNull('stream_id');
         }

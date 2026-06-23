@@ -22,6 +22,23 @@ final class ExamScopeResolver
         int $classroomId,
         ?int $streamId
     ): ?ExamSession {
+        $session = $this->resolveExamSession($examTypeId, $academicYearId, $termId, $classroomId, $streamId);
+
+        if ($session || ! $streamId) {
+            return $session;
+        }
+
+        // Class-wide sittings apply to every stream; learners are filtered in the report builder.
+        return $this->resolveExamSession($examTypeId, $academicYearId, $termId, $classroomId, null);
+    }
+
+    private function resolveExamSession(
+        int $examTypeId,
+        int $academicYearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId
+    ): ?ExamSession {
         $direct = ExamSession::query()
             ->forScope($examTypeId, $academicYearId, $termId, $classroomId, $streamId)
             ->first();
@@ -86,12 +103,26 @@ final class ExamScopeResolver
     {
         $termIds = $this->terms->termIdsForScope($termId, $academicYearId, null, $classroomId, $streamId);
 
-        return Exam::query()
+        $base = Exam::query()
             ->where('academic_year_id', $academicYearId)
             ->whereIn('term_id', $termIds)
             ->where('classroom_id', $classroomId)
-            ->whereNotNull('subject_id')
-            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
+            ->whereNotNull('subject_id');
+
+        if ($streamId) {
+            $streamPapers = (clone $base)
+                ->where('stream_id', $streamId)
+                ->orderBy('starts_on')
+                ->orderBy('created_at')
+                ->get();
+
+            if ($streamPapers->isNotEmpty()) {
+                return $streamPapers;
+            }
+        }
+
+        return $base
+            ->whereNull('stream_id')
             ->orderBy('starts_on')
             ->orderBy('created_at')
             ->get();
