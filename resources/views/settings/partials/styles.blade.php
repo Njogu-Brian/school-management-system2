@@ -88,6 +88,21 @@
         color: #fff;
     }
 
+    .settings-page .page-header .btn-outline-secondary,
+    .settings-page .page-header .btn-outline-primary {
+        background: rgba(255, 255, 255, 0.94);
+        border-color: rgba(255, 255, 255, 0.45);
+        color: var(--settings-primary);
+        font-weight: 600;
+    }
+
+    .settings-page .page-header .btn-outline-secondary:hover,
+    .settings-page .page-header .btn-outline-primary:hover {
+        background: #fff;
+        border-color: #fff;
+        color: var(--settings-primary-dark);
+    }
+
     .settings-chip {
         display: inline-flex;
         align-items: center;

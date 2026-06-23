@@ -12,7 +12,7 @@
       <div>
         <div class="crumb">Academics · Exam Reports &amp; Analysis</div>
         <h1 class="mb-1">Class Mark Sheet</h1>
-        <p class="text-muted mb-0">Choose year and term first, then class and stream (when they exist).</p>
+        <p class="mb-0">Choose year and term first, then class and stream (when they exist).</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.teacher-performance') }}">Teacher Performance</a>

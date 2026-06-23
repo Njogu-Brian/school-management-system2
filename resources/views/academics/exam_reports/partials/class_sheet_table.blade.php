@@ -60,12 +60,13 @@
           <td class="er-td fw-semibold">{{ $r['name'] ?? '' }}</td>
           @foreach($subjects as $s)
             @php $sid = $s['id']; @endphp
-            <td class="text-center er-td">{{ data_get($r, "subject_scores.$sid") }}</td>
+            @php $score = data_get($r, "subject_scores.$sid"); @endphp
+            <td class="text-center er-td">{{ $score !== null && $score !== '' ? $score : '—' }}</td>
           @endforeach
-          <td class="text-center er-td fw-semibold">{{ $r['total'] }}</td>
-          <td class="text-center er-td">{{ $r['average'] }}</td>
-          <td class="text-center er-td fw-semibold">{{ $r['class_position'] ?? $r['position'] }}</td>
-          <td class="text-center er-td text-muted">{{ $r['stream_position'] }}</td>
+          <td class="text-center er-td fw-semibold">{{ $r['total'] ?? '—' }}</td>
+          <td class="text-center er-td">{{ $r['average'] ?? '—' }}</td>
+          <td class="text-center er-td fw-semibold">{{ $r['class_position'] ?? $r['position'] ?? '—' }}</td>
+          <td class="text-center er-td text-muted">{{ $r['stream_position'] ?? '—' }}</td>
         </tr>
       @empty
         <tr><td colspan="{{ 7 + count($subjects) }}" class="text-center text-muted py-4">No rows.</td></tr>
@@ -77,7 +78,7 @@
           <td colspan="3" class="er-td fw-semibold">Subject average</td>
           @foreach($subjects as $s)
             @php $sid = $s['id']; @endphp
-            <td class="text-center er-td fw-semibold">{{ $subjectAverages[$sid] ?? '' }}</td>
+            <td class="text-center er-td fw-semibold">{{ isset($subjectAverages[$sid]) ? $subjectAverages[$sid] : '—' }}</td>
           @endforeach
           <td class="text-center er-td fw-semibold"></td>
           <td class="text-center er-td fw-semibold"></td>

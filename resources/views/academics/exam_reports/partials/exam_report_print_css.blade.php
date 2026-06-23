@@ -124,16 +124,51 @@
   .er-hdr--print { display: none; }
   .er-hdr--screen { display: inline; }
 
-  /* Column widths tuned to match screenshot layout */
-  .exam-report-marks-table .er-col--idx { width: 3%; }
-  .exam-report-marks-table .er-col--adm { width: 7.5%; }
-  .exam-report-marks-table .er-col--student { width: 20%; }
-  .exam-report-marks-table .er-col--score { width: 5.2%; }
-  .exam-report-marks-table .er-col--total { width: 5.8%; }
-  .exam-report-marks-table .er-col--avg { width: 5.2%; }
-  .exam-report-marks-table .er-col--cls { width: 4%; }
-  .exam-report-marks-table .er-col--str { width: 4%; }
+  /* Column widths tuned for mark sheet layout */
+  @media screen {
+    .exam-report-marks-table {
+      width: max-content;
+      min-width: 100%;
+      table-layout: auto;
+      border-collapse: collapse;
+    }
+
+    .exam-report-marks-table thead th,
+    .exam-report-marks-table tbody td,
+    .exam-report-marks-table tfoot td {
+      vertical-align: middle;
+    }
+
+    .exam-report-marks-table .er-col--idx { width: 2.5rem; }
+    .exam-report-marks-table .er-col--adm { width: 5.5rem; }
+    .exam-report-marks-table .er-col--student { min-width: 10rem; }
+    .exam-report-marks-table .er-col--score { min-width: 3.25rem; }
+    .exam-report-marks-table .er-col--total,
+    .exam-report-marks-table .er-col--avg { min-width: 3.5rem; }
+    .exam-report-marks-table .er-col--cls,
+    .exam-report-marks-table .er-col--str { min-width: 2.75rem; }
+
+    .exam-report-print-root .table-responsive {
+      overflow-x: auto;
+    }
+  }
+
+  @media print {
+    .exam-report-marks-table .er-col--idx { width: 3%; }
+    .exam-report-marks-table .er-col--adm { width: 7.5%; }
+    .exam-report-marks-table .er-col--student { width: 20%; }
+    .exam-report-marks-table .er-col--score { width: 5.2%; }
+    .exam-report-marks-table .er-col--total { width: 5.8%; }
+    .exam-report-marks-table .er-col--avg { width: 5.2%; }
+    .exam-report-marks-table .er-col--cls { width: 4%; }
+    .exam-report-marks-table .er-col--str { width: 4%; }
+  }
 
   .exam-report-marks-table .er-th,
   .exam-report-marks-table .er-td { white-space: normal; }
+
+  .exam-report-marks-table tbody td.er-td:not(:nth-child(3)),
+  .exam-report-marks-table tfoot td.er-td:not(:first-child) {
+    font-variant-numeric: tabular-nums;
+  }
 </style>

@@ -525,7 +525,7 @@ class ClassSheetBuilder
                     $q2->whereNull('academic_year_id')->orWhere('academic_year_id', $academicYearId);
                 });
             })
-            ->when($termId, function ($q) use ($termId, $academicYearId) {
+            ->when($termId, function ($q) use ($termId, $academicYearId, $classroomId, $streamId) {
                 if ($academicYearId) {
                     $termIds = $this->terms->termIdsForScope($termId, $academicYearId, null, $classroomId, $streamId);
                     $q->where(function ($q2) use ($termIds) {
