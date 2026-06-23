@@ -20,8 +20,8 @@ class GradingSchemeSeeder extends Seeder
         $cbcBands = [
             ['min'=>0,'max'=>29,'label'=>'PL1','descriptor'=>'Below Expectation','rank'=>1],
             ['min'=>30,'max'=>49,'label'=>'PL2','descriptor'=>'Approaching Expectation','rank'=>2],
-            ['min'=>50,'max'=>69,'label'=>'PL3','descriptor'=>'Meets Expectation','rank'=>3],
-            ['min'=>70,'max'=>100,'label'=>'PL4','descriptor'=>'Exceeds Expectation','rank'=>4],
+            ['min'=>50,'max'=>79,'label'=>'PL3','descriptor'=>'Meeting Expectation','rank'=>3],
+            ['min'=>80,'max'=>100,'label'=>'PL4','descriptor'=>'Exceeding Expectation','rank'=>4],
         ];
 
         foreach($cbcBands as $band){

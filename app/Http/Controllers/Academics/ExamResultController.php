@@ -20,7 +20,7 @@ class ExamResultController extends Controller
         $examSessionId = $request->query('exam_session_id');
         $examId = $request->query('exam_id');
 
-        $marks = ExamMark::with(['student', 'subject', 'exam.examSession'])
+        $marks = ExamMark::with(['student.stream', 'subject', 'exam.examSession'])
             ->when($examId, fn ($q) => $q->where('exam_id', $examId))
             ->when(! $examId && $examSessionId, fn ($q) => $q->whereHas('exam', fn ($eq) => $eq->where('exam_session_id', $examSessionId)))
             ->when(! $examId && ! $examSessionId && $examTypeId, function ($q) use ($examTypeId) {

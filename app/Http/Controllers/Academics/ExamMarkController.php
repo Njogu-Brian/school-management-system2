@@ -499,10 +499,13 @@ class ExamMarkController extends Controller
     /** Shared renderer */
     private function renderBulkEditor($examId, $classId, $subjectId)
     {
-        $exam    = Exam::findOrFail($examId);
+        $exam    = Exam::with(['stream', 'examType'])->findOrFail($examId);
         $class   = Classroom::findOrFail($classId);
         $subjectId = (int) ($exam->subject_id ?: $subjectId);
         $subject = Subject::findOrFail($subjectId);
+        $classroomId = (int) $class->id;
+        $maxMarks = (float) ($exam->max_marks ?? optional($exam->examType)->default_max_mark ?? 100);
+        $streamLabel = $exam->stream?->name;
 
         $entryService = app(ExamMarkEntryService::class);
         $authUser = Auth::user();
@@ -511,6 +514,7 @@ class ExamMarkController extends Controller
         // Enforce single-exam workflow: marks are per (exam, student, subject)
         // Exclude alumni and archived students; scope to teacher streams when applicable
         $studentsQuery = Student::where('classroom_id', $class->id)
+            ->with('stream:id,name')
             ->where('archive', 0)
             ->where('is_alumni', false)
             ->when($exam->stream_id, fn ($q) => $q->where('stream_id', $exam->stream_id));
@@ -532,7 +536,18 @@ class ExamMarkController extends Controller
             $students->pluck('id')
         );
 
-        return view('academics.exam_marks.bulk_edit', compact('exam', 'class', 'subject', 'students', 'existing', 'canEdit', 'entryAudit'));
+        return view('academics.exam_marks.bulk_edit', compact(
+            'exam',
+            'class',
+            'subject',
+            'students',
+            'existing',
+            'canEdit',
+            'entryAudit',
+            'maxMarks',
+            'streamLabel',
+            'classroomId'
+        ));
     }
 
     /** STEP 4: Save rows */

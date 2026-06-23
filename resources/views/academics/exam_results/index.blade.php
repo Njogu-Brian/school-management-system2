@@ -2,6 +2,7 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('academics.exam_reports.partials.cbc_grade_styles')
     <style>
       .exam-results-filters { flex: 1 1 auto; min-width: 0; }
       .exam-results-filters .filter-field { min-width: 10rem; max-width: 100%; }
@@ -13,6 +14,7 @@
 @endpush
 
 @section('content')
+@php use App\Support\CbcGradePresentation; @endphp
 <div class="settings-page">
   <div class="settings-shell">
     <div class="page-header d-flex flex-column flex-xl-row flex-xl-wrap align-items-stretch align-items-xl-end justify-content-xl-between gap-3">
@@ -80,15 +82,43 @@
             </thead>
             <tbody>
               @forelse($marks as $m)
-                <tr>
+                @php
+                  $classroomId = (int) ($m->exam?->examSession?->classroom_id ?? $m->student?->classroom_id ?? 0);
+                  $maxMarks = (float) ($m->exam?->max_marks ?? 100);
+                  $displayGrade = null;
+                  if (filled($m->grade_label) && $m->grade_label !== '-') {
+                    $pct = is_numeric($m->score_raw) ? ((float) $m->score_raw / max($maxMarks, 1)) * 100 : null;
+                    $displayGrade = [
+                      'label' => CbcGradePresentation::normalizeLabel($m->grade_label),
+                      'short' => CbcGradePresentation::shortFromLabel($m->grade_label),
+                      'tier' => $pct !== null ? CbcGradePresentation::tierFromPercent($pct) : CbcGradePresentation::tierFromPercent(0),
+                      'percent' => $pct ?? 0,
+                    ];
+                  } else {
+                    $displayGrade = CbcGradePresentation::forRawScore(
+                      is_numeric($m->score_raw) ? (float) $m->score_raw : null,
+                      $maxMarks,
+                      $classroomId ?: null
+                    );
+                  }
+                @endphp
+                <tr class="exam-results-row">
                   <td>{{ $loop->iteration }}</td>
-                  <td>{{ $m->student?->full_name ?? '-' }}</td>
-                  <td>{{ $m->subject?->name ?? '-' }}</td>
-                  <td>{{ $m->exam?->name ?? '-' }}</td>
-                  <td class="text-center">{{ $m->score_raw ?? '—' }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ $m->student?->full_name ?? '—' }}</div>
+                    <div class="student-meta">
+                      {{ $m->student?->admission_number ?? '—' }}
+                      @if($m->student?->stream?->name)
+                        · <span class="mark-sheet-stream-pill">{{ $m->student->stream->name }}</span>
+                      @endif
+                    </div>
+                  </td>
+                  <td>{{ $m->subject?->name ?? '—' }}</td>
+                  <td>{{ $m->exam?->name ?? '—' }}</td>
+                  <td class="text-center mark-sheet-score">{{ $m->score_raw ?? '—' }}</td>
                   <td class="text-center">
-                    @if(filled($m->grade_label) && $m->grade_label !== '-')
-                      <span class="pill-badge pill-success">{{ $m->grade_label }}</span>
+                    @if($displayGrade)
+                      @include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $displayGrade, 'wide' => true])
                     @else
                       <span class="text-muted">—</span>
                     @endif

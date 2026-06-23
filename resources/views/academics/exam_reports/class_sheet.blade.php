@@ -3,6 +3,7 @@
 @push('styles')
     @include('settings.partials.styles')
     @include('academics.exam_reports.partials.exam_report_print_css')
+    @include('academics.exam_reports.partials.cbc_grade_styles')
     <style>
       .class-sheet-filter-row > [class*="col-"] {
         display: flex;
@@ -177,15 +178,26 @@
             <div class="card-header d-flex flex-wrap align-items-center gap-2 d-print-none">
               <i class="bi bi-table"></i>
               <h5 class="mb-0">{{ $bundle['classroom']->name ?? 'Class' }}</h5>
-              @if(!empty($bundle['payload']['meta']))
-                @php $meta = $bundle['payload']['meta']; @endphp
+              @php
+                $metaHdr = $bundle['payload']['meta'] ?? [];
+                $streamHdr = $metaHdr['stream_name'] ?? null;
+                $hasStreams = ! empty($streamsByClassroom[$bundle['classroom']->id ?? ''] ?? $streamsByClassroom[(string) ($bundle['classroom']->id ?? '')] ?? []);
+              @endphp
+              @if($streamHdr)
+                <span class="mark-sheet-stream-pill">{{ $streamHdr }}</span>
+              @elseif($hasStreams)
+                <span class="mark-sheet-stream-pill">All streams</span>
+              @endif
+              @if(!empty($metaHdr))
                 <span class="text-muted small">
-                  @if(($meta['mode'] ?? '') === 'exam_session')
-                    {{ $meta['exam_session']['name'] ?? '' }}
-                  @elseif(($meta['mode'] ?? '') === 'subject_paper')
-                    {{ $meta['subject']['name'] ?? '' }}
-                  @elseif(($meta['mode'] ?? '') === 'term')
+                  @if(($metaHdr['mode'] ?? '') === 'exam_session')
+                    {{ $metaHdr['exam_session']['name'] ?? '' }}
+                  @elseif(($metaHdr['mode'] ?? '') === 'subject_paper')
+                    {{ $metaHdr['subject']['name'] ?? '' }}
+                  @elseif(($metaHdr['mode'] ?? '') === 'term')
                     Term overview
+                  @elseif(($metaHdr['mode'] ?? '') === 'exam')
+                    {{ $metaHdr['exam']['name'] ?? '' }}
                   @endif
                 </span>
               @endif
@@ -197,18 +209,29 @@
                 </div>
               @elseif(!empty($bundle['payload']))
                 @php
+                  $m = $bundle['payload']['meta'] ?? [];
                   $lhSub = null;
-                  if (!empty($bundle['payload']['meta'])) {
-                    $m = $bundle['payload']['meta'];
+                  if (! empty($m)) {
                     if (($m['mode'] ?? '') === 'exam_session') {
                         $lhSub = $m['exam_session']['name'] ?? null;
                     } elseif (($m['mode'] ?? '') === 'subject_paper') {
                         $lhSub = $m['subject']['name'] ?? null;
                     } elseif (($m['mode'] ?? '') === 'term') {
                         $lhSub = 'Term overview';
+                    } elseif (($m['mode'] ?? '') === 'exam') {
+                        $lhSub = $m['exam']['name'] ?? null;
                     }
                   }
-                  $lhSubtitle = trim(($bundle['classroom']->name ?? '').($lhSub ? ' — '.$lhSub : ''));
+                  $streamLh = $m['stream_name'] ?? null;
+                  if (! $streamLh && ($hasStreams ?? false)) {
+                    $streamLh = 'All streams';
+                  }
+                  $lhParts = array_filter([
+                    $bundle['classroom']->name ?? null,
+                    $streamLh,
+                    $lhSub,
+                  ]);
+                  $lhSubtitle = implode(' · ', $lhParts);
                 @endphp
                 @include('academics.exam_reports.partials.report_letterhead', [
                   'reportTitle' => 'Class Mark Sheet',

@@ -2,16 +2,23 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('academics.exam_reports.partials.cbc_grade_styles')
 @endpush
 
 @section('content')
+@php use App\Support\CbcGradePresentation; @endphp
 <div class="settings-page">
   <div class="settings-shell">
     <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
       <div>
         <div class="crumb">Academics · Exams</div>
         <h1 class="mb-1">Enter Marks</h1>
-        <p class="text-muted mb-0">{{ $exam->name }} • {{ $class->name }} • {{ $subject->name }}</p>
+        <p class="text-muted mb-1">
+          Results: <strong>{{ $exam->name }}</strong> → <strong>{{ $subject->name }}</strong> → <strong>{{ $class->name }}</strong>
+          @if(!empty($streamLabel))
+            · <span class="mark-sheet-stream-pill">{{ $streamLabel }}</span>
+          @endif
+        </p>
         @if(!$canEdit)
           <span class="badge bg-warning text-dark mt-2">Under review — read only</span>
         @elseif($exam->status === 'moderation')
@@ -34,49 +41,83 @@
       <input type="hidden" name="subject_id" value="{{ $subject->id }}">
 
       <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-modern table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th style="width:60px">#</th>
-                <th>Student</th>
-                <th style="width:100px" class="text-center">Absent</th>
-                <th style="width:160px" class="text-center">Score</th>
-                <th>Remark</th>
-              </tr>
-            </thead>
-            <tbody>
-              @foreach($students as $i => $s)
-                @php
-                  $m = $existing[$s->id] ?? null;
-                  $score = $m?->is_absent ? null : $m?->score_raw;
-                  $remark = $m?->subject_remark;
-                  $isAbsent = (bool) old("rows.$i.is_absent", $m?->is_absent ?? false);
-                @endphp
-                <tr data-row-index="{{ $i }}">
-                  <td>{{ $loop->iteration }}</td>
-                  <td>
-                    <div class="fw-semibold">{{ $s->full_name }}</div>
-                    <div class="small text-muted">Adm: {{ $s->admission_number ?? '—' }}</div>
-                    <input type="hidden" name="rows[{{ $i }}][student_id]" value="{{ $s->id }}" data-student-id="{{ $s->id }}">
-                  </td>
-                  <td class="text-center">
-                    <input type="checkbox" class="form-check-input absent-toggle mark-field" name="rows[{{ $i }}][is_absent]" value="1" @checked($isAbsent) @disabled(!$canEdit)>
-                  </td>
-                  <td>
-                    <input type="number" step="0.01" min="0" class="form-control text-center score-input mark-field" name="rows[{{ $i }}][score]" value="{{ old("rows.$i.score", $score) }}" placeholder="e.g. 64.5" @disabled(!$canEdit || $isAbsent)>
-                  </td>
-                  <td>
-                    <input type="text" class="form-control mark-field" name="rows[{{ $i }}][subject_remark]" value="{{ old("rows.$i.subject_remark", $remark) }}" maxlength="500" placeholder="Optional remark" @disabled(!$canEdit)>
-                  </td>
-                </tr>
-              @endforeach
-              @if($students->isEmpty())
-                <tr><td colspan="5" class="text-center text-muted py-4">No students in this class.</td></tr>
-              @endif
-            </tbody>
-          </table>
+        <div class="exam-entry-list" id="exam-entry-list">
+          @foreach($students as $i => $s)
+            @php
+              $m = $existing[$s->id] ?? null;
+              $score = $m?->is_absent ? null : $m?->score_raw;
+              $remark = $m?->subject_remark;
+              $isAbsent = (bool) old("rows.$i.is_absent", $m?->is_absent ?? false);
+              $initials = collect(preg_split('/\s+/', trim($s->full_name ?? '')) ?: [])
+                ->filter()
+                ->take(2)
+                ->map(fn ($p) => strtoupper(substr($p, 0, 1)))
+                ->implode('');
+              $avatarClass = ['', ' student-avatar--alt', ' student-avatar--alt2'][$i % 3];
+              $grade = CbcGradePresentation::forRawScore(
+                is_numeric($score) ? (float) $score : null,
+                $maxMarks ?? 100,
+                $classroomId ?? null
+              );
+            @endphp
+            <div class="exam-entry-row" data-row-index="{{ $i }}">
+              <div class="exam-entry-student">
+                <span class="student-avatar{{ $avatarClass }}">{{ $initials ?: '?' }}</span>
+                <div class="min-width-0">
+                  <div class="fw-semibold">{{ $s->full_name }}</div>
+                  <div class="student-meta">
+                    {{ $s->admission_number ?? '—' }}
+                    @if($s->stream?->name && empty($streamLabel))
+                      · <span class="mark-sheet-stream-pill">{{ $s->stream->name }}</span>
+                    @endif
+                  </div>
+                  <input type="hidden" name="rows[{{ $i }}][student_id]" value="{{ $s->id }}" data-student-id="{{ $s->id }}">
+                </div>
+              </div>
+              <div class="exam-entry-score">
+                <label class="visually-hidden" for="score-{{ $i }}">Score</label>
+                <input type="number" step="0.01" min="0" id="score-{{ $i }}"
+                       class="form-control text-center score-input mark-field"
+                       name="rows[{{ $i }}][score]"
+                       value="{{ old("rows.$i.score", $score) }}"
+                       placeholder="—"
+                       data-max="{{ $maxMarks ?? 100 }}"
+                       @disabled(!$canEdit || $isAbsent)>
+                <span class="text-muted small">out of</span>
+                <span class="max-marks">{{ (float) ($maxMarks ?? 100) }}</span>
+                <label class="visually-hidden" for="absent-{{ $i }}">Absent</label>
+                <div class="form-check ms-1">
+                  <input type="checkbox" class="form-check-input absent-toggle mark-field" id="absent-{{ $i }}"
+                         name="rows[{{ $i }}][is_absent]" value="1" @checked($isAbsent) @disabled(!$canEdit)>
+                  <label class="form-check-label small" for="absent-{{ $i }}">Absent</label>
+                </div>
+              </div>
+              <div>
+                <input type="text" class="form-control mark-field" name="rows[{{ $i }}][subject_remark]"
+                       value="{{ old("rows.$i.subject_remark", $remark) }}" maxlength="500"
+                       placeholder="Teacher remarks" @disabled(!$canEdit)>
+              </div>
+              <div class="exam-entry-grade">
+                <span class="grade-badge-slot" data-grade-slot>
+                  @if($grade)
+                    @include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $grade, 'wide' => true])
+                  @endif
+                </span>
+              </div>
+            </div>
+          @endforeach
+          @if($students->isEmpty())
+            <div class="p-4 text-center text-muted">No students in this class.</div>
+          @endif
         </div>
+
+        @if($students->isNotEmpty())
+          <div class="class-mean-bar">
+            <span class="fw-semibold">Class mean score:</span>
+            <span id="class-mean-value" class="fw-bold">—</span>
+            <span id="class-mean-grade"></span>
+          </div>
+        @endif
       </div>
 
       <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -109,28 +150,104 @@
   const csrf = @json(csrf_token());
   const examId = @json($exam->id);
   const classroomId = @json($class->id);
+  const maxMarks = @json((float) ($maxMarks ?? 100));
+  const gradeBands = @json(CbcGradePresentation::standardBands());
   const statusEl = document.getElementById('autosave-status');
+  const meanEl = document.getElementById('class-mean-value');
+  const meanGradeEl = document.getElementById('class-mean-grade');
   let timer = null;
   let saving = false;
+
+  function gradeForPercent(percent) {
+    if (percent === null || isNaN(percent)) return null;
+    const p = Math.max(0, Math.min(100, percent));
+    for (const band of gradeBands) {
+      if (p >= band.min && p <= band.max) {
+        return { ...band, percent: p };
+      }
+    }
+    return null;
+  }
+
+  function gradeForScore(score) {
+    if (score === null || score === '' || isNaN(parseFloat(score))) return null;
+    const pct = (parseFloat(score) / maxMarks) * 100;
+    return gradeForPercent(pct);
+  }
+
+  function renderBadge(grade, wide) {
+    if (!grade) return '';
+    const cls = `cbc-grade-badge cbc-grade--${grade.tier}${wide ? ' cbc-grade-badge--wide' : ''}`;
+    const text = wide ? grade.label : grade.short;
+    return `<span class="${cls}" title="${grade.label} (${grade.percent.toFixed(1)}%)">${text}</span>`;
+  }
+
+  function updateRowGrade(row) {
+    const score = row.querySelector('.score-input');
+    const absent = row.querySelector('.absent-toggle');
+    const slot = row.querySelector('[data-grade-slot]');
+    if (!slot) return;
+    if (absent?.checked) {
+      slot.innerHTML = '';
+      return;
+    }
+    const grade = gradeForScore(score?.value);
+    slot.innerHTML = grade ? renderBadge(grade, true) : '';
+  }
+
+  function updateClassMean() {
+    if (!meanEl) return;
+    const scores = [];
+    document.querySelectorAll('.exam-entry-row').forEach(row => {
+      const absent = row.querySelector('.absent-toggle');
+      const score = row.querySelector('.score-input');
+      if (absent?.checked) return;
+      const v = score?.value?.trim();
+      if (v === '' || isNaN(parseFloat(v))) return;
+      scores.push(parseFloat(v));
+    });
+    if (!scores.length) {
+      meanEl.textContent = '—';
+      if (meanGradeEl) meanGradeEl.innerHTML = '';
+      return;
+    }
+    const meanPct = (scores.reduce((a, b) => a + b, 0) / scores.length / maxMarks) * 100;
+    const meanRaw = scores.reduce((a, b) => a + b, 0) / scores.length;
+    meanEl.textContent = meanRaw.toFixed(2);
+    const grade = gradeForPercent(meanPct);
+    if (meanGradeEl) {
+      meanGradeEl.innerHTML = grade ? renderBadge(grade, true) : '';
+    }
+  }
+
+  function refreshGrades() {
+    document.querySelectorAll('.exam-entry-row').forEach(updateRowGrade);
+    updateClassMean();
+  }
 
   document.querySelectorAll('.score-input').forEach(inp => {
     inp.addEventListener('change', () => {
       const v = inp.value.trim();
-      if (v === '') return;
+      if (v === '') {
+        refreshGrades();
+        return;
+      }
       let n = parseFloat(v);
-      if (isNaN(n)) { inp.value = ''; return; }
+      if (isNaN(n)) { inp.value = ''; refreshGrades(); return; }
       if (n < 0) n = 0;
-      if (n > 100) n = 100;
+      if (n > maxMarks) n = maxMarks;
       inp.value = n.toFixed(2);
-      const row = inp.closest('tr');
+      const row = inp.closest('.exam-entry-row');
       const absent = row?.querySelector('.absent-toggle');
       if (absent) absent.checked = false;
+      refreshGrades();
     });
+    inp.addEventListener('input', refreshGrades);
   });
 
   document.querySelectorAll('.absent-toggle').forEach(box => {
     box.addEventListener('change', () => {
-      const row = box.closest('tr');
+      const row = box.closest('.exam-entry-row');
       const score = row?.querySelector('.score-input');
       if (!score) return;
       if (box.checked) {
@@ -139,6 +256,7 @@
       } else if (canEdit) {
         score.disabled = false;
       }
+      refreshGrades();
       scheduleAutosave();
     });
   });
@@ -196,6 +314,8 @@
     el.addEventListener('input', scheduleAutosave);
     el.addEventListener('change', scheduleAutosave);
   });
+
+  refreshGrades();
 })();
 </script>
 @endpush
