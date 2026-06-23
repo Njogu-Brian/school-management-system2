@@ -59,6 +59,7 @@ Route::prefix('website')->group(function () {
     // Sprint 6: Admissions engine
     $admissions = \App\Http\Controllers\Api\Website\AdmissionApplicationApiController::class;
     Route::post('/admissions/start', [$admissions, 'start']);
+    Route::get('/admissions/options', [$admissions, 'options']);
     Route::post('/admissions/{token}/step', [$admissions, 'saveStep']);
     Route::post('/admissions/{token}/documents', [$admissions, 'uploadDocument']);
     Route::post('/admissions/{token}/submit', [$admissions, 'submit']);

@@ -129,6 +129,91 @@ class SystemAlertService
         }
     }
 
+    /**
+     * Raise an alert for users with specific roles (web notifications + mobile push).
+     *
+     * @param  array<int, string>  $roles
+     * @param  array<string, mixed>  $metadata
+     */
+    public function raiseForRoles(
+        array $roles,
+        string $title,
+        string $message,
+        string $category = 'system',
+        string $severity = 'warning',
+        ?string $fingerprint = null,
+        ?string $deepLink = null,
+        array $metadata = [],
+        bool $push = true,
+        bool $escalate = false,
+    ): void {
+        if (! Schema::hasTable('notifications') || $roles === []) {
+            return;
+        }
+
+        $fingerprint = $fingerprint ?: sha1($category.'|'.$title.'|'.$message);
+        if ($this->hasRecentDuplicate($fingerprint)) {
+            return;
+        }
+
+        $payload = [
+            'title' => Str::limit($title, 180),
+            'body' => Str::limit($message, 500),
+            'message' => Str::limit($message, 500),
+            'category' => $category,
+            'severity' => $severity,
+            'source_module' => $category,
+            'deep_link' => $deepLink,
+            'fingerprint' => $fingerprint,
+            'requires_action' => true,
+            'escalated_at' => null,
+            'metadata' => $metadata,
+        ];
+
+        $recipients = $this->getUsersByRoles($roles);
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        foreach ($recipients as $user) {
+            $user->notify(new SystemAlertNotification($payload));
+        }
+
+        $this->audit('system_alert_raised', $title.' — '.$message, null, [
+            'category' => $category,
+            'severity' => $severity,
+            'fingerprint' => $fingerprint,
+            'deep_link' => $deepLink,
+            'metadata' => $metadata,
+            'roles' => $roles,
+        ]);
+
+        if ($push) {
+            $this->pushToUsers(
+                $recipients,
+                $payload['title'],
+                $payload['body'],
+                [
+                    'type' => 'system_alert',
+                    'category' => $category,
+                    'severity' => $severity,
+                    'deep_link' => $deepLink,
+                    'fingerprint' => $fingerprint,
+                ]
+            );
+        }
+
+        if ($escalate && in_array($severity, ['critical', 'warning'], true)) {
+            $this->escalateViaEmailAndSms(
+                $payload['title'],
+                $payload['body'],
+                $deepLink,
+                'escalation_'.$fingerprint,
+                $recipients
+            );
+        }
+    }
+
     public function raiseSmsCreditsAlert(float $balance = 0, ?string $trigger = null): void
     {
         $this->raise(
@@ -281,6 +366,21 @@ class SystemAlertService
     /**
      * @return Collection<int, User>
      */
+    public function getUsersByRoles(array $roles): Collection
+    {
+        if ($roles === []) {
+            return collect();
+        }
+
+        return User::query()
+            ->with('staff')
+            ->whereHas('roles', fn ($q) => $q->whereIn('name', $roles))
+            ->get();
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
     public function getSuperAdmins(): Collection
     {
         return User::query()
@@ -422,11 +522,28 @@ class SystemAlertService
     }
 
     /**
+     * @param  Collection<int, User>  $users
      * @param  array<string, mixed>  $data
      */
-    private function pushToSuperAdmins(string $title, string $body, array $data = []): void
+    private function pushToUsers(Collection $users, string $title, string $body, array $data = []): void
     {
-        $tokens = $this->getSuperAdminPushTokens();
+        if (! Schema::hasTable('user_device_tokens')) {
+            return;
+        }
+
+        $userIds = $users->pluck('id')->all();
+        if ($userIds === []) {
+            return;
+        }
+
+        $tokens = DB::table('user_device_tokens')
+            ->whereIn('user_id', $userIds)
+            ->distinct()
+            ->pluck('token')
+            ->filter(fn ($t) => is_string($t) && $t !== '')
+            ->values()
+            ->all();
+
         if ($tokens === []) {
             return;
         }
@@ -434,11 +551,20 @@ class SystemAlertService
         app(ExpoPushService::class)->sendToTokens($tokens, $title, $body, $data);
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function pushToSuperAdmins(string $title, string $body, array $data = []): void
+    {
+        $this->pushToUsers($this->getSuperAdmins(), $title, $body, $data);
+    }
+
     private function escalateViaEmailAndSms(
         string $title,
         string $body,
         ?string $deepLink,
         string $escalationFingerprint,
+        ?Collection $recipients = null,
     ): void {
         if ($this->hasRecentEscalation($escalationFingerprint)) {
             return;
@@ -448,7 +574,7 @@ class SystemAlertService
         $smsBody = Str::limit($title.': '.$body, 155);
         $smsService = app(SMSService::class);
 
-        foreach ($this->getSuperAdmins() as $admin) {
+        foreach ($recipients ?? $this->getSuperAdmins() as $admin) {
             if ($admin->email) {
                 try {
                     Mail::send('emails.system-alert', [

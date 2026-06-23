@@ -12,7 +12,7 @@ class CampaignAutomationService
     {
         $applications = AdmissionApplication::query()
             ->where('status', 'pending')
-            ->where('current_step', '<', 4)
+            ->where('current_step', '<', 3)
             ->where('updated_at', '<', now()->subDays(2))
             ->get();
 

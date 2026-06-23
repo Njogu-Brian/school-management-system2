@@ -16,7 +16,7 @@ class AdminAlertController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        abort_unless($user && $user->hasRole('Super Admin'), 403);
+        abort_unless($user && $user->hasAnyRole(['Super Admin', 'Secretary']), 403);
 
         return response()->json([
             'success' => true,
@@ -41,7 +41,7 @@ class AdminAlertController extends Controller
     public function acknowledge(Request $request, string $id)
     {
         $user = $request->user();
-        abort_unless($user && $user->hasRole('Super Admin'), 403);
+        abort_unless($user && $user->hasAnyRole(['Super Admin', 'Secretary']), 403);
 
         if (! $this->alerts->acknowledge($user, $id)) {
             abort(404);

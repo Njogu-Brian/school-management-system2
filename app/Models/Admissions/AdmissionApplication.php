@@ -34,6 +34,9 @@ class AdmissionApplication extends Model
         'age',
         'desired_class',
         'previous_school',
+        'preferred_classroom_id',
+        'enrollment_year',
+        'enrollment_term',
         'medical_notes',
         'special_needs',
         'status',
@@ -45,6 +48,7 @@ class AdmissionApplication extends Model
         'current_step',
         'form_progress',
         'student_id',
+        'submitted_at',
         'reviewed_by',
         'reviewed_at',
     ];
@@ -53,6 +57,7 @@ class AdmissionApplication extends Model
         'dob' => 'date',
         'assessment_date' => 'datetime',
         'reviewed_at' => 'datetime',
+        'submitted_at' => 'datetime',
         'form_progress' => 'array',
     ];
 
@@ -96,6 +101,11 @@ class AdmissionApplication extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(AdmissionDocument::class, 'application_id');
+    }
+
+    public function preferredClassroom(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'preferred_classroom_id');
     }
 
     public function assignedStaff(): BelongsTo

@@ -10,6 +10,7 @@ import { ResponsiveImage } from "@/components/media/ResponsiveImage";
 import { LEGACY_TESTIMONIALS, GALLERY_PHOTOS } from "@/content/schoolContent";
 import { fadeUp } from "@/animations/variants";
 import Link from "next/link";
+import { getErpParentPortalUrl } from "@/lib/erpUrls";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 
@@ -232,9 +233,9 @@ export function ParentPortalPreview() {
         <div className="flex-1">
           <h2 className="font-serif text-3xl font-bold">Parent Portal</h2>
           <p className="mt-4 text-white/85">Fees, attendance, report cards, transport, and school announcements — all in one secure place.</p>
-          <Link href="/parent-portal" className="mt-6 inline-block rounded-full bg-[var(--rk-gold)] px-6 py-3 font-semibold text-[var(--rk-purple-deep)]">
+          <a href={getErpParentPortalUrl()} className="mt-6 inline-block rounded-full bg-[var(--rk-gold)] px-6 py-3 font-semibold text-[var(--rk-purple-deep)]">
             Access Portal
-          </Link>
+          </a>
         </div>
         <div className="flex-1 rounded-3xl bg-white/10 p-8 backdrop-blur">
           <div className="grid grid-cols-2 gap-4 text-sm">

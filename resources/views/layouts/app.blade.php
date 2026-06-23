@@ -484,9 +484,10 @@
     <div class="content @if($isFinance) finance-content @endif">
         @auth
         @php $isSuperAdmin = auth()->user()->hasRole('Super Admin'); @endphp
+        @php $canViewSystemAlerts = auth()->user()->hasAnyRole(['Super Admin', 'Secretary']); @endphp
         <div class="app-header d-flex align-items-center gap-3 mb-3">
             <div class="header-actions ms-auto">
-                @if($isSuperAdmin)
+                @if($canViewSystemAlerts)
                 <div class="dropdown header-alerts" id="headerAlertsRoot">
                     <button class="btn btn-ghost-strong btn-sm dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="headerAlertsToggle">
                         <i class="bi bi-bell"></i> Alerts
@@ -496,6 +497,11 @@
                         <li><span class="dropdown-item-text text-muted small">Loading alerts…</span></li>
                     </ul>
                 </div>
+                <button type="button" class="btn btn-ghost-strong btn-sm d-none" id="enableDesktopNotificationsBtn" title="Enable desktop notifications">
+                    <i class="bi bi-app-indicator"></i>
+                </button>
+                @endif
+                @if($isSuperAdmin)
                 <div class="dropdown header-sms-balance" id="headerSmsBalanceRoot">
                     <button class="btn btn-ghost-strong btn-sm dropdown-toggle position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="headerSmsBalanceToggle">
                         <i class="bi bi-chat-dots"></i> SMS
@@ -510,9 +516,6 @@
                         </div>
                     </div>
                 </div>
-                <button type="button" class="btn btn-ghost-strong btn-sm d-none" id="enableDesktopNotificationsBtn" title="Enable desktop notifications">
-                    <i class="bi bi-app-indicator"></i>
-                </button>
                 @endif
                 <label class="toggle-pill">
                     <input type="checkbox" id="darkModeToggle">
@@ -619,7 +622,7 @@
                 });
             }
 
-            @if($isSuperAdmin ?? false)
+            @if($canViewSystemAlerts ?? false)
             (function initSystemAlerts() {
                 const menu = document.getElementById('headerAlertsMenu');
                 const badge = document.getElementById('headerAlertsBadge');

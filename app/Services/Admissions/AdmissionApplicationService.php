@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\File;
 
 class AdmissionApplicationService
 {
+    public function __construct(
+        private AdmissionApplicationNotificationService $notifications,
+    ) {
+    }
+
     public function directory(): string
     {
         $path = public_path('admissions');
@@ -45,13 +50,19 @@ class AdmissionApplicationService
 
     public function submit(AdmissionApplication $application, array $data): AdmissionApplication
     {
+        $mapped = $this->mapStepData(3, $data);
+
         $application->update([
-            ...$this->mapStepData(4, $data),
+            ...$mapped,
             'status' => AdmissionApplication::STATUS_PENDING,
-            'current_step' => 4,
+            'current_step' => 3,
+            'submitted_at' => now(),
         ]);
 
-        return $application->fresh();
+        $application = $application->fresh();
+        $this->notifications->notifyOnSubmit($application);
+
+        return $application;
     }
 
     public function storeDocument(AdmissionApplication $application, UploadedFile $file, string $type): AdmissionDocument
@@ -102,12 +113,12 @@ class AdmissionApplicationService
                 'dob' => $data['dob'] ?? null,
                 'gender' => $data['gender'] ?? null,
                 'age' => $data['age'] ?? null,
-                'desired_class' => $data['desired_class'] ?? null,
-                'previous_school' => $data['previous_school'] ?? null,
             ],
             3 => [
-                'medical_notes' => $data['medical_notes'] ?? null,
-                'special_needs' => $data['special_needs'] ?? null,
+                'preferred_classroom_id' => $data['preferred_classroom_id'] ?? null,
+                'enrollment_year' => $data['enrollment_year'] ?? null,
+                'enrollment_term' => $data['enrollment_term'] ?? null,
+                'desired_class' => $data['desired_class'] ?? null,
             ],
             default => $data,
         };

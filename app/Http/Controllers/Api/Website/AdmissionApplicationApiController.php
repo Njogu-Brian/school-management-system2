@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Website;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admissions\AdmissionApplicationResource;
+use App\Models\Academics\Classroom;
 use App\Models\Admissions\AdmissionApplication;
 use App\Services\Admissions\AdmissionApplicationService;
 use App\Services\Website\WebsiteAnalyticsService;
@@ -16,6 +17,80 @@ class AdmissionApplicationApiController extends Controller
         private AdmissionApplicationService $applications,
         private WebsiteAnalyticsService $analytics,
     ) {
+    }
+
+    public function options(): JsonResponse
+    {
+        $classrooms = Classroom::query()->orderBy('name')->get();
+
+        $classrooms = $classrooms->sortBy([
+            function ($classroom) {
+                $name = strtolower(trim($classroom->name));
+                if (str_contains($name, 'creche')) {
+                    return 1;
+                }
+                if (str_contains($name, 'foundation')) {
+                    return 2;
+                }
+                if (preg_match('/^pp1/', $name)) {
+                    return 3;
+                }
+                if (preg_match('/^pp2/', $name)) {
+                    return 4;
+                }
+                if (preg_match('/^grade\s*1(?!\d)/', $name)) {
+                    return 5;
+                }
+                if (preg_match('/^grade\s*2(?!\d)/', $name)) {
+                    return 6;
+                }
+                if (preg_match('/^grade\s*3(?!\d)/', $name)) {
+                    return 7;
+                }
+                if (preg_match('/^grade\s*4(?!\d)/', $name)) {
+                    return 8;
+                }
+                if (preg_match('/^grade\s*5(?!\d)/', $name)) {
+                    return 9;
+                }
+                if (preg_match('/^grade\s*6(?!\d)/', $name)) {
+                    return 10;
+                }
+                if (preg_match('/^grade\s*7(?!\d)/', $name)) {
+                    return 11;
+                }
+                if (preg_match('/^grade\s*8(?!\d)/', $name)) {
+                    return 12;
+                }
+                if (preg_match('/^grade\s*9(?!\d)/', $name)) {
+                    return 13;
+                }
+
+                return 1000;
+            },
+            fn ($classroom) => strtolower(trim($classroom->name)),
+        ])->values();
+
+        $currentYear = (int) (get_current_academic_year() ?? now()->year);
+        $currentTerm = (int) (get_current_term_number() ?? 1);
+
+        $terms = [
+            ['year' => $currentYear, 'term' => $currentTerm, 'label' => "Term {$currentTerm} {$currentYear} (Current)"],
+        ];
+        for ($t = $currentTerm + 1; $t <= 3; $t++) {
+            $terms[] = ['year' => $currentYear, 'term' => $t, 'label' => "Term {$t} {$currentYear}"];
+        }
+        $nextYear = $currentYear + 1;
+        for ($t = 1; $t <= 3; $t++) {
+            $terms[] = ['year' => $nextYear, 'term' => $t, 'label' => "Term {$t} {$nextYear}"];
+        }
+
+        return response()->json([
+            'data' => [
+                'classrooms' => $classrooms->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
+                'enrollment_terms' => $terms,
+            ],
+        ]);
     }
 
     public function start(Request $request): JsonResponse
@@ -46,7 +121,7 @@ class AdmissionApplicationApiController extends Controller
         $application = $this->resolveDraft($token);
 
         $validated = $request->validate([
-            'step' => 'required|integer|min:1|max:4',
+            'step' => 'required|integer|min:1|max:3',
             'data' => 'required|array',
         ]);
 
@@ -93,14 +168,15 @@ class AdmissionApplicationApiController extends Controller
             'phone' => 'required|string|max:50',
             'email' => 'required|email|max:255',
             'child_name' => 'required|string|max:255',
-            'dob' => 'nullable|date',
+            'dob' => 'required|date',
             'gender' => 'nullable|string|max:20',
-            'age' => 'nullable|integer|min:3|max:15',
-            'desired_class' => 'nullable|string|max:100',
-            'previous_school' => 'nullable|string|max:255',
-            'medical_notes' => 'nullable|string|max:5000',
-            'special_needs' => 'nullable|string|max:5000',
+            'preferred_classroom_id' => 'required|exists:classrooms,id',
+            'enrollment_year' => 'required|integer|min:2020|max:2035',
+            'enrollment_term' => 'required|integer|in:1,2,3',
         ]);
+
+        $classroom = Classroom::find($validated['preferred_classroom_id']);
+        $validated['desired_class'] = $classroom?->name;
 
         $application = $this->applications->submit($application, $validated);
 
@@ -109,7 +185,7 @@ class AdmissionApplicationApiController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Application submitted successfully.',
+            'message' => 'Application submitted successfully. A confirmation has been sent to your email and phone.',
             'data' => AdmissionApplicationResource::make($application),
         ]);
     }
@@ -118,7 +194,7 @@ class AdmissionApplicationApiController extends Controller
     {
         $application = AdmissionApplication::query()
             ->where('application_no', $applicationNo)
-            ->with('documents')
+            ->with(['documents', 'preferredClassroom'])
             ->firstOrFail();
 
         return response()->json(['data' => AdmissionApplicationResource::make($application)]);

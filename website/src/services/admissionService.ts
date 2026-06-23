@@ -10,6 +10,13 @@ export interface AdmissionApplication {
 }
 
 export const admissionService = {
+  options: () =>
+    api
+      .get<{ data: { classrooms: Array<{ id: number; name: string }>; enrollment_terms: Array<{ year: number; term: number; label: string }> } }>(
+        "/website/admissions/options"
+      )
+      .then((r) => r.data.data),
+
   start: () =>
     api.post<{ data: AdmissionApplication }>("/website/admissions/start").then((r) => r.data.data),
 

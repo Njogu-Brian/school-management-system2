@@ -7,6 +7,7 @@ import type { WebsiteSettings } from "@/types/website";
 import { BRAND } from "@/content/schoolContent";
 import { SocialBar } from "@/components/layout/SocialBar";
 import { assetPath } from "@/lib/assetPath";
+import { getErpParentPortalUrl } from "@/lib/erpUrls";
 
 const NAV_GROUPS = [
   {
@@ -114,12 +115,12 @@ export function SiteHeader({ settings }: { settings?: WebsiteSettings }) {
               </div>
             </div>
           ))}
-          <Link
-            href="/parent-portal"
-            className={`rounded-full px-3 py-2 text-sm transition ${isActive(pathname, "/parent-portal") ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10 hover:text-white"}`}
+          <a
+            href={getErpParentPortalUrl()}
+            className="rounded-full px-3 py-2 text-sm text-white/80 transition hover:bg-white/10 hover:text-white"
           >
             Parents
-          </Link>
+          </a>
           <Link
             href="/admissions/apply"
             className="ml-2 rounded-full bg-rk-gold px-5 py-2 text-sm font-bold text-rk-deep-purple transition hover:brightness-110"
@@ -161,9 +162,9 @@ export function SiteHeader({ settings }: { settings?: WebsiteSettings }) {
                 ))}
             </div>
           ))}
-          <Link href="/parent-portal" onClick={() => setOpen(false)} className="mt-2 block rounded-lg px-2 py-2.5 text-white/90">
+          <a href={getErpParentPortalUrl()} onClick={() => setOpen(false)} className="mt-2 block rounded-lg px-2 py-2.5 text-white/90">
             Parents
-          </Link>
+          </a>
           <Link
             href="/admissions/apply"
             onClick={() => setOpen(false)}
