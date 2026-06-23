@@ -12,6 +12,7 @@ use App\Models\Academics\ExamSession;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Subject;
+use App\Models\Student;
 use App\Support\AcademicContext;
 use App\Models\User;
 use App\Services\Academics\ExamReports\AnalyticsService;
@@ -69,13 +70,7 @@ class ExamReportsController extends Controller
         $subjectExamScopes = $filterScopes['subjectExamScopes'];
         $termYearClassScopes = $filterScopes['termYearClassScopes'];
 
-        $streamsByClassroom = $allowedClassIds === [] ? [] : Stream::query()
-            ->whereIn('classroom_id', $allowedClassIds)
-            ->orderBy('name')
-            ->get()
-            ->groupBy('classroom_id')
-            ->map(fn ($rows) => $rows->map(fn ($s) => ['id' => (int) $s->id, 'name' => $s->name])->values()->all())
-            ->toArray();
+        $streamsByClassroom = $this->streamsByClassroomForFilters($allowedClassIds);
 
         $academic = AcademicContext::forView(
             requestedYearId: $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
@@ -496,16 +491,59 @@ class ExamReportsController extends Controller
             'classrooms' => $classrooms,
             'classroomExamTypeIds' => $filterScopes['classroomExamTypeIds'],
             'termYearClassScopes' => $filterScopes['termYearClassScopes'],
-            'streamsByClassroom' => $allowedClassIds === [] ? [] : Stream::query()
-                ->whereIn('classroom_id', $allowedClassIds)
-                ->orderBy('name')
-                ->get()
-                ->groupBy('classroom_id')
-                ->map(fn ($rows) => $rows->map(fn ($s) => ['id' => (int) $s->id, 'name' => $s->name])->values()->all())
-                ->toArray(),
+            'streamsByClassroom' => $this->streamsByClassroomForFilters($allowedClassIds),
         ], $academic, [
             'academicYears' => $academic['years'],
         ]);
+    }
+
+    /**
+     * Streams available per class for filters — only classes where active learners use streams.
+     *
+     * @param  int[]  $allowedClassIds
+     * @return array<int|string, list<array{id: int, name: string}>>
+     */
+    private function streamsByClassroomForFilters(array $allowedClassIds): array
+    {
+        if ($allowedClassIds === []) {
+            return [];
+        }
+
+        $assignments = Student::query()
+            ->whereIn('classroom_id', $allowedClassIds)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNotNull('stream_id')
+            ->select('classroom_id', 'stream_id')
+            ->distinct()
+            ->get();
+
+        if ($assignments->isEmpty()) {
+            return [];
+        }
+
+        $streamIdsByClassroom = $assignments
+            ->groupBy('classroom_id')
+            ->map(fn ($rows) => $rows->pluck('stream_id')->unique()->values()->all());
+
+        $streams = Stream::query()
+            ->whereIn('id', $assignments->pluck('stream_id')->unique())
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $out = [];
+        foreach ($streamIdsByClassroom as $classroomId => $streamIds) {
+            if (count($streamIds) < 2) {
+                continue;
+            }
+            $out[(int) $classroomId] = $streams
+                ->whereIn('id', $streamIds)
+                ->map(fn (Stream $s) => ['id' => (int) $s->id, 'name' => $s->name])
+                ->values()
+                ->all();
+        }
+
+        return $out;
     }
 
     /**

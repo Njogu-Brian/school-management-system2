@@ -3,6 +3,18 @@
 @push('styles')
     @include('settings.partials.styles')
     @include('academics.exam_reports.partials.exam_report_print_css')
+    <style>
+      .class-sheet-filter-row > [class*="col-"] {
+        display: flex;
+        flex-direction: column;
+      }
+      .class-sheet-filter-row .form-label {
+        margin-bottom: 0.35rem;
+      }
+      .class-sheet-filter-row .form-select {
+        width: 100%;
+      }
+    </style>
 @endpush
 
 @section('content')
@@ -40,79 +52,87 @@
             </div>
           </div>
 
-          <div class="col-md-3">
-            <label class="form-label">Academic year</label>
-            <select name="academic_year_id" class="form-select" id="academic_year_id_field">
-              <option value="">Select year</option>
-              @foreach($academicYears ?? [] as $y)
-                <option value="{{ $y->id }}" @selected((int) ($selectedYearId ?? request('academic_year_id')) === (int) $y->id)>{{ $y->year }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Term</label>
-            <select name="term_id" class="form-select" id="term_id_field">
-              <option value="">Select term</option>
-              @foreach($terms ?? [] as $t)
-                <option value="{{ $t->id }}"
-                        data-academic-year-id="{{ $t->academic_year_id }}"
-                        @selected((int) ($selectedTermId ?? request('term_id')) === (int) $t->id)>
-                  {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
-                </option>
-              @endforeach
-            </select>
-            <div class="form-text" id="term_year_hint">Terms update when you pick a year.</div>
+          <div class="col-12">
+            <div class="row g-3 align-items-end class-sheet-filter-row">
+              <div class="col-6 col-md-4 col-lg-3 col-xl-2">
+                <label for="academic_year_id_field" class="form-label">Academic year</label>
+                <select name="academic_year_id" class="form-select" id="academic_year_id_field">
+                  <option value="">Select year</option>
+                  @foreach($academicYears ?? [] as $y)
+                    <option value="{{ $y->id }}" @selected((int) ($selectedYearId ?? request('academic_year_id')) === (int) $y->id)>{{ $y->year }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-6 col-md-4 col-lg-3 col-xl-2">
+                <label for="term_id_field" class="form-label">Term</label>
+                <select name="term_id" class="form-select" id="term_id_field">
+                  <option value="">Select term</option>
+                  @foreach($terms ?? [] as $t)
+                    <option value="{{ $t->id }}"
+                            data-academic-year-id="{{ $t->academic_year_id }}"
+                            @selected((int) ($selectedTermId ?? request('term_id')) === (int) $t->id)>
+                      {{ $t->academicYear->year ?? '' }} · {{ $t->name }}
+                    </option>
+                  @endforeach
+                </select>
+              </div>
+
+              {{-- By exam type --}}
+              <div class="col-6 col-md-4 col-lg-3 col-xl-2 flow-exam-type {{ ($sheetFlow ?? 'by_exam_type') === 'by_exam_type' ? '' : 'd-none' }}">
+                <label for="exam_type_id_field" class="form-label">Exam type</label>
+                <select name="exam_type_id" class="form-select" id="exam_type_id_field">
+                  <option value="">Select type</option>
+                  @foreach($examTypes ?? [] as $et)
+                    <option value="{{ $et->id }}" @selected(request('exam_type_id') == $et->id)>{{ $et->name }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-6 col-md-4 col-lg-3 col-xl-2 flow-exam-type {{ ($sheetFlow ?? 'by_exam_type') === 'by_exam_type' ? '' : 'd-none' }}">
+                <label for="classroom_id_exam_type" class="form-label">Class</label>
+                <select name="classroom_id" class="form-select" id="classroom_id_exam_type">
+                  <option value="">Select class</option>
+                </select>
+              </div>
+
+              {{-- By subject --}}
+              <div class="col-6 col-md-4 col-lg-3 col-xl-2 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
+                <label for="subject_id_field" class="form-label">Subject</label>
+                <select name="subject_id" class="form-select" id="subject_id_field">
+                  <option value="">Select subject</option>
+                  @foreach($subjects ?? [] as $sub)
+                    <option value="{{ $sub->id }}" @selected(request('subject_id') == $sub->id)>{{ $sub->name }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-12 col-lg-6 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
+                <label for="classroom_ids_subject" class="form-label">Classes <span class="text-muted small">(Ctrl/Cmd + click for several)</span></label>
+                <select name="classroom_ids[]" class="form-select" id="classroom_ids_subject" multiple size="4">
+                </select>
+              </div>
+
+              {{-- Whole term --}}
+              <div class="col-6 col-md-4 col-lg-3 col-xl-2 flow-term {{ ($sheetFlow ?? '') === 'term' ? '' : 'd-none' }}">
+                <label for="classroom_id_term" class="form-label">Class</label>
+                <select name="classroom_id" class="form-select" id="classroom_id_term">
+                  <option value="">Select class</option>
+                </select>
+              </div>
+
+              <div class="col-6 col-md-4 col-lg-3 col-xl-2 d-none" id="streamFieldWrapper">
+                <label for="stream_id_field" class="form-label">Stream</label>
+                <select name="stream_id" class="form-select" id="stream_id_field">
+                  <option value="">All streams</option>
+                </select>
+              </div>
+            </div>
+            <p class="form-text small mb-0 mt-2" id="term_year_hint">Terms update when you pick a year.</p>
+            <p class="form-text small mb-0 mt-1 text-warning d-none" id="filter_scope_hint"></p>
           </div>
 
-          {{-- By exam type --}}
-          <div class="col-md-3 flow-exam-type {{ ($sheetFlow ?? 'by_exam_type') === 'by_exam_type' ? '' : 'd-none' }}">
-            <label class="form-label">Exam type</label>
-            <select name="exam_type_id" class="form-select" id="exam_type_id_field">
-              <option value="">Select type</option>
-              @foreach($examTypes ?? [] as $et)
-                <option value="{{ $et->id }}" @selected(request('exam_type_id') == $et->id)>{{ $et->name }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-3 flow-exam-type {{ ($sheetFlow ?? 'by_exam_type') === 'by_exam_type' ? '' : 'd-none' }}">
-            <label class="form-label">Class</label>
-            <select name="classroom_id" class="form-select" id="classroom_id_exam_type">
-              <option value="">Select class</option>
-            </select>
-            <div class="form-text text-muted small d-none" id="hint_exam_type_class">No classes have exams for this type yet.</div>
-          </div>
-
-          {{-- By subject --}}
-          <div class="col-md-3 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
-            <label class="form-label">Subject</label>
-            <select name="subject_id" class="form-select" id="subject_id_field">
-              <option value="">Select subject</option>
-              @foreach($subjects ?? [] as $sub)
-                <option value="{{ $sub->id }}" @selected(request('subject_id') == $sub->id)>{{ $sub->name }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-6 flow-subject {{ ($sheetFlow ?? '') === 'by_subject' ? '' : 'd-none' }}">
-            <label class="form-label">Classes <span class="text-muted small">(Ctrl/Cmd + click for several)</span></label>
-            <select name="classroom_ids[]" class="form-select" id="classroom_ids_subject" multiple size="6">
-            </select>
-            <div class="form-text text-muted small d-none" id="hint_subject_class">Pick subject, year, and term to list classes with that paper.</div>
-          </div>
-
-          {{-- Whole term --}}
-          <div class="col-md-3 flow-term {{ ($sheetFlow ?? '') === 'term' ? '' : 'd-none' }}">
-            <label class="form-label">Class</label>
-            <select name="classroom_id" class="form-select" id="classroom_id_term">
-              <option value="">Select class</option>
-            </select>
-            <div class="form-text text-muted small d-none" id="hint_term_class">No classes have exams in this year/term.</div>
-          </div>
-
-          <div class="col-md-3 d-none" id="streamFieldWrapper">
-            <label class="form-label">Stream</label>
-            <select name="stream_id" class="form-select" id="stream_id_field">
-              <option value="">All streams</option>
-            </select>
+          <div class="col-12 d-none" aria-hidden="true">
+            <div id="hint_exam_type_class" class="d-none"></div>
+            <div id="hint_subject_class" class="d-none"></div>
+            <div id="hint_term_class" class="d-none"></div>
           </div>
 
           <div class="col-12 d-flex flex-wrap justify-content-end gap-2 no-print">
@@ -196,7 +216,10 @@
                   'generatedAt' => now(),
                   'generatedBy' => auth()->user()?->name,
                 ])
-                @include('academics.exam_reports.partials.class_sheet_table', ['payload' => $bundle['payload']])
+                @include('academics.exam_reports.partials.class_sheet_table', [
+                  'payload' => $bundle['payload'],
+                  'showStreamColumn' => ! empty($streamsByClassroom[$bundle['classroom']->id ?? ''] ?? $streamsByClassroom[(string) ($bundle['classroom']->id ?? '')] ?? []),
+                ])
               @endif
             </div>
           </div>
@@ -235,6 +258,18 @@
   const termSel = document.getElementById('term_id_field');
   const streamWrap = document.getElementById('streamFieldWrapper');
   const streamSel = document.getElementById('stream_id_field');
+  const filterScopeHint = document.getElementById('filter_scope_hint');
+
+  function setFilterScopeHint(message) {
+    if (!filterScopeHint) return;
+    if (!message) {
+      filterScopeHint.textContent = '';
+      filterScopeHint.classList.add('d-none');
+      return;
+    }
+    filterScopeHint.textContent = message;
+    filterScopeHint.classList.remove('d-none');
+  }
 
   function filterTermsByYear() {
     const y = yearSel && yearSel.value;
@@ -288,13 +323,12 @@
 
   function syncExamTypeClass() {
     const sel = document.getElementById('classroom_id_exam_type');
-    const hint = document.getElementById('hint_exam_type_class');
     const et = document.getElementById('exam_type_id_field')?.value;
     if (!sel) return;
     if (!et) {
       sel.innerHTML = '<option value="">Select class</option>';
       sel.disabled = true;
-      if (hint) { hint.classList.add('d-none'); }
+      setFilterScopeHint('');
       syncStreams();
       return;
     }
@@ -302,9 +336,7 @@
     const reqClass = @json(request()->filled('classroom_id') ? (int) request('classroom_id') : null);
     fillSelectOptions(sel, ids, reqClass != null ? reqClass : sel.value);
     sel.disabled = ids.length === 0;
-    if (hint) {
-      hint.classList.toggle('d-none', ids.length > 0);
-    }
+    setFilterScopeHint(ids.length === 0 ? 'No classes have exams for this type yet.' : '');
     syncStreams();
   }
 
@@ -322,7 +354,6 @@
 
   function syncSubjectClasses() {
     const sel = document.getElementById('classroom_ids_subject');
-    const hint = document.getElementById('hint_subject_class');
     if (!sel) return;
     const sub = document.getElementById('subject_id_field')?.value;
     const y = yearSel?.value;
@@ -330,20 +361,20 @@
     if (!sub || !y || !t) {
       sel.innerHTML = '';
       sel.disabled = true;
-      if (hint) hint.classList.remove('d-none');
+      setFilterScopeHint('Pick subject, year, and term to list classes with that paper.');
       syncStreams();
       return;
     }
-    if (hint) hint.classList.add('d-none');
     const ids = subjectClassIds(sub, y, t);
     const prev = @json(array_values(array_map('intval', (array) request('classroom_ids', []))));
     sel.innerHTML = '';
     sel.disabled = ids.length === 0;
     if (ids.length === 0) {
-      if (hint) hint.classList.remove('d-none');
+      setFilterScopeHint('No classes have this subject paper for the selected year and term.');
       syncStreams();
       return;
     }
+    setFilterScopeHint('');
     const prevSet = new Set(prev.map(String));
     CLASSROOMS.forEach(function (c) {
       if (!ids.includes(c.id)) return;
@@ -368,14 +399,13 @@
 
   function syncTermClass() {
     const sel = document.getElementById('classroom_id_term');
-    const hint = document.getElementById('hint_term_class');
     if (!sel) return;
     const y = yearSel?.value;
     const t = termSel?.value;
     if (!y || !t) {
       sel.innerHTML = '<option value="">Select class</option>';
       sel.disabled = true;
-      if (hint) hint.classList.add('d-none');
+      setFilterScopeHint('');
       syncStreams();
       return;
     }
@@ -383,7 +413,7 @@
     const reqClass = @json(request()->filled('classroom_id') ? (int) request('classroom_id') : null);
     fillSelectOptions(sel, ids, reqClass != null ? reqClass : sel.value);
     sel.disabled = ids.length === 0;
-    if (hint) hint.classList.toggle('d-none', ids.length > 0);
+    setFilterScopeHint(ids.length === 0 ? 'No classes have exams in this year/term.' : '');
     syncStreams();
   }
 

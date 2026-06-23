@@ -2,6 +2,7 @@
   $subjects = $payload['subjects'] ?? [];
   $rows = $payload['rows'] ?? [];
   $meta = $payload['meta'] ?? [];
+  $showStreamColumn = $showStreamColumn ?? true;
 
   $subjectAverages = collect($subjects)->mapWithKeys(function ($s) use ($rows) {
     $sid = $s['id'] ?? null;
@@ -15,6 +16,8 @@
     $avg = $vals->count() ? round($vals->avg(), 2) : null;
     return [$sid => $avg];
   });
+
+  $summaryColspan = 3 + count($subjects) + 2 + ($showStreamColumn ? 1 : 0);
 @endphp
 <div class="table-responsive">
   <table class="table table-modern align-middle mb-0 table-sm class-sheet-data-table exam-report-marks-table">
@@ -28,7 +31,9 @@
       <col class="er-col er-col--total">
       <col class="er-col er-col--avg">
       <col class="er-col er-col--cls">
-      <col class="er-col er-col--str">
+      @if($showStreamColumn)
+        <col class="er-col er-col--str">
+      @endif
     </colgroup>
     <thead class="table-light">
       <tr>
@@ -49,7 +54,9 @@
         <th class="text-center er-th">Total</th>
         <th class="text-center er-th">Avg</th>
         <th class="text-center er-th">Cls</th>
-        <th class="text-center er-th">Str</th>
+        @if($showStreamColumn)
+          <th class="text-center er-th">Str</th>
+        @endif
       </tr>
     </thead>
     <tbody>
@@ -66,10 +73,12 @@
           <td class="text-center er-td fw-semibold">{{ $r['total'] ?? '—' }}</td>
           <td class="text-center er-td">{{ $r['average'] ?? '—' }}</td>
           <td class="text-center er-td fw-semibold">{{ $r['class_position'] ?? $r['position'] ?? '—' }}</td>
-          <td class="text-center er-td text-muted">{{ $r['stream_position'] ?? '—' }}</td>
+          @if($showStreamColumn)
+            <td class="text-center er-td text-muted">{{ $r['stream_position'] ?? '—' }}</td>
+          @endif
         </tr>
       @empty
-        <tr><td colspan="{{ 7 + count($subjects) }}" class="text-center text-muted py-4">No rows.</td></tr>
+        <tr><td colspan="{{ $summaryColspan }}" class="text-center text-muted py-4">No rows.</td></tr>
       @endforelse
     </tbody>
     @if(!empty($rows))
@@ -83,7 +92,9 @@
           <td class="text-center er-td fw-semibold"></td>
           <td class="text-center er-td fw-semibold"></td>
           <td class="text-center er-td fw-semibold"></td>
-          <td class="text-center er-td fw-semibold"></td>
+          @if($showStreamColumn)
+            <td class="text-center er-td fw-semibold"></td>
+          @endif
         </tr>
       </tfoot>
     @endif
