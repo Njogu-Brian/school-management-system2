@@ -29,6 +29,7 @@ class ClassSheetBuilder
         );
 
         $students = $this->studentsForClassroom($classroom, $streamId);
+        $streamNames = $this->streamNameMapForClassroom($classroom->id);
 
         $marks = ExamMark::query()
             ->where('exam_id', $exam->id)
@@ -38,7 +39,7 @@ class ClassSheetBuilder
             ->map(fn (ExamMark $m) => $m->applyMarksObtained())
             ->keyBy(fn (ExamMark $m) => $m->student_id . ':' . $m->subject_id);
 
-        $rows = $students->map(function (Student $s) use ($subjects, $marks) {
+        $rows = $students->map(function (Student $s) use ($subjects, $marks, $streamNames) {
             $subjectScores = [];
             $total = 0.0;
             $taken = 0;
@@ -61,7 +62,7 @@ class ClassSheetBuilder
                 'admission_number' => $s->admission_number,
                 'name' => $s->name,
                 'stream_id' => $s->stream_id,
-                'stream_name' => $s->stream?->name,
+                'stream_name' => $this->studentStreamName($s, $streamNames),
                 'subject_scores' => $subjectScores,
                 'total' => $taken > 0 ? round($total, 2) : null,
                 'average' => $avg !== null ? round($avg, 2) : null,
@@ -109,6 +110,7 @@ class ClassSheetBuilder
                 ],
                 'stream_id' => $streamId,
                 'stream_name' => $this->streamName($streamId),
+                'stream_names_by_id' => $streamNames,
             ],
             'subjects' => $subjects->map(fn (Subject $sub) => [
                 'id' => $sub->id,
@@ -142,6 +144,7 @@ class ClassSheetBuilder
                     ],
                     'stream_id' => $streamId,
                     'stream_name' => $this->streamName($streamId),
+                    'stream_names_by_id' => $this->streamNameMapForClassroom($classroom->id),
                 ],
                 'subjects' => [],
                 'rows' => [],
@@ -151,6 +154,7 @@ class ClassSheetBuilder
         $subjects = collect([$subject]);
 
         $students = $this->studentsForClassroom($classroom, $streamId);
+        $streamNames = $this->streamNameMapForClassroom($classroom->id);
 
         $marks = ExamMark::query()
             ->where('exam_id', $exam->id)
@@ -160,7 +164,7 @@ class ClassSheetBuilder
             ->map(fn (ExamMark $m) => $m->applyMarksObtained())
             ->keyBy(fn (ExamMark $m) => $m->student_id.':'.$m->subject_id);
 
-        $rows = $students->map(function (Student $s) use ($subjects, $marks) {
+        $rows = $students->map(function (Student $s) use ($subjects, $marks, $streamNames) {
             $subjectScores = [];
             $total = 0.0;
             $taken = 0;
@@ -183,7 +187,7 @@ class ClassSheetBuilder
                 'admission_number' => $s->admission_number,
                 'name' => $s->name,
                 'stream_id' => $s->stream_id,
-                'stream_name' => $s->stream?->name,
+                'stream_name' => $this->studentStreamName($s, $streamNames),
                 'subject_scores' => $subjectScores,
                 'total' => $taken > 0 ? round($total, 2) : null,
                 'average' => $avg !== null ? round($avg, 2) : null,
@@ -238,6 +242,7 @@ class ClassSheetBuilder
                 ],
                 'stream_id' => $streamId,
                 'stream_name' => $this->streamName($streamId),
+                'stream_names_by_id' => $streamNames,
             ],
             'subjects' => $subjects->map(fn (Subject $sub) => [
                 'id' => $sub->id,
@@ -275,6 +280,7 @@ class ClassSheetBuilder
                     'classroom' => ['id' => $classroom->id, 'name' => $classroom->name],
                     'stream_id' => $streamId,
                     'stream_name' => $this->streamName($streamId),
+                    'stream_names_by_id' => $this->streamNameMapForClassroom($classroom->id),
                 ],
                 'subjects' => [],
                 'rows' => [],
@@ -285,6 +291,7 @@ class ClassSheetBuilder
         $paperIds = $papers->pluck('id');
 
         $students = $this->studentsForClassroom($classroom, $streamId);
+        $streamNames = $this->streamNameMapForClassroom($classroom->id);
 
         $marks = ExamMark::query()
             ->whereIn('exam_id', $paperIds)
@@ -294,7 +301,7 @@ class ClassSheetBuilder
             ->map(fn (ExamMark $m) => $m->applyMarksObtained())
             ->keyBy(fn (ExamMark $m) => $m->student_id . ':' . $m->subject_id);
 
-        $rows = $students->map(function (Student $s) use ($subjects, $marks) {
+        $rows = $students->map(function (Student $s) use ($subjects, $marks, $streamNames) {
             $subjectScores = [];
             $total = 0.0;
             $taken = 0;
@@ -317,7 +324,7 @@ class ClassSheetBuilder
                 'admission_number' => $s->admission_number,
                 'name' => $s->name,
                 'stream_id' => $s->stream_id,
-                'stream_name' => $s->stream?->name,
+                'stream_name' => $this->studentStreamName($s, $streamNames),
                 'subject_scores' => $subjectScores,
                 'total' => $taken > 0 ? round($total, 2) : null,
                 'average' => $avg !== null ? round($avg, 2) : null,
@@ -368,6 +375,7 @@ class ClassSheetBuilder
                 ],
                 'stream_id' => $streamId,
                 'stream_name' => $this->streamName($streamId),
+                'stream_names_by_id' => $streamNames,
                 'paper_exam_ids' => $paperIds->values(),
             ],
             'subjects' => $subjects->map(fn (Subject $sub) => [
@@ -392,6 +400,7 @@ class ClassSheetBuilder
         );
 
         $students = $this->studentsForClassroom($classroom, $streamId);
+        $streamNames = $this->streamNameMapForClassroom($classroom->id);
 
         $exams = $this->examScope->papersForTerm($academicYearId, $termId, $classroom->id, $streamId);
 
@@ -411,7 +420,7 @@ class ClassSheetBuilder
 
         $byStudentSubject = $marks->groupBy(fn (ExamMark $m) => $m->student_id . ':' . $m->subject_id);
 
-        $rows = $students->map(function (Student $s) use ($subjects, $byStudentSubject, $weights) {
+        $rows = $students->map(function (Student $s) use ($subjects, $byStudentSubject, $weights, $streamNames) {
             $subjectScores = [];
             $total = 0.0;
             $taken = 0;
@@ -446,7 +455,7 @@ class ClassSheetBuilder
                 'admission_number' => $s->admission_number,
                 'name' => $s->name,
                 'stream_id' => $s->stream_id,
-                'stream_name' => $s->stream?->name,
+                'stream_name' => $this->studentStreamName($s, $streamNames),
                 'subject_scores' => $subjectScores,
                 'total' => $taken > 0 ? round($total, 2) : null,
                 'average' => $avg !== null ? round($avg, 2) : null,
@@ -489,6 +498,7 @@ class ClassSheetBuilder
                 ],
                 'stream_id' => $streamId,
                 'stream_name' => $this->streamName($streamId),
+                'stream_names_by_id' => $streamNames,
                 'exam_ids' => $examIds->values(),
                 'exam_weights' => $weights->all(),
             ],
@@ -604,13 +614,34 @@ class ClassSheetBuilder
     private function studentsForClassroom(Classroom $classroom, ?int $streamId)
     {
         return Student::query()
-            ->with('stream:id,name')
+            ->with('stream')
             ->where('classroom_id', $classroom->id)
             ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
             ->orderBy('first_name')
             ->orderBy('middle_name')
             ->orderBy('last_name')
             ->get(['id', 'admission_number', 'first_name', 'middle_name', 'last_name', 'classroom_id', 'stream_id']);
+    }
+
+    private function studentStreamName(Student $s, array $streamNames): ?string
+    {
+        $name = $s->stream?->name;
+
+        if ($name) {
+            return $name;
+        }
+
+        return $streamNames[$s->stream_id] ?? null;
+    }
+
+    /** @return array<int, string> */
+    private function streamNameMapForClassroom(int $classroomId): array
+    {
+        return Stream::query()
+            ->where('classroom_id', $classroomId)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
     }
 
     private function streamName(?int $streamId): ?string

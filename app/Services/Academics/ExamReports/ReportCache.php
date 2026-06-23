@@ -29,6 +29,8 @@ class ReportCache
             $classroom->id,
             'stream',
             $streamId ?: 0,
+            'schema',
+            2,
             'v',
             $stamp ? strtotime((string) $stamp) : 0,
         ]);
@@ -64,6 +66,8 @@ class ReportCache
             $classroom->id,
             'stream',
             $streamId ?: 0,
+            'schema',
+            2,
             'v',
             $stamp ? strtotime((string) $stamp) : 0,
         ]);
@@ -93,6 +97,8 @@ class ReportCache
             $classroom->id,
             'stream',
             $streamId ?: 0,
+            'schema',
+            2,
             'v',
             $stamp ? strtotime((string) $stamp) : 0,
         ]);

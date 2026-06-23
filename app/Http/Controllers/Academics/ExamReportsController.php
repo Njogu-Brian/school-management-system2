@@ -509,35 +509,17 @@ class ExamReportsController extends Controller
             return [];
         }
 
-        $assignments = Student::query()
-            ->whereIn('classroom_id', $allowedClassIds)
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->whereNotNull('stream_id')
-            ->select('classroom_id', 'stream_id')
-            ->distinct()
-            ->get();
-
-        if ($assignments->isEmpty()) {
-            return [];
-        }
-
-        $streamIdsByClassroom = $assignments
-            ->groupBy('classroom_id')
-            ->map(fn ($rows) => $rows->pluck('stream_id')->unique()->values()->all());
-
         $streams = Stream::query()
-            ->whereIn('id', $assignments->pluck('stream_id')->unique())
+            ->whereIn('classroom_id', $allowedClassIds)
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'classroom_id']);
 
         $out = [];
-        foreach ($streamIdsByClassroom as $classroomId => $streamIds) {
-            if (count($streamIds) < 2) {
+        foreach ($streams->groupBy('classroom_id') as $classroomId => $classStreams) {
+            if ($classStreams->count() < 2) {
                 continue;
             }
-            $out[(int) $classroomId] = $streams
-                ->whereIn('id', $streamIds)
+            $out[(int) $classroomId] = $classStreams
                 ->map(fn (Stream $s) => ['id' => (int) $s->id, 'name' => $s->name])
                 ->values()
                 ->all();

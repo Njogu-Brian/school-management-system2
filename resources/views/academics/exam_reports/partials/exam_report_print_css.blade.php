@@ -2,7 +2,7 @@
 <style>
   @page {
     size: A4 landscape;
-    margin: 10mm 12mm;
+    margin: 7mm 8mm;
   }
 
   @media print {
@@ -31,7 +31,8 @@
     .settings-card {
       box-shadow: none !important;
       border: none !important;
-      break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     a[href]:after {
@@ -58,8 +59,20 @@
       max-width: 100% !important;
       table-layout: fixed;
       border-collapse: collapse !important;
-      font-size: 8.2pt !important;
+      font-size: 7.5pt !important;
       page-break-inside: auto;
+    }
+
+    .exam-report-marks-table.class-sheet-fit-one-page {
+      page-break-inside: avoid;
+    }
+
+    .exam-report-marks-table.class-sheet-density--compact {
+      font-size: 7pt !important;
+    }
+
+    .exam-report-marks-table.class-sheet-density--tight {
+      font-size: 6.5pt !important;
     }
 
     .exam-report-marks-table thead {
@@ -75,25 +88,80 @@
       color: #111 !important;
       font-weight: 700;
       border: 1px solid #333 !important;
-      padding: 4px 3px !important;
+      padding: 2px 2px !important;
       vertical-align: middle;
       word-wrap: break-word;
       word-break: break-word;
-      line-height: 1.1;
+      line-height: 1.05;
+      font-size: 6.5pt !important;
     }
 
-    .exam-report-marks-table tbody td {
+    .exam-report-marks-table tbody td,
+    .exam-report-marks-table tfoot td {
       border: 1px solid #555 !important;
-      padding: 4px 3px !important;
+      padding: 1px 2px !important;
       vertical-align: middle;
       word-wrap: break-word;
       word-break: break-word;
-      line-height: 1.15;
+      line-height: 1.05;
     }
 
     .exam-report-marks-table tbody tr {
-      page-break-inside: avoid;
+      page-break-inside: auto;
       page-break-after: auto;
+    }
+
+    .exam-report-marks-table tfoot tr {
+      page-break-inside: avoid;
+    }
+
+    .exam-report-marks-table .er-student-name {
+      display: block;
+      font-weight: 600;
+      font-size: inherit;
+      line-height: 1.1;
+    }
+
+    .exam-report-marks-table .er-stream-pill--screen,
+    .exam-report-marks-table .mark-sheet-stream-pill {
+      display: none !important;
+    }
+
+    .exam-report-marks-table .er-score-cell {
+      white-space: nowrap;
+      line-height: 1.05;
+    }
+
+    .exam-report-marks-table .er-score-cell .mark-sheet-score {
+      font-weight: 600;
+    }
+
+    .exam-report-marks-table .er-score-cell .cbc-grade-badge {
+      display: inline-block;
+      margin-left: 1px;
+      padding: 0 2px !important;
+      font-size: 5.5pt !important;
+      line-height: 1.1;
+      border-radius: 2px;
+      vertical-align: baseline;
+    }
+
+    .exam-report-marks-table .er-stream-cell {
+      font-size: 6pt !important;
+      font-weight: 600;
+    }
+
+    .exam-report-letterhead--print {
+      margin-bottom: 4px !important;
+      padding-bottom: 2px !important;
+    }
+
+    .exam-report-letterhead--print table {
+      font-size: 7pt !important;
+    }
+
+    .exam-report-letterhead--print img {
+      max-height: 42px !important;
     }
 
     .exam-report-print-root .card-header.d-print-none {
@@ -126,6 +194,14 @@
 
   /* Column widths tuned for mark sheet layout */
   @media screen {
+    .exam-report-marks-table .er-score-cell .cbc-grade-badge {
+      display: inline-block;
+      margin-left: 0.2rem;
+      vertical-align: middle;
+    }
+  }
+
+  @media screen {
     .exam-report-marks-table {
       width: max-content;
       min-width: 100%;
@@ -142,7 +218,7 @@
     .exam-report-marks-table .er-col--idx { width: 2.5rem; }
     .exam-report-marks-table .er-col--adm { width: 5.5rem; }
     .exam-report-marks-table .er-col--student { min-width: 10rem; }
-    .exam-report-marks-table .er-col--score { min-width: 3.25rem; }
+    .exam-report-marks-table .er-col--score { min-width: 3rem; }
     .exam-report-marks-table .er-col--total,
     .exam-report-marks-table .er-col--avg { min-width: 3.5rem; }
     .exam-report-marks-table .er-col--cls,
@@ -154,14 +230,19 @@
   }
 
   @media print {
-    .exam-report-marks-table .er-col--idx { width: 3%; }
-    .exam-report-marks-table .er-col--adm { width: 7.5%; }
-    .exam-report-marks-table .er-col--student { width: 20%; }
-    .exam-report-marks-table .er-col--score { width: 5.2%; }
-    .exam-report-marks-table .er-col--total { width: 5.8%; }
-    .exam-report-marks-table .er-col--avg { width: 5.2%; }
-    .exam-report-marks-table .er-col--cls { width: 4%; }
-    .exam-report-marks-table .er-col--str { width: 4%; }
+    .exam-report-marks-table .er-col--idx { width: 2.5%; }
+    .exam-report-marks-table .er-col--adm { width: 6%; }
+    .exam-report-marks-table .er-col--student { width: 14%; }
+    .exam-report-marks-table .er-col--score { width: 4.8%; }
+    .exam-report-marks-table .er-col--total { width: 4.5%; }
+    .exam-report-marks-table .er-col--avg { width: 5%; }
+    .exam-report-marks-table .er-col--cls { width: 3%; }
+    .exam-report-marks-table .er-col--str { width: 5%; }
+
+    .exam-report-marks-table .er-th,
+    .exam-report-marks-table .er-td.er-score-cell {
+      white-space: nowrap;
+    }
   }
 
   .exam-report-marks-table .er-th,

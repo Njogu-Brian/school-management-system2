@@ -4,9 +4,24 @@
   $subjects = $payload['subjects'] ?? [];
   $rows = $payload['rows'] ?? [];
   $meta = $payload['meta'] ?? [];
-  $showStreamColumn = $showStreamColumn ?? true;
   $classroomId = (int) ($meta['classroom']['id'] ?? 0);
   $streamFiltered = ! empty($meta['stream_id']);
+  $streamNamesById = $meta['stream_names_by_id'] ?? [];
+
+  $resolveStreamName = function (array $r) use ($streamNamesById): ?string {
+    if (! empty($r['stream_name'])) {
+      return $r['stream_name'];
+    }
+    $sid = $r['stream_id'] ?? null;
+    return ($sid && isset($streamNamesById[$sid])) ? $streamNamesById[$sid] : null;
+  };
+
+  $hasStreamInRows = collect($rows)->contains(fn ($r) => filled($resolveStreamName($r)));
+  $showStreamColumn = ($showStreamColumn ?? false) && ($streamFiltered || $hasStreamInRows);
+
+  $rowCount = count($rows);
+  $densityClass = 'class-sheet-density--'.($rowCount <= 18 ? 'normal' : ($rowCount <= 32 ? 'compact' : 'tight'));
+  $fitOnePageClass = $rowCount <= 40 ? 'class-sheet-fit-one-page' : '';
 
   $subjectAverages = collect($subjects)->mapWithKeys(function ($s) use ($rows) {
     $sid = $s['id'] ?? null;
@@ -31,7 +46,7 @@
   $summaryColspan = 3 + count($subjects) + 2 + ($showStreamColumn ? 1 : 0);
 @endphp
 <div class="table-responsive">
-  <table class="table table-modern align-middle mb-0 table-sm class-sheet-data-table exam-report-marks-table">
+  <table class="table table-modern align-middle mb-0 table-sm class-sheet-data-table exam-report-marks-table {{ $densityClass }} {{ $fitOnePageClass }}">
     <colgroup>
       <col class="er-col er-col--idx">
       <col class="er-col er-col--adm">
@@ -66,13 +81,14 @@
         <th class="text-center er-th">Avg</th>
         <th class="text-center er-th">Cls</th>
         @if($showStreamColumn)
-          <th class="text-center er-th">{{ $streamFiltered ? 'Str pos' : 'Stream' }}</th>
+          <th class="text-center er-th">{{ $streamFiltered ? 'Str' : 'Stream' }}</th>
         @endif
       </tr>
     </thead>
     <tbody>
       @forelse($rows as $i => $r)
         @php
+          $streamLabel = $resolveStreamName($r);
           $avgGrade = CbcGradePresentation::forPercentage(
             is_numeric($r['average'] ?? null) ? (float) $r['average'] : null,
             $classroomId ?: null
@@ -82,9 +98,9 @@
           <td class="text-center er-td">{{ $i + 1 }}</td>
           <td class="text-center er-td">{{ $r['admission_number'] ?? '' }}</td>
           <td class="er-td">
-            <div class="fw-semibold">{{ $r['name'] ?? '' }}</div>
-            @if($showStreamColumn && ! $streamFiltered && ! empty($r['stream_name']))
-              <span class="mark-sheet-stream-pill">{{ $r['stream_name'] }}</span>
+            <span class="er-student-name">{{ $r['name'] ?? '' }}</span>
+            @if($showStreamColumn && ! $streamFiltered && $streamLabel)
+              <span class="mark-sheet-stream-pill er-stream-pill--screen">{{ $streamLabel }}</span>
             @endif
           </td>
           @foreach($subjects as $s)
@@ -96,27 +112,21 @@
                 $classroomId ?: null
               );
             @endphp
-            <td class="text-center er-td">
-              <div class="mark-sheet-score">{{ $score !== null && $score !== '' ? $score : '—' }}</div>
-              @if($scoreGrade)
-                @include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $scoreGrade])
-              @endif
+            <td class="text-center er-td er-score-cell">
+              <span class="mark-sheet-score">{{ $score !== null && $score !== '' ? $score : '—' }}</span>@if($scoreGrade)@include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $scoreGrade])@endif
             </td>
           @endforeach
           <td class="text-center er-td mark-sheet-score">{{ $r['total'] ?? '—' }}</td>
-          <td class="text-center er-td">
-            <div class="mark-sheet-score">{{ $r['average'] ?? '—' }}</div>
-            @if($avgGrade)
-              @include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $avgGrade, 'wide' => true])
-            @endif
+          <td class="text-center er-td er-score-cell">
+            <span class="mark-sheet-score">{{ $r['average'] ?? '—' }}</span>@if($avgGrade)@include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $avgGrade])@endif
           </td>
           <td class="text-center er-td fw-semibold">{{ $r['class_position'] ?? $r['position'] ?? '—' }}</td>
           @if($showStreamColumn)
-            <td class="text-center er-td text-muted">
+            <td class="text-center er-td er-stream-cell">
               @if($streamFiltered)
                 {{ $r['stream_position'] ?? '—' }}
               @else
-                {{ $r['stream_name'] ?? '—' }}
+                {{ $streamLabel ?? '—' }}
               @endif
             </td>
           @endif
@@ -138,11 +148,8 @@
                 $classroomId ?: null
               );
             @endphp
-            <td class="text-center er-td">
-              <div class="fw-semibold">{{ isset($subAvg) ? $subAvg : '—' }}</div>
-              @if($subAvgGrade)
-                @include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $subAvgGrade, 'wide' => true])
-              @endif
+            <td class="text-center er-td er-score-cell">
+              <span class="fw-semibold">{{ isset($subAvg) ? $subAvg : '—' }}</span>@if($subAvgGrade)@include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $subAvgGrade])@endif
             </td>
           @endforeach
           <td class="text-center er-td"></td>
@@ -158,11 +165,8 @@
             <td class="text-center er-td"></td>
           @endforeach
           <td class="text-center er-td"></td>
-          <td class="text-center er-td">
-            <div class="fw-bold fs-6">{{ $classMean ?? '—' }}</div>
-            @if($classMeanGrade)
-              @include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $classMeanGrade, 'wide' => true])
-            @endif
+          <td class="text-center er-td er-score-cell">
+            <span class="fw-bold">{{ $classMean ?? '—' }}</span>@if($classMeanGrade)@include('academics.exam_reports.partials.cbc_grade_badge', ['grade' => $classMeanGrade])@endif
           </td>
           <td class="text-center er-td"></td>
           @if($showStreamColumn)

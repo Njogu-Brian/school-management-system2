@@ -1,10 +1,9 @@
 @php
   $grade = $grade ?? null;
-  $wide = $wide ?? false;
 @endphp
 @if(!empty($grade))
-  <span class="cbc-grade-badge cbc-grade--{{ $grade['tier'] }}{{ $wide ? ' cbc-grade-badge--wide' : '' }}"
+  <span class="cbc-grade-badge cbc-grade--{{ $grade['tier'] }}"
         title="{{ $grade['label'] }} ({{ number_format($grade['percent'], 1) }}%)">
-    {{ $wide ? $grade['label'] : $grade['short'] }}
+    {{ $grade['short'] }}
   </span>
 @endif
