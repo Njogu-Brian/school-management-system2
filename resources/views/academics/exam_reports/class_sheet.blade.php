@@ -25,7 +25,7 @@
       <div>
         <div class="crumb">Academics · Exam Reports &amp; Analysis</div>
         <h1 class="mb-1">Class Mark Sheet</h1>
-        <p class="mb-0">Choose year and term first, then class and stream (when they exist).</p>
+        <p class="mb-0">Choose year and term first, then class. For streamed classes, pick a stream or leave <strong>All streams</strong>.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.teacher-performance') }}">Teacher Performance</a>
@@ -120,10 +120,11 @@
               </div>
 
               <div class="col-6 col-md-4 col-lg-3 col-xl-2 d-none" id="streamFieldWrapper">
-                <label for="stream_id_field" class="form-label">Stream</label>
+                <label for="stream_id_field" class="form-label">Stream <span class="text-muted fw-normal small">(optional)</span></label>
                 <select name="stream_id" class="form-select" id="stream_id_field">
                   <option value="">All streams</option>
                 </select>
+                <p class="form-text small mb-0 mt-1" id="stream_filter_hint">Pick one stream or leave All streams for the full class.</p>
               </div>
             </div>
             <p class="form-text small mb-0 mt-2" id="term_year_hint">Terms update when you pick a year.</p>
@@ -281,6 +282,7 @@
   const termSel = document.getElementById('term_id_field');
   const streamWrap = document.getElementById('streamFieldWrapper');
   const streamSel = document.getElementById('stream_id_field');
+  const streamHint = document.getElementById('stream_filter_hint');
   const filterScopeHint = document.getElementById('filter_scope_hint');
 
   function setFilterScopeHint(message) {
@@ -468,10 +470,12 @@
       streamWrap.classList.add('d-none');
       streamSel.value = '';
       streamSel.disabled = true;
+      if (streamHint) streamHint.classList.add('d-none');
       return;
     }
     streamWrap.classList.remove('d-none');
     streamSel.disabled = false;
+    if (streamHint) streamHint.classList.remove('d-none');
     list.forEach(function (st) {
       const o = document.createElement('option');
       o.value = st.id;

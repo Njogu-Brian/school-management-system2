@@ -17,7 +17,7 @@
   };
 
   $hasStreamInRows = collect($rows)->contains(fn ($r) => filled($resolveStreamName($r)));
-  $showStreamColumn = ($showStreamColumn ?? false) && ($streamFiltered || $hasStreamInRows);
+  $showStreamColumn = ($showStreamColumn ?? false) || $streamFiltered;
 
   $rowCount = count($rows);
   $densityClass = 'class-sheet-density--'.($rowCount <= 18 ? 'normal' : ($rowCount <= 32 ? 'compact' : 'tight'));

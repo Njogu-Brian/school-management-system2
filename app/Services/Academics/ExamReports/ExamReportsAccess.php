@@ -15,7 +15,7 @@ final class ExamReportsAccess
      */
     public static function userHasFullAccess(?User $user): bool
     {
-        return $user && $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        return $user && $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Director']);
     }
 
     /**

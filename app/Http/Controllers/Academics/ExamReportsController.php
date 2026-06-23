@@ -498,7 +498,7 @@ class ExamReportsController extends Controller
     }
 
     /**
-     * Streams available per class for filters — only classes where active learners use streams.
+     * Streams available per class for filters — classes with one or more streams.
      *
      * @param  int[]  $allowedClassIds
      * @return array<int|string, list<array{id: int, name: string}>>
@@ -509,23 +509,38 @@ class ExamReportsController extends Controller
             return [];
         }
 
-        $streams = Stream::query()
+        $out = [];
+
+        $primaryStreams = Stream::query()
             ->whereIn('classroom_id', $allowedClassIds)
             ->orderBy('name')
             ->get(['id', 'name', 'classroom_id']);
 
-        $out = [];
-        foreach ($streams->groupBy('classroom_id') as $classroomId => $classStreams) {
-            if ($classStreams->count() < 2) {
-                continue;
-            }
+        foreach ($primaryStreams->groupBy('classroom_id') as $classroomId => $classStreams) {
             $out[(int) $classroomId] = $classStreams
                 ->map(fn (Stream $s) => ['id' => (int) $s->id, 'name' => $s->name])
                 ->values()
                 ->all();
         }
 
-        return $out;
+        $pivotStreams = Stream::query()
+            ->whereHas('classrooms', fn ($q) => $q->whereIn('classrooms.id', $allowedClassIds))
+            ->with(['classrooms' => fn ($q) => $q->whereIn('classrooms.id', $allowedClassIds)->select('classrooms.id')])
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        foreach ($pivotStreams as $stream) {
+            foreach ($stream->classrooms as $classroom) {
+                $cid = (int) $classroom->id;
+                $entry = ['id' => (int) $stream->id, 'name' => $stream->name];
+                $existing = collect($out[$cid] ?? []);
+                if (! $existing->contains(fn ($s) => $s['id'] === $entry['id'])) {
+                    $out[$cid] = $existing->push($entry)->sortBy('name')->values()->all();
+                }
+            }
+        }
+
+        return array_filter($out, fn (array $streams) => $streams !== []);
     }
 
     /**
