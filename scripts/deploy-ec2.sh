@@ -55,12 +55,25 @@ echo "✓ Migrations done"
 WEB_USER="${WEB_USER:-www-data}"
 
 fix_storage_perms() {
+  mkdir -p storage/framework/{cache,sessions,views,testing} storage/logs bootstrap/cache
   if [ "$(id -u)" -eq 0 ]; then
     chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
     chmod -R ug+rwx storage bootstrap/cache
   else
     sudo chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
     sudo chmod -R ug+rwx storage bootstrap/cache
+  fi
+}
+
+run_artisan_as_web() {
+  if id "${WEB_USER}" >/dev/null 2>&1; then
+    if [ "$(id -u)" -eq 0 ]; then
+      sudo -u "${WEB_USER}" php artisan "$@"
+    else
+      sudo -u "${WEB_USER}" php artisan "$@" 2>/dev/null || php artisan "$@"
+    fi
+  else
+    php artisan "$@"
   fi
 }
 
@@ -76,9 +89,8 @@ echo ""
 echo "[7/8] Optimizing for production..."
 php artisan config:cache
 php artisan route:cache
-php artisan view:cache
+run_artisan_as_web view:cache
 php artisan optimize
-# view:cache writes compiled blades as the current user — re-own so the web user can recompile on demand
 fix_storage_perms
 echo "✓ Caches rebuilt"
 
