@@ -124,7 +124,7 @@ class LeaveController extends Controller
             'status' => 'pending',
         ]);
         
-        return redirect()->route('teacher.leave.index')
+        return redirect()->route($this->leaveRoutePrefix() . '.index')
             ->with('success', 'Leave request submitted successfully.');
     }
     
@@ -183,5 +183,10 @@ class LeaveController extends Controller
         }
         
         return $days;
+    }
+
+    private function leaveRoutePrefix(): string
+    {
+        return request()->routeIs('senior_teacher.*') ? 'senior_teacher.leave' : 'teacher.leave';
     }
 }

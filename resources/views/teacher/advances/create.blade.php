@@ -1,9 +1,20 @@
 @extends('layouts.app')
 
+@php
+  $routePrefix = request()->routeIs('senior_teacher.*') ? 'senior_teacher.advances' : 'teacher.advances';
+@endphp
+
+@push('styles')
+    @if(request()->routeIs('senior_teacher.*'))
+        @include('senior_teacher.partials.styles')
+    @endif
+@endpush
+
 @section('content')
+<div class="{{ request()->routeIs('senior_teacher.*') ? 'senior-teacher-page' : '' }}">
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <a href="{{ route('teacher.advances.index') }}" class="text-decoration-none">
+        <a href="{{ route($routePrefix . '.index') }}" class="text-decoration-none">
             <i class="bi bi-arrow-left"></i> Back to requests
         </a>
         <h1 class="h4 mb-0">Request Salary Advance</h1>
@@ -21,7 +32,7 @@
 
     <div class="card shadow-sm">
         <div class="card-body">
-            <form method="POST" action="{{ route('teacher.advances.store') }}">
+            <form method="POST" action="{{ route($routePrefix . '.store') }}">
                 @csrf
                 <div class="row g-3">
                     <div class="col-md-4">
@@ -69,7 +80,7 @@
                 </div>
 
                 <div class="d-flex justify-content-end gap-2 mt-4">
-                    <a href="{{ route('teacher.advances.index') }}" class="btn btn-light">Cancel</a>
+                    <a href="{{ route($routePrefix . '.index') }}" class="btn btn-light">Cancel</a>
                     <button class="btn btn-primary">
                         <i class="bi bi-send"></i> Submit Request
                     </button>
@@ -77,6 +88,7 @@
             </form>
         </div>
     </div>
+</div>
 </div>
 
 @push('scripts')

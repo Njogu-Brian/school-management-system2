@@ -1,13 +1,24 @@
 @extends('layouts.app')
 
+@php
+  $routePrefix = request()->routeIs('senior_teacher.*') ? 'senior_teacher.leave' : 'teacher.leave';
+@endphp
+
+@push('styles')
+    @if(request()->routeIs('senior_teacher.*'))
+        @include('senior_teacher.partials.styles')
+    @endif
+@endpush
+
 @section('content')
+<div class="{{ request()->routeIs('senior_teacher.*') ? 'senior-teacher-page' : '' }}">
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h2 class="mb-0">Leave Request Details</h2>
       <small class="text-muted">View leave request information</small>
     </div>
-    <a href="{{ route('teacher.leave.index') }}" class="btn btn-secondary">
+    <a href="{{ route($routePrefix . '.index') }}" class="btn btn-secondary">
       <i class="bi bi-arrow-left"></i> Back
     </a>
   </div>
@@ -96,7 +107,7 @@
           <h5 class="mb-0">Actions</h5>
         </div>
         <div class="card-body">
-          <form action="{{ route('teacher.leave.cancel', $leaveRequest->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to cancel this leave request?')">
+          <form action="{{ route($routePrefix . '.cancel', $leaveRequest->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to cancel this leave request?')">
             @csrf
             <button type="submit" class="btn btn-danger w-100">
               <i class="bi bi-x-circle"></i> Cancel Request
@@ -107,6 +118,7 @@
       @endif
     </div>
   </div>
+</div>
 </div>
 @endsection
 

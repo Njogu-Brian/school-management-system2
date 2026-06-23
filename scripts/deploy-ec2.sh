@@ -98,7 +98,7 @@ echo "✓ Caches rebuilt"
 echo ""
 echo "[8/8] Queue workers..."
 if command -v supervisorctl &>/dev/null; then
-    supervisorctl restart erp-worker:* 2>/dev/null || supervisorctl restart all 2>/dev/null || true
+    sudo supervisorctl restart erp-worker:* 2>/dev/null || sudo supervisorctl restart all 2>/dev/null || true
 fi
 echo "✓ Deployment complete"
 

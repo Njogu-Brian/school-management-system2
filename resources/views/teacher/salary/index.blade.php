@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@php
+  $routePrefix = request()->routeIs('senior_teacher.*') ? 'senior_teacher.salary' : 'teacher.salary';
+@endphp
+
 @push('styles')
     @if(request()->routeIs('senior_teacher.*'))
         @include('senior_teacher.partials.styles')
@@ -102,10 +106,10 @@
                     </td>
                     <td class="text-end">
                       <div class="btn-group" role="group">
-                        <a href="{{ route('teacher.salary.payslip', $record->id) }}" class="btn btn-sm btn-outline-primary" target="_blank" title="View Payslip">
+                        <a href="{{ route($routePrefix . '.payslip', $record->id) }}" class="btn btn-sm btn-outline-primary" target="_blank" title="View Payslip">
                           <i class="bi bi-eye"></i>
                         </a>
-                        <a href="{{ route('teacher.salary.payslip.download', $record->id) }}" class="btn btn-sm btn-outline-secondary" title="Download PDF">
+                        <a href="{{ route($routePrefix . '.payslip.download', $record->id) }}" class="btn btn-sm btn-outline-secondary" title="Download PDF">
                           <i class="bi bi-download"></i>
                         </a>
                       </div>

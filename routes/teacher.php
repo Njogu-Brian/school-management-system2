@@ -171,13 +171,13 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher|Sen
     |---------------------- Salary & Payslips ----------------------
     | View own salary and payslips
     */
-    Route::prefix('salary')->name('teacher.salary.')->group(function () {
+    Route::prefix('teacher/salary')->name('teacher.salary.')->group(function () {
         Route::get('/', [SalaryController::class, 'index'])->name('index');
         Route::get('/payslip/{record}', [SalaryController::class, 'payslip'])->name('payslip');
         Route::get('/payslip/{record}/download', [SalaryController::class, 'downloadPayslip'])->name('payslip.download');
     });
 
-    Route::prefix('advances')->name('teacher.advances.')->group(function () {
+    Route::prefix('teacher/advances')->name('teacher.advances.')->group(function () {
         Route::get('/', [AdvanceRequestController::class, 'index'])->name('index');
         Route::get('/create', [AdvanceRequestController::class, 'create'])->name('create');
         Route::post('/', [AdvanceRequestController::class, 'store'])->name('store');
@@ -187,7 +187,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher|Sen
     |---------------------- Leaves ----------------------
     | Request leaves and view leave history
     */
-    Route::prefix('leaves')->name('teacher.leave.')->group(function () {
+    Route::prefix('teacher/leaves')->name('teacher.leave.')->group(function () {
         Route::get('/', [LeaveController::class, 'index'])->name('index');
         Route::get('/create', [LeaveController::class, 'create'])->name('create');
         Route::post('/', [LeaveController::class, 'store'])->name('store');
@@ -199,7 +199,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher|Sen
     |---------------------- Timetable ----------------------
     | View class and teacher timetables
     */
-    Route::prefix('timetable')->name('teacher.timetable.')->group(function () {
+    Route::prefix('teacher/timetable')->name('teacher.timetable.')->group(function () {
         Route::get('/', [TimetableController::class, 'index'])->name('index');
         Route::get('/classroom/{classroom}', [TimetableController::class, 'classroom'])->name('classroom');
         Route::get('/my-timetable', function() {
@@ -216,7 +216,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher|Sen
     |---------------------- Announcements ----------------------
     | View announcements
     */
-    Route::get('/announcements', [CommunicationAnnouncementController::class, 'index'])
+    Route::get('/teacher/announcements', [CommunicationAnnouncementController::class, 'index'])
         ->name('teacher.announcements.index');
 
     /*

@@ -71,8 +71,13 @@ class AdvanceRequestController extends Controller
 
         StaffAdvance::create($payload);
 
-        return redirect()->route('teacher.advances.index')
+        return redirect()->route($this->advanceRoutePrefix() . '.index')
             ->with('success', 'Advance request submitted for approval.');
+    }
+
+    private function advanceRoutePrefix(): string
+    {
+        return request()->routeIs('senior_teacher.*') ? 'senior_teacher.advances' : 'teacher.advances';
     }
 }
 

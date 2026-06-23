@@ -1,13 +1,24 @@
 @extends('layouts.app')
 
+@php
+  $routePrefix = request()->routeIs('senior_teacher.*') ? 'senior_teacher.leave' : 'teacher.leave';
+@endphp
+
+@push('styles')
+    @if(request()->routeIs('senior_teacher.*'))
+        @include('senior_teacher.partials.styles')
+    @endif
+@endpush
+
 @section('content')
+<div class="{{ request()->routeIs('senior_teacher.*') ? 'senior-teacher-page' : '' }}">
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h2 class="mb-0">Request Leave</h2>
       <small class="text-muted">Submit a new leave request</small>
     </div>
-    <a href="{{ route('teacher.leave.index') }}" class="btn btn-secondary">
+    <a href="{{ route($routePrefix . '.index') }}" class="btn btn-secondary">
       <i class="bi bi-arrow-left"></i> Back
     </a>
   </div>
@@ -42,7 +53,7 @@
           <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Leave Request Form</h5>
         </div>
         <div class="card-body">
-          <form action="{{ route('teacher.leave.store') }}" method="POST" id="leaveForm">
+          <form action="{{ route($routePrefix . '.store') }}" method="POST" id="leaveForm">
             @csrf
 
             <div class="row">
@@ -89,7 +100,7 @@
             </div>
 
             <div class="d-flex justify-content-between">
-              <a href="{{ route('teacher.leave.index') }}" class="btn btn-secondary">Cancel</a>
+              <a href="{{ route($routePrefix . '.index') }}" class="btn btn-secondary">Cancel</a>
               <button type="submit" class="btn btn-primary">
                 <i class="bi bi-check-circle"></i> Submit Request
               </button>
@@ -99,6 +110,7 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 
 <script>

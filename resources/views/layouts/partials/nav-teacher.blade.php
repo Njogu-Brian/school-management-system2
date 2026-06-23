@@ -16,10 +16,10 @@
   $studentsActive = Request::is('my-students*');
   $feeClearanceActive = Request::is('teacher/fee-clearance*');
   $transportActive = Request::is('teacher/transport*');
-  $salaryActive = Request::is('salary') || Request::is('salary/*');
-  $leaveActive = Request::is('leaves*');
-  $timetableActive = Request::is('academics/timetable*') || Request::is('timetable*');
-  $announcementsActive = Request::is('announcements*');
+  $salaryActive = Request::is('teacher/salary') || Request::is('teacher/salary/*');
+  $leaveActive = Request::is('teacher/leaves*');
+  $timetableActive = Request::is('academics/timetable*') || Request::is('teacher/timetable*');
+  $announcementsActive = Request::is('teacher/announcements*');
   $eventsActive = Request::is('teacher/events*') || Request::is('events*');
   $teacherInventoryActive = Request::is('inventory/student-requirements*') || Request::is('inventory/requisitions*');
   $supervisorActive = Request::is('supervisor/*') || (is_supervisor() && (Request::is('academics/lesson-plans*') || Request::is('academics/exams*') || Request::is('academics/timetable*') || Request::is('staff/leave-requests*') || Request::is('staff/attendance*')));
@@ -252,22 +252,22 @@
 </a>
 
 {{-- Salary & Payslips (routes live in routes/teacher.php; fallback URL if route cache omits names) --}}
-<a href="{{ $teacherUrl('teacher.salary.index', '/salary') }}" class="{{ $salaryActive ? 'active' : '' }}">
+<a href="{{ $teacherUrl('teacher.salary.index', '/teacher/salary') }}" class="{{ $salaryActive ? 'active' : '' }}">
   <i class="bi bi-cash-stack"></i> Salary & Payslips
 </a>
 
 {{-- Advances --}}
-<a href="{{ $teacherUrl('teacher.advances.index', '/advances') }}" class="{{ Request::is('advances*') ? 'active' : '' }}">
+<a href="{{ $teacherUrl('teacher.advances.index', '/teacher/advances') }}" class="{{ Request::is('teacher/advances*') ? 'active' : '' }}">
   <i class="bi bi-wallet2"></i> Advance Requests
 </a>
 
 {{-- Leaves --}}
-<a href="{{ $teacherUrl('teacher.leave.index', '/leaves') }}" class="{{ $leaveActive ? 'active' : '' }}">
+<a href="{{ $teacherUrl('teacher.leave.index', '/teacher/leaves') }}" class="{{ $leaveActive ? 'active' : '' }}">
   <i class="bi bi-calendar-event"></i> Leaves
 </a>
 
 {{-- Announcements --}}
-<a href="{{ $teacherUrl('teacher.announcements.index', '/announcements') }}" class="{{ $announcementsActive ? 'active' : '' }}">
+<a href="{{ $teacherUrl('teacher.announcements.index', '/teacher/announcements') }}" class="{{ $announcementsActive ? 'active' : '' }}">
   <i class="bi bi-megaphone"></i> Announcements
 </a>
 

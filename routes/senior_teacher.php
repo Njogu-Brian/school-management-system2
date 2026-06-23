@@ -175,7 +175,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
     | Timetable (View and Edit)
     |--------------------------------------------------------------------------
     */
-    Route::prefix('timetable')->name('senior_teacher.timetable.')->group(function () {
+    Route::prefix('senior-teacher/timetable')->name('senior_teacher.timetable.')->group(function () {
         Route::get('/', [TimetableController::class, 'index'])->name('index');
         Route::get('/classroom/{classroom}', [TimetableController::class, 'classroom'])->name('classroom');
         Route::get('/my-timetable', function() {
@@ -193,7 +193,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
     | Salary & Payslips (Own only)
     |--------------------------------------------------------------------------
     */
-    Route::prefix('salary')->name('senior_teacher.salary.')->group(function () {
+    Route::prefix('senior-teacher/salary')->name('senior_teacher.salary.')->group(function () {
         Route::get('/', [SalaryController::class, 'index'])->name('index');
         Route::get('/payslip/{record}', [SalaryController::class, 'payslip'])->name('payslip');
         Route::get('/payslip/{record}/download', [SalaryController::class, 'downloadPayslip'])->name('payslip.download');
@@ -204,7 +204,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
     | Advance Requests (Own only)
     |--------------------------------------------------------------------------
     */
-    Route::prefix('advances')->name('senior_teacher.advances.')->group(function () {
+    Route::prefix('senior-teacher/advances')->name('senior_teacher.advances.')->group(function () {
         Route::get('/', [AdvanceRequestController::class, 'index'])->name('index');
         Route::get('/create', [AdvanceRequestController::class, 'create'])->name('create');
         Route::post('/', [AdvanceRequestController::class, 'store'])->name('store');
@@ -215,7 +215,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
     | Leaves (Request and view own)
     |--------------------------------------------------------------------------
     */
-    Route::prefix('leaves')->name('senior_teacher.leave.')->group(function () {
+    Route::prefix('senior-teacher/leaves')->name('senior_teacher.leave.')->group(function () {
         Route::get('/', [LeaveController::class, 'index'])->name('index');
         Route::get('/create', [LeaveController::class, 'create'])->name('create');
         Route::post('/', [LeaveController::class, 'store'])->name('store');
@@ -228,7 +228,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
     | Announcements (View only)
     |--------------------------------------------------------------------------
     */
-    Route::get('/announcements', [CommunicationAnnouncementController::class, 'index'])
+    Route::get('/senior-teacher/announcements', [CommunicationAnnouncementController::class, 'index'])
         ->name('senior_teacher.announcements.index');
 
     /*

@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@php
+  $routePrefix = request()->routeIs('senior_teacher.*') ? 'senior_teacher.salary' : 'teacher.salary';
+@endphp
+
 @section('content')
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -11,10 +15,10 @@
       @endif
     </div>
     <div class="d-flex gap-2">
-      <a href="{{ route('teacher.salary.index') }}" class="btn btn-secondary">
+      <a href="{{ route($routePrefix . '.index') }}" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Back
       </a>
-      <a href="{{ route('teacher.salary.payslip.download', $record->id) }}" class="btn btn-primary">
+      <a href="{{ route($routePrefix . '.payslip.download', $record->id) }}" class="btn btn-primary">
         <i class="bi bi-download"></i> Download PDF
       </a>
     </div>
