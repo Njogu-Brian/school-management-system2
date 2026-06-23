@@ -12,8 +12,8 @@ use Illuminate\Support\Str;
 class PageBuilderService
 {
     public const BLOCK_TYPES = [
-        'hero', 'gallery', 'stats', 'testimonials', 'timeline', 'cta', 'faq',
-        'videos', 'spotlight', 'blog_feed', 'admissions_banner', 'scripture_block', 'leadership_message',
+        'hero', 'school_pathway', 'school_pathways_intro', 'journey', 'gallery', 'stats', 'testimonials', 'timeline', 'cta', 'faq',
+        'videos', 'spotlight', 'blog_feed', 'admissions_banner', 'scripture_block', 'leadership_message', 'programs',
     ];
 
     public function addSectionFromTemplate(Page $page, SectionTemplate|string $template, int $sortOrder = 0): PageSection

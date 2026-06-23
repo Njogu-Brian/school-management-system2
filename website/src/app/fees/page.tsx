@@ -1,30 +1,57 @@
-import { RichPage, PageHero, SectionBlock, CtaBanner } from "@/components/layout/RichPage";
-import { FEES_NOTE } from "@/content/schoolContent";
+import {
+  RichPage,
+  PageHero,
+  SectionBlock,
+  CtaBanner,
+  InfoCardGrid,
+  EditorialIntro,
+} from "@/components/layout/RichPage";
+import { FEES_NOTE, LEGACY_IMAGES } from "@/content/schoolContent";
+
+const COVERS = [
+  { title: "Tuition & CBC Curriculum", description: "Competency-based learning from Creche through Grade 9 with dedicated teachers.", icon: "📚" },
+  { title: "Co-Curricular Access", description: "Skating, ballet, coding, music, sports, worship, and more included in school life.", icon: "⭐" },
+  { title: "Pastoral Care", description: "Daily devotions, chaplain support, and Christian character formation.", icon: "✝️" },
+  { title: "School Events", description: "Sports days, talent showcases, open days, and graduation ceremonies.", icon: "🎉" },
+  { title: "Meals Programme", description: "Balanced, nutritious meals prepared by caring kitchen staff.", icon: "🍽️" },
+  { title: "Transport (Optional)", description: "Safe routes serving Wangige, Lower Kabete, Kikuyu, Gitaru & Uthiru.", icon: "🚌" },
+];
+
+const FLEXIBILITY = [
+  { title: "Transparent Structure", description: "Full fee breakdown shared during your campus tour or admissions consultation." },
+  { title: "Flexible Payments", description: "Payment plans discussed with our finance office to suit your family." },
+  { title: "Sibling Benefits", description: "Discounts may apply for multiple children — enquire with admissions." },
+  { title: "Value for Investment", description: "Premium Christian education designed for lasting academic and character returns." },
+];
 
 export default function FeesPage() {
   return (
     <RichPage>
-      <PageHero title="School Fees" subtitle="Transparent, flexible, and designed for lasting value in Christian education." />
+      <PageHero
+        title="School Fees"
+        subtitle="Transparent, flexible, and designed for lasting value in Christian education."
+        image={LEGACY_IMAGES.classroom}
+      />
+
       <SectionBlock>
-        <p className="mx-auto max-w-3xl text-center text-[var(--rk-muted)]">{FEES_NOTE.intro}</p>
-        <ul className="mx-auto mt-8 grid max-w-3xl gap-3 sm:grid-cols-2">
-          {FEES_NOTE.points.map((p) => (
-            <li key={p} className="rounded-xl bg-[var(--rk-cream)] p-4 text-sm text-[var(--rk-muted)] ring-1 ring-[var(--rk-border)]">{p}</li>
-          ))}
-        </ul>
+        <EditorialIntro>{FEES_NOTE.intro}</EditorialIntro>
       </SectionBlock>
-      <SectionBlock title="What Your Investment Covers" alt>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {["Tuition & CBC curriculum", "Co-curricular access", "Pastoral care & devotions", "School events", "Meals programme", "Transport (optional)"].map((item) => (
-            <div key={item} className="rounded-xl bg-white p-5 text-center shadow-[var(--rk-shadow-soft)] ring-1 ring-[var(--rk-border)]">
-              <span className="text-[var(--rk-gold)]">✓</span>
-              <p className="mt-2 text-sm font-medium text-[var(--rk-purple-dark)]">{item}</p>
-            </div>
-          ))}
-        </div>
+
+      <SectionBlock title="What Your Fees Cover" intro="Your investment supports the whole child — academically, spiritually, and socially." alt>
+        <InfoCardGrid items={COVERS} />
       </SectionBlock>
-      <SectionBlock>
-        <CtaBanner title="Request Current Fee Structure" body={FEES_NOTE.cta} href="/contact" label="Contact Admissions" />
+
+      <SectionBlock title="Payment Flexibility">
+        <InfoCardGrid items={FLEXIBILITY} />
+      </SectionBlock>
+
+      <SectionBlock alt>
+        <CtaBanner
+          title="Request Current Fee Structure"
+          body={FEES_NOTE.cta}
+          href="/contact"
+          label="Contact Admissions"
+        />
       </SectionBlock>
     </RichPage>
   );

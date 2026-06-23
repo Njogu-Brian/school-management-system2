@@ -1,14 +1,15 @@
 "use client";
 
 import { SiteShell } from "@/components/layout/SiteShell";
-import { useEvents, useTestimonials, useGallery, useWebsiteSettings } from "@/hooks/useWebsiteData";
+import { useEvents, useTestimonials, useWebsiteSettings } from "@/hooks/useWebsiteData";
+import { useHeroMedia, usePremiumGallery } from "@/hooks/usePremiumMedia";
 import { useBrandContent } from "@/hooks/useBrandContent";
+import { useSchoolPathways } from "@/hooks/useSchoolPathways";
+import { enrichBrandItemsWithMedia } from "@/lib/premiumMedia";
 import { HeroSection } from "@/sections/HeroSection";
-import { OurSchools } from "@/sections/brand/OurSchools";
-import { DistinctiveEdge } from "@/sections/brand/DistinctiveEdge";
+import { FindYourPlaceSection } from "@/sections/brand/FindYourPlaceSection";
 import { OneJourney } from "@/sections/brand/OneJourney";
 import { BeyondClassroom } from "@/sections/brand/BeyondClassroom";
-import { ScriptureBanner, FaithPillars } from "@/sections/brand/ChristianLayer";
 import { AdmissionsBanner } from "@/sections/brand/AdmissionsBanner";
 import { TestimonialsCarousel, LatestEvents } from "@/sections/HomeSections";
 
@@ -16,22 +17,22 @@ export default function HomePage() {
   const { data: settings } = useWebsiteSettings();
   const brand = useBrandContent();
   const events = useEvents();
-  const testimonials = useTestimonials();
-  const gallery = useGallery("campus");
+  const testimonials = useTestimonials(true);
+  const { data: heroMedia } = useHeroMedia();
+  const { data: premiumMedia = [] } = usePremiumGallery({ per_page: 24 });
+  const { pathways, intro } = useSchoolPathways();
 
-  void gallery;
+  const journeyMilestones = enrichBrandItemsWithMedia(brand.items("journey_milestone"), premiumMedia);
+  const cocurricular = enrichBrandItemsWithMedia(brand.items("cocurricular"), premiumMedia);
 
   return (
     <SiteShell>
-      <HeroSection settings={settings} trustPills={brand.items("trust_pill")} />
-      <ScriptureBanner items={brand.items("scripture")} />
-      <OurSchools cards={brand.items("school_card")} />
-      <DistinctiveEdge />
-      <OneJourney milestones={brand.items("journey_milestone")} />
-      <BeyondClassroom items={brand.items("cocurricular")} />
+      <HeroSection settings={settings} trustPills={brand.items("trust_pill")} heroMedia={heroMedia ?? undefined} />
+      <FindYourPlaceSection pathways={pathways} subtitle={intro.subtitle} />
+      <OneJourney milestones={journeyMilestones} />
+      <BeyondClassroom items={cocurricular} />
       <TestimonialsCarousel testimonials={testimonials.data || []} />
       <LatestEvents events={events.data || []} />
-      <FaithPillars pillars={brand.items("faith_pillar")} />
       <AdmissionsBanner />
     </SiteShell>
   );

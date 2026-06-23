@@ -1,29 +1,77 @@
 "use client";
 
-import { RichPage, PageHero, SectionBlock } from "@/components/layout/RichPage";
+import {
+  RichPage,
+  PageHero,
+  SectionBlock,
+  CtaBanner,
+  LeaderCard,
+  EditorialIntro,
+} from "@/components/layout/RichPage";
 import { useBrandContent } from "@/hooks/useBrandContent";
+import { LEGACY_IMAGES } from "@/content/schoolContent";
+
+const FALLBACK_LEADERS = [
+  {
+    title: "School Director",
+    subtitle: "Leadership",
+    body: "Visionary leadership committed to excellence since 2006 — guiding Royal Kings with faith and purpose.",
+    image_url: LEGACY_IMAGES.logo,
+  },
+  {
+    title: "Head Teacher",
+    subtitle: "Academics",
+    body: "Dedicated to CBC excellence, teacher development, and whole-child growth across every grade.",
+    image_url: LEGACY_IMAGES.logo,
+  },
+  {
+    title: "Chaplain",
+    subtitle: "Spiritual Life",
+    body: "Nurturing hearts and minds through worship, devotions, and pastoral care for every learner.",
+    image_url: LEGACY_IMAGES.logo,
+  },
+];
 
 export default function LeadershipPage() {
   const brand = useBrandContent();
   const leaders = brand.items("leader");
+  const team = leaders.length > 0 ? leaders : FALLBACK_LEADERS;
 
   return (
     <RichPage>
-      <PageHero title="Our Leadership" subtitle="Faces you can trust — guiding Royal Kings Premier School with faith and excellence." />
+      <PageHero
+        title="Our Leadership"
+        subtitle="Faces you can trust — guiding Royal Kings Premier School with faith, excellence, and care."
+        image={LEGACY_IMAGES.campus}
+      />
+
       <SectionBlock>
-        <div className="grid gap-8 md:grid-cols-3">
-          {leaders.map((leader) => (
-            <article key={leader.title} className="text-center">
-              {leader.image_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={leader.image_url} alt={leader.title} className="mx-auto h-32 w-32 rounded-full object-cover ring-4 ring-[var(--rk-gold)]" />
-              )}
-              <h3 className="mt-4 font-serif text-xl font-bold text-[var(--rk-purple)]">{leader.title}</h3>
-              {leader.subtitle && <p className="text-sm font-medium text-[var(--rk-gold)]">{leader.subtitle}</p>}
-              <p className="mt-3 text-sm text-[var(--rk-muted)]">{leader.body}</p>
-            </article>
+        <EditorialIntro>
+          Our leadership team brings together decades of experience in Christian education. They know learners by name, partner with parents, and set the tone for a school that feels like family.
+        </EditorialIntro>
+      </SectionBlock>
+
+      <SectionBlock title="Meet Our Team" alt>
+        <div className="grid gap-rk-12 md:grid-cols-3">
+          {team.map((leader) => (
+            <LeaderCard
+              key={leader.title}
+              name={leader.title ?? ""}
+              role={leader.subtitle}
+              bio={leader.body}
+              image={leader.image_url}
+            />
           ))}
         </div>
+      </SectionBlock>
+
+      <SectionBlock>
+        <CtaBanner
+          title="Visit & Meet the Team"
+          body="Book a campus tour and speak directly with our leadership during your visit."
+          href="/contact"
+          label="Book a Visit"
+        />
       </SectionBlock>
     </RichPage>
   );

@@ -1,35 +1,75 @@
-import { RichPage, PageHero, SectionBlock, CtaBanner } from "@/components/layout/RichPage";
+import {
+  RichPage,
+  PageHero,
+  SectionBlock,
+  CtaBanner,
+  InfoCardGrid,
+  EditorialIntro,
+} from "@/components/layout/RichPage";
+import { LEGACY_IMAGES } from "@/content/schoolContent";
 
 const SAFEGUARDING = [
-  { title: "Safeguarding Policy", detail: "Every staff member is committed to the safety and dignity of every learner." },
-  { title: "Supervised Campus", detail: "Classrooms, playgrounds, and common areas are actively supervised throughout the day." },
-  { title: "Secure Pick-up", detail: "Only authorised guardians may collect children. ID verification for new collectors." },
-  { title: "Visitor Policy", detail: "All visitors sign in at the office and are escorted while on campus." },
-  { title: "Transport Safety", detail: "Vetted drivers, seatbelts, and caring attendants on all routes." },
-  { title: "Reporting", detail: "Parents can report concerns directly to leadership — we respond promptly." },
+  { title: "Safeguarding Policy", description: "Every staff member is committed to the safety, dignity, and wellbeing of every learner." },
+  { title: "Staff Training", description: "Regular safeguarding awareness and child protection protocols across the school." },
+  { title: "Reporting Channels", description: "Parents can raise concerns directly with leadership — we respond promptly and confidentially." },
+];
+
+const SUPERVISION = [
+  { title: "Supervised Campus", description: "Classrooms, playgrounds, and common areas are actively supervised throughout the day." },
+  { title: "Safe Playgrounds", description: "Outdoor spaces designed for physical development with attentive oversight." },
+  { title: "Transport Safety", description: "Vetted drivers, seatbelts, and caring attendants on all routes." },
+];
+
+const PICKUP = [
+  { title: "Authorised Collection", description: "Only approved guardians may collect children. ID verification for new collectors." },
+  { title: "Sign-out Procedures", description: "Clear handover protocols at end-of-day collection points." },
+  { title: "Emergency Contacts", description: "Up-to-date contact records maintained for every learner." },
+];
+
+const VISITORS = [
+  { title: "Visitor Sign-in", description: "All visitors register at the office before entering campus." },
+  { title: "Escorted Access", description: "Guests are accompanied while on school grounds." },
+  { title: "Clear Boundaries", description: "Defined zones ensure learners remain safe and undisturbed." },
 ];
 
 export default function ChildSafetyPage() {
   return (
     <RichPage>
-      <PageHero title="Child Safety & Safeguarding" subtitle="Your child's wellbeing is our highest priority at Royal Kings Premier School." />
+      <PageHero
+        title="Child Safety & Safeguarding"
+        subtitle="Your child's wellbeing is our highest priority at Royal Kings Premier School."
+        image={LEGACY_IMAGES.campus}
+      />
+
       <SectionBlock>
-        <p className="mx-auto max-w-3xl text-center text-[var(--rk-muted)]">
+        <EditorialIntro>
           We maintain a warm, secure environment where children feel safe to learn, play, and grow. Our safeguarding practices meet the expectations of discerning parents across Wangige and surrounding communities.
-        </p>
+        </EditorialIntro>
       </SectionBlock>
-      <SectionBlock title="Our Commitment" alt>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {SAFEGUARDING.map((item) => (
-            <article key={item.title} className="rounded-2xl bg-white p-6 shadow-[var(--rk-shadow-soft)] ring-1 ring-[var(--rk-border)]">
-              <h3 className="font-serif text-lg font-bold text-[var(--rk-purple)]">{item.title}</h3>
-              <p className="mt-2 text-sm text-[var(--rk-muted)]">{item.detail}</p>
-            </article>
-          ))}
-        </div>
+
+      <SectionBlock title="Safeguarding" alt>
+        <InfoCardGrid items={SAFEGUARDING.map((i) => ({ ...i, icon: "✓" }))} />
       </SectionBlock>
-      <SectionBlock>
-        <CtaBanner title="Questions About Safety?" body="Speak with our leadership team during your campus tour." href="/contact" label="Book a Visit" />
+
+      <SectionBlock title="Supervision">
+        <InfoCardGrid items={SUPERVISION.map((i) => ({ ...i, icon: "👁️" }))} />
+      </SectionBlock>
+
+      <SectionBlock title="Pick-up Security" alt>
+        <InfoCardGrid items={PICKUP.map((i) => ({ ...i, icon: "🔐" }))} />
+      </SectionBlock>
+
+      <SectionBlock title="Visitor Policy">
+        <InfoCardGrid items={VISITORS.map((i) => ({ ...i, icon: "🚪" }))} />
+      </SectionBlock>
+
+      <SectionBlock alt>
+        <CtaBanner
+          title="Questions About Safety?"
+          body="Speak with our leadership team during your campus tour."
+          href="/contact"
+          label="Book a Visit"
+        />
       </SectionBlock>
     </RichPage>
   );

@@ -36,7 +36,7 @@ class WebsiteBrandElevationSeeder extends Seeder
             ],
             [
                 'title' => 'Primary School',
-                'subtitle' => 'Grades 1–6',
+                'subtitle' => 'Grade 1–6',
                 'body' => 'Academic growth, creativity, and discovery.',
                 'image_url' => self::IMG.'/332419888-1246340212647102-4730361110570400332-n-1101x734.jpeg',
                 'link_url' => '/academics#primary',
@@ -63,8 +63,8 @@ class WebsiteBrandElevationSeeder extends Seeder
             ['title' => 'First Reading', 'subtitle' => 'Age 5–6', 'body' => 'Phonics and school readiness.', 'sort_order' => 1],
             ['title' => 'First Performance', 'subtitle' => 'Age 7–9', 'body' => 'Music, drama, and confidence on stage.', 'sort_order' => 2],
             ['title' => 'First Competition', 'subtitle' => 'Age 10–12', 'body' => 'Sports, STEM fairs, and talent showcases.', 'sort_order' => 3],
-            ['title' => 'First Leadership', 'subtitle' => 'Age 13–15', 'body' => 'Prefects, mentors, and role models.', 'sort_order' => 4],
-            ['title' => 'Graduation Ready', 'subtitle' => 'Grade 9', 'body' => 'Prepared for the next chapter.', 'sort_order' => 5],
+            ['title' => 'First Leadership Role', 'subtitle' => 'Age 13–15', 'body' => 'Prefects, mentors, and role models for younger learners.', 'sort_order' => 4],
+            ['title' => 'Graduation', 'subtitle' => 'Grade 9', 'body' => 'Prepared for the next chapter with faith, character, and excellence.', 'sort_order' => 5],
         ];
         foreach ($journey as $m) {
             WebsiteBrandItem::query()->firstOrCreate(

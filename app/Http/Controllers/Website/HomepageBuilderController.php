@@ -50,12 +50,18 @@ class HomepageBuilderController extends Controller
             'title' => 'nullable|string|max:255',
             'subtitle' => 'nullable|string|max:500',
             'content' => 'nullable|string',
-            'settings' => 'nullable|array',
+            'settings' => 'nullable',
             'sort_order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
         ]);
 
-        PageSection::create($validated + [
+        $settings = $validated['settings'] ?? null;
+        if (is_string($settings) && $settings !== '') {
+            $settings = json_decode($settings, true) ?? [];
+        }
+
+        PageSection::create(collect($validated)->except('settings')->all() + [
+            'settings' => is_array($settings) ? $settings : [],
             'is_active' => $request->boolean('is_active', true),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
         ]);

@@ -21,6 +21,10 @@ if [[ -f "$APP_ROOT/scripts/deploy-public-website.sh" ]]; then
 echo ""
 echo "==> Seeding brand elevation content..."
 php artisan db:seed --class=WebsiteBrandElevationSeeder --force
+
+echo ""
+echo "==> Optimizing website media (WebP variants)..."
+php artisan website:optimize-media || echo "WebP optimization skipped (requires php-gd)"
 fi
 
 echo ""

@@ -45,17 +45,55 @@ class WebsiteCmsSeeder extends Seeder
             ]
         );
 
+        $img = 'https://royalkingsschools.sc.ke/assets/images';
+
         $sections = [
-            ['section_type' => 'hero', 'section_key' => 'hero_main', 'title' => 'Where Little Steps Grow Into Great Futures', 'subtitle' => 'Creche to Grade 9', 'sort_order' => 0],
-            ['section_type' => 'age_journey', 'section_key' => 'age_journey_main', 'title' => 'Your Child\'s Journey', 'sort_order' => 1],
-            ['section_type' => 'why_us', 'section_key' => 'why_us_cards', 'title' => 'Why Royal Kings', 'sort_order' => 2],
-            ['section_type' => 'learning_pathway', 'section_key' => 'pathway_timeline', 'title' => 'Learning Pathway', 'sort_order' => 3],
-            ['section_type' => 'programs', 'section_key' => 'programs_grid', 'title' => 'Co-Curricular Programs', 'sort_order' => 4],
-            ['section_type' => 'testimonials', 'section_key' => 'testimonials_carousel', 'title' => 'What Parents Say', 'sort_order' => 5],
-            ['section_type' => 'gallery', 'section_key' => 'campus_gallery', 'title' => 'Campus Life', 'sort_order' => 6],
+            ['section_type' => 'hero', 'section_key' => 'hero_main', 'title' => 'Building a Sure Foundation for Lifelong Learning', 'subtitle' => 'Creche to Grade 9', 'sort_order' => 0],
+            [
+                'section_type' => 'school_pathway',
+                'section_key' => 'pathway_early_years',
+                'title' => 'Creche & Early Years',
+                'subtitle' => 'Age 3–5',
+                'content' => 'Strong beginnings through play, care, and foundational learning.',
+                'settings' => [
+                    'cta_label' => 'Explore Early Years',
+                    'link_url' => '/academics#early-years',
+                    'image_url' => $img.'/family-happy-family-portrait-vectorized-character-design-23-2148163542-160x160.jpg',
+                ],
+                'sort_order' => 1,
+            ],
+            [
+                'section_type' => 'school_pathway',
+                'section_key' => 'pathway_primary',
+                'title' => 'Primary School',
+                'subtitle' => 'Grade 1–6',
+                'content' => 'Academic growth, creativity, and discovery.',
+                'settings' => [
+                    'cta_label' => 'Explore Primary',
+                    'link_url' => '/academics#primary',
+                    'image_url' => $img.'/332419888-1246340212647102-4730361110570400332-n-1101x734.jpeg',
+                ],
+                'sort_order' => 2,
+            ],
+            [
+                'section_type' => 'school_pathway',
+                'section_key' => 'pathway_junior_secondary',
+                'title' => 'Junior Secondary',
+                'subtitle' => 'Grade 7–9',
+                'content' => 'Leadership, discipline, and future readiness.',
+                'settings' => [
+                    'cta_label' => 'Explore Junior School',
+                    'link_url' => '/academics#junior-secondary',
+                    'image_url' => $img.'/325404592-1597148387416946-3846122370734442560-n-1-906x604.jpeg',
+                ],
+                'sort_order' => 3,
+            ],
+            ['section_type' => 'school_pathways_intro', 'section_key' => 'find_your_place', 'title' => "Find Your Child's Place", 'subtitle' => 'Three pathways, one caring community — help your child find where they belong from their very first day.', 'sort_order' => 0, 'is_active' => true],
+            ['section_type' => 'journey', 'section_key' => 'one_journey', 'title' => 'One Journey. One Home.', 'sort_order' => 4],
+            ['section_type' => 'programs', 'section_key' => 'beyond_classroom', 'title' => 'Beyond the Classroom', 'sort_order' => 5],
+            ['section_type' => 'testimonials', 'section_key' => 'testimonials_carousel', 'title' => 'What Parents Say', 'sort_order' => 6],
             ['section_type' => 'events', 'section_key' => 'latest_events', 'title' => 'Latest Events', 'sort_order' => 7],
-            ['section_type' => 'portal_preview', 'section_key' => 'parent_portal', 'title' => 'Parent Portal', 'sort_order' => 8],
-            ['section_type' => 'cta', 'section_key' => 'admissions_cta', 'title' => 'Begin Your Journey', 'subtitle' => 'Admissions Now Open', 'sort_order' => 9],
+            ['section_type' => 'cta', 'section_key' => 'admissions_cta', 'title' => 'Begin Your Journey', 'subtitle' => 'Admissions Now Open', 'sort_order' => 8],
         ];
 
         foreach ($sections as $section) {

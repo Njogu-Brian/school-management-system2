@@ -2196,6 +2196,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::put('/brand/{brandItem}', [\App\Http\Controllers\Website\BrandContentController::class, 'update'])->name('brand.update');
             Route::delete('/brand/{brandItem}', [\App\Http\Controllers\Website\BrandContentController::class, 'destroy'])->name('brand.destroy');
             Route::patch('/media/{mediaLibraryItem}/quality', [\App\Http\Controllers\Website\MediaLibraryController::class, 'updateQuality'])->name('media.quality');
+            Route::post('/media/{mediaLibraryItem}/optimize', [\App\Http\Controllers\Website\MediaLibraryController::class, 'optimize'])->name('media.optimize');
         });
 
 });

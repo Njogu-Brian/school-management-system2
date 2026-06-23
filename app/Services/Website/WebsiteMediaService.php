@@ -2,6 +2,7 @@
 
 namespace App\Services\Website;
 
+use App\Models\Website\MediaLibraryItem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 
@@ -16,6 +17,11 @@ class WebsiteMediaService
         }
 
         return $path;
+    }
+
+    public function absolutePath(string $relativePath): string
+    {
+        return $this->directory().DIRECTORY_SEPARATOR.str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath);
     }
 
     public function store(UploadedFile $file, string $subdir = ''): string
@@ -41,11 +47,17 @@ class WebsiteMediaService
             return;
         }
 
-        $path = $this->directory().DIRECTORY_SEPARATOR.str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath);
+        $path = $this->absolutePath($relativePath);
 
         if (File::exists($path)) {
             File::delete($path);
         }
+    }
+
+    public function deleteItem(MediaLibraryItem $item, MediaOptimizationService $optimizer): void
+    {
+        $optimizer->deleteVariants($item);
+        $this->delete($item->file_path);
     }
 
     public function detectType(UploadedFile $file): string

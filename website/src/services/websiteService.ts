@@ -33,11 +33,16 @@ export const websiteService = {
   getEvent: (slug: string) =>
     api.get<ApiResponse<WebsiteEvent>>(`/website/events/${slug}`).then((r) => r.data.data),
 
-  getTestimonials: () =>
-    api.get<ApiResponse<Testimonial[]>>("/website/testimonials").then((r) => r.data.data),
+  getTestimonials: (premium = false) =>
+    api
+      .get<ApiResponse<Testimonial[]>>("/website/testimonials", { params: { premium: premium ? 1 : 0 } })
+      .then((r) => r.data.data),
 
-  getGallery: (params?: { category?: string; featured?: boolean }) =>
+  getGallery: (params?: { category?: string; featured?: boolean; premium?: boolean; hero?: boolean; per_page?: number }) =>
     api.get<{ data: GalleryItem[] }>("/website/gallery", { params }).then((r) => r.data),
+
+  getHeroMedia: () =>
+    api.get<ApiResponse<GalleryItem | null>>("/website/media/hero").then((r) => r.data.data),
 
   getFaqs: (category?: string) =>
     api.get<ApiResponse<FaqItem[]>>("/website/faqs", { params: { category } }).then((r) => r.data.data),

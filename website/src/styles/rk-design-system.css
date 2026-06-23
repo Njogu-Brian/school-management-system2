@@ -1,0 +1,785 @@
+/**
+ * Royal Kings Premier School — Design System
+ * Warm premium · editorial · white-space heavy · purple + gold accents
+ */
+
+/* ─── Design tokens ─────────────────────────────────────────────────────── */
+
+:root {
+  /* Brand colors */
+  --rk-purple: #7b2cbf;
+  --rk-deep-purple: #4a0072;
+  --rk-gold: #d4af37;
+  --rk-cream: #fffbf7;
+  --rk-soft-lavender: #f7f0ff;
+  --rk-white: #ffffff;
+  --rk-text: #2b1e34;
+  --rk-muted: #7a6b86;
+
+  /* Derived */
+  --rk-gold-light: #e8c96a;
+  --rk-gold-dark: #b8942e;
+  --rk-purple-light: #9d4edd;
+  --rk-purple-dark: #5a189a;
+  --rk-border: #e8dff0;
+  --rk-border-strong: #d4c4e4;
+
+  /* Semantic */
+  --background: var(--rk-white);
+  --foreground: var(--rk-text);
+
+  /* Legacy aliases — keeps existing pages working until redesign */
+  --rk-purple-bright: var(--rk-purple-light);
+  --rk-purple-mid: var(--rk-purple);
+  --rk-purple-deep: var(--rk-deep-purple);
+  --rk-surface: var(--rk-soft-lavender);
+
+  /* 8-point spacing scale (base unit = 8px) */
+  --rk-space-1: 0.25rem; /* 4px — half-step for fine tuning */
+  --rk-space-2: 0.5rem; /* 8px */
+  --rk-space-3: 0.75rem; /* 12px */
+  --rk-space-4: 1rem; /* 16px */
+  --rk-space-5: 1.25rem; /* 20px */
+  --rk-space-6: 1.5rem; /* 24px */
+  --rk-space-8: 2rem; /* 32px */
+  --rk-space-10: 2.5rem; /* 40px */
+  --rk-space-12: 3rem; /* 48px */
+  --rk-space-16: 4rem; /* 64px */
+  --rk-space-20: 5rem; /* 80px */
+  --rk-space-24: 6rem; /* 96px */
+
+  /* Section rhythm */
+  --rk-section-y: var(--rk-space-16);
+  --rk-section-y-lg: var(--rk-space-20);
+  --rk-section-gap: var(--rk-space-12);
+
+  /* Border radius */
+  --rk-radius-sm: 0.5rem; /* 8px */
+  --rk-radius-md: 0.75rem; /* 12px */
+  --rk-radius-lg: 1rem; /* 16px */
+  --rk-radius-xl: 1.5rem; /* 24px */
+  --rk-radius-2xl: 2rem; /* 32px */
+  --rk-radius-pill: 9999px;
+
+  /* Shadows — soft purple tint */
+  --rk-shadow-xs: 0 1px 2px rgba(74, 0, 114, 0.04);
+  --rk-shadow-sm: 0 2px 8px rgba(74, 0, 114, 0.06);
+  --rk-shadow-md: 0 4px 16px rgba(74, 0, 114, 0.08);
+  --rk-shadow-lg: 0 8px 32px rgba(74, 0, 114, 0.1);
+  --rk-shadow-xl: 0 16px 48px rgba(74, 0, 114, 0.12);
+  --rk-shadow-soft: var(--rk-shadow-md);
+  --rk-shadow-card: var(--rk-shadow-lg);
+
+  /* Motion */
+  --rk-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --rk-duration: 200ms;
+  --rk-duration-slow: 350ms;
+}
+
+/* ─── Tailwind v4 theme bridge ──────────────────────────────────────────── */
+
+@theme inline {
+  --color-rk-purple: var(--rk-purple);
+  --color-rk-purple-dark: var(--rk-purple-dark);
+  --color-rk-deep-purple: var(--rk-deep-purple);
+  --color-rk-gold: var(--rk-gold);
+  --color-rk-cream: var(--rk-cream);
+  --color-rk-soft-lavender: var(--rk-soft-lavender);
+  --color-rk-white: var(--rk-white);
+  --color-rk-text: var(--rk-text);
+  --color-rk-muted: var(--rk-muted);
+  --color-rk-border: var(--rk-border);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-serif: var(--font-serif), ui-serif, Georgia, serif;
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-rk-sm: var(--rk-radius-sm);
+  --radius-rk-md: var(--rk-radius-md);
+  --radius-rk-lg: var(--rk-radius-lg);
+  --radius-rk-xl: var(--rk-radius-xl);
+  --radius-rk-2xl: var(--rk-radius-2xl);
+  --radius-rk-pill: var(--rk-radius-pill);
+
+  --shadow-rk-xs: var(--rk-shadow-xs);
+  --shadow-rk-sm: var(--rk-shadow-sm);
+  --shadow-rk-md: var(--rk-shadow-md);
+  --shadow-rk-lg: var(--rk-shadow-lg);
+  --shadow-rk-xl: var(--rk-shadow-xl);
+  --shadow-rk-card: var(--rk-shadow-card);
+  --shadow-rk-soft: var(--rk-shadow-soft);
+}
+
+/* ─── Typography ────────────────────────────────────────────────────────── */
+
+.rk-display {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--rk-deep-purple);
+}
+
+.rk-h1 {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--rk-deep-purple);
+}
+
+.rk-h2 {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: clamp(1.625rem, 3vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--rk-deep-purple);
+}
+
+.rk-h3 {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--rk-purple);
+}
+
+.rk-h4 {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--rk-purple);
+}
+
+.rk-lead {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.125rem;
+  line-height: 1.65;
+  color: var(--rk-muted);
+}
+
+.rk-body {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--rk-text);
+}
+
+.rk-body-sm {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--rk-muted);
+}
+
+.rk-caption {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--rk-muted);
+}
+
+.rk-overline {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rk-gold);
+}
+
+.rk-prose {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  max-width: 65ch;
+  line-height: 1.75;
+  color: var(--rk-muted);
+}
+
+.rk-prose p + p {
+  margin-top: var(--rk-space-4);
+}
+
+.rk-prose strong {
+  color: var(--rk-text);
+  font-weight: 600;
+}
+
+/* ─── Layout helpers ────────────────────────────────────────────────────── */
+
+.rk-section {
+  padding-block: var(--rk-section-y);
+}
+
+.rk-section-lg {
+  padding-block: var(--rk-section-y-lg);
+}
+
+.rk-section-cream {
+  background-color: var(--rk-cream);
+}
+
+.rk-section-lavender {
+  background-color: var(--rk-soft-lavender);
+}
+
+.rk-container {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: var(--rk-space-4);
+}
+
+@media (min-width: 640px) {
+  .rk-container {
+    padding-inline: var(--rk-space-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  .rk-container {
+    padding-inline: var(--rk-space-8);
+  }
+}
+
+/* ─── Buttons ───────────────────────────────────────────────────────────── */
+
+.rk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rk-space-2);
+  padding: var(--rk-space-3) var(--rk-space-6);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: var(--rk-radius-pill);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--rk-duration) var(--rk-ease),
+    border-color var(--rk-duration) var(--rk-ease),
+    color var(--rk-duration) var(--rk-ease),
+    box-shadow var(--rk-duration) var(--rk-ease),
+    transform var(--rk-duration) var(--rk-ease);
+}
+
+.rk-btn:focus-visible {
+  outline: 2px solid var(--rk-purple);
+  outline-offset: 3px;
+}
+
+.rk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rk-btn {
+    transition: none;
+  }
+}
+
+/* Primary — gold fill */
+.rk-btn-primary {
+  background-color: var(--rk-gold);
+  color: var(--rk-deep-purple);
+  box-shadow: var(--rk-shadow-sm);
+}
+
+.rk-btn-primary:hover {
+  background-color: var(--rk-gold-light);
+  box-shadow: var(--rk-shadow-md);
+  transform: translateY(-1px);
+}
+
+.rk-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: var(--rk-shadow-xs);
+}
+
+/* Secondary — outlined */
+.rk-btn-secondary {
+  background-color: transparent;
+  color: var(--rk-deep-purple);
+  border-color: var(--rk-deep-purple);
+}
+
+.rk-btn-secondary:hover {
+  background-color: var(--rk-soft-lavender);
+  border-color: var(--rk-purple);
+  color: var(--rk-purple);
+}
+
+.rk-btn-secondary-on-dark {
+  background-color: transparent;
+  color: var(--rk-white);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.rk-btn-secondary-on-dark:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--rk-white);
+  color: var(--rk-white);
+}
+
+/* Tertiary — text + arrow */
+.rk-btn-tertiary {
+  background-color: transparent;
+  color: var(--rk-gold-dark);
+  padding-inline: 0;
+  border: none;
+  font-weight: 600;
+}
+
+.rk-btn-tertiary::after {
+  content: "→";
+  display: inline-block;
+  transition: transform var(--rk-duration) var(--rk-ease);
+}
+
+.rk-btn-tertiary:hover {
+  color: var(--rk-purple);
+}
+
+.rk-btn-tertiary:hover::after {
+  transform: translateX(4px);
+}
+
+.rk-btn-lg {
+  padding: var(--rk-space-4) var(--rk-space-8);
+  font-size: 1rem;
+}
+
+.rk-btn-sm {
+  padding: var(--rk-space-2) var(--rk-space-4);
+  font-size: 0.8125rem;
+}
+
+/* ─── Cards ─────────────────────────────────────────────────────────────── */
+
+.rk-card-base,
+.rk-trust-card,
+.rk-school-card,
+.rk-bento-card,
+.rk-testimonial-card {
+  border-radius: var(--rk-radius-xl);
+  border: 1px solid var(--rk-border);
+  background-color: var(--rk-white);
+  transition:
+    box-shadow var(--rk-duration) var(--rk-ease),
+    transform var(--rk-duration) var(--rk-ease),
+    border-color var(--rk-duration) var(--rk-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rk-card-base,
+  .rk-trust-card,
+  .rk-school-card,
+  .rk-bento-card,
+  .rk-testimonial-card {
+    transition: none;
+  }
+}
+
+/* Trust pill / stat card */
+.rk-trust-card {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rk-space-2);
+  padding: var(--rk-space-2) var(--rk-space-4);
+  border-radius: var(--rk-radius-pill);
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--rk-shadow-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--rk-deep-purple);
+}
+
+/* School pathway card — 60% image / 40% content */
+.rk-school-card--pathway {
+  min-height: 26rem;
+  display: grid;
+  grid-template-rows: 3fr 2fr;
+}
+
+.rk-school-card--pathway .rk-school-card__media-wrap {
+  aspect-ratio: unset;
+  height: 100%;
+  min-height: 0;
+}
+
+.rk-school-card--pathway .rk-school-card__body {
+  flex: unset;
+  min-height: 0;
+}
+
+/* School pathway card */
+.rk-school-card {
+  overflow: hidden;
+  box-shadow: var(--rk-shadow-card);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.rk-school-card:hover {
+  box-shadow: var(--rk-shadow-xl);
+  transform: translateY(-6px);
+  border-color: var(--rk-border-strong);
+}
+
+.rk-school-card__media-wrap {
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  background-color: var(--rk-soft-lavender);
+}
+
+@media (min-width: 768px) {
+  .rk-school-card__media-wrap {
+    aspect-ratio: 4 / 3;
+  }
+}
+
+.rk-school-card__media {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  transition: transform var(--rk-duration-slow) var(--rk-ease);
+}
+
+.rk-school-card:hover .rk-school-card__media {
+  transform: scale(1.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rk-school-card__media {
+    transition: none;
+  }
+
+  .rk-school-card:hover .rk-school-card__media {
+    transform: none;
+  }
+}
+
+.rk-school-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--rk-space-6);
+  background-color: var(--rk-white);
+}
+
+@media (min-width: 640px) {
+  .rk-school-card__body {
+    padding: var(--rk-space-8);
+  }
+}
+
+.rk-school-card__title {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--rk-purple);
+}
+
+.rk-school-card__subtitle {
+  margin-top: var(--rk-space-2);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--rk-gold);
+  letter-spacing: 0.02em;
+}
+
+.rk-school-card__text {
+  margin-top: var(--rk-space-4);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--rk-muted);
+  flex: 1;
+}
+
+.rk-school-card__explore {
+  margin-top: var(--rk-space-5);
+  align-self: flex-start;
+}
+
+/* Bento grid tile */
+.rk-bento-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 11.25rem;
+  border: none;
+  border-radius: var(--rk-radius-xl);
+}
+
+.rk-bento-card:hover {
+  transform: scale(1.02);
+  box-shadow: var(--rk-shadow-lg);
+}
+
+.rk-bento-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(74, 0, 114, 0.88) 0%,
+    rgba(74, 0, 114, 0.45) 45%,
+    transparent 100%
+  );
+}
+
+.rk-bento-card__content {
+  position: relative;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: var(--rk-space-5);
+  color: var(--rk-white);
+}
+
+.rk-bento-card__title {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.rk-bento-card__text {
+  margin-top: var(--rk-space-1);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.rk-bento-card--large {
+  min-height: 17.5rem;
+}
+
+@media (min-width: 768px) {
+  .rk-bento-card--large {
+    grid-column: span 2;
+    grid-row: span 2;
+    min-height: 17.5rem;
+  }
+}
+
+/* Testimonial card */
+.rk-testimonial-card {
+  padding: var(--rk-space-8);
+  background-color: var(--rk-cream);
+  box-shadow: var(--rk-shadow-soft);
+}
+
+.rk-testimonial-card__quote {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: 1.125rem;
+  font-style: italic;
+  line-height: 1.65;
+  color: var(--rk-text);
+}
+
+.rk-testimonial-card__author {
+  margin-top: var(--rk-space-6);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--rk-purple);
+}
+
+.rk-testimonial-card__role {
+  margin-top: var(--rk-space-1);
+  font-size: 0.8125rem;
+  color: var(--rk-muted);
+}
+
+/* Glass trust pills — hero / dark overlays */
+.rk-trust-pill-hero {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--rk-space-2) var(--rk-space-4);
+  border-radius: var(--rk-radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 24px rgba(43, 30, 52, 0.12);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--rk-white);
+  letter-spacing: 0.01em;
+}
+
+@media (min-width: 640px) {
+  .rk-trust-pill-hero {
+    font-size: 0.875rem;
+    padding: var(--rk-space-2) var(--rk-space-5);
+  }
+}
+
+/* ─── Journey timeline ──────────────────────────────────────────────────── */
+
+.rk-journey-scroll {
+  scroll-padding-inline: var(--rk-space-4);
+  -webkit-overflow-scrolling: touch;
+}
+
+.rk-journey-card__media-wrap {
+  border-radius: var(--rk-radius-xl);
+  box-shadow: var(--rk-shadow-card);
+}
+
+.rk-journey-card__media {
+  transition: transform var(--rk-duration-slow) var(--rk-ease);
+}
+
+.rk-journey-card:hover .rk-journey-card__media {
+  transform: scale(1.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rk-journey-card__media {
+    transition: none;
+  }
+
+  .rk-journey-card:hover .rk-journey-card__media {
+    transform: none;
+  }
+}
+
+/* ─── Bento grid ────────────────────────────────────────────────────────── */
+
+.rk-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: minmax(140px, auto);
+  gap: var(--rk-space-3);
+}
+
+@media (min-width: 768px) {
+  .rk-bento-grid {
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: minmax(160px, auto);
+    gap: var(--rk-space-4);
+  }
+}
+
+.rk-bento-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--rk-radius-xl);
+  min-height: 140px;
+  box-shadow: var(--rk-shadow-soft);
+}
+
+.rk-bento-tile__media {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  transition: transform var(--rk-duration-slow) var(--rk-ease);
+}
+
+.rk-bento-tile:hover .rk-bento-tile__media {
+  transform: scale(1.06);
+}
+
+.rk-bento-tile__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(74, 0, 114, 0.88) 0%,
+    rgba(74, 0, 114, 0.35) 50%,
+    rgba(43, 30, 52, 0.15) 100%
+  );
+  transition: opacity var(--rk-duration) var(--rk-ease);
+}
+
+.rk-bento-tile:hover .rk-bento-tile__overlay {
+  opacity: 0.95;
+}
+
+.rk-bento-tile__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 100%;
+  min-height: inherit;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: var(--rk-space-5);
+  color: var(--rk-white);
+}
+
+.rk-bento-tile__title {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.rk-bento-tile__text {
+  margin-top: var(--rk-space-1);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.88);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rk-bento-tile--hero {
+  grid-column: span 2;
+  grid-row: span 2;
+  min-height: 280px;
+}
+
+.rk-bento-tile--hero-secondary {
+  grid-column: span 2;
+  grid-row: span 2;
+  min-height: 240px;
+}
+
+.rk-bento-tile--wide {
+  grid-column: span 2;
+  min-height: 160px;
+}
+
+.rk-bento-tile--tall {
+  grid-row: span 2;
+  min-height: 280px;
+}
+
+@media (min-width: 768px) {
+  .rk-bento-tile--hero {
+    min-height: 340px;
+  }
+
+  .rk-bento-tile__title {
+    font-size: 1.375rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rk-bento-tile__media {
+    transition: none;
+  }
+
+  .rk-bento-tile:hover .rk-bento-tile__media {
+    transform: none;
+  }
+}

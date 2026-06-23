@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { galleryItemsFromResponse } from "@/lib/premiumMedia";
 import { websiteService } from "@/services/websiteService";
 
 export function useWebsiteSettings() {
@@ -41,17 +42,24 @@ export function useEvents() {
   });
 }
 
-export function useTestimonials() {
+export function useTestimonials(premium = false) {
   return useQuery({
-    queryKey: ["website", "testimonials"],
-    queryFn: websiteService.getTestimonials,
+    queryKey: ["website", "testimonials", premium ? "premium" : "all"],
+    queryFn: () => websiteService.getTestimonials(premium),
   });
 }
 
-export function useGallery(category?: string) {
+export function useGallery(category?: string, options?: { premium?: boolean; hero?: boolean }) {
   return useQuery({
-    queryKey: ["website", "gallery", category],
-    queryFn: () => websiteService.getGallery({ category }),
+    queryKey: ["website", "gallery", category, options],
+    queryFn: async () => {
+      const res = await websiteService.getGallery({
+        category,
+        premium: options?.premium,
+        hero: options?.hero,
+      });
+      return galleryItemsFromResponse(res);
+    },
   });
 }
 

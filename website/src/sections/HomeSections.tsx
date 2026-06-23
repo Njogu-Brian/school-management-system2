@@ -6,6 +6,7 @@ import { Autoplay, Pagination } from "swiper/modules";
 import "swiper/css";
 import "swiper/css/pagination";
 import type { Testimonial, GalleryItem, WebsiteEvent, HomepageData } from "@/types/website";
+import { ResponsiveImage } from "@/components/media/ResponsiveImage";
 import { LEGACY_TESTIMONIALS, GALLERY_PHOTOS } from "@/content/schoolContent";
 import { fadeUp } from "@/animations/variants";
 import Link from "next/link";
@@ -33,9 +34,20 @@ export function TestimonialsCarousel({ testimonials }: { testimonials: Testimoni
         <Swiper modules={[Autoplay, Pagination]} autoplay={{ delay: 5000 }} pagination={{ clickable: true }} className="mt-10 !pb-12">
           {items.map((t) => (
             <SwiperSlide key={t.id}>
-              <blockquote className="mx-auto max-w-3xl rounded-3xl bg-white p-8 text-center shadow-lg">
-                <p className="text-lg italic text-[#4a3a5c]">&ldquo;{t.message}&rdquo;</p>
-                <footer className="mt-6 font-semibold text-[var(--rk-purple)]">{t.name}{t.relationship ? ` · ${t.relationship}` : ""}</footer>
+              <blockquote className="rk-testimonial-card mx-auto max-w-3xl text-center">
+                {t.photo && (
+                  <ResponsiveImage
+                    src={t.photo}
+                    srcSet={t.photo_srcset}
+                    alt={t.name}
+                    className="mx-auto mb-rk-4 h-16 w-16 rounded-full object-cover ring-2 ring-rk-gold"
+                    sizes="64px"
+                  />
+                )}
+                <p className="rk-testimonial-card__quote">&ldquo;{t.message}&rdquo;</p>
+                <footer className="rk-testimonial-card__author">
+                  {t.name}{t.relationship ? ` · ${t.relationship}` : ""}
+                </footer>
               </blockquote>
             </SwiperSlide>
           ))}

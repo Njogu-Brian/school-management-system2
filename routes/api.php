@@ -51,6 +51,7 @@ Route::prefix('website')->group(function () {
     Route::get('/events/{slug}', [$api, 'event']);
     Route::get('/testimonials', [$api, 'testimonials']);
     Route::get('/gallery', [$api, 'gallery']);
+    Route::get('/media/hero', [$api, 'heroMedia']);
     Route::get('/faqs', [$api, 'faqs']);
     Route::get('/brand', [\App\Http\Controllers\Api\Website\WebsiteBrandApiController::class, 'index']);
     Route::post('/enquiry', [$api, 'enquiry']);

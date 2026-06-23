@@ -143,37 +143,67 @@ class WebsiteApiController extends Controller
         return response()->json(['data' => WebsiteEventResource::make($event)]);
     }
 
-    public function testimonials(): JsonResponse
+    public function testimonials(Request $request): JsonResponse
     {
+        $premium = $request->boolean('premium');
+
         $items = Cache::remember('website.api.testimonials', 600, fn () => Testimonial::query()
+            ->with(['mediaItem.qualityFlag'])
             ->where('approved', true)
             ->orderByDesc('featured')
             ->latest()
             ->get());
+
+        $request->merge(['premium' => $premium]);
 
         return response()->json(['data' => TestimonialResource::collection($items)]);
     }
 
     public function gallery(Request $request): JsonResponse
     {
-        $items = MediaLibraryItem::query()
-            ->with('qualityFlag')
-            ->when($request->category, fn ($q, $c) => $q->where('category', $c))
-            ->when($request->boolean('featured'), fn ($q) => $q->where('is_featured', true))
-            ->when($request->boolean('premium'), function ($q) {
-                $q->whereHas('qualityFlag', fn ($f) => $f->where('approved', true)->where('homepage_ready', true));
-            })
-            ->when($request->boolean('hero'), function ($q) {
-                $q->whereHas('qualityFlag', fn ($f) => $f->where('hero_ready', true)->where('approved', true));
-            })
-            ->when($request->boolean('premium') || $request->boolean('hero'), function ($q) {
-                $q->join('media_quality_flags', 'media_library.id', '=', 'media_quality_flags.media_id')
-                    ->orderByDesc('media_quality_flags.priority');
-            }, fn ($q) => $q->latest())
-            ->select('media_library.*')
-            ->paginate((int) $request->get('per_page', 24));
+        $premium = $request->boolean('premium');
+        $hero = $request->boolean('hero');
+        $usePriority = $premium || $hero;
+
+        $cacheKey = 'website.api.gallery.'
+            .($request->category ?? 'all').'.'
+            .($premium ? 'premium' : 'std').'.'
+            .($hero ? 'hero' : 'nohero').'.'
+            .($request->get('per_page', 24));
+
+        $items = Cache::remember($cacheKey, 300, function () use ($request, $premium, $hero, $usePriority) {
+            $query = MediaLibraryItem::query()
+                ->with('qualityFlag')
+                ->where('type', 'image')
+                ->when($request->category, fn ($q, $c) => $q->where('category', $c))
+                ->when($request->boolean('featured'), fn ($q) => $q->where('is_featured', true))
+                ->when($premium, fn ($q) => $q->premiumApproved())
+                ->when($hero, fn ($q) => $q->heroApproved());
+
+            if ($usePriority) {
+                $query->orderByMediaPriority();
+            } else {
+                $query->latest();
+            }
+
+            return $query->paginate((int) $request->get('per_page', 24));
+        });
 
         return MediaLibraryResource::collection($items)->response();
+    }
+
+    public function heroMedia(): JsonResponse
+    {
+        $item = Cache::remember('website.api.media.hero', 300, fn () => MediaLibraryItem::query()
+            ->with('qualityFlag')
+            ->where('type', 'image')
+            ->heroApproved()
+            ->orderByMediaPriority()
+            ->first());
+
+        return response()->json([
+            'data' => $item ? MediaLibraryResource::make($item)->resolve() : null,
+        ]);
     }
 
     public function faqs(Request $request): JsonResponse

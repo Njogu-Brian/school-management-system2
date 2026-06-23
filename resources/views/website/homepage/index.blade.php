@@ -22,7 +22,7 @@
                     <div class="col-md-3">
                         <label class="form-label">Type</label>
                         <select name="section_type" class="form-select" required>
-                            @foreach(['hero','age_journey','why_us','learning_pathway','programs','testimonials','gallery','events','portal_preview','cta'] as $type)
+                            @foreach(['hero','school_pathway','school_pathways_intro','journey','programs','testimonials','events','cta'] as $type)
                                 <option value="{{ $type }}">{{ str_replace('_', ' ', ucfirst($type)) }}</option>
                             @endforeach
                         </select>
@@ -44,8 +44,13 @@
                         <input type="text" name="subtitle" class="form-control">
                     </div>
                     <div class="col-12">
-                        <label class="form-label">Content (JSON or HTML)</label>
+                        <label class="form-label">Content (body copy for school_pathway cards)</label>
                         <textarea name="content" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Settings (JSON)</label>
+                        <textarea name="settings" class="form-control font-monospace" rows="3" placeholder='{"cta_label":"Explore Early Years","link_url":"/academics#early-years","image_url":"https://..."}'></textarea>
+                        <small class="text-muted">For <code>school_pathway</code>: cta_label, link_url, image_url. Use <code>school_pathways_intro</code> for section subtitle only.</small>
                     </div>
                     <div class="col-12">
                         <button type="submit" class="btn btn-settings-primary"><i class="bi bi-plus"></i> Add Section</button>

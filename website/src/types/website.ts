@@ -106,6 +106,7 @@ export interface Testimonial {
   relationship?: string;
   message: string;
   photo?: string;
+  photo_srcset?: string;
   video_url?: string;
   featured: boolean;
 }
@@ -114,10 +115,25 @@ export interface GalleryItem {
   id: number;
   title: string;
   url: string;
+  optimized_url?: string;
+  url_lg?: string;
+  url_md?: string;
+  url_sm?: string;
+  srcset?: string;
+  variants?: Record<string, { webp: string; w: number; h: number }>;
+  width?: number;
+  height?: number;
   type: string;
   category?: string;
   alt_text?: string;
   is_featured: boolean;
+  optimization_status?: string;
+  quality?: {
+    approved: boolean;
+    hero_ready: boolean;
+    homepage_ready: boolean;
+    priority: number;
+  };
 }
 
 export interface FaqItem {

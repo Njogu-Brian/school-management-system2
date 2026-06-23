@@ -35,6 +35,7 @@ export const CONTACT = {
   phoneRaw: "254719396233",
   whatsapp: "254719396233",
   email: "info@royalkingsschools.sc.ke",
+  admissionsEmail: "admissions@royalkingsschools.sc.ke",
   address: "Wangige, Kiambu County, Kenya",
   postal: "P.O. BOX 10804-00100, Nairobi",
   hours: {

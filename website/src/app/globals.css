@@ -1,30 +1,6 @@
 @import "tailwindcss";
-
-:root {
-  /* Logo purple #B400FF — UI uses readable purple tones (no navy) */
-  --rk-purple-bright: #B400FF;
-  --rk-purple: #9B1FE8;
-  --rk-purple-mid: #7A12C4;
-  --rk-purple-dark: #5C0D96;
-  --rk-purple-deep: #4A0078;
-  --rk-gold: #D4AF37;
-  --rk-gold-light: #F0D878;
-  --rk-surface: #f9f2ff;
-  --rk-border: #e4c8f5;
-  --rk-muted: #5a3d6e;
-  --rk-cream: #FFFBF7;
-  --rk-shadow-soft: 0 8px 32px rgba(74, 0, 120, 0.08);
-  --rk-shadow-card: 0 12px 40px rgba(74, 0, 120, 0.12);
-  --background: #ffffff;
-  --foreground: #4A0078;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-serif), ui-serif, Georgia, serif;
-}
+@config "../../tailwind.config.ts";
+@import "../styles/rk-design-system.css";
 
 body {
   background: var(--background);
@@ -79,10 +55,10 @@ body {
   width: 4rem;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
+  border-radius: var(--rk-radius-pill);
   border: 3px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 4px rgba(180, 0, 255, 0.35), 0 12px 40px rgba(74, 0, 120, 0.45);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 0 0 4px rgba(123, 44, 191, 0.25), var(--rk-shadow-lg);
+  transition: transform var(--rk-duration) var(--rk-ease), box-shadow var(--rk-duration) var(--rk-ease);
 }
 
 @media (min-width: 640px) {
@@ -95,7 +71,7 @@ body {
 
 .rk-fab:hover {
   transform: scale(1.12) rotate(-3deg);
-  box-shadow: 0 0 0 6px rgba(180, 0, 255, 0.5), 0 16px 48px rgba(74, 0, 120, 0.55);
+  box-shadow: 0 0 0 6px rgba(123, 44, 191, 0.35), var(--rk-shadow-xl);
 }
 
 .rk-fab-whatsapp {
@@ -105,13 +81,13 @@ body {
 
 .rk-fab-maps {
   bottom: 13.25rem;
-  background: linear-gradient(145deg, #ffffff, #f3e8ff);
+  background: linear-gradient(145deg, var(--rk-white), var(--rk-soft-lavender));
 }
 
 .rk-fab-ring {
   position: absolute;
   inset: -4px;
-  border-radius: 9999px;
+  border-radius: var(--rk-radius-pill);
   border: 3px solid currentColor;
   animation: rk-ring-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   pointer-events: none;
@@ -122,7 +98,7 @@ body {
 }
 
 .rk-fab-ring-maps {
-  color: var(--rk-purple-bright);
+  color: var(--rk-purple);
 }
 
 .rk-fab-ring-delay {
@@ -134,16 +110,16 @@ body {
   position: absolute;
   right: calc(100% + 0.65rem);
   white-space: nowrap;
-  border-radius: 9999px;
-  background: var(--rk-purple-deep);
+  border-radius: var(--rk-radius-pill);
+  background: var(--rk-deep-purple);
   color: white;
   padding: 0.45rem 0.9rem;
   font-size: 0.8rem;
   font-weight: 700;
   opacity: 0;
   transform: translateX(0.75rem);
-  transition: opacity 0.2s, transform 0.2s;
-  box-shadow: 0 4px 20px rgba(74, 0, 120, 0.4);
+  transition: opacity var(--rk-duration), transform var(--rk-duration);
+  box-shadow: var(--rk-shadow-md);
 }
 
 .group:hover .rk-fab-label,
@@ -157,15 +133,15 @@ body {
   bottom: 1.25rem;
   right: 1rem;
   z-index: 50;
-  border-radius: 9999px;
+  border-radius: var(--rk-radius-pill);
   background: linear-gradient(135deg, var(--rk-gold-light), var(--rk-gold));
   padding: 0.85rem 1.5rem;
   font-size: 0.9rem;
   font-weight: 800;
-  color: var(--rk-purple-deep);
+  color: var(--rk-deep-purple);
   border: 2px solid white;
-  box-shadow: 0 0 0 3px rgba(180, 0, 255, 0.3), 0 10px 32px rgba(74, 0, 120, 0.35);
-  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 0 0 3px rgba(123, 44, 191, 0.2), var(--rk-shadow-md);
+  transition: transform var(--rk-duration), box-shadow var(--rk-duration);
 }
 
 @media (min-width: 640px) {
@@ -185,35 +161,35 @@ body {
   width: 2.5rem;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
+  border-radius: var(--rk-radius-pill);
   background: rgba(255, 255, 255, 0.12);
   color: white;
-  transition: background 0.2s, transform 0.2s;
+  transition: background var(--rk-duration), transform var(--rk-duration);
 }
 
 .rk-social-link:hover {
-  background: var(--rk-purple-bright);
+  background: var(--rk-purple);
   transform: scale(1.1);
 }
 
-/* Rich content blocks */
+/* Rich content blocks (legacy — migrate to rk-school-card / rk-bento-card) */
 .rk-photo-card {
   overflow: hidden;
-  border-radius: 1rem;
-  box-shadow: 0 12px 40px rgba(74, 0, 120, 0.15);
-  ring: 1px solid var(--rk-border);
+  border-radius: var(--rk-radius-lg);
+  box-shadow: var(--rk-shadow-card);
+  border: 1px solid var(--rk-border);
 }
 
 .rk-stat-pill {
-  border-radius: 1rem;
-  background: linear-gradient(135deg, var(--rk-purple), var(--rk-purple-mid));
+  border-radius: var(--rk-radius-lg);
+  background: linear-gradient(135deg, var(--rk-purple), var(--rk-purple-dark));
   color: white;
-  padding: 1.25rem;
+  padding: var(--rk-space-5);
   text-align: center;
 }
 
 .prose-rk p {
-  margin-top: 0.75rem;
+  margin-top: var(--rk-space-3);
   line-height: 1.75;
   color: var(--rk-muted);
 }
@@ -223,5 +199,5 @@ body {
 }
 
 .prose-rk strong {
-  color: var(--rk-purple-dark);
+  color: var(--rk-text);
 }

@@ -62,7 +62,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(schoolSchema) }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-white font-sans text-[var(--rk-purple-deep)] antialiased">
+      <body className="min-h-full flex flex-col bg-rk-white font-sans text-rk-text antialiased">
         <QueryProvider>
           <AnalyticsTracker />
           {children}
