@@ -16,6 +16,7 @@ class ChartOfAccountsSeeder extends Seeder
         $accounts = [
             // ---- Assets (1xxx) ----
             ['code' => '1000', 'name' => 'Cash on Hand', 'account_type' => Account::TYPE_ASSET, 'normal_balance' => 'dr', 'is_postable' => true, 'is_system' => true],
+            ['code' => '1002', 'name' => 'M-Pesa Float', 'account_type' => Account::TYPE_ASSET, 'normal_balance' => 'dr', 'is_postable' => true, 'is_system' => true],
             ['code' => '1010', 'name' => 'Bank Accounts', 'account_type' => Account::TYPE_ASSET, 'normal_balance' => 'dr', 'is_postable' => false, 'is_system' => true],
             ['code' => '1011', 'name' => 'Main Operating Bank', 'account_type' => Account::TYPE_ASSET, 'normal_balance' => 'dr', 'parent_code' => '1010', 'is_postable' => true, 'is_system' => true],
             ['code' => '1100', 'name' => 'Petty Cash', 'account_type' => Account::TYPE_ASSET, 'normal_balance' => 'dr', 'is_postable' => false, 'is_system' => true],

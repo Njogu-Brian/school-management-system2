@@ -2,13 +2,18 @@
 
 namespace App\Services\Finance;
 
+use App\Models\Account;
 use App\Models\Expense;
 use App\Models\ExpenseStatementImport;
 use App\Models\ExpenseStatementLine;
 use App\Models\ExpenseStatementRecipientProfile;
+use App\Models\PaymentVoucher;
+use App\Models\User;
+use App\Services\ExpenseWorkflowService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class ExpenseStatementImportService
@@ -16,6 +21,7 @@ class ExpenseStatementImportService
     public function __construct(
         protected MpesaExpenseStatementParser $parser,
         protected MpesaTransactionClassifier $classifier,
+        protected ExpenseWorkflowService $expenseWorkflow,
     ) {}
 
     /**
@@ -316,6 +322,10 @@ class ExpenseStatementImportService
                 );
             }
 
+            if ($reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED) {
+                $this->convertGroupToExpense($import, $groupKey, $userId);
+            }
+
             $this->refreshImportConfirmedTotal($import);
         });
     }
@@ -326,8 +336,9 @@ class ExpenseStatementImportService
         string $reviewStatus,
         ?int $categoryId,
         ?string $description,
+        int $userId,
     ): void {
-        DB::transaction(function () use ($import, $lineId, $reviewStatus, $categoryId, $description) {
+        DB::transaction(function () use ($import, $lineId, $reviewStatus, $categoryId, $description, $userId) {
             $line = $import->lines()->whereKey($lineId)->firstOrFail();
 
             $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description);
@@ -346,6 +357,10 @@ class ExpenseStatementImportService
                     ));
             }
 
+            if ($reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED && $line->group_key) {
+                $this->convertGroupToExpense($import, $line->group_key, $userId);
+            }
+
             $this->refreshImportConfirmedTotal($import);
         });
     }
@@ -360,6 +375,116 @@ class ExpenseStatementImportService
             'review_status' => $reviewStatus,
             'expense_category_id' => $reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED ? $categoryId : null,
             'expense_description' => $description,
+        ]);
+    }
+
+    /**
+     * Turn the confirmed business transactions of a group into actual, already-paid
+     * expense records and post them to the general ledger. Lines already linked to an
+     * expense are skipped, so this is safe to call repeatedly.
+     */
+    protected function convertGroupToExpense(ExpenseStatementImport $import, string $groupKey, int $userId): void
+    {
+        $lines = $import->lines()
+            ->where('group_key', $groupKey)
+            ->where('direction', 'out')
+            ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+            ->whereNull('expense_id')
+            ->whereNotNull('expense_category_id')
+            ->orderBy('completed_at')
+            ->get();
+
+        if ($lines->isEmpty()) {
+            return;
+        }
+
+        $user = User::find($userId);
+        if (! $user) {
+            return;
+        }
+
+        $creditAccount = Account::where('code', '1002')->first()
+            ?? Account::where('code', '1000')->first();
+
+        foreach ($lines->groupBy('expense_category_id') as $categoryLines) {
+            try {
+                $this->createPaidExpenseFromLines($import, $categoryLines, $user, $creditAccount);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to auto-convert M-Pesa transactions to an expense', [
+                    'import_id' => $import->id,
+                    'group_key' => $groupKey,
+                    'error' => $e->getMessage(),
+                ]);
+
+                throw $e;
+            }
+        }
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $lines
+     */
+    protected function createPaidExpenseFromLines(
+        ExpenseStatementImport $import,
+        $lines,
+        User $user,
+        ?Account $creditAccount,
+    ): void {
+        $first = $lines->first();
+        $recipientLabel = $first->recipient_name
+            ?: ($first->paybill_number ? 'Paybill ' . $first->paybill_number : null)
+            ?: mb_substr($first->narration, 0, 80);
+
+        $paidAt = $lines->sortByDesc('completed_at')->first()?->completed_at ?? now();
+        $expenseDate = $lines->sortBy('completed_at')->first()?->completed_at?->toDateString()
+            ?? now()->toDateString();
+
+        $expense = Expense::create([
+            'source_type' => 'mpesa_statement',
+            'requested_by' => $user->id,
+            'expense_date' => $expenseDate,
+            'currency' => 'KES',
+            'status' => Expense::STATUS_DRAFT,
+            'notes' => sprintf(
+                'M-Pesa statement import #%d — %s (%d transaction(s))',
+                $import->id,
+                $recipientLabel,
+                $lines->count()
+            ),
+        ]);
+
+        foreach ($lines as $statementLine) {
+            $expense->lines()->create([
+                'category_id' => $statementLine->expense_category_id,
+                'description' => $statementLine->expense_description ?: $statementLine->narration,
+                'qty' => 1,
+                'unit_cost' => $statementLine->withdrawn_amount,
+                'tax_rate' => 0,
+            ]);
+
+            $statementLine->update(['expense_id' => $expense->id]);
+        }
+
+        $expense->recalculateTotals();
+        $expense->save();
+
+        $voucher = PaymentVoucher::create([
+            'expense_id' => $expense->id,
+            'payee' => $recipientLabel,
+            'payment_method' => 'M-Pesa',
+            'payment_date' => $paidAt,
+            'amount' => $expense->total,
+            'status' => 'approved',
+            'prepared_by' => $user->id,
+            'approved_by' => $user->id,
+        ]);
+
+        $this->expenseWorkflow->payVoucher($voucher, $user, [
+            'amount' => $expense->total,
+            'paid_at' => $paidAt,
+            'account_id' => $creditAccount?->id,
+            'account_source' => 'M-Pesa',
+            'reference_no' => $first->receipt_no,
         ]);
     }
 

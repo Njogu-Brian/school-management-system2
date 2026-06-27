@@ -199,6 +199,7 @@ class ExpenseStatementController extends Controller
             $validated['review_status'],
             $validated['expense_category_id'] ?? null,
             $validated['expense_description'] ?? null,
+            (int) $request->user()->id,
         );
 
         return back()->with('success', 'Transaction updated.');

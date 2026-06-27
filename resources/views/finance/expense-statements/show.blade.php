@@ -38,31 +38,21 @@
       </div>
       <div class="col-md-3">
         <div class="finance-card p-3">
-          <div class="text-muted small">Ready for Expense Drafts</div>
-          <div class="fs-6 fw-semibold">{{ $draftStats['unconverted_count'] }} txn(s)</div>
-          <div class="small text-muted">KES {{ number_format((float)$draftStats['unconverted_total'], 2) }}</div>
+          <div class="text-muted small">Recorded as Expenses</div>
+          <div class="fs-6 fw-semibold">{{ $draftStats['converted_count'] }} txn(s)</div>
+          <a href="{{ route('finance.expenses.index') }}" class="small">View in Expenses →</a>
         </div>
       </div>
     </div>
 
-    @if($draftStats['unconverted_count'] > 0)
-      <div class="finance-card mb-3">
-        <div class="finance-card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
-          <div>
-            <strong>{{ $draftStats['unconverted_count'] }}</strong> confirmed business transaction(s) can be converted to expense drafts.
-            @if($draftStats['converted_count'] > 0)
-              <span class="text-muted">({{ $draftStats['converted_count'] }} already converted)</span>
-            @endif
-          </div>
-          <form method="POST" action="{{ route('finance.expense-statements.generate-expenses', $expenseStatement) }}" onsubmit="return confirm('Create expense drafts from all confirmed business transactions?');">
-            @csrf
-            <button type="submit" class="btn btn-finance btn-finance-primary">
-              <i class="bi bi-journal-plus"></i> Generate Expense Drafts
-            </button>
-          </form>
-        </div>
+    <div class="alert alert-info d-flex align-items-center gap-2">
+      <i class="bi bi-info-circle"></i>
+      <div>
+        When you mark a transaction as <strong>Business expense</strong> and pick a category, it is automatically recorded as a
+        <strong>paid expense</strong> (and posted to the general ledger). Find them under
+        <a href="{{ route('finance.expenses.index') }}">Expenses</a>.
       </div>
-    @endif
+    </div>
 
     <div class="finance-card mb-3">
       <div class="finance-card-body d-flex flex-wrap gap-2">
