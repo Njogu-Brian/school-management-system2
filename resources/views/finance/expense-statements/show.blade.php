@@ -158,11 +158,8 @@
                             </select>
                           </div>
                           <div class="col-12 col-xl-3">
-                            <select name="expense_category_id" class="form-select form-select-sm">
+                            <select name="expense_category_id" class="form-select form-select-sm" data-category-select data-selected="{{ $line->expense_category_id }}">
                               <option value="">Category</option>
-                              @foreach($categories as $category)
-                                <option value="{{ $category->id }}" @selected((string)$line->expense_category_id === (string)$category->id)>{{ $category->name }}</option>
-                              @endforeach
                             </select>
                           </div>
                           <div class="col-12 col-xl-4">
@@ -196,11 +193,8 @@
               </div>
               <div class="col-md-3">
                 <label class="form-label small mb-1">Expense category</label>
-                <select name="expense_category_id" class="finance-form-select form-select-sm">
+                <select name="expense_category_id" class="finance-form-select form-select-sm" data-category-select data-scope="group" data-selected="{{ $group->expense_category_id }}">
                   <option value="">— Select —</option>
-                  @foreach($categories as $category)
-                    <option value="{{ $category->id }}" @selected((string)$group->expense_category_id === (string)$category->id)>{{ $category->name }}</option>
-                  @endforeach
                 </select>
               </div>
               <div class="col-md-4">
@@ -225,6 +219,48 @@
         </div>
       </div>
     @endforelse
+
+    @if($groups->hasPages())
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+        <div class="text-muted small">
+          Showing recipients {{ $groups->firstItem() }}–{{ $groups->lastItem() }} of {{ $groups->total() }}
+        </div>
+        {{ $groups->withQueryString()->links() }}
+      </div>
+    @endif
   </div>
 </div>
+
+{{-- Category options rendered once and cloned into each dropdown on demand (keeps the page fast for large statements). --}}
+<template id="category-options-template">
+  @foreach($categories as $category)
+    <option value="{{ $category->id }}">{{ $category->name }}</option>
+  @endforeach
+</template>
+
+<script>
+(function () {
+  var tmpl = document.getElementById('category-options-template');
+  if (!tmpl) return;
+
+  function fill(select) {
+    if (select.dataset.filled) return;
+    select.appendChild(tmpl.content.cloneNode(true));
+    var val = select.getAttribute('data-selected');
+    if (val) select.value = val;
+    select.dataset.filled = '1';
+  }
+
+  // Group-level dropdowns and any already-expanded groups: fill immediately.
+  document.querySelectorAll('select[data-category-select][data-scope="group"]').forEach(fill);
+  document.querySelectorAll('.collapse.show select[data-category-select]').forEach(fill);
+
+  // Per-line dropdowns: fill lazily the first time their group is expanded.
+  document.querySelectorAll('.collapse').forEach(function (el) {
+    el.addEventListener('show.bs.collapse', function () {
+      el.querySelectorAll('select[data-category-select]').forEach(fill);
+    });
+  });
+})();
+</script>
 @endsection

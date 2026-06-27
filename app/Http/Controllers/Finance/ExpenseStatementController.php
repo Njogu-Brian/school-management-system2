@@ -9,6 +9,8 @@ use App\Models\ExpenseStatementLine;
 use App\Services\Finance\ExpenseStatementImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\View\View;
 
 class ExpenseStatementController extends Controller
@@ -92,7 +94,19 @@ class ExpenseStatementController extends Controller
         $this->authorize('view', $expenseStatement);
 
         $filter = $request->string('filter')->toString() ?: null;
-        $groups = $this->importService->groupedLines($expenseStatement, $filter);
+
+        $perPage = 20;
+        $page = Paginator::resolveCurrentPage();
+        $allGroups = $this->importService->groupedLines($expenseStatement, $filter);
+
+        $groups = new LengthAwarePaginator(
+            $allGroups->forPage($page, $perPage)->values(),
+            $allGroups->count(),
+            $perPage,
+            $page,
+            ['path' => Paginator::resolveCurrentPath(), 'query' => $request->query()]
+        );
+
         $categories = ExpenseCategory::where('is_active', true)->where('is_header', false)->orderBy('name')->get();
 
         $stats = [
