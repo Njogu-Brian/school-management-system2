@@ -5,9 +5,13 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\ExpenseCategory;
+use App\Models\ExpenseLine;
+use App\Models\ExpenseStatementLine;
+use App\Models\ExpenseStatementRecipientProfile;
 use App\Services\Finance\ExpenseCategoryCodeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ExpenseCategoryController extends Controller
@@ -39,7 +43,14 @@ class ExpenseCategoryController extends Controller
             ->groupBy('account_type')
             ->mapWithKeys(fn ($group, $type) => [($typeLabels[$type] ?? ucfirst($type)) => $group]);
 
-        return view('finance.expense_categories.index', compact('tree', 'headerParents', 'accounts', 'accountGroups'));
+        $selectableCategories = ExpenseCategory::query()
+            ->with('parent')
+            ->where('is_active', true)
+            ->where('is_header', false)
+            ->orderBy('name')
+            ->get();
+
+        return view('finance.expense_categories.index', compact('tree', 'headerParents', 'accounts', 'accountGroups', 'selectableCategories'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -106,6 +117,54 @@ class ExpenseCategoryController extends Controller
         ]);
 
         return redirect()->route('finance.expense-categories.index')->with('success', 'Category updated.');
+    }
+
+    public function destroy(Request $request, ExpenseCategory $expenseCategory): RedirectResponse
+    {
+        if ($expenseCategory->children()->exists()) {
+            return back()->with('error', 'Move or delete this group\'s sub-categories before deleting it.');
+        }
+
+        $tied = $this->tiedCount($expenseCategory);
+
+        if ($tied > 0) {
+            $reassignTo = (int) $request->input('reassign_to');
+
+            if (! $reassignTo) {
+                return back()->with('error', "This category has {$tied} expense(s)/transaction(s) tied to it. Choose a category to move them to before deleting.");
+            }
+
+            $target = ExpenseCategory::find($reassignTo);
+
+            if (! $target || $target->id === $expenseCategory->id || $target->is_header || ! $target->is_active) {
+                return back()->with('error', 'Pick a valid, active line-item category to move the existing expenses into.');
+            }
+
+            DB::transaction(function () use ($expenseCategory, $target) {
+                ExpenseLine::where('category_id', $expenseCategory->id)->update(['category_id' => $target->id]);
+                ExpenseStatementLine::where('expense_category_id', $expenseCategory->id)->update(['expense_category_id' => $target->id]);
+                ExpenseStatementRecipientProfile::where('expense_category_id', $expenseCategory->id)->update(['expense_category_id' => $target->id]);
+
+                $expenseCategory->delete();
+            });
+
+            return redirect()->route('finance.expense-categories.index')
+                ->with('success', "Category deleted. {$tied} existing item(s) moved to {$target->name}.");
+        }
+
+        $expenseCategory->delete();
+
+        return redirect()->route('finance.expense-categories.index')->with('success', 'Category deleted.');
+    }
+
+    /**
+     * Count expenses and statement transactions still pointing at this category.
+     */
+    protected function tiedCount(ExpenseCategory $category): int
+    {
+        return ExpenseLine::where('category_id', $category->id)->count()
+            + ExpenseStatementLine::where('expense_category_id', $category->id)->count()
+            + ExpenseStatementRecipientProfile::where('expense_category_id', $category->id)->count();
     }
 
     /**

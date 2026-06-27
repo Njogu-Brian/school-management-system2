@@ -42,7 +42,7 @@
       <thead><tr><th>Code</th><th>Name</th><th>GL Account</th><th>Type</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
       <tbody>
         @foreach($tree as $category)
-          @include('finance.expense_categories._row', ['category' => $category, 'depth' => 0, 'headerParents' => $headerParents, 'accountGroups' => $accountGroups])
+          @include('finance.expense_categories._row', ['category' => $category, 'depth' => 0, 'headerParents' => $headerParents, 'accountGroups' => $accountGroups, 'selectableCategories' => $selectableCategories])
         @endforeach
       </tbody>
     </table>

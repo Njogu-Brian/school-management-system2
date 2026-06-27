@@ -1465,6 +1465,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('expense-categories', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'index'])->name('expense-categories.index');
         Route::post('expense-categories', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'store'])->name('expense-categories.store');
         Route::put('expense-categories/{expenseCategory}', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'update'])->name('expense-categories.update');
+        Route::delete('expense-categories/{expenseCategory}', [\App\Http\Controllers\Finance\ExpenseCategoryController::class, 'destroy'])->name('expense-categories.destroy');
 
         // Accounting (chart of accounts, journals, petty cash)
         Route::get('chart-of-accounts', [\App\Http\Controllers\Finance\ChartOfAccountController::class, 'index'])->name('chart-of-accounts.index');
