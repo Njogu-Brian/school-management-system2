@@ -133,6 +133,8 @@ class ExpenseStatementController extends Controller
         ];
 
         $draftStats = $this->importService->confirmedDraftStats($expenseStatement);
+        $expenseGroups = $this->importService->importExpenseGroups($expenseStatement);
+        $pendingExpenseCreation = $this->importService->pendingExpenseCreationCount($expenseStatement);
 
         return view('finance.expense-statements.show', compact(
             'expenseStatement',
@@ -141,6 +143,8 @@ class ExpenseStatementController extends Controller
             'filter',
             'stats',
             'draftStats',
+            'expenseGroups',
+            'pendingExpenseCreation',
         ));
     }
 
@@ -160,15 +164,19 @@ class ExpenseStatementController extends Controller
             return back()->withErrors(['expense_category_id' => 'Select a category when marking as business expense.']);
         }
 
-        $this->importService->applyGroupReview(
-            $expenseStatement,
-            $validated['group_key'],
-            $validated['review_status'],
-            $validated['expense_category_id'] ?? null,
-            $validated['expense_description'] ?? null,
-            (bool) ($validated['remember_choice'] ?? false),
-            (int) $request->user()->id,
-        );
+        try {
+            $this->importService->applyGroupReview(
+                $expenseStatement,
+                $validated['group_key'],
+                $validated['review_status'],
+                $validated['expense_category_id'] ?? null,
+                $validated['expense_description'] ?? null,
+                (bool) ($validated['remember_choice'] ?? false),
+                (int) $request->user()->id,
+            );
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['review_status' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Transaction group updated.');
     }
@@ -193,43 +201,64 @@ class ExpenseStatementController extends Controller
             return back()->withErrors(['line_id' => 'Transaction not found in this import.']);
         }
 
-        $this->importService->applyLineReview(
-            $expenseStatement,
-            (int) $validated['line_id'],
-            $validated['review_status'],
-            $validated['expense_category_id'] ?? null,
-            $validated['expense_description'] ?? null,
-            (int) $request->user()->id,
-        );
+        try {
+            $this->importService->applyLineReview(
+                $expenseStatement,
+                (int) $validated['line_id'],
+                $validated['review_status'],
+                $validated['expense_category_id'] ?? null,
+                $validated['expense_description'] ?? null,
+                (int) $request->user()->id,
+            );
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['line_id' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Transaction updated.');
     }
 
-    public function generateExpenses(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
+    public function submitExpenses(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
     {
         $this->authorize('update', $expenseStatement);
 
-        $result = $this->importService->generateExpenseDrafts(
+        $created = $this->importService->createExpensesForImport(
             $expenseStatement,
             (int) $request->user()->id,
         );
 
-        if ($result['created'] === 0) {
+        if ($created === 0) {
             return back()->withErrors([
-                'generate' => 'No confirmed business transactions ready to convert. Mark transactions as business expenses with a category first.',
+                'submit' => 'No confirmed business transactions ready to submit. Mark transactions as business expenses with a category first.',
             ]);
         }
 
         return back()->with(
             'success',
-            sprintf(
-                'Created %d expense draft(s). %s',
-                $result['created'],
-                $result['created'] === 1
-                    ? 'Open it from Expenses to review and submit.'
-                    : 'Open them from the Expenses list to review and submit.'
-            )
+            sprintf('Created %d expense(s) for approval. Approve them below or by category.', $created)
         );
+    }
+
+    public function approveExpenses(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
+    {
+        $this->authorize('update', $expenseStatement);
+
+        $validated = $request->validate([
+            'expense_id' => 'nullable|integer',
+            'category_id' => 'nullable|integer',
+        ]);
+
+        $approved = $this->importService->approveStatementExpenses(
+            $expenseStatement,
+            (int) $request->user()->id,
+            $validated['expense_id'] ?? null,
+            $validated['category_id'] ?? null,
+        );
+
+        if ($approved === 0) {
+            return back()->withErrors(['approve' => 'No submitted expenses matched for approval.']);
+        }
+
+        return back()->with('success', sprintf('Approved and posted %d expense(s) to the ledger.', $approved));
     }
 
     public function destroy(ExpenseStatementImport $expenseStatement): RedirectResponse

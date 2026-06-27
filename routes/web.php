@@ -1508,7 +1508,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('expense-statements/{expenseStatement}', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'show'])->name('expense-statements.show');
         Route::post('expense-statements/{expenseStatement}/groups', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'updateGroup'])->name('expense-statements.groups.update');
         Route::post('expense-statements/{expenseStatement}/lines', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'updateLine'])->name('expense-statements.lines.update');
-        Route::post('expense-statements/{expenseStatement}/generate-expenses', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'generateExpenses'])->name('expense-statements.generate-expenses');
+        Route::post('expense-statements/{expenseStatement}/submit-expenses', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'submitExpenses'])->name('expense-statements.submit-expenses');
+        Route::post('expense-statements/{expenseStatement}/approve-expenses', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'approveExpenses'])->name('expense-statements.approve-expenses');
         Route::delete('expense-statements/{expenseStatement}', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'destroy'])->name('expense-statements.destroy');
 
         Route::resource('vendors', \App\Http\Controllers\Finance\VendorController::class)->except(['show', 'destroy']);

@@ -45,12 +45,112 @@
       </div>
     </div>
 
-    <div class="alert alert-info d-flex align-items-center gap-2">
-      <i class="bi bi-info-circle"></i>
-      <div>
-        When you mark a transaction as <strong>Business expense</strong> and pick a category, it is automatically recorded as a
-        <strong>paid expense</strong> (and posted to the general ledger). Find them under
-        <a href="{{ route('finance.expenses.index') }}">Expenses</a>.
+    <div class="finance-card mb-3">
+      <div class="finance-card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <h6 class="mb-1"><i class="bi bi-journal-check"></i> Expenses from this statement</h6>
+            <div class="small text-muted">
+              Mark transactions as <strong>Business expense</strong> with a category, then <strong>Submit</strong> to create the expenses.
+              Approve them (individually or by category) to post them to the general ledger. Charges are booked to Bank &amp; Transaction Charges automatically.
+            </div>
+          </div>
+          @if($pendingExpenseCreation > 0)
+            <form method="POST" action="{{ route('finance.expense-statements.submit-expenses', $expenseStatement) }}">
+              @csrf
+              <button type="submit" class="btn btn-finance btn-finance-primary">
+                <i class="bi bi-journal-arrow-up"></i> Submit {{ $pendingExpenseCreation }} confirmed
+              </button>
+            </form>
+          @endif
+        </div>
+
+        @if($expenseGroups->isNotEmpty())
+          @php $totalSubmitted = $expenseGroups->sum('submitted_count'); @endphp
+          <div class="d-flex justify-content-end mt-2">
+            @if($totalSubmitted > 0)
+              <form method="POST" action="{{ route('finance.expense-statements.approve-expenses', $expenseStatement) }}"
+                    onsubmit="return confirm('Approve all {{ $totalSubmitted }} submitted expense(s) and post them to the ledger?');">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check2-all"></i> Approve all submitted ({{ $totalSubmitted }})</button>
+              </form>
+            @endif
+          </div>
+
+          <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th class="text-end">Expenses</th>
+                  <th class="text-end">Total</th>
+                  <th>Status</th>
+                  <th class="text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($expenseGroups as $eg)
+                  <tr>
+                    <td>
+                      <button class="btn btn-sm btn-link px-0" type="button" data-bs-toggle="collapse" data-bs-target="#exp-cat-{{ $loop->index }}">
+                        <strong>{{ $eg->category_name }}</strong>
+                      </button>
+                    </td>
+                    <td class="text-end">{{ $eg->count }}</td>
+                    <td class="text-end">KES {{ number_format($eg->total, 2) }}</td>
+                    <td>
+                      @if($eg->submitted_count > 0)
+                        <span class="badge bg-warning text-dark">{{ $eg->submitted_count }} awaiting approval</span>
+                      @else
+                        <span class="badge bg-success">All approved</span>
+                      @endif
+                    </td>
+                    <td class="text-end">
+                      @if($eg->submitted_count > 0 && $eg->category_id)
+                        <form method="POST" action="{{ route('finance.expense-statements.approve-expenses', $expenseStatement) }}"
+                              onsubmit="return confirm('Approve all {{ $eg->submitted_count }} submitted {{ $eg->category_name }} expense(s)?');">
+                          @csrf
+                          <input type="hidden" name="category_id" value="{{ $eg->category_id }}">
+                          <button type="submit" class="btn btn-sm btn-success">Approve all {{ $eg->category_name }}</button>
+                        </form>
+                      @endif
+                    </td>
+                  </tr>
+                  <tr class="collapse" id="exp-cat-{{ $loop->index }}">
+                    <td colspan="5" class="p-0">
+                      <table class="table table-sm mb-0">
+                        <tbody>
+                          @foreach($eg->expenses as $exp)
+                            <tr>
+                              <td class="ps-4">
+                                <a href="{{ route('finance.expenses.show', $exp) }}">{{ $exp->expense_no }}</a>
+                                <span class="text-muted small ms-2">{{ optional($exp->expense_date)->format('Y-m-d') }}</span>
+                              </td>
+                              <td class="text-end">KES {{ number_format((float) $exp->total, 2) }}</td>
+                              <td>
+                                @php $st = $exp->status; @endphp
+                                <span class="badge bg-{{ $st === 'paid' ? 'success' : ($st === 'approved' ? 'info text-dark' : ($st === 'submitted' ? 'warning text-dark' : 'secondary')) }}">{{ ucfirst($st) }}</span>
+                              </td>
+                              <td class="text-end" style="width: 120px">
+                                @if($exp->status === 'submitted')
+                                  <form method="POST" action="{{ route('finance.expense-statements.approve-expenses', $expenseStatement) }}">
+                                    @csrf
+                                    <input type="hidden" name="expense_id" value="{{ $exp->id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-success">Approve</button>
+                                  </form>
+                                @endif
+                              </td>
+                            </tr>
+                          @endforeach
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        @endif
       </div>
     </div>
 

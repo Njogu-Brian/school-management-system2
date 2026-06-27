@@ -19,11 +19,28 @@ use Illuminate\Support\Facades\Storage;
 
 class ExpenseStatementImportService
 {
+    protected ?int $chargeCategoryIdCache = null;
+
+    protected bool $chargeCategoryResolved = false;
+
     public function __construct(
         protected MpesaExpenseStatementParser $parser,
         protected MpesaTransactionClassifier $classifier,
         protected ExpenseWorkflowService $expenseWorkflow,
     ) {}
+
+    /**
+     * Id of the "Bank & Transaction Charges" category (code TXN_COST), or null if not seeded.
+     */
+    protected function chargeCategoryId(): ?int
+    {
+        if (! $this->chargeCategoryResolved) {
+            $this->chargeCategoryIdCache = ExpenseCategory::where('code', 'TXN_COST')->value('id');
+            $this->chargeCategoryResolved = true;
+        }
+
+        return $this->chargeCategoryIdCache;
+    }
 
     /**
      * @return array{success: bool, import?: ExpenseStatementImport, error?: string, message?: string}
@@ -173,13 +190,18 @@ class ExpenseStatementImportService
                 continue;
             }
 
+            $categoryId = $parent->expense_category_id;
+            if ($parent->review_status === ExpenseStatementLine::REVIEW_CONFIRMED && ($chargeId = $this->chargeCategoryId())) {
+                $categoryId = $chargeId;
+            }
+
             $feeLine->update([
                 'group_key' => $parent->group_key,
                 'recipient_name' => $parent->recipient_name,
                 'paybill_number' => $parent->paybill_number,
                 'account_reference' => $parent->account_reference,
                 'review_status' => $parent->review_status,
-                'expense_category_id' => $parent->expense_category_id,
+                'expense_category_id' => $categoryId,
                 'expense_description' => $parent->expense_description,
             ]);
         }
@@ -302,6 +324,11 @@ class ExpenseStatementImportService
 
             $first = $lines->first();
 
+            // Leaving "business expense" removes any not-yet-approved expenses created from these transactions.
+            if ($reviewStatus !== ExpenseStatementLine::REVIEW_CONFIRMED) {
+                $this->detachExpensesForLines($import, $lines);
+            }
+
             foreach ($lines as $line) {
                 $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description);
             }
@@ -323,10 +350,6 @@ class ExpenseStatementImportService
                 );
             }
 
-            if ($reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED) {
-                $this->convertGroupToExpense($import, $groupKey, $userId);
-            }
-
             $this->refreshImportConfirmedTotal($import);
         });
     }
@@ -342,25 +365,28 @@ class ExpenseStatementImportService
         DB::transaction(function () use ($import, $lineId, $reviewStatus, $categoryId, $description, $userId) {
             $line = $import->lines()->whereKey($lineId)->firstOrFail();
 
-            $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description);
-
+            $relatedFees = collect();
             if (! $line->is_transaction_fee && $line->receipt_no) {
-                $import->lines()
+                $relatedFees = $import->lines()
                     ->where('receipt_no', $line->receipt_no)
                     ->where('is_transaction_fee', true)
                     ->whereKeyNot($line->id)
-                    ->get()
-                    ->each(fn (ExpenseStatementLine $feeLine) => $this->applyReviewToLine(
-                        $feeLine,
-                        $reviewStatus,
-                        $categoryId,
-                        $description,
-                    ));
+                    ->get();
             }
 
-            if ($reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED && $line->group_key) {
-                $this->convertGroupToExpense($import, $line->group_key, $userId);
+            // Leaving "business expense" removes any not-yet-approved expense created from this transaction.
+            if ($reviewStatus !== ExpenseStatementLine::REVIEW_CONFIRMED) {
+                $this->detachExpensesForLines($import, collect([$line])->merge($relatedFees));
             }
+
+            $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description);
+
+            $relatedFees->each(fn (ExpenseStatementLine $feeLine) => $this->applyReviewToLine(
+                $feeLine,
+                $reviewStatus,
+                $categoryId,
+                $description,
+            ));
 
             $this->refreshImportConfirmedTotal($import);
         });
@@ -372,6 +398,13 @@ class ExpenseStatementImportService
         ?int $categoryId,
         ?string $description,
     ): void {
+        // Transaction charges are always booked to Bank & Transaction Charges.
+        if ($line->is_transaction_fee && $reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED) {
+            if ($chargeId = $this->chargeCategoryId()) {
+                $categoryId = $chargeId;
+            }
+        }
+
         $line->update([
             'review_status' => $reviewStatus,
             'expense_category_id' => $reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED ? $categoryId : null,
@@ -380,87 +413,77 @@ class ExpenseStatementImportService
     }
 
     /**
-     * Turn each confirmed business transaction of a group into its own actual,
-     * already-paid expense record (with its own date and amount), including the
-     * M-Pesa transaction charge as a separate line, and post it to the general
-     * ledger. Lines already linked to an expense are skipped, so this is safe to
-     * call repeatedly.
+     * Submit: create one SUBMITTED expense per confirmed transaction that does not yet
+     * have one (its own date and amount, plus the M-Pesa charge as a separate line).
+     * No GL posting happens here — that occurs on approval.
+     *
+     * @return int Number of expenses created.
      */
-    protected function convertGroupToExpense(ExpenseStatementImport $import, string $groupKey, int $userId): void
+    public function createExpensesForImport(ExpenseStatementImport $import, int $userId): int
     {
-        $lines = $import->lines()
-            ->where('group_key', $groupKey)
-            ->where('direction', 'out')
-            ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
-            ->whereNull('expense_id')
-            ->orderBy('completed_at')
-            ->get();
-
-        if ($lines->isEmpty()) {
-            return;
-        }
-
         $user = User::find($userId);
         if (! $user) {
-            return;
+            return 0;
         }
 
-        $creditAccount = Account::where('code', '1002')->first()
-            ?? Account::where('code', '1000')->first();
-        $chargeCategory = ExpenseCategory::where('code', 'TXN_COST')->first();
+        return DB::transaction(function () use ($import, $user) {
+            $lines = $import->lines()
+                ->where('direction', 'out')
+                ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+                ->whereNull('expense_id')
+                ->orderBy('completed_at')
+                ->get();
 
-        // Group transaction fees by receipt so each can be attached to its parent transaction.
-        $feesByReceipt = $lines->where('is_transaction_fee', true)
-            ->filter(fn ($line) => (float) $line->withdrawn_amount > 0)
-            ->groupBy('receipt_no');
-
-        foreach ($lines->where('is_transaction_fee', false) as $primary) {
-            if (! $primary->expense_category_id) {
-                continue;
+            if ($lines->isEmpty()) {
+                return 0;
             }
 
-            $relatedFees = $primary->receipt_no
-                ? ($feesByReceipt->get($primary->receipt_no) ?? collect())
-                : collect();
+            $chargeCategory = ExpenseCategory::where('code', 'TXN_COST')->first();
 
-            try {
-                $this->createPaidExpenseFromTransaction($import, $primary, $relatedFees, $chargeCategory, $user, $creditAccount);
-            } catch (\Throwable $e) {
-                Log::warning('Failed to auto-convert M-Pesa transaction to an expense', [
-                    'import_id' => $import->id,
-                    'group_key' => $groupKey,
-                    'receipt_no' => $primary->receipt_no,
-                    'error' => $e->getMessage(),
-                ]);
+            $feesByReceipt = $lines->where('is_transaction_fee', true)
+                ->filter(fn ($line) => (float) $line->withdrawn_amount > 0)
+                ->groupBy('receipt_no');
 
-                throw $e;
+            $created = 0;
+
+            foreach ($lines->where('is_transaction_fee', false) as $primary) {
+                if (! $primary->expense_category_id) {
+                    continue;
+                }
+
+                $relatedFees = $primary->receipt_no
+                    ? ($feesByReceipt->get($primary->receipt_no) ?? collect())
+                    : collect();
+
+                $this->createSubmittedExpenseFromTransaction($import, $primary, $relatedFees, $chargeCategory, $user);
+                $created++;
             }
-        }
+
+            return $created;
+        });
     }
 
     /**
      * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $fees
      */
-    protected function createPaidExpenseFromTransaction(
+    protected function createSubmittedExpenseFromTransaction(
         ExpenseStatementImport $import,
         ExpenseStatementLine $primary,
         $fees,
         ?ExpenseCategory $chargeCategory,
         User $user,
-        ?Account $creditAccount,
     ): void {
         $recipientLabel = $primary->recipient_name
             ?: ($primary->paybill_number ? 'Paybill ' . $primary->paybill_number : null)
             ?: mb_substr($primary->narration, 0, 80);
-
-        $paidAt = $primary->completed_at ?? now();
 
         $expense = Expense::create([
             'source_type' => 'mpesa_statement',
             'requested_by' => $user->id,
             'expense_date' => $primary->completed_at?->toDateString() ?? now()->toDateString(),
             'currency' => 'KES',
-            'status' => Expense::STATUS_DRAFT,
+            'status' => Expense::STATUS_SUBMITTED,
+            'submitted_at' => now(),
             'notes' => sprintf(
                 'M-Pesa %s — %s%s',
                 $primary->receipt_no ?: 'transaction',
@@ -491,12 +514,70 @@ class ExpenseStatementImportService
 
         $expense->recalculateTotals();
         $expense->save();
+    }
+
+    /**
+     * Approve statement-sourced expenses (single, by category, or all submitted),
+     * marking each Paid and posting it to the general ledger.
+     *
+     * @return int Number of expenses approved.
+     */
+    public function approveStatementExpenses(
+        ExpenseStatementImport $import,
+        int $userId,
+        ?int $expenseId = null,
+        ?int $categoryId = null,
+    ): int {
+        $user = User::find($userId);
+        if (! $user) {
+            return 0;
+        }
+
+        $expenseIds = $import->lines()
+            ->whereNotNull('expense_id')
+            ->pluck('expense_id')
+            ->unique()
+            ->values();
+
+        if ($expenseIds->isEmpty()) {
+            return 0;
+        }
+
+        $query = Expense::whereIn('id', $expenseIds)
+            ->where('status', Expense::STATUS_SUBMITTED);
+
+        if ($expenseId) {
+            $query->whereKey($expenseId);
+        } elseif ($categoryId) {
+            $query->whereHas('lines', fn ($q) => $q->where('category_id', $categoryId));
+        }
+
+        $expenses = $query->with('lines.category.account')->get();
+
+        $creditAccount = Account::where('code', '1002')->first()
+            ?? Account::where('code', '1000')->first();
+
+        $approved = 0;
+        foreach ($expenses as $expense) {
+            $this->approveStatementExpense($expense, $user, $creditAccount);
+            $approved++;
+        }
+
+        return $approved;
+    }
+
+    protected function approveStatementExpense(Expense $expense, User $user, ?Account $creditAccount): void
+    {
+        $expense->status = Expense::STATUS_APPROVED;
+        $expense->approved_by = $user->id;
+        $expense->approved_at = now();
+        $expense->save();
 
         $voucher = PaymentVoucher::create([
             'expense_id' => $expense->id,
-            'payee' => $recipientLabel,
+            'payee' => optional($expense->vendor)->name ?? 'M-Pesa expense',
             'payment_method' => 'M-Pesa',
-            'payment_date' => $paidAt,
+            'payment_date' => $expense->expense_date,
             'amount' => $expense->total,
             'status' => 'approved',
             'prepared_by' => $user->id,
@@ -505,11 +586,98 @@ class ExpenseStatementImportService
 
         $this->expenseWorkflow->payVoucher($voucher, $user, [
             'amount' => $expense->total,
-            'paid_at' => $paidAt,
+            'paid_at' => $expense->expense_date,
             'account_id' => $creditAccount?->id,
             'account_source' => 'M-Pesa',
-            'reference_no' => $primary->receipt_no,
         ]);
+    }
+
+    /**
+     * Remove not-yet-approved expenses created from the given statement lines, and
+     * clear their links. Throws if any linked expense has already been approved/paid.
+     *
+     * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $lines
+     */
+    protected function detachExpensesForLines(ExpenseStatementImport $import, $lines): void
+    {
+        $expenseIds = $lines->pluck('expense_id')->filter()->unique()->values();
+        if ($expenseIds->isEmpty()) {
+            return;
+        }
+
+        $expenses = Expense::whereIn('id', $expenseIds)->get();
+
+        foreach ($expenses as $expense) {
+            if (in_array($expense->status, [Expense::STATUS_APPROVED, Expense::STATUS_PAID], true)) {
+                throw new \RuntimeException(
+                    "Expense {$expense->expense_no} has already been approved and cannot be moved back to pending."
+                );
+            }
+        }
+
+        $import->lines()->whereIn('expense_id', $expenseIds)->update(['expense_id' => null]);
+
+        foreach ($expenses as $expense) {
+            $expense->vouchers()->delete();
+            $expense->lines()->delete();
+            $expense->delete();
+        }
+    }
+
+    /**
+     * Expenses created from this statement, grouped by their primary (non-charge) category.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    public function importExpenseGroups(ExpenseStatementImport $import)
+    {
+        $expenseIds = $import->lines()
+            ->whereNotNull('expense_id')
+            ->pluck('expense_id')
+            ->unique()
+            ->values();
+
+        if ($expenseIds->isEmpty()) {
+            return collect();
+        }
+
+        $expenses = Expense::whereIn('id', $expenseIds)
+            ->with('lines.category')
+            ->orderBy('expense_date')
+            ->get();
+
+        $chargeCategoryId = $this->chargeCategoryId();
+
+        return $expenses->groupBy(function (Expense $expense) use ($chargeCategoryId) {
+            $primaryLine = $expense->lines->first(fn ($line) => $line->category_id !== $chargeCategoryId)
+                ?? $expense->lines->first();
+
+            return $primaryLine?->category_id ?? 0;
+        })->map(function ($groupExpenses, $categoryId) use ($chargeCategoryId) {
+            $first = $groupExpenses->first();
+            $primaryLine = $first->lines->first(fn ($line) => $line->category_id !== $chargeCategoryId)
+                ?? $first->lines->first();
+
+            return (object) [
+                'category_id' => $categoryId ?: null,
+                'category_name' => optional($primaryLine?->category)->name ?? 'Uncategorized',
+                'expenses' => $groupExpenses->sortBy('expense_date')->values(),
+                'count' => $groupExpenses->count(),
+                'submitted_count' => $groupExpenses->where('status', Expense::STATUS_SUBMITTED)->count(),
+                'total' => round((float) $groupExpenses->sum('total'), 2),
+            ];
+        })->sortByDesc('total')->values();
+    }
+
+    public function pendingExpenseCreationCount(ExpenseStatementImport $import): int
+    {
+        return $import->lines()
+            ->where('direction', 'out')
+            ->where('is_transaction_fee', false)
+            ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+            ->whereNull('expense_id')
+            ->whereNotNull('expense_category_id')
+            ->count();
     }
 
     protected function refreshImportConfirmedTotal(ExpenseStatementImport $import): void
