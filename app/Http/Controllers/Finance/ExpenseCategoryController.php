@@ -23,17 +23,23 @@ class ExpenseCategoryController extends Controller
 
         $headerParents = ExpenseCategory::query()
             ->where('is_active', true)
+            ->where('is_header', true)
+            ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
 
         $accounts = Account::query()
-            ->where('account_type', Account::TYPE_EXPENSE)
             ->where('is_postable', true)
             ->where('is_active', true)
             ->orderBy('code')
             ->get();
 
-        return view('finance.expense_categories.index', compact('tree', 'headerParents', 'accounts'));
+        $typeLabels = Account::types();
+        $accountGroups = $accounts
+            ->groupBy('account_type')
+            ->mapWithKeys(fn ($group, $type) => [($typeLabels[$type] ?? ucfirst($type)) => $group]);
+
+        return view('finance.expense_categories.index', compact('tree', 'headerParents', 'accounts', 'accountGroups'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -77,8 +83,16 @@ class ExpenseCategoryController extends Controller
             'is_active' => 'nullable|boolean',
         ]);
 
-        if (isset($validated['parent_id']) && (int) $validated['parent_id'] === $expenseCategory->id) {
-            return back()->with('error', 'A category cannot be its own parent.');
+        if (! empty($validated['parent_id'])) {
+            $newParentId = (int) $validated['parent_id'];
+
+            if ($newParentId === $expenseCategory->id) {
+                return back()->with('error', 'A category cannot be its own parent.');
+            }
+
+            if (in_array($newParentId, $this->descendantIds($expenseCategory), true)) {
+                return back()->with('error', 'A category cannot be moved under one of its own sub-categories.');
+            }
         }
 
         $expenseCategory->update([
@@ -92,5 +106,26 @@ class ExpenseCategoryController extends Controller
         ]);
 
         return redirect()->route('finance.expense-categories.index')->with('success', 'Category updated.');
+    }
+
+    /**
+     * Collect all descendant category IDs so we can block cyclic re-parenting.
+     *
+     * @return array<int, int>
+     */
+    protected function descendantIds(ExpenseCategory $category): array
+    {
+        $ids = [];
+        $stack = ExpenseCategory::where('parent_id', $category->id)->pluck('id')->all();
+
+        while ($stack) {
+            $current = array_pop($stack);
+            $ids[] = $current;
+            foreach (ExpenseCategory::where('parent_id', $current)->pluck('id')->all() as $childId) {
+                $stack[] = $childId;
+            }
+        }
+
+        return $ids;
     }
 }

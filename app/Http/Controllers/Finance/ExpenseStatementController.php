@@ -107,7 +107,21 @@ class ExpenseStatementController extends Controller
             ['path' => Paginator::resolveCurrentPath(), 'query' => $request->query()]
         );
 
-        $categories = ExpenseCategory::where('is_active', true)->where('is_header', false)->orderBy('name')->get();
+        $activeCategories = ExpenseCategory::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $categoriesById = $activeCategories->keyBy('id');
+        $categoryGroups = [];
+        foreach ($activeCategories as $category) {
+            if ($category->is_header) {
+                continue;
+            }
+            $parent = $category->parent_id ? $categoriesById->get($category->parent_id) : null;
+            $groupName = $parent?->name ?? 'General';
+            $categoryGroups[$groupName][] = $category;
+        }
 
         $stats = [
             'outgoing_total' => $expenseStatement->outgoing_total,
@@ -123,7 +137,7 @@ class ExpenseStatementController extends Controller
         return view('finance.expense-statements.show', compact(
             'expenseStatement',
             'groups',
-            'categories',
+            'categoryGroups',
             'filter',
             'stats',
             'draftStats',

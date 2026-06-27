@@ -21,7 +21,11 @@
       <div class="col-md-2">
         <select class="finance-form-select" name="account_id">
           <option value="">GL account</option>
-          @foreach($accounts as $account)<option value="{{ $account->id }}">{{ $account->code }} — {{ $account->name }}</option>@endforeach
+          @foreach($accountGroups as $groupLabel => $groupAccounts)
+            <optgroup label="{{ $groupLabel }}">
+              @foreach($groupAccounts as $account)<option value="{{ $account->id }}">{{ $account->code }} — {{ $account->name }}</option>@endforeach
+            </optgroup>
+          @endforeach
         </select>
       </div>
       <div class="col-md-1">
@@ -35,10 +39,10 @@
 
   <div class="finance-table-wrapper">
     <table class="finance-table">
-      <thead><tr><th>Code</th><th>Name</th><th>GL Account</th><th>Type</th><th>Status</th></tr></thead>
+      <thead><tr><th>Code</th><th>Name</th><th>GL Account</th><th>Type</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
       <tbody>
         @foreach($tree as $category)
-          @include('finance.expense_categories._row', ['category' => $category, 'depth' => 0])
+          @include('finance.expense_categories._row', ['category' => $category, 'depth' => 0, 'headerParents' => $headerParents, 'accountGroups' => $accountGroups])
         @endforeach
       </tbody>
     </table>

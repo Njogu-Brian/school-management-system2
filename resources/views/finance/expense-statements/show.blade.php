@@ -233,8 +233,12 @@
 
 {{-- Category options rendered once and cloned into each dropdown on demand (keeps the page fast for large statements). --}}
 <template id="category-options-template">
-  @foreach($categories as $category)
-    <option value="{{ $category->id }}">{{ $category->name }}</option>
+  @foreach($categoryGroups as $groupName => $cats)
+    <optgroup label="{{ $groupName }}">
+      @foreach($cats as $category)
+        <option value="{{ $category->id }}">{{ $category->name }}</option>
+      @endforeach
+    </optgroup>
   @endforeach
 </template>
 
