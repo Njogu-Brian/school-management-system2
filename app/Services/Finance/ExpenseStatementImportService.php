@@ -4,6 +4,7 @@ namespace App\Services\Finance;
 
 use App\Models\Account;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\ExpenseStatementImport;
 use App\Models\ExpenseStatementLine;
 use App\Models\ExpenseStatementRecipientProfile;
@@ -379,9 +380,11 @@ class ExpenseStatementImportService
     }
 
     /**
-     * Turn the confirmed business transactions of a group into actual, already-paid
-     * expense records and post them to the general ledger. Lines already linked to an
-     * expense are skipped, so this is safe to call repeatedly.
+     * Turn each confirmed business transaction of a group into its own actual,
+     * already-paid expense record (with its own date and amount), including the
+     * M-Pesa transaction charge as a separate line, and post it to the general
+     * ledger. Lines already linked to an expense are skipped, so this is safe to
+     * call repeatedly.
      */
     protected function convertGroupToExpense(ExpenseStatementImport $import, string $groupKey, int $userId): void
     {
@@ -390,7 +393,6 @@ class ExpenseStatementImportService
             ->where('direction', 'out')
             ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
             ->whereNull('expense_id')
-            ->whereNotNull('expense_category_id')
             ->orderBy('completed_at')
             ->get();
 
@@ -405,14 +407,29 @@ class ExpenseStatementImportService
 
         $creditAccount = Account::where('code', '1002')->first()
             ?? Account::where('code', '1000')->first();
+        $chargeCategory = ExpenseCategory::where('code', 'TXN_COST')->first();
 
-        foreach ($lines->groupBy('expense_category_id') as $categoryLines) {
+        // Group transaction fees by receipt so each can be attached to its parent transaction.
+        $feesByReceipt = $lines->where('is_transaction_fee', true)
+            ->filter(fn ($line) => (float) $line->withdrawn_amount > 0)
+            ->groupBy('receipt_no');
+
+        foreach ($lines->where('is_transaction_fee', false) as $primary) {
+            if (! $primary->expense_category_id) {
+                continue;
+            }
+
+            $relatedFees = $primary->receipt_no
+                ? ($feesByReceipt->get($primary->receipt_no) ?? collect())
+                : collect();
+
             try {
-                $this->createPaidExpenseFromLines($import, $categoryLines, $user, $creditAccount);
+                $this->createPaidExpenseFromTransaction($import, $primary, $relatedFees, $chargeCategory, $user, $creditAccount);
             } catch (\Throwable $e) {
-                Log::warning('Failed to auto-convert M-Pesa transactions to an expense', [
+                Log::warning('Failed to auto-convert M-Pesa transaction to an expense', [
                     'import_id' => $import->id,
                     'group_key' => $groupKey,
+                    'receipt_no' => $primary->receipt_no,
                     'error' => $e->getMessage(),
                 ]);
 
@@ -422,47 +439,54 @@ class ExpenseStatementImportService
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $lines
+     * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $fees
      */
-    protected function createPaidExpenseFromLines(
+    protected function createPaidExpenseFromTransaction(
         ExpenseStatementImport $import,
-        $lines,
+        ExpenseStatementLine $primary,
+        $fees,
+        ?ExpenseCategory $chargeCategory,
         User $user,
         ?Account $creditAccount,
     ): void {
-        $first = $lines->first();
-        $recipientLabel = $first->recipient_name
-            ?: ($first->paybill_number ? 'Paybill ' . $first->paybill_number : null)
-            ?: mb_substr($first->narration, 0, 80);
+        $recipientLabel = $primary->recipient_name
+            ?: ($primary->paybill_number ? 'Paybill ' . $primary->paybill_number : null)
+            ?: mb_substr($primary->narration, 0, 80);
 
-        $paidAt = $lines->sortByDesc('completed_at')->first()?->completed_at ?? now();
-        $expenseDate = $lines->sortBy('completed_at')->first()?->completed_at?->toDateString()
-            ?? now()->toDateString();
+        $paidAt = $primary->completed_at ?? now();
 
         $expense = Expense::create([
             'source_type' => 'mpesa_statement',
             'requested_by' => $user->id,
-            'expense_date' => $expenseDate,
+            'expense_date' => $primary->completed_at?->toDateString() ?? now()->toDateString(),
             'currency' => 'KES',
             'status' => Expense::STATUS_DRAFT,
             'notes' => sprintf(
-                'M-Pesa statement import #%d — %s (%d transaction(s))',
-                $import->id,
+                'M-Pesa %s — %s%s',
+                $primary->receipt_no ?: 'transaction',
                 $recipientLabel,
-                $lines->count()
+                $primary->completed_at ? ' on ' . $primary->completed_at->format('Y-m-d H:i') : ''
             ),
         ]);
 
-        foreach ($lines as $statementLine) {
+        $expense->lines()->create([
+            'category_id' => $primary->expense_category_id,
+            'description' => $primary->expense_description ?: $primary->narration,
+            'qty' => 1,
+            'unit_cost' => $primary->withdrawn_amount,
+            'tax_rate' => 0,
+        ]);
+        $primary->update(['expense_id' => $expense->id]);
+
+        foreach ($fees as $fee) {
             $expense->lines()->create([
-                'category_id' => $statementLine->expense_category_id,
-                'description' => $statementLine->expense_description ?: $statementLine->narration,
+                'category_id' => $chargeCategory?->id ?? $primary->expense_category_id,
+                'description' => 'M-Pesa transaction charge' . ($fee->receipt_no ? ' (' . $fee->receipt_no . ')' : ''),
                 'qty' => 1,
-                'unit_cost' => $statementLine->withdrawn_amount,
+                'unit_cost' => $fee->withdrawn_amount,
                 'tax_rate' => 0,
             ]);
-
-            $statementLine->update(['expense_id' => $expense->id]);
+            $fee->update(['expense_id' => $expense->id]);
         }
 
         $expense->recalculateTotals();
@@ -484,7 +508,7 @@ class ExpenseStatementImportService
             'paid_at' => $paidAt,
             'account_id' => $creditAccount?->id,
             'account_source' => 'M-Pesa',
-            'reference_no' => $first->receipt_no,
+            'reference_no' => $primary->receipt_no,
         ]);
     }
 
