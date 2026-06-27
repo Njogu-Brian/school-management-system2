@@ -189,6 +189,52 @@ class ExpenseStatementController extends Controller
         return back()->with('success', 'Transaction group updated.');
     }
 
+    public function bulkUpdateGroups(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
+    {
+        $this->authorize('update', $expenseStatement);
+
+        $validated = $request->validate([
+            'group_keys' => 'required|array|min:1',
+            'group_keys.*' => 'string|max:64',
+            'review_status' => 'required|in:confirmed_expense,personal,ignored,pending',
+            'expense_category_id' => 'nullable|exists:expense_categories,id',
+            'expense_description' => 'nullable|string|max:1000',
+            'remember_choice' => 'nullable|boolean',
+        ]);
+
+        if ($validated['review_status'] === ExpenseStatementLine::REVIEW_CONFIRMED && empty($validated['expense_category_id'])) {
+            return back()->withErrors(['expense_category_id' => 'Select a category when marking as business expense.']);
+        }
+
+        $applied = 0;
+        $blocked = [];
+
+        foreach (array_unique($validated['group_keys']) as $groupKey) {
+            try {
+                $this->importService->applyGroupReview(
+                    $expenseStatement,
+                    $groupKey,
+                    $validated['review_status'],
+                    $validated['expense_category_id'] ?? null,
+                    $validated['expense_description'] ?? null,
+                    (bool) ($validated['remember_choice'] ?? false),
+                    (int) $request->user()->id,
+                );
+                $applied++;
+            } catch (\RuntimeException $e) {
+                $blocked[] = $e->getMessage();
+            }
+        }
+
+        if ($blocked !== []) {
+            return back()
+                ->with('success', "Updated {$applied} group(s).")
+                ->withErrors(['bulk' => 'Some groups were skipped: ' . implode(' ', array_unique($blocked))]);
+        }
+
+        return back()->with('success', "Updated {$applied} group(s).");
+    }
+
     public function updateLine(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
     {
         $this->authorize('update', $expenseStatement);

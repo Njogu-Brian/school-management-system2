@@ -184,12 +184,59 @@
       </div>
     </div>
 
+    <form id="bulkForm" method="POST" action="{{ route('finance.expense-statements.bulk-update-groups', $expenseStatement) }}" class="finance-card mb-3 sticky-top" style="top: 0; z-index: 5;">
+      @csrf
+      <div class="finance-card-body">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="bi bi-check2-square"></i>
+          <strong class="small">Mass classify</strong>
+          <span class="text-muted small">Tick the recipients below, choose a classification, then Apply. Works together with search &amp; filters.</span>
+        </div>
+        <div class="row g-2 align-items-end">
+          <div class="col-auto">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" id="selectAllGroups">
+              <label class="form-check-label small" for="selectAllGroups">Select all on page</label>
+            </div>
+            <div class="small text-muted"><span id="selectedCount">0</span> selected</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Set classification</label>
+            <select name="review_status" class="finance-form-select form-select-sm" required>
+              <option value="confirmed_expense">Business expense</option>
+              <option value="personal">Personal (not expense)</option>
+              <option value="ignored">Ignore</option>
+              <option value="pending">Pending review</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Expense category</label>
+            <select name="expense_category_id" class="finance-form-select form-select-sm" data-category-select data-scope="group" data-selected="">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Description (optional)</label>
+            <input type="text" name="expense_description" class="finance-form-control form-control-sm" placeholder="Applied to all selected">
+          </div>
+          <div class="col-md-2">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" name="remember_choice" value="1" id="bulkRemember">
+              <label class="form-check-label small" for="bulkRemember">Remember</label>
+            </div>
+            <button type="submit" class="btn btn-sm btn-finance btn-finance-primary w-100" id="bulkApplyBtn" disabled>Apply to selected</button>
+          </div>
+        </div>
+      </div>
+    </form>
+
     @forelse($groups as $index => $group)
       <div class="finance-card mb-3">
         <div class="finance-card-body">
           <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
             <div>
               <div class="d-flex align-items-center gap-2 flex-wrap">
+                <input type="checkbox" class="form-check-input mt-0 group-select" name="group_keys[]" value="{{ $group->group_key }}" form="bulkForm" title="Select for mass classify">
                 <h5 class="mb-0">{{ $group->display_name }}</h5>
                 <span class="badge bg-secondary">{{ $group->transaction_type_label }}</span>
                 @if($group->review_status === 'confirmed_expense')
@@ -353,20 +400,195 @@
   @endforeach
 </template>
 
+<style>
+  .cat-combo { position: relative; }
+  .cat-combo .cat-combo-input { background-image: none; cursor: text; }
+  .cat-combo-panel {
+    position: fixed; z-index: 1080; background: #fff; border: 1px solid #d0d5dd;
+    border-radius: .375rem; max-height: 260px; overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(16,24,40,.16); display: none;
+  }
+  .cat-combo-panel.show { display: block; }
+  .cat-combo-group {
+    padding: .3rem .6rem; font-size: .7rem; text-transform: uppercase; letter-spacing: .03em;
+    color: #667085; background: #f8f9fb; position: sticky; top: 0;
+  }
+  .cat-combo-item { padding: .4rem .6rem; font-size: .85rem; cursor: pointer; }
+  .cat-combo-item:hover, .cat-combo-item.highlight { background: #eef2ff; }
+  .cat-combo-item.active { font-weight: 600; color: #1d4ed8; }
+  .cat-combo-empty { padding: .5rem .6rem; color: #98a2b3; font-size: .85rem; }
+</style>
+
 <script>
 (function () {
   var tmpl = document.getElementById('category-options-template');
   if (!tmpl) return;
 
-  function fill(select) {
-    if (select.dataset.filled) return;
-    select.appendChild(tmpl.content.cloneNode(true));
-    var val = select.getAttribute('data-selected');
-    if (val) select.value = val;
-    select.dataset.filled = '1';
+  function closeAll(except) {
+    document.querySelectorAll('.cat-combo-panel.show').forEach(function (p) {
+      if (p !== except) p.classList.remove('show');
+    });
+  }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.cat-combo')) closeAll(null);
+  });
+
+  // Turn a (filled) native <select> into a searchable, click-or-type combobox.
+  function enhance(select) {
+    if (select.dataset.combo) return;
+    select.dataset.combo = '1';
+
+    var placeholderOpt = select.querySelector('option[value=""]');
+    var placeholder = placeholderOpt ? placeholderOpt.textContent.trim() : 'Search category…';
+
+    var items = [];
+    Array.prototype.forEach.call(select.querySelectorAll('option'), function (opt) {
+      if (opt.value === '') return;
+      var grp = (opt.parentElement && opt.parentElement.tagName === 'OPTGROUP') ? opt.parentElement.label : '';
+      items.push({ value: opt.value, label: opt.textContent.trim(), group: grp });
+    });
+
+    function labelFor(val) {
+      for (var i = 0; i < items.length; i++) if (items[i].value === val) return items[i].label;
+      return '';
+    }
+
+    var wrap = document.createElement('div');
+    wrap.className = 'cat-combo';
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(select);
+    select.style.display = 'none';
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.setAttribute('autocomplete', 'off');
+    input.className = 'cat-combo-input form-control ' + (select.className.indexOf('form-select-sm') !== -1 ? 'form-control-sm' : '');
+    input.placeholder = placeholder;
+    input.value = labelFor(select.value);
+    wrap.appendChild(input);
+
+    var panel = document.createElement('div');
+    panel.className = 'cat-combo-panel';
+    document.body.appendChild(panel);
+
+    var highlight = -1;
+
+    function visibleItemEls() { return panel.querySelectorAll('.cat-combo-item'); }
+
+    function render(filter) {
+      panel.innerHTML = '';
+      highlight = -1;
+      var f = (filter || '').toLowerCase().trim();
+      var lastGroup = null, count = 0;
+      items.forEach(function (it) {
+        if (f && it.label.toLowerCase().indexOf(f) === -1 && it.group.toLowerCase().indexOf(f) === -1) return;
+        if (it.group && it.group !== lastGroup) {
+          var h = document.createElement('div');
+          h.className = 'cat-combo-group';
+          h.textContent = it.group;
+          panel.appendChild(h);
+          lastGroup = it.group;
+        }
+        var d = document.createElement('div');
+        d.className = 'cat-combo-item';
+        d.textContent = it.label;
+        d.dataset.value = it.value;
+        if (select.value === it.value) d.classList.add('active');
+        panel.appendChild(d);
+        count++;
+      });
+      if (count === 0) {
+        var e = document.createElement('div');
+        e.className = 'cat-combo-empty';
+        e.textContent = 'No matching category';
+        panel.appendChild(e);
+      }
+    }
+
+    function position() {
+      var r = input.getBoundingClientRect();
+      panel.style.left = r.left + 'px';
+      panel.style.width = r.width + 'px';
+      var below = window.innerHeight - r.bottom;
+      if (below < 220 && r.top > below) {
+        panel.style.top = 'auto';
+        panel.style.bottom = (window.innerHeight - r.top) + 'px';
+      } else {
+        panel.style.bottom = 'auto';
+        panel.style.top = r.bottom + 'px';
+      }
+    }
+
+    function open() {
+      closeAll(panel);
+      render(input.dataset.dirty ? input.value : '');
+      position();
+      panel.classList.add('show');
+    }
+    function close() {
+      panel.classList.remove('show');
+      input.dataset.dirty = '';
+      input.value = labelFor(select.value);
+    }
+    function choose(val, lbl) {
+      select.value = val;
+      input.value = lbl;
+      input.dataset.dirty = '';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      panel.classList.remove('show');
+    }
+    function moveHighlight(dir) {
+      var els = visibleItemEls();
+      if (!els.length) return;
+      els.forEach(function (el) { el.classList.remove('highlight'); });
+      highlight += dir;
+      if (highlight < 0) highlight = els.length - 1;
+      if (highlight >= els.length) highlight = 0;
+      els[highlight].classList.add('highlight');
+      els[highlight].scrollIntoView({ block: 'nearest' });
+    }
+
+    input.addEventListener('focus', function () { input.select(); open(); });
+    input.addEventListener('click', function () { if (!panel.classList.contains('show')) open(); });
+    input.addEventListener('input', function () {
+      input.dataset.dirty = '1';
+      render(input.value);
+      position();
+      panel.classList.add('show');
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); if (!panel.classList.contains('show')) open(); moveHighlight(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); moveHighlight(-1); }
+      else if (e.key === 'Enter') {
+        var els = visibleItemEls();
+        if (panel.classList.contains('show') && els.length) {
+          e.preventDefault();
+          var target = highlight >= 0 ? els[highlight] : els[0];
+          if (target && target.dataset.value) choose(target.dataset.value, target.textContent);
+        }
+      } else if (e.key === 'Escape') { close(); }
+    });
+
+    panel.addEventListener('mousedown', function (e) {
+      var item = e.target.closest('.cat-combo-item');
+      if (item && item.dataset.value) { e.preventDefault(); choose(item.dataset.value, item.textContent); }
+    });
+
+    window.addEventListener('scroll', function () { if (panel.classList.contains('show')) position(); }, true);
+    window.addEventListener('resize', function () { if (panel.classList.contains('show')) position(); });
   }
 
-  // Group-level dropdowns and any already-expanded groups: fill immediately.
+  function fill(select) {
+    if (!select.dataset.filled) {
+      select.appendChild(tmpl.content.cloneNode(true));
+      var val = select.getAttribute('data-selected');
+      if (val) select.value = val;
+      select.dataset.filled = '1';
+    }
+    enhance(select);
+  }
+
+  // Group-level / bulk dropdowns and any already-expanded groups: fill immediately.
   document.querySelectorAll('select[data-category-select][data-scope="group"]').forEach(fill);
   document.querySelectorAll('.collapse.show select[data-category-select]').forEach(fill);
 
@@ -376,6 +598,53 @@
       el.querySelectorAll('select[data-category-select]').forEach(fill);
     });
   });
+})();
+
+// Mass classify: select-all, live count, enable Apply.
+(function () {
+  var checks = function () { return Array.prototype.slice.call(document.querySelectorAll('input.group-select')); };
+  var countEl = document.getElementById('selectedCount');
+  var applyBtn = document.getElementById('bulkApplyBtn');
+  var selectAll = document.getElementById('selectAllGroups');
+  var statusSel = document.querySelector('#bulkForm select[name="review_status"]');
+  var catSel = document.querySelector('#bulkForm select[name="expense_category_id"]');
+
+  function refresh() {
+    var sel = checks().filter(function (c) { return c.checked; }).length;
+    if (countEl) countEl.textContent = sel;
+    if (applyBtn) applyBtn.disabled = sel === 0;
+    if (selectAll) {
+      var all = checks();
+      selectAll.checked = all.length > 0 && sel === all.length;
+      selectAll.indeterminate = sel > 0 && sel < all.length;
+    }
+  }
+
+  checks().forEach(function (c) { c.addEventListener('change', refresh); });
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      checks().forEach(function (c) { c.checked = selectAll.checked; });
+      refresh();
+    });
+  }
+
+  var bulkForm = document.getElementById('bulkForm');
+  if (bulkForm) {
+    bulkForm.addEventListener('submit', function (e) {
+      var sel = checks().filter(function (c) { return c.checked; }).length;
+      if (sel === 0) { e.preventDefault(); return; }
+      if (statusSel && statusSel.value === 'confirmed_expense' && catSel && !catSel.value) {
+        e.preventDefault();
+        alert('Select an expense category when marking as Business expense.');
+        return;
+      }
+      if (!confirm('Apply this classification to ' + sel + ' selected recipient group(s)?')) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  refresh();
 })();
 </script>
 @endsection
