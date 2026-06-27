@@ -77,9 +77,24 @@ class ExpenseStatementImportService
             ]);
 
             $stats = $this->persistTransactions($import, $parseResult['transactions'] ?? []);
+            $duplicates = (int) ($stats['duplicate_count'] ?? 0);
+            unset($stats['duplicate_count']);
+
+            // Whole statement already imported — discard the empty shell.
+            if (($stats['line_count'] ?? 0) === 0 && $duplicates > 0) {
+                Storage::disk(config('filesystems.private_disk', 'private'))->delete($storedPath);
+                $import->delete();
+
+                return [
+                    'success' => false,
+                    'error' => 'duplicate',
+                    'message' => "This statement was already imported — all {$duplicates} transaction(s) are duplicates.",
+                ];
+            }
+
             $import->update($stats);
 
-            return ['success' => true, 'import' => $import->fresh(['uploader'])];
+            return ['success' => true, 'import' => $import->fresh(['uploader']), 'duplicates' => $duplicates];
         });
     }
 
@@ -93,7 +108,10 @@ class ExpenseStatementImportService
         $lineCount = 0;
         $outgoingCount = 0;
         $outgoingTotal = 0.0;
+        $duplicateCount = 0;
 
+        // Prepare valid rows + their reference fingerprints first.
+        $prepared = [];
         foreach ($transactions as $txn) {
             $withdrawn = max(0, (float) ($txn['debit'] ?? 0));
             $paidIn = max(0, (float) ($txn['credit'] ?? 0));
@@ -107,6 +125,50 @@ class ExpenseStatementImportService
                 continue;
             }
 
+            $completedAt = $this->parseCompletedAt($txn);
+            $fingerprint = ExpenseStatementLine::fingerprint(
+                $txn['transaction_code'] ?? null,
+                $completedAt,
+                $narration,
+            );
+
+            $prepared[] = [
+                'txn' => $txn,
+                'withdrawn' => $withdrawn,
+                'paidIn' => $paidIn,
+                'narration' => $narration,
+                'completedAt' => $completedAt,
+                'fingerprint' => $fingerprint,
+            ];
+        }
+
+        // Duplicate detection by reference: skip any transaction whose fingerprint
+        // already exists in a previously imported statement.
+        $existing = [];
+        $fingerprints = array_values(array_unique(array_column($prepared, 'fingerprint')));
+        foreach (array_chunk($fingerprints, 1000) as $chunk) {
+            foreach (ExpenseStatementLine::whereIn('line_fingerprint', $chunk)->pluck('line_fingerprint') as $fp) {
+                $existing[$fp] = true;
+            }
+        }
+
+        $seen = [];
+
+        foreach ($prepared as $row) {
+            $fingerprint = $row['fingerprint'];
+
+            if (isset($existing[$fingerprint]) || isset($seen[$fingerprint])) {
+                $duplicateCount++;
+                continue;
+            }
+            $seen[$fingerprint] = true;
+
+            $txn = $row['txn'];
+            $withdrawn = $row['withdrawn'];
+            $paidIn = $row['paidIn'];
+            $narration = $row['narration'];
+            $completedAt = $row['completedAt'];
+
             $classification = $this->classifier->classify($narration, $withdrawn, $paidIn);
             $direction = $withdrawn > 0 ? 'out' : 'in';
 
@@ -115,7 +177,6 @@ class ExpenseStatementImportService
                 $outgoingTotal += $withdrawn;
             }
 
-            $completedAt = $this->parseCompletedAt($txn);
             $profile = $profiles->get($classification['group_key']);
 
             $reviewStatus = ExpenseStatementLine::REVIEW_PENDING;
@@ -142,11 +203,7 @@ class ExpenseStatementImportService
                 'receipt_no' => $txn['transaction_code'] ?? null,
                 'completed_at' => $completedAt,
                 'narration' => $narration,
-                'line_fingerprint' => ExpenseStatementLine::fingerprint(
-                    $txn['transaction_code'] ?? null,
-                    $completedAt,
-                    $narration,
-                ),
+                'line_fingerprint' => $fingerprint,
                 'withdrawn_amount' => $withdrawn,
                 'paid_in_amount' => $paidIn,
                 'direction' => $direction,
@@ -173,6 +230,7 @@ class ExpenseStatementImportService
             'line_count' => $lineCount,
             'outgoing_count' => $outgoingCount,
             'outgoing_total' => round($outgoingTotal, 2),
+            'duplicate_count' => $duplicateCount,
         ];
     }
 
@@ -229,7 +287,7 @@ class ExpenseStatementImportService
     /**
      * @return \Illuminate\Support\Collection<int, object>
      */
-    public function groupedLines(ExpenseStatementImport $import, ?string $filter = null)
+    public function groupedLines(ExpenseStatementImport $import, ?string $filter = null, ?string $search = null)
     {
         $query = $import->lines()
             ->where('direction', 'out')
@@ -237,10 +295,26 @@ class ExpenseStatementImportService
 
         if ($filter === 'pending') {
             $query->where('review_status', ExpenseStatementLine::REVIEW_PENDING);
-        } elseif ($filter === 'confirmed') {
+        } elseif ($filter === 'confirmed' || $filter === 'business') {
             $query->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED);
+        } elseif ($filter === 'personal') {
+            $query->where('review_status', ExpenseStatementLine::REVIEW_PERSONAL);
+        } elseif ($filter === 'uncategorized') {
+            $query->whereNull('expense_category_id');
         } elseif ($filter === 'fees') {
             $query->where('is_transaction_fee', true);
+        }
+
+        if ($search !== null && $search !== '') {
+            $like = '%' . $search . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('narration', 'like', $like)
+                    ->orWhere('recipient_name', 'like', $like)
+                    ->orWhere('recipient_phone', 'like', $like)
+                    ->orWhere('paybill_number', 'like', $like)
+                    ->orWhere('account_reference', 'like', $like)
+                    ->orWhere('receipt_no', 'like', $like);
+            });
         }
 
         $lines = $query->orderByDesc('completed_at')->get();

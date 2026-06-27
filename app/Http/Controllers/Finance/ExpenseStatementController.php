@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class ExpenseStatementController extends Controller
@@ -84,9 +85,14 @@ class ExpenseStatementController extends Controller
                 ->withErrors(['statement_file' => $result['message'] ?? 'Failed to parse statement.']);
         }
 
+        $message = 'Statement parsed successfully. Review outgoing transactions below.';
+        if (! empty($result['duplicates'])) {
+            $message .= sprintf(' %d duplicate transaction(s) already imported were skipped.', $result['duplicates']);
+        }
+
         return redirect()
             ->route('finance.expense-statements.show', $result['import'])
-            ->with('success', 'Statement parsed successfully. Review outgoing transactions below.');
+            ->with('success', $message);
     }
 
     public function show(Request $request, ExpenseStatementImport $expenseStatement): View
@@ -94,10 +100,11 @@ class ExpenseStatementController extends Controller
         $this->authorize('view', $expenseStatement);
 
         $filter = $request->string('filter')->toString() ?: null;
+        $search = trim($request->string('search')->toString());
 
         $perPage = 20;
         $page = Paginator::resolveCurrentPage();
-        $allGroups = $this->importService->groupedLines($expenseStatement, $filter);
+        $allGroups = $this->importService->groupedLines($expenseStatement, $filter, $search ?: null);
 
         $groups = new LengthAwarePaginator(
             $allGroups->forPage($page, $perPage)->values(),
@@ -141,6 +148,7 @@ class ExpenseStatementController extends Controller
             'groups',
             'categoryGroups',
             'filter',
+            'search',
             'stats',
             'draftStats',
             'expenseGroups',
@@ -265,10 +273,27 @@ class ExpenseStatementController extends Controller
     {
         $this->authorize('delete', $expenseStatement);
 
+        $lockedCount = $expenseStatement->lines()
+            ->where(function ($q) {
+                $q->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+                    ->orWhereNotNull('expense_id');
+            })
+            ->count();
+
+        if ($lockedCount > 0) {
+            return back()->withErrors([
+                'delete' => "This statement has {$lockedCount} confirmed/recorded transaction(s). Move them back to pending (which removes their expenses) before deleting the statement.",
+            ]);
+        }
+
+        if ($expenseStatement->file_path) {
+            Storage::disk(config('filesystems.private_disk', 'private'))->delete($expenseStatement->file_path);
+        }
+
         $expenseStatement->delete();
 
         return redirect()
             ->route('finance.expense-statements.index')
-            ->with('success', 'Statement import deleted.');
+            ->with('success', 'Statement and all its transactions were deleted.');
     }
 }

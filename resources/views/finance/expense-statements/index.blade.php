@@ -13,6 +13,9 @@
     @if(session('success'))
       <div class="alert alert-success">{{ session('success') }}</div>
     @endif
+    @if($errors->any())
+      <div class="alert alert-danger">{{ $errors->first() }}</div>
+    @endif
 
     <div class="finance-table-wrapper">
       <table class="finance-table">
@@ -47,8 +50,14 @@
             <td>KES {{ number_format((float)$import->outgoing_total, 2) }} <small class="text-muted">({{ $import->outgoing_count }})</small></td>
             <td>KES {{ number_format((float)$import->confirmed_expense_total, 2) }}</td>
             <td>{{ ucfirst($import->status) }}</td>
-            <td>
+            <td class="text-nowrap">
               <a href="{{ route('finance.expense-statements.show', $import) }}" class="btn btn-sm btn-info">Review</a>
+              <form method="POST" action="{{ route('finance.expense-statements.destroy', $import) }}" class="d-inline"
+                    onsubmit="return confirm('Delete this statement and all its transactions? This cannot be undone. (Blocked if any transactions are already confirmed/recorded.)');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Delete</button>
+              </form>
             </td>
           </tr>
         @empty

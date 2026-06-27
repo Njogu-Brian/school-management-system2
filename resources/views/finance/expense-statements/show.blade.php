@@ -155,11 +155,32 @@
     </div>
 
     <div class="finance-card mb-3">
-      <div class="finance-card-body d-flex flex-wrap gap-2">
-        <a href="{{ route('finance.expense-statements.show', $expenseStatement) }}" class="btn btn-sm {{ !$filter ? 'btn-primary' : 'btn-outline-secondary' }}">All Outgoing</a>
-        <a href="{{ route('finance.expense-statements.show', [$expenseStatement, 'filter' => 'pending']) }}" class="btn btn-sm {{ $filter === 'pending' ? 'btn-primary' : 'btn-outline-secondary' }}">Pending</a>
-        <a href="{{ route('finance.expense-statements.show', [$expenseStatement, 'filter' => 'confirmed']) }}" class="btn btn-sm {{ $filter === 'confirmed' ? 'btn-primary' : 'btn-outline-secondary' }}">Confirmed</a>
-        <a href="{{ route('finance.expense-statements.show', [$expenseStatement, 'filter' => 'fees']) }}" class="btn btn-sm {{ $filter === 'fees' ? 'btn-primary' : 'btn-outline-secondary' }}">Fees Only</a>
+      <div class="finance-card-body">
+        <form method="GET" action="{{ route('finance.expense-statements.show', $expenseStatement) }}" class="row g-2 align-items-center mb-3">
+          @if($filter)<input type="hidden" name="filter" value="{{ $filter }}">@endif
+          <div class="col-md-9 col-lg-10">
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-search"></i></span>
+              <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Search recipient, phone, paybill, account ref, receipt or narration…">
+            </div>
+          </div>
+          <div class="col-md-3 col-lg-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-grow-1">Search</button>
+            @if($search !== '')
+              <a href="{{ route('finance.expense-statements.show', array_filter([$expenseStatement->id, 'filter' => $filter])) }}" class="btn btn-outline-secondary">Clear</a>
+            @endif
+          </div>
+        </form>
+
+        @php $filterQuery = array_filter(['search' => $search]); @endphp
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ route('finance.expense-statements.show', array_merge([$expenseStatement], $filterQuery)) }}" class="btn btn-sm {{ !$filter ? 'btn-primary' : 'btn-outline-secondary' }}">All Outgoing</a>
+          <a href="{{ route('finance.expense-statements.show', array_merge([$expenseStatement, 'filter' => 'business'], $filterQuery)) }}" class="btn btn-sm {{ in_array($filter, ['business', 'confirmed']) ? 'btn-primary' : 'btn-outline-secondary' }}">Business</a>
+          <a href="{{ route('finance.expense-statements.show', array_merge([$expenseStatement, 'filter' => 'personal'], $filterQuery)) }}" class="btn btn-sm {{ $filter === 'personal' ? 'btn-primary' : 'btn-outline-secondary' }}">Personal</a>
+          <a href="{{ route('finance.expense-statements.show', array_merge([$expenseStatement, 'filter' => 'uncategorized'], $filterQuery)) }}" class="btn btn-sm {{ $filter === 'uncategorized' ? 'btn-primary' : 'btn-outline-secondary' }}">Uncategorized</a>
+          <a href="{{ route('finance.expense-statements.show', array_merge([$expenseStatement, 'filter' => 'pending'], $filterQuery)) }}" class="btn btn-sm {{ $filter === 'pending' ? 'btn-primary' : 'btn-outline-secondary' }}">Pending</a>
+          <a href="{{ route('finance.expense-statements.show', array_merge([$expenseStatement, 'filter' => 'fees'], $filterQuery)) }}" class="btn btn-sm {{ $filter === 'fees' ? 'btn-primary' : 'btn-outline-secondary' }}">Fees Only</a>
+        </div>
       </div>
     </div>
 
