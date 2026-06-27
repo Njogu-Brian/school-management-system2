@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     @php $hasVite = file_exists(public_path('build/manifest.json')); @endphp
     @if($hasVite)
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite(['resources/sass/app.scss', 'resources/js/app.js'])
     @elseif(file_exists(public_path('css/app.css')))
         <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     @endif
