@@ -17,6 +17,23 @@
       <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
+    {{-- One-click cash-book export (per-expense rows by month + category summary) --}}
+    <div class="d-flex justify-content-end mb-3">
+      <form method="GET" action="{{ route('finance.expenses.cash-book-export') }}" class="d-flex align-items-end gap-2">
+        <div>
+          <label class="form-label small mb-1">Cash Book year</label>
+          <select name="year" class="finance-form-select">
+            @for($y = (int) now()->year; $y >= (int) now()->year - 3; $y--)
+              <option value="{{ $y }}">{{ $y }}</option>
+            @endfor
+          </select>
+        </div>
+        <button type="submit" class="btn btn-finance btn-finance-outline">
+          <i class="bi bi-file-earmark-excel"></i> Export Cash Book (Excel)
+        </button>
+      </form>
+    </div>
+
     {{-- Existing vendors for type-ahead --}}
     <datalist id="vendor-options">
       @foreach($vendors as $vendor)

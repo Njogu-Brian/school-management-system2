@@ -9,10 +9,12 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Vendor;
 use App\Services\ExpenseWorkflowService;
+use App\Services\Finance\CashBookExportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExpenseController extends Controller
 {
@@ -46,6 +48,23 @@ class ExpenseController extends Controller
         $categoryGroups = $this->categoryGroups();
 
         return view('finance.expenses.index', compact('expenses', 'vendors', 'categoryGroups'));
+    }
+
+    /**
+     * One-click "cash book" Excel: per-expense rows grouped by month with a
+     * category column per expense, plus a category x month summary sheet.
+     */
+    public function cashBookExport(Request $request, CashBookExportService $service): StreamedResponse
+    {
+        $year = (int) ($request->input('year') ?: now()->year);
+        $spreadsheet = $service->build($year);
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, "cash-book-{$year}.xlsx", [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 
     /**

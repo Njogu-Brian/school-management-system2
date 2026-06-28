@@ -1454,6 +1454,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('expenses/reports/export-csv', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportCsv'])->name('expenses.reports.export-csv');
         Route::get('expenses/reports/export-pdf', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportPdf'])->name('expenses.reports.export-pdf');
         Route::post('expenses/bulk-update', [\App\Http\Controllers\Finance\ExpenseController::class, 'bulkUpdate'])->name('expenses.bulk-update');
+        Route::get('expenses/cash-book-export', [\App\Http\Controllers\Finance\ExpenseController::class, 'cashBookExport'])->name('expenses.cash-book-export');
         Route::resource('expenses', \App\Http\Controllers\Finance\ExpenseController::class);
         Route::post('expenses/{expense}/submit', [\App\Http\Controllers\Finance\ExpenseController::class, 'submit'])->name('expenses.submit');
         Route::post('expenses/{expense}/quick-update', [\App\Http\Controllers\Finance\ExpenseController::class, 'quickUpdate'])->name('expenses.quick-update');
