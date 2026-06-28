@@ -758,7 +758,7 @@ class ExpenseStatementImportService
         }
 
         $expenses = Expense::whereIn('id', $expenseIds)
-            ->with('lines.category')
+            ->with(['lines.category', 'vendor'])
             ->orderBy('expense_date')
             ->get();
 

@@ -125,6 +125,14 @@
                               <td class="ps-4">
                                 <a href="{{ route('finance.expenses.show', $exp) }}">{{ $exp->expense_no }}</a>
                                 <span class="text-muted small ms-2">{{ optional($exp->expense_date)->format('Y-m-d') }}</span>
+                                <div class="small">
+                                  <i class="bi bi-shop"></i>
+                                  @if($exp->vendor)
+                                    {{ $exp->vendor->name }}
+                                  @else
+                                    <span class="text-warning">No vendor</span>
+                                  @endif
+                                </div>
                               </td>
                               <td class="text-end">KES {{ number_format((float) $exp->total, 2) }}</td>
                               <td>
