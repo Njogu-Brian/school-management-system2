@@ -121,6 +121,11 @@
                       <table class="table table-sm mb-0">
                         <tbody>
                           @foreach($eg->expenses as $exp)
+                            @php
+                              $st = $exp->status;
+                              $posted = in_array($st, ['approved', 'paid'], true);
+                              $primaryLine = $exp->lines->first(fn ($l) => optional($l->category)->code !== 'TXN_COST') ?? $exp->lines->first();
+                            @endphp
                             <tr>
                               <td class="ps-4">
                                 <a href="{{ route('finance.expenses.show', $exp) }}">{{ $exp->expense_no }}</a>
@@ -136,17 +141,54 @@
                               </td>
                               <td class="text-end">KES {{ number_format((float) $exp->total, 2) }}</td>
                               <td>
-                                @php $st = $exp->status; @endphp
                                 <span class="badge bg-{{ $st === 'paid' ? 'success' : ($st === 'approved' ? 'info text-dark' : ($st === 'submitted' ? 'warning text-dark' : 'secondary')) }}">{{ ucfirst($st) }}</span>
                               </td>
-                              <td class="text-end" style="width: 120px">
-                                @if($exp->status === 'submitted')
-                                  <form method="POST" action="{{ route('finance.expense-statements.approve-expenses', $expenseStatement) }}">
-                                    @csrf
-                                    <input type="hidden" name="expense_id" value="{{ $exp->id }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-success">Approve</button>
-                                  </form>
-                                @endif
+                              <td class="text-end" style="width: 220px">
+                                <div class="d-flex gap-1 justify-content-end">
+                                  <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#exp-edit-{{ $exp->id }}">Edit</button>
+                                  @if($st === 'submitted')
+                                    <form method="POST" action="{{ route('finance.expense-statements.approve-expenses', $expenseStatement) }}">
+                                      @csrf
+                                      <input type="hidden" name="expense_id" value="{{ $exp->id }}">
+                                      <button type="submit" class="btn btn-sm btn-outline-success">Approve</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('finance.expense-statements.reject-expense', $expenseStatement) }}"
+                                          onsubmit="return confirm('Reject this expense? Its transaction(s) will go back to Uncategorized.');">
+                                      @csrf
+                                      <input type="hidden" name="expense_id" value="{{ $exp->id }}">
+                                      <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
+                                    </form>
+                                  @endif
+                                </div>
+                              </td>
+                            </tr>
+                            <tr class="collapse" id="exp-edit-{{ $exp->id }}">
+                              <td colspan="4" class="bg-white">
+                                <form method="POST" action="{{ route('finance.expense-statements.edit-expense', $expenseStatement) }}" class="row g-2 align-items-end py-2 px-2">
+                                  @csrf
+                                  <input type="hidden" name="expense_id" value="{{ $exp->id }}">
+                                  <div class="col-md-3">
+                                    <label class="form-label small mb-1">Vendor / payee</label>
+                                    <input type="text" name="vendor_name" list="vendor-options" value="{{ optional($exp->vendor)->name }}" class="form-control form-control-sm" placeholder="Type or pick a vendor" autocomplete="off">
+                                  </div>
+                                  <div class="col-md-3">
+                                    <label class="form-label small mb-1">Category{{ $posted ? ' (locked — posted)' : '' }}</label>
+                                    @if($posted)
+                                      <input type="text" class="form-control form-control-sm" value="{{ $eg->category_name }}" disabled>
+                                    @else
+                                      <select name="expense_category_id" class="form-select form-select-sm" data-category-select data-selected="{{ $eg->category_id }}">
+                                        <option value="">— Keep current —</option>
+                                      </select>
+                                    @endif
+                                  </div>
+                                  <div class="col-md-4">
+                                    <label class="form-label small mb-1">Description</label>
+                                    <input type="text" name="expense_description" value="{{ optional($primaryLine)->description }}" class="form-control form-control-sm" placeholder="What was this for?">
+                                  </div>
+                                  <div class="col-md-2">
+                                    <button type="submit" class="btn btn-sm btn-finance btn-finance-primary w-100">Save</button>
+                                  </div>
+                                </form>
                               </td>
                             </tr>
                           @endforeach

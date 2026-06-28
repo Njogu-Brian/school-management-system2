@@ -322,6 +322,47 @@ class ExpenseStatementController extends Controller
         return back()->with('success', sprintf('Approved and posted %d expense(s) to the ledger.', $approved));
     }
 
+    public function rejectExpense(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
+    {
+        $this->authorize('update', $expenseStatement);
+
+        $validated = $request->validate(['expense_id' => 'required|integer']);
+
+        try {
+            $this->importService->rejectStatementExpense($expenseStatement, (int) $validated['expense_id']);
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['reject' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Expense rejected — its transactions are back in Uncategorized.');
+    }
+
+    public function editExpense(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
+    {
+        $this->authorize('update', $expenseStatement);
+
+        $validated = $request->validate([
+            'expense_id' => 'required|integer',
+            'vendor_name' => 'nullable|string|max:255',
+            'expense_category_id' => 'nullable|exists:expense_categories,id',
+            'expense_description' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $this->importService->updateStatementExpense(
+                $expenseStatement,
+                (int) $validated['expense_id'],
+                $validated['vendor_name'] ?? null,
+                $validated['expense_category_id'] ?? null,
+                $validated['expense_description'] ?? null,
+            );
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['edit' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Expense updated.');
+    }
+
     public function destroy(ExpenseStatementImport $expenseStatement): RedirectResponse
     {
         $this->authorize('delete', $expenseStatement);

@@ -741,6 +741,97 @@ class ExpenseStatementImportService
     }
 
     /**
+     * Reject a statement-sourced expense: delete it and send its transactions
+     * back to "uncategorized" (pending, no category). Only allowed before posting.
+     */
+    public function rejectStatementExpense(ExpenseStatementImport $import, int $expenseId): void
+    {
+        DB::transaction(function () use ($import, $expenseId) {
+            $expense = Expense::find($expenseId);
+            $linkedCount = $import->lines()->where('expense_id', $expenseId)->count();
+
+            if (! $expense || $linkedCount === 0) {
+                throw new \RuntimeException('This expense is not linked to the current statement.');
+            }
+
+            if (in_array($expense->status, [Expense::STATUS_APPROVED, Expense::STATUS_PAID], true)) {
+                throw new \RuntimeException(
+                    "Expense {$expense->expense_no} is already approved/posted and cannot be rejected."
+                );
+            }
+
+            $import->lines()->where('expense_id', $expenseId)->update([
+                'expense_id' => null,
+                'review_status' => ExpenseStatementLine::REVIEW_PENDING,
+                'expense_category_id' => null,
+            ]);
+
+            $expense->vouchers()->delete();
+            $expense->lines()->delete();
+            $expense->delete();
+
+            $this->refreshImportConfirmedTotal($import);
+        });
+    }
+
+    /**
+     * Edit a statement-sourced expense in place: vendor and description may change at
+     * any status; category may only change before the expense is posted to the ledger.
+     */
+    public function updateStatementExpense(
+        ExpenseStatementImport $import,
+        int $expenseId,
+        ?string $vendorName,
+        ?int $categoryId,
+        ?string $description,
+    ): void {
+        DB::transaction(function () use ($import, $expenseId, $vendorName, $categoryId, $description) {
+            $expense = Expense::with('lines')->find($expenseId);
+            $statementLines = $import->lines()->where('expense_id', $expenseId);
+
+            if (! $expense || $statementLines->count() === 0) {
+                throw new \RuntimeException('This expense is not linked to the current statement.');
+            }
+
+            $posted = in_array($expense->status, [Expense::STATUS_APPROVED, Expense::STATUS_PAID], true);
+            $chargeId = $this->chargeCategoryId();
+            $primaryLines = $expense->lines->filter(fn ($line) => $line->category_id !== $chargeId);
+
+            $vendorName = trim((string) $vendorName);
+            if ($vendorName !== '') {
+                $vendor = Vendor::firstOrCreateByName($vendorName);
+                if ($vendor) {
+                    $expense->vendor_id = $vendor->id;
+                    $expense->save();
+                }
+                (clone $statementLines)->where('is_transaction_fee', false)->update(['vendor_name' => $vendorName]);
+            }
+
+            if ($description !== null && trim($description) !== '') {
+                $description = trim($description);
+                foreach ($primaryLines as $line) {
+                    $line->description = $description;
+                    $line->save();
+                }
+                (clone $statementLines)->where('is_transaction_fee', false)->update(['expense_description' => $description]);
+            }
+
+            if ($categoryId) {
+                if ($posted) {
+                    throw new \RuntimeException(
+                        "Expense {$expense->expense_no} is already approved/posted; its category can't be changed."
+                    );
+                }
+                foreach ($primaryLines as $line) {
+                    $line->category_id = $categoryId;
+                    $line->save();
+                }
+                (clone $statementLines)->where('is_transaction_fee', false)->update(['expense_category_id' => $categoryId]);
+            }
+        });
+    }
+
+    /**
      * Expenses created from this statement, grouped by their primary (non-charge) category.
      *
      * @return \Illuminate\Support\Collection<int, object>
