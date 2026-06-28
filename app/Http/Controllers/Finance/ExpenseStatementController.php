@@ -345,19 +345,30 @@ class ExpenseStatementController extends Controller
     {
         $this->authorize('update', $expenseStatement);
 
-        $validated = $request->validate(['expense_id' => 'required|integer']);
+        $validated = $request->validate([
+            'expense_id' => 'nullable|integer',
+            'category_id' => 'nullable|integer',
+        ]);
 
         try {
-            $this->importService->reverseStatementExpense(
+            $reversed = $this->importService->reverseStatementExpenses(
                 $expenseStatement,
-                (int) $validated['expense_id'],
                 (int) $request->user()->id,
+                $validated['expense_id'] ?? null,
+                $validated['category_id'] ?? null,
             );
         } catch (\RuntimeException $e) {
             return back()->withErrors(['reverse' => $e->getMessage()]);
         }
 
-        return back()->with('success', 'Expense reversed — a contra journal entry was posted and the transaction is back in Uncategorized.');
+        if ($reversed === 0) {
+            return back()->withErrors(['reverse' => 'No posted expenses matched for reversal.']);
+        }
+
+        return back()->with('success', sprintf(
+            'Reversed %d posted expense(s) — contra journal entries posted and the transactions returned to Uncategorized.',
+            $reversed
+        ));
     }
 
     public function editExpense(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse

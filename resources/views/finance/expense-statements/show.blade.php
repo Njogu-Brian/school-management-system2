@@ -66,13 +66,23 @@
         </div>
 
         @if($expenseGroups->isNotEmpty())
-          @php $totalSubmitted = $expenseGroups->sum('submitted_count'); @endphp
-          <div class="d-flex justify-content-end mt-2">
+          @php
+            $totalSubmitted = $expenseGroups->sum('submitted_count');
+            $totalPosted = $expenseGroups->sum('posted_count');
+          @endphp
+          <div class="d-flex justify-content-end gap-2 mt-2">
             @if($totalSubmitted > 0)
               <form method="POST" action="{{ route('finance.expense-statements.approve-expenses', $expenseStatement) }}"
                     onsubmit="return confirm('Approve all {{ $totalSubmitted }} submitted expense(s) and post them to the ledger?');">
                 @csrf
                 <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check2-all"></i> Approve all submitted ({{ $totalSubmitted }})</button>
+              </form>
+            @endif
+            @if($totalPosted > 0)
+              <form method="POST" action="{{ route('finance.expense-statements.reverse-expense', $expenseStatement) }}"
+                    onsubmit="return confirm('Reverse ALL {{ $totalPosted }} posted expense(s)? Contra journal entries will be posted and every transaction returned to Uncategorized.');">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise"></i> Reverse all posted ({{ $totalPosted }})</button>
               </form>
             @endif
           </div>
@@ -106,14 +116,24 @@
                       @endif
                     </td>
                     <td class="text-end">
-                      @if($eg->submitted_count > 0 && $eg->category_id)
-                        <form method="POST" action="{{ route('finance.expense-statements.approve-expenses', $expenseStatement) }}"
-                              onsubmit="return confirm('Approve all {{ $eg->submitted_count }} submitted {{ $eg->category_name }} expense(s)?');">
-                          @csrf
-                          <input type="hidden" name="category_id" value="{{ $eg->category_id }}">
-                          <button type="submit" class="btn btn-sm btn-success">Approve all {{ $eg->category_name }}</button>
-                        </form>
-                      @endif
+                      <div class="d-flex gap-1 justify-content-end flex-wrap">
+                        @if($eg->submitted_count > 0 && $eg->category_id)
+                          <form method="POST" action="{{ route('finance.expense-statements.approve-expenses', $expenseStatement) }}"
+                                onsubmit="return confirm('Approve all {{ $eg->submitted_count }} submitted {{ $eg->category_name }} expense(s)?');">
+                            @csrf
+                            <input type="hidden" name="category_id" value="{{ $eg->category_id }}">
+                            <button type="submit" class="btn btn-sm btn-success">Approve all {{ $eg->category_name }}</button>
+                          </form>
+                        @endif
+                        @if($eg->posted_count > 0 && $eg->category_id)
+                          <form method="POST" action="{{ route('finance.expense-statements.reverse-expense', $expenseStatement) }}"
+                                onsubmit="return confirm('Reverse all {{ $eg->posted_count }} posted {{ $eg->category_name }} expense(s)? Contra journal entries will be posted and the transactions returned to Uncategorized.');">
+                            @csrf
+                            <input type="hidden" name="category_id" value="{{ $eg->category_id }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Reverse all {{ $eg->category_name }}</button>
+                          </form>
+                        @endif
+                      </div>
                     </td>
                   </tr>
                   <tr class="collapse" id="exp-cat-{{ $loop->index }}">

@@ -788,27 +788,56 @@ class ExpenseStatementImportService
     }
 
     /**
-     * Reverse a posted (approved/paid) statement expense: post a contra journal entry
-     * for each linked voucher, remove the voucher/payment, and send the transactions
-     * back to "uncategorized" (pending, no category) so they can be re-done correctly.
+     * Reverse posted (approved/paid) statement expenses (single, by category, or all).
+     * Each posts a contra journal entry, removes the voucher/payment, and sends the
+     * transactions back to "uncategorized" (pending, no category) to be re-done.
+     *
+     * @return int Number of expenses reversed.
      */
-    public function reverseStatementExpense(ExpenseStatementImport $import, int $expenseId, int $userId): void
+    public function reverseStatementExpenses(
+        ExpenseStatementImport $import,
+        int $userId,
+        ?int $expenseId = null,
+        ?int $categoryId = null,
+    ): int {
+        $user = User::find($userId);
+        if (! $user) {
+            return 0;
+        }
+
+        $expenseIds = $import->lines()
+            ->whereNotNull('expense_id')
+            ->pluck('expense_id')
+            ->unique()
+            ->values();
+
+        if ($expenseIds->isEmpty()) {
+            return 0;
+        }
+
+        $query = Expense::whereIn('id', $expenseIds)
+            ->whereIn('status', [Expense::STATUS_APPROVED, Expense::STATUS_PAID]);
+
+        if ($expenseId) {
+            $query->whereKey($expenseId);
+        } elseif ($categoryId) {
+            $query->whereHas('lines', fn ($q) => $q->where('category_id', $categoryId));
+        }
+
+        $expenses = $query->with('vouchers')->get();
+
+        $reversed = 0;
+        foreach ($expenses as $expense) {
+            $this->reverseExpensePosting($import, $expense, $user);
+            $reversed++;
+        }
+
+        return $reversed;
+    }
+
+    protected function reverseExpensePosting(ExpenseStatementImport $import, Expense $expense, User $user): void
     {
-        DB::transaction(function () use ($import, $expenseId, $userId) {
-            $user = User::find($userId);
-            $expense = Expense::with('vouchers')->find($expenseId);
-            $linkedCount = $import->lines()->where('expense_id', $expenseId)->count();
-
-            if (! $expense || $linkedCount === 0) {
-                throw new \RuntimeException('This expense is not linked to the current statement.');
-            }
-
-            if (! in_array($expense->status, [Expense::STATUS_APPROVED, Expense::STATUS_PAID], true)) {
-                throw new \RuntimeException(
-                    "Expense {$expense->expense_no} is not posted to the ledger. Use Reject instead."
-                );
-            }
-
+        DB::transaction(function () use ($import, $expense, $user) {
             foreach ($expense->vouchers as $voucher) {
                 if ($voucher->journal_entry_id) {
                     $entry = JournalEntry::with('lines')->find($voucher->journal_entry_id);
@@ -821,7 +850,7 @@ class ExpenseStatementImportService
                 $voucher->delete();
             }
 
-            $import->lines()->where('expense_id', $expenseId)->update([
+            $import->lines()->where('expense_id', $expense->id)->update([
                 'expense_id' => null,
                 'review_status' => ExpenseStatementLine::REVIEW_PENDING,
                 'expense_category_id' => null,
@@ -931,6 +960,7 @@ class ExpenseStatementImportService
                 'expenses' => $groupExpenses->sortBy('expense_date')->values(),
                 'count' => $groupExpenses->count(),
                 'submitted_count' => $groupExpenses->where('status', Expense::STATUS_SUBMITTED)->count(),
+                'posted_count' => $groupExpenses->whereIn('status', [Expense::STATUS_APPROVED, Expense::STATUS_PAID])->count(),
                 'total' => round((float) $groupExpenses->sum('total'), 2),
             ];
         })->sortByDesc('total')->values();
