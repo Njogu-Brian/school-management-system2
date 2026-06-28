@@ -177,7 +177,7 @@ class ExpenseStatementController extends Controller
         }
 
         try {
-            $this->importService->applyGroupReview(
+            $reversed = $this->importService->applyGroupReview(
                 $expenseStatement,
                 $validated['group_key'],
                 $validated['review_status'],
@@ -191,7 +191,11 @@ class ExpenseStatementController extends Controller
             return back()->withErrors(['review_status' => $e->getMessage()]);
         }
 
-        return back()->with('success', 'Transaction group updated.');
+        $message = $reversed
+            ? 'Group edited — its previous expenses were reversed and the transactions moved back to pending. Re-categorise and Submit again.'
+            : 'Transaction group updated.';
+
+        return back()->with('success', $message);
     }
 
     public function bulkUpdateGroups(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse

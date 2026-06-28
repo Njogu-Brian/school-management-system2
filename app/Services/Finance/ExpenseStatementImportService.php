@@ -415,22 +415,31 @@ class ExpenseStatementImportService
         bool $remember,
         int $userId,
         ?string $vendorName = null,
-    ): void {
-        DB::transaction(function () use ($import, $groupKey, $reviewStatus, $categoryId, $description, $remember, $userId, $vendorName) {
+    ): bool {
+        return DB::transaction(function () use ($import, $groupKey, $reviewStatus, $categoryId, $description, $remember, $userId, $vendorName) {
             $lines = $import->lines()->where('group_key', $groupKey)->get();
             if ($lines->isEmpty()) {
-                return;
+                return false;
             }
 
             $first = $lines->first();
 
-            // Leaving "business expense" removes any not-yet-approved expenses created from these transactions.
-            if ($reviewStatus !== ExpenseStatementLine::REVIEW_CONFIRMED) {
+            // Re-editing a group that already produced expenses (and is still a business
+            // expense) reverses those expenses and sends the transactions back to pending,
+            // so the edited classification is reviewed and submitted afresh.
+            $hasExpenses = $lines->contains(fn ($line) => ! is_null($line->expense_id));
+            $reversed = $reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED && $hasExpenses;
+            $effectiveStatus = $reversed
+                ? ExpenseStatementLine::REVIEW_PENDING
+                : $reviewStatus;
+
+            // Leaving a live "business expense" removes any not-yet-approved expenses.
+            if ($effectiveStatus !== ExpenseStatementLine::REVIEW_CONFIRMED) {
                 $this->detachExpensesForLines($import, $lines);
             }
 
             foreach ($lines as $line) {
-                $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description, $vendorName);
+                $this->applyReviewToLine($line, $effectiveStatus, $categoryId, $description, $vendorName);
             }
 
             if ($remember && $reviewStatus !== ExpenseStatementLine::REVIEW_PENDING) {
@@ -454,6 +463,8 @@ class ExpenseStatementImportService
             }
 
             $this->refreshImportConfirmedTotal($import);
+
+            return $reversed;
         });
     }
 
