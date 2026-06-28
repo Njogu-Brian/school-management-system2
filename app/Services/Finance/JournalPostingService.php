@@ -57,6 +57,32 @@ class JournalPostingService
         });
     }
 
+    /**
+     * Post a reversing entry for an existing journal entry (debits/credits swapped).
+     * Both entries remain "posted" so they net to zero in every report, preserving
+     * a full audit trail.
+     */
+    public function reverse(JournalEntry $entry, ?User $user = null, Carbon|string|null $date = null): JournalEntry
+    {
+        $entry->loadMissing('lines');
+
+        $lines = $entry->lines->map(fn (JournalLine $line) => [
+            'account_id' => $line->account_id,
+            'debit' => (float) $line->credit,
+            'credit' => (float) $line->debit,
+            'description' => 'Reversal: ' . ($line->description ?? ''),
+        ])->all();
+
+        return $this->post(
+            $lines,
+            'Reversal of ' . ($entry->entry_no ?? ('JE#' . $entry->id)) . ' — ' . $entry->description,
+            $date ?? now(),
+            'journal_reversal',
+            $entry->id,
+            $user,
+        );
+    }
+
     public function systemAccount(string $code): Account
     {
         $account = Account::query()->where('code', $code)->first();

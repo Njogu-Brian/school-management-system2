@@ -158,6 +158,13 @@
                                       <input type="hidden" name="expense_id" value="{{ $exp->id }}">
                                       <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
                                     </form>
+                                  @elseif($posted)
+                                    <form method="POST" action="{{ route('finance.expense-statements.reverse-expense', $expenseStatement) }}"
+                                          onsubmit="return confirm('Reverse this posted expense? A contra journal entry will be posted and the transaction(s) returned to Uncategorized to be re-done.');">
+                                      @csrf
+                                      <input type="hidden" name="expense_id" value="{{ $exp->id }}">
+                                      <button type="submit" class="btn btn-sm btn-outline-danger">Reverse</button>
+                                    </form>
                                   @endif
                                 </div>
                               </td>

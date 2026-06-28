@@ -1513,6 +1513,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('expense-statements/{expenseStatement}/bulk-update-groups', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'bulkUpdateGroups'])->name('expense-statements.bulk-update-groups');
         Route::post('expense-statements/{expenseStatement}/submit-expenses', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'submitExpenses'])->name('expense-statements.submit-expenses');
         Route::post('expense-statements/{expenseStatement}/reject-expense', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'rejectExpense'])->name('expense-statements.reject-expense');
+        Route::post('expense-statements/{expenseStatement}/reverse-expense', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'reverseExpense'])->name('expense-statements.reverse-expense');
         Route::post('expense-statements/{expenseStatement}/edit-expense', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'editExpense'])->name('expense-statements.edit-expense');
         Route::post('expense-statements/{expenseStatement}/approve-expenses', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'approveExpenses'])->name('expense-statements.approve-expenses');
         Route::delete('expense-statements/{expenseStatement}', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'destroy'])->name('expense-statements.destroy');

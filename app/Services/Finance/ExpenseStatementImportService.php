@@ -8,6 +8,7 @@ use App\Models\ExpenseCategory;
 use App\Models\ExpenseStatementImport;
 use App\Models\ExpenseStatementLine;
 use App\Models\ExpenseStatementRecipientProfile;
+use App\Models\JournalEntry;
 use App\Models\PaymentVoucher;
 use App\Models\User;
 use App\Models\Vendor;
@@ -28,6 +29,7 @@ class ExpenseStatementImportService
         protected MpesaExpenseStatementParser $parser,
         protected MpesaTransactionClassifier $classifier,
         protected ExpenseWorkflowService $expenseWorkflow,
+        protected JournalPostingService $journalPosting,
     ) {}
 
     /**
@@ -778,6 +780,53 @@ class ExpenseStatementImportService
             ]);
 
             $expense->vouchers()->delete();
+            $expense->lines()->delete();
+            $expense->delete();
+
+            $this->refreshImportConfirmedTotal($import);
+        });
+    }
+
+    /**
+     * Reverse a posted (approved/paid) statement expense: post a contra journal entry
+     * for each linked voucher, remove the voucher/payment, and send the transactions
+     * back to "uncategorized" (pending, no category) so they can be re-done correctly.
+     */
+    public function reverseStatementExpense(ExpenseStatementImport $import, int $expenseId, int $userId): void
+    {
+        DB::transaction(function () use ($import, $expenseId, $userId) {
+            $user = User::find($userId);
+            $expense = Expense::with('vouchers')->find($expenseId);
+            $linkedCount = $import->lines()->where('expense_id', $expenseId)->count();
+
+            if (! $expense || $linkedCount === 0) {
+                throw new \RuntimeException('This expense is not linked to the current statement.');
+            }
+
+            if (! in_array($expense->status, [Expense::STATUS_APPROVED, Expense::STATUS_PAID], true)) {
+                throw new \RuntimeException(
+                    "Expense {$expense->expense_no} is not posted to the ledger. Use Reject instead."
+                );
+            }
+
+            foreach ($expense->vouchers as $voucher) {
+                if ($voucher->journal_entry_id) {
+                    $entry = JournalEntry::with('lines')->find($voucher->journal_entry_id);
+                    if ($entry && $entry->status === JournalEntry::STATUS_POSTED) {
+                        $this->journalPosting->reverse($entry, $user);
+                    }
+                }
+
+                $voucher->payments()->delete();
+                $voucher->delete();
+            }
+
+            $import->lines()->where('expense_id', $expenseId)->update([
+                'expense_id' => null,
+                'review_status' => ExpenseStatementLine::REVIEW_PENDING,
+                'expense_category_id' => null,
+            ]);
+
             $expense->lines()->delete();
             $expense->delete();
 

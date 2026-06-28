@@ -341,6 +341,25 @@ class ExpenseStatementController extends Controller
         return back()->with('success', 'Expense rejected — its transactions are back in Uncategorized.');
     }
 
+    public function reverseExpense(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
+    {
+        $this->authorize('update', $expenseStatement);
+
+        $validated = $request->validate(['expense_id' => 'required|integer']);
+
+        try {
+            $this->importService->reverseStatementExpense(
+                $expenseStatement,
+                (int) $validated['expense_id'],
+                (int) $request->user()->id,
+            );
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['reverse' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Expense reversed — a contra journal entry was posted and the transaction is back in Uncategorized.');
+    }
+
     public function editExpense(Request $request, ExpenseStatementImport $expenseStatement): RedirectResponse
     {
         $this->authorize('update', $expenseStatement);
