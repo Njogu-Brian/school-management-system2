@@ -315,15 +315,20 @@
                               <option value="ignored" @selected($line->review_status === 'ignored')>Ignore</option>
                             </select>
                           </div>
+                          @unless($line->is_transaction_fee)
+                          <div class="col-12 col-xl-3">
+                            <input type="text" name="vendor_name" list="vendor-options" value="{{ $line->vendor_name }}" class="form-control form-control-sm" placeholder="{{ $line->recipient_name ?: 'Vendor / payee' }}" autocomplete="off">
+                          </div>
+                          @endunless
                           <div class="col-12 col-xl-3">
                             <select name="expense_category_id" class="form-select form-select-sm" data-category-select data-selected="{{ $line->expense_category_id }}">
                               <option value="">Category</option>
                             </select>
                           </div>
-                          <div class="col-12 col-xl-4">
+                          <div class="col-12 col-xl-3">
                             <input type="text" name="expense_description" value="{{ $line->expense_description }}" class="form-control form-control-sm" placeholder="What was this for?">
                           </div>
-                          <div class="col-12 col-xl-2">
+                          <div class="col-12">
                             <button type="submit" class="btn btn-sm btn-outline-primary w-100">Save</button>
                           </div>
                         </form>
@@ -350,22 +355,27 @@
                 </select>
               </div>
               <div class="col-md-3">
+                <label class="form-label small mb-1">Vendor / payee name</label>
+                <input type="text" name="vendor_name" list="vendor-options" value="{{ $group->vendor_name }}" class="finance-form-control form-control-sm" placeholder="{{ $group->recipient_name ?: 'Type or pick a vendor' }}" autocomplete="off">
+                <div class="form-text small">Overrides the statement payee on created expenses.</div>
+              </div>
+              <div class="col-md-3">
                 <label class="form-label small mb-1">Expense category</label>
                 <select name="expense_category_id" class="finance-form-select form-select-sm" data-category-select data-scope="group" data-selected="{{ $group->expense_category_id }}">
                   <option value="">— Select —</option>
                 </select>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <label class="form-label small mb-1">What was this expense for?</label>
                 <input type="text" name="expense_description" value="{{ $group->expense_description }}" class="finance-form-control form-control-sm" placeholder="e.g. Motor parts for school van">
               </div>
-              <div class="col-md-2">
-                <div class="form-check mb-2">
-                  <input class="form-check-input" type="checkbox" name="remember_choice" value="1" id="remember-{{ $index }}">
-                  <label class="form-check-label small" for="remember-{{ $index }}">Remember</label>
-                </div>
-                <button type="submit" class="btn btn-sm btn-finance btn-finance-primary w-100">Apply to Group</button>
+            </div>
+            <div class="d-flex justify-content-end align-items-center gap-3 mt-2">
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" name="remember_choice" value="1" id="remember-{{ $index }}">
+                <label class="form-check-label small" for="remember-{{ $index }}">Remember vendor &amp; category for this recipient</label>
               </div>
+              <button type="submit" class="btn btn-sm btn-finance btn-finance-primary">Apply to Group</button>
             </div>
           </form>
         </div>
@@ -388,6 +398,13 @@
     @endif
   </div>
 </div>
+
+{{-- Existing vendors for type-ahead on the vendor override fields. --}}
+<datalist id="vendor-options">
+  @foreach($vendorNames as $vName)
+    <option value="{{ $vName }}"></option>
+  @endforeach
+</datalist>
 
 {{-- Category options rendered once and cloned into each dropdown on demand (keeps the page fast for large statements). --}}
 <template id="category-options-template">

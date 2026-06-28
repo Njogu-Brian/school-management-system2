@@ -30,4 +30,23 @@ class Vendor extends Model
     {
         return $this->hasMany(Expense::class);
     }
+
+    /**
+     * Find an active vendor by name (case-insensitive) or create one.
+     * Returns null for blank names.
+     */
+    public static function firstOrCreateByName(?string $name): ?self
+    {
+        $name = trim((string) $name);
+        if ($name === '') {
+            return null;
+        }
+
+        $existing = static::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        return static::create(['name' => $name, 'is_active' => true]);
+    }
 }

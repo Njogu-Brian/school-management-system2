@@ -10,6 +10,7 @@ use App\Models\ExpenseStatementLine;
 use App\Models\ExpenseStatementRecipientProfile;
 use App\Models\PaymentVoucher;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Services\ExpenseWorkflowService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -182,6 +183,7 @@ class ExpenseStatementImportService
             $reviewStatus = ExpenseStatementLine::REVIEW_PENDING;
             $categoryId = null;
             $description = null;
+            $vendorName = $profile?->default_vendor_name;
 
             if ($profile) {
                 if ($profile->is_business_expense) {
@@ -210,6 +212,7 @@ class ExpenseStatementImportService
                 'transaction_type' => $classification['transaction_type'],
                 'is_transaction_fee' => $classification['is_transaction_fee'],
                 'recipient_name' => $classification['recipient_name'],
+                'vendor_name' => $classification['is_transaction_fee'] ? null : ($vendorName ?: null),
                 'recipient_phone' => $classification['recipient_phone'],
                 'paybill_number' => $classification['paybill_number'],
                 'account_reference' => $classification['account_reference'],
@@ -322,11 +325,16 @@ class ExpenseStatementImportService
         return $lines->groupBy('group_key')->map(function ($groupLines) {
             $first = $groupLines->first();
 
+            $vendorName = $this->resolveGroupVendorName($groupLines);
+
             return (object) [
                 'group_key' => $first->group_key,
-                'display_name' => $first->recipient_name
+                'vendor_name' => $vendorName,
+                'display_name' => $vendorName
+                    ?: $first->recipient_name
                     ?: ($first->paybill_number ? 'Paybill ' . $first->paybill_number : null)
                     ?: $first->narration,
+                'recipient_name' => $first->recipient_name,
                 'transaction_type' => $first->transaction_type,
                 'transaction_type_label' => $first->transaction_type_label,
                 'recipient_phone' => $first->recipient_phone,
@@ -374,6 +382,17 @@ class ExpenseStatementImportService
         return $categories->count() === 1 ? (int) $categories->first() : null;
     }
 
+    protected function resolveGroupVendorName($groupLines): ?string
+    {
+        $names = $groupLines->pluck('vendor_name')
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $names->count() >= 1 ? (string) $names->first() : null;
+    }
+
     protected function resolveGroupDescription($groupLines): ?string
     {
         $descriptions = $groupLines->pluck('expense_description')->filter()->unique()->values();
@@ -388,9 +407,10 @@ class ExpenseStatementImportService
         ?int $categoryId,
         ?string $description,
         bool $remember,
-        int $userId
+        int $userId,
+        ?string $vendorName = null,
     ): void {
-        DB::transaction(function () use ($import, $groupKey, $reviewStatus, $categoryId, $description, $remember, $userId) {
+        DB::transaction(function () use ($import, $groupKey, $reviewStatus, $categoryId, $description, $remember, $userId, $vendorName) {
             $lines = $import->lines()->where('group_key', $groupKey)->get();
             if ($lines->isEmpty()) {
                 return;
@@ -404,15 +424,18 @@ class ExpenseStatementImportService
             }
 
             foreach ($lines as $line) {
-                $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description);
+                $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description, $vendorName);
             }
 
             if ($remember && $reviewStatus !== ExpenseStatementLine::REVIEW_PENDING) {
+                $rememberedVendor = (trim((string) $vendorName) !== '') ? trim((string) $vendorName) : $first->fresh()->vendor_name;
+
                 ExpenseStatementRecipientProfile::updateOrCreate(
                     ['group_key' => $groupKey],
                     [
                         'display_name' => $first->recipient_name
                             ?: ($first->paybill_number ? 'Paybill ' . $first->paybill_number : 'Unknown'),
+                        'default_vendor_name' => $rememberedVendor,
                         'transaction_type' => $first->transaction_type,
                         'is_business_expense' => $reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED,
                         'expense_category_id' => $categoryId,
@@ -435,8 +458,9 @@ class ExpenseStatementImportService
         ?int $categoryId,
         ?string $description,
         int $userId,
+        ?string $vendorName = null,
     ): void {
-        DB::transaction(function () use ($import, $lineId, $reviewStatus, $categoryId, $description, $userId) {
+        DB::transaction(function () use ($import, $lineId, $reviewStatus, $categoryId, $description, $userId, $vendorName) {
             $line = $import->lines()->whereKey($lineId)->firstOrFail();
 
             $relatedFees = collect();
@@ -453,8 +477,9 @@ class ExpenseStatementImportService
                 $this->detachExpensesForLines($import, collect([$line])->merge($relatedFees));
             }
 
-            $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description);
+            $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description, $vendorName);
 
+            // The vendor override applies to the primary transaction, not its M-Pesa charge line.
             $relatedFees->each(fn (ExpenseStatementLine $feeLine) => $this->applyReviewToLine(
                 $feeLine,
                 $reviewStatus,
@@ -471,6 +496,7 @@ class ExpenseStatementImportService
         string $reviewStatus,
         ?int $categoryId,
         ?string $description,
+        ?string $vendorName = null,
     ): void {
         // Transaction charges are always booked to Bank & Transaction Charges.
         if ($line->is_transaction_fee && $reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED) {
@@ -479,11 +505,19 @@ class ExpenseStatementImportService
             }
         }
 
-        $line->update([
+        $attributes = [
             'review_status' => $reviewStatus,
             'expense_category_id' => $reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED ? $categoryId : null,
             'expense_description' => $description,
-        ]);
+        ];
+
+        // Only overwrite the vendor override when a (non-blank) name is supplied,
+        // so re-classifying without touching the vendor field keeps any prior override.
+        if ($vendorName !== null && trim($vendorName) !== '') {
+            $attributes['vendor_name'] = trim($vendorName);
+        }
+
+        $line->update($attributes);
     }
 
     /**
@@ -547,12 +581,14 @@ class ExpenseStatementImportService
         ?ExpenseCategory $chargeCategory,
         User $user,
     ): void {
-        $recipientLabel = $primary->recipient_name
-            ?: ($primary->paybill_number ? 'Paybill ' . $primary->paybill_number : null)
+        $recipientLabel = $primary->payeeName()
             ?: mb_substr($primary->narration, 0, 80);
+
+        $vendor = Vendor::firstOrCreateByName($primary->payeeName());
 
         $expense = Expense::create([
             'source_type' => 'mpesa_statement',
+            'vendor_id' => $vendor?->id,
             'requested_by' => $user->id,
             'expense_date' => $primary->completed_at?->toDateString() ?? now()->toDateString(),
             'currency' => 'KES',
@@ -788,12 +824,13 @@ class ExpenseStatementImportService
             foreach ($grouped as $lines) {
                 /** @var \Illuminate\Support\Collection<int, ExpenseStatementLine> $lines */
                 $first = $lines->first();
-                $recipientLabel = $first->recipient_name
-                    ?: ($first->paybill_number ? 'Paybill ' . $first->paybill_number : null)
+                $recipientLabel = $first->payeeName()
                     ?: mb_substr($first->narration, 0, 80);
+                $vendor = Vendor::firstOrCreateByName($first->payeeName());
 
                 $expense = Expense::create([
                     'source_type' => 'mpesa_statement',
+                    'vendor_id' => $vendor?->id,
                     'requested_by' => $userId,
                     'expense_date' => $lines->sortBy('completed_at')->first()?->completed_at?->toDateString()
                         ?? now()->toDateString(),

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseStatementImport;
 use App\Models\ExpenseStatementLine;
+use App\Models\Vendor;
 use App\Services\Finance\ExpenseStatementImportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -142,6 +143,7 @@ class ExpenseStatementController extends Controller
         $draftStats = $this->importService->confirmedDraftStats($expenseStatement);
         $expenseGroups = $this->importService->importExpenseGroups($expenseStatement);
         $pendingExpenseCreation = $this->importService->pendingExpenseCreationCount($expenseStatement);
+        $vendorNames = Vendor::where('is_active', true)->orderBy('name')->pluck('name');
 
         return view('finance.expense-statements.show', compact(
             'expenseStatement',
@@ -153,6 +155,7 @@ class ExpenseStatementController extends Controller
             'draftStats',
             'expenseGroups',
             'pendingExpenseCreation',
+            'vendorNames',
         ));
     }
 
@@ -165,6 +168,7 @@ class ExpenseStatementController extends Controller
             'review_status' => 'required|in:confirmed_expense,personal,ignored,pending',
             'expense_category_id' => 'nullable|exists:expense_categories,id',
             'expense_description' => 'nullable|string|max:1000',
+            'vendor_name' => 'nullable|string|max:255',
             'remember_choice' => 'nullable|boolean',
         ]);
 
@@ -181,6 +185,7 @@ class ExpenseStatementController extends Controller
                 $validated['expense_description'] ?? null,
                 (bool) ($validated['remember_choice'] ?? false),
                 (int) $request->user()->id,
+                $validated['vendor_name'] ?? null,
             );
         } catch (\RuntimeException $e) {
             return back()->withErrors(['review_status' => $e->getMessage()]);
@@ -244,6 +249,7 @@ class ExpenseStatementController extends Controller
             'review_status' => 'required|in:confirmed_expense,personal,ignored,pending',
             'expense_category_id' => 'nullable|exists:expense_categories,id',
             'expense_description' => 'nullable|string|max:1000',
+            'vendor_name' => 'nullable|string|max:255',
         ]);
 
         if ($validated['review_status'] === ExpenseStatementLine::REVIEW_CONFIRMED && empty($validated['expense_category_id'])) {
@@ -263,6 +269,7 @@ class ExpenseStatementController extends Controller
                 $validated['expense_category_id'] ?? null,
                 $validated['expense_description'] ?? null,
                 (int) $request->user()->id,
+                $validated['vendor_name'] ?? null,
             );
         } catch (\RuntimeException $e) {
             return back()->withErrors(['line_id' => $e->getMessage()]);

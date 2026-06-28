@@ -38,6 +38,15 @@ class ExpensePolicy
         return $this->update($user, $expense);
     }
 
+    /**
+     * Editing the vendor/payee never affects the general ledger, so finance staff
+     * may correct it at any status (including submitted/paid statement expenses).
+     */
+    public function manageVendor(User $user, Expense $expense): bool
+    {
+        return $user->hasAnyRole(['Super Admin', 'Admin', 'Finance Officer', 'Accountant']);
+    }
+
     public function approve(User $user, Expense $expense): bool
     {
         return $expense->status === Expense::STATUS_SUBMITTED

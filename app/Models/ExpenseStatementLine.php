@@ -32,6 +32,7 @@ class ExpenseStatementLine extends Model
         'transaction_type',
         'is_transaction_fee',
         'recipient_name',
+        'vendor_name',
         'recipient_phone',
         'paybill_number',
         'account_reference',
@@ -65,6 +66,25 @@ class ExpenseStatementLine extends Model
     public function expense(): BelongsTo
     {
         return $this->belongsTo(Expense::class);
+    }
+
+    /**
+     * The payee/vendor for this transaction: the manual override if set,
+     * otherwise the parsed recipient, otherwise a paybill label.
+     */
+    public function payeeName(): ?string
+    {
+        $vendor = trim((string) $this->vendor_name);
+        if ($vendor !== '') {
+            return $vendor;
+        }
+
+        $recipient = trim((string) $this->recipient_name);
+        if ($recipient !== '') {
+            return $recipient;
+        }
+
+        return $this->paybill_number ? 'Paybill ' . $this->paybill_number : null;
     }
 
     public function getDisplayAmountAttribute(): float

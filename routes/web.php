@@ -1453,8 +1453,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('expenses/reports', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'index'])->name('expenses.reports.index');
         Route::get('expenses/reports/export-csv', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportCsv'])->name('expenses.reports.export-csv');
         Route::get('expenses/reports/export-pdf', [\App\Http\Controllers\Finance\ExpenseReportController::class, 'exportPdf'])->name('expenses.reports.export-pdf');
+        Route::post('expenses/bulk-update', [\App\Http\Controllers\Finance\ExpenseController::class, 'bulkUpdate'])->name('expenses.bulk-update');
         Route::resource('expenses', \App\Http\Controllers\Finance\ExpenseController::class);
         Route::post('expenses/{expense}/submit', [\App\Http\Controllers\Finance\ExpenseController::class, 'submit'])->name('expenses.submit');
+        Route::post('expenses/{expense}/quick-update', [\App\Http\Controllers\Finance\ExpenseController::class, 'quickUpdate'])->name('expenses.quick-update');
         Route::post('expenses/{expense}/approvals', [\App\Http\Controllers\Finance\ExpenseApprovalController::class, 'store'])->name('expenses.approvals.store');
 
         Route::get('payment-vouchers', [\App\Http\Controllers\Finance\PaymentVoucherController::class, 'index'])->name('payment-vouchers.index');

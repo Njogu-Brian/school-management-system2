@@ -10,6 +10,7 @@ class ExpenseStatementRecipientProfile extends Model
     protected $fillable = [
         'group_key',
         'display_name',
+        'default_vendor_name',
         'transaction_type',
         'is_business_expense',
         'expense_category_id',
