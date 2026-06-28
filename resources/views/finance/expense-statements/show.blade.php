@@ -242,7 +242,7 @@
                 @if($group->review_status === 'confirmed_expense')
                   <span class="badge bg-success">Business Expense</span>
                 @elseif($group->review_status === 'personal')
-                  <span class="badge bg-light text-dark">Personal</span>
+                  <span class="badge bg-primary">Personal</span>
                 @elseif($group->review_status === 'mixed')
                   <span class="badge bg-info text-dark">Mixed — review individually</span>
                 @else
@@ -296,7 +296,7 @@
                         @if($line->review_status === 'confirmed_expense')
                           <span class="badge bg-success">Business</span>
                         @elseif($line->review_status === 'personal')
-                          <span class="badge bg-secondary">Personal</span>
+                          <span class="badge bg-primary">Personal</span>
                         @elseif($line->review_status === 'ignored')
                           <span class="badge bg-dark">Ignored</span>
                         @else

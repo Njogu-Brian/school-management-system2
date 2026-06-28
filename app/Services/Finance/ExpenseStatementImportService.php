@@ -303,7 +303,13 @@ class ExpenseStatementImportService
         } elseif ($filter === 'personal') {
             $query->where('review_status', ExpenseStatementLine::REVIEW_PERSONAL);
         } elseif ($filter === 'uncategorized') {
-            $query->whereNull('expense_category_id');
+            // "Uncategorized" = still needs attention: no category and not already
+            // marked personal or ignored.
+            $query->whereNull('expense_category_id')
+                ->whereNotIn('review_status', [
+                    ExpenseStatementLine::REVIEW_PERSONAL,
+                    ExpenseStatementLine::REVIEW_IGNORED,
+                ]);
         } elseif ($filter === 'fees') {
             $query->where('is_transaction_fee', true);
         }
