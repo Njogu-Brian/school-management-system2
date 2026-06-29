@@ -630,19 +630,56 @@ class ExpenseStatementImportService
         ]);
         $primary->update(['expense_id' => $expense->id]);
 
+        $expense->recalculateTotals();
+        $expense->save();
+
+        // Transaction/bank charges are recorded as their OWN "Bank Charges"
+        // expense (no vendor) so they are never attributed to the merchant.
+        $this->createChargeExpenseFromFees($fees, $chargeCategory, $primary, $user);
+    }
+
+    /**
+     * Record M-Pesa / bank transaction charges as a standalone "Bank Charges"
+     * expense with no vendor, keyed to the originating transaction.
+     *
+     * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $fees
+     */
+    protected function createChargeExpenseFromFees(
+        $fees,
+        ?ExpenseCategory $chargeCategory,
+        ExpenseStatementLine $primary,
+        User $user,
+    ): void {
+        $fees = collect($fees)->filter(fn ($fee) => (float) $fee->withdrawn_amount > 0);
+        if ($fees->isEmpty() || ! $chargeCategory) {
+            return;
+        }
+
+        $charge = Expense::create([
+            'source_type' => 'mpesa_statement',
+            'vendor_id' => null,
+            'requested_by' => $user->id,
+            'expense_date' => $primary->completed_at?->toDateString() ?? now()->toDateString(),
+            'currency' => 'KES',
+            'status' => Expense::STATUS_SUBMITTED,
+            'submitted_at' => now(),
+            'notes' => 'Bank & M-Pesa transaction charges'
+                . ($primary->receipt_no ? ' for ' . $primary->receipt_no : ''),
+        ]);
+
         foreach ($fees as $fee) {
-            $expense->lines()->create([
-                'category_id' => $chargeCategory?->id ?? $primary->expense_category_id,
+            $charge->lines()->create([
+                'category_id' => $chargeCategory->id,
                 'description' => 'M-Pesa transaction charge' . ($fee->receipt_no ? ' (' . $fee->receipt_no . ')' : ''),
                 'qty' => 1,
                 'unit_cost' => $fee->withdrawn_amount,
                 'tax_rate' => 0,
             ]);
-            $fee->update(['expense_id' => $expense->id]);
+            $fee->update(['expense_id' => $charge->id]);
         }
 
-        $expense->recalculateTotals();
-        $expense->save();
+        $charge->recalculateTotals();
+        $charge->save();
     }
 
     /**
