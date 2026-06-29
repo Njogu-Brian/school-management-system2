@@ -167,7 +167,10 @@ class ExpenseStatementController extends Controller
         $filter = $request->string('filter')->toString() ?: null;
         $search = trim($request->string('search')->toString());
 
-        $perPage = 20;
+        $perPage = (int) $request->integer('per_page', 20);
+        if (! in_array($perPage, [20, 50, 100], true)) {
+            $perPage = 20;
+        }
         $page = Paginator::resolveCurrentPage();
         $allGroups = $this->importService->groupedLines($expenseStatement, $filter, $search ?: null);
 
@@ -226,6 +229,7 @@ class ExpenseStatementController extends Controller
             'expenseGroups',
             'pendingExpenseCreation',
             'vendorNames',
+            'perPage',
         ));
     }
 

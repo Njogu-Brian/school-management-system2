@@ -60,17 +60,19 @@
       'search' => $search,
       'showStatement' => true,
       'highlightGroup' => $highlightGroup ?? null,
+      'perPage' => $perPage,
       'routes' => [
         'group' => route('finance.statement-transactions.groups.update'),
         'line' => route('finance.statement-transactions.lines.update'),
         'bulk' => route('finance.statement-transactions.bulk-update-groups'),
       ],
       'searchAction' => route('finance.statement-transactions.index'),
-      'clearUrl' => route('finance.statement-transactions.index', array_filter(['filter' => $filter])),
-      'filterUrl' => function ($f) use ($search) {
+      'clearUrl' => route('finance.statement-transactions.index', array_filter(['filter' => $filter, 'per_page' => $perPage != 20 ? $perPage : null])),
+      'filterUrl' => function ($f) use ($search, $perPage) {
           $params = [];
           if ($f) { $params['filter'] = $f; }
           if ($search !== '') { $params['search'] = $search; }
+          if ($perPage != 20) { $params['per_page'] = $perPage; }
           return route('finance.statement-transactions.index', $params);
       },
     ])

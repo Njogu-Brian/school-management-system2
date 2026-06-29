@@ -14,11 +14,13 @@
 --}}
 @php($showStatement = $showStatement ?? false)
 @php($highlightGroup = $highlightGroup ?? null)
+@php($perPage = $perPage ?? 20)
 
 <div class="finance-card mb-3">
   <div class="finance-card-body">
     <form method="GET" action="{{ $searchAction }}" class="row g-2 align-items-center mb-3">
       @if($filter)<input type="hidden" name="filter" value="{{ $filter }}">@endif
+      @if($perPage != 20)<input type="hidden" name="per_page" value="{{ $perPage }}">@endif
       <div class="col-md-9 col-lg-10">
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -33,13 +35,25 @@
       </div>
     </form>
 
-    <div class="d-flex flex-wrap gap-2">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
       <a href="{{ $filterUrl(null) }}" class="btn btn-sm {{ !$filter ? 'btn-primary' : 'btn-outline-secondary' }}">All Outgoing</a>
       <a href="{{ $filterUrl('business') }}" class="btn btn-sm {{ in_array($filter, ['business', 'confirmed']) ? 'btn-primary' : 'btn-outline-secondary' }}">Business</a>
       <a href="{{ $filterUrl('personal') }}" class="btn btn-sm {{ $filter === 'personal' ? 'btn-primary' : 'btn-outline-secondary' }}">Personal</a>
       <a href="{{ $filterUrl('uncategorized') }}" class="btn btn-sm {{ $filter === 'uncategorized' ? 'btn-primary' : 'btn-outline-secondary' }}">Uncategorized</a>
       <a href="{{ $filterUrl('pending') }}" class="btn btn-sm {{ $filter === 'pending' ? 'btn-primary' : 'btn-outline-secondary' }}">Pending</a>
       <a href="{{ $filterUrl('fees') }}" class="btn btn-sm {{ $filter === 'fees' ? 'btn-primary' : 'btn-outline-secondary' }}">Fees Only</a>
+
+      <form method="GET" action="{{ $searchAction }}" class="d-flex align-items-center gap-1 ms-auto">
+        @if($filter)<input type="hidden" name="filter" value="{{ $filter }}">@endif
+        @if($search !== '')<input type="hidden" name="search" value="{{ $search }}">@endif
+        <label class="form-label small mb-0 text-muted text-nowrap" for="perPageSelect">Show</label>
+        <select name="per_page" id="perPageSelect" class="form-select form-select-sm" style="width: auto" onchange="this.form.submit()">
+          @foreach([20, 50, 100] as $opt)
+            <option value="{{ $opt }}" @selected($perPage == $opt)>{{ $opt }}</option>
+          @endforeach
+        </select>
+        <span class="form-text small mb-0 text-nowrap">per page</span>
+      </form>
     </div>
   </div>
 </div>

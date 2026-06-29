@@ -33,7 +33,10 @@ class StatementTransactionController extends Controller
         $filter = $request->string('filter')->toString() ?: null;
         $search = trim($request->string('search')->toString());
 
-        $perPage = 20;
+        $perPage = (int) $request->integer('per_page', 20);
+        if (! in_array($perPage, [20, 50, 100], true)) {
+            $perPage = 20;
+        }
         $page = Paginator::resolveCurrentPage();
         $allGroups = $this->importService->groupedLinesAcrossImports($filter, $search ?: null);
 
@@ -84,6 +87,7 @@ class StatementTransactionController extends Controller
             'pendingExpenseCreation',
             'vendorNames',
             'highlightGroup',
+            'perPage',
         ));
     }
 

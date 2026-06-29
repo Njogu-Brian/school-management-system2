@@ -238,17 +238,19 @@
       'filter' => $filter,
       'search' => $search,
       'showStatement' => false,
+      'perPage' => $perPage,
       'routes' => [
         'group' => route('finance.expense-statements.groups.update', $expenseStatement),
         'line' => route('finance.expense-statements.lines.update', $expenseStatement),
         'bulk' => route('finance.expense-statements.bulk-update-groups', $expenseStatement),
       ],
       'searchAction' => route('finance.expense-statements.show', $expenseStatement),
-      'clearUrl' => route('finance.expense-statements.show', array_filter([$expenseStatement->id, 'filter' => $filter])),
-      'filterUrl' => function ($f) use ($expenseStatement, $search) {
+      'clearUrl' => route('finance.expense-statements.show', array_filter([$expenseStatement->id, 'filter' => $filter, 'per_page' => $perPage != 20 ? $perPage : null])),
+      'filterUrl' => function ($f) use ($expenseStatement, $search, $perPage) {
           $params = [$expenseStatement->id];
           if ($f) { $params['filter'] = $f; }
           if ($search !== '') { $params['search'] = $search; }
+          if ($perPage != 20) { $params['per_page'] = $perPage; }
           return route('finance.expense-statements.show', $params);
       },
     ])
