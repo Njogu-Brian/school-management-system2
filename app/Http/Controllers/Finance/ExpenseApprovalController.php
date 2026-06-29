@@ -15,12 +15,18 @@ class ExpenseApprovalController extends Controller
         $this->authorize('approve', $expense);
         $data = $request->validated();
 
-        $workflowService->decide(
-            $expense,
-            $request->user(),
-            $data['decision'],
-            $data['remarks'] ?? null
-        );
+        try {
+            $workflowService->decide(
+                $expense,
+                $request->user(),
+                $data['decision'],
+                $data['remarks'] ?? null
+            );
+        } catch (\InvalidArgumentException $e) {
+            return redirect()
+                ->route('finance.expenses.show', $expense)
+                ->with('error', $e->getMessage() . ' (current status: ' . $expense->status . ')');
+        }
 
         return redirect()->route('finance.expenses.show', $expense)->with('success', 'Approval decision recorded.');
     }

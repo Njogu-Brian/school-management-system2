@@ -5,6 +5,7 @@
   @include('finance.partials.header', ['title' => 'Expense ' . $expense->expense_no, 'icon' => 'bi bi-receipt', 'subtitle' => 'Expense lifecycle and voucher processing'])
 
   @if(session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif
+  @if(session('error'))<div class="alert alert-danger">{{ session('error') }}</div>@endif
 
   <div class="finance-card mb-3"><div class="finance-card-body">
     <div class="row">
