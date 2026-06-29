@@ -1,0 +1,389 @@
+"""
+Parse an I&M Bank PDF statement + a phone SMS backup, match each WITHDRAWAL to
+the matching I&M / M-PESA SMS to recover the M-PESA reference and recipient
+name, then emit database/seeders/data/imbank_transactions.json that
+ImBankStatementSeeder.php loads into the expense statement analyzer.
+
+Usage:
+  python scripts/build_imbank_seeder.py "<statement.pdf>" <pdf_password> "<sms.xml>"
+"""
+import sys, os, re, json, hashlib
+from datetime import datetime, timedelta
+from collections import defaultdict
+import xml.etree.ElementTree as ET
+import pdfplumber
+
+DATE_RE = re.compile(r'^\d{2}-\d{2}-\d{2}$')
+
+
+def to_amount(v):
+    if not v:
+        return 0.0
+    s = str(v).replace(',', '').replace('Cr', '').replace('Dr', '').strip()
+    try:
+        return round(float(s), 2)
+    except ValueError:
+        return 0.0
+
+
+def stmt_date_to_iso(d):
+    # dd-mm-yy -> yyyy-mm-dd
+    dd, mm, yy = d.split('-')
+    return f"20{yy}-{mm}-{dd}"
+
+
+def last9(num):
+    digits = re.sub(r'\D', '', str(num))
+    return digits[-9:] if len(digits) >= 9 else digits
+
+
+# --------------------------------------------------------------------------
+# 1. Parse the PDF -> list of withdrawal transactions
+# --------------------------------------------------------------------------
+def parse_pdf(path, password):
+    txns = []
+    with pdfplumber.open(path, password=password) as pdf:
+        for page in pdf.pages:
+            for table in page.extract_tables():
+                if not table:
+                    continue
+                header = [(c or '').strip() for c in table[0]]
+                if 'Tran Date' not in header:
+                    continue
+                cur = None
+                for row in table[1:]:
+                    cells = list(row) + [None] * (9 - len(row))
+                    tran = (cells[0] or '').strip()
+                    narr = (cells[7] or '').strip()
+                    if DATE_RE.match(tran):
+                        # finalize previous
+                        if cur:
+                            txns.append(cur)
+                        cur = {
+                            'date': stmt_date_to_iso(tran),
+                            'withdrawn': to_amount(cells[3]),
+                            'paid_in': to_amount(cells[4]),
+                            'balance': (cells[5] or '').strip(),
+                            'narr_parts': [narr] if narr else [],
+                        }
+                    elif cur is not None and narr:
+                        cur['narr_parts'].append(narr)
+                if cur:
+                    txns.append(cur)
+    # keep only withdrawals
+    out = []
+    for t in txns:
+        if t['withdrawn'] <= 0:
+            continue
+        t['narration'] = ' '.join(t['narr_parts']).strip()
+        del t['narr_parts']
+        out.append(t)
+    return out
+
+
+# --------------------------------------------------------------------------
+# 2. Parse the SMS backup -> indexes for matching
+# --------------------------------------------------------------------------
+def parse_sms(path):
+    transfers = []   # bank->mpesa: phone, amount, name, mpesa_ref, dt
+    purchases = []   # card purchases: amount, merchant, dt
+    paid_to = []     # till/paybill paid: amount, name, ref, dt
+    payments = []    # generic "Payment of KES x to <phone>": phone, amount, ref, dt
+
+    re_transfer = re.compile(
+        r'Bank to M-PESA transfer of KES\s*([\d,]+\.?\d*)\s*to\s*(\d+)\s*-\s*(.+?)\s+successfully processed\..*?M-PESA Ref ID:\s*([A-Z0-9]+)',
+        re.I)
+    re_purchase = re.compile(
+        r'made a purchase of\s*KES\s*([\d,]+\.?\d*)\s*on\s*([\d\-: ]+?)\s*at\s*(.+?)\s*using I&M', re.I)
+    re_paid = re.compile(
+        r'KES\s*([\d,]+\.?\d*)\s*paid to\s*(.+?)\s*\(Acc\s*([^\)]*)\).*?Ref:\s*([A-Z0-9]+)', re.I)
+    re_payment = re.compile(
+        r'Payment of KES\s*([\d,]+\.?\d*)\s*to\s*(\d+)\s*on.*?Transaction Ref ID:\s*([A-Z0-9]+)', re.I | re.S)
+
+    for ev, el in ET.iterparse(path, events=('end',)):
+        if el.tag != 'sms':
+            el.clear(); continue
+        addr = el.get('address') or ''
+        body = el.get('body') or ''
+        epoch = int(el.get('date') or 0) / 1000.0
+        dt = datetime.fromtimestamp(epoch) if epoch else None
+
+        m = re_transfer.search(body)
+        if m:
+            transfers.append({
+                'amount': to_amount(m.group(1)),
+                'phone9': last9(m.group(2)),
+                'name': re.sub(r'\s+', ' ', m.group(3)).strip(),
+                'ref': m.group(4).strip(),
+                'dt': dt,
+            })
+            el.clear(); continue
+
+        m = re_purchase.search(body)
+        if m:
+            try:
+                pdt = datetime.strptime(m.group(2).strip(), '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                pdt = dt
+            purchases.append({
+                'amount': to_amount(m.group(1)),
+                'merchant': re.sub(r'\s+', ' ', m.group(3)).strip(),
+                'dt': pdt,
+            })
+            el.clear(); continue
+
+        m = re_paid.search(body)
+        if m:
+            paid_to.append({
+                'amount': to_amount(m.group(1)),
+                'name': re.sub(r'\s+', ' ', m.group(2)).strip(),
+                'acc': m.group(3).strip(),
+                'ref': m.group(4).strip(),
+                'dt': dt,
+            })
+            el.clear(); continue
+
+        m = re_payment.search(body)
+        if m:
+            payments.append({
+                'amount': to_amount(m.group(1)),
+                'phone9': last9(m.group(2)),
+                'ref': m.group(3).strip(),
+                'dt': dt,
+            })
+        el.clear()
+
+    return transfers, purchases, paid_to, payments
+
+
+def title_case(s):
+    s = (s or '').strip()
+    return s.title() if s else s
+
+
+def group_key(*parts):
+    norm = [re.sub(r'\s+', '', str(p).lower()) for p in parts if p]
+    return hashlib.sha1('|'.join(norm).encode()).hexdigest()[:32]
+
+
+def fingerprint(receipt, completed, narration, salt):
+    return hashlib.sha256('|'.join([str(receipt or ''), completed or '', (narration or '').strip(), str(salt)]).encode()).hexdigest()
+
+
+# --------------------------------------------------------------------------
+# 3. Match + build line records
+# --------------------------------------------------------------------------
+def build(pdf_path, password, sms_path):
+    txns = parse_pdf(pdf_path, password)
+    transfers, purchases, paid_to, payments = parse_sms(sms_path)
+
+    # bucket SMS by matching keys, keep used flags
+    t_by_key = defaultdict(list)
+    for s in transfers:
+        t_by_key[(s['phone9'], s['amount'])].append(s)
+    for lst in t_by_key.values():
+        lst.sort(key=lambda x: x['dt'] or datetime.min)
+
+    pur_by_amt = defaultdict(list)
+    for s in purchases:
+        pur_by_amt[s['amount']].append(s)
+    for lst in pur_by_amt.values():
+        lst.sort(key=lambda x: x['dt'] or datetime.min)
+
+    paid_by_amt = defaultdict(list)
+    for s in paid_to:
+        paid_by_amt[s['amount']].append(s)
+    for lst in paid_by_amt.values():
+        lst.sort(key=lambda x: x['dt'] or datetime.min)
+
+    pay_by_key = defaultdict(list)
+    for s in payments:
+        pay_by_key[(s['phone9'], s['amount'])].append(s)
+    for lst in pay_by_key.values():
+        lst.sort(key=lambda x: x['dt'] or datetime.min)
+
+    used = set()  # ids of consumed sms (by object id)
+
+    def pick_nearest(candidates, target_date, max_days=3):
+        best, best_gap = None, None
+        for c in candidates:
+            if id(c) in used or not c['dt']:
+                continue
+            gap = abs((c['dt'].date() - target_date).days)
+            if gap > max_days:
+                continue
+            if best is None or gap < best_gap:
+                best, best_gap = c, gap
+        if best:
+            used.add(id(best))
+        return best
+
+    re_phone_prefixed = re.compile(r'^(\d{9,12})/(.*)$', re.S)
+    re_plain_mpesa = re.compile(r'^MPESA Payment\s*to\s*\d+', re.I)
+    re_ecitizen = re.compile(r'^([A-Z0-9]{6,12})-([A-Za-z].+)$')
+    fee_markers = ('FACILITY FEE', 'EXCISE DUTY', 'CREDIT LIFE', 'CHARGE', 'LEDGER FEE',
+                   'COMMISSION', 'SERVICE FEE', 'LOAN APPRAISAL')
+
+    lines = []
+    stats = defaultdict(int)
+
+    for i, t in enumerate(txns):
+        narr = t['narration']
+        upper = narr.upper()
+        tdate = datetime.strptime(t['date'], '%Y-%m-%d').date()
+        amount = t['withdrawn']
+
+        receipt = None
+        vendor = None
+        recipient_name = None
+        recipient_phone = None
+        description = None
+        ttype = 'other'
+        is_fee = False
+        gkey = None
+        completed = t['date'] + ' 12:00:00'
+
+        m_phone = re_phone_prefixed.match(narr.strip())
+        if m_phone:
+            phone = m_phone.group(1)
+            note = re.sub(r'\s+', ' ', m_phone.group(2)).strip()
+            recipient_phone = phone if phone.startswith('254') else ('254' + phone.lstrip('0'))
+            ttype = 'send_money'
+            # A user-typed note (anything other than the boilerplate "MPESA Payment to <phone>")
+            # is the actual expense purpose -> keep it as the description.
+            if note and not re_plain_mpesa.match(note):
+                description = note
+            p9 = last9(phone)
+            sms = pick_nearest(t_by_key.get((p9, amount), []), tdate)
+            if sms:
+                receipt = sms['ref']
+                vendor = title_case(sms['name'])
+                recipient_name = vendor
+                if sms['dt']:
+                    completed = sms['dt'].strftime('%Y-%m-%d %H:%M:%S')
+                stats['matched_transfer'] += 1
+            else:
+                sms = pick_nearest(pay_by_key.get((p9, amount), []), tdate)
+                if sms:
+                    receipt = sms['ref']
+                    if sms['dt']:
+                        completed = sms['dt'].strftime('%Y-%m-%d %H:%M:%S')
+                    stats['matched_payment'] += 1
+                else:
+                    stats['unmatched_mpesa'] += 1
+            if not recipient_name:
+                recipient_name = description or recipient_phone
+            gkey = group_key('send_money', recipient_phone)
+
+        elif any(k in upper for k in fee_markers):
+            ttype = 'fee'
+            is_fee = True
+            recipient_name = 'I&M Bank Charges'
+            vendor = None
+            gkey = 'fee:general'
+            stats['fee'] += 1
+
+        elif 'SHOWMAX' in upper or re.search(r'\bPRCR\d', narr) or 'OPENAI' in upper or '*' in narr:
+            ttype = 'buy_goods'
+            sms = pick_nearest(pur_by_amt.get(amount, []), tdate, max_days=2)
+            if sms:
+                vendor = title_case(sms['merchant'])
+                recipient_name = vendor
+                stats['matched_card'] += 1
+            else:
+                recipient_name = title_case(re.sub(r'\d{4,}.*$', '', narr).strip()) or narr[:60]
+                stats['unmatched_card'] += 1
+            gkey = group_key('buy_goods', recipient_name or narr)
+
+        elif re_ecitizen.match(narr.strip()):
+            m_ec = re_ecitizen.match(narr.strip())
+            ttype = 'paybill'
+            vendor = title_case(m_ec.group(2))
+            recipient_name = vendor
+            gkey = group_key('paybill', m_ec.group(2))
+            stats['ecitizen'] += 1
+
+        else:
+            # try paybill / till "paid to" match by amount+date
+            sms = pick_nearest(paid_by_amt.get(amount, []), tdate, max_days=2)
+            if sms:
+                ttype = 'paybill'
+                receipt = sms['ref']
+                vendor = title_case(sms['name'])
+                recipient_name = vendor
+                if sms['dt']:
+                    completed = sms['dt'].strftime('%Y-%m-%d %H:%M:%S')
+                gkey = group_key('paybill', sms['acc'] or sms['name'])
+                stats['matched_paid'] += 1
+            else:
+                recipient_name = title_case(re.sub(r'\s+', ' ', narr)[:80])
+                gkey = group_key('other', narr)
+                stats['other'] += 1
+
+        fp = fingerprint(receipt, completed, narr, f"{i}|{t['balance']}")
+
+        lines.append({
+            'receipt_no': (receipt or '')[:32] or None,
+            'completed_at': completed,
+            'narration': narr,
+            'line_fingerprint': fp,
+            'withdrawn_amount': amount,
+            'paid_in_amount': 0,
+            'direction': 'out',
+            'transaction_type': ttype,
+            'is_transaction_fee': is_fee,
+            'recipient_name': recipient_name,
+            'vendor_name': vendor,
+            'recipient_phone': recipient_phone,
+            'paybill_number': None,
+            'account_reference': None,
+            'merchant_reference': None,
+            'group_key': gkey,
+            'expense_description': description,
+            'tran_date': t['date'],
+            'balance': t['balance'],
+        })
+
+    return lines, stats, txns
+
+
+def main():
+    pdf_path, password, sms_path = sys.argv[1], sys.argv[2], sys.argv[3]
+    lines, stats, txns = build(pdf_path, password, sms_path)
+
+    total_amt = round(sum(l['withdrawn_amount'] for l in lines), 2)
+    dates = [l['tran_date'] for l in lines]
+    payload = {
+        'source': 'bank',
+        'bank': 'I&M Bank',
+        'original_filename': os.path.basename(pdf_path),
+        'account_name': 'BRIAN MURAGE NJOGU',
+        'account_number': '03604789316150',
+        'period_start': min(dates) if dates else None,
+        'period_end': max(dates) if dates else None,
+        'outgoing_count': len(lines),
+        'outgoing_total': total_amt,
+        'lines': lines,
+    }
+
+    out_dir = os.path.join('database', 'seeders', 'data')
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, 'imbank_transactions.json')
+    with open(out_path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, ensure_ascii=False, indent=1)
+
+    print(f"Withdrawals parsed : {len(lines)}")
+    print(f"Total withdrawn    : KES {total_amt:,.2f}")
+    print(f"Period             : {payload['period_start']} -> {payload['period_end']}")
+    print("Match breakdown    :")
+    for k in sorted(stats):
+        print(f"   {k:18s}: {stats[k]}")
+    matched_ref = sum(1 for l in lines if l['receipt_no'])
+    named = sum(1 for l in lines if l['vendor_name'])
+    print(f"With M-Pesa ref    : {matched_ref}")
+    print(f"With vendor name   : {named}")
+    print(f"Wrote {out_path}")
+
+
+if __name__ == '__main__':
+    main()
