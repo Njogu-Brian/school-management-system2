@@ -201,7 +201,22 @@ class MpesaTransactionClassifier
 
     protected function normalizeNarration(string $narration): string
     {
-        return trim(preg_replace('/\s+/', ' ', str_replace(["\n", "\r"], ' ', $narration)));
+        $normalized = trim(preg_replace('/\s+/', ' ', str_replace(["\n", "\r"], ' ', $narration)));
+
+        return $this->stripFundingSource($normalized);
+    }
+
+    /**
+     * M-Pesa injects the funding source between the action verb and the recipient
+     * when an overdraft is used, e.g. "Pay Bill Online Fuliza M-Pesa to 247247 ...".
+     * That phrase breaks recipient / paybill / account extraction (and even the
+     * "Merchant Payment to" type match), causing every Fuliza-funded payment to lose
+     * its payee and collapse into one group. Drop it so the recipient parses:
+     * "<verb> Fuliza M-Pesa to <recipient>" => "<verb> to <recipient>".
+     */
+    protected function stripFundingSource(string $narration): string
+    {
+        return preg_replace('/\s+Fuliza(?:\s+M-?PESA)?\s+to\b/i', ' to', $narration);
     }
 
     protected function groupKey(string $type, ?string $primary, ?string $secondary): string

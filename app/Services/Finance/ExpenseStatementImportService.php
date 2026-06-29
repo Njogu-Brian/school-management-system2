@@ -3,6 +3,7 @@
 namespace App\Services\Finance;
 
 use App\Models\Account;
+use App\Models\BankAccount;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseStatementImport;
@@ -25,6 +26,9 @@ class ExpenseStatementImportService
 
     protected bool $chargeCategoryResolved = false;
 
+    /** @var array<string, bool>|null Cached digits-only numbers of the school's own bank accounts. */
+    protected ?array $ownAccountNumbersCache = null;
+
     public function __construct(
         protected MpesaExpenseStatementParser $parser,
         protected MpesaTransactionClassifier $classifier,
@@ -45,6 +49,50 @@ class ExpenseStatementImportService
         }
 
         return $this->chargeCategoryIdCache;
+    }
+
+    /**
+     * Digits-only account numbers of the school's own bank accounts. Used to detect
+     * "deposits to our own account" (e.g. Equity paybill 247247 -> 0120263149140),
+     * which are internal treasury transfers, not expenses.
+     *
+     * @return array<string, bool>
+     */
+    protected function ownAccountNumbers(): array
+    {
+        if ($this->ownAccountNumbersCache === null) {
+            $this->ownAccountNumbersCache = [];
+
+            foreach (BankAccount::query()->pluck('account_number') as $number) {
+                $digits = preg_replace('/\D/', '', (string) $number);
+                // Ignore very short / placeholder numbers (e.g. "1") to avoid false matches.
+                if (strlen($digits) >= 6) {
+                    $this->ownAccountNumbersCache[$digits] = true;
+                }
+            }
+        }
+
+        return $this->ownAccountNumbersCache;
+    }
+
+    /**
+     * True when a parsed transaction is a paybill deposit into one of the school's
+     * OWN bank accounts (an internal transfer that must never be booked as an expense).
+     *
+     * @param  array{transaction_type:string, account_reference:?string}  $classification
+     */
+    public function isInternalOwnAccountTransfer(array $classification): bool
+    {
+        if (($classification['transaction_type'] ?? null) !== ExpenseStatementLine::TYPE_PAYBILL) {
+            return false;
+        }
+
+        $account = preg_replace('/\D/', '', (string) ($classification['account_reference'] ?? ''));
+        if (strlen($account) < 6) {
+            return false;
+        }
+
+        return isset($this->ownAccountNumbers()[$account]);
     }
 
     /**
@@ -265,6 +313,16 @@ class ExpenseStatementImportService
             if ($classification['is_transaction_fee'] && $profile && $profile->is_business_expense) {
                 $reviewStatus = ExpenseStatementLine::REVIEW_CONFIRMED;
                 $categoryId = $profile->expense_category_id;
+            }
+
+            // Deposits into our own bank accounts (e.g. Equity paybill 247247 ->
+            // 0120263149140) are internal transfers, not spending. When the user
+            // hasn't explicitly classified this payee, ignore them so they are never
+            // turned into an expense (and never inflate expense totals).
+            if ($reviewStatus === ExpenseStatementLine::REVIEW_PENDING
+                && $this->isInternalOwnAccountTransfer($classification)) {
+                $reviewStatus = ExpenseStatementLine::REVIEW_IGNORED;
+                $txn['internal_transfer'] = true;
             }
 
             ExpenseStatementLine::create([
