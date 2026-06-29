@@ -18,6 +18,27 @@ except ImportError:
     print("Error: pdfplumber not installed. Install with: pip install pdfplumber", file=sys.stderr)
     sys.exit(1)
 
+try:
+    import resource  # Unix only; absent on Windows.
+except ImportError:
+    resource = None
+
+
+def _apply_memory_limit(megabytes: Optional[int]) -> None:
+    """Cap this process's address space so a runaway parse fails cleanly with a
+    MemoryError instead of triggering the kernel OOM killer (which on small boxes
+    tends to take down MySQL/PHP-FPM). Lowering the soft limit never needs extra
+    privileges; the hard limit is left untouched. No-op on Windows."""
+    if not megabytes or megabytes <= 0 or resource is None:
+        return
+    try:
+        limit = int(megabytes) * 1024 * 1024
+        _, hard = resource.getrlimit(resource.RLIMIT_AS)
+        target = limit if hard == resource.RLIM_INFINITY else min(limit, hard)
+        resource.setrlimit(resource.RLIMIT_AS, (target, hard))
+    except (ValueError, OSError):
+        pass
+
 # Reuse battle-tested table parsing from the equity parser module (same M-Pesa layout).
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -101,6 +122,9 @@ def count_pages(pdf_path: str, password: Optional[str] = None) -> dict:
                 if is_mpesa:
                     break
             return {'page_count': total, 'is_mpesa': is_mpesa}
+    except MemoryError:
+        return {'error': 'memory_limit',
+                'message': 'Ran out of memory counting pages. The statement may be too large for the configured limit.'}
     except Exception as exc:
         message = str(exc).lower()
         if 'password' in message or 'encrypted' in message or 'decrypt' in message:
@@ -226,6 +250,9 @@ def extract_mpesa_pages(
                 except Exception:
                     pass
 
+    except MemoryError:
+        return {'error': 'memory_limit',
+                'message': 'Ran out of memory while parsing this page range. Try a smaller chunk size or raise PARSE_MEM_LIMIT_MB.'}
     except Exception as exc:
         message = str(exc).lower()
         if 'password' in message or 'encrypted' in message or 'decrypt' in message:
@@ -252,7 +279,11 @@ def main():
                         help='First page to parse (1-based, inclusive)')
     parser.add_argument('--end-page', type=int, default=None,
                         help='Last page to parse (1-based, inclusive)')
+    parser.add_argument('--mem-limit-mb', type=int, default=None,
+                        help='Cap process address space (MB) so a runaway parse fails cleanly (Unix only)')
     args = parser.parse_args()
+
+    _apply_memory_limit(args.mem_limit_mb)
 
     pdf_path = Path(args.pdf_path)
     if not pdf_path.exists():
@@ -289,6 +320,14 @@ def main():
             'message': result.get('message', 'PDF is password protected'),
         }))
         sys.exit(2)
+
+    if result.get('error') == 'memory_limit':
+        print(json.dumps({
+            'success': False,
+            'error': 'memory_limit',
+            'message': result.get('message', 'Ran out of memory while parsing.'),
+        }))
+        sys.exit(1)
 
     pages = result.get('pages', [])
     tables = []

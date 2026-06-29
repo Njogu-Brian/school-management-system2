@@ -48,6 +48,11 @@ return [
     'python' => [
         // Optional absolute path to python executable, e.g. C:\Python314\python.exe
         'binary' => env('PYTHON_BIN'),
+        // Per-process address-space ceiling (MB) for the PDF parser. The python
+        // process self-imposes this via setrlimit so a runaway parse fails with a
+        // clean MemoryError instead of letting the kernel OOM-kill MySQL/PHP-FPM.
+        // Set to 0 to disable. Linux/Unix only.
+        'parse_mem_limit_mb' => (int) env('PARSE_MEM_LIMIT_MB', 768),
     ],
 
     'mpesa' => [

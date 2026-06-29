@@ -37,6 +37,8 @@ class MpesaExpenseStatementParser
             $cmd[] = $password;
         }
 
+        $cmd = $this->applyResourceGuards($cmd);
+
         $process = new Process($cmd, base_path());
         $process->setTimeout(900);
         $process->run();
@@ -136,6 +138,8 @@ class MpesaExpenseStatementParser
             $cmd[] = $password;
         }
 
+        $cmd = $this->applyResourceGuards($cmd);
+
         $process = new Process($cmd, base_path());
         $process->setTimeout($timeout);
         $process->run();
@@ -161,5 +165,41 @@ class MpesaExpenseStatementParser
         }
 
         return $decoded;
+    }
+
+    /**
+     * Wrap the python invocation with server-side resource guards:
+     *  - a self-imposed memory ceiling (--mem-limit-mb) so a runaway parse dies
+     *    with a clean MemoryError instead of letting the kernel OOM-kill MySQL;
+     *  - `nice` on Linux so the parse can never starve the DB/web tier of CPU.
+     * Both are no-ops on Windows / when the binaries are unavailable.
+     *
+     * @param  array<int, string>  $cmd
+     * @return array<int, string>
+     */
+    protected function applyResourceGuards(array $cmd): array
+    {
+        $memLimit = (int) config('services.python.parse_mem_limit_mb', 768);
+        if ($memLimit > 0) {
+            $cmd[] = '--mem-limit-mb';
+            $cmd[] = (string) $memLimit;
+        }
+
+        if (PHP_OS_FAMILY === 'Linux') {
+            $prefix = [];
+            foreach (['/usr/bin/nice' => ['-n', '15'], '/usr/bin/ionice' => ['-c2', '-n7']] as $bin => $flags) {
+                if (is_executable($bin)) {
+                    $prefix[] = $bin;
+                    foreach ($flags as $flag) {
+                        $prefix[] = $flag;
+                    }
+                }
+            }
+            if (! empty($prefix)) {
+                $cmd = array_merge($prefix, $cmd);
+            }
+        }
+
+        return $cmd;
     }
 }
