@@ -610,10 +610,10 @@ class ExpenseStatementImportService
 
             $first = $lines->first();
 
-            // Editing a group that already produced expenses drops the old (not-yet-approved)
-            // expense draft(s) so the edited vendor/category/description take effect and a fresh
-            // expense can be created on the next Submit. detachExpensesForLines() throws if any
-            // linked expense has already been approved/paid (those must be reversed instead).
+            // Editing a group that already produced expenses drops the old expense(s) so the
+            // edited vendor/category/description take effect and a fresh expense can be created
+            // on the next Submit. Posted (approved/paid) expenses are un-posted first (their
+            // ledger entry reversed with a contra) inside detachExpensesForLines().
             $hasExpenses = $lines->contains(fn ($line) => ! is_null($line->expense_id));
             $reversed = $hasExpenses;
 
