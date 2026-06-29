@@ -376,13 +376,23 @@ class ExpenseStatementImportService
     protected function linkTransactionFeesToParents(ExpenseStatementImport $import): void
     {
         $lines = $import->lines()->get();
-        $primaryByReceipt = $lines
+        $primaries = $lines
             ->where('is_transaction_fee', false)
-            ->where('direction', 'out')
-            ->keyBy('receipt_no');
+            ->where('direction', 'out');
+        $primaryByReceipt = $primaries->keyBy('receipt_no');
+
+        // M-Pesa sometimes gives a transaction charge its own receipt number, so a
+        // charge can't always be matched to its transfer by receipt. Both lines always
+        // share the exact completion time, so fall back to matching on that.
+        $primariesByTime = $primaries
+            ->filter(fn ($p) => $p->completed_at)
+            ->groupBy(fn ($p) => $p->completed_at->format('Y-m-d H:i:s'));
 
         foreach ($lines->where('is_transaction_fee', true) as $feeLine) {
             $parent = $primaryByReceipt->get($feeLine->receipt_no);
+            if (! $parent && $feeLine->completed_at) {
+                $parent = optional($primariesByTime->get($feeLine->completed_at->format('Y-m-d H:i:s')))->first();
+            }
             if (! $parent) {
                 continue;
             }
@@ -663,12 +673,25 @@ class ExpenseStatementImportService
         DB::transaction(function () use ($import, $lineId, $reviewStatus, $categoryId, $description, $userId, $vendorName) {
             $line = $import->lines()->whereKey($lineId)->firstOrFail();
 
+            // Find this transaction's M-Pesa charge line(s) so they follow the same
+            // classification. They normally share the receipt number, but M-Pesa
+            // sometimes assigns the charge its own receipt — in that case it still
+            // sits in the same recipient group at the exact same completion time.
             $relatedFees = collect();
-            if (! $line->is_transaction_fee && $line->receipt_no) {
+            if (! $line->is_transaction_fee) {
                 $relatedFees = $import->lines()
-                    ->where('receipt_no', $line->receipt_no)
                     ->where('is_transaction_fee', true)
                     ->whereKeyNot($line->id)
+                    ->where(function ($q) use ($line) {
+                        if ($line->receipt_no) {
+                            $q->orWhere('receipt_no', $line->receipt_no);
+                        }
+                        if ($line->completed_at) {
+                            $q->orWhere(fn ($q2) => $q2
+                                ->where('group_key', $line->group_key)
+                                ->where('completed_at', $line->completed_at));
+                        }
+                    })
                     ->get();
             }
 
