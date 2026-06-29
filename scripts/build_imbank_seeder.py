@@ -283,24 +283,39 @@ def build(pdf_path, password, sms_path):
             gkey = 'fee:general'
             stats['fee'] += 1
 
-        elif 'SHOWMAX' in upper or re.search(r'\bPRCR\d', narr) or 'OPENAI' in upper or '*' in narr:
+        elif 'SHOWMAX' in upper or re.search(r'PRCR\d', narr) or 'OPENAI' in upper:
             ttype = 'buy_goods'
+            description = 'Card purchase'
             sms = pick_nearest(pur_by_amt.get(amount, []), tdate, max_days=2)
             if sms:
                 vendor = title_case(sms['merchant'])
-                recipient_name = vendor
                 stats['matched_card'] += 1
             else:
-                recipient_name = title_case(re.sub(r'\d{4,}.*$', '', narr).strip()) or narr[:60]
+                merchant = re.sub(r'\s*\d{3,4}\s+\d{4,6}\s*PRCR\d+\s*$', '', narr, flags=re.I).strip()
+                vendor = title_case(merchant) or narr[:60]
                 stats['unmatched_card'] += 1
-            gkey = group_key('buy_goods', recipient_name or narr)
+            recipient_name = vendor
+            gkey = group_key('buy_goods', vendor or narr)
+
+        elif re.match(r'^Airtel Money to (\d{9,12})', narr, re.I):
+            mm = re.match(r'^Airtel Money to (\d{9,12})', narr, re.I)
+            phone = mm.group(1)
+            recipient_phone = phone if phone.startswith('254') else ('254' + phone.lstrip('0'))
+            ttype = 'send_money'
+            description = 'Airtel Money transfer'
+            recipient_name = recipient_phone
+            gkey = group_key('send_money', recipient_phone)
+            stats['airtel'] += 1
 
         elif re_ecitizen.match(narr.strip()):
             m_ec = re_ecitizen.match(narr.strip())
+            extra = re.sub(r'^ECITIZEN', '', m_ec.group(2), flags=re.I).strip()
             ttype = 'paybill'
-            vendor = title_case(m_ec.group(2))
+            receipt = m_ec.group(1).upper()
+            vendor = 'eCitizen'
             recipient_name = vendor
-            gkey = group_key('paybill', m_ec.group(2))
+            description = ('eCitizen - ' + title_case(extra)) if extra else 'eCitizen / government payment'
+            gkey = group_key('paybill', 'ecitizen')
             stats['ecitizen'] += 1
 
         else:
@@ -316,6 +331,27 @@ def build(pdf_path, password, sms_path):
                 gkey = group_key('paybill', sms['acc'] or sms['name'])
                 stats['matched_paid'] += 1
             else:
+                # Decode the remaining cryptic I&M narrations into a readable purpose.
+                m_purpose = re.match(r'^\d+/(.+)$', narr)
+                if m_purpose:
+                    pu = m_purpose.group(1).strip().upper()
+                    if 'SALARY' in pu:
+                        description = 'Salary payment'
+                    elif 'LOAN' in pu:
+                        description = 'Loan repayment'
+                    elif 'UTILIT' in pu:
+                        description = 'Utilities'
+                    elif 'TITHE' in pu:
+                        description = 'Tithe'
+                    elif not pu.startswith('MPESA PAYMENT'):
+                        description = title_case(m_purpose.group(1).strip())
+                elif 'DEBIT FROM PAYOFF SOURCE' in upper or 'LOAN RECOVERY' in upper:
+                    description = 'Loan repayment'
+                elif upper.startswith('PAYMENT TO '):
+                    description = 'Account transfer'
+                elif re.match(r'^\d{6,}$', narr.strip()):
+                    description = 'Paybill / account payment'
+                    ttype = 'paybill'
                 recipient_name = title_case(re.sub(r'\s+', ' ', narr)[:80])
                 gkey = group_key('other', narr)
                 stats['other'] += 1
