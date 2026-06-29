@@ -17,12 +17,23 @@ use Illuminate\Support\Facades\DB;
  * such payments collapsed into ONE review group and were mass-mislabelled (e.g. the
  * whole group booked as "Electricity"), then turned into confirmed/paid expenses.
  *
+ * SCOPE (deliberately narrow — this command is destructive):
+ *   A line is only "affected" when ALL of these hold:
+ *     - it is an outgoing, NON-fee line,
+ *     - its narration actually contains the word "Fuliza",
+ *     - it currently has NO paybill_number and NO recipient_name (the parser failed), and
+ *     - re-classifying it now RECOVERS a paybill/recipient and changes its group_key.
+ *   Fee lines (whose group_key is inherited from their parent) and any line that
+ *   already parsed a payee are never touched, so it cannot blindly re-group the whole
+ *   statement set the way an earlier version did.
+ *
  * For every affected line this command:
  *   1. Re-classifies it with the fixed {@see MpesaTransactionClassifier}.
  *   2. Reverses (posted) or rejects (submitted) any expense that was wrongly created
  *      from it — posting a proper contra journal entry where one exists.
  *   3. Rewrites the structured fields (paybill_number, recipient_name,
- *      account_reference, group_key, transaction_type) so the line regroups correctly.
+ *      account_reference, group_key, transaction_type) so the line regroups correctly
+ *      (vendor_name overrides set manually are preserved).
  *   4. Marks deposits into the school's own bank accounts as IGNORED (internal
  *      transfers), otherwise leaves the line PENDING/uncategorised for re-review.
  *
@@ -55,31 +66,60 @@ class FixFulizaStatementCategorisation extends Command
             ? 'APPLYING fixes (changes WILL be saved).'
             : 'DRY RUN (no changes saved — pass --apply to commit).');
 
+        // ONLY look at outgoing, non-fee lines whose narration actually carries the
+        // Fuliza funding phrase. Fee lines inherit their parent's group_key (so they
+        // would always "differ") and non-Fuliza lines were never affected by the bug;
+        // scoping at the SQL level here is what keeps this command from over-matching.
         $query = ExpenseStatementLine::query()
             ->where('direction', 'out')
+            ->where('is_transaction_fee', false)
+            ->where('narration', 'like', '%Fuliza%')
             ->when($importFilter, fn ($q) => $q->where('import_id', (int) $importFilter))
             ->orderBy('import_id')
             ->orderBy('id');
 
         $affected = [];
+        $scanned = 0;        // Fuliza lines examined
+        $skippedParsed = 0;  // already had a payee → left untouched
 
-        $query->chunkById(500, function ($lines) use (&$affected) {
+        $query->chunkById(500, function ($lines) use (&$affected, &$scanned, &$skippedParsed) {
             foreach ($lines as $line) {
+                $scanned++;
+
+                // If the line already has a paybill/recipient, the old parser handled it
+                // fine despite the Fuliza phrase — never disturb it.
+                $oldHasPayee = trim((string) $line->paybill_number) !== ''
+                    || trim((string) $line->recipient_name) !== '';
+                if ($oldHasPayee) {
+                    $skippedParsed++;
+                    continue;
+                }
+
                 $new = $this->classifier->classify(
                     (string) $line->narration,
                     (float) $line->withdrawn_amount,
                     (float) $line->paid_in_amount,
                 );
 
-                // Only lines whose grouping changes were caught by the parser bug.
-                // (Correctly-parsed lines — KPLC etc. — produce the same group_key.)
-                if ($new['group_key'] === $line->group_key) {
+                // Only act when the corrected parse genuinely RECOVERS a payee/paybill
+                // that was previously missing AND that regroups the line. Anything that
+                // doesn't recover a payee is left alone (no blind re-grouping).
+                $newHasPayee = trim((string) $new['paybill_number']) !== ''
+                    || trim((string) $new['recipient_name']) !== '';
+                if (! $newHasPayee || $new['group_key'] === $line->group_key) {
                     continue;
                 }
 
                 $affected[] = ['line' => $line, 'new' => $new];
             }
         });
+
+        $this->line(sprintf(
+            'Scanned %d Fuliza line(s): %d already parsed (left untouched), %d recoverable.',
+            $scanned,
+            $skippedParsed,
+            count($affected)
+        ));
 
         if (empty($affected)) {
             $this->info('No affected lines found. Nothing to do.');
