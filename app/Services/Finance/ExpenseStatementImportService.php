@@ -30,6 +30,7 @@ class ExpenseStatementImportService
         protected MpesaTransactionClassifier $classifier,
         protected ExpenseWorkflowService $expenseWorkflow,
         protected JournalPostingService $journalPosting,
+        protected RecipientMemoryService $recipientMemory,
     ) {}
 
     /**
@@ -230,6 +231,9 @@ class ExpenseStatementImportService
         }
 
         $this->linkTransactionFeesToParents($import);
+
+        // Auto-categorise & group new lines from previously classified recipients.
+        $this->recipientMemory->applyToPendingLines($import->id);
 
         return [
             'line_count' => $lineCount,

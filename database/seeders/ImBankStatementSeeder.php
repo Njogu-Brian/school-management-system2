@@ -157,6 +157,11 @@ class ImBankStatementSeeder extends Seeder
 
             $this->command?->info("I&M statement imported (id {$import->id}): {$lineCount} lines, "
                 . 'KES ' . number_format($outgoingTotal, 2) . " withdrawn, {$duplicates} duplicate(s) skipped.");
+
+            // Auto-categorise & group from previously classified recipients.
+            $applied = app(\App\Services\Finance\RecipientMemoryService::class)->applyToPendingLines($import->id);
+            $this->command?->info("Auto-categorised {$applied['confirmed']} business + {$applied['personal']} personal "
+                . "(phone {$applied['by_phone']}, name {$applied['by_name']}, keyword {$applied['by_keyword']}).");
         });
     }
 
