@@ -30,26 +30,33 @@ class ImBankStatementSeeder extends Seeder
 {
     public function run(): void
     {
-        $path = database_path('seeders/data/imbank_transactions.json');
-
-        if (! is_file($path)) {
-            $this->command?->error("Data file not found: {$path}");
-            return;
-        }
-
-        $payload = json_decode((string) file_get_contents($path), true);
-        if (! is_array($payload) || empty($payload['lines'])) {
-            $this->command?->error('Statement data file is empty or invalid.');
-            return;
-        }
-
         $uploaderId = User::query()->orderBy('id')->value('id');
         if (! $uploaderId) {
             $this->command?->error('No users found to attribute the import to.');
             return;
         }
 
-        $filename = $payload['original_filename'] ?? 'imbank-statement.pdf';
+        // Seed every I&M data file (one per account/statement).
+        $files = glob(database_path('seeders/data/imbank_transactions*.json')) ?: [];
+        if (! $files) {
+            $this->command?->error('No I&M data files found in database/seeders/data/.');
+            return;
+        }
+
+        foreach ($files as $path) {
+            $this->importFile($path, $uploaderId);
+        }
+    }
+
+    private function importFile(string $path, int $uploaderId): void
+    {
+        $payload = json_decode((string) file_get_contents($path), true);
+        if (! is_array($payload) || empty($payload['lines'])) {
+            $this->command?->warn('Skipping empty/invalid file: ' . basename($path));
+            return;
+        }
+
+        $filename = $payload['original_filename'] ?? basename($path);
 
         // Idempotency: never create the same statement twice.
         $existing = ExpenseStatementImport::query()
@@ -61,6 +68,8 @@ class ImBankStatementSeeder extends Seeder
             $this->command?->warn("I&M statement '{$filename}' already imported (id {$existing->id}); skipping.");
             return;
         }
+
+        $this->command?->info("Importing I&M statement: {$filename} ({$payload['account_name']})");
 
         DB::transaction(function () use ($payload, $uploaderId, $filename) {
             $import = ExpenseStatementImport::create([

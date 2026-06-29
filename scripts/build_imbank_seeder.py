@@ -40,6 +40,38 @@ def last9(num):
 # --------------------------------------------------------------------------
 # 1. Parse the PDF -> list of withdrawal transactions
 # --------------------------------------------------------------------------
+def parse_account(path, password):
+    with pdfplumber.open(path, password=password) as pdf:
+        t = pdf.pages[0].extract_text() or ''
+    name = (re.search(r'Account Name\s+(.+?)\s+Page', t) or [None, None])[1]
+    number = (re.search(r'Account Number\s+(\S+)', t) or [None, None])[1]
+    period = re.search(r'Statement Period\s+(\d{2}-\d{2}-\d{4})\s+To\s+(\d{2}-\d{2}-\d{4})', t)
+    return {
+        'account_name': (name or '').strip() or None,
+        'account_number': (number or '').strip() or None,
+    }
+
+
+def load_phone_name_map(data_dir, exclude=None):
+    """Build phone(last9) -> name from previously generated I&M data files."""
+    import glob
+    from collections import Counter as _C
+    votes = {}
+    for fp in glob.glob(os.path.join(data_dir, 'imbank_transactions*.json')):
+        if exclude and os.path.abspath(fp) == os.path.abspath(exclude):
+            continue
+        try:
+            data = json.load(open(fp, encoding='utf-8'))
+        except Exception:
+            continue
+        for ln in data.get('lines', []):
+            ph = ln.get('recipient_phone')
+            nm = (ln.get('vendor_name') or ln.get('recipient_name') or '').strip()
+            if ph and nm and not nm.isdigit():
+                votes.setdefault(last9(ph), _C())[nm] += 1
+    return {p: c.most_common(1)[0][0] for p, c in votes.items()}
+
+
 def parse_pdf(path, password):
     txns = []
     with pdfplumber.open(path, password=password) as pdf:
@@ -89,6 +121,9 @@ def parse_sms(path):
     purchases = []   # card purchases: amount, merchant, dt
     paid_to = []     # till/paybill paid: amount, name, ref, dt
     payments = []    # generic "Payment of KES x to <phone>": phone, amount, ref, dt
+
+    if not path or path in ('-', 'none', 'None'):
+        return transfers, purchases, paid_to, payments
 
     re_transfer = re.compile(
         r'Bank to M-PESA transfer of KES\s*([\d,]+\.?\d*)\s*to\s*(\d+)\s*-\s*(.+?)\s+successfully processed\..*?M-PESA Ref ID:\s*([A-Z0-9]+)',
@@ -173,7 +208,8 @@ def fingerprint(receipt, completed, narration, salt):
 # --------------------------------------------------------------------------
 # 3. Match + build line records
 # --------------------------------------------------------------------------
-def build(pdf_path, password, sms_path):
+def build(pdf_path, password, sms_path, phone_names=None):
+    phone_names = phone_names or {}
     txns = parse_pdf(pdf_path, password)
     transfers, purchases, paid_to, payments = parse_sms(sms_path)
 
@@ -356,6 +392,15 @@ def build(pdf_path, password, sms_path):
                 gkey = group_key('other', narr)
                 stats['other'] += 1
 
+        # No-SMS fallback: label send-money recipients by phone from known I&M data.
+        if not vendor and recipient_phone:
+            known = phone_names.get(last9(recipient_phone))
+            if known:
+                vendor = known
+                if not recipient_name or recipient_name == recipient_phone:
+                    recipient_name = known
+                stats['matched_known_phone'] += 1
+
         fp = fingerprint(receipt, completed, narr, f"{i}|{t['balance']}")
 
         lines.append({
@@ -384,8 +429,18 @@ def build(pdf_path, password, sms_path):
 
 
 def main():
-    pdf_path, password, sms_path = sys.argv[1], sys.argv[2], sys.argv[3]
-    lines, stats, txns = build(pdf_path, password, sms_path)
+    # Usage: build_imbank_seeder.py <pdf> <password> [sms_path|-] [out.json]
+    pdf_path, password = sys.argv[1], sys.argv[2]
+    sms_path = sys.argv[3] if len(sys.argv) > 3 else '-'
+
+    out_dir = os.path.join('database', 'seeders', 'data')
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = sys.argv[4] if len(sys.argv) > 4 else os.path.join(out_dir, 'imbank_transactions.json')
+
+    acct = parse_account(pdf_path, password)
+    phone_names = load_phone_name_map(out_dir, exclude=out_path)
+
+    lines, stats, txns = build(pdf_path, password, sms_path, phone_names)
 
     total_amt = round(sum(l['withdrawn_amount'] for l in lines), 2)
     dates = [l['tran_date'] for l in lines]
@@ -393,8 +448,8 @@ def main():
         'source': 'bank',
         'bank': 'I&M Bank',
         'original_filename': os.path.basename(pdf_path),
-        'account_name': 'BRIAN MURAGE NJOGU',
-        'account_number': '03604789316150',
+        'account_name': acct['account_name'] or 'I&M Account',
+        'account_number': acct['account_number'],
         'period_start': min(dates) if dates else None,
         'period_end': max(dates) if dates else None,
         'outgoing_count': len(lines),
@@ -402,12 +457,11 @@ def main():
         'lines': lines,
     }
 
-    out_dir = os.path.join('database', 'seeders', 'data')
-    os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, 'imbank_transactions.json')
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)
 
+    print(f"Account            : {payload['account_name']}  {payload['account_number']}")
+    print(f"Known phones loaded : {len(phone_names)}")
     print(f"Withdrawals parsed : {len(lines)}")
     print(f"Total withdrawn    : KES {total_amt:,.2f}")
     print(f"Period             : {payload['period_start']} -> {payload['period_end']}")
