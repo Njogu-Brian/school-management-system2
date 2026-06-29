@@ -1504,6 +1504,13 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('petty-cash-vouchers/{pettyCashVoucher}/approve', [\App\Http\Controllers\Finance\PettyCashVoucherController::class, 'approve'])->name('petty-cash-vouchers.approve');
         Route::post('petty-cash-vouchers/{pettyCashVoucher}/post', [\App\Http\Controllers\Finance\PettyCashVoucherController::class, 'post'])->name('petty-cash-vouchers.post');
 
+        // Combined cross-statement review (group/classify recipients across all statements)
+        Route::get('statement-transactions', [\App\Http\Controllers\Finance\StatementTransactionController::class, 'index'])->name('statement-transactions.index');
+        Route::post('statement-transactions/groups', [\App\Http\Controllers\Finance\StatementTransactionController::class, 'updateGroup'])->name('statement-transactions.groups.update');
+        Route::post('statement-transactions/lines', [\App\Http\Controllers\Finance\StatementTransactionController::class, 'updateLine'])->name('statement-transactions.lines.update');
+        Route::post('statement-transactions/bulk-update-groups', [\App\Http\Controllers\Finance\StatementTransactionController::class, 'bulkUpdateGroups'])->name('statement-transactions.bulk-update-groups');
+        Route::post('statement-transactions/submit-expenses', [\App\Http\Controllers\Finance\StatementTransactionController::class, 'submitExpenses'])->name('statement-transactions.submit-expenses');
+
         // Expense statement analyzer (M-Pesa / bank statements for expenditure tracking)
         Route::get('expense-statements', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'index'])->name('expense-statements.index');
         Route::get('expense-statements/create', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'create'])->name('expense-statements.create');

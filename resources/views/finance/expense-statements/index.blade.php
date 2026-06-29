@@ -4,10 +4,10 @@
 <div class="finance-page">
   <div class="finance-shell">
     @include('finance.partials.header', [
-      'title' => 'Statement Analyzer',
+      'title' => 'Uploaded Statements',
       'icon' => 'bi bi-file-earmark-spreadsheet',
-      'subtitle' => 'Upload M-Pesa statements to extract and classify outgoing transactions',
-      'actions' => '<a href="' . route('finance.expense-statements.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-upload"></i> Upload Statement</a>'
+      'subtitle' => 'Each uploaded statement and its own transactions. For cross-statement grouping use All Transactions.',
+      'actions' => '<a href="' . route('finance.statement-transactions.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-collection"></i> All Transactions</a> <a href="' . route('finance.expense-statements.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-upload"></i> Upload Statement</a>'
     ])
 
     @if(session('success'))
@@ -48,7 +48,7 @@
               @endif
             </td>
             <td>KES {{ number_format((float)$import->outgoing_total, 2) }} <small class="text-muted">({{ $import->outgoing_count }})</small></td>
-            <td>KES {{ number_format((float)$import->confirmed_expense_total, 2) }}</td>
+            <td>KES {{ number_format((float)($confirmedTotals[$import->id] ?? 0), 2) }}</td>
             <td>{{ ucfirst($import->status) }}</td>
             <td class="text-nowrap">
               <a href="{{ route('finance.expense-statements.show', $import) }}" class="btn btn-sm btn-info">Review</a>

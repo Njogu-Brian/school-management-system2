@@ -34,7 +34,17 @@ class ExpenseStatementController extends Controller
             ->latest()
             ->paginate(15);
 
-        return view('finance.expense-statements.index', compact('imports'));
+        // Live confirmed-business totals per import (the stored column can lag behind
+        // auto-categorisation), keyed by import id for the listing.
+        $confirmedTotals = ExpenseStatementLine::query()
+            ->whereIn('import_id', $imports->pluck('id'))
+            ->where('direction', 'out')
+            ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+            ->selectRaw('import_id, SUM(withdrawn_amount) as total')
+            ->groupBy('import_id')
+            ->pluck('total', 'import_id');
+
+        return view('finance.expense-statements.index', compact('imports', 'confirmedTotals'));
     }
 
     public function create(): View
@@ -185,9 +195,15 @@ class ExpenseStatementController extends Controller
             $categoryGroups[$groupName][] = $category;
         }
 
+        // Compute confirmed/pending totals live from the current line state so the
+        // summary cards always tally with auto-categorised transactions (the stored
+        // confirmed_expense_total column is only refreshed on manual review/import).
         $stats = [
             'outgoing_total' => $expenseStatement->outgoing_total,
-            'confirmed_total' => $expenseStatement->confirmed_expense_total,
+            'confirmed_total' => $expenseStatement->lines()
+                ->where('direction', 'out')
+                ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+                ->sum('withdrawn_amount'),
             'pending_outgoing' => $expenseStatement->lines()
                 ->where('direction', 'out')
                 ->where('review_status', ExpenseStatementLine::REVIEW_PENDING)

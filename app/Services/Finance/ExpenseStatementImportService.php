@@ -302,6 +302,11 @@ class ExpenseStatementImportService
         // Auto-link Azanet paybill payments to the seeded internet invoices (no duplicate expense).
         $this->invoiceLinker->linkAzanet($import->id);
 
+        // Auto-categorisation above flips pending lines to confirmed/personal directly,
+        // so recompute the stored "confirmed business" total to keep the summary cards
+        // (which read this denormalised column) in sync with the actual line state.
+        $this->refreshImportConfirmedTotal($import);
+
         return [
             'line_count' => $lineCount,
             'outgoing_count' => $outgoingCount,
@@ -369,6 +374,34 @@ class ExpenseStatementImportService
             ->where('direction', 'out')
             ->with('category');
 
+        $this->applyLineFilters($query, $filter, $search);
+
+        return $this->buildGroups($query->orderByDesc('completed_at')->get());
+    }
+
+    /**
+     * Grouped outgoing transactions across EVERY parsed statement (combined review).
+     * Lines from different imports that share a group_key (same recipient/paybill)
+     * are merged into a single group so the user can classify a payee once.
+     *
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    public function groupedLinesAcrossImports(?string $filter = null, ?string $search = null)
+    {
+        $query = ExpenseStatementLine::query()
+            ->where('direction', 'out')
+            ->with(['category', 'import']);
+
+        $this->applyLineFilters($query, $filter, $search);
+
+        return $this->buildGroups($query->orderByDesc('completed_at')->get(), true);
+    }
+
+    /**
+     * Apply the shared review-status filter and free-text search to a line query.
+     */
+    protected function applyLineFilters($query, ?string $filter, ?string $search): void
+    {
         if ($filter === 'pending') {
             $query->where('review_status', ExpenseStatementLine::REVIEW_PENDING);
         } elseif ($filter === 'confirmed' || $filter === 'business') {
@@ -398,13 +431,34 @@ class ExpenseStatementImportService
                     ->orWhere('receipt_no', 'like', $like);
             });
         }
+    }
 
-        $lines = $query->orderByDesc('completed_at')->get();
-
-        return $lines->groupBy('group_key')->map(function ($groupLines) {
+    /**
+     * Build display groups (keyed by group_key) from a flat line collection.
+     *
+     * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $lines
+     * @param  bool  $withStatements  Track which statements each group spans (combined view).
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    protected function buildGroups($lines, bool $withStatements = false)
+    {
+        return $lines->groupBy('group_key')->map(function ($groupLines) use ($withStatements) {
             $first = $groupLines->first();
 
             $vendorName = $this->resolveGroupVendorName($groupLines);
+
+            $statements = collect();
+            if ($withStatements) {
+                $statements = $groupLines
+                    ->map(fn ($line) => $line->import)
+                    ->filter()
+                    ->unique('id')
+                    ->map(fn ($import) => (object) [
+                        'id' => $import->id,
+                        'label' => $import->account_name ?: ($import->original_filename ?: ('Statement #' . $import->id)),
+                    ])
+                    ->values();
+            }
 
             return (object) [
                 'group_key' => $first->group_key,
@@ -427,6 +481,7 @@ class ExpenseStatementImportService
                 'review_status' => $this->resolveGroupReviewStatus($groupLines),
                 'expense_category_id' => $this->resolveGroupCategoryId($groupLines),
                 'expense_description' => $this->resolveGroupDescription($groupLines),
+                'statements' => $statements,
                 'lines' => $groupLines,
             ];
         })->sortByDesc('total_amount')->values();
@@ -1173,5 +1228,139 @@ class ExpenseStatementImportService
             'unconverted_total' => (float) (clone $confirmed)->whereNull('expense_id')->sum('withdrawn_amount'),
             'converted_count' => (clone $confirmed)->whereNotNull('expense_id')->count(),
         ];
+    }
+
+    /* ----------------------------------------------------------------------
+     | Combined (cross-statement) review helpers
+     | -------------------------------------------------------------------- */
+
+    /**
+     * Imports that contain at least one line for the given group key.
+     *
+     * @return \Illuminate\Support\Collection<int, ExpenseStatementImport>
+     */
+    protected function importsForGroup(string $groupKey)
+    {
+        $importIds = ExpenseStatementLine::where('group_key', $groupKey)
+            ->distinct()
+            ->pluck('import_id');
+
+        return ExpenseStatementImport::whereIn('id', $importIds)->get();
+    }
+
+    /**
+     * Apply a classification to a recipient group across EVERY statement it appears in.
+     *
+     * @return bool Whether any previously created expenses were reversed.
+     */
+    public function applyGroupReviewGlobal(
+        string $groupKey,
+        string $reviewStatus,
+        ?int $categoryId,
+        ?string $description,
+        bool $remember,
+        int $userId,
+        ?string $vendorName = null,
+    ): bool {
+        $reversed = false;
+
+        foreach ($this->importsForGroup($groupKey) as $import) {
+            $reversed = $this->applyGroupReview(
+                $import,
+                $groupKey,
+                $reviewStatus,
+                $categoryId,
+                $description,
+                $remember,
+                $userId,
+                $vendorName,
+            ) || $reversed;
+        }
+
+        return $reversed;
+    }
+
+    /**
+     * Apply a classification to a single line, resolving its parent statement.
+     */
+    public function applyLineReviewGlobal(
+        int $lineId,
+        string $reviewStatus,
+        ?int $categoryId,
+        ?string $description,
+        int $userId,
+        ?string $vendorName = null,
+    ): void {
+        $line = ExpenseStatementLine::with('import')->findOrFail($lineId);
+
+        $this->applyLineReview(
+            $line->import,
+            $line->id,
+            $reviewStatus,
+            $categoryId,
+            $description,
+            $userId,
+            $vendorName,
+        );
+    }
+
+    /**
+     * Live outgoing/confirmed/pending totals across every parsed statement.
+     *
+     * @return array{outgoing_total: float, confirmed_total: float, pending_outgoing: float, import_count: int}
+     */
+    public function combinedStats(): array
+    {
+        $base = ExpenseStatementLine::query()->where('direction', 'out');
+
+        return [
+            'outgoing_total' => (float) (clone $base)->sum('withdrawn_amount'),
+            'confirmed_total' => (float) (clone $base)
+                ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+                ->sum('withdrawn_amount'),
+            'pending_outgoing' => (float) (clone $base)
+                ->where('review_status', ExpenseStatementLine::REVIEW_PENDING)
+                ->sum('withdrawn_amount'),
+            'import_count' => ExpenseStatementImport::count(),
+        ];
+    }
+
+    /**
+     * Confirmed transactions across all statements that are ready to be turned into
+     * submitted expenses (business, categorised, not yet linked to an expense).
+     */
+    public function combinedExpenseCreationCount(): int
+    {
+        return ExpenseStatementLine::query()
+            ->where('direction', 'out')
+            ->where('is_transaction_fee', false)
+            ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+            ->whereNull('expense_id')
+            ->whereNotNull('expense_category_id')
+            ->count();
+    }
+
+    /**
+     * Submit (create SUBMITTED expenses for) every confirmed transaction across all
+     * statements that does not yet have one.
+     *
+     * @return int Number of expenses created.
+     */
+    public function createExpensesForAllImports(int $userId): int
+    {
+        $importIds = ExpenseStatementLine::query()
+            ->where('direction', 'out')
+            ->where('review_status', ExpenseStatementLine::REVIEW_CONFIRMED)
+            ->whereNull('expense_id')
+            ->whereNotNull('expense_category_id')
+            ->distinct()
+            ->pluck('import_id');
+
+        $created = 0;
+        foreach (ExpenseStatementImport::whereIn('id', $importIds)->get() as $import) {
+            $created += $this->createExpensesForImport($import, $userId);
+        }
+
+        return $created;
     }
 }

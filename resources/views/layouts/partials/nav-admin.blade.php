@@ -517,13 +517,15 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     @php
         $expensesActive = Request::is('finance/expenses*')
             || Request::is('finance/expense-statements*')
+            || Request::is('finance/statement-transactions*')
             || Request::is('finance/expense-categories*')
             || Request::is('finance/payment-vouchers*')
             || Request::is('finance/chart-of-accounts*')
             || Request::is('finance/journal-entries*')
             || Request::is('finance/petty-cash-*')
             || Request::is('finance/vendors*');
-        $expenseStatementsActive = Request::is('finance/expense-statements*');
+        $expenseStatementsActive = Request::is('finance/expense-statements*')
+            || Request::is('finance/statement-transactions*');
         $accountingActive = Request::is('finance/chart-of-accounts*')
             || Request::is('finance/journal-entries*')
             || Request::is('finance/petty-cash-*')
@@ -541,7 +543,10 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         @if(Route::has('finance.expense-statements.index'))
             <a href="#expenseStatementsMenu" data-bs-toggle="collapse" aria-expanded="{{ $expenseStatementsActive ? 'true' : 'false' }}" class="sublink {{ $expenseStatementsActive ? 'parent-active' : '' }}"><i class="bi bi-file-earmark-spreadsheet"></i> Statement Analyzer</a>
             <div class="collapse {{ $expenseStatementsActive ? 'show' : '' }}" id="expenseStatementsMenu" style="padding-left: 20px;">
-                <a href="{{ route('finance.expense-statements.index') }}" class="sublink {{ Request::is('finance/expense-statements') || (Request::is('finance/expense-statements/*') && !Request::is('finance/expense-statements/create')) ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-folder2-open"></i> Imported Statements</a>
+                @if(Route::has('finance.statement-transactions.index'))
+                    <a href="{{ route('finance.statement-transactions.index') }}" class="sublink {{ Request::is('finance/statement-transactions*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-collection"></i> All Transactions</a>
+                @endif
+                <a href="{{ route('finance.expense-statements.index') }}" class="sublink {{ Request::is('finance/expense-statements') || (Request::is('finance/expense-statements/*') && !Request::is('finance/expense-statements/create')) ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-folder2-open"></i> Uploaded Statements</a>
                 @if(Route::has('finance.expense-statements.create'))
                     <a href="{{ route('finance.expense-statements.create') }}" class="sublink {{ Request::is('finance/expense-statements/create') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-upload"></i> Upload M-Pesa Statement</a>
                 @endif
