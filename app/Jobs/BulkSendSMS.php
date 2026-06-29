@@ -9,6 +9,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -44,6 +45,23 @@ class BulkSendSMS implements ShouldQueue
         $this->target = $target;
         $this->senderId = $senderId;
         $this->userId = $userId ?? auth()->id();
+    }
+
+    /**
+     * Prevent two copies of the SAME batch (same tracking_id) from ever running
+     * at once. This is the structural fix for the duplicate-SMS incident: when the
+     * queue's retry_after was shorter than this job's timeout, the worker spawned
+     * concurrent clones that raced past the idempotency check and double-sent.
+     * A duplicate copy that can't grab the lock is discarded (dontRelease) instead
+     * of piling up; the lock auto-expires so a crashed run can be retried later.
+     */
+    public function middleware(): array
+    {
+        return [
+            (new WithoutOverlapping('bulk_sms:' . $this->trackingId))
+                ->dontRelease()
+                ->expireAfter($this->timeout + 600),
+        ];
     }
 
     public function handle(SMSService $smsService): void
@@ -153,6 +171,22 @@ class BulkSendSMS implements ShouldQueue
                     continue;
                 }
 
+                // Race-safe claim: atomically reserve this recipient before sending.
+                // Cache::add is atomic on database/redis stores and returns false if
+                // another (overlapping) worker already claimed/sent it, so the same
+                // person can never be texted twice even if two job copies overlap.
+                $claimKey = "bulk_sms_claim:{$this->trackingId}:{$idempotencyKey}";
+                if (! Cache::add($claimKey, true, now()->addHours(24))) {
+                    $sentCount++;
+                    $reportRows[] = $this->buildReportRow(
+                        $phone,
+                        $entityData,
+                        'sent',
+                        'Skipped: already sent/claimed (concurrency guard)'
+                    );
+                    continue;
+                }
+
                 if (! empty($item['message'])) {
                     $personalized = $item['message'];
                 } elseif (! empty($item['parent_name'])) {
@@ -168,6 +202,7 @@ class BulkSendSMS implements ShouldQueue
                 $response = $smsService->sendSMS($phone, $personalized, $chosenSender);
 
                 if (data_get($response, 'error_code') === 'INSUFFICIENT_CREDITS') {
+                    Cache::forget($claimKey); // not sent; allow resend on resume
                     CommunicationPauseService::pauseDueToInsufficientCredits(
                         (float) data_get($response, 'balance', 0),
                         'BulkSendSMS'
@@ -214,6 +249,9 @@ class BulkSendSMS implements ShouldQueue
                 }
 
                 $status === 'sent' ? $sentCount++ : $failedCount++;
+                if ($status !== 'sent') {
+                    Cache::forget($claimKey); // provider rejected; allow retry to resend
+                }
                 $reportRows[] = $this->buildReportRow($phone, $entityData, $status,
                     $status !== 'sent' ? (is_array($response) ? json_encode($response) : (string) $response) : null);
 
@@ -243,6 +281,9 @@ class BulkSendSMS implements ShouldQueue
                 }
             } catch (\Throwable $e) {
                 $failedCount++;
+                if (isset($claimKey)) {
+                    Cache::forget($claimKey); // error before/after send; allow retry to resend
+                }
                 $entity = $entity ?? (is_array($entityData) ? (object) $entityData : (object) []);
                 Log::error('SMS send error in bulk job', [
                     'tracking_id' => $this->trackingId,
