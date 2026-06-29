@@ -261,9 +261,13 @@ class ExpenseStatementController extends Controller
             return back()->withErrors(['review_status' => $e->getMessage()]);
         }
 
-        $message = $reversed
-            ? 'Group edited — its previous expenses were reversed and the transactions moved back to pending. Re-categorise and Submit again.'
-            : 'Transaction group updated.';
+        if ($reversed) {
+            $message = $validated['review_status'] === ExpenseStatementLine::REVIEW_CONFIRMED
+                ? 'Group updated — the previous expense(s) were removed (any ledger postings reversed) and replaced with your new vendor/category/description. Submit the confirmed transactions to recreate the expense(s).'
+                : 'Group updated — the previous expense(s) were removed (any ledger postings reversed).';
+        } else {
+            $message = 'Transaction group updated.';
+        }
 
         return back()->with('success', $message);
     }
@@ -278,6 +282,7 @@ class ExpenseStatementController extends Controller
             'review_status' => 'required|in:confirmed_expense,personal,ignored,pending',
             'expense_category_id' => 'nullable|exists:expense_categories,id',
             'expense_description' => 'nullable|string|max:1000',
+            'vendor_name' => 'nullable|string|max:255',
             'remember_choice' => 'nullable|boolean',
         ]);
 
@@ -298,6 +303,7 @@ class ExpenseStatementController extends Controller
                     $validated['expense_description'] ?? null,
                     (bool) ($validated['remember_choice'] ?? false),
                     (int) $request->user()->id,
+                    $validated['vendor_name'] ?? null,
                 );
                 $applied++;
             } catch (\RuntimeException $e) {

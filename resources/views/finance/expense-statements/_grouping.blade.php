@@ -13,6 +13,7 @@
     $showStatement   bool — show which statement each transaction came from (combined)
 --}}
 @php($showStatement = $showStatement ?? false)
+@php($highlightGroup = $highlightGroup ?? null)
 
 <div class="finance-card mb-3">
   <div class="finance-card-body">
@@ -59,7 +60,7 @@
         </div>
         <div class="small text-muted"><span id="selectedCount">0</span> selected</div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="form-label small mb-1">Set classification</label>
         <select name="review_status" class="finance-form-select form-select-sm" required>
           <option value="confirmed_expense">Business expense</option>
@@ -68,13 +69,17 @@
           <option value="pending">Pending review</option>
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Vendor / payee name</label>
+        <input type="text" name="vendor_name" list="vendor-options" class="finance-form-control form-control-sm" placeholder="Applied to all selected" autocomplete="off">
+      </div>
+      <div class="col-md-2">
         <label class="form-label small mb-1">Expense category</label>
         <select name="expense_category_id" class="finance-form-select form-select-sm" data-category-select data-scope="group" data-selected="">
           <option value="">— Select —</option>
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="form-label small mb-1">Description (optional)</label>
         <input type="text" name="expense_description" class="finance-form-control form-control-sm" placeholder="Applied to all selected">
       </div>
@@ -90,7 +95,7 @@
 </form>
 
 @forelse($groups as $index => $group)
-  <div class="finance-card mb-3">
+  <div class="finance-card mb-3 group-card {{ $highlightGroup === $group->group_key ? 'group-highlight' : '' }}" id="grp-{{ $group->group_key }}">
     <div class="finance-card-body">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
@@ -305,6 +310,15 @@
   .cat-combo-item:hover, .cat-combo-item.highlight { background: #eef2ff; }
   .cat-combo-item.active { font-weight: 600; color: #1d4ed8; }
   .cat-combo-empty { padding: .5rem .6rem; color: #98a2b3; font-size: .85rem; }
+  .group-card.group-highlight {
+    outline: 2px solid #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, .18);
+    animation: groupHighlightPulse 2s ease-out 1;
+  }
+  @keyframes groupHighlightPulse {
+    0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .45); }
+    100% { box-shadow: 0 0 0 4px rgba(37, 99, 235, .18); }
+  }
 </style>
 
 <script>
@@ -533,5 +547,20 @@
   }
 
   refresh();
+})();
+
+// Deep-link from an expense: scroll to, expand and highlight the targeted group.
+(function () {
+  var target = @json($highlightGroup);
+  if (!target) return;
+  var el = document.getElementById('grp-' + target);
+  if (!el) return;
+
+  var collapse = el.querySelector('.collapse');
+  if (collapse && !collapse.classList.contains('show')) collapse.classList.add('show');
+
+  window.requestAnimationFrame(function () {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
 })();
 </script>

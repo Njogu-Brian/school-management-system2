@@ -610,22 +610,19 @@ class ExpenseStatementImportService
 
             $first = $lines->first();
 
-            // Re-editing a group that already produced expenses (and is still a business
-            // expense) reverses those expenses and sends the transactions back to pending,
-            // so the edited classification is reviewed and submitted afresh.
+            // Editing a group that already produced expenses drops the old (not-yet-approved)
+            // expense draft(s) so the edited vendor/category/description take effect and a fresh
+            // expense can be created on the next Submit. detachExpensesForLines() throws if any
+            // linked expense has already been approved/paid (those must be reversed instead).
             $hasExpenses = $lines->contains(fn ($line) => ! is_null($line->expense_id));
-            $reversed = $reviewStatus === ExpenseStatementLine::REVIEW_CONFIRMED && $hasExpenses;
-            $effectiveStatus = $reversed
-                ? ExpenseStatementLine::REVIEW_PENDING
-                : $reviewStatus;
+            $reversed = $hasExpenses;
 
-            // Leaving a live "business expense" removes any not-yet-approved expenses.
-            if ($effectiveStatus !== ExpenseStatementLine::REVIEW_CONFIRMED) {
-                $this->detachExpensesForLines($import, $lines);
+            if ($hasExpenses) {
+                $this->detachExpensesForLines($import, $lines, $userId);
             }
 
             foreach ($lines as $line) {
-                $this->applyReviewToLine($line, $effectiveStatus, $categoryId, $description, $vendorName);
+                $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description, $vendorName);
             }
 
             if ($remember && $reviewStatus !== ExpenseStatementLine::REVIEW_PENDING) {
@@ -675,9 +672,10 @@ class ExpenseStatementImportService
                     ->get();
             }
 
-            // Leaving "business expense" removes any not-yet-approved expense created from this transaction.
+            // Leaving "business expense" removes any expense created from this transaction
+            // (reversing the ledger posting first if it was already approved/paid).
             if ($reviewStatus !== ExpenseStatementLine::REVIEW_CONFIRMED) {
-                $this->detachExpensesForLines($import, collect([$line])->merge($relatedFees));
+                $this->detachExpensesForLines($import, collect([$line])->merge($relatedFees), $userId);
             }
 
             $this->applyReviewToLine($line, $reviewStatus, $categoryId, $description, $vendorName);
@@ -943,25 +941,38 @@ class ExpenseStatementImportService
     }
 
     /**
-     * Remove not-yet-approved expenses created from the given statement lines, and
-     * clear their links. Throws if any linked expense has already been approved/paid.
+     * Remove expenses created from the given statement lines and clear their links.
+     *
+     * Submitted (not-yet-approved) expenses are simply deleted. Posted (approved/paid)
+     * expenses are first un-posted — their journal entry is reversed with a contra entry
+     * and their vouchers/payments removed — so the ledger stays balanced even when a
+     * group that already produced posted expenses is re-edited.
      *
      * @param  \Illuminate\Support\Collection<int, ExpenseStatementLine>  $lines
      */
-    protected function detachExpensesForLines(ExpenseStatementImport $import, $lines): void
+    protected function detachExpensesForLines(ExpenseStatementImport $import, $lines, ?int $userId = null): void
     {
         $expenseIds = $lines->pluck('expense_id')->filter()->unique()->values();
         if ($expenseIds->isEmpty()) {
             return;
         }
 
-        $expenses = Expense::whereIn('id', $expenseIds)->get();
+        $expenses = Expense::whereIn('id', $expenseIds)->with('vouchers')->get();
+        $user = $userId ? User::find($userId) : null;
 
         foreach ($expenses as $expense) {
-            if (in_array($expense->status, [Expense::STATUS_APPROVED, Expense::STATUS_PAID], true)) {
-                throw new \RuntimeException(
-                    "Expense {$expense->expense_no} has already been approved and cannot be moved back to pending."
-                );
+            if (! in_array($expense->status, [Expense::STATUS_APPROVED, Expense::STATUS_PAID], true)) {
+                continue;
+            }
+
+            foreach ($expense->vouchers as $voucher) {
+                if ($voucher->journal_entry_id && $user) {
+                    $entry = JournalEntry::with('lines')->find($voucher->journal_entry_id);
+                    if ($entry && $entry->status === JournalEntry::STATUS_POSTED) {
+                        $this->journalPosting->reverse($entry, $user);
+                    }
+                }
+                $voucher->payments()->delete();
             }
         }
 

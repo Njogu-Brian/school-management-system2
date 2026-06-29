@@ -59,6 +59,7 @@
       'filter' => $filter,
       'search' => $search,
       'showStatement' => true,
+      'highlightGroup' => $highlightGroup ?? null,
       'routes' => [
         'group' => route('finance.statement-transactions.groups.update'),
         'line' => route('finance.statement-transactions.lines.update'),

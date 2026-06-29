@@ -16,6 +16,26 @@
     </div>
   </div></div>
 
+  @if(isset($sourceGroups) && $sourceGroups->isNotEmpty())
+  <div class="finance-card mb-3"><div class="finance-card-body">
+    <h6 class="mb-2"><i class="bi bi-collection"></i> Source M-Pesa transactions</h6>
+    <div class="small text-muted mb-2">This expense was created from the statement transaction group(s) below. Open a group to review, re-categorise or change its vendor.</div>
+    <ul class="list-unstyled mb-0">
+      @foreach($sourceGroups as $sg)
+        <li class="d-flex flex-wrap align-items-center gap-2 py-1">
+          <a href="{{ route('finance.statement-transactions.index', ['group' => $sg->group_key]) }}" class="fw-semibold text-decoration-none">
+            <i class="bi bi-box-arrow-up-right"></i> {{ $sg->display_name }}
+          </a>
+          <span class="text-muted small">{{ $sg->count }} transaction(s)</span>
+          @foreach($sg->imports as $imp)
+            <a href="{{ route('finance.expense-statements.show', $imp->id) }}" class="badge bg-light text-dark border text-decoration-none">{{ $imp->account_name ?: ($imp->original_filename ?: ('Statement #' . $imp->id)) }}</a>
+          @endforeach
+        </li>
+      @endforeach
+    </ul>
+  </div></div>
+  @endif
+
   <div class="finance-card mb-3"><div class="finance-card-body">
     <h6>Lines</h6>
     <table class="finance-table">

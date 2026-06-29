@@ -7,6 +7,7 @@ use App\Http\Requests\Finance\StoreExpenseRequest;
 use App\Http\Requests\Finance\UpdateExpenseRequest;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\ExpenseStatementLine;
 use App\Models\Vendor;
 use App\Services\ExpenseWorkflowService;
 use App\Services\Finance\CashBookExportService;
@@ -244,7 +245,25 @@ class ExpenseController extends Controller
         $this->authorize('view', $expense);
         $expense->load(['vendor', 'requester', 'approver', 'lines.category', 'approvals.approver', 'vouchers']);
 
-        return view('finance.expenses.show', compact('expense'));
+        // Source M-Pesa statement transactions this expense was created from, so the
+        // user can jump straight back to the recipient group it came from.
+        $sourceGroups = ExpenseStatementLine::where('expense_id', $expense->id)
+            ->with('import')
+            ->get()
+            ->groupBy('group_key')
+            ->map(function ($lines) {
+                $first = $lines->first();
+
+                return (object) [
+                    'group_key' => $first->group_key,
+                    'display_name' => $first->payeeName() ?: $first->narration,
+                    'count' => $lines->count(),
+                    'imports' => $lines->map(fn ($l) => $l->import)->filter()->unique('id')->values(),
+                ];
+            })
+            ->values();
+
+        return view('finance.expenses.show', compact('expense', 'sourceGroups'));
     }
 
     public function edit(Expense $expense): View
