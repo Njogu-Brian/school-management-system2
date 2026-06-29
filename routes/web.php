@@ -1508,6 +1508,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('expense-statements', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'index'])->name('expense-statements.index');
         Route::get('expense-statements/create', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'create'])->name('expense-statements.create');
         Route::post('expense-statements', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'store'])->name('expense-statements.store');
+        Route::get('expense-statements/{expenseStatement}/parse-progress', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'parseProgress'])->name('expense-statements.parse-progress');
         Route::get('expense-statements/{expenseStatement}', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'show'])->name('expense-statements.show');
         Route::post('expense-statements/{expenseStatement}/groups', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'updateGroup'])->name('expense-statements.groups.update');
         Route::post('expense-statements/{expenseStatement}/lines', [\App\Http\Controllers\Finance\ExpenseStatementController::class, 'updateLine'])->name('expense-statements.lines.update');

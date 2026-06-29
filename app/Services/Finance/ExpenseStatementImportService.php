@@ -104,6 +104,69 @@ class ExpenseStatementImportService
     }
 
     /**
+     * Store the uploaded file on the private disk and return [storedPath, absolutePath].
+     *
+     * @return array{0: string, 1: string}
+     */
+    public function storeUploadedFile(UploadedFile $file): array
+    {
+        $storedPath = $file->store('expense-statements', config('filesystems.private_disk', 'private'));
+        $absolutePath = storage_local_path(config('filesystems.private_disk', 'private'), $storedPath);
+
+        return [$storedPath, $absolutePath];
+    }
+
+    public function deleteStoredFile(string $storedPath): void
+    {
+        Storage::disk(config('filesystems.private_disk', 'private'))->delete($storedPath);
+    }
+
+    /**
+     * Create a placeholder import row in the "parsing" state so the UI has an id
+     * to poll while the background job extracts the PDF.
+     */
+    public function createPendingImport(UploadedFile $file, string $storedPath, int $userId): ExpenseStatementImport
+    {
+        return ExpenseStatementImport::create([
+            'uploaded_by' => $userId,
+            'source' => ExpenseStatementImport::SOURCE_MPESA,
+            'original_filename' => $file->getClientOriginalName(),
+            'file_path' => $storedPath,
+            'status' => ExpenseStatementImport::STATUS_PARSING,
+        ]);
+    }
+
+    /**
+     * Persist transactions collected by the chunked async parser onto an existing
+     * (pending) import row, then finalise its metadata, stats and status.
+     *
+     * @param  array<int, array<string, mixed>>  $transactions
+     * @param  array<string, mixed>  $metadata
+     * @return array{line_count: int, duplicates: int}
+     */
+    public function persistParsedTransactions(ExpenseStatementImport $import, array $transactions, array $metadata): array
+    {
+        return DB::transaction(function () use ($import, $transactions, $metadata) {
+            $import->update([
+                'period_start' => $metadata['period_start'] ?? null,
+                'period_end' => $metadata['period_end'] ?? null,
+                'account_name' => $metadata['customer_name'] ?? null,
+                'account_number' => $metadata['mobile_number'] ?? null,
+                'summary' => $metadata,
+            ]);
+
+            $stats = $this->persistTransactions($import, $transactions);
+            $duplicates = (int) ($stats['duplicate_count'] ?? 0);
+            unset($stats['duplicate_count']);
+
+            $stats['status'] = ExpenseStatementImport::STATUS_PARSED;
+            $import->update($stats);
+
+            return ['line_count' => (int) ($stats['line_count'] ?? 0), 'duplicates' => $duplicates];
+        });
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $transactions
      * @return array<string, int|float>
      */

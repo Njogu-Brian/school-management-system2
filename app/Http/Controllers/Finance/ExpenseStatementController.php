@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ParseExpenseStatementJob;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseStatementImport;
 use App\Models\ExpenseStatementLine;
 use App\Models\Vendor;
 use App\Services\Finance\ExpenseStatementImportService;
+use App\Services\Finance\MpesaExpenseStatementParser;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -19,6 +22,7 @@ class ExpenseStatementController extends Controller
 {
     public function __construct(
         protected ExpenseStatementImportService $importService,
+        protected MpesaExpenseStatementParser $parser,
     ) {}
 
     public function index(): View
@@ -59,16 +63,20 @@ class ExpenseStatementController extends Controller
             'pdf_password' => 'nullable|string|max:64',
         ]);
 
-        @set_time_limit(900);
+        $file = $request->file('statement_file');
+        $password = $validated['pdf_password'] ?? null;
 
-        $result = $this->importService->importMpesa(
-            $request->file('statement_file'),
-            (int) $request->user()->id,
-            $validated['pdf_password'] ?? null,
-        );
+        [$storedPath, $absolutePath] = $this->importService->storeUploadedFile($file);
 
-        if (! ($result['success'] ?? false)) {
-            $error = $result['error'] ?? 'parse_failed';
+        // Fast, low-memory precheck (page count + password + format) so the
+        // password prompt stays synchronous. The heavy page extraction then runs
+        // in a background job, a few pages at a time, instead of blocking the
+        // web request (which previously exhausted memory and took the site down).
+        $info = $this->parser->countPages($absolutePath, $password);
+
+        if (! ($info['success'] ?? false)) {
+            $this->importService->deleteStoredFile($storedPath);
+            $error = $info['error'] ?? 'parse_failed';
 
             if ($error === 'password_required') {
                 return redirect()
@@ -83,22 +91,68 @@ class ExpenseStatementController extends Controller
             return redirect()
                 ->route('finance.expense-statements.create')
                 ->withInput()
-                ->withErrors(['statement_file' => $result['message'] ?? 'Failed to parse statement.']);
+                ->withErrors(['statement_file' => $info['message'] ?? 'Failed to read statement.']);
         }
 
-        $message = 'Statement parsed successfully. Review outgoing transactions below.';
-        if (! empty($result['duplicates'])) {
-            $message .= sprintf(' %d duplicate transaction(s) already imported were skipped.', $result['duplicates']);
+        if (! ($info['is_mpesa'] ?? false)) {
+            $this->importService->deleteStoredFile($storedPath);
+
+            return redirect()
+                ->route('finance.expense-statements.create')
+                ->withInput()
+                ->withErrors(['statement_file' => 'Could not detect an M-Pesa detailed statement in this PDF.']);
         }
+
+        $import = $this->importService->createPendingImport($file, $storedPath, (int) $request->user()->id);
+
+        ParseExpenseStatementJob::dispatch($import->id, $password, (int) ($info['page_count'] ?? 1));
 
         return redirect()
-            ->route('finance.expense-statements.show', $result['import'])
-            ->with('success', $message);
+            ->route('finance.expense-statements.show', $import)
+            ->with('info', 'Your statement was uploaded and is being processed in the background. This page updates automatically.');
+    }
+
+    public function parseProgress(ExpenseStatementImport $expenseStatement): JsonResponse
+    {
+        $this->authorize('view', $expenseStatement);
+
+        $progress = ParseExpenseStatementJob::getProgress($expenseStatement->id);
+        $status = $progress['status'] ?? null;
+
+        // Fall back to the persisted import status if the cache has expired.
+        if ($expenseStatement->status === ExpenseStatementImport::STATUS_PARSED && $status !== 'completed') {
+            $progress = [
+                'status' => 'completed',
+                'percent' => 100,
+                'message' => 'Completed.',
+                'redirect_url' => route('finance.expense-statements.show', $expenseStatement->id),
+            ];
+        } elseif ($expenseStatement->status === ExpenseStatementImport::STATUS_FAILED && $status !== 'failed') {
+            $progress = [
+                'status' => 'failed',
+                'percent' => 100,
+                'message' => $expenseStatement->parse_error ?: 'Parsing failed.',
+            ];
+        }
+
+        return response()->json($progress);
     }
 
     public function show(Request $request, ExpenseStatementImport $expenseStatement): View
     {
         $this->authorize('view', $expenseStatement);
+
+        // While the background parser runs (or if it failed), show the progress
+        // screen instead of the (empty) review table.
+        if (in_array($expenseStatement->status, [
+            ExpenseStatementImport::STATUS_PARSING,
+            ExpenseStatementImport::STATUS_FAILED,
+        ], true)) {
+            return view('finance.expense-statements.processing', [
+                'import' => $expenseStatement,
+                'progress' => ParseExpenseStatementJob::getProgress($expenseStatement->id),
+            ]);
+        }
 
         $filter = $request->string('filter')->toString() ?: null;
         $search = trim($request->string('search')->toString());

@@ -68,7 +68,60 @@ def _parse_human_date(value: str) -> str | None:
     return None
 
 
-def extract_mpesa_pages(pdf_path: str, password: Optional[str] = None) -> dict:
+def _looks_like_mpesa(text_upper: str) -> bool:
+    return (
+        ('RECEIPT' in text_upper and 'WITHDRAWN' in text_upper)
+        or ('DETAILED STATEMENT' in text_upper and 'COMPLETION' in text_upper)
+        or ('RECEIPT NO' in text_upper and 'PAID IN' in text_upper)
+    )
+
+
+def count_pages(pdf_path: str, password: Optional[str] = None) -> dict:
+    """Cheaply open the PDF to get the page count + a light M-Pesa check.
+
+    Validates the password and bounds memory by only reading text from the
+    first few pages (no table extraction).
+    """
+    open_kwargs = {}
+    if password:
+        open_kwargs['password'] = password
+
+    try:
+        with pdfplumber.open(pdf_path, **open_kwargs) as pdf:
+            total = len(pdf.pages)
+            is_mpesa = False
+            for page in pdf.pages[:3]:
+                text = page.extract_text() or ''
+                if _looks_like_mpesa(text.upper()):
+                    is_mpesa = True
+                try:
+                    page.flush_cache()
+                except Exception:
+                    pass
+                if is_mpesa:
+                    break
+            return {'page_count': total, 'is_mpesa': is_mpesa}
+    except Exception as exc:
+        message = str(exc).lower()
+        if 'password' in message or 'encrypted' in message or 'decrypt' in message:
+            return {'error': 'password_required', 'message': str(exc)}
+        return {'error': 'parse_failed', 'message': str(exc)}
+
+
+def extract_mpesa_pages(
+    pdf_path: str,
+    password: Optional[str] = None,
+    start_page: Optional[int] = None,
+    end_page: Optional[int] = None,
+) -> dict:
+    """Extract M-Pesa transaction tables.
+
+    When start_page/end_page are given (1-based, inclusive) only that slice of
+    pages is processed, and each page's cache is flushed immediately after use
+    so peak memory stays bounded to a small batch of pages instead of the whole
+    document. This is what lets the importer parse ~5 pages at a time without
+    exhausting server memory.
+    """
     pages_content = []
     is_mpesa_statement = False
     full_text_parts = []
@@ -79,27 +132,18 @@ def extract_mpesa_pages(pdf_path: str, password: Optional[str] = None) -> dict:
 
     try:
         with pdfplumber.open(pdf_path, **open_kwargs) as pdf:
-            page_cache = []
-            for page_index, page in enumerate(pdf.pages, start=1):
+            total_pages = len(pdf.pages)
+            lo = max(1, start_page or 1)
+            hi = min(total_pages, end_page or total_pages)
+
+            for page_index in range(lo, hi + 1):
+                page = pdf.pages[page_index - 1]
                 text = page.extract_text() or ''
                 full_text_parts.append(text)
                 text_upper = text.upper()
-                if not is_mpesa_statement:
-                    if (
-                        ('RECEIPT' in text_upper and 'WITHDRAWN' in text_upper)
-                        or ('DETAILED STATEMENT' in text_upper and 'COMPLETION' in text_upper)
-                        or ('RECEIPT NO' in text_upper and 'PAID IN' in text_upper)
-                    ):
-                        is_mpesa_statement = True
-                page_cache.append({'index': page_index, 'page': page, 'text': text})
+                if _looks_like_mpesa(text_upper):
+                    is_mpesa_statement = True
 
-            if not is_mpesa_statement:
-                return {'pages': [], 'is_mpesa': False, 'full_text': '\n'.join(full_text_parts)}
-
-            for cache_entry in page_cache:
-                page_index = cache_entry['index']
-                page = cache_entry['page']
-                text = cache_entry['text']
                 page_data = {
                     'page_number': page_index,
                     'text': text or '',
@@ -174,6 +218,14 @@ def extract_mpesa_pages(pdf_path: str, password: Optional[str] = None) -> dict:
 
                 pages_content.append(page_data)
 
+                # Free this page's cached layout immediately so memory stays
+                # bounded to the current batch rather than the whole PDF.
+                try:
+                    page.flush_cache()
+                    page.get_textmap.cache_clear()
+                except Exception:
+                    pass
+
     except Exception as exc:
         message = str(exc).lower()
         if 'password' in message or 'encrypted' in message or 'decrypt' in message:
@@ -185,6 +237,7 @@ def extract_mpesa_pages(pdf_path: str, password: Optional[str] = None) -> dict:
         'pages': pages_content,
         'is_mpesa': is_mpesa_statement,
         'full_text': '\n'.join(full_text_parts),
+        'total_pages': total_pages,
     }
 
 
@@ -193,6 +246,12 @@ def main():
     parser.add_argument('pdf_path', help='Path to PDF file')
     parser.add_argument('--password', help='PDF password if encrypted', default=None)
     parser.add_argument('--output', help='Optional output JSON file', default=None)
+    parser.add_argument('--count-pages', action='store_true',
+                        help='Only return the page count + M-Pesa detection (fast, low memory)')
+    parser.add_argument('--start-page', type=int, default=None,
+                        help='First page to parse (1-based, inclusive)')
+    parser.add_argument('--end-page', type=int, default=None,
+                        help='Last page to parse (1-based, inclusive)')
     args = parser.parse_args()
 
     pdf_path = Path(args.pdf_path)
@@ -200,7 +259,25 @@ def main():
         print(json.dumps({'success': False, 'error': 'file_not_found'}))
         sys.exit(1)
 
-    result = extract_mpesa_pages(str(pdf_path), args.password)
+    # Fast path: just count pages + verify password / M-Pesa format.
+    if args.count_pages:
+        info = count_pages(str(pdf_path), args.password)
+        if info.get('error') == 'password_required':
+            print(json.dumps({'success': False, 'error': 'password_required',
+                              'message': info.get('message', 'PDF is password protected')}))
+            sys.exit(2)
+        if info.get('error'):
+            print(json.dumps({'success': False, 'error': info['error'],
+                              'message': info.get('message', 'Could not read PDF')}))
+            sys.exit(1)
+        print(json.dumps({
+            'success': True,
+            'page_count': info.get('page_count', 0),
+            'is_mpesa': info.get('is_mpesa', False),
+        }))
+        return
+
+    result = extract_mpesa_pages(str(pdf_path), args.password, args.start_page, args.end_page)
     if result is None:
         print(json.dumps({'success': False, 'error': 'parse_failed'}))
         sys.exit(1)
@@ -212,14 +289,6 @@ def main():
             'message': result.get('message', 'PDF is password protected'),
         }))
         sys.exit(2)
-
-    if not result.get('is_mpesa'):
-        print(json.dumps({
-            'success': False,
-            'error': 'not_mpesa_statement',
-            'message': 'Could not detect M-Pesa detailed statement format',
-        }))
-        sys.exit(1)
 
     pages = result.get('pages', [])
     tables = []
@@ -239,6 +308,8 @@ def main():
         'metadata': metadata,
         'transactions': transactions,
         'transaction_count': len(transactions),
+        'is_mpesa': result.get('is_mpesa', False),
+        'total_pages': result.get('total_pages', 0),
     }
 
     output = json.dumps(payload, indent=2)

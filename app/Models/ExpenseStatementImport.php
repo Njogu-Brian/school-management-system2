@@ -11,6 +11,7 @@ class ExpenseStatementImport extends Model
     public const SOURCE_MPESA = 'mpesa';
     public const SOURCE_BANK = 'bank';
 
+    public const STATUS_PARSING = 'parsing';
     public const STATUS_PARSED = 'parsed';
     public const STATUS_FAILED = 'failed';
 
