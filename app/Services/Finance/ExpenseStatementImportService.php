@@ -31,6 +31,7 @@ class ExpenseStatementImportService
         protected ExpenseWorkflowService $expenseWorkflow,
         protected JournalPostingService $journalPosting,
         protected RecipientMemoryService $recipientMemory,
+        protected InvoicePaymentLinker $invoiceLinker,
     ) {}
 
     /**
@@ -234,6 +235,9 @@ class ExpenseStatementImportService
 
         // Auto-categorise & group new lines from previously classified recipients.
         $this->recipientMemory->applyToPendingLines($import->id);
+
+        // Auto-link Azanet paybill payments to the seeded internet invoices (no duplicate expense).
+        $this->invoiceLinker->linkAzanet($import->id);
 
         return [
             'line_count' => $lineCount,
