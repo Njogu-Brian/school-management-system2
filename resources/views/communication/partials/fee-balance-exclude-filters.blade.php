@@ -9,6 +9,13 @@
             </label>
         </div>
         <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="no_fee_balance_only" value="1" id="noFeeBalanceOnly" {{ old('no_fee_balance_only') ? 'checked' : '' }}>
+            <label class="form-check-label" for="noFeeBalanceOnly">
+                <strong>Only recipients with NO fee balance (cleared / overpaid)</strong>
+                <span class="text-muted small d-block">Restrict to parents/students with no outstanding balance — e.g. to send an apology for a reminder sent in error.</span>
+            </label>
+        </div>
+        <div class="form-check">
             <input class="form-check-input" type="checkbox" name="exclude_staff" value="1" id="excludeStaff" {{ old('exclude_staff') ? 'checked' : '' }}>
             <label class="form-check-label" for="excludeStaff">
                 <strong>Exclude staff (children in staff category)</strong>

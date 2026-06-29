@@ -83,6 +83,7 @@ class CommunicationController extends Controller
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
+            'no_fee_balance_only' => 'nullable|boolean',
             'exclude_staff'  => 'nullable|boolean',
             'exclude_student_ids' => 'nullable|string',
             'attachment'     => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,mp4,mov,avi,webm|max:20480',
@@ -90,6 +91,7 @@ class CommunicationController extends Controller
             'send_at'        => 'nullable|date',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+        $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
 
@@ -265,6 +267,7 @@ class CommunicationController extends Controller
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
+            'no_fee_balance_only' => 'nullable|boolean',
             'exclude_staff'  => 'nullable|boolean',
             'exclude_student_ids' => 'nullable|string',
             'schedule'       => 'nullable|string|in:now,later',
@@ -272,6 +275,7 @@ class CommunicationController extends Controller
             'sender_id'      => 'nullable|string|in:finance,default,""',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+        $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
 
@@ -522,6 +526,7 @@ class CommunicationController extends Controller
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
+            'no_fee_balance_only' => 'nullable|boolean',
             'exclude_staff'  => 'nullable|boolean',
             'exclude_student_ids' => 'nullable|string',
             'schedule'       => 'nullable|string|in:now,later',
@@ -529,6 +534,7 @@ class CommunicationController extends Controller
             'media'          => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,webm|max:20480',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+        $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
 
@@ -944,6 +950,7 @@ class CommunicationController extends Controller
                 'custom_numbers' => 'nullable|string',
                 'custom_emails' => 'nullable|string',
                 'fee_balance_only' => 'nullable|boolean',
+                'no_fee_balance_only' => 'nullable|boolean',
                 'exclude_staff' => 'nullable|boolean',
                 'exclude_student_ids' => 'nullable|string',
                 'template_id' => 'nullable|exists:communication_templates,id',
@@ -951,6 +958,7 @@ class CommunicationController extends Controller
                 'title' => 'nullable|string|max:255',
             ]);
             $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+            $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
             $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
 
             // Try to get recipients, but handle DB errors gracefully
@@ -990,7 +998,7 @@ class CommunicationController extends Controller
             }
 
             // If no student found, try to get one based on target (only when not fee-balance filtered)
-            if (!$firstStudent && empty($data['fee_balance_only'])) {
+            if (!$firstStudent && empty($data['fee_balance_only']) && empty($data['no_fee_balance_only'])) {
                 try {
                     if ($data['target'] === 'student' && !empty($data['student_id'])) {
                         $firstStudent = Student::with(['family.updateLink', 'classroom', 'parent'])

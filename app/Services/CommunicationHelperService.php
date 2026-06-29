@@ -14,7 +14,7 @@ class CommunicationHelperService
      * Build a map of recipients => entity used for personalization.
      * $target: students|parents|staff|class|student|one_parent|specific_students|custom|all
      * $data: ['target', 'classroom_id', 'classroom_ids', 'student_id', 'selected_student_ids', 'custom_emails', 'custom_numbers',
-     *         'fee_balance_only', 'swimming_balance_only', 'upcoming_invoices_only', 'fee_balance_min', 'fee_balance_percent_min',
+     *         'fee_balance_only', 'no_fee_balance_only', 'swimming_balance_only', 'upcoming_invoices_only', 'fee_balance_min', 'fee_balance_percent_min',
      *         'swimming_balance_min', 'prior_term_balance_only', 'prior_term_balance_min', 'exclude_student_ids', 'exclude_staff']
      * $type: 'email', 'sms', or 'whatsapp'
      */
@@ -149,6 +149,23 @@ class CommunicationHelperService
                     }
 
                     return StudentBalanceService::getTotalOutstandingBalance($e, true) > 0.01;
+                });
+
+                return self::rebuildOutValue($entities, $filtered);
+            }, $out);
+            $out = array_filter($out);
+        }
+
+        // Only recipients with NO outstanding fee balance (cleared / overpaid / not yet due).
+        // Exact complement of fee_balance_only: keeps students whose due balance is <= 0.01.
+        if (!empty($data['no_fee_balance_only'])) {
+            $out = array_map(function ($entities) {
+                $filtered = array_filter(self::entitiesFromOutValue($entities), function ($e) {
+                    if (! ($e instanceof Student)) {
+                        return false;
+                    }
+
+                    return StudentBalanceService::getTotalOutstandingBalance($e, true) <= 0.01;
                 });
 
                 return self::rebuildOutValue($entities, $filtered);

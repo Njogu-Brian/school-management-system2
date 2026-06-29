@@ -394,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     previewForm.appendChild(input);
                 }
             });
-            ['fee_balance_only', 'exclude_staff'].forEach(field => {
+            ['fee_balance_only', 'no_fee_balance_only', 'exclude_staff'].forEach(field => {
                 const cb = form.querySelector(`[name="${field}"]`);
                 const input = document.createElement('input');
                 input.type = 'hidden';

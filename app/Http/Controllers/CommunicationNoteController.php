@@ -53,10 +53,12 @@ class CommunicationNoteController extends Controller
             'student_id' => 'nullable|required_if:target,student|exists:students,id',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
+            'no_fee_balance_only' => 'nullable|boolean',
             'exclude_staff' => 'nullable|boolean',
             'exclude_student_ids' => 'nullable|string',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+        $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
 
         $students = $this->collectNoteRecipients($data);
@@ -67,6 +69,8 @@ class CommunicationNoteController extends Controller
             $msg = 'No recipients selected.';
             if (!empty($data['fee_balance_only'])) {
                 $msg = 'No students with an outstanding fee balance. If you selected "All students" with "Only recipients with fee balance" checked, every student may be clear or have overpayment—try unchecking the fee balance filter, or choose a class/specific students.';
+            } elseif (!empty($data['no_fee_balance_only'])) {
+                $msg = 'No students without an outstanding fee balance. With "Only recipients with NO fee balance" checked, every selected student currently owes fees—try unchecking that filter, or choose a class/specific students.';
             } else {
                 $msg = 'No recipients selected. Please select All students, a class, student(s), or use the student selector.';
             }
@@ -135,6 +139,15 @@ class CommunicationNoteController extends Controller
                     ->flip()
                     ->all();
                 $students = $students->filter(fn ($s) => isset($studentIdsWithBalance[$s->id]))->values();
+            }
+
+            if (! empty($data['no_fee_balance_only'] ?? null)) {
+                $studentIdsWithBalance = \App\Models\Invoice::where('balance', '>', 0)
+                    ->distinct()
+                    ->pluck('student_id')
+                    ->flip()
+                    ->all();
+                $students = $students->filter(fn ($s) => ! isset($studentIdsWithBalance[$s->id]))->values();
             }
 
             if (! empty($data['exclude_staff'] ?? null)) {

@@ -605,6 +605,10 @@
                     <div class="alert alert-warning mt-3 mb-0 py-2 small">
                         No recipients match <strong>Only recipients with fee balance</strong> for the current filters.
                     </div>
+                @elseif(!empty($formData['no_fee_balance_only']))
+                    <div class="alert alert-warning mt-3 mb-0 py-2 small">
+                        No recipients match <strong>Only recipients with NO fee balance</strong> for the current filters.
+                    </div>
                 @endif
             </div>
             
@@ -635,6 +639,7 @@
                 <input type="hidden" name="custom_emails" value="{{ $formData['custom_emails'] ?? '' }}">
                 <input type="hidden" name="title" value="{{ $formData['title'] ?? '' }}">
                 <input type="hidden" name="fee_balance_only" value="{{ !empty($formData['fee_balance_only']) ? '1' : '0' }}">
+                <input type="hidden" name="no_fee_balance_only" value="{{ !empty($formData['no_fee_balance_only']) ? '1' : '0' }}">
                 <input type="hidden" name="exclude_staff" value="{{ !empty($formData['exclude_staff']) ? '1' : '0' }}">
                 <input type="hidden" name="exclude_student_ids" value="{{ $formData['exclude_student_ids'] ?? '' }}">
                 @if($channel === 'whatsapp')
