@@ -1,0 +1,339 @@
+{
+ "vendor": "Azanet Solutions Ltd",
+ "invoices": [
+  {
+   "type": "invoice",
+   "number": "202405007677",
+   "date": "26/11/2024",
+   "amount": 2500.0,
+   "plan": "",
+   "period": null,
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202405007677.eml",
+   "pdf": "invoice_202405007677.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505000914",
+   "date": "27/01/2025",
+   "amount": 3000.0,
+   "plan": "",
+   "period": "27/01/2025 - 26/02/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505000914.eml",
+   "pdf": "invoice_202505000914.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505002023",
+   "date": "27/02/2025",
+   "amount": 3000.0,
+   "plan": "",
+   "period": "27/02/2025 - 26/03/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505002023.eml",
+   "pdf": "invoice_202505002023.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505003208",
+   "date": "27/03/2025",
+   "amount": 2500.0,
+   "plan": "",
+   "period": "27/03/2025 - 26/04/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505003208.eml",
+   "pdf": "invoice_202505003208.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505004484",
+   "date": "27/04/2025",
+   "amount": 3000.0,
+   "plan": "",
+   "period": "27/04/2025 - 26/05/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505004484.eml",
+   "pdf": "invoice_202505004484.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505005810",
+   "date": "27/05/2025",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "27/05/2025 - 26/06/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505005810.eml",
+   "pdf": "invoice_202505005810.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505007235",
+   "date": "27/06/2025",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "27/06/2025 - 26/07/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505007235.eml",
+   "pdf": "invoice_202505007235.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505008701",
+   "date": "27/07/2025",
+   "amount": 2900.0,
+   "plan": "45MbpsHome",
+   "period": "27/07/2025 - 26/08/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505008701.eml",
+   "pdf": "invoice_202505008701.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505010251",
+   "date": "27/08/2025",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "27/08/2025 - 26/09/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505010251.eml",
+   "pdf": "invoice_202505010251.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505011899",
+   "date": "27/09/2025",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "27/09/2025 - 26/10/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505011899.eml",
+   "pdf": "invoice_202505011899.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202405007711",
+   "date": "27/11/2024",
+   "amount": 3000.0,
+   "plan": "",
+   "period": "27/11/2024 - 26/12/2024",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202405007711.eml",
+   "pdf": "invoice_202405007711.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202405008701",
+   "date": "27/12/2024",
+   "amount": 3000.0,
+   "plan": "",
+   "period": "27/12/2024 - 26/01/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202405008701.eml",
+   "pdf": "invoice_202405008701.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202605004102",
+   "date": "28/02/2026",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "28/02/2026 - 27/03/2026",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202605004102.eml",
+   "pdf": "invoice_202605004102.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505013691",
+   "date": "28/10/2025",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "28/10/2025 - 27/11/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505013691.eml",
+   "pdf": "invoice_202505013691.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505015668",
+   "date": "28/11/2025",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "28/11/2025 - 27/12/2025",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505015668.eml",
+   "pdf": "invoice_202505015668.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202605001860",
+   "date": "29/01/2026",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "29/01/2026 - 27/02/2026",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202605001860.eml",
+   "pdf": "invoice_202605001860.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202605006299",
+   "date": "29/03/2026",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "29/03/2026 - 28/04/2026",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202605006299.eml",
+   "pdf": "invoice_202605006299.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202605008703",
+   "date": "29/04/2026",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "29/04/2026 - 28/05/2026",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202605008703.eml",
+   "pdf": "invoice_202605008703.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202605011131",
+   "date": "29/05/2026",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "29/05/2026 - 28/06/2026",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202605011131.eml",
+   "pdf": "invoice_202605011131.pdf"
+  },
+  {
+   "type": "invoice",
+   "number": "202505017585",
+   "date": "29/12/2025",
+   "amount": 3000.0,
+   "plan": "45MbpsHome",
+   "period": "29/12/2025 - 28/01/2026",
+   "account": "1903",
+   "source_file": "Invoice for Royal Kings Education Centre . Invoice number_ 202505017585.eml",
+   "pdf": "invoice_202505017585.pdf"
+  }
+ ],
+ "receipts": [
+  {
+   "type": "receipt",
+   "number": null,
+   "date": null,
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-09643.eml",
+   "pdf": "invoice_202505010251.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2025-07-01687",
+   "date": "19/02/2025",
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-01687.eml",
+   "pdf": "receipt_2025-07-01687.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2025-07-06596",
+   "date": "22/06/2025",
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-06596.eml",
+   "pdf": "receipt_2025-07-06596.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2024-07-08027",
+   "date": "22/12/2024",
+   "amount": 2500.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2024-07-08027.eml",
+   "pdf": "receipt_2024-07-08027.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2024-07-08029",
+   "date": "22/12/2024",
+   "amount": 500.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2024-07-08029.eml",
+   "pdf": "receipt_2024-07-08029.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2025-07-00718",
+   "date": "23/01/2025",
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-00718.eml",
+   "pdf": "receipt_2025-07-00718.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2025-07-02943",
+   "date": "24/03/2025",
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-02943.eml",
+   "pdf": "receipt_2025-07-02943.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2025-07-05355",
+   "date": "24/05/2025",
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-05355.eml",
+   "pdf": "receipt_2025-07-05355.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2025-07-04201",
+   "date": "26/04/2025",
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-04201.eml",
+   "pdf": "receipt_2025-07-04201.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2025-07-08151",
+   "date": "26/07/2025",
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-08151.eml",
+   "pdf": "receipt_2025-07-08151.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2026-07-01577",
+   "date": "27/01/2026",
+   "amount": 3000.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2026-07-01577.eml",
+   "pdf": "receipt_2026-07-01577.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2026-07-08024",
+   "date": "27/04/2026",
+   "amount": 2900.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2026-07-08024.eml",
+   "pdf": "receipt_2026-07-08024.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2024-07-07211",
+   "date": "27/11/2024",
+   "amount": 5500.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2024-07-07211.eml",
+   "pdf": "receipt_2024-07-07211.pdf"
+  },
+  {
+   "type": "receipt",
+   "number": "2025-07-16681",
+   "date": "29/12/2025",
+   "amount": 2500.0,
+   "source_file": "Payment for Royal Kings Education Centre . Receipt number _ 2025-07-16681.eml",
+   "pdf": "receipt_2025-07-16681.pdf"
+  }
+ ]
+}
