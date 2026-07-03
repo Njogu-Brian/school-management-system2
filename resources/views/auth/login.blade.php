@@ -5,6 +5,8 @@
     $schoolName = isset($settings['school_name']) && $settings['school_name'] ? $settings['school_name']->value : 'School Management System';
     $schoolLogo = isset($settings['school_logo']) && $settings['school_logo'] ? $settings['school_logo']->value : null;
     $loginBg    = isset($settings['login_background']) && $settings['login_background'] ? $settings['login_background']->value : null;
+    $primaryColor = setting('finance_primary_color', '#390754');
+    $secondaryColor = setting('finance_secondary_color', '#7d2fca');
 
     // Use public_images_path / public_image_url so ASSET_URL and PUBLIC_WEB_ROOT work in production
     $publicStoragePath = static function (?string $file): ?string {
@@ -51,7 +53,7 @@
         background: url('{{ $bgImage }}') no-repeat center center fixed;
         background-size: cover;
         @else
-        background: linear-gradient(135deg, {{ setting('finance_primary_color', '#667eea') }} 0%, {{ setting('finance_secondary_color', '#764ba2') }} 100%);
+        background: linear-gradient(135deg, {{ $primaryColor }} 0%, {{ $secondaryColor }} 100%);
         @endif
         min-height: 100vh;
         display: flex;
@@ -95,7 +97,7 @@
     }
 
     .btn-primary {
-        background: #007bff;
+        background: {{ $primaryColor }};
         border: none;
         border-radius: 8px;
         padding: 12px;
@@ -104,13 +106,13 @@
     }
 
     .btn-primary:hover {
-        background: #0056b3;
+        filter: brightness(0.92);
         transform: translateY(-1px);
     }
 
     .announcements {
         background: #f9f9f9;
-        border-left: 4px solid #007bff;
+        border-left: 4px solid {{ $primaryColor }};
         padding: 12px;
         margin-top: 20px;
         font-size: 14px;
@@ -224,7 +226,6 @@
 
             <button type="submit" class="btn btn-primary w-100 mb-2">Login</button>
             <button type="button" class="btn btn-outline-info w-100" onclick="showOtpRequestForm()">Login with OTP</button>
-            <a class="btn btn-outline-danger w-100 mt-2" href="{{ route('auth.google.redirect') }}">Continue with Google</a>
             <button type="button" class="btn btn-outline-dark w-100 mt-2" onclick="loginWithPasskey()">Sign in with Passkey</button>
         </form>
 

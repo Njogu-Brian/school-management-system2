@@ -33,4 +33,8 @@ export const sessionsApi = {
   refresh(): Promise<ApiResponse<RefreshTokenData>> {
     return apiClient.post<RefreshTokenData>('/auth/refresh');
   },
+
+  refreshWithToken(token: string): Promise<ApiResponse<RefreshTokenData>> {
+    return apiClient.postWithToken<RefreshTokenData>('/auth/refresh', token);
+  },
 };

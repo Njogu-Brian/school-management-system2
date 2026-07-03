@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
 /**
- * Shown once after the first successful password or Google login when the device
+ * Shown once after the first successful password login when the device
  * supports biometrics and the user has not enabled them yet.
  */
 export const BiometricEnableScreen: React.FC = () => {
@@ -36,7 +36,7 @@ export const BiometricEnableScreen: React.FC = () => {
       </Text>
       <Text style={[styles.body, { color: palette.textSecondary, fontSize: fontSizes.md }]}>
         Sign in faster next time. {typeLabel} only unlocks your existing session on this
-        device — you will still need your password or Google account if the session expires.
+        device — you will still need your password if the session expires.
       </Text>
 
       <Button

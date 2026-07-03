@@ -20,18 +20,8 @@ export async function canUseBiometrics(): Promise<boolean> {
   return hasHardware && enrolled;
 }
 
-/** Human-readable label for the enrolled biometric type (Face ID, fingerprint, etc.). */
+/** Generic label shown in UI (covers Face ID, fingerprint, iris, etc.). */
 export async function getBiometricTypeLabel(): Promise<string> {
-  const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-  if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-    return 'Face ID';
-  }
-  if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-    return 'Fingerprint';
-  }
-  if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) {
-    return 'Iris';
-  }
   return 'Biometrics';
 }
 

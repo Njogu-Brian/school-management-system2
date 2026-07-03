@@ -1,11 +1,13 @@
 import { authApi } from '../../api/auth.api';
+import { sessionsApi } from '../../api/sessions.api';
 import {
   authenticateWithBiometrics,
+  clearBiometricFailureCount,
   getBiometricAuthBundle,
   incrementBiometricFailureCount,
   isBiometricLoginLocked,
-  clearBiometricFailureCount,
   hasBiometricUnlockAvailable,
+  saveBiometricAuthBundle,
   BIOMETRIC_MAX_FAILURES,
 } from '../../storage/biometricStorage';
 import { mapApiUser } from '../mapUser';
@@ -22,7 +24,7 @@ export class BiometricLoginLockedError extends Error {
 
 export class BiometricNoBundleError extends Error {
   constructor() {
-    super('No saved session found. Sign in once with your password or Google.');
+    super('No saved session found. Sign in once with your email and password.');
     this.name = 'BiometricNoBundleError';
   }
 }
@@ -67,13 +69,26 @@ export class BiometricUnlockStrategy implements IAuthProvider {
       throw new Error(profile.message || 'Session expired. Sign in again.');
     }
 
+    let token = bundle.token;
+    let expiresAt: string | null = null;
+    try {
+      const refreshed = await sessionsApi.refreshWithToken(bundle.token);
+      if (refreshed.success && refreshed.data?.token) {
+        token = refreshed.data.token;
+        expiresAt = refreshed.data.expires_at ?? null;
+      }
+    } catch {
+      /* keep existing token if refresh is unavailable */
+    }
+
     await clearBiometricFailureCount();
+    await saveBiometricAuthBundle(token);
 
     return {
       method: 'biometric',
-      token: bundle.token,
+      token,
       user: mapApiUser(profile.data),
-      expiresAt: null,
+      expiresAt,
       rememberMe: true,
     };
   }

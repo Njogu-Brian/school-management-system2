@@ -2,7 +2,6 @@ import {
   AuthProvider,
   BiometricAuthProvider,
   getAppQueryClient,
-  GoogleAuthProvider,
   RbacProvider,
   SessionProvider,
   useNetworkStatus,
@@ -55,14 +54,12 @@ export default function App(): React.JSX.Element {
               <AuthProvider>
                 <PersistedQueryProvider>
                   <RbacProvider>
-                    <GoogleAuthProvider>
-                      <BiometricAuthProvider>
-                        <OfflineShell>
-                          <AdminPushNotifications />
-                          <AdminRootNavigator />
-                        </OfflineShell>
-                      </BiometricAuthProvider>
-                    </GoogleAuthProvider>
+                    <BiometricAuthProvider>
+                      <OfflineShell>
+                        <AdminPushNotifications />
+                        <AdminRootNavigator />
+                      </OfflineShell>
+                    </BiometricAuthProvider>
                   </RbacProvider>
                 </PersistedQueryProvider>
               </AuthProvider>

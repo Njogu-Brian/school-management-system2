@@ -35,7 +35,7 @@ const BiometricAuthContext = createContext<BiometricAuthContextValue | undefined
 
 /**
  * Biometric unlock provider. Biometrics only rehydrate an existing Sanctum session —
- * the user must sign in with password or Google at least once before unlock is offered.
+ * the user must sign in with email and password at least once before unlock is offered.
  */
 export const BiometricAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { unlockWithBiometrics, submitting, error } = useAuth();

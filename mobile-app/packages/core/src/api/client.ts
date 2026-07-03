@@ -156,6 +156,14 @@ class ApiClient {
     return res.data;
   }
 
+  /** POST with an explicit bearer token (does not read from SecureStore). */
+  async postWithToken<T>(url: string, token: string, data?: unknown): Promise<ApiResponse<T>> {
+    const res = await this.client.post(url, data, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.data;
+  }
+
   async post<T>(url: string, data?: unknown): Promise<ApiResponse<T>> {
     const res = await this.client.post(url, data);
     return res.data;

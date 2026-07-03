@@ -7,6 +7,7 @@ export interface BrandingContextValue {
   branding: AppBranding | null;
   schoolName: string;
   logoUrl: string | null;
+  loginBackgroundUrl: string | null;
   colorOverrides: BrandColorOverrides;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -22,7 +23,10 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLoading(true);
     try {
       const res = await brandingApi.getAppBranding();
-      if (res.success && res.data) {
+      // GET /app-branding returns a flat payload (no { success, data } wrapper).
+      if (res && typeof res === 'object' && 'school_name' in res) {
+        setBranding(res as unknown as AppBranding);
+      } else if (res.success && res.data) {
         setBranding(res.data);
       }
     } catch {
@@ -41,6 +45,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       branding,
       schoolName: branding?.school_name?.trim() || 'School ERP',
       logoUrl: branding?.logo_url ?? null,
+      loginBackgroundUrl: branding?.login_background_url ?? null,
       colorOverrides: mergePortalColors(branding?.colors),
       loading,
       refresh,

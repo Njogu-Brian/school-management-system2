@@ -13,6 +13,7 @@ import { apiClient } from '../api/client';
 import type { ApiError, AuthStatus, GoogleIdentity, LoginCredentials, User } from '../types';
 import { getCachedUser, saveUser } from '../storage/authStorage';
 import {
+  authenticateWithBiometrics,
   canUseBiometrics,
   clearBiometricAuthBundle,
   getBiometricEnabled,
@@ -235,6 +236,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const deviceOk = await canUseBiometrics();
     if (!deviceOk) {
       throw new Error('Biometrics are not available on this device.');
+    }
+    const verified = await authenticateWithBiometrics(
+      'Confirm your identity to enable biometric sign-in',
+    );
+    if (!verified) {
+      throw new Error('Biometric verification was cancelled.');
     }
     await setBiometricEnabled(true);
     await saveBiometricAuthBundle(token);
