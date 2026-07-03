@@ -18,3 +18,4 @@ export { LessonPlanDetailScreen } from './screens/LessonPlanDetailScreen';
 export { CbcCurriculumScreen } from './screens/CbcCurriculumScreen';
 export { CbcStrandsScreen } from './screens/CbcStrandsScreen';
 export { CbcSubstrandScreen } from './screens/CbcSubstrandScreen';
+export { MarkAttendanceScreen } from './screens/MarkAttendanceScreen';

@@ -2,8 +2,11 @@ import {
   getSessionMeta,
   useActiveSessions,
   useAuth,
+  useNotificationPreferences,
   useRevokeOtherSessions,
   useRevokeSession,
+  useUpdateNotificationPreferences,
+  type NotificationPreferences,
   type PersistedSessionMeta,
 } from '@erp/core';
 import { AcademicScreenHeader, Button, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
@@ -24,6 +27,14 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
   const sessionsQuery = useActiveSessions();
   const revokeSession = useRevokeSession();
   const revokeOthers = useRevokeOtherSessions();
+  const prefsQuery = useNotificationPreferences();
+  const updatePrefs = useUpdateNotificationPreferences();
+
+  const togglePref = (key: keyof NotificationPreferences) => {
+    const current = prefsQuery.data;
+    if (!current) return;
+    void updatePrefs.mutateAsync({ ...current, [key]: !current[key] });
+  };
 
   useEffect(() => {
     void getSessionMeta().then(setMeta);
@@ -81,6 +92,27 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
           </Pressable>
         ))}
       </View>
+
+      <Text style={{ fontWeight: '700', marginTop: spacing.lg, color: palette.textPrimary }}>Notifications</Text>
+      {(
+        [
+          ['push_enabled', 'Push notifications'],
+          ['email_enabled', 'Email notifications'],
+          ['sms_enabled', 'SMS notifications'],
+          ['attendance_alerts', 'Attendance alerts'],
+          ['fee_reminders', 'Fee reminders'],
+          ['announcements', 'Announcements'],
+        ] as const
+      ).map(([key, label]) => (
+        <View key={key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm }}>
+          <Text style={{ color: palette.textPrimary, flex: 1 }}>{label}</Text>
+          <Switch
+            value={prefsQuery.data?.[key] ?? false}
+            onValueChange={() => togglePref(key)}
+            disabled={!prefsQuery.data || updatePrefs.isPending}
+          />
+        </View>
+      ))}
 
       <FinanceFieldSection
         title="Current session"

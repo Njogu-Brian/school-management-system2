@@ -20,6 +20,7 @@ import {
   ReportCardDetailScreen,
   ReportCardHistoryScreen,
   ReportCardsScreen,
+  MarkAttendanceScreen,
 } from '../features/academics';
 import type { AcademicsStackParamList } from './academicsStackTypes';
 
@@ -46,5 +47,6 @@ export const AcademicsStackNavigator: React.FC = () => (
     <Stack.Screen name="CbcCurriculum" component={CbcCurriculumScreen} />
     <Stack.Screen name="CbcStrands" component={CbcStrandsScreen} />
     <Stack.Screen name="CbcSubstrand" component={CbcSubstrandScreen} />
+    <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
   </Stack.Navigator>
 );

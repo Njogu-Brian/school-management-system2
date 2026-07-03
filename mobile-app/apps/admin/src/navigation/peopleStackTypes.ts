@@ -6,6 +6,10 @@ export type PeopleStackParamList = {
     staffId: number;
     summary?: StaffSummary;
   };
+  StaffEdit: { staffId: number };
+  LeaveApply: { staffId?: number } | undefined;
+  LeaveManagement: undefined;
+  PayrollRecords: undefined;
   PerformanceReviewDetail: { staffId: number; reviewId: number };
   TrainingRecordDetail: { staffId: number; recordId: number };
   StaffClock: undefined;

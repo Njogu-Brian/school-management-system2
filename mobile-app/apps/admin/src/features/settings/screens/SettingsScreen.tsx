@@ -8,6 +8,7 @@ import { GradingSettingsSection } from '../sections/GradingSettingsSection';
 import { RolesSettingsSection } from '../sections/RolesSettingsSection';
 import { SchoolSettingsSection } from '../sections/SchoolSettingsSection';
 import { AboutScreen } from './AboutScreen';
+import { GeofenceSettingsScreen } from './GeofenceSettingsScreen';
 import { SessionScreen } from './SessionScreen';
 
 const area = getNavArea('settings');
@@ -25,6 +26,7 @@ export const SettingsScreen: React.FC = () => {
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('school');
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [geofenceOpen, setGeofenceOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
 
   const sections = useMemo(() => ALL_SECTIONS, []);
@@ -65,6 +67,12 @@ export const SettingsScreen: React.FC = () => {
           schoolSubtitle={schoolQuery.data?.school_email ?? 'Administration & configuration'}
           footerLinks={[
             {
+              id: 'geofence',
+              label: 'Staff geofence',
+              icon: 'location-outline',
+              onPress: () => setGeofenceOpen(true),
+            },
+            {
               id: 'session',
               label: 'Session & security',
               icon: 'lock-closed-outline',
@@ -93,6 +101,9 @@ export const SettingsScreen: React.FC = () => {
       </ScrollView>
       <Modal visible={sessionOpen} animationType="slide" onRequestClose={() => setSessionOpen(false)}>
         <SessionScreen onBack={() => setSessionOpen(false)} />
+      </Modal>
+      <Modal visible={geofenceOpen} animationType="slide" onRequestClose={() => setGeofenceOpen(false)}>
+        <GeofenceSettingsScreen onBack={() => setGeofenceOpen(false)} />
       </Modal>
       <Modal visible={aboutOpen} animationType="slide" onRequestClose={() => setAboutOpen(false)}>
         <AboutScreen onBack={() => setAboutOpen(false)} />

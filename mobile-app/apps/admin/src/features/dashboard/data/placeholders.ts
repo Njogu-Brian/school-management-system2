@@ -82,4 +82,22 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     icon: 'time-outline',
     permissions: ['dashboard.view'],
   },
+  {
+    id: 'qa_attendance',
+    label: 'Mark attendance',
+    icon: 'checkmark-done-outline',
+    permissions: ['academics.view', 'dashboard.view'],
+  },
+  {
+    id: 'qa_leave',
+    label: 'Leave requests',
+    icon: 'calendar-outline',
+    permissions: ['approvals.view', 'dashboard.view'],
+  },
+  {
+    id: 'qa_payroll',
+    label: 'Payroll',
+    icon: 'wallet-outline',
+    permissions: ['finance.view'],
+  },
 ];

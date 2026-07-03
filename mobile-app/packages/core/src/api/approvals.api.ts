@@ -60,6 +60,31 @@ export const approvalsApi = {
     });
   },
 
+  listLeaveTypes(): Promise<
+    ApiResponse<
+      Array<{
+        id: number;
+        name: string;
+        code?: string;
+        max_days?: number;
+        is_paid?: boolean;
+        requires_approval?: boolean;
+      }>
+    >
+  > {
+    return apiClient.get('/leave-types');
+  },
+
+  createLeaveRequest(payload: {
+    staff_id?: number;
+    leave_type_id: number;
+    start_date: string;
+    end_date: string;
+    reason?: string;
+  }): Promise<ApiResponse<LeaveRequestRecord>> {
+    return apiClient.post<LeaveRequestRecord>('/leave-requests', payload);
+  },
+
   approveLessonPlan(
     id: number,
     approvalNotes?: string,

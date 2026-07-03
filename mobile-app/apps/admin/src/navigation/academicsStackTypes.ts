@@ -26,4 +26,5 @@ export type AcademicsStackParamList = {
   CbcCurriculum: undefined;
   CbcStrands: { learningAreaId: number; learningAreaName?: string };
   CbcSubstrand: { substrandId: number; substrandName?: string };
+  MarkAttendance: undefined;
 };

@@ -19,25 +19,25 @@ Execution plan for production readiness feedback (June 2026).
 - [x] Collections: Payments + Transactions sub-tabs with web filters
 
 ## Phase 3 — Search & alerts (commit 3)
-- [ ] Global search: students, staff, parents, vehicles, menus
-- [ ] Student registry: fuzzy multi-token search (tallia/talia)
-- [ ] Backend: `GET /search` + student list Levenshtein/similarity
-- [ ] Alerts tab: system logs + red alerts + push on critical
-- [ ] Notifications icon → notifications list (verify navigation)
+- [x] Global search: students, staff, parents, vehicles, menus
+- [x] Student registry: fuzzy multi-token search (tallia/talia)
+- [x] Backend: `GET /search` + student list Levenshtein/similarity
+- [x] Alerts tab: system logs + red alerts + push on critical
+- [x] Notifications icon → notifications list (verify navigation)
 
 ## Phase 4 — Edits & student UX (commit 4)
-- [ ] Staff profile edit (not read-only)
-- [ ] Student profile edit
-- [ ] Student academics chart container overflow fix
-- [ ] Open invoice from finance / student finance tab
+- [x] Staff profile edit (not read-only)
+- [x] Student profile edit
+- [x] Student academics chart container overflow fix
+- [x] Open invoice from finance / student finance tab
 
 ## Phase 5 — Missing modules from legacy app (commits 5–8)
-- [ ] Mark attendance (class picker + bulk mark)
-- [ ] Transport management (trips, vehicles, assignments)
-- [ ] Leave: admin request + approve queue (extend existing)
-- [ ] Payroll records (read + payslip)
-- [ ] Settings hub: school, academic years, theme dark/light toggle
-- [ ] Staff clock in/out + admin view records + geofence management
+- [x] Mark attendance (class picker + bulk mark)
+- [x] Transport management (trips, vehicles, assignments)
+- [x] Leave: admin request + approve queue (extend existing)
+- [x] Payroll records (read + payslip)
+- [x] Settings hub: school, academic years, theme dark/light toggle
+- [x] Staff clock in/out + admin view records + geofence management
 
 ## Git commit strategy
 One commit per phase when tests pass (`npm run typecheck`, `php -l`).
