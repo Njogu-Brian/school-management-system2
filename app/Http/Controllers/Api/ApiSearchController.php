@@ -194,7 +194,9 @@ class ApiSearchController extends Controller
                 $q->where('first_name', 'like', $like)
                     ->orWhere('last_name', 'like', $like)
                     ->orWhere('staff_id', 'like', $like)
-                    ->orWhere('email', 'like', $like);
+                    ->orWhere('work_email', 'like', $like)
+                    ->orWhere('personal_email', 'like', $like)
+                    ->orWhere('phone_number', 'like', $like);
             })
             ->orderBy('first_name')
             ->paginate($limit, ['*'], 'page', $page)

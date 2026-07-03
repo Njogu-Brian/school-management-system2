@@ -142,7 +142,17 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
 
   const listHeader = (
     <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm }}>
-      <AcademicScreenHeader title="Global search" subtitle="One search across your school" onBack={() => navigation.goBack()} />
+      <AcademicScreenHeader
+        title="Global search"
+        subtitle="One search across your school"
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('DashboardHome');
+          }
+        }}
+      />
       {isOffline ? (
         <Text style={{ color: colors.warning, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
           Offline — searching cached data

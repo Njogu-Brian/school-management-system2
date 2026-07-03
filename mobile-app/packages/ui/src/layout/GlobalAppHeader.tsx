@@ -92,7 +92,6 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
         </View>
 
         <View style={styles.right}>
-        <HeaderIcon name="search" color={palette.textPrimary} onPress={onSearchPress} label="Search" />
         <HeaderIcon
           name="checkmark-done-outline"
           color={palette.textPrimary}
