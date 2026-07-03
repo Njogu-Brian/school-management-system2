@@ -26,6 +26,7 @@ class ApiInvoiceController extends Controller
             ->when($request->filled('class_id'), fn($q) => $q->whereHas('student', fn($s) => $s->where('classroom_id', $request->class_id)->where('archive', 0)->where('is_alumni', false)))
             ->when($request->filled('stream_id'), fn($q) => $q->whereHas('student', fn($s) => $s->where('stream_id', $request->stream_id)->where('archive', 0)->where('is_alumni', false)))
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
+            ->when($request->boolean('has_balance'), fn ($q) => $q->where('balance', '>', 0))
             ->when($request->filled('search'), function ($q) use ($request) {
                 $search = '%' . addcslashes($request->search, '%_\\') . '%';
                 $q->whereHas('student', fn($s) => $s->where('first_name', 'like', $search)

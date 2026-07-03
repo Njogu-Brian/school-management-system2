@@ -32,6 +32,7 @@ export const financeApi = {
     if (params?.term != null) query.term = params.term;
     if (params?.term_id != null) query.term_id = params.term_id;
     if (params?.include_reversed) query.include_reversed = true;
+    if (params?.has_balance) query.has_balance = true;
     if (params?.page != null) query.page = params.page;
     if (params?.per_page != null) query.per_page = params.per_page;
     return apiClient.get<PaginatedResponse<InvoiceListRecord>>('/invoices', query);

@@ -107,6 +107,17 @@ export type FinanceTransactionType = 'bank' | 'c2b';
 
 export type ReconciliationQueueFilter = 'pending' | 'confirmed' | 'rejected';
 
+export type FinanceTransactionViewFilter =
+  | 'all'
+  | 'auto-assigned'
+  | 'unassigned'
+  | 'duplicate'
+  | 'swimming'
+  | 'manual-assigned'
+  | 'draft'
+  | 'collected'
+  | 'archived';
+
 export interface FinanceTransactionListRecord {
   id: number;
   transaction_type: FinanceTransactionType;
@@ -173,6 +184,7 @@ export interface InvoiceListFilters {
   term?: number;
   term_id?: number;
   include_reversed?: boolean;
+  has_balance?: boolean;
   page?: number;
   per_page?: number;
 }
@@ -190,7 +202,7 @@ export interface PaymentListFilters {
 
 export interface FinanceTransactionListFilters {
   search?: string;
-  view?: string;
+  view?: FinanceTransactionViewFilter | string;
   queue?: ReconciliationQueueFilter;
   date_from?: string;
   date_to?: string;

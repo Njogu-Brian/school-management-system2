@@ -2,9 +2,9 @@ import type { InvoiceSummary, PaymentSummary, FinanceTransactionSummary } from '
 
 export type FinanceStackParamList = {
   FinanceDashboard: undefined;
-  BillingList: undefined;
+  BillingList: { hasBalance?: boolean } | undefined;
   InvoiceDetail: { invoiceId: number; summary?: InvoiceSummary };
-  CollectionsList: undefined;
+  CollectionsList: { initialTab?: 'payments' | 'transactions'; transactionView?: string } | undefined;
   PaymentDetail: { paymentId: number; summary?: PaymentSummary };
   Statements: undefined;
   ReconciliationList: undefined;

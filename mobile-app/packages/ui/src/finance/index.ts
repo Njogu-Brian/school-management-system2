@@ -5,6 +5,7 @@ export * from './InvoiceFilters';
 export * from './InvoiceListItem';
 export * from './PaymentListItem';
 export * from './ReconciliationFilters';
+export * from './TransactionViewFilters';
 export * from './FinanceTransactionListItem';
 export * from './FinanceFieldSection';
 export * from './StatementLedger';

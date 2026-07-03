@@ -22,14 +22,12 @@ const KPI_CONFIG = [
   { key: 'collectedThisMonth' as const, label: 'Collected This Month', icon: 'calendar-outline' as const },
   { key: 'outstandingFees' as const, label: 'Outstanding Fees', icon: 'wallet-outline' as const },
   { key: 'studentsInArrears' as const, label: 'Students In Arrears', icon: 'alert-circle-outline' as const },
-  { key: 'pendingReconciliation' as const, label: 'Pending Reconciliation', icon: 'git-compare-outline' as const },
 ];
 
 const SECTIONS = [
   { route: 'BillingList' as const, label: 'Billing', icon: 'receipt-outline' as const, subtitle: 'Invoices & fee structures' },
-  { route: 'CollectionsList' as const, label: 'Collections', icon: 'cash-outline' as const, subtitle: 'Payments & receipts' },
+  { route: 'CollectionsList' as const, label: 'Collections', icon: 'cash-outline' as const, subtitle: 'Payments & transactions' },
   { route: 'Statements' as const, label: 'Statements', icon: 'document-text-outline' as const, subtitle: 'Student fee statements' },
-  { route: 'ReconciliationList' as const, label: 'Reconciliation', icon: 'swap-horizontal-outline' as const, subtitle: 'Bank & M-Pesa queue' },
 ];
 
 export const FinanceDashboardScreen: React.FC = () => {
@@ -42,6 +40,23 @@ export const FinanceDashboardScreen: React.FC = () => {
   const openSection = useCallback(
     (route: (typeof SECTIONS)[number]['route']) => {
       navigation.navigate(route);
+    },
+    [navigation],
+  );
+
+  const openKpi = useCallback(
+    (key: (typeof KPI_CONFIG)[number]['key']) => {
+      if (key === 'studentsInArrears') {
+        navigation.navigate('BillingList', { hasBalance: true });
+        return;
+      }
+      if (key === 'outstandingFees') {
+        navigation.navigate('BillingList', { hasBalance: true });
+        return;
+      }
+      if (key === 'collectedToday' || key === 'collectedThisMonth') {
+        navigation.navigate('CollectionsList', { initialTab: 'payments' });
+      }
     },
     [navigation],
   );
@@ -74,7 +89,7 @@ export const FinanceDashboardScreen: React.FC = () => {
         <DashboardHero
           variant="finance"
           title="Finance Dashboard"
-          subtitle="Collections, billing & reconciliation"
+          subtitle="Collections, billing & statements"
           meta={
             kpiData
               ? `${formatFinanceAmount(kpiData.collectedThisMonth ?? 0)} collected this month`
@@ -86,7 +101,7 @@ export const FinanceDashboardScreen: React.FC = () => {
           {KPI_CONFIG.map((kpi) => {
             const raw = kpiData?.[kpi.key];
             const value =
-              kpi.key === 'studentsInArrears' || kpi.key === 'pendingReconciliation'
+              kpi.key === 'studentsInArrears'
                 ? String(raw ?? 0)
                 : formatFinanceAmount(typeof raw === 'number' ? raw : 0);
             const state = kpisQuery.isLoading
@@ -103,7 +118,12 @@ export const FinanceDashboardScreen: React.FC = () => {
                 title={kpi.label}
                 onRetry={() => void kpisQuery.refetch()}
               >
-                <KpiCard label={kpi.label} value={value} icon={kpi.icon} />
+                <KpiCard
+                  label={kpi.label}
+                  value={value}
+                  icon={kpi.icon}
+                  onPress={() => openKpi(kpi.key)}
+                />
               </WidgetShell>
             );
           })}

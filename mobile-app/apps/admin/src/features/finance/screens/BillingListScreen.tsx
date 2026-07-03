@@ -27,11 +27,12 @@ import { formatKes } from '../utils/formatters';
 
 type Props = StackScreenProps<FinanceStackParamList, 'BillingList'>;
 
-export const BillingListScreen: React.FC<Props> = ({ navigation }) => {
+export const BillingListScreen: React.FC<Props> = ({ navigation, route }) => {
   const canView = useCan('finance.view');
   const { colors, palette, spacing } = useTheme();
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const { searchInput, setSearchInput, status, setStatus, filters } = useBillingRegistryState();
+  const { searchInput, setSearchInput, status, setStatus, filters } =
+    useBillingRegistryState(route.params?.hasBalance);
   const listQuery = useInfiniteInvoiceList(filters, { enabled: canView });
 
   const invoices = useMemo(
