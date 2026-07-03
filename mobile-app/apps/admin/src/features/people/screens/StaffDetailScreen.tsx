@@ -216,6 +216,12 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={styles.flex}>
+      <Pressable
+        onPress={() => navigation.navigate('StaffEdit', { staffId })}
+        style={{ alignSelf: 'flex-end', marginRight: spacing.md, marginTop: spacing.xs }}
+      >
+        <Text style={{ color: colors.primary, fontWeight: '700' }}>Edit profile</Text>
+      </Pressable>
       <Staff360Layout
         header={header}
         tabs={TABS}

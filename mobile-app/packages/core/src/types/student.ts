@@ -15,6 +15,7 @@ export interface StudentRecord {
   stream_name?: string | null;
   status?: string;
   category?: string | null;
+  category_id?: number | null;
   avatar?: string | null;
   phone?: string | null;
   email?: string | null;

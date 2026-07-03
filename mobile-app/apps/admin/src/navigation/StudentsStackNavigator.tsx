@@ -4,6 +4,7 @@ import {
   MedicalRecordFormScreen,
   ReportCardDetailScreen,
   StudentDetailScreen,
+  StudentEditScreen,
   StudentRegistryScreen,
 } from '../features/students';
 import type { StudentsStackParamList } from './studentsStackTypes';
@@ -16,5 +17,6 @@ export const StudentsStackNavigator: React.FC = () => (
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     <Stack.Screen name="ReportCardDetail" component={ReportCardDetailScreen} />
     <Stack.Screen name="MedicalRecordForm" component={MedicalRecordFormScreen} />
+    <Stack.Screen name="StudentEdit" component={StudentEditScreen} />
   </Stack.Navigator>
 );

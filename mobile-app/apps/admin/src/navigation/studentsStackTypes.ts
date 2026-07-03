@@ -16,4 +16,5 @@ export type StudentsStackParamList = {
     studentId: number;
     studentName?: string;
   };
+  StudentEdit: { studentId: number };
 };

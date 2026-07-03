@@ -13,6 +13,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from '@erp/ui';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
+import { navigateToTab } from '../../../navigation/navigateWorkspace';
 import { AttendanceTab } from '../student360/tabs/AttendanceTab';
 import { DocumentsTab } from '../student360/tabs/DocumentsTab';
 import { FamilyTab } from '../student360/tabs/FamilyTab';
@@ -202,6 +203,9 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             totalPaid={statement?.total_paid}
             invoices={invoices}
             payments={payments}
+            onInvoicePress={(invoiceId) =>
+              navigateToTab(navigation, 'Finance', 'InvoiceDetail', { invoiceId })
+            }
           />
         );
       case 'family':
@@ -221,6 +225,12 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={styles.flex}>
+      <Pressable
+        onPress={() => navigation.navigate('StudentEdit', { studentId })}
+        style={{ alignSelf: 'flex-end', marginRight: spacing.md, marginTop: spacing.xs }}
+      >
+        <Text style={{ color: colors.primary, fontWeight: '700' }}>Edit profile</Text>
+      </Pressable>
       <Student360Layout
         header={header}
         tabs={tabs}

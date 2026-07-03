@@ -61,4 +61,8 @@ export const staffApi = {
       params,
     );
   },
+
+  update(id: number, payload: Record<string, unknown>): Promise<ApiResponse<StaffRecord>> {
+    return apiClient.put<StaffRecord>(`/staff/${id}`, payload);
+  },
 };

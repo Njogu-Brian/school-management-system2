@@ -65,4 +65,17 @@ export const studentsApi = {
     const params = year != null ? { year } : undefined;
     return apiClient.get<StudentStatementRecord>(`/students/${studentId}/statement`, params);
   },
+
+  listCategories(): Promise<ApiResponse<Array<{ id: number; name: string; description?: string }>>> {
+    return apiClient.get<Array<{ id: number; name: string; description?: string }>>(
+      '/student-categories',
+    );
+  },
+
+  update(
+    studentId: number,
+    payload: Record<string, unknown>,
+  ): Promise<ApiResponse<StudentRecord>> {
+    return apiClient.post<StudentRecord>(`/students/${studentId}/update`, payload);
+  },
 };

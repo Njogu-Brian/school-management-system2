@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import type { PerformanceTrendPointData } from './types';
 
@@ -34,50 +34,53 @@ export const PerformanceTrend: React.FC<PerformanceTrendProps> = ({
       {points.length === 0 ? (
         <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{emptyMessage}</Text>
       ) : (
-        <View
-          style={[
-            styles.chart,
-            {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderRadius: radius.md,
-              padding: spacing.md,
-            },
-          ]}
-        >
-          {points.map((p) => {
-            const heightPct = Math.max(8, Math.round((p.percentage / max) * 100));
-            return (
-              <View key={`${p.label}-${p.percentage}`} style={styles.barCol}>
-                <Text style={{ color: palette.textPrimary, fontSize: fontSizes.xs, fontWeight: '700' }}>
-                  {p.percentage.toFixed(0)}%
-                </Text>
-                <View
-                  style={[
-                    styles.bar,
-                    {
-                      height: `${heightPct}%`,
-                      backgroundColor: `${colors.primary}88`,
-                      borderRadius: radius.sm,
-                    },
-                  ]}
-                />
-                <Text
-                  numberOfLines={2}
-                  style={{
-                    color: palette.textSecondary,
-                    fontSize: 10,
-                    textAlign: 'center',
-                    marginTop: 4,
-                    minHeight: 28,
-                  }}
-                >
-                  {p.label}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View
+            style={[
+              styles.chart,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                borderRadius: radius.md,
+                padding: spacing.md,
+                minWidth: Math.max(points.length * 76, 280),
+              },
+            ]}
+          >
+            {points.map((p) => {
+              const barHeight = Math.max(12, Math.round((p.percentage / max) * 88));
+              return (
+                <View key={`${p.label}-${p.percentage}`} style={styles.barCol}>
+                  <Text style={{ color: palette.textPrimary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                    {p.percentage.toFixed(0)}%
+                  </Text>
+                  <View
+                    style={[
+                      styles.bar,
+                      {
+                        height: barHeight,
+                        backgroundColor: `${colors.primary}88`,
+                        borderRadius: radius.sm,
+                      },
+                    ]}
+                  />
+                  <Text
+                    numberOfLines={2}
+                    style={{
+                      color: palette.textSecondary,
+                      fontSize: 10,
+                      textAlign: 'center',
+                      marginTop: 4,
+                      width: 64,
+                    }}
+                  >
+                    {p.label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -92,15 +95,14 @@ const styles = StyleSheet.create({
     minHeight: 140,
   },
   barCol: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    maxWidth: 72,
+    width: 72,
     height: 120,
+    marginHorizontal: 2,
   },
   bar: {
-    width: '70%',
-    minHeight: 8,
+    width: 44,
     marginTop: 4,
   },
 });

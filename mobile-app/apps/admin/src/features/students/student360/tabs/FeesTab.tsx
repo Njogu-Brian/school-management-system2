@@ -1,6 +1,6 @@
 import { StudentSummaryWidgets, type StudentSummaryWidgetData } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
 import { formatDateLabel, formatKes } from '../utils/formatters';
 
@@ -14,6 +14,7 @@ export interface FeesTabProps {
   totalPaid?: number;
   invoices: Array<{ id: number; date: string; reference: string; amount: number }>;
   payments: Array<{ id: number; date: string; reference: string; amount: number }>;
+  onInvoicePress?: (invoiceId: number) => void;
 }
 
 export const FeesTab: React.FC<FeesTabProps> = ({
@@ -26,6 +27,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
   totalPaid,
   invoices,
   payments,
+  onInvoicePress,
 }) => {
   const { palette, colors, spacing, fontSizes } = useTheme();
 
@@ -86,6 +88,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
               sub={formatDateLabel(inv.date)}
               palette={palette}
               fontSizes={fontSizes}
+              onPress={onInvoicePress ? () => onInvoicePress(inv.id) : undefined}
             />
           ))
         )}
@@ -149,22 +152,32 @@ function Row({
   sub,
   palette,
   fontSizes,
+  onPress,
 }: {
   left: string;
   right: string;
   sub: string;
   palette: { textPrimary: string; textSecondary: string; border: string };
   fontSizes: { sm: number; xs: number };
+  onPress?: () => void;
 }) {
-  return (
-    <View style={[styles.row, { borderBottomColor: palette.border }]}>
+  const content = (
+    <>
       <View style={{ flex: 1 }}>
         <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm }}>{left}</Text>
         <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>{sub}</Text>
       </View>
       <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '600' }}>{right}</Text>
-    </View>
+    </>
   );
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={[styles.row, { borderBottomColor: palette.border }]}>
+        {content}
+      </Pressable>
+    );
+  }
+  return <View style={[styles.row, { borderBottomColor: palette.border }]}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
