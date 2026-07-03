@@ -1482,6 +1482,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
         Route::get('accounting-reports/trial-balance', [\App\Http\Controllers\Finance\AccountingReportController::class, 'trialBalance'])->name('accounting-reports.trial-balance');
         Route::get('accounting-reports/profit-and-loss', [\App\Http\Controllers\Finance\AccountingReportController::class, 'profitAndLoss'])->name('accounting-reports.profit-and-loss');
+        Route::get('accounting-reports/profit-loss-reconciliation', [\App\Http\Controllers\Finance\AccountingReportController::class, 'profitLossReconciliation'])->name('accounting-reports.profit-loss-reconciliation');
         Route::get('accounting-reports/balance-sheet', [\App\Http\Controllers\Finance\AccountingReportController::class, 'balanceSheet'])->name('accounting-reports.balance-sheet');
 
         Route::get('fiscal-periods', [\App\Http\Controllers\Finance\FiscalPeriodController::class, 'index'])->name('fiscal-periods.index');

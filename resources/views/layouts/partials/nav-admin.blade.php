@@ -582,6 +582,9 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
                         @if(Route::has('finance.accounting-reports.profit-and-loss'))
                             <a href="{{ route('finance.accounting-reports.profit-and-loss') }}" class="sublink {{ Request::is('finance/accounting-reports/profit-and-loss') ? 'active' : '' }}" style="padding-left: 60px;">Profit &amp; Loss</a>
                         @endif
+                        @if(Route::has('finance.accounting-reports.profit-loss-reconciliation'))
+                            <a href="{{ route('finance.accounting-reports.profit-loss-reconciliation') }}" class="sublink {{ Request::is('finance/accounting-reports/profit-loss-reconciliation') ? 'active' : '' }}" style="padding-left: 60px;">P&amp;L Reconciliation</a>
+                        @endif
                         @if(Route::has('finance.accounting-reports.balance-sheet'))
                             <a href="{{ route('finance.accounting-reports.balance-sheet') }}" class="sublink {{ Request::is('finance/accounting-reports/balance-sheet') ? 'active' : '' }}" style="padding-left: 60px;">Balance Sheet</a>
                         @endif

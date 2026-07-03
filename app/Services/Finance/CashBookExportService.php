@@ -11,8 +11,9 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 /**
  * Builds an Excel "cash book" that mirrors the manual EXPENSES workbook:
- *  - Sheet1: one row per expense, grouped into month blocks, with the amount
- *    echoed under its category column and a per-month TOTAL row.
+ *  - Sheet1: one row per expense line, grouped into month blocks, with vendor,
+ *    description, category/sub-category detail columns, the amount echoed under
+ *    its legacy category column, and a per-month TOTAL row.
  *  - Summary: category x month pivot.
  *
  * Sourced live from the accounting system (expenses + expense lines).
@@ -72,13 +73,18 @@ class CashBookExportService
 
     private const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
+    /** Detail columns inserted before AMOUNT (legacy category pivot columns follow). */
+    private const DETAIL_HEADERS = ['Vendor', 'Description', 'Category', 'Sub-category'];
+
     public function build(int $year): Spreadsheet
     {
-        $categories = ExpenseCategory::query()->get(['id', 'code', 'parent_id'])->keyBy('id');
+        $categories = ExpenseCategory::query()
+            ->get(['id', 'code', 'parent_id', 'name', 'is_header'])
+            ->keyBy('id');
         $vendors = Vendor::query()->pluck('name', 'id');
 
         $expenses = Expense::query()
-            ->with('lines')
+            ->with(['lines', 'vendor'])
             ->whereYear('expense_date', $year)
             ->whereIn('status', [Expense::STATUS_SUBMITTED, Expense::STATUS_APPROVED, Expense::STATUS_PAID])
             ->orderBy('expense_date')
@@ -87,21 +93,26 @@ class CashBookExportService
         // entries grouped by month number (1..12)
         $byMonth = array_fill(1, 12, []);
         foreach ($expenses as $expense) {
-            $item = $vendors[$expense->vendor_id] ?? null;
+            $vendorName = $expense->vendor?->name
+                ?? ($vendors[$expense->vendor_id] ?? null);
             foreach ($expense->lines as $line) {
                 $column = $this->columnForCategory($line->category_id, $categories);
                 if ($column === null) {
                     continue;
                 }
-                $amount = (float) $line->line_total;
+                $amount = (int) round((float) $line->line_total);
                 if ($amount <= 0) {
                     continue;
                 }
+                $labels = $this->categoryLabels($line->category_id, $categories);
                 $date = $expense->expense_date;
                 $month = (int) $date->format('n');
                 $byMonth[$month][] = [
                     'date' => $date,
-                    'item' => $item ?: ($line->description ?: 'Expense'),
+                    'vendor' => $vendorName,
+                    'description' => trim((string) ($line->description ?: $expense->notes ?: '')),
+                    'category' => $labels['category'],
+                    'subcategory' => $labels['subcategory'],
                     'amount' => $amount,
                     'column' => $column,
                 ];
@@ -134,17 +145,45 @@ class CashBookExportService
         return null;
     }
 
+    /**
+     * @return array{category: ?string, subcategory: ?string}
+     */
+    private function categoryLabels(?int $categoryId, $categories): array
+    {
+        if ($categoryId === null || ! isset($categories[$categoryId])) {
+            return ['category' => null, 'subcategory' => null];
+        }
+
+        $cat = $categories[$categoryId];
+        if ($cat->is_header) {
+            return ['category' => $cat->name, 'subcategory' => null];
+        }
+
+        $parent = $cat->parent_id ? ($categories[$cat->parent_id] ?? null) : null;
+        if ($parent) {
+            return ['category' => $parent->name, 'subcategory' => $cat->name];
+        }
+
+        return ['category' => $cat->name, 'subcategory' => null];
+    }
+
     private function buildLedgerSheet(Spreadsheet $spreadsheet, array $byMonth, int $year): void
     {
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Cash Book ' . $year);
 
-        $headers = array_merge(['DATE', 'Voucher No.', 'ITEM', 'AMOUNT'], self::COLUMNS);
+        $headers = array_merge(
+            ['DATE', 'Voucher No.', 'ITEM'],
+            self::DETAIL_HEADERS,
+            ['AMOUNT'],
+            self::COLUMNS
+        );
         $lastColIndex = count($headers);
         $colLetterOf = fn (int $i) => \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
+        $amountCol = 3 + count(self::DETAIL_HEADERS) + 1; // DATE,Voucher,ITEM + details + AMOUNT
         $columnIndex = [];
         foreach (self::COLUMNS as $i => $name) {
-            $columnIndex[$name] = 5 + $i; // category columns start at column E (5)
+            $columnIndex[$name] = $amountCol + 1 + $i;
         }
 
         $row = 1;
@@ -168,10 +207,15 @@ class CashBookExportService
             $seq = 0;
             foreach ($entries as $e) {
                 $seq++;
+                $item = $e['vendor'] ?: ($e['description'] ?: 'Expense');
                 $sheet->setCellValueByColumnAndRow(1, $row, $e['date']->format('Y-m-d'));
                 $sheet->setCellValueByColumnAndRow(2, $row, self::MONTHS[$m - 1] . str_pad((string) $seq, 3, '0', STR_PAD_LEFT));
-                $sheet->setCellValueByColumnAndRow(3, $row, $e['item']);
-                $sheet->setCellValueByColumnAndRow(4, $row, $e['amount']);
+                $sheet->setCellValueByColumnAndRow(3, $row, $item);
+                $sheet->setCellValueByColumnAndRow(4, $row, $e['vendor']);
+                $sheet->setCellValueByColumnAndRow(5, $row, $e['description'] ?: null);
+                $sheet->setCellValueByColumnAndRow(6, $row, $e['category']);
+                $sheet->setCellValueByColumnAndRow(7, $row, $e['subcategory']);
+                $sheet->setCellValueByColumnAndRow($amountCol, $row, $e['amount']);
                 $sheet->setCellValueByColumnAndRow($columnIndex[$e['column']], $row, $e['amount']);
                 $row++;
             }
@@ -179,7 +223,7 @@ class CashBookExportService
 
             // TOTAL row
             $sheet->setCellValueByColumnAndRow(1, $row, 'TOTAL');
-            for ($c = 4; $c <= $lastColIndex; $c++) {
+            for ($c = $amountCol; $c <= $lastColIndex; $c++) {
                 $letter = $colLetterOf($c);
                 $sheet->setCellValue("{$letter}{$row}", "=SUM({$letter}{$firstDataRow}:{$letter}{$lastDataRow})");
             }
@@ -190,8 +234,13 @@ class CashBookExportService
         // Number formatting + widths
         $sheet->getColumnDimension('A')->setWidth(12);
         $sheet->getColumnDimension('B')->setWidth(12);
-        $sheet->getColumnDimension('C')->setWidth(34);
-        $sheet->getStyle('D1:' . $colLetterOf($lastColIndex) . max(1, $row))->getNumberFormat()->setFormatCode('#,##0');
+        $sheet->getColumnDimension('C')->setWidth(28);
+        $sheet->getColumnDimension('D')->setWidth(24);
+        $sheet->getColumnDimension('E')->setWidth(36);
+        $sheet->getColumnDimension('F')->setWidth(22);
+        $sheet->getColumnDimension('G')->setWidth(22);
+        $amountLetter = $colLetterOf($amountCol);
+        $sheet->getStyle("{$amountLetter}1:" . $colLetterOf($lastColIndex) . max(1, $row))->getNumberFormat()->setFormatCode('#,##0');
     }
 
     private function buildSummarySheet(Spreadsheet $spreadsheet, array $byMonth, int $year): void

@@ -17,7 +17,7 @@
       <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
-    {{-- One-click cash-book export (per-expense rows by month + category summary) --}}
+    {{-- Cash-book export: per line with vendor, description, category/sub-category + summary --}}
     <div class="d-flex justify-content-end mb-3">
       <form method="GET" action="{{ route('finance.expenses.cash-book-export') }}" class="d-flex align-items-end gap-2">
         <div>
