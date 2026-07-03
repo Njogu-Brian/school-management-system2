@@ -12,6 +12,10 @@ export function useStaffClockToday(options?: { enabled?: boolean }) {
     },
     enabled: options?.enabled !== false,
     staleTime: 15_000,
+    retry: (failureCount, err) => {
+      const status = (err as { status?: number })?.status;
+      return status !== 403 && status !== 422 && failureCount < 2;
+    },
   });
 }
 
@@ -25,6 +29,10 @@ export function useStaffClockHistory(options?: { enabled?: boolean }) {
     },
     enabled: options?.enabled !== false,
     staleTime: 30_000,
+    retry: (failureCount, err) => {
+      const status = (err as { status?: number })?.status;
+      return status !== 403 && status !== 422 && failureCount < 2;
+    },
   });
 }
 

@@ -12,6 +12,7 @@ import { FinanceStackNavigator } from './FinanceStackNavigator';
 import { PeopleStackNavigator } from './PeopleStackNavigator';
 import { StudentsStackNavigator } from './StudentsStackNavigator';
 import { withAreaGuard } from './guards/ProtectedAreaScreen';
+import { navigateTabHome } from './areaRoutes';
 import type { TabsParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabsParamList>();
@@ -100,6 +101,11 @@ export const BottomTabsNavigator: React.FC = () => {
           key={routeName}
           name={routeName}
           component={withAreaGuard(TAB_AREA_KEY[routeName], TAB_SCREENS[routeName])}
+          listeners={({ navigation }) => ({
+            tabPress: () => {
+              navigateTabHome(navigation, routeName);
+            },
+          })}
         />
       ))}
     </Tab.Navigator>

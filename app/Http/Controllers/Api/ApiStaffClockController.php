@@ -46,17 +46,10 @@ class ApiStaffClockController extends Controller
         return $earthRadius * $c;
     }
 
-    private function ensureTeacherLikeUser(Request $request)
+    private function ensureStaffProfileLinked(Request $request)
     {
         $user = $request->user();
-        if (! $user || ! $user->hasTeacherLikeRole()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Only teachers can use clock-in/out.',
-            ], 403);
-        }
-
-        if (! $user->staff) {
+        if (! $user || ! $user->staff) {
             return response()->json([
                 'success' => false,
                 'message' => 'No staff profile is linked to this account.',
@@ -107,7 +100,7 @@ class ApiStaffClockController extends Controller
 
     public function today(Request $request)
     {
-        if ($response = $this->ensureTeacherLikeUser($request)) {
+        if ($response = $this->ensureStaffProfileLinked($request)) {
             return $response;
         }
 
@@ -131,7 +124,7 @@ class ApiStaffClockController extends Controller
 
     public function history(Request $request)
     {
-        if ($response = $this->ensureTeacherLikeUser($request)) {
+        if ($response = $this->ensureStaffProfileLinked($request)) {
             return $response;
         }
 
@@ -273,7 +266,7 @@ class ApiStaffClockController extends Controller
 
     public function clockIn(Request $request)
     {
-        if ($response = $this->ensureTeacherLikeUser($request)) {
+        if ($response = $this->ensureStaffProfileLinked($request)) {
             return $response;
         }
 
@@ -346,7 +339,7 @@ class ApiStaffClockController extends Controller
 
     public function clockOut(Request $request)
     {
-        if ($response = $this->ensureTeacherLikeUser($request)) {
+        if ($response = $this->ensureStaffProfileLinked($request)) {
             return $response;
         }
 
