@@ -146,6 +146,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/device-tokens/revoke', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'destroy']);
     Route::get('/notification-preferences', [ApiNotificationPreferencesController::class, 'show']);
     Route::put('/notification-preferences', [ApiNotificationPreferencesController::class, 'update']);
+    Route::get('/admin-alerts', [\App\Http\Controllers\AdminAlertController::class, 'index']);
+    Route::post('/admin-alerts/{id}/acknowledge', [\App\Http\Controllers\AdminAlertController::class, 'acknowledge']);
     Route::get('/staff-attendance/geofence', [ApiStaffClockController::class, 'geofence']);
     Route::put('/staff-attendance/geofence', [ApiStaffClockController::class, 'updateGeofence']);
     Route::get('/staff-attendance/me/today', [ApiStaffClockController::class, 'today']);

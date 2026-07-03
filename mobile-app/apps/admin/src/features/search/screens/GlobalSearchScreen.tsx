@@ -30,6 +30,7 @@ import {
 } from 'react-native';
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
 import { resolveSearchRoute } from '../resolveSearchRoute';
+import { searchMenuItems } from '../searchMenuItems';
 
 type Props = StackScreenProps<DashboardStackParamList, 'GlobalSearch'>;
 
@@ -51,6 +52,7 @@ const MODULE_LABELS: Record<string, string> = {
   operations: 'Operations',
   communication: 'Communication',
   academics: 'Academics',
+  Menu: 'Menu',
 };
 
 type SearchRow =
@@ -98,10 +100,19 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
     });
   }, []);
 
-  const onlineItems = useMemo(
-    () => searchQuery.data?.pages.flatMap((p) => p.items) ?? [],
-    [searchQuery.data],
-  );
+  const onlineItems = useMemo(() => {
+    const apiItems = searchQuery.data?.pages.flatMap((p) => p.items) ?? [];
+    if (moduleFilter !== 'all' || debouncedQuery.length < 2) {
+      return apiItems;
+    }
+    const menuHits = searchMenuItems(debouncedQuery);
+    const seen = new Set(apiItems.map((h) => h.id));
+    const merged = [...apiItems];
+    for (const hit of menuHits) {
+      if (!seen.has(hit.id)) merged.push(hit);
+    }
+    return merged;
+  }, [searchQuery.data, moduleFilter, debouncedQuery]);
   const items = isOffline ? offlineHits : onlineItems;
   const showSuggestions = debouncedQuery.length >= 1 && debouncedQuery.length < 2 && !isOffline;
 
