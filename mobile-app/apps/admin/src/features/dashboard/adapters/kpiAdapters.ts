@@ -44,26 +44,23 @@ function chartPeriodTrend(
   };
 }
 
-function termScopeCaption(stats: AdminDashboardStats): string | undefined {
-  const filters = stats.filters;
-  if (!filters?.term_id && !filters?.academic_year_id) {
-    return 'All time';
-  }
-  const term = filters.available_terms?.find((t) => t.id === filters.term_id);
-  if (term?.name) {
-    return term.name;
-  }
-  const year = filters.available_years?.find((y) => y.id === filters.academic_year_id);
-  if (year?.year != null) {
-    return `Year ${year.year}`;
-  }
-  return undefined;
-}
-
 export function adaptEnrollmentKpi(stats: AdminDashboardStats): KpiAdapterResult {
   const { label, icon } = meta('enrollment_kpi');
   const total = stats.total_students ?? 0;
   const trend = chartPeriodTrend(stats.charts?.enrollment);
+
+  const admissionsToday = stats.admissions_today ?? 0;
+  const lastAdmission = stats.last_admission;
+  let admissionCaption: string | undefined;
+  if (lastAdmission?.date) {
+    const d = new Date(lastAdmission.date);
+    const formatted = d.toLocaleDateString('en-KE', { day: 'numeric', month: 'numeric', year: 'numeric' });
+    const count = lastAdmission.count ?? 1;
+    const studentWord = count === 1 ? 'student' : 'students';
+    admissionCaption = `Last admission ${formatted} · ${count} ${studentWord}`;
+  } else if (admissionsToday > 0) {
+    admissionCaption = `${formatInteger(admissionsToday)} joined today`;
+  }
 
   return {
     isEmpty: total === 0,
@@ -71,7 +68,7 @@ export function adaptEnrollmentKpi(stats: AdminDashboardStats): KpiAdapterResult
       label,
       icon: icon as KpiCardProps['icon'],
       value: formatInteger(total),
-      delta: trend?.delta ?? 'Active students',
+      delta: admissionCaption ?? trend?.delta ?? 'Active students',
       deltaPositive: trend?.deltaPositive ?? true,
     },
   };
@@ -97,43 +94,39 @@ export function adaptAttendanceKpi(stats: AdminDashboardStats): KpiAdapterResult
 
 export function adaptCollectionsKpi(stats: AdminDashboardStats): KpiAdapterResult {
   const { label, icon } = meta('collections_kpi');
-  const collected = stats.fees_collected ?? 0;
-  const invoiced = stats.total_invoiced ?? 0;
-  const scope = termScopeCaption(stats);
-  const collectionRate =
-    invoiced > 0 ? Math.min(100, Math.round((collected / invoiced) * 100)) : null;
-  const trend = chartPeriodTrend(stats.charts?.payments);
+  const week = stats.collected_this_week;
+  const month = stats.collected_this_month ?? stats.fees_collected ?? 0;
+  const term = stats.collected_this_term;
+
+  const parts: string[] = [];
+  if (week != null) parts.push(`Week ${formatKes(week)}`);
+  if (month != null) parts.push(`Month ${formatKes(month)}`);
+  if (term != null) parts.push(`Term ${formatKes(term)}`);
 
   return {
     isEmpty: false,
     kpi: {
       label,
       icon: icon as KpiCardProps['icon'],
-      value: formatKes(collected),
-      delta:
-        trend?.delta ??
-        (collectionRate != null
-          ? `${collectionRate}% of invoiced${scope ? ` · ${scope}` : ''}`
-          : scope ?? 'Scoped collections'),
-      deltaPositive: trend?.deltaPositive ?? (collectionRate == null || collectionRate >= 50),
+      value: month != null ? formatKes(month) : formatKes(stats.fees_collected ?? 0),
+      delta: parts.length ? parts.join(' · ') : 'Collections',
+      deltaPositive: true,
     },
   };
 }
 
 export function adaptOutstandingFeesKpi(stats: AdminDashboardStats): KpiAdapterResult {
   const { label, icon } = meta('outstanding_fees_kpi');
-  const balance = stats.outstanding_balance ?? 0;
-  const invoiced = stats.total_invoiced ?? 0;
-  const scope = termScopeCaption(stats);
+  const balance = stats.outstanding_balance_all ?? stats.outstanding_balance ?? 0;
   const trend = chartPeriodTrend(stats.charts?.invoices, { invertPositive: true });
 
   return {
-    isEmpty: balance === 0 && invoiced === 0,
+    isEmpty: balance === 0,
     kpi: {
       label,
       icon: icon as KpiCardProps['icon'],
       value: formatKes(balance),
-      delta: trend?.delta ?? (scope ? `Balance · ${scope}` : 'Invoice balance'),
+      delta: trend?.delta ?? 'All invoices',
       deltaPositive: trend?.deltaPositive ?? false,
     },
   };

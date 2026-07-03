@@ -53,7 +53,8 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
         },
       ]}
     >
-      <View style={styles.left}>
+      <View style={styles.topRow}>
+        <View style={styles.left}>
         {onMenuPress ? (
           <Pressable
             accessibilityRole="button"
@@ -88,9 +89,9 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
             <Ionicons name="chevron-down" size={12} color={palette.textSecondary} />
           </Pressable>
         </View>
-      </View>
+        </View>
 
-      <View style={styles.right}>
+        <View style={styles.right}>
         <HeaderIcon name="search" color={palette.textPrimary} onPress={onSearchPress} label="Search" />
         <HeaderIcon
           name="checkmark-done-outline"
@@ -115,6 +116,7 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
         >
           <Ionicons name="person" size={16} color={colors.white} />
         </Pressable>
+      </View>
       </View>
 
       {onSearchPress ? (
@@ -174,12 +176,14 @@ const HeaderIcon: React.FC<HeaderIconProps> = ({ name, color, label, onPress, do
 
 const styles = StyleSheet.create({
   wrap: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 4,
   },
   left: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
   titleBlock: { marginLeft: 4, flexShrink: 1 },

@@ -37,7 +37,7 @@ export interface TeachingTabProps {
 }
 
 export const TeachingTab: React.FC<TeachingTabProps> = ({ staffId, systemRole }) => {
-  const { colors, spacing } = useTheme();
+  const { colors, palette, spacing } = useTheme();
   const hasTeachingRole = isTeachingRole(systemRole);
 
   const slotsQuery = useTeacherStreamSlots(hasTeachingRole);
@@ -125,7 +125,7 @@ export const TeachingTab: React.FC<TeachingTabProps> = ({ staffId, systemRole })
   if (!hasTeachingRole) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
-        <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
+        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
           Teaching assignments are available when this staff member has a teaching role.
         </Text>
       </ScreenContainer>
@@ -142,10 +142,10 @@ export const TeachingTab: React.FC<TeachingTabProps> = ({ staffId, systemRole })
 
   return (
     <ScrollView contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+      <Text style={[styles.sectionTitle, { color: palette.textPrimary }]}>
         Streams to teach
       </Text>
-      <Text style={{ color: colors.textSecondary, marginBottom: spacing.sm }}>
+      <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm }}>
         Select streams, then choose learning areas and homeroom roles for each.
       </Text>
 
@@ -158,12 +158,12 @@ export const TeachingTab: React.FC<TeachingTabProps> = ({ staffId, systemRole })
             style={[
               styles.streamPick,
               {
-                borderColor: active ? colors.primary : colors.border,
-                backgroundColor: active ? `${colors.primary}14` : colors.surface,
+                borderColor: active ? colors.primary : palette.border,
+                backgroundColor: active ? `${colors.primary}14` : palette.surfaceRaised,
               },
             ]}
           >
-            <Text style={{ color: colors.text, fontWeight: active ? '600' : '400' }}>
+            <Text style={{ color: palette.textPrimary, fontWeight: active ? '600' : '400' }}>
               {slot.label}
             </Text>
           </Pressable>
@@ -176,30 +176,30 @@ export const TeachingTab: React.FC<TeachingTabProps> = ({ staffId, systemRole })
         return (
           <View
             key={slot.key}
-            style={[styles.card, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            style={[styles.card, { borderColor: palette.border, backgroundColor: palette.surfaceRaised }]}
           >
-            <Text style={[styles.cardTitle, { color: colors.text }]}>{slot.label}</Text>
+            <Text style={[styles.cardTitle, { color: palette.textPrimary }]}>{slot.label}</Text>
 
             <View style={styles.roleRow}>
-              <Text style={{ color: colors.text, flex: 1 }}>Class Teacher</Text>
+              <Text style={{ color: palette.textPrimary, flex: 1 }}>Class Teacher</Text>
               <Switch
                 value={state.is_class_teacher}
                 onValueChange={(v) => updateSlot(slot.key, { is_class_teacher: v })}
               />
             </View>
             <View style={styles.roleRow}>
-              <Text style={{ color: colors.text, flex: 1 }}>Assistant Teacher</Text>
+              <Text style={{ color: palette.textPrimary, flex: 1 }}>Assistant Teacher</Text>
               <Switch
                 value={state.is_assistant_teacher}
                 onValueChange={(v) => updateSlot(slot.key, { is_assistant_teacher: v })}
               />
             </View>
 
-            <Text style={[styles.subjectsLabel, { color: colors.textSecondary }]}>
+            <Text style={[styles.subjectsLabel, { color: palette.textSecondary }]}>
               Learning areas
             </Text>
             {slot.subjects.length === 0 ? (
-              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+              <Text style={{ color: palette.textSecondary, fontSize: 13 }}>
                 No subjects configured for this stream.
               </Text>
             ) : (
@@ -212,12 +212,12 @@ export const TeachingTab: React.FC<TeachingTabProps> = ({ staffId, systemRole })
                     style={[
                       styles.subjectChip,
                       {
-                        borderColor: checked ? colors.primary : colors.border,
-                        backgroundColor: checked ? `${colors.primary}18` : colors.background,
+                        borderColor: checked ? colors.primary : palette.border,
+                        backgroundColor: checked ? `${colors.primary}18` : palette.background,
                       },
                     ]}
                   >
-                    <Text style={{ color: colors.text, fontSize: 14 }}>{sub.name}</Text>
+                    <Text style={{ color: palette.textPrimary, fontSize: 14 }}>{sub.name}</Text>
                   </Pressable>
                 );
               })

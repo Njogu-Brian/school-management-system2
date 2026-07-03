@@ -53,7 +53,7 @@ export const DashboardLayout: React.FC = () => {
           variant="default"
           title="School Command Center"
           subtitle="Overview for your branch"
-          meta="Real-time KPIs · Approvals · Alerts"
+          meta="KPIs · Approvals · Alerts"
         />
 
         <ScrollableTabBar

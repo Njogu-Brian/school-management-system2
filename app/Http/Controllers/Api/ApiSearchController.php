@@ -14,6 +14,8 @@ use App\Models\Staff;
 use App\Models\Student;
 use App\Models\User;
 use App\Models\VisitorLog;
+use App\Models\Vehicle;
+use App\Services\StudentSearchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
@@ -33,6 +35,7 @@ class ApiSearchController extends Controller
         'requisitions' => 'Operations',
         'inventory' => 'Operations',
         'announcements' => 'Communication',
+        'vehicles' => 'Operations',
     ];
 
     public function index(Request $request)
@@ -70,6 +73,7 @@ class ApiSearchController extends Controller
                 'requisitions' => $this->searchRequisitions($like, $page, $limit),
                 'inventory' => $this->searchInventory($like, $page, $limit),
                 'announcements' => $this->searchAnnouncements($like, $page, $limit),
+                'vehicles' => $this->searchVehicles($like, $page, $limit),
                 default => [],
             };
             $results = array_merge($results, $hits);
@@ -119,13 +123,13 @@ class ApiSearchController extends Controller
     private function resolveModules(string $module): array
     {
         if ($module === 'all') {
-            return ['students', 'staff', 'admissions', 'invoices', 'payments', 'visitors', 'assets', 'requisitions', 'inventory', 'announcements'];
+            return ['students', 'staff', 'admissions', 'invoices', 'payments', 'visitors', 'assets', 'requisitions', 'inventory', 'announcements', 'vehicles'];
         }
         if ($module === 'finance') {
             return ['invoices', 'payments'];
         }
         if ($module === 'operations') {
-            return ['visitors', 'assets', 'requisitions', 'inventory'];
+            return ['visitors', 'assets', 'requisitions', 'inventory', 'vehicles'];
         }
         if ($module === 'communication') {
             return ['announcements'];
@@ -141,7 +145,7 @@ class ApiSearchController extends Controller
             'staff' => $user->can('people.view') || $user->can('staff.view') || $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']),
             'admissions' => $user->can('admissions.view') || $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']),
             'invoices', 'payments' => $user->can('finance.view') || $user->hasAnyRole(['Super Admin', 'Admin', 'Accountant', 'Finance']),
-            'visitors', 'assets', 'requisitions', 'inventory' => $user->can('operations.view') || $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']),
+            'visitors', 'assets', 'requisitions', 'inventory', 'vehicles' => $user->can('operations.view') || $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']),
             'announcements' => $user->can('communication.view') || $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']),
             default => false,
         };
@@ -149,15 +153,21 @@ class ApiSearchController extends Controller
 
     private function searchStudents(User $user, string $like, int $page, int $limit): array
     {
+        $raw = trim(str_replace('%', '', $like));
         $q = Student::query()
             ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->where(function ($q) use ($like) {
+            ->where('is_alumni', false);
+
+        if ($raw !== '') {
+            app(StudentSearchService::class)->applySearch($q, $raw);
+        } else {
+            $q->where(function ($q) use ($like) {
                 $q->where('first_name', 'like', $like)
                     ->orWhere('middle_name', 'like', $like)
                     ->orWhere('last_name', 'like', $like)
                     ->orWhere('admission_number', 'like', $like);
             });
+        }
 
         if ($user->hasTeacherLikeRole()) {
             $user->applyTeacherStudentFilter($q);
@@ -387,6 +397,34 @@ class ApiSearchController extends Controller
                 'subtitle' => $a->type ?? null,
                 'route' => "communication/announcements/{$a->id}",
                 'metadata' => ['entity_type' => 'announcement', 'entity_id' => $a->id],
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function searchVehicles(string $like, int $page, int $limit): array
+    {
+        if (! Schema::hasTable('vehicles')) {
+            return [];
+        }
+
+        return Vehicle::query()
+            ->where(function ($q) use ($like) {
+                $q->where('vehicle_number', 'like', $like)
+                    ->orWhere('driver_name', 'like', $like)
+                    ->orWhere('make', 'like', $like)
+                    ->orWhere('model', 'like', $like)
+                    ->orWhere('chassis_number', 'like', $like);
+            })
+            ->orderBy('vehicle_number')
+            ->paginate($limit, ['*'], 'page', $page)
+            ->map(fn ($v) => [
+                'id' => 'vehicle-'.$v->id,
+                'module' => 'Operations',
+                'title' => $v->vehicle_number ?? 'Vehicle #'.$v->id,
+                'subtitle' => trim(($v->make ?? '').' '.($v->model ?? '')) ?: ($v->driver_name ?? null),
+                'route' => "operations/transport/vehicles/{$v->id}",
+                'metadata' => ['entity_type' => 'vehicle', 'entity_id' => $v->id],
             ])
             ->values()
             ->all();

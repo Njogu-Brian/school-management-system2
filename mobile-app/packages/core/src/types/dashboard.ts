@@ -41,6 +41,13 @@ export interface AdminDashboardStats {
   total_invoiced: number;
   total_payments: number;
   outstanding_balance: number;
+  /** All-time invoice balance (matches web finance summary). */
+  outstanding_balance_all?: number;
+  admissions_today?: number;
+  last_admission?: { date: string; count: number } | null;
+  collected_this_week?: number;
+  collected_this_month?: number;
+  collected_this_term?: number;
   filters?: DashboardStatsFiltersPayload;
   charts?: {
     enrollment?: DashboardChartSeries;

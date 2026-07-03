@@ -29,6 +29,23 @@ class ApiFinanceSummaryController extends Controller
             ->where('payment_date', '>=', $monthStart)
             ->sum('amount');
 
+        $weekStart = Carbon::today()->startOfWeek();
+        $collectedWeek = (float) (clone $paymentBase)
+            ->where('payment_date', '>=', $weekStart)
+            ->sum('amount');
+
+        $currentTerm = \App\Models\Term::query()->where('is_current', true)->first();
+        $collectedTerm = 0.0;
+        if ($currentTerm?->opening_date) {
+            $termEnd = $currentTerm->closing_date ?? $today;
+            $collectedTerm = (float) (clone $paymentBase)
+                ->whereBetween('payment_date', [
+                    $currentTerm->opening_date->toDateString(),
+                    $termEnd->toDateString(),
+                ])
+                ->sum('amount');
+        }
+
         $invoiceBase = Invoice::query()->whereNull('reversed_at');
 
         $totalInvoiced = (float) (clone $invoiceBase)->sum('total');
@@ -56,7 +73,9 @@ class ApiFinanceSummaryController extends Controller
             'success' => true,
             'data' => [
                 'collected_today' => round($collectedToday, 2),
+                'collected_this_week' => round($collectedWeek, 2),
                 'collected_this_month' => round($collectedMonth, 2),
+                'collected_this_term' => round($collectedTerm, 2),
                 'total_invoiced' => round($totalInvoiced, 2),
                 'total_paid' => round($totalPaid, 2),
                 'outstanding_balance' => round($outstandingBalance, 2),

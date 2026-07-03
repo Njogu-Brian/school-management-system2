@@ -460,6 +460,54 @@ class ApiDashboardController extends Controller
         }
         $totalInvoiced = (float) $invoiceQuery->sum('total');
         $totalBalance = (float) (clone $invoiceQuery)->sum('balance');
+        $outstandingAll = (float) Invoice::query()->whereNull('reversed_at')->sum('balance');
+
+        $paymentBase = Payment::query()->where(function ($q) {
+            $q->whereNull('reversed')->orWhere('reversed', false);
+        });
+        $weekStart = Carbon::parse($today)->startOfWeek();
+        $monthStart = Carbon::parse($today)->startOfMonth();
+        $collectedThisWeek = (float) (clone $paymentBase)
+            ->where('payment_date', '>=', $weekStart)
+            ->sum('amount');
+        $collectedThisMonth = (float) (clone $paymentBase)
+            ->where('payment_date', '>=', $monthStart)
+            ->sum('amount');
+
+        $currentTerm = Term::query()->where('is_current', true)->first();
+        $collectedThisTerm = 0.0;
+        if ($currentTerm?->opening_date) {
+            $termEnd = $currentTerm->closing_date ?? Carbon::parse($today);
+            $collectedThisTerm = (float) (clone $paymentBase)
+                ->whereBetween('payment_date', [
+                    $currentTerm->opening_date->toDateString(),
+                    $termEnd->toDateString(),
+                ])
+                ->sum('amount');
+        }
+
+        $admissionsToday = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereDate('created_at', $today)
+            ->count();
+
+        $lastAdmissionDate = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->max('created_at');
+        $lastAdmission = null;
+        if ($lastAdmissionDate) {
+            $lastDay = Carbon::parse($lastAdmissionDate)->toDateString();
+            $lastAdmission = [
+                'date' => $lastDay,
+                'count' => Student::query()
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->whereDate('created_at', $lastDay)
+                    ->count(),
+            ];
+        }
 
         // Filter options for the dropdowns on the UI.
         $years = AcademicYear::orderByDesc('year')->get(['id', 'year', 'is_active']);
@@ -477,6 +525,12 @@ class ApiDashboardController extends Controller
             'total_invoiced' => round($totalInvoiced, 2),
             'total_payments' => round($feesCollected, 2),
             'outstanding_balance' => round($totalBalance, 2),
+            'outstanding_balance_all' => round($outstandingAll, 2),
+            'collected_this_week' => round($collectedThisWeek, 2),
+            'collected_this_month' => round($collectedThisMonth, 2),
+            'collected_this_term' => round($collectedThisTerm, 2),
+            'admissions_today' => $admissionsToday,
+            'last_admission' => $lastAdmission,
             'filters' => [
                 'academic_year_id' => $resolvedYearId,
                 'term_id' => $resolvedTermId,

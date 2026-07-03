@@ -9,6 +9,7 @@ use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Services\PhoneNumberService;
 use App\Services\StudentBalanceService;
+use App\Services\StudentSearchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -38,19 +39,10 @@ class ApiStudentController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = '%' . addcslashes($request->search, '%_\\') . '%';
-            $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', $search)
-                    ->orWhere('middle_name', 'like', $search)
-                    ->orWhere('last_name', 'like', $search)
-                    ->orWhere('admission_number', 'like', $search);
-            });
+            app(StudentSearchService::class)->applySearch($query, (string) $request->search);
         }
         if ($request->filled('name')) {
-            $search = '%' . addcslashes($request->name, '%_\\') . '%';
-            $query->where(fn($q) => $q->where('first_name', 'like', $search)
-                ->orWhere('middle_name', 'like', $search)
-                ->orWhere('last_name', 'like', $search));
+            app(StudentSearchService::class)->applySearch($query, (string) $request->name);
         }
         if ($request->filled('classroom_id') || $request->filled('class_id')) {
             $query->where('classroom_id', $request->classroom_id ?? $request->class_id);
