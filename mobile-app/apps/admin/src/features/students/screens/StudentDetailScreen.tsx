@@ -14,6 +14,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from '@erp/ui';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { navigateToTab } from '../../../navigation/navigateWorkspace';
+import { statementEntityId } from '../utils/statementEntityId';
 import { AttendanceTab } from '../student360/tabs/AttendanceTab';
 import { DocumentsTab } from '../student360/tabs/DocumentsTab';
 import { FamilyTab } from '../student360/tabs/FamilyTab';
@@ -110,11 +111,12 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       (statement?.transactions ?? [])
         .filter((t) => t.type === 'invoice')
         .map((t) => ({
-          id: t.id,
+          id: statementEntityId(t) ?? t.id,
           date: t.date,
           reference: t.reference,
           amount: t.debit,
-        })),
+        }))
+        .filter((t) => t.id > 0 && t.id < 1_000_000),
     [statement],
   );
   const payments = useMemo(

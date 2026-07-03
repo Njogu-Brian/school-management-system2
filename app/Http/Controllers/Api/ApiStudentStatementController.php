@@ -67,6 +67,8 @@ class ApiStudentStatementController extends Controller
         foreach ($invoices as $inv) {
             $transactions[] = [
                 'id' => 1_000_000 + (int) $inv->id,
+                'entity_type' => 'invoice',
+                'entity_id' => (int) $inv->id,
                 'date' => $inv->created_at->format('Y-m-d'),
                 'type' => 'invoice',
                 'reference' => $inv->invoice_number ?? (string) $inv->id,
@@ -80,6 +82,8 @@ class ApiStudentStatementController extends Controller
         foreach ($payments as $pay) {
             $transactions[] = [
                 'id' => 2_000_000 + (int) $pay->id,
+                'entity_type' => 'payment',
+                'entity_id' => (int) $pay->id,
                 'date' => Carbon::parse($pay->payment_date)->format('Y-m-d'),
                 'type' => 'payment',
                 'reference' => $pay->transaction_code ?? $pay->receipt_number ?? (string) $pay->id,

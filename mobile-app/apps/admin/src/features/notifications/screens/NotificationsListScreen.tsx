@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
+import { navigateDashboardBack } from '../../../navigation/navigateWorkspace';
 import { formatDateTimeLabel } from '../../shared/utils/formatters';
 import { confirmAction, showSuccess } from '../../shared/utils/feedback';
 import { NOTIFICATION_CATEGORIES } from '../constants';
@@ -53,7 +54,7 @@ export const NotificationsListScreen: React.FC<Props> = ({ navigation }) => {
         contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         ListHeaderComponent={
           <>
-            <AcademicScreenHeader title="Notifications" onBack={() => navigation.goBack()} />
+            <AcademicScreenHeader title="Notifications" onBack={() => navigateDashboardBack(navigation)} />
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.sm }}>
               <Pressable onPress={() => void markAll.mutateAsync().then(() => showSuccess('Done', 'All marked read.'))}>
                 <Text style={{ color: colors.primary, fontWeight: '600', fontSize: fontSizes.xs }}>Mark all read</Text>

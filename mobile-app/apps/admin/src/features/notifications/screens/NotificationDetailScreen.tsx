@@ -4,6 +4,7 @@ import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
+import { navigateDashboardBack } from '../../../navigation/navigateWorkspace';
 import { formatDateTimeLabel } from '../../shared/utils/formatters';
 import { showSuccess } from '../../shared/utils/feedback';
 import { resolveNotificationDeepLink } from '../resolveDeepLink';
@@ -33,7 +34,7 @@ export const NotificationDetailScreen: React.FC<Props> = ({ navigation, route })
   if (!notification) {
     return (
       <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
-        <AcademicScreenHeader title="Notification" onBack={() => navigation.goBack()} />
+        <AcademicScreenHeader title="Notification" onBack={() => navigateDashboardBack(navigation)} />
         <Text style={{ color: palette.textSecondary }}>Notification not found.</Text>
       </ScreenContainer>
     );
@@ -45,7 +46,7 @@ export const NotificationDetailScreen: React.FC<Props> = ({ navigation, route })
 
   return (
     <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="Notification" onBack={() => navigation.goBack()} />
+      <AcademicScreenHeader title="Notification" onBack={() => navigateDashboardBack(navigation)} />
       <FinanceFieldSection
         title="Details"
         rows={[

@@ -31,6 +31,7 @@ import {
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
 import { resolveSearchRoute } from '../resolveSearchRoute';
 import { searchMenuItems } from '../searchMenuItems';
+import { navigateDashboardBack } from '../../../navigation/navigateWorkspace';
 
 type Props = StackScreenProps<DashboardStackParamList, 'GlobalSearch'>;
 
@@ -145,13 +146,7 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
       <AcademicScreenHeader
         title="Global search"
         subtitle="One search across your school"
-        onBack={() => {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.navigate('DashboardHome');
-          }
-        }}
+        onBack={() => navigateDashboardBack(navigation)}
       />
       {isOffline ? (
         <Text style={{ color: colors.warning, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>

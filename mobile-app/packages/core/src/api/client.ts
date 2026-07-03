@@ -98,8 +98,12 @@ class ApiClient {
         const isAuthRoute =
           url.endsWith('/login') ||
           url.includes('/logout') ||
-          url.includes('/auth/refresh');
-        this.logError(error.response?.status, url, error.response?.data, error.message);
+          url.includes('/auth/refresh') ||
+          url.endsWith('/user');
+        const isBenign401 = error.response?.status === 401 && isAuthRoute;
+        if (!isBenign401) {
+          this.logError(error.response?.status, url, error.response?.data, error.message);
+        }
 
         if (error.response?.status === 401 && !isAuthRoute && !this.handlingUnauthorized) {
           this.handlingUnauthorized = true;

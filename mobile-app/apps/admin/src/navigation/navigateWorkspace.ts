@@ -1,6 +1,8 @@
 import { CommonActions } from '@react-navigation/native';
 import type { DrawerParamList, TabsParamList } from './types';
 
+import type { DashboardStackParamList } from './dashboardStackTypes';
+
 /** Minimal navigation surface for cross-workspace jumps (avoids strict ParamList coupling). */
 export type WorkspaceNavigation = {
   getParent: () => WorkspaceNavigation | undefined;
@@ -48,4 +50,17 @@ export function navigateToDrawer(
       params: screen ? { screen, params } : undefined,
     }),
   );
+}
+
+/** Back from dashboard stack screens opened via tab jump (no history). */
+export function navigateDashboardBack(navigation: {
+  canGoBack: () => boolean;
+  goBack: () => void;
+  navigate: (screen: keyof DashboardStackParamList) => void;
+}): void {
+  if (navigation.canGoBack()) {
+    navigation.goBack();
+  } else {
+    navigation.navigate('DashboardHome');
+  }
 }

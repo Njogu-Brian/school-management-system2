@@ -36,6 +36,9 @@ export interface StatementTransactionRecord {
   id: number;
   date: string;
   type: 'invoice' | 'payment' | string;
+  /** Real invoice or payment id (statement row ids are offset). */
+  entity_id?: number;
+  entity_type?: 'invoice' | 'payment' | string;
   reference: string;
   description: string;
   debit: number;

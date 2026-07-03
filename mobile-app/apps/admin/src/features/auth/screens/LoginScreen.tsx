@@ -1,7 +1,9 @@
 import { useAuth, useBiometricAuth, useBranding } from '@erp/core';
-import { Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import { Button, ScreenContainer, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,15 +12,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
-  Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
- * Admin login: email/password and biometric unlock for a saved session.
- * Branding (logo, name, colors, background) is loaded from GET /app-branding.
+ * Admin login — branded hero + elevated card (aligned with main school ERP app).
  */
 export const LoginScreen: React.FC = () => {
   const { login, submitting, error } = useAuth();
@@ -31,10 +34,12 @@ export const LoginScreen: React.FC = () => {
     submitting: biometricSubmitting,
   } = useBiometricAuth();
   const { palette, colors, spacing, fontSizes, radius } = useTheme();
-  const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading } = useBranding();
+  const insets = useSafeAreaInsets();
+  const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading, branding, colorOverrides } =
+    useBranding();
+
   const [logoFailed, setLogoFailed] = useState(false);
   const [bgFailed, setBgFailed] = useState(false);
-
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
@@ -48,10 +53,14 @@ export const LoginScreen: React.FC = () => {
   const canSubmit = identifier.trim().length > 0 && password.length > 0 && !busy;
   const showBackground = Boolean(loginBackgroundUrl) && !bgFailed;
 
+  const gradientStops = useMemo((): [string, string, string] => {
+    const primary = branding?.colors?.primary ?? colorOverrides.primary ?? colors.primary;
+    const secondary = branding?.colors?.secondary ?? colors.primary;
+    return [primary, primary, secondary];
+  }, [branding?.colors, colorOverrides.primary, colors.primary]);
+
   const handleSubmit = async (): Promise<void> => {
-    if (!canSubmit) {
-      return;
-    }
+    if (!canSubmit) return;
     try {
       await login({ identifier: identifier.trim(), password, remember });
     } catch {
@@ -76,133 +85,138 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const form = (
+  const cardContent = (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          borderColor: `${colors.primary}22`,
+          borderRadius: radius.lg + 4,
+        },
+      ]}
+    >
+      <Text style={[styles.cardTitle, { color: palette.textPrimary }]}>Welcome back</Text>
+      <Text style={[styles.cardSubtitle, { color: palette.textSecondary, fontSize: fontSizes.sm }]}>
+        Use work email or phone number
+      </Text>
+
+      {error ? (
+        <View style={[styles.errorBanner, { backgroundColor: `${colors.error}14`, borderColor: colors.error }]}>
+          <Ionicons name="alert-circle" size={18} color={colors.error} />
+          <Text style={{ color: colors.error, fontSize: fontSizes.sm, flex: 1, marginLeft: 8 }}>{error}</Text>
+        </View>
+      ) : null}
+
+      <LabeledInput
+        label="Work email or phone"
+        value={identifier}
+        onChangeText={setIdentifier}
+        placeholder="you@school.edu or +2547..."
+        icon="person-outline"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        editable={!busy}
+        palette={palette}
+        colors={colors}
+        radius={radius.control}
+      />
+
+      <LabeledInput
+        label="Password"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="••••••••"
+        icon="lock-closed-outline"
+        secureTextEntry={!showPassword}
+        autoCapitalize="none"
+        editable={!busy}
+        palette={palette}
+        colors={colors}
+        radius={radius.control}
+        right={
+          <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={palette.textMuted} />
+          </Pressable>
+        }
+        onSubmitEditing={handleSubmit}
+      />
+
+      <View style={styles.row}>
+        <Pressable style={styles.rememberRow} onPress={() => setRemember((v) => !v)} disabled={busy}>
+          <View
+            style={[
+              styles.checkbox,
+              {
+                borderColor: remember ? colors.primary : palette.border,
+                backgroundColor: remember ? colors.primary : 'transparent',
+              },
+            ]}
+          >
+            {remember ? <Text style={styles.checkmark}>✓</Text> : null}
+          </View>
+          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>Remember me</Text>
+        </Pressable>
+      </View>
+
+      <Button label="Sign in" onPress={handleSubmit} loading={submitting} disabled={!canSubmit} />
+
+      {unlockAvailable ? (
+        <Button
+          label={`Login with ${typeLabel}`}
+          variant="secondary"
+          onPress={handleBiometricUnlock}
+          loading={biometricSubmitting}
+          disabled={busy}
+          style={{ marginTop: spacing.sm }}
+        />
+      ) : null}
+    </View>
+  );
+
+  const hero = (
+    <View style={styles.hero}>
+      {brandingLoading ? (
+        <ActivityIndicator color="#fff" style={{ marginBottom: spacing.md }} />
+      ) : logoUrl && !logoFailed ? (
+        <View style={styles.logoRing}>
+          <Image source={{ uri: logoUrl }} style={styles.logoImage} onError={() => setLogoFailed(true)} />
+        </View>
+      ) : (
+        <LinearGradient colors={gradientStops} style={styles.logoFallback}>
+          <Ionicons name="school" size={40} color="#fff" />
+        </LinearGradient>
+      )}
+      <Text style={styles.brandTitle} numberOfLines={2}>
+        {schoolName}
+      </Text>
+      <Text style={styles.brandTagline}>Sign in to your workspace</Text>
+    </View>
+  );
+
+  const body = (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.flex}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
     >
-      <View style={[styles.formCard, showBackground && styles.formCardOverlay, { borderRadius: radius.lg }]}>
-        <View style={styles.brand}>
-          {brandingLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginBottom: 16 }} />
-          ) : logoUrl && !logoFailed ? (
-            <Image
-              source={{ uri: logoUrl }}
-              style={styles.logoImage}
-              onError={() => setLogoFailed(true)}
-            />
-          ) : (
-            <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-              <Ionicons name="school" size={32} color={colors.white} />
-            </View>
-          )}
-          <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.xxl }]}>
-            {schoolName}
-          </Text>
-          <Text style={[styles.subtitle, { color: palette.textSecondary, fontSize: fontSizes.sm }]}>
-            Sign in to manage your school
-          </Text>
-        </View>
-
-        {unlockAvailable ? (
-          <View style={[styles.biometricCard, { borderColor: palette.border, borderRadius: radius.md }]}>
-            <Ionicons name="finger-print" size={28} color={colors.primary} />
-            <Text style={[styles.biometricLabel, { color: palette.textPrimary, fontSize: fontSizes.sm }]}>
-              Unlock with {typeLabel}
-            </Text>
-            <Button
-              label={`Use ${typeLabel}`}
-              variant="secondary"
-              onPress={handleBiometricUnlock}
-              loading={biometricSubmitting}
-              disabled={busy}
-              fullWidth={false}
-              style={styles.biometricBtn}
-            />
-          </View>
-        ) : null}
-
-        {unlockAvailable ? (
-          <View style={styles.dividerRow}>
-            <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-            <Text style={[styles.dividerText, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-              or sign in
-            </Text>
-            <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-          </View>
-        ) : null}
-
-        {error ? (
-          <View
-            style={[
-              styles.errorBanner,
-              { backgroundColor: `${colors.error}1a`, borderColor: colors.error, borderRadius: radius.md },
-            ]}
-          >
-            <Ionicons name="alert-circle" size={18} color={colors.error} />
-            <Text style={[styles.errorText, { color: colors.error, fontSize: fontSizes.sm }]}>{error}</Text>
-          </View>
-        ) : null}
-
-        <TextField
-          label="Email or phone"
-          value={identifier}
-          onChangeText={setIdentifier}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="username"
-          placeholder="you@school.ac.ke"
-          editable={!busy}
-          returnKeyType="next"
-        />
-
-        <TextField
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={!showPassword}
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType="password"
-          placeholder="••••••••"
-          editable={!busy}
-          returnKeyType="go"
-          onSubmitEditing={handleSubmit}
-        />
-
-        <View style={styles.row}>
-          <View style={styles.rememberRow}>
-            <Switch
-              value={remember}
-              onValueChange={setRemember}
-              trackColor={{ true: colors.primary, false: palette.border }}
-              disabled={busy}
-            />
-            <Text style={[styles.rememberLabel, { color: palette.textSecondary, fontSize: fontSizes.sm }]}>
-              Keep me signed in
-            </Text>
-          </View>
-          <Pressable onPress={() => setShowPassword((v) => !v)} disabled={busy} hitSlop={8}>
-            <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
-              {showPassword ? 'Hide' : 'Show'}
-            </Text>
-          </Pressable>
-        </View>
-
-        <Button
-          label="Sign in"
-          onPress={handleSubmit}
-          loading={submitting}
-          disabled={!canSubmit}
-          style={{ marginTop: spacing.md }}
-        />
-      </View>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: Math.max(insets.top, spacing.md), paddingBottom: insets.bottom + spacing.lg },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {hero}
+        {cardContent}
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 
   return (
-    <ScreenContainer edges={['top', 'bottom']} scroll={false} style={styles.flex}>
+    <ScreenContainer edges={[]} scroll={false} style={styles.flex}>
+      <StatusBar style="light" />
       {showBackground ? (
         <ImageBackground
           source={{ uri: loginBackgroundUrl! }}
@@ -210,86 +224,177 @@ export const LoginScreen: React.FC = () => {
           resizeMode="cover"
           onError={() => setBgFailed(true)}
         >
-          <View style={styles.bgOverlay} />
-          <View style={styles.content}>{form}</View>
+          <LinearGradient
+            colors={['rgba(0,0,0,0.45)', 'rgba(30,0,50,0.75)', 'rgba(20,0,40,0.85)']}
+            style={StyleSheet.absoluteFillObject}
+          />
+          {body}
         </ImageBackground>
       ) : (
-        <View style={[styles.flex, { backgroundColor: palette.background }]}>
-          <View style={styles.content}>{form}</View>
-        </View>
+        <LinearGradient colors={gradientStops} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={styles.flex}>
+          {body}
+        </LinearGradient>
       )}
     </ScreenContainer>
   );
 };
 
+function LabeledInput({
+  label,
+  icon,
+  right,
+  palette,
+  colors,
+  radius,
+  ...props
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  right?: React.ReactNode;
+  palette: { textSecondary: string; textPrimary: string; textMuted: string; borderSubtle: string };
+  colors: { primary: string };
+  radius: number;
+} & React.ComponentProps<typeof TextInput>) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text style={{ color: palette.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: '500' }}>{label}</Text>
+      <View
+        style={[
+          styles.inputWrap,
+          {
+            borderColor: focused ? colors.primary : palette.borderSubtle,
+            borderRadius: radius,
+            backgroundColor: '#fff',
+          },
+        ]}
+      >
+        <Ionicons name={icon} size={18} color={palette.textMuted} style={{ marginRight: 10 }} />
+        <TextInput
+          placeholderTextColor={palette.textMuted}
+          {...props}
+          onFocus={(e) => {
+            setFocused(true);
+            props.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            props.onBlur?.(e);
+          }}
+          style={[styles.input, { color: palette.textPrimary }]}
+        />
+        {right}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: {
-    flex: 1,
+  scroll: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
   },
-  bgOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.88)',
-  },
-  formCard: {
-    width: '100%',
-  },
-  formCardOverlay: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    padding: 20,
-  },
-  brand: {
+  hero: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
+  },
+  logoRing: {
+    padding: 4,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
   logoImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-    marginBottom: 16,
+    width: 80,
+    height: 80,
+    borderRadius: 22,
     resizeMode: 'contain',
   },
-  logo: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
+  logoFallback: {
+    width: 88,
+    height: 88,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
-  title: { fontWeight: '700', textAlign: 'center' },
-  subtitle: { marginTop: 4, textAlign: 'center' },
-  biometricCard: {
+  brandTitle: {
+    color: '#fff',
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  brandTagline: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 15,
+    marginTop: 6,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  card: {
     borderWidth: 1,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 8,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 6,
   },
-  biometricLabel: { marginTop: 8, marginBottom: 12, fontWeight: '600' },
-  biometricBtn: { alignSelf: 'center', minWidth: 160 },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16,
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '700',
   },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
-  dividerText: { marginHorizontal: 12, fontWeight: '600' },
+  cardSubtitle: {
+    marginTop: 4,
+    marginBottom: 20,
+  },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
+    borderRadius: 10,
     padding: 12,
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  errorText: { marginLeft: 8, flex: 1 },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    minHeight: 50,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 12,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
+    marginBottom: 16,
   },
   rememberRow: { flexDirection: 'row', alignItems: 'center' },
-  rememberLabel: { marginLeft: 8 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderWidth: 2,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  checkmark: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
