@@ -28,6 +28,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.admin',
+    versionCode: 1,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: primaryColor,
