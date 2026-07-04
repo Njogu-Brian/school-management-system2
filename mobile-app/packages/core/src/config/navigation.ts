@@ -85,7 +85,7 @@ export const ADMIN_NAV_AREAS: readonly AdminNavArea[] = [
   },
   {
     key: 'people',
-    label: 'People',
+    label: 'Human Resource',
     icon: 'briefcase-outline',
     description: 'Staff directory, leave, attendance, performance, and roles.',
     sections: ['Staff', 'Leave', 'Attendance', 'Performance', 'Roles & Permissions'],

@@ -1,8 +1,10 @@
 import { getNavArea, useCan, useSchoolSettings } from '@erp/core';
 import { PlaceholderScreen, ScreenContainer, SettingsHubLayout, type SettingsSectionId } from '@erp/ui';
-import React, { useMemo, useState } from 'react';
+import { useRoute, type RouteProp } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, ScrollView } from 'react-native';
 import { ApiDiagnosticsScreen } from '../../diagnostics';
+import type { DrawerParamList } from '../../../navigation/types';
 import { AcademicSettingsSection } from '../sections/AcademicSettingsSection';
 import { GradingSettingsSection } from '../sections/GradingSettingsSection';
 import { RolesSettingsSection } from '../sections/RolesSettingsSection';
@@ -21,6 +23,7 @@ const ALL_SECTIONS = [
 ];
 
 export const SettingsScreen: React.FC = () => {
+  const route = useRoute<RouteProp<DrawerParamList, 'Settings'>>();
   const canView = useCan('settings.view');
   const schoolQuery = useSchoolSettings({ enabled: canView });
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('school');
@@ -28,6 +31,20 @@ export const SettingsScreen: React.FC = () => {
   const [sessionOpen, setSessionOpen] = useState(false);
   const [geofenceOpen, setGeofenceOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+
+  const resetHub = useCallback(() => {
+    setActiveSection('school');
+    setDiagnosticsOpen(false);
+    setSessionOpen(false);
+    setGeofenceOpen(false);
+    setAboutOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (route.params?.resetAt != null) {
+      resetHub();
+    }
+  }, [route.params?.resetAt, resetHub]);
 
   const sections = useMemo(() => ALL_SECTIONS, []);
 
@@ -58,7 +75,11 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
         <SettingsHubLayout
           sections={sections}
           activeSection={activeSection}

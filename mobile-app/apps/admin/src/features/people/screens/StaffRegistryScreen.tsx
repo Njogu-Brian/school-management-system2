@@ -140,7 +140,7 @@ export const StaffRegistryScreen: React.FC = () => {
         hero={
           <DashboardHero
             variant="people"
-            title="People Directory"
+            title="Human Resources"
             subtitle="Staff registry & employment records"
             meta={totalStaff != null ? `${totalStaff} staff members` : undefined}
           />

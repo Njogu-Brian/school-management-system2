@@ -32,6 +32,7 @@ export function navigateToTab(
         screen: tab,
         params: screen ? { screen, params } : undefined,
       },
+      merge: false,
     }),
   );
 }
@@ -48,6 +49,7 @@ export function navigateToDrawer(
     CommonActions.navigate({
       name: drawer,
       params: screen ? { screen, params } : undefined,
+      merge: false,
     }),
   );
 }

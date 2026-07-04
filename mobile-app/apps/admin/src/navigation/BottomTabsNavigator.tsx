@@ -38,11 +38,20 @@ const TAB_SCREENS: Record<keyof TabsParamList, React.ComponentType> = {
   People: PeopleStackNavigator,
 };
 
-const TAB_LABEL: Record<keyof TabsParamList, string> = {
+/** Full title in the stack header. */
+const TAB_HEADER_LABEL: Record<keyof TabsParamList, string> = {
   Dashboard: 'Dashboard',
   Students: 'Students',
   Finance: 'Finance',
-  People: 'People',
+  People: 'Human Resource',
+};
+
+/** Short label on the bottom tab bar. */
+const TAB_BAR_LABEL: Record<keyof TabsParamList, string> = {
+  Dashboard: 'Dashboard',
+  Students: 'Students',
+  Finance: 'Finance',
+  People: 'HR',
 };
 
 const NoTabsFallback: React.FC = () => {
@@ -81,7 +90,7 @@ export const BottomTabsNavigator: React.FC = () => {
         headerShown: true,
         header: () => (
           <AppHeaderChrome
-            title={TAB_LABEL[route.name]}
+            title={TAB_HEADER_LABEL[route.name]}
             onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
           />
         ),
@@ -101,8 +110,10 @@ export const BottomTabsNavigator: React.FC = () => {
           key={routeName}
           name={routeName}
           component={withAreaGuard(TAB_AREA_KEY[routeName], TAB_SCREENS[routeName])}
+          options={{ tabBarLabel: TAB_BAR_LABEL[routeName] }}
           listeners={({ navigation }) => ({
-            tabPress: () => {
+            tabPress: (e) => {
+              e.preventDefault();
               navigateTabHome(navigation, routeName);
             },
           })}

@@ -32,7 +32,7 @@ export type DrawerParamList = {
   Operations: NavigatorScreenParams<OperationsStackParamList> | undefined;
   Communication: NavigatorScreenParams<CommunicationStackParamList> | undefined;
   Reports: NavigatorScreenParams<ReportsStackParamList> | undefined;
-  Settings: undefined;
+  Settings: { resetAt?: number } | undefined;
 };
 
 declare global {

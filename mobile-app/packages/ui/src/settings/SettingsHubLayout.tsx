@@ -27,68 +27,77 @@ export const SettingsHubLayout: React.FC<SettingsHubLayoutProps> = ({
   const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   return (
-    <View style={styles.flex}>
+    <View>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
-        <DashboardHero
-          variant="settings"
-          title={schoolName}
-          subtitle={schoolSubtitle}
-        />
+        <DashboardHero variant="settings" title={schoolName} subtitle={schoolSubtitle} />
 
         <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
           {sections.map((section) => {
             const active = section.id === activeSection;
             return (
-              <Pressable
-                key={section.id}
-                onPress={() => onSectionChange(section.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={({ pressed }) => [
-                  styles.card,
-                  elevation[1],
-                  {
-                    backgroundColor: active ? `${colors.primary}08` : palette.surfaceRaised,
-                    borderColor: active ? colors.primary : palette.borderSubtle,
-                    borderRadius: radius.card,
-                    padding: spacing.md,
-                    opacity: pressed ? 0.92 : 1,
-                  },
-                ]}
-              >
-                <View style={styles.cardRow}>
-                  <View
-                    style={[
-                      styles.iconWrap,
-                      {
-                        backgroundColor: active ? `${colors.primary}18` : palette.surfaceMuted,
-                        borderRadius: radius.sm,
-                      },
-                    ]}
-                  >
+              <View key={section.id}>
+                <Pressable
+                  onPress={() => onSectionChange(section.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active, expanded: active }}
+                  style={({ pressed }) => [
+                    styles.card,
+                    elevation[1],
+                    {
+                      backgroundColor: active ? `${colors.primary}08` : palette.surfaceRaised,
+                      borderColor: active ? colors.primary : palette.borderSubtle,
+                      borderRadius: radius.card,
+                      padding: spacing.md,
+                      opacity: pressed ? 0.92 : 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.cardRow}>
+                    <View
+                      style={[
+                        styles.iconWrap,
+                        {
+                          backgroundColor: active ? `${colors.primary}18` : palette.surfaceMuted,
+                          borderRadius: radius.sm,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={section.icon as keyof typeof Ionicons.glyphMap}
+                        size={20}
+                        color={active ? colors.primary : palette.textSecondary}
+                      />
+                    </View>
+                    <Text
+                      style={{
+                        flex: 1,
+                        color: palette.textPrimary,
+                        fontSize: typography.body.fontSize,
+                        fontWeight: active ? '700' : '600',
+                      }}
+                    >
+                      {section.label}
+                    </Text>
                     <Ionicons
-                      name={section.icon as keyof typeof Ionicons.glyphMap}
-                      size={20}
-                      color={active ? colors.primary : palette.textSecondary}
+                      name={active ? 'chevron-down' : 'chevron-forward'}
+                      size={18}
+                      color={palette.textMuted}
                     />
                   </View>
-                  <Text
+                </Pressable>
+
+                {active ? (
+                  <View
                     style={{
-                      flex: 1,
-                      color: palette.textPrimary,
-                      fontSize: typography.body.fontSize,
-                      fontWeight: active ? '700' : '600',
+                      marginTop: spacing.sm,
+                      marginBottom: spacing.xs,
+                      paddingHorizontal: spacing.xs,
                     }}
                   >
-                    {section.label}
-                  </Text>
-                  <Ionicons
-                    name={active ? 'chevron-down' : 'chevron-forward'}
-                    size={18}
-                    color={palette.textMuted}
-                  />
-                </View>
-              </Pressable>
+                    {children}
+                  </View>
+                ) : null}
+              </View>
             );
           })}
 
@@ -133,16 +142,11 @@ export const SettingsHubLayout: React.FC<SettingsHubLayoutProps> = ({
           ))}
         </View>
       </View>
-
-      <View style={{ flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
-        {children}
-      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   card: { borderWidth: StyleSheet.hairlineWidth },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconWrap: {

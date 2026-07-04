@@ -14,7 +14,7 @@ import {
 } from '@react-navigation/drawer';
 import React from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { AREA_TO_DRAWER_ROUTE, AREA_TO_TAB_ROUTE, DRAWER_HOME_SCREEN } from './areaRoutes';
+import { navigateDrawerAreaHome } from './areaRoutes';
 function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey {
   const current = state.routes[state.index];
   if (current.name === 'Workspace') {
@@ -32,6 +32,7 @@ function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey
     return 'dashboard';
   }
   const map: Record<string, AdminAreaKey> = {
+    Approvals: 'approvals',
     Admissions: 'admissions',
     Academics: 'academics',
     Operations: 'operations',
@@ -58,30 +59,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   };
 
   const handlePress = (area: AdminNavArea): void => {
-    const tabRoute = AREA_TO_TAB_ROUTE[area.key];
-    if (tabRoute) {
-      const homeScreen =
-        tabRoute === 'Dashboard'
-          ? 'DashboardHome'
-          : tabRoute === 'Students'
-            ? 'StudentRegistry'
-            : tabRoute === 'Finance'
-              ? 'FinanceDashboard'
-              : 'StaffRegistry';
-      props.navigation.navigate('Workspace', {
-        screen: tabRoute,
-        params: { screen: homeScreen },
-      });
-    } else {
-      const drawerRoute = AREA_TO_DRAWER_ROUTE[area.key];
-      if (drawerRoute) {
-        const homeScreen = DRAWER_HOME_SCREEN[drawerRoute];
-        props.navigation.navigate(
-          drawerRoute,
-          homeScreen ? { screen: homeScreen } : undefined,
-        );
-      }
-    }
+    navigateDrawerAreaHome(props.navigation, area.key);
     props.navigation.closeDrawer();
   };
 
