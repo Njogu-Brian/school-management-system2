@@ -1,0 +1,56 @@
+import { ActionSheetIOS, Alert, Linking, Platform } from 'react-native';
+
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('254')) return digits;
+  if (digits.startsWith('0')) return `254${digits.slice(1)}`;
+  if (digits.length === 9) return `254${digits}`;
+  return digits;
+}
+
+export async function openPhoneActions(phone: string, label?: string): Promise<void> {
+  const trimmed = phone.trim();
+  if (!trimmed) return;
+
+  const tel = trimmed.replace(/\s/g, '');
+  const wa = normalizePhone(trimmed);
+
+  const call = () => void Linking.openURL(`tel:${tel}`);
+  const sms = () => void Linking.openURL(`sms:${tel}`);
+  const whatsapp = () => void Linking.openURL(`https://wa.me/${wa}`);
+
+  if (Platform.OS === 'ios') {
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: label ?? trimmed,
+        options: ['Call', 'Text (SMS)', 'WhatsApp', 'Cancel'],
+        cancelButtonIndex: 3,
+      },
+      (index) => {
+        if (index === 0) void call();
+        if (index === 1) void sms();
+        if (index === 2) void whatsapp();
+      },
+    );
+    return;
+  }
+
+  Alert.alert(label ?? 'Contact', trimmed, [
+    { text: 'Call', onPress: call },
+    { text: 'SMS', onPress: sms },
+    { text: 'WhatsApp', onPress: whatsapp },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
+}
+
+export async function openEmail(email: string): Promise<void> {
+  const trimmed = email.trim();
+  if (!trimmed) return;
+  const url = `mailto:${encodeURIComponent(trimmed)}`;
+  const can = await Linking.canOpenURL(url);
+  if (!can) {
+    Alert.alert('Email', 'No email app is available on this device.');
+    return;
+  }
+  await Linking.openURL(url);
+}

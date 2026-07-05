@@ -186,6 +186,19 @@ class StudentController extends Controller
             $searchTerm = '%' . addcslashes($request->admission_number, '%_\\') . '%';
             $query->where('admission_number', 'like', $searchTerm);
         }
+        if ($request->filled('contact')) {
+            $contact = trim($request->contact);
+            $like = '%' . addcslashes($contact, '%_\\') . '%';
+            $likeLower = '%' . addcslashes(mb_strtolower($contact, 'UTF-8'), '%_\\') . '%';
+            $query->whereHas('parent', function ($p) use ($like, $likeLower) {
+                $p->where('father_phone', 'like', $like)
+                    ->orWhere('mother_phone', 'like', $like)
+                    ->orWhere('father_whatsapp', 'like', $like)
+                    ->orWhere('mother_whatsapp', 'like', $like)
+                    ->orWhereRaw('LOWER(father_email) LIKE ?', [$likeLower])
+                    ->orWhereRaw('LOWER(mother_email) LIKE ?', [$likeLower]);
+            });
+        }
 
         $students = $query->orderBy('first_name')->paginate($perPage)->withQueryString();
         $classrooms = Classroom::orderBy('name')->get();

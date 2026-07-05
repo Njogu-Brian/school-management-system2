@@ -94,22 +94,25 @@ export function adaptAttendanceKpi(stats: AdminDashboardStats): KpiAdapterResult
 
 export function adaptCollectionsKpi(stats: AdminDashboardStats): KpiAdapterResult {
   const { label, icon } = meta('collections_kpi');
+  const termCollected = stats.fees_collected ?? stats.collected_this_term ?? 0;
+  const month = stats.collected_this_month;
   const week = stats.collected_this_week;
-  const month = stats.collected_this_month ?? stats.fees_collected ?? 0;
-  const term = stats.collected_this_term;
+  const termName = stats.filters?.available_terms?.find(
+    (t) => t.id === stats.filters?.term_id,
+  )?.name;
 
   const parts: string[] = [];
+  if (termName) parts.push(termName);
   if (week != null) parts.push(`Week ${formatKes(week)}`);
   if (month != null) parts.push(`Month ${formatKes(month)}`);
-  if (term != null) parts.push(`Term ${formatKes(term)}`);
 
   return {
-    isEmpty: false,
+    isEmpty: termCollected === 0,
     kpi: {
       label,
       icon: icon as KpiCardProps['icon'],
-      value: month != null ? formatKes(month) : formatKes(stats.fees_collected ?? 0),
-      delta: parts.length ? parts.join(' · ') : 'Collections',
+      value: formatKes(termCollected),
+      delta: parts.length ? parts.join(' · ') : 'Current term (allocation-based)',
       deltaPositive: true,
     },
   };
@@ -117,8 +120,12 @@ export function adaptCollectionsKpi(stats: AdminDashboardStats): KpiAdapterResul
 
 export function adaptOutstandingFeesKpi(stats: AdminDashboardStats): KpiAdapterResult {
   const { label, icon } = meta('outstanding_fees_kpi');
-  const balance = stats.outstanding_balance_all ?? stats.outstanding_balance ?? 0;
+  const balance = stats.outstanding_balance ?? 0;
+  const invoiced = stats.total_invoiced ?? 0;
   const trend = chartPeriodTrend(stats.charts?.invoices, { invertPositive: true });
+  const termName = stats.filters?.available_terms?.find(
+    (t) => t.id === stats.filters?.term_id,
+  )?.name;
 
   return {
     isEmpty: balance === 0,
@@ -126,7 +133,11 @@ export function adaptOutstandingFeesKpi(stats: AdminDashboardStats): KpiAdapterR
       label,
       icon: icon as KpiCardProps['icon'],
       value: formatKes(balance),
-      delta: trend?.delta ?? 'All invoices',
+      delta:
+        trend?.delta ??
+        (termName
+          ? `${termName} · Invoiced ${formatKes(invoiced)}`
+          : 'Due invoices (current term)'),
       deltaPositive: trend?.deltaPositive ?? false,
     },
   };

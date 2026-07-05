@@ -34,11 +34,9 @@ export function navigateToTab(
           ? {
               screen,
               params,
-              initial: false,
             }
           : undefined,
       },
-      merge: false,
     }),
   );
 }
@@ -58,10 +56,8 @@ export function navigateToDrawer(
         ? {
             screen,
             params,
-            initial: false,
           }
         : undefined,
-      merge: false,
     }),
   );
 }

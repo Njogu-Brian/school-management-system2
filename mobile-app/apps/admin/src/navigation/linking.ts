@@ -34,6 +34,7 @@ export const linking: LinkingOptions<DrawerParamList> = {
               GlobalSearch: 'search',
               ActivityCenter: 'activity',
               AuditDetail: 'activity/:auditId',
+              UserProfile: 'profile',
             },
           },
           Students: {
@@ -83,6 +84,8 @@ export const linking: LinkingOptions<DrawerParamList> = {
               },
               StaffClock: 'clock',
               StaffClockTeam: 'clock/team',
+              LeaveManagement: 'leave',
+              PayrollRecords: 'payroll',
             },
           },
         },

@@ -80,7 +80,7 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     id: 'qa_clock',
     label: 'Staff clock',
     icon: 'time-outline',
-    permissions: ['dashboard.view'],
+    permissions: ['people.view', 'staff.view'],
   },
   {
     id: 'qa_attendance',
@@ -92,12 +92,12 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     id: 'qa_leave',
     label: 'Leave requests',
     icon: 'calendar-outline',
-    permissions: ['approvals.view', 'dashboard.view'],
+    permissions: ['people.view', 'staff.view', 'approvals.view'],
   },
   {
     id: 'qa_payroll',
     label: 'Payroll',
     icon: 'wallet-outline',
-    permissions: ['finance.view'],
+    permissions: ['finance.view', 'people.view', 'staff.view'],
   },
 ];

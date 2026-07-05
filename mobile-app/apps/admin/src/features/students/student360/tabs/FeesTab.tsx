@@ -15,6 +15,7 @@ export interface FeesTabProps {
   invoices: Array<{ id: number; date: string; reference: string; amount: number }>;
   payments: Array<{ id: number; date: string; reference: string; amount: number }>;
   onInvoicePress?: (invoiceId: number) => void;
+  onPaymentPress?: (paymentId: number) => void;
 }
 
 export const FeesTab: React.FC<FeesTabProps> = ({
@@ -28,6 +29,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
   invoices,
   payments,
   onInvoicePress,
+  onPaymentPress,
 }) => {
   const { palette, colors, spacing, fontSizes } = useTheme();
 
@@ -78,7 +80,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
 
       <Section title="Invoices" palette={palette} fontSizes={fontSizes} spacing={spacing}>
         {invoices.length === 0 ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No invoices this year.</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No invoices on file.</Text>
         ) : (
           invoices.slice(0, 10).map((inv) => (
             <Row
@@ -96,7 +98,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
 
       <Section title="Payments" palette={palette} fontSizes={fontSizes} spacing={spacing}>
         {payments.length === 0 ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No payments this year.</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No payments on file.</Text>
         ) : (
           payments.slice(0, 10).map((p) => (
             <Row
@@ -106,6 +108,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
               sub={formatDateLabel(p.date)}
               palette={palette}
               fontSizes={fontSizes}
+              onPress={onPaymentPress ? () => onPaymentPress(p.id) : undefined}
             />
           ))
         )}

@@ -13,6 +13,7 @@ use App\Models\Student;
 use App\Models\Term;
 use App\Models\Academics\ExamMark;
 use App\Models\LeaveRequest;
+use App\Services\FinanceTermKpiService;
 use App\Services\StudentBalanceService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -447,19 +448,22 @@ class ApiDashboardController extends Controller
         $paymentsQuery = Payment::query()->where(function ($q) {
             $q->whereNull('reversed')->orWhere('reversed', false);
         });
-        if ($windowStart && $windowEnd) {
-            $paymentsQuery->whereBetween('payment_date', [$windowStart, $windowEnd]);
-        }
-        $feesCollected = (float) $paymentsQuery->sum('amount');
-
-        $invoiceQuery = Invoice::query();
+        $financeKpiService = app(FinanceTermKpiService::class);
         if ($resolvedTermId) {
-            $invoiceQuery->where('term_id', $resolvedTermId);
-        } elseif ($resolvedYearId) {
-            $invoiceQuery->where('academic_year_id', $resolvedYearId);
+            $termForKpi = Term::find($resolvedTermId);
+            $termFinance = $termForKpi
+                ? $financeKpiService->forTerm($termForKpi)
+                : $financeKpiService->forCurrentTerm();
+        } else {
+            $termFinance = $financeKpiService->forCurrentTerm();
+            if (! $resolvedTermId && ! empty($termFinance['term_id'])) {
+                $resolvedTermId = (int) $termFinance['term_id'];
+            }
         }
-        $totalInvoiced = (float) $invoiceQuery->sum('total');
-        $totalBalance = (float) (clone $invoiceQuery)->sum('balance');
+
+        $feesCollected = (float) ($termFinance['fees_collected'] ?? 0);
+        $totalInvoiced = (float) ($termFinance['total_invoiced'] ?? 0);
+        $totalBalance = (float) ($termFinance['fees_outstanding'] ?? 0);
         $outstandingAll = (float) Invoice::query()->whereNull('reversed_at')->sum('balance');
 
         $paymentBase = Payment::query()->where(function ($q) {

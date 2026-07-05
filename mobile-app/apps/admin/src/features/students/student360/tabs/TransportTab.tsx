@@ -10,7 +10,7 @@ export interface TransportTabProps {
 
 /** Transport trip from `GET /routes/{trip_id}` (trip-backed routes API). */
 export const TransportTab: React.FC<TransportTabProps> = ({ student }) => {
-  const { colors, palette, fontSizes } = useTheme();
+  const { colors } = useTheme();
   const routeQuery = useTransportRoute(student.tripId, { enabled: student.tripId != null });
 
   const assignmentRows = useMemo(
@@ -69,9 +69,6 @@ export const TransportTab: React.FC<TransportTabProps> = ({ student }) => {
 
   return (
     <>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
-        APIs: GET /students/{'{id}'} (trip_id) · GET /routes/{'{id}'}
-      </Text>
       <FinanceFieldSection title="Assignment" rows={assignmentRows} />
       {routeRows.length > 0 ? <FinanceFieldSection title="Route" rows={routeRows} /> : null}
       {stopRows.length > 0 ? <FinanceFieldSection title="Stops" rows={stopRows} /> : null}

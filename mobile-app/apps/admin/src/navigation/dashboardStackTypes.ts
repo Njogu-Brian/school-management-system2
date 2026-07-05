@@ -12,4 +12,5 @@ export type DashboardStackParamList = {
   GlobalSearch: undefined;
   ActivityCenter: undefined;
   AuditDetail: { auditId: string };
+  UserProfile: undefined;
 };

@@ -61,12 +61,13 @@ export const studentsApi = {
 
   getStatement(
     studentId: number,
-    year?: number,
-    options?: { detailed?: boolean },
+    filters?: { year?: number; term_id?: number; academic_year_id?: number; detailed?: boolean },
   ): Promise<ApiResponse<StudentStatementRecord>> {
     const params: Record<string, string | number | boolean> = {};
-    if (year != null) params.year = year;
-    if (options?.detailed != null) params.detailed = options.detailed;
+    if (filters?.year != null) params.year = filters.year;
+    if (filters?.term_id != null) params.term_id = filters.term_id;
+    if (filters?.academic_year_id != null) params.academic_year_id = filters.academic_year_id;
+    if (filters?.detailed != null) params.detailed = filters.detailed;
     return apiClient.get<StudentStatementRecord>(`/students/${studentId}/statement`, params);
   },
 
@@ -90,6 +91,26 @@ export const studentsApi = {
     return apiClient.get<Array<{ id: number; name: string; description?: string }>>(
       '/student-categories',
     );
+  },
+
+  promptMpesa(
+    studentId: number,
+    payload: {
+      phone_number: string;
+      amount: number;
+      invoice_id?: number | null;
+      notes?: string;
+      share_with_siblings?: boolean;
+      sibling_allocations?: Array<{ student_id: number; amount: number }>;
+    },
+  ): Promise<
+    ApiResponse<{
+      message?: string;
+      transaction_id?: number;
+      checkout_request_id?: string;
+    }>
+  > {
+    return apiClient.post(`/students/${studentId}/mpesa/prompt`, payload);
   },
 
   update(

@@ -14,9 +14,18 @@ import {
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Share, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Share,
+  Text,
+  View,
+} from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
+import { MpesaPromptSheet } from '../components/MpesaPromptSheet';
 import { formatKes } from '../utils/formatters';
 
 type Props = StackScreenProps<FinanceStackParamList, 'InvoiceDetail'>;
@@ -25,6 +34,7 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { invoiceId, summary } = route.params;
   const canView = useCan('finance.view');
   const { colors, palette, spacing } = useTheme();
+  const [promptOpen, setPromptOpen] = useState(false);
   const detailQuery = useInvoiceDetail(invoiceId, { enabled: canView });
 
   const invoice = detailQuery.data;
@@ -131,7 +141,11 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         <FinanceFieldSection title="Voteheads" rows={voteheadRows.length ? voteheadRows : [{ label: 'Items', value: 'None' }]} />
 
         {invoice.balance > 0 ? (
-          <View style={{ marginTop: spacing.sm }}>
+          <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+            <Button
+              label="Prompt parent to pay (M-PESA STK)"
+              onPress={() => setPromptOpen(true)}
+            />
             <Button
               label="Share payment link with parent"
               variant="secondary"
@@ -150,6 +164,14 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           <FinanceFieldSection title="Notes" rows={[{ label: 'Notes', value: invoice.notes }]} />
         ) : null}
       </ScrollView>
+
+      <MpesaPromptSheet
+        visible={promptOpen}
+        onClose={() => setPromptOpen(false)}
+        studentId={studentId}
+        studentName={invoice.student_name ?? ''}
+        invoice={invoice}
+      />
     </ScreenContainer>
   );
 };

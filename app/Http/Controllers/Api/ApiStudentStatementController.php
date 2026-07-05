@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AcademicYear;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Student;
+use App\Models\Term;
 use App\Services\StudentBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,17 +23,30 @@ class ApiStudentStatementController extends Controller
         $this->authorizeStudentAccess($request, $student);
 
         $year = (int) $request->input('year', (int) date('Y'));
+        $termId = $request->filled('term_id') ? (int) $request->input('term_id') : null;
+        $academicYearId = $request->filled('academic_year_id')
+            ? (int) $request->input('academic_year_id')
+            : null;
         $detailed = $request->boolean('detailed', true);
 
-        $invoices = Invoice::where('student_id', $student->id)
-            ->where(function ($q) use ($year) {
-                $q->where('year', $year)
-                    ->orWhereHas('academicYear', fn ($q2) => $q2->where('year', $year));
-            })
+        $invoicesQuery = Invoice::where('student_id', $student->id)
             ->whereNull('reversed_at')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'reversed');
-            })
+            });
+
+        if ($termId) {
+            $invoicesQuery->where('term_id', $termId);
+        } elseif ($academicYearId) {
+            $invoicesQuery->where('academic_year_id', $academicYearId);
+        } else {
+            $invoicesQuery->where(function ($q) use ($year) {
+                $q->where('year', $year)
+                    ->orWhereHas('academicYear', fn ($q2) => $q2->where('year', $year));
+            });
+        }
+
+        $invoices = $invoicesQuery
             ->when($detailed, fn ($q) => $q->with(['items.votehead', 'term']))
             ->orderBy('created_at')
             ->get();
@@ -54,6 +69,14 @@ class ApiStudentStatementController extends Controller
             $paymentsQuery->whereHas('allocations', function ($q) use ($invoiceIds) {
                 $q->whereHas('invoiceItem', fn ($q2) => $q2->whereIn('invoice_id', $invoiceIds));
             });
+        } elseif ($termId || $academicYearId) {
+            if (! empty($invoiceIds)) {
+                $paymentsQuery->whereHas('allocations', function ($q) use ($invoiceIds) {
+                    $q->whereHas('invoiceItem', fn ($q2) => $q2->whereIn('invoice_id', $invoiceIds));
+                });
+            } else {
+                $paymentsQuery->whereRaw('1 = 0');
+            }
         } else {
             $paymentsQuery->whereYear('payment_date', $year);
         }
@@ -70,6 +93,12 @@ class ApiStudentStatementController extends Controller
 
         $fullName = trim(($student->first_name ?? '').' '.($student->middle_name ?? '').' '.($student->last_name ?? ''));
 
+        $years = AcademicYear::orderByDesc('year')->get(['id', 'year', 'is_active']);
+        $terms = Term::query()
+            ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
+            ->orderBy('opening_date')
+            ->get(['id', 'name', 'academic_year_id', 'opening_date', 'closing_date', 'is_current']);
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -80,7 +109,13 @@ class ApiStudentStatementController extends Controller
                     'class_name' => ($student->classroom->name ?? '').($student->stream ? ' '.$student->stream->name : ''),
                 ],
                 'year' => $year,
+                'term_id' => $termId,
+                'academic_year_id' => $academicYearId,
                 'detailed' => $detailed,
+                'filters' => [
+                    'available_years' => $years,
+                    'available_terms' => $terms,
+                ],
                 'opening_balance' => 0,
                 'total_invoiced' => round($totalInvoiced, 2),
                 'total_paid' => round($totalPaid, 2),

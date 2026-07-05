@@ -1,5 +1,7 @@
 import {
   useCan,
+  useInfiniteInvoiceList,
+  useInfinitePaymentList,
   useStudentAttendanceTrend,
   useStudentDetail,
   useStudentStatement,
@@ -14,7 +16,6 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from '@erp/ui';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { navigateToTab } from '../../../navigation/navigateWorkspace';
-import { statementEntityId } from '../utils/statementEntityId';
 import { AttendanceTab } from '../student360/tabs/AttendanceTab';
 import { DocumentsTab } from '../student360/tabs/DocumentsTab';
 import { FamilyTab } from '../student360/tabs/FamilyTab';
@@ -73,7 +74,19 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const detailQuery = useStudentDetail(studentId);
   const statsQuery = useStudentStats(studentId);
-  const statementQuery = useStudentStatement(studentId, undefined, { enabled: canViewFees });
+  const statementQuery = useStudentStatement(
+    studentId,
+    { detailed: true },
+    { enabled: canViewFees },
+  );
+  const invoicesQuery = useInfiniteInvoiceList(
+    { student_id: studentId, per_page: 25 },
+    { enabled: canViewFees && activeTab === 'fees' },
+  );
+  const paymentsQuery = useInfinitePaymentList(
+    { student_id: studentId, per_page: 25, active_only: true },
+    { enabled: canViewFees && activeTab === 'fees' },
+  );
   const attendanceQuery = useStudentAttendanceTrend(studentId, {
     enabled: activeTab === 'attendance' || activeTab === 'overview',
   });
@@ -108,28 +121,23 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const statement = statementQuery.data;
   const invoices = useMemo(
     () =>
-      (statement?.transactions ?? [])
-        .filter((t) => t.type === 'invoice')
-        .map((t) => ({
-          id: statementEntityId(t) ?? t.id,
-          date: t.date,
-          reference: t.reference,
-          amount: t.debit,
-        }))
-        .filter((t) => t.id > 0 && t.id < 1_000_000),
-    [statement],
+      (invoicesQuery.data?.pages.flatMap((p) => p.items) ?? []).map((inv) => ({
+        id: inv.id,
+        date: inv.issueDate,
+        reference: inv.invoiceNumber,
+        amount: inv.totalAmount,
+      })),
+    [invoicesQuery.data],
   );
   const payments = useMemo(
     () =>
-      (statement?.transactions ?? [])
-        .filter((t) => t.type === 'payment')
-        .map((t) => ({
-          id: t.id,
-          date: t.date,
-          reference: t.reference,
-          amount: t.credit,
-        })),
-    [statement],
+      (paymentsQuery.data?.pages.flatMap((p) => p.items) ?? []).map((p) => ({
+        id: p.id,
+        date: p.paymentDate,
+        reference: p.receiptNumber,
+        amount: p.amount,
+      })),
+    [paymentsQuery.data],
   );
 
   if (detailQuery.isLoading && !student) {
@@ -197,9 +205,13 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         return (
           <FeesTab
             canViewFees={canViewFees}
-            isLoading={statementQuery.isLoading}
-            isError={statementQuery.isError}
-            onRetry={() => void statementQuery.refetch()}
+            isLoading={invoicesQuery.isLoading || paymentsQuery.isLoading || statementQuery.isLoading}
+            isError={invoicesQuery.isError || paymentsQuery.isError || statementQuery.isError}
+            onRetry={() => {
+              void invoicesQuery.refetch();
+              void paymentsQuery.refetch();
+              void statementQuery.refetch();
+            }}
             closingBalance={statement?.closing_balance}
             totalInvoiced={statement?.total_invoiced}
             totalPaid={statement?.total_paid}
@@ -207,6 +219,9 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             payments={payments}
             onInvoicePress={(invoiceId) =>
               navigateToTab(navigation, 'Finance', 'InvoiceDetail', { invoiceId })
+            }
+            onPaymentPress={(paymentId) =>
+              navigateToTab(navigation, 'Finance', 'PaymentDetail', { paymentId })
             }
           />
         );

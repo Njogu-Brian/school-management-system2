@@ -27,7 +27,7 @@ export const AppHeaderChrome: React.FC<AppHeaderChromeProps> = ({ title, onMenuP
     [navigation],
   );
   const onProfile = useCallback(
-    () => navigateToDrawer(navigation, 'Settings'),
+    () => navigateToTab(navigation, 'Dashboard', 'UserProfile'),
     [navigation],
   );
 

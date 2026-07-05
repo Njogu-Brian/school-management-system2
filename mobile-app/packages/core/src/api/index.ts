@@ -1,4 +1,5 @@
 export * from './client';
+export * from './account.api';
 export * from './auth.api';
 export * from './dashboard.api';
 export * from './admissions.api';

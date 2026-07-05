@@ -5,6 +5,7 @@ import { ApprovalCenterScreen, ApprovalDetailScreen } from '../features/approval
 import { DashboardScreen } from '../features/dashboard';
 import { NotificationsListScreen, NotificationDetailScreen } from '../features/notifications';
 import { GlobalSearchScreen } from '../features/search';
+import { UserProfileScreen } from '../features/profile/screens/UserProfileScreen';
 import type { DashboardStackParamList } from './dashboardStackTypes';
 
 const Stack = createStackNavigator<DashboardStackParamList>();
@@ -19,5 +20,6 @@ export const DashboardStackNavigator: React.FC = () => (
     <Stack.Screen name="GlobalSearch" component={GlobalSearchScreen} />
     <Stack.Screen name="ActivityCenter" component={ActivityCenterScreen} />
     <Stack.Screen name="AuditDetail" component={AuditDetailScreen} />
+    <Stack.Screen name="UserProfile" component={UserProfileScreen} />
   </Stack.Navigator>
 );

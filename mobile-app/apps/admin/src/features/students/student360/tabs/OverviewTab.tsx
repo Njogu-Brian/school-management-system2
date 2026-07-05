@@ -6,8 +6,9 @@ import {
   type StudentTimelineEventData,
 } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
+import { openPhoneActions } from '../../../../utils/contactActions';
 import { formatDateLabel, formatKes, formatPercent } from '../utils/formatters';
 
 export interface OverviewTabProps {
@@ -112,9 +113,24 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           {student.parent?.motherName ? `Mother: ${student.parent.motherName}` : 'Mother: —'}
         </Text>
         {(student.parent?.fatherPhone || student.parent?.motherPhone) && (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
-            {[student.parent?.fatherPhone, student.parent?.motherPhone].filter(Boolean).join(' · ')}
-          </Text>
+          <View style={{ marginTop: 4 }}>
+            {[student.parent?.fatherPhone, student.parent?.motherPhone]
+              .filter(Boolean)
+              .map((phone) => (
+                <Pressable key={phone} onPress={() => void openPhoneActions(phone!)}>
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontSize: fontSizes.xs,
+                      textDecorationLine: 'underline',
+                      marginTop: 2,
+                    }}
+                  >
+                    {phone}
+                  </Text>
+                </Pressable>
+              ))}
+          </View>
         )}
       </View>
 

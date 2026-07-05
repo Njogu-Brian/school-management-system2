@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
 use App\Models\Department;
+use App\Models\StaffProfileChange;
 use App\Models\Staff;
 use App\Models\StaffAttendance;
 use App\Models\StaffCategory;
@@ -282,16 +283,11 @@ class ApiStaffController extends Controller
 
         if ($isSelf && ! $isAdmin) {
             $request->validate([
-                'first_name' => 'required|string|max:255',
-                'last_name' => 'required|string|max:255',
-                'work_email' => [
-                    'required', 'email',
-                    Rule::unique('users', 'email')->ignore($user->id),
-                    Rule::unique('staff', 'work_email')->ignore($staff->id),
-                ],
+                'first_name' => 'sometimes|required|string|max:255',
+                'last_name' => 'sometimes|required|string|max:255',
                 'personal_email' => 'nullable|email',
-                'id_number' => ['required', 'string', 'max:255', Rule::unique('staff', 'id_number')->ignore($staff->id)],
-                'phone_number' => 'required|string|max:50',
+                'id_number' => 'sometimes|required|string|max:255',
+                'phone_number' => 'sometimes|required|string|max:50',
                 'residential_address' => 'nullable|string|max:500',
                 'emergency_contact_name' => 'nullable|string|max:255',
                 'emergency_contact_relationship' => 'nullable|string|max:100',
@@ -346,29 +342,78 @@ class ApiStaffController extends Controller
 
         DB::beginTransaction();
         try {
-            $user->update(['email' => $request->work_email]);
-
             $phoneService = app(PhoneNumberService::class);
+
             if ($isSelf && ! $isAdmin) {
-                $staffData = $request->only([
-                    'first_name', 'middle_name', 'last_name',
-                    'work_email', 'personal_email', 'id_number',
-                    'residential_address',
+                $interesting = [
+                    'personal_email', 'phone_number', 'id_number', 'residential_address',
                     'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone',
                     'kra_pin', 'nssf', 'nhif', 'bank_name', 'bank_branch', 'bank_account',
                     'date_of_birth', 'gender',
+                ];
+                $proposed = [];
+                foreach ($interesting as $field) {
+                    if (! $request->has($field)) {
+                        continue;
+                    }
+                    $value = $request->input($field);
+                    if (in_array($field, ['phone_number', 'emergency_contact_phone'], true)) {
+                        $value = $phoneService->formatWithCountryCode($value, '+254');
+                    }
+                    if ($field === 'gender' && $value !== null) {
+                        $value = strtolower(trim((string) $value));
+                    }
+                    $proposed[$field] = $value === '' ? null : $value;
+                }
+
+                $changes = [];
+                foreach ($proposed as $field => $new) {
+                    $old = $staff->{$field};
+                    if ($field === 'date_of_birth') {
+                        $old = $old ? ($old instanceof \Carbon\Carbon ? $old->format('Y-m-d') : $old) : null;
+                    }
+                    if (($old ?? null) != ($new ?? null)) {
+                        $changes[$field] = ['old' => $old, 'new' => $new];
+                    }
+                }
+
+                if (empty($changes)) {
+                    DB::commit();
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'No changes detected.',
+                        'data' => $this->formatStaffDetail($staff->load(['supervisor', 'category', 'department', 'jobTitle'])),
+                    ]);
+                }
+
+                StaffProfileChange::create([
+                    'staff_id' => $staff->id,
+                    'submitted_by' => $actor->id,
+                    'changes' => $changes,
+                    'status' => 'pending',
                 ]);
-            } else {
-                $staffData = $request->only([
-                    'first_name', 'middle_name', 'last_name',
-                    'work_email', 'personal_email', 'id_number',
-                    'department_id', 'job_title_id', 'supervisor_id', 'staff_category_id',
-                    'residential_address',
-                    'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone',
-                    'kra_pin', 'nssf', 'nhif', 'bank_name', 'bank_branch', 'bank_account',
-                    'date_of_birth', 'gender',
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Your changes were submitted and are pending admin approval.',
+                    'data' => $this->formatStaffDetail($staff->load(['supervisor', 'category', 'department', 'jobTitle'])),
                 ]);
             }
+
+            $user->update(['email' => $request->work_email]);
+
+            $staffData = $request->only([
+                'first_name', 'middle_name', 'last_name',
+                'work_email', 'personal_email', 'id_number',
+                'department_id', 'job_title_id', 'supervisor_id', 'staff_category_id',
+                'residential_address',
+                'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone',
+                'kra_pin', 'nssf', 'nhif', 'bank_name', 'bank_branch', 'bank_account',
+                'date_of_birth', 'gender',
+            ]);
             $staffData['phone_number'] = $phoneService->formatWithCountryCode($request->phone_number, '+254');
             $staffData['emergency_contact_phone'] = $phoneService->formatWithCountryCode(
                 $request->input('emergency_contact_phone'),

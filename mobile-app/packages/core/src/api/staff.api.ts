@@ -65,4 +65,8 @@ export const staffApi = {
   update(id: number, payload: Record<string, unknown>): Promise<ApiResponse<StaffRecord>> {
     return apiClient.put<StaffRecord>(`/staff/${id}`, payload);
   },
+
+  uploadPhoto(id: number, formData: FormData): Promise<ApiResponse<{ avatar: string | null }>> {
+    return apiClient.postMultipart<{ avatar: string | null }>(`/staff/${id}/photo`, formData);
+  },
 };

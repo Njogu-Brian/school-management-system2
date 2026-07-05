@@ -46,9 +46,11 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
     [listQuery.data],
   );
 
-  const statementQuery = useStudentStatement(selectedStudentId ?? 0, statementYear, {
-    enabled: canView && selectedStudentId != null,
-  });
+  const statementQuery = useStudentStatement(
+    selectedStudentId ?? 0,
+    { year: statementYear, detailed: true },
+    { enabled: canView && selectedStudentId != null },
+  );
 
   if (!canView) {
     return (

@@ -77,6 +77,8 @@ export interface StudentStatementRecord {
     class_name: string;
   };
   year?: number;
+  term_id?: number | null;
+  academic_year_id?: number | null;
   detailed?: boolean;
   opening_balance: number;
   total_invoiced: number;

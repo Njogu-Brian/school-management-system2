@@ -1,7 +1,8 @@
 import type { StudentDetail } from '@erp/core';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
+import { openEmail, openPhoneActions } from '../../../../utils/contactActions';
 
 export interface FamilyTabProps {
   student: StudentDetail;
@@ -19,7 +20,7 @@ function ContactRow({
   email?: string | null;
 }) {
   const { palette, fontSizes, spacing } = useTheme();
-  if (!name && !phone) return null;
+  if (!name && !phone && !email) return null;
   return (
     <View style={[styles.row, { borderBottomColor: palette.border, paddingVertical: spacing.sm }]}>
       <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>
@@ -29,10 +30,18 @@ function ContactRow({
         {name ?? '—'}
       </Text>
       {phone ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>{phone}</Text>
+        <Pressable onPress={() => void openPhoneActions(phone, name ?? label)}>
+          <Text style={{ color: palette.textPrimary, fontSize: fontSizes.xs, marginTop: 2, textDecorationLine: 'underline' }}>
+            {phone}
+          </Text>
+        </Pressable>
       ) : null}
       {email ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>{email}</Text>
+        <Pressable onPress={() => void openEmail(email)}>
+          <Text style={{ color: palette.textPrimary, fontSize: fontSizes.xs, marginTop: 2, textDecorationLine: 'underline' }}>
+            {email}
+          </Text>
+        </Pressable>
       ) : null}
     </View>
   );

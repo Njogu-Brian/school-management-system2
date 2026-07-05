@@ -77,9 +77,6 @@ export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
 
   return (
     <>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
-        Profile: GET /students/{'{id}'} · Clinic: GET /students/{'{id}'}/medical-records
-      </Text>
       <View style={{ marginBottom: 12 }}>
         <Button
           label="Log medical record"
