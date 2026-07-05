@@ -20,18 +20,22 @@ if (-not $devices) {
 Write-Host "Clearing logcat..."
 & $adb logcat -c
 
-Write-Host "Launching $package ..."
-& $adb shell monkey -p $package -c android.intent.category.LAUNCHER 1 | Out-Null
+Write-Host "Force-stopping and cold-starting $package ..."
+& $adb shell am force-stop $package | Out-Null
+Start-Sleep -Seconds 1
+& $adb shell am start -n "$package/.MainActivity" | Out-Null
 
-Write-Host "Capturing logs for 25 seconds (React Native / Expo / crashes)..."
+Write-Host "Capturing logs for 15 seconds..."
+Start-Sleep -Seconds 15
+
 $logFile = Join-Path $PSScriptRoot "..\launch-log.txt"
-& $adb logcat -d -v time ReactNative:V ReactNativeJS:V ExpoModulesCore:V AndroidRuntime:E *:S 2>&1 |
-  Tee-Object -FilePath $logFile
+& $adb logcat -d -v time 2>&1 | Tee-Object -FilePath $logFile | Out-Null
 
 Write-Host ""
-Write-Host "Also scanning for fatal errors..."
-& $adb logcat -d -v time | Select-String -Pattern "FATAL|AndroidRuntime|ReactNativeJS|Invariant|Exception" |
-  Select-Object -Last 80
+Write-Host "=== Key errors (if any) ==="
+Get-Content $logFile |
+  Select-String -Pattern "FATAL|AndroidRuntime|ReactNativeJS|JavascriptException|RNCNetInfo|Invariant|NativeModule" |
+  Select-Object -Last 40
 
 Write-Host ""
-Write-Host "Full filtered log saved to: $logFile"
+Write-Host "Full log saved to: $logFile"

@@ -15,6 +15,7 @@ import {
 } from '../features/auth';
 import { DrawerNavigator } from './DrawerNavigator';
 import { linking } from './linking';
+import { OfflineShell } from '../providers/OfflineShell';
 
 /**
  * Route guard (build plan §5.1). Resolves the four authentication states:
@@ -43,9 +44,11 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
     return <BiometricEnableScreen />;
   }
   return (
-    <NavigationContainer theme={navTheme} linking={linking}>
-      <DrawerNavigator />
-    </NavigationContainer>
+    <OfflineShell>
+      <NavigationContainer theme={navTheme} linking={linking}>
+        <DrawerNavigator />
+      </NavigationContainer>
+    </OfflineShell>
   );
 };
 
