@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { financeApi } from '../../api/finance.api';
+import { studentsApi } from '../../api/students.api';
 import { fetchFinanceDashboardKpis } from '../../finance/fetchFinanceDashboard';
 import {
   normalizeFinanceTransactionSummary,
@@ -199,5 +200,84 @@ export function useReconciliationActions() {
     onSuccess: invalidate,
   });
 
-  return { confirm, reject };
+  const assign = useMutation({
+    mutationFn: async ({
+      id,
+      type,
+      studentId,
+    }: {
+      id: number;
+      type: 'bank' | 'c2b';
+      studentId: number;
+    }) => {
+      const res = await financeApi.assignTransaction(id, type, studentId);
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to assign student.');
+      }
+      return res.data;
+    },
+    onSuccess: (_data, vars) => {
+      invalidate();
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.finance.transactionDetail(vars.id, vars.type),
+      });
+    },
+  });
+
+  const share = useMutation({
+    mutationFn: async ({
+      id,
+      type,
+      allocations,
+    }: {
+      id: number;
+      type: 'bank' | 'c2b';
+      allocations: Array<{ student_id: number; amount: number }>;
+    }) => {
+      const res = await financeApi.shareTransaction(id, type, allocations);
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to share transaction.');
+      }
+      return res.data;
+    },
+    onSuccess: (_data, vars) => {
+      invalidate();
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.finance.transactionDetail(vars.id, vars.type),
+      });
+    },
+  });
+
+  return { confirm, reject, assign, share };
+}
+
+export function useStudentFinanceSearch(query: string, options?: { enabled?: boolean }) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: queryKeys.finance.studentFinanceSearch(q),
+    queryFn: async () => {
+      const res = await studentsApi.searchFinance(q);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Student search failed.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false && q.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
+export function useStudentPaymentLink(studentId: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.finance.paymentLink(studentId),
+    queryFn: async () => {
+      const res = await studentsApi.getPaymentLink(studentId);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load payment link.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false && studentId > 0,
+    staleTime: 60_000,
+  });
 }

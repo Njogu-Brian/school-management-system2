@@ -1,4 +1,4 @@
-import { getAppQueryClient, useNetworkStatus } from '@erp/core';
+import { getAppQueryClient, processSyncQueue, useNetworkStatus } from '@erp/core';
 import { OfflineBanner } from '@erp/ui';
 import React, { useEffect, useRef } from 'react';
 
@@ -10,6 +10,11 @@ export const OfflineShell: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (prevStatus.current !== 'online' && networkStatus === 'online') {
       void getAppQueryClient().invalidateQueries();
+      void processSyncQueue().then(({ processed, failed }) => {
+        if (processed > 0 || failed > 0) {
+          void getAppQueryClient().invalidateQueries({ queryKey: ['finance'] });
+        }
+      });
     }
     prevStatus.current = networkStatus;
   }, [networkStatus]);

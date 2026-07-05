@@ -2,9 +2,11 @@ import {
   invoiceStatusLabel,
   useCan,
   useInvoiceDetail,
+  useStudentPaymentLink,
   type InvoiceSummary,
 } from '@erp/core';
 import {
+  Button,
   FinanceFieldSection,
   FinanceScreenHeader,
   InvoiceStatusBadge,
@@ -13,7 +15,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
 import { formatKes } from '../utils/formatters';
 
@@ -27,6 +29,11 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const invoice = detailQuery.data;
   const seed = summary as InvoiceSummary | undefined;
+  const studentId = invoice?.student_id ?? 0;
+
+  const paymentLinkQuery = useStudentPaymentLink(studentId, {
+    enabled: canView && studentId > 0 && (invoice?.balance ?? 0) > 0,
+  });
 
   const headerTitle = invoice?.invoice_number ?? seed?.invoiceNumber ?? `Invoice #${invoiceId}`;
 
@@ -38,6 +45,22 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       })),
     [invoice?.items],
   );
+
+  const sharePaymentLink = async () => {
+    const link = paymentLinkQuery.data;
+    if (!link?.url) {
+      Alert.alert('Payment link', 'No payment link is available for this student.');
+      return;
+    }
+    const studentName = invoice?.student_name ?? 'Student';
+    const balance = formatKes(invoice?.balance ?? link.amount);
+    const message = `School fees payment for ${studentName}\nBalance: ${balance}\nPay here: ${link.short_url ?? link.url}`;
+    try {
+      await Share.share({ message, title: 'M-Pesa payment link' });
+    } catch (err) {
+      Alert.alert('Share failed', (err as Error).message);
+    }
+  };
 
   if (!canView) {
     return (
@@ -106,6 +129,22 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         />
 
         <FinanceFieldSection title="Voteheads" rows={voteheadRows.length ? voteheadRows : [{ label: 'Items', value: 'None' }]} />
+
+        {invoice.balance > 0 ? (
+          <View style={{ marginTop: spacing.sm }}>
+            <Button
+              label="Share payment link with parent"
+              variant="secondary"
+              onPress={() => void sharePaymentLink()}
+              loading={paymentLinkQuery.isFetching}
+            />
+            {paymentLinkQuery.isError ? (
+              <Text style={{ color: colors.error, fontSize: 12, marginTop: spacing.xs }}>
+                {(paymentLinkQuery.error as Error).message}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {invoice.notes ? (
           <FinanceFieldSection title="Notes" rows={[{ label: 'Notes', value: invoice.notes }]} />

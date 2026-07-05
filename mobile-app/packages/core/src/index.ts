@@ -20,3 +20,4 @@ export * from './hooks/useBranding';
 export * from './hooks/usePushNotifications';
 export * from './storage/themeStorage';
 export * from './utils/mergePortalColors';
+export * from './sync';

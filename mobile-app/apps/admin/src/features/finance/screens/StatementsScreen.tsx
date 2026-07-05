@@ -124,6 +124,7 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
                     type: t.type,
                     reference: t.reference,
                     description: t.description,
+                    votehead: t.votehead,
                     debit: t.debit,
                     credit: t.credit,
                     balance: t.balance,

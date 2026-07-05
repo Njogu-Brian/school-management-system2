@@ -1793,7 +1793,7 @@ class BankStatementController extends Controller
             // Convert to ID if it's a model, matching the show() method pattern
             $id = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
             
-            $transaction = $this->resolveTransaction($id);
+            $transaction = $this->resolveTransaction($id, $request->input('type'));
             $isC2B = $transaction instanceof MpesaC2BTransaction;
             
             $validated = $request->validate([
@@ -1964,6 +1964,13 @@ class BankStatementController extends Controller
             // Use the original ID from route parameter, not from closure
             $redirectId = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
             
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Transaction updated successfully',
+                ]);
+            }
+
             return redirect()
                 ->route('finance.bank-statements.show', $redirectId)
                 ->with('success', 'Transaction updated successfully');
@@ -1971,11 +1978,38 @@ class BankStatementController extends Controller
         } catch (\Exception $e) {
             // Use the original ID from route parameter, not from closure
             $redirectId = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
             
             return redirect()
                 ->route('finance.bank-statements.show', $redirectId)
                 ->withErrors(['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Mobile API: assign a student to an unmatched transaction.
+     */
+    public function assign(Request $request, $bankStatement)
+    {
+        $this->assertFinanceApiAccess($request);
+
+        $request->validate([
+            'type' => 'nullable|in:bank,c2b',
+            'student_id' => 'required|exists:students,id',
+        ]);
+
+        $request->headers->set('Accept', 'application/json');
+
+        return $this->update(
+            $request->merge(['match_notes' => $request->input('match_notes', 'Manually assigned')]),
+            $bankStatement
+        );
     }
 
     /**

@@ -1,4 +1,4 @@
-import { useStaffClockActions, useStaffClockHistory, useStaffClockToday, useStaffGeofence } from '@erp/core';
+import { useCan, useStaffClockActions, useStaffClockHistory, useStaffClockRoster, useStaffClockToday, useStaffGeofence } from '@erp/core';
 import { AcademicScreenHeader, Button, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import * as Location from 'expo-location';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -10,9 +10,11 @@ type Props = StackScreenProps<PeopleStackParamList, 'StaffClock'>;
 
 export const StaffClockScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, palette, spacing } = useTheme();
+  const canViewTeam = useCan('staff.view');
   const geoQuery = useStaffGeofence();
   const todayQuery = useStaffClockToday();
   const historyQuery = useStaffClockHistory();
+  const rosterQuery = useStaffClockRoster({ enabled: canViewTeam });
   const { clockIn, clockOut } = useStaffClockActions();
 
   const isConfigured = Boolean(geoQuery.data?.is_configured);
@@ -54,7 +56,21 @@ export const StaffClockScreen: React.FC<Props> = ({ navigation }) => {
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader title="Staff clock" subtitle="Clock in/out with GPS geofence" onBack={() => navigation.goBack()} />
-        <Button label="Team clock history" variant="secondary" onPress={() => navigation.navigate('StaffClockTeam')} style={{ marginBottom: spacing.md }} />
+        {canViewTeam ? (
+          <>
+            <Button
+              label="Team attendance records"
+              variant="secondary"
+              onPress={() => navigation.navigate('StaffClockTeam')}
+              style={{ marginBottom: spacing.sm }}
+            />
+            {rosterQuery.isSuccess && (rosterQuery.data?.length ?? 0) > 0 ? (
+              <Text style={{ color: palette.textSecondary, fontSize: 12, marginBottom: spacing.md }}>
+                View last 90 days of clock records for {(rosterQuery.data ?? []).length} staff member(s).
+              </Text>
+            ) : null}
+          </>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />

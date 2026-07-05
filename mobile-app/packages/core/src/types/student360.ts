@@ -41,9 +41,31 @@ export interface StatementTransactionRecord {
   entity_type?: 'invoice' | 'payment' | string;
   reference: string;
   description: string;
+  votehead?: string | null;
   debit: number;
   credit: number;
   balance: number;
+}
+
+/** `GET /students/search?q=` — includes siblings for finance assign/share. */
+export interface StudentFinanceSearchSibling {
+  id: number;
+  full_name: string;
+  admission_number: string;
+  classroom_name: string | null;
+  stream_name: string | null;
+  class_display: string | null;
+}
+
+export interface StudentFinanceSearchResult {
+  id: number;
+  full_name: string;
+  admission_number: string;
+  classroom_name: string | null;
+  stream_name: string | null;
+  class_display: string | null;
+  label: string;
+  siblings: StudentFinanceSearchSibling[];
 }
 
 /** `GET /students/{id}/statement` */
@@ -55,6 +77,7 @@ export interface StudentStatementRecord {
     class_name: string;
   };
   year?: number;
+  detailed?: boolean;
   opening_balance: number;
   total_invoiced: number;
   total_paid: number;

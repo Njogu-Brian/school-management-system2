@@ -14,7 +14,8 @@
     "build:production": "eas build --platform android --profile production",
     "android:local": "expo run:android",
     "android:device": "expo run:android --device",
-    "logs:android": "powershell -ExecutionPolicy Bypass -File ./scripts/capture-launch-logs.ps1"
+    "logs:android": "powershell -ExecutionPolicy Bypass -File ./scripts/capture-launch-logs.ps1",
+    "icons:pad": "node ./scripts/pad-app-icons.mjs"
   },
   "dependencies": {
     "@erp/core": "*",
@@ -62,6 +63,7 @@
     "@types/react": "~19.1.10",
     "babel-plugin-module-resolver": "^5.0.2",
     "babel-preset-expo": "~54.0.10",
+    "sharp": "^0.35.3",
     "typescript": "^5.3.3"
   }
 }

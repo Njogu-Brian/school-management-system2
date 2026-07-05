@@ -29,5 +29,6 @@ export * from './driverTransport.api';
 export * from './device.api';
 export * from './alerts.api';
 export * from './attendance.api';
+export * from './examReports.api';
 export * from './notificationPreferences.api';
 export * from './cbc.api';

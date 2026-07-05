@@ -32,13 +32,14 @@ export function useStudentStats(studentId: number, options?: { enabled?: boolean
 export function useStudentStatement(
   studentId: number,
   year?: number,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; detailed?: boolean },
 ) {
   const y = year ?? new Date().getFullYear();
+  const detailed = options?.detailed !== false;
   return useQuery({
-    queryKey: queryKeys.students.statement(studentId, y),
+    queryKey: [...queryKeys.students.statement(studentId, y), { detailed }],
     queryFn: async () => {
-      const res = await studentsApi.getStatement(studentId, y);
+      const res = await studentsApi.getStatement(studentId, y, { detailed });
       if (!res.success || !res.data) {
         throw new Error(res.message || 'Failed to load fee statement.');
       }

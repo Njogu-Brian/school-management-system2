@@ -43,3 +43,4 @@ export * from './hooks/useUpdateStaff';
 export * from './hooks/useUpdateStudent';
 export * from './hooks/useLeaveRequests';
 export * from './hooks/usePayrollRecordsList';
+export * from '../sync';

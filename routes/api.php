@@ -189,6 +189,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{admission}', [$admissions, 'show']);
     });
     Route::get('/student-categories', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'categories']);
+    Route::get('/students/search', [\App\Http\Controllers\Students\StudentController::class, 'search']);
     Route::get('/students', [\App\Http\Controllers\Api\ApiStudentController::class, 'index']);
     Route::post('/students', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'store']);
     Route::get('/students/{id}/stats', [\App\Http\Controllers\Api\ApiStudentController::class, 'stats']);
@@ -239,6 +240,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/finance/transactions/{bankStatement}/confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'confirm']);
     Route::post('/finance/transactions/{bankStatement}/reject', [\App\Http\Controllers\Finance\BankStatementController::class, 'reject']);
     Route::post('/finance/transactions/{bankStatement}/share', [\App\Http\Controllers\Finance\BankStatementController::class, 'share']);
+    Route::post('/finance/transactions/{bankStatement}/assign', [\App\Http\Controllers\Finance\BankStatementController::class, 'assign']);
     Route::get('/finance/transactions/{id}', [\App\Http\Controllers\Api\ApiFinanceTransactionsController::class, 'show']);
 
     Route::get('/classes', [\App\Http\Controllers\Api\ApiClassroomController::class, 'index']);

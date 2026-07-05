@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { academicsWorkspaceApi } from '../../api/academicsWorkspace.api';
 import { academicsApi } from '../../api/academics.api';
+import { examReportsApi } from '../../api/examReports.api';
 import { fetchAcademicDashboard } from '../../academics/fetchAcademicDashboard';
 import {
   normalizeExamSummary,
@@ -360,6 +361,34 @@ export function useEnterMarksMatrix() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.academics.all });
     },
+  });
+}
+
+export function useExamClassSheet(
+  params: {
+    examId: number;
+    classroomId: number;
+    streamId?: number;
+  } | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.academics.examClassSheet(params ?? {}),
+    queryFn: async () => {
+      if (!params) throw new Error('Class sheet params required.');
+      const res = await examReportsApi.getClassSheet({
+        mode: 'exam',
+        exam_id: params.examId,
+        classroom_id: params.classroomId,
+        stream_id: params.streamId,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load exam class sheet.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false && params != null && params.examId > 0 && params.classroomId > 0,
+    staleTime: 60_000,
   });
 }
 

@@ -95,6 +95,8 @@ export const queryKeys = {
     examDetail: (id: number) => [...queryKeys.academics.all, 'exam', id] as const,
     examMarkingOptions: (id: number) =>
       [...queryKeys.academics.all, 'exam-marking-options', id] as const,
+    examClassSheet: (params: Record<string, unknown>) =>
+      [...queryKeys.academics.all, 'exam-class-sheet', params] as const,
     marks: (filters?: MarksListFilters | Record<string, never>) =>
       [...queryKeys.academics.all, 'marks', filters ?? {}] as const,
     marksMatrixContext: (classroomId?: number) =>
@@ -130,6 +132,10 @@ export const queryKeys = {
       [...queryKeys.finance.all, 'transactions', filters ?? {}] as const,
     transactionDetail: (id: number, type: string) =>
       [...queryKeys.finance.all, 'transaction', id, type] as const,
+    studentFinanceSearch: (q: string) =>
+      [...queryKeys.finance.all, 'student-search', q] as const,
+    paymentLink: (studentId: number) =>
+      [...queryKeys.finance.all, 'payment-link', studentId] as const,
   },
   operations: {
     all: ['operations'] as const,

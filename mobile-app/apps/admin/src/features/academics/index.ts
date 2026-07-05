@@ -4,6 +4,7 @@ export { AssessmentHistoryScreen } from './screens/AssessmentHistoryScreen';
 export { AssessmentDetailScreen } from './screens/AssessmentDetailScreen';
 export { ExamsListScreen } from './screens/ExamsListScreen';
 export { ExamDetailScreen } from './screens/ExamDetailScreen';
+export { ExamClassSheetScreen } from './screens/ExamClassSheetScreen';
 export { MarksEntryScreen } from './screens/MarksEntryScreen';
 export { MarksScreen } from './screens/MarksScreen';
 export { MarksMatrixScreen } from './screens/MarksMatrixScreen';

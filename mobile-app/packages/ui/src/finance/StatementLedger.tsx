@@ -8,6 +8,7 @@ export interface StatementLedgerRow {
   type: string;
   reference: string;
   description: string;
+  votehead?: string | null;
   debit: number;
   credit: number;
   balance: number;
@@ -65,6 +66,11 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
             {row.description ? (
               <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
                 {row.description}
+              </Text>
+            ) : null}
+            {row.votehead ? (
+              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+                {row.votehead}
               </Text>
             ) : null}
           </View>

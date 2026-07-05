@@ -10,6 +10,7 @@ import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
+import { TransactionAssignSection } from '../components/TransactionAssignSection';
 import { formatKes } from '../utils/formatters';
 
 type Props = StackScreenProps<FinanceStackParamList, 'TransactionDetail'>;
@@ -33,6 +34,11 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
     if (['confirmed', 'collected', 'processed', 'rejected', 'failed'].includes(status)) return false;
     return true;
   }, [txn]);
+
+  const canConfirm = useMemo(() => {
+    if (!txn || !canAct) return false;
+    return Boolean(txn.student_id) || Boolean(txn.is_shared);
+  }, [canAct, txn]);
 
   const isConfirmed = useMemo(() => {
     if (!txn) return false;
@@ -166,9 +172,22 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
           </View>
         ) : null}
 
+        <TransactionAssignSection
+          transactionId={transactionId}
+          transactionType={transactionType}
+          txn={txn}
+          canAct={canAct}
+          onUpdated={() => void detailQuery.refetch()}
+        />
+
         {canAct ? (
           <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-            <Button label="Confirm" onPress={runConfirm} loading={confirm.isPending} disabled={reject.isPending} />
+            <Button
+              label="Confirm"
+              onPress={runConfirm}
+              loading={confirm.isPending}
+              disabled={reject.isPending || !canConfirm}
+            />
             <Button
               label="Reject"
               variant="ghost"

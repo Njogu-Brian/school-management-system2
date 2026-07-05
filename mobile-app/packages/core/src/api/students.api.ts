@@ -1,5 +1,6 @@
 import type {
   AttendanceCalendarDay,
+  StudentFinanceSearchResult,
   StudentStatementRecord,
   StudentStatsRecord,
 } from '../types/student360';
@@ -61,9 +62,28 @@ export const studentsApi = {
   getStatement(
     studentId: number,
     year?: number,
+    options?: { detailed?: boolean },
   ): Promise<ApiResponse<StudentStatementRecord>> {
-    const params = year != null ? { year } : undefined;
+    const params: Record<string, string | number | boolean> = {};
+    if (year != null) params.year = year;
+    if (options?.detailed != null) params.detailed = options.detailed;
     return apiClient.get<StudentStatementRecord>(`/students/${studentId}/statement`, params);
+  },
+
+  searchFinance(q: string): Promise<ApiResponse<StudentFinanceSearchResult[]>> {
+    return apiClient.get<StudentFinanceSearchResult[]>('/students/search', { q });
+  },
+
+  getPaymentLink(studentId: number): Promise<
+    ApiResponse<{
+      payment_link_id: number;
+      url: string;
+      short_url: string | null;
+      amount: number;
+      currency: string;
+    }>
+  > {
+    return apiClient.get(`/students/${studentId}/mpesa/payment-link`);
   },
 
   listCategories(): Promise<ApiResponse<Array<{ id: number; name: string; description?: string }>>> {

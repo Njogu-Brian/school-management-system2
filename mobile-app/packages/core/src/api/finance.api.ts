@@ -117,6 +117,22 @@ export const financeApi = {
     return apiClient.post(`/finance/transactions/${id}/reject`, { type });
   },
 
+  assignTransaction(
+    id: number,
+    type: 'bank' | 'c2b',
+    studentId: number,
+  ): Promise<ApiResponse<{ message?: string }>> {
+    return apiClient.post(`/finance/transactions/${id}/assign`, { type, student_id: studentId });
+  },
+
+  shareTransaction(
+    id: number,
+    type: 'bank' | 'c2b',
+    allocations: Array<{ student_id: number; amount: number }>,
+  ): Promise<ApiResponse<{ message?: string }>> {
+    return apiClient.post(`/finance/transactions/${id}/share`, { type, allocations });
+  },
+
   getSummary(): Promise<
     ApiResponse<{
       collected_today: number;

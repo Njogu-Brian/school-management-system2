@@ -171,3 +171,38 @@ export interface LessonPlanSummary {
   submissionStatus: string;
   isLate: boolean;
 }
+
+/** `GET /reports/exams/class-sheet` — combined all-subjects results per exam/class. */
+export interface ExamClassSheetSubject {
+  id: number;
+  name: string;
+  code: string | null;
+}
+
+export interface ExamClassSheetRow {
+  student_id: number;
+  admission_number: string | null;
+  name: string;
+  stream_id: number | null;
+  stream_name: string | null;
+  subject_scores: Record<string, string | number | null>;
+  subject_positions?: Record<string, number | null>;
+  total: number | null;
+  average: number | null;
+  subjects_taken: number;
+  position?: number | null;
+  class_position?: number | null;
+  stream_position?: number | null;
+}
+
+export interface ExamClassSheetRecord {
+  meta: {
+    mode: 'exam' | 'term';
+    exam?: { id: number; name: string; academic_year_id: number | null; term_id: number | null };
+    classroom: { id: number; name: string };
+    stream_id: number | null;
+    stream_name: string | null;
+  };
+  subjects: ExamClassSheetSubject[];
+  rows: ExamClassSheetRow[];
+}

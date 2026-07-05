@@ -1,6 +1,7 @@
 import { useCan, useExamDetail, useExamMarkingOptions } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   ExamStatusBadge,
   FinanceFieldSection,
   ScreenContainer,
@@ -74,6 +75,25 @@ export const ExamDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         ) : (
           <>
             <FinanceFieldSection title="Exam" rows={fields} />
+
+            {exam?.classroomId ? (
+              <Button
+                label="Class results sheet (all subjects)"
+                variant="secondary"
+                onPress={() =>
+                  navigation.navigate('ExamClassSheet', {
+                    examId,
+                    classroomId: exam.classroomId!,
+                    streamId: exam.streamId ?? undefined,
+                    title: exam.classroomName
+                      ? `${exam.name.replace(/\s*-\s*[^-]+$/i, '').trim()} · ${exam.classroomName}`
+                      : exam.name,
+                  })
+                }
+                style={{ marginBottom: spacing.sm }}
+              />
+            ) : null}
+
             {(optionsQuery.data ?? []).length > 0 ? (
               <>
                 <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.md, marginBottom: spacing.sm }}>
