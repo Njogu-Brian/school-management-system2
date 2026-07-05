@@ -13,7 +13,7 @@ const config: ExpoConfig = {
   name: 'Royal Kings Admin',
   slug: 'royal-kings-admin',
   scheme: 'royalkingsadmin',
-  version: '1.0.0',
+  version: '1.0.1',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
@@ -24,20 +24,30 @@ const config: ExpoConfig = {
     resizeMode: 'contain',
   },
   assetBundlePatterns: ['**/*'],
+  updates: {
+    url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+    // Disabled until the first OTA bundle is published — avoids a grey hang on cold start.
+    enabled: false,
+    checkAutomatically: 'NEVER',
+    fallbackToCacheTimeout: 0,
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.royalkingsschools.admin',
   },
   android: {
     package: 'com.royalkingsschools.admin',
-    versionCode: 1,
+    versionCode: 2,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: primaryColor,
     },
     permissions: ['USE_BIOMETRIC', 'USE_FINGERPRINT'],
   },
-  plugins: ['expo-local-authentication'],
+  plugins: ['expo-local-authentication', 'expo-updates'],
   extra: {
     API_BASE_URL: apiBase,
     eas: {
