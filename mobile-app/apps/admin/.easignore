@@ -1,0 +1,6 @@
+# Local prebuild output — EAS generates native projects on the build server.
+android/
+ios/
+
+.expo/
+node_modules/

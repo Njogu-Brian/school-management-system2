@@ -8,12 +8,13 @@ const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://erp.royalkingss
 const primaryColor = '#390754';
 /** Linked EAS project: @briannjogu/royal-kings-admin */
 const EAS_PROJECT_ID = '0d0b7844-fe28-441d-ab98-bb27890a38f3';
+const APP_VERSION = '1.0.2';
 
 const config: ExpoConfig = {
   name: 'Royal Kings Admin',
   slug: 'royal-kings-admin',
   scheme: 'royalkingsadmin',
-  version: '1.0.2',
+  version: APP_VERSION,
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
@@ -31,9 +32,7 @@ const config: ExpoConfig = {
     checkAutomatically: 'NEVER',
     fallbackToCacheTimeout: 0,
   },
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
+  runtimeVersion: APP_VERSION,
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.royalkingsschools.admin',
