@@ -1,5 +1,6 @@
 import {
   enqueueSyncItem,
+  SYNC_KINDS,
   useNetworkStatus,
   useReconciliationActions,
   useStudentFinanceSearch,
@@ -78,11 +79,11 @@ export const TransactionAssignSection: React.FC<Props> = ({
     }
 
     if (networkStatus === 'offline') {
-      await enqueueSyncItem('finance.assign', {
-        transactionId,
-        type: transactionType,
-        studentId: student.id,
-      });
+      await enqueueSyncItem(
+        SYNC_KINDS.FINANCE_ASSIGN,
+        { transactionId, type: transactionType, studentId: student.id },
+        { label: 'Assign transaction' },
+      );
       Alert.alert('Queued offline', 'Assignment will sync when you reconnect.');
       return;
     }
@@ -120,11 +121,11 @@ export const TransactionAssignSection: React.FC<Props> = ({
     }
 
     if (networkStatus === 'offline') {
-      await enqueueSyncItem('finance.share', {
-        transactionId,
-        type: transactionType,
-        allocations,
-      });
+      await enqueueSyncItem(
+        SYNC_KINDS.FINANCE_SHARE,
+        { transactionId, type: transactionType, allocations },
+        { label: 'Share transaction' },
+      );
       Alert.alert('Queued offline', 'Share will sync when you reconnect.');
       setShareOpen(false);
       return;

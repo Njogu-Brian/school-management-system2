@@ -16,6 +16,8 @@ export * from './academics';
 export * from './utils/downloadFile';
 export * from './hooks/useNetworkStatus';
 export * from './hooks/useOfflineSearch';
+export * from './hooks/useSyncQueue';
+export * from './hooks/useOfflineDraft';
 export * from './hooks/useBranding';
 export * from './hooks/usePushNotifications';
 export * from './storage/themeStorage';

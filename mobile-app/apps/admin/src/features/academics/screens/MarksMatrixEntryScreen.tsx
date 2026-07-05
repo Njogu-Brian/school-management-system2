@@ -1,7 +1,15 @@
-import { useEnterMarksMatrix, useMarksMatrix } from '@erp/core';
+import {
+  marksMatrixDraftKey,
+  queueOrExecute,
+  SYNC_KINDS,
+  useEnterMarksMatrix,
+  useMarksMatrix,
+  useNetworkStatus,
+  useOfflineDraft,
+} from '@erp/core';
 import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 
@@ -9,11 +17,22 @@ type Props = StackScreenProps<AcademicsStackParamList, 'MarksMatrixEntry'>;
 
 type EntryValue = { marks: string; remarks: string };
 
+type MatrixDraft = {
+  values: Record<string, EntryValue>;
+  serverSnapshot: Record<string, EntryValue>;
+};
+
 export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) => {
   const { examTypeId, classroomId, streamId } = route.params;
   const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const networkStatus = useNetworkStatus();
   const [values, setValues] = useState<Record<string, EntryValue>>({});
   const [search, setSearch] = useState('');
+  const [hasLocalDraft, setHasLocalDraft] = useState(false);
+
+  const serverSnapshotRef = useRef<Record<string, EntryValue>>({});
+  const draftKey = marksMatrixDraftKey(examTypeId, classroomId, streamId);
+  const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<MatrixDraft>(draftKey);
 
   const matrixQuery = useMarksMatrix(
     { exam_type_id: examTypeId, classroom_id: classroomId, stream_id: streamId },
@@ -29,14 +48,31 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
   useEffect(() => {
     if (!matrixQuery.data) return;
     const next: Record<string, EntryValue> = {};
+    const snapshot: Record<string, EntryValue> = {};
     for (const m of matrixQuery.data.existing_marks) {
-      next[keyOf(m.student_id, m.exam_id)] = {
+      const entry = {
         marks: m.marks == null ? '' : String(m.marks),
         remarks: m.remarks ?? '',
       };
+      const k = keyOf(m.student_id, m.exam_id);
+      next[k] = entry;
+      snapshot[k] = entry;
     }
-    setValues(next);
-  }, [matrixQuery.data]);
+    serverSnapshotRef.current = snapshot;
+
+    if (draftLoaded && draft?.values) {
+      setValues({ ...next, ...draft.values });
+      serverSnapshotRef.current = draft.serverSnapshot ?? snapshot;
+      setHasLocalDraft(true);
+    } else {
+      setValues(next);
+    }
+  }, [matrixQuery.data, draft, draftLoaded]);
+
+  useEffect(() => {
+    if (students.length === 0) return;
+    setDraft({ values, serverSnapshot: serverSnapshotRef.current });
+  }, [values, students.length, setDraft]);
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -54,6 +90,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
       ...prev,
       [k]: { marks: prev[k]?.marks ?? '', remarks: prev[k]?.remarks ?? '', [field]: value },
     }));
+    setHasLocalDraft(true);
   };
 
   const nonEmptyEntries = useMemo(() => {
@@ -65,12 +102,12 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
         const hasScore = v.marks.trim() !== '';
         const hasRemark = v.remarks.trim() !== '';
         if (!hasScore && !hasRemark) continue;
-        const marks = hasScore ? Number(v.marks) : undefined;
-        if (hasScore && Number.isNaN(marks)) continue;
+        const markNum = hasScore ? Number(v.marks) : undefined;
+        if (hasScore && Number.isNaN(markNum)) continue;
         entries.push({
           student_id: s.id,
           exam_id: e.id,
-          marks,
+          marks: markNum,
           remarks: hasRemark ? v.remarks.trim() : undefined,
         });
       }
@@ -83,16 +120,38 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
       Alert.alert('Nothing to save', 'Enter at least one score or remark.');
       return;
     }
+
+    const syncPayload = {
+      exam_type_id: examTypeId,
+      classroom_id: classroomId,
+      stream_id: streamId,
+      label: `Marks matrix · class #${classroomId}`,
+      entries: nonEmptyEntries,
+      baseSnapshot: serverSnapshotRef.current,
+    };
+
     try {
-      const res = await saveMutation.mutateAsync({
-        exam_type_id: examTypeId,
-        classroom_id: classroomId,
-        stream_id: streamId,
-        entries: nonEmptyEntries,
-      });
-      Alert.alert('Success', res.data?.message ?? 'Marks saved.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      const result = await queueOrExecute(
+        SYNC_KINDS.EXAM_MARKS_MATRIX,
+        syncPayload,
+        async () => {
+          await saveMutation.mutateAsync({
+            exam_type_id: examTypeId,
+            classroom_id: classroomId,
+            stream_id: streamId,
+            entries: nonEmptyEntries,
+          });
+        },
+        networkStatus,
+        { label: syncPayload.label },
+      );
+
+      if (result === 'queued') {
+        Alert.alert('Queued offline', 'Matrix marks will sync when you reconnect.');
+      } else {
+        Alert.alert('Success', 'Marks saved.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+        await clearDraft();
+      }
     } catch (err) {
       Alert.alert('Error', (err as Error).message);
     }
@@ -102,6 +161,12 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }} keyboardShouldPersistTaps="handled">
         <AcademicScreenHeader title="Marks matrix entry" subtitle="Students × exams" onBack={() => navigation.goBack()} />
+
+        {hasLocalDraft ? (
+          <Text style={{ color: colors.primary, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
+            Draft auto-saved on this device.
+          </Text>
+        ) : null}
 
         {matrixQuery.isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
@@ -160,7 +225,11 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
               </View>
             ))}
 
-            <Button label="Submit marks" onPress={() => void save()} loading={saveMutation.isPending} />
+            <Button
+              label={networkStatus === 'offline' ? 'Queue marks' : 'Submit marks'}
+              onPress={() => void save()}
+              loading={saveMutation.isPending}
+            />
           </>
         )}
       </ScrollView>

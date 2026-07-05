@@ -1,8 +1,13 @@
 import {
   attendanceApi,
+  attendanceDraftKey,
+  queueOrExecute,
+  studentsApi,
+  SYNC_KINDS,
   useClassrooms,
   useMarkAttendance,
-  studentsApi,
+  useNetworkStatus,
+  useOfflineDraft,
   type AttendanceMarkStatus,
 } from '@erp/core';
 import {
@@ -15,7 +20,7 @@ import {
 } from '@erp/ui';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -31,6 +36,11 @@ import type { AcademicsStackParamList } from '../../../navigation/academicsStack
 type Props = StackScreenProps<AcademicsStackParamList, 'MarkAttendance'>;
 
 type StudentRow = { id: number; name: string; admission: string };
+
+type AttendanceDraft = {
+  statusById: Record<number, AttendanceMarkStatus>;
+  serverSnapshot: Record<number, string>;
+};
 
 const STATUS_OPTIONS: AttendanceMarkStatus[] = ['present', 'absent', 'late'];
 
@@ -79,6 +89,7 @@ function StatusButton({
 
 export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, palette, spacing, fontSizes } = useTheme();
+  const networkStatus = useNetworkStatus();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -93,6 +104,11 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
   const [schoolDayMessage, setSchoolDayMessage] = useState<string | null>(null);
+  const [hasLocalDraft, setHasLocalDraft] = useState(false);
+
+  const serverSnapshotRef = useRef<Record<number, string>>({});
+  const draftKey = classId ? attendanceDraftKey(dateStr, classId, streamId) : null;
+  const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<AttendanceDraft>(draftKey);
 
   useEffect(() => {
     void attendanceApi.getSchoolDay(dateStr).then((res) => {
@@ -140,26 +156,54 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       }));
       setStudents(rows);
       const byId: Record<number, AttendanceMarkStatus> = {};
+      const snapshot: Record<number, string> = {};
       const existing = new Map(
         (attRes.data ?? []).map((r) => [r.student_id, r.status as AttendanceMarkStatus]),
       );
       for (const s of rows) {
-        byId[s.id] = existing.get(s.id) ?? 'unmarked';
+        const status = existing.get(s.id) ?? 'unmarked';
+        byId[s.id] = status;
+        snapshot[s.id] = status;
       }
-      setStatusById(byId);
+      serverSnapshotRef.current = snapshot;
+
+      if (draftLoaded && draft?.statusById) {
+        setStatusById({ ...byId, ...draft.statusById });
+        serverSnapshotRef.current = draft.serverSnapshot ?? snapshot;
+        setHasLocalDraft(true);
+      } else {
+        setStatusById(byId);
+        setHasLocalDraft(false);
+      }
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load class.');
+      if (draftLoaded && draft?.statusById) {
+        setStatusById(draft.statusById);
+        serverSnapshotRef.current = draft.serverSnapshot ?? {};
+        setHasLocalDraft(true);
+        Alert.alert('Offline', 'Showing your saved draft. Server data unavailable.');
+      } else {
+        Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load class.');
+      }
     } finally {
       setLoading(false);
     }
-  }, [classId, streamId, dateStr]);
+  }, [classId, streamId, dateStr, draft, draftLoaded]);
 
   useEffect(() => {
-    if (classId) void loadStudents();
-  }, [classId, streamId, loadStudents]);
+    if (classId && draftLoaded) void loadStudents();
+  }, [classId, streamId, draftLoaded, loadStudents]);
+
+  useEffect(() => {
+    if (!draftKey || students.length === 0) return;
+    setDraft({
+      statusById,
+      serverSnapshot: serverSnapshotRef.current,
+    });
+  }, [statusById, draftKey, students.length, setDraft]);
 
   const setStatus = (studentId: number, status: AttendanceMarkStatus) => {
     setStatusById((prev) => ({ ...prev, [studentId]: status }));
+    setHasLocalDraft(true);
   };
 
   const markAll = (status: AttendanceMarkStatus) => {
@@ -168,6 +212,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       for (const s of students) next[s.id] = status;
       return next;
     });
+    setHasLocalDraft(true);
   };
 
   const save = async () => {
@@ -180,27 +225,51 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       .map((s) => ({
         student_id: s.id,
         status: statusById[s.id] ?? 'unmarked',
+        student_name: s.name,
       }))
       .filter((r) => r.status !== 'unmarked');
     if (records.length === 0) {
       Alert.alert('Nothing to save', 'Mark at least one student as Present, Absent, or Late.');
       return;
     }
+
+    const classLabel =
+      classroomsQuery.data?.find((c) => c.id === classId)?.name ?? `Class #${classId}`;
+    const payload = {
+      date: dateStr,
+      class_id: classId,
+      stream_id: streamId,
+      class_label: classLabel,
+      records,
+      baseSnapshot: serverSnapshotRef.current,
+    };
+
     try {
-      await markMutation.mutateAsync({
-        date: dateStr,
-        class_id: classId,
-        stream_id: streamId,
-        records,
-      });
-      Alert.alert('Saved', 'Attendance updated successfully.');
-      void loadStudents();
+      const result = await queueOrExecute(
+        SYNC_KINDS.ATTENDANCE_MARK,
+        payload,
+        async () => {
+          await markMutation.mutateAsync({
+            date: dateStr,
+            class_id: classId,
+            stream_id: streamId,
+            records: records.map((r) => ({ student_id: r.student_id, status: r.status })),
+          });
+        },
+        networkStatus,
+        { label: `Attendance · ${classLabel} · ${dateStr}` },
+      );
+
+      if (result === 'queued') {
+        Alert.alert('Queued offline', 'Attendance will sync when you reconnect.');
+      } else {
+        Alert.alert('Saved', 'Attendance updated successfully.');
+        await clearDraft();
+        setHasLocalDraft(false);
+        void loadStudents();
+      }
     } catch (err) {
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: string }).message)
-          : 'Could not save attendance.';
-      Alert.alert('Could not save attendance', message);
+      Alert.alert('Could not save', (err as Error).message);
     }
   };
 
@@ -218,6 +287,14 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
           subtitle="School-day calendar applies (same as web)"
           onBack={() => navigation.goBack()}
         />
+
+        {hasLocalDraft ? (
+          <View style={[styles.warnBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
+            <Text style={{ color: colors.primary, fontSize: fontSizes.sm }}>
+              Local draft in progress — auto-saved on this device.
+            </Text>
+          </View>
+        ) : null}
 
         <Pressable
           onPress={() => setShowDatePicker(true)}
@@ -342,7 +419,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
 
         {classId && students.length > 0 && schoolDayOk !== false ? (
           <Button
-            label="Save attendance"
+            label={networkStatus === 'offline' ? 'Queue attendance' : 'Save attendance'}
             onPress={() => void save()}
             loading={markMutation.isPending}
             style={{ marginTop: spacing.sm }}

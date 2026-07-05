@@ -10,6 +10,7 @@ export const PERSISTED_QUERY_PREFIXES = [
   'notifications',
   'search',
   'analytics',
+  'academics',
 ] as const;
 
 export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {
