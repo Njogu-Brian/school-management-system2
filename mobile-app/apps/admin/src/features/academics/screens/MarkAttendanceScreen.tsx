@@ -13,12 +13,14 @@ import {
   ScreenContainer,
   useTheme,
 } from '@erp/ui';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -30,17 +32,56 @@ type Props = StackScreenProps<AcademicsStackParamList, 'MarkAttendance'>;
 
 type StudentRow = { id: number; name: string; admission: string };
 
-const STATUS_CYCLE: AttendanceMarkStatus[] = ['unmarked', 'present', 'absent', 'late'];
-const STATUS_LABEL: Record<AttendanceMarkStatus, string> = {
-  unmarked: '—',
-  present: 'Present',
-  absent: 'Absent',
-  late: 'Late',
-};
+const STATUS_OPTIONS: AttendanceMarkStatus[] = ['present', 'absent', 'late'];
+
+function formatDateYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function StatusButton({
+  status,
+  active,
+  onPress,
+  colors,
+  palette,
+}: {
+  status: AttendanceMarkStatus;
+  active: boolean;
+  onPress: () => void;
+  colors: { primary: string; success: string; error: string; warning: string };
+  palette: { surfaceMuted: string; textPrimary: string };
+}) {
+  const label = status === 'present' ? 'P' : status === 'absent' ? 'A' : 'L';
+  const bg =
+    status === 'present' ? colors.success : status === 'absent' ? colors.error : colors.warning;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={[
+        styles.statusBtn,
+        {
+          backgroundColor: active ? bg : palette.surfaceMuted,
+          borderColor: active ? bg : 'transparent',
+        },
+      ]}
+    >
+      <Text style={{ color: active ? '#fff' : palette.textPrimary, fontWeight: '800', fontSize: 12 }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, palette, spacing, fontSizes } = useTheme();
-  const today = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const dateStr = formatDateYmd(selectedDate);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const classroomsQuery = useClassrooms();
   const markMutation = useMarkAttendance();
 
@@ -50,6 +91,28 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [statusById, setStatusById] = useState<Record<number, AttendanceMarkStatus>>({});
   const [loading, setLoading] = useState(false);
+  const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
+  const [schoolDayMessage, setSchoolDayMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    void attendanceApi.getSchoolDay(dateStr).then((res) => {
+      if (res.success && res.data) {
+        if (res.data.is_future) {
+          setSchoolDayOk(false);
+          setSchoolDayMessage('Cannot mark attendance for a future date.');
+        } else if (!res.data.is_school_day) {
+          setSchoolDayOk(false);
+          setSchoolDayMessage('This date is not a school day (weekend, holiday, or break).');
+        } else {
+          setSchoolDayOk(true);
+          setSchoolDayMessage(null);
+        }
+      } else {
+        setSchoolDayOk(null);
+        setSchoolDayMessage(null);
+      }
+    });
+  }, [dateStr]);
 
   useEffect(() => {
     if (!classId) {
@@ -68,7 +131,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const [listRes, attRes] = await Promise.all([
         studentsApi.list({ class_id: classId, stream_id: streamId ?? undefined, per_page: 200 }),
-        attendanceApi.getClassAttendance({ date: today, class_id: classId, stream_id: streamId }),
+        attendanceApi.getClassAttendance({ date: dateStr, class_id: classId, stream_id: streamId }),
       ]);
       const rows: StudentRow[] = (listRes.data?.data ?? []).map((s) => ({
         id: s.id,
@@ -89,19 +152,14 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  }, [classId, streamId, today]);
+  }, [classId, streamId, dateStr]);
 
   useEffect(() => {
     if (classId) void loadStudents();
   }, [classId, streamId, loadStudents]);
 
-  const cycleStatus = (studentId: number) => {
-    setStatusById((prev) => {
-      const current = prev[studentId] ?? 'unmarked';
-      const idx = STATUS_CYCLE.indexOf(current);
-      const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-      return { ...prev, [studentId]: next };
-    });
+  const setStatus = (studentId: number, status: AttendanceMarkStatus) => {
+    setStatusById((prev) => ({ ...prev, [studentId]: status }));
   };
 
   const markAll = (status: AttendanceMarkStatus) => {
@@ -114,19 +172,35 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
 
   const save = async () => {
     if (!classId) return;
+    if (schoolDayOk === false) {
+      Alert.alert('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
+      return;
+    }
+    const records = students
+      .map((s) => ({
+        student_id: s.id,
+        status: statusById[s.id] ?? 'unmarked',
+      }))
+      .filter((r) => r.status !== 'unmarked');
+    if (records.length === 0) {
+      Alert.alert('Nothing to save', 'Mark at least one student as Present, Absent, or Late.');
+      return;
+    }
     try {
       await markMutation.mutateAsync({
-        date: today,
+        date: dateStr,
         class_id: classId,
         stream_id: streamId,
-        records: students.map((s) => ({
-          student_id: s.id,
-          status: statusById[s.id] ?? 'unmarked',
-        })),
+        records,
       });
       Alert.alert('Saved', 'Attendance updated successfully.');
+      void loadStudents();
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Could not save attendance.');
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'Could not save attendance.';
+      Alert.alert('Could not save attendance', message);
     }
   };
 
@@ -141,21 +215,43 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       <View style={{ padding: spacing.md, flex: 1 }}>
         <AcademicScreenHeader
           title="Mark attendance"
-          subtitle={`Today · ${today}`}
+          subtitle="School-day calendar applies (same as web)"
           onBack={() => navigation.goBack()}
         />
 
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
+        <Pressable
+          onPress={() => setShowDatePicker(true)}
+          style={[styles.dateRow, { borderColor: palette.border, backgroundColor: palette.surfaceRaised }]}
+        >
+          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>Date</Text>
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.md }}>{dateStr}</Text>
+          <Text style={{ color: colors.primary, fontSize: fontSizes.xs, fontWeight: '600' }}>Change</Text>
+        </Pressable>
+
+        {showDatePicker ? (
+          <DateTimePicker
+            value={selectedDate}
+            mode="date"
+            maximumDate={new Date()}
+            onChange={(_, date) => {
+              setShowDatePicker(Platform.OS === 'ios');
+              if (date) setSelectedDate(date);
+            }}
+          />
+        ) : null}
+
+        {schoolDayMessage ? (
+          <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
+            <Text style={{ color: colors.warning, fontSize: fontSizes.sm }}>{schoolDayMessage}</Text>
+          </View>
+        ) : null}
+
+        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs, marginTop: spacing.sm }}>
           Class
         </Text>
         <FilterChipRow>
           {classrooms.map((c) => (
-            <FilterChip
-              key={c.id}
-              label={c.name}
-              active={classId === c.id}
-              onPress={() => setClassId(c.id)}
-            />
+            <FilterChip key={c.id} label={c.name} active={classId === c.id} onPress={() => setClassId(c.id)} />
           ))}
         </FilterChipRow>
 
@@ -181,13 +277,16 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
         {classId ? (
           <View style={[styles.bulkRow, { marginVertical: spacing.sm }]}>
             <Pressable onPress={() => markAll('present')}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>All present</Text>
+              <Text style={{ color: colors.success, fontWeight: '700' }}>All Present</Text>
             </Pressable>
             <Pressable onPress={() => markAll('absent')}>
-              <Text style={{ color: colors.error, fontWeight: '600' }}>All absent</Text>
+              <Text style={{ color: colors.error, fontWeight: '700' }}>All Absent</Text>
+            </Pressable>
+            <Pressable onPress={() => markAll('late')}>
+              <Text style={{ color: colors.warning, fontWeight: '700' }}>All Late</Text>
             </Pressable>
             <Text style={{ color: palette.textMuted, fontSize: fontSizes.xs }}>
-              {markedCount}/{students.length} marked
+              {markedCount}/{students.length}
             </Text>
           </View>
         ) : null}
@@ -202,35 +301,29 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
             renderItem={({ item }) => {
               const status = statusById[item.id] ?? 'unmarked';
               return (
-                <Pressable
-                  onPress={() => cycleStatus(item.id)}
+                <View
                   style={[
                     styles.row,
                     { borderColor: palette.border, backgroundColor: palette.surfaceRaised },
                   ]}
                 >
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, marginRight: spacing.sm }}>
                     <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{item.name}</Text>
-                    <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
-                      {item.admission}
-                    </Text>
+                    <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>{item.admission}</Text>
                   </View>
-                  <Text
-                    style={{
-                      color:
-                        status === 'present'
-                          ? colors.success
-                          : status === 'absent'
-                            ? colors.error
-                            : status === 'late'
-                              ? colors.warning
-                              : palette.textMuted,
-                      fontWeight: '700',
-                    }}
-                  >
-                    {STATUS_LABEL[status]}
-                  </Text>
-                </Pressable>
+                  <View style={styles.statusRow}>
+                    {STATUS_OPTIONS.map((opt) => (
+                      <StatusButton
+                        key={opt}
+                        status={opt}
+                        active={status === opt}
+                        onPress={() => setStatus(item.id, opt)}
+                        colors={colors}
+                        palette={palette}
+                      />
+                    ))}
+                  </View>
+                </View>
               );
             }}
             ListEmptyComponent={
@@ -247,7 +340,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
           />
         )}
 
-        {classId && students.length > 0 ? (
+        {classId && students.length > 0 && schoolDayOk !== false ? (
           <Button
             label="Save attendance"
             onPress={() => void save()}
@@ -261,7 +354,22 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  bulkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  warnBanner: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+  },
+  bulkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,5 +377,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
+  },
+  statusRow: { flexDirection: 'row', gap: 6 },
+  statusBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
   },
 });

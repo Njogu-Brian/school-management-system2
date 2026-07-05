@@ -67,6 +67,27 @@ class ApiAttendanceController extends Controller
     }
 
     /**
+     * Whether attendance may be recorded on a date (school calendar).
+     */
+    public function schoolDay(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $date = Carbon::parse($request->date)->toDateString();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'date' => $date,
+                'is_school_day' => $this->attendanceCalendar->isValidSchoolDay($date),
+                'is_future' => Carbon::parse($date)->isFuture(),
+            ],
+        ]);
+    }
+
+    /**
      * Mark attendance for a class/stream.
      * Request: { date, class_id, stream_id?, records: [{ student_id, status }, ...] }
      * status: present|absent|late|unmarked (unmarked = delete record)

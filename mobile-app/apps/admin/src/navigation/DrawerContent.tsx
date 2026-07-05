@@ -14,6 +14,7 @@ import {
 } from '@react-navigation/drawer';
 import React from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigateDrawerAreaHome } from './areaRoutes';
 function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey {
   const current = state.routes[state.index];
@@ -45,6 +46,7 @@ function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey
 
 export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const { palette, colors, spacing, fontSizes } = useTheme();
+  const insets = useSafeAreaInsets();
   const activeKey = getActiveKey(props.state);
   const { drawerAreas } = useRbac();
   const { schoolName, logoUrl } = useBranding();
@@ -66,7 +68,14 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   return (
     <DrawerContentScrollView
       {...props}
-      contentContainerStyle={[styles.content, { backgroundColor: palette.surface }]}
+      contentContainerStyle={[
+        styles.content,
+        {
+          backgroundColor: palette.surface,
+          paddingTop: insets.top + spacing.sm,
+          paddingBottom: insets.bottom + spacing.md,
+        },
+      ]}
     >
       <View style={[styles.header, { borderBottomColor: palette.border }]}>
         {logoUrl ? (

@@ -8,7 +8,7 @@ const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://erp.royalkingss
 const primaryColor = '#390754';
 /** Linked EAS project: @briannjogu/royal-kings-admin */
 const EAS_PROJECT_ID = '0d0b7844-fe28-441d-ab98-bb27890a38f3';
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.0.5';
 
 const config: ExpoConfig = {
   name: 'Royal Kings Admin',
@@ -39,7 +39,8 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.admin',
-    versionCode: 5,
+    versionCode: 6,
+    softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: primaryColor,

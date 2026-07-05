@@ -30,7 +30,13 @@ export function navigateToTab(
       name: 'Workspace',
       params: {
         screen: tab,
-        params: screen ? { screen, params } : undefined,
+        params: screen
+          ? {
+              screen,
+              params,
+              initial: false,
+            }
+          : undefined,
       },
       merge: false,
     }),
@@ -48,7 +54,13 @@ export function navigateToDrawer(
   root.dispatch(
     CommonActions.navigate({
       name: drawer,
-      params: screen ? { screen, params } : undefined,
+      params: screen
+        ? {
+            screen,
+            params,
+            initial: false,
+          }
+        : undefined,
       merge: false,
     }),
   );

@@ -353,6 +353,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/notifications/{id}/acknowledge', [\App\Http\Controllers\Api\ApiNotificationController::class, 'acknowledge']);
     Route::delete('/notifications/{id}', [\App\Http\Controllers\Api\ApiNotificationController::class, 'destroy']);
     Route::get('/attendance/class', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'classAttendance']);
+    Route::get('/attendance/school-day', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'schoolDay']);
     Route::post('/attendance/mark', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'mark']);
 
     Route::get('/classes/{classId}/fee-clearance-roster', [ApiFeeClearanceController::class, 'classRoster']);

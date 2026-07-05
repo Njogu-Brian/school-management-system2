@@ -29,6 +29,12 @@ export const attendanceApi = {
     return apiClient.get<ClassAttendanceRow[]>('/attendance/class', query);
   },
 
+  getSchoolDay(date: string): Promise<
+    ApiResponse<{ date: string; is_school_day: boolean; is_future: boolean }>
+  > {
+    return apiClient.get('/attendance/school-day', { date });
+  },
+
   mark(payload: MarkAttendancePayload): Promise<ApiResponse<{ message: string; count: number }>> {
     return apiClient.post<{ message: string; count: number }>('/attendance/mark', payload);
   },

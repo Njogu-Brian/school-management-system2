@@ -196,17 +196,18 @@ export const LoginScreen: React.FC = () => {
 
   const body = (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.flex}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: Math.max(insets.top, spacing.md), paddingBottom: insets.bottom + spacing.lg },
+          { paddingTop: Math.max(insets.top, spacing.md), paddingBottom: insets.bottom + spacing.xl },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        automaticallyAdjustKeyboardInsets
       >
         {hero}
         {cardContent}
@@ -271,7 +272,8 @@ function LabeledInput({
       >
         <Ionicons name={icon} size={18} color={palette.textMuted} style={{ marginRight: 10 }} />
         <TextInput
-          placeholderTextColor={palette.textMuted}
+          placeholderTextColor="#6B7280"
+          selectionColor={colors.primary}
           {...props}
           onFocus={(e) => {
             setFocused(true);
@@ -281,7 +283,7 @@ function LabeledInput({
             setFocused(false);
             props.onBlur?.(e);
           }}
-          style={[styles.input, { color: palette.textPrimary }]}
+          style={[styles.input, { color: '#111827' }]}
         />
         {right}
       </View>

@@ -27,8 +27,17 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
 
   const canAct = useMemo(() => {
     if (!txn) return false;
+    const status = (txn.status ?? txn.allocation_status ?? '').toLowerCase();
+    if (txn.payment_created) return false;
+    if (txn.is_archived) return false;
+    if (['confirmed', 'collected', 'processed', 'rejected', 'failed'].includes(status)) return false;
+    return true;
+  }, [txn]);
+
+  const isConfirmed = useMemo(() => {
+    if (!txn) return false;
     const status = (txn.status ?? '').toLowerCase();
-    return !txn.payment_created && status !== 'failed' && !txn.is_archived;
+    return Boolean(txn.payment_created) || ['confirmed', 'collected', 'processed'].includes(status);
   }, [txn]);
 
   const runConfirm = () => {
@@ -138,6 +147,24 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
             { label: 'Shared', value: txn.is_shared ? 'Yes' : 'No' },
           ]}
         />
+
+        {isConfirmed ? (
+          <View
+            style={{
+              marginTop: spacing.sm,
+              padding: spacing.md,
+              borderRadius: 10,
+              backgroundColor: `${colors.success}14`,
+              borderWidth: 1,
+              borderColor: colors.success,
+            }}
+          >
+            <Text style={{ color: colors.success, fontWeight: '700' }}>Confirmed</Text>
+            <Text style={{ color: palette.textSecondary, fontSize: 12, marginTop: 4 }}>
+              Payment has been recorded for this transaction.
+            </Text>
+          </View>
+        ) : null}
 
         {canAct ? (
           <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>

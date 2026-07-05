@@ -64,6 +64,13 @@ export const QuickActionFab: React.FC = () => {
       onPress: () => navigateToDrawer(navigation, 'Operations', 'RequisitionsList'),
     },
     {
+      id: 'staff_clock',
+      label: 'Staff sign in/out',
+      icon: 'time-outline',
+      visible: canPeople,
+      onPress: () => navigateToTab(navigation, 'People', 'StaffClock'),
+    },
+    {
       id: 'staff',
       label: 'Staff registry',
       icon: 'briefcase-outline',
