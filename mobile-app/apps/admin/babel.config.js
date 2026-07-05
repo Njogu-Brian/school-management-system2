@@ -11,7 +11,6 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      'react-native-worklets/plugin',
       [
         'module-resolver',
         {
@@ -23,6 +22,8 @@ module.exports = function (api) {
           },
         },
       ],
+      // Must be last — required for react-native-reanimated / worklets in release builds.
+      'react-native-worklets/plugin',
     ],
   };
 };

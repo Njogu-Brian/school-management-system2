@@ -3,6 +3,7 @@ android/
 ios/
 
 .expo/
+launch-log.txt
 
 # EAS upload exclusions (also listed in .easignore)
 node_modules/
