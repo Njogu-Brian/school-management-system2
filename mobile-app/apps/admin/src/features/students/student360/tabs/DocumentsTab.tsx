@@ -60,9 +60,6 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ studentId }) => {
 
   return (
     <>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
-        API: GET /students/{'{id}'}/documents
-      </Text>
       {docs.map((doc) => (
         <View
           key={doc.id}

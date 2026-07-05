@@ -1,7 +1,9 @@
-import { useCan, useInfiniteStudentList, useStudentStatement } from '@erp/core';
+import { useCan, useInfiniteStudentList, useStudentStatement, useAcademicYearsSettings, useTermsSettings } from '@erp/core';
 import {
   FinanceScreenHeader,
   FinanceSearchBar,
+  FilterChip,
+  FilterChipRow,
   ScreenContainer,
   StatementLedger,
   StudentListItem,
@@ -29,12 +31,35 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
-  const statementYear = new Date().getFullYear();
+
+  const yearsQuery = useAcademicYearsSettings({ enabled: canView });
+  const [yearId, setYearId] = useState<number | null>(null);
+  const [termId, setTermId] = useState<number | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 350);
     return () => clearTimeout(t);
   }, [searchInput]);
+
+  useEffect(() => {
+    const years = yearsQuery.data ?? [];
+    if (!yearId && years.length) {
+      setYearId((years.find((y) => y.is_active) ?? years[0]).id);
+    }
+  }, [yearsQuery.data, yearId]);
+
+  const termsQuery = useTermsSettings(yearId ?? undefined, { enabled: canView && yearId != null });
+
+  useEffect(() => {
+    const terms = termsQuery.data ?? [];
+    if (termId && !terms.some((t) => t.id === termId)) setTermId(null);
+  }, [termsQuery.data, termId]);
+
+  const statementFilters = useMemo(() => {
+    if (termId) return { term_id: termId, detailed: true as const };
+    if (yearId) return { academic_year_id: yearId, detailed: true as const };
+    return { year: new Date().getFullYear(), detailed: true as const };
+  }, [termId, yearId]);
 
   const listQuery = useInfiniteStudentList(
     { search: debouncedSearch || undefined, perPage: 15 },
@@ -46,11 +71,24 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
     [listQuery.data],
   );
 
-  const statementQuery = useStudentStatement(
-    selectedStudentId ?? 0,
-    { year: statementYear, detailed: true },
-    { enabled: canView && selectedStudentId != null },
-  );
+  const statementQuery = useStudentStatement(selectedStudentId ?? 0, statementFilters, {
+    enabled: canView && selectedStudentId != null,
+  });
+
+  const filterTerms = statementQuery.data?.filters?.available_terms ?? termsQuery.data ?? [];
+  const filterYears = statementQuery.data?.filters?.available_years ?? yearsQuery.data ?? [];
+  const periodLabel = useMemo(() => {
+    if (termId) {
+      const t = filterTerms.find((x) => x.id === termId);
+      const y = filterYears.find((x) => x.id === (t?.academic_year_id ?? yearId));
+      return t ? `${t.name}${y ? ` ${y.year}` : ''}` : 'Selected term';
+    }
+    if (yearId) {
+      const y = filterYears.find((x) => x.id === yearId);
+      return y ? `Year ${y.year}` : 'Selected year';
+    }
+    return String(new Date().getFullYear());
+  }, [termId, yearId, filterTerms, filterYears]);
 
   if (!canView) {
     return (
@@ -66,9 +104,39 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
         <FinanceScreenHeader title="Statements" subtitle="Student fee statements" onBack={() => navigation.goBack()} />
 
         {selectedStudentId ? (
-          <Pressable onPress={() => setSelectedStudentId(null)} style={{ marginBottom: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>← Search another student</Text>
-          </Pressable>
+          <>
+            <Pressable onPress={() => setSelectedStudentId(null)} style={{ marginBottom: spacing.sm }}>
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>← Search another student</Text>
+            </Pressable>
+
+            <FilterChipRow label="Academic year">
+              {filterYears.map((y) => (
+                <FilterChip
+                  key={y.id}
+                  label={String(y.year)}
+                  active={yearId === y.id && !termId}
+                  onPress={() => {
+                    setYearId(y.id);
+                    setTermId(null);
+                  }}
+                />
+              ))}
+            </FilterChipRow>
+
+            <FilterChipRow label="Term">
+              {filterTerms.map((t) => (
+                <FilterChip
+                  key={t.id}
+                  label={t.name}
+                  active={termId === t.id}
+                  onPress={() => {
+                    setTermId(t.id);
+                    setYearId(t.academic_year_id);
+                  }}
+                />
+              ))}
+            </FilterChipRow>
+          </>
         ) : (
           <>
             <FinanceSearchBar
@@ -110,7 +178,7 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
                   {statementQuery.data.student.full_name}
                 </Text>
                 <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.md }}>
-                  {statementQuery.data.student.admission_number} · {statementQuery.data.student.class_name} · {statementYear}
+                  {statementQuery.data.student.admission_number} · {statementQuery.data.student.class_name} · {periodLabel}
                 </Text>
 
                 <View style={[styles.summaryRow, { marginBottom: spacing.md, gap: spacing.sm }]}>

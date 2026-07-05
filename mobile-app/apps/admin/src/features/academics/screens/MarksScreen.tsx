@@ -1,51 +1,93 @@
 import {
+  useAcademicYearsSettings,
   useCan,
-  useExamMarkingOptions,
-  useInfiniteExams,
-  useMarks,
+  useExamSessions,
   useSettingsClasses,
+  useSettingsStreams,
+  useTermsSettings,
 } from '@erp/core';
-import {
-  AcademicScreenHeader,
-  ListEmptyState,
-  MarksRow,
-  ScreenContainer,
-  useTheme,
-} from '@erp/ui';
+import { AcademicScreenHeader, Button, FilterChip, FilterChipRow, ListEmptyState, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
-import { useMarksRegistryState } from '../hooks/useMarksRegistryState';
+import { sessionDisplayLabel } from '../utils/examLabels';
 
 type Props = StackScreenProps<AcademicsStackParamList, 'Marks'>;
 
 export const MarksScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('academics.view') && useCan('exams.view');
-  const { colors, palette, spacing, fontSizes, radius } = useTheme();
-  const { examId, setExamId, subjectId, setSubjectId, classroomId, setClassroomId, filters } =
-    useMarksRegistryState();
-  const [pickerExamId, setPickerExamId] = useState<number | null>(null);
+  const { colors, palette, spacing, fontSizes } = useTheme();
 
+  const yearsQuery = useAcademicYearsSettings({ enabled: canView });
+  const [yearId, setYearId] = useState<number | null>(null);
+  const termsQuery = useTermsSettings(yearId ?? undefined, { enabled: canView && yearId != null });
+  const [termId, setTermId] = useState<number | null>(null);
   const classesQuery = useSettingsClasses({ enabled: canView });
-  const examsQuery = useInfiniteExams({ per_page: 50 }, { enabled: canView });
-  const exams = useMemo(
-    () => examsQuery.data?.pages.flatMap((p) => p.items) ?? [],
-    [examsQuery.data],
+  const [classroomId, setClassroomId] = useState<number | null>(null);
+  const streamsQuery = useSettingsStreams(classroomId, { enabled: canView && classroomId != null });
+  const [streamId, setStreamId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const years = yearsQuery.data ?? [];
+    if (!yearId && years.length) {
+      const current = years.find((y) => y.is_active) ?? years[0];
+      setYearId(current.id);
+    }
+  }, [yearsQuery.data, yearId]);
+
+  useEffect(() => {
+    const terms = termsQuery.data ?? [];
+    if (termId && !terms.some((t) => t.id === termId)) {
+      setTermId(null);
+    }
+    if (!termId && terms.length) {
+      const current = terms.find((t) => t.is_current) ?? terms[0];
+      setTermId(current.id);
+    }
+  }, [termsQuery.data, termId]);
+
+  const sessionsQuery = useExamSessions(
+    {
+      academic_year_id: yearId ?? undefined,
+      term_id: termId ?? undefined,
+      classroom_id: classroomId ?? undefined,
+      stream_id: streamId ?? undefined,
+    },
+    { enabled: canView && yearId != null && termId != null && classroomId != null },
   );
-  const optionsQuery = useExamMarkingOptions(pickerExamId ?? 0, {
-    enabled: canView && pickerExamId != null,
-  });
-  const marksQuery = useMarks(filters, { enabled: canView });
+
+  const [sessionId, setSessionId] = useState<number | null>(null);
+
+  const sessions = useMemo(() => {
+    const list = sessionsQuery.data ?? [];
+    const byLabel = new Map<string, (typeof list)[0]>();
+    for (const s of list) {
+      const label = sessionDisplayLabel(s);
+      if (!byLabel.has(label)) {
+        byLabel.set(label, s);
+      }
+    }
+    return Array.from(byLabel.entries()).map(([label, session]) => ({ label, session }));
+  }, [sessionsQuery.data]);
+
+  useEffect(() => {
+    if (sessionId && !sessions.some((s) => s.session.id === sessionId)) {
+      setSessionId(null);
+    }
+  }, [sessions, sessionId]);
+
+  const selectedSession = sessions.find((s) => s.session.id === sessionId)?.session;
+
+  const openGrid = () => {
+    if (!classroomId || !selectedSession) return;
+    navigation.navigate('ExamClassSheet', {
+      examSessionId: selectedSession.id,
+      classroomId,
+      streamId: streamId ?? undefined,
+      title: `${sessionDisplayLabel(selectedSession)} · ${selectedSession.classroom_name ?? 'Class'}`,
+    });
+  };
 
   if (!canView) {
     return (
@@ -57,170 +99,96 @@ export const MarksScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <FlatList
-        data={marksQuery.data ?? []}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
-        refreshControl={
-          <RefreshControl
-            refreshing={marksQuery.isRefetching}
-            onRefresh={() => void marksQuery.refetch()}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
-        ListHeaderComponent={
-          <View>
-            <AcademicScreenHeader
-              title="Marks"
-              subtitle="Class sheet (read-only)"
-              onBack={() => navigation.goBack()}
+      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+        <AcademicScreenHeader title="Exam results" subtitle="Class mark grid" onBack={() => navigation.goBack()} />
+
+        <FilterChipRow label="Academic year">
+          {(yearsQuery.data ?? []).map((y) => (
+            <FilterChip
+              key={y.id}
+              label={String(y.year)}
+              active={yearId === y.id}
+              onPress={() => {
+                setYearId(y.id);
+                setTermId(null);
+              }}
             />
-            <Pressable onPress={() => navigation.navigate('MarksMatrix')}>
-              <Text style={{ color: colors.primary, fontWeight: '600', marginBottom: spacing.sm }}>
-                Open marks matrix →
-              </Text>
-            </Pressable>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
+          ))}
+        </FilterChipRow>
+
+        <FilterChipRow label="Term">
+          {(termsQuery.data ?? []).map((t) => (
+            <FilterChip key={t.id} label={t.name} active={termId === t.id} onPress={() => setTermId(t.id)} />
+          ))}
+        </FilterChipRow>
+
+        <FilterChipRow label="Class">
+          {(classesQuery.data ?? []).map((c) => (
+            <FilterChip
+              key={c.id}
+              label={c.name}
+              active={classroomId === c.id}
+              onPress={() => {
+                setClassroomId(c.id);
+                setStreamId(null);
+                setSessionId(null);
+              }}
+            />
+          ))}
+        </FilterChipRow>
+
+        {(streamsQuery.data ?? []).length > 0 ? (
+          <FilterChipRow label="Stream">
+            <FilterChip label="All" active={streamId == null} onPress={() => setStreamId(null)} />
+            {(streamsQuery.data ?? []).map((s) => (
+              <FilterChip key={s.id} label={s.name} active={streamId === s.id} onPress={() => setStreamId(s.id)} />
+            ))}
+          </FilterChipRow>
+        ) : null}
+
+        {classroomId && termId ? (
+          <>
+            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.sm, marginBottom: spacing.xs }}>
               Exam
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
-              {exams.map((e) => (
-                <Pressable
-                  key={e.id}
-                  onPress={() => {
-                    setPickerExamId(e.id);
-                    setExamId(e.id);
-                    setSubjectId(e.subjectId);
-                    setClassroomId(e.classroomId);
-                  }}
-                  style={[
-                    styles.chip,
-                    {
-                      backgroundColor: examId === e.id ? colors.primary : palette.surface,
-                      borderColor: examId === e.id ? colors.primary : palette.border,
-                      borderRadius: radius.full,
-                      marginRight: spacing.xs,
-                    },
-                  ]}
-                >
-                  <Text style={{ color: examId === e.id ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }} numberOfLines={1}>
-                    {e.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            {(optionsQuery.data ?? []).length > 0 ? (
-              <>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
-                  Class · Subject
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
-                  {(optionsQuery.data ?? []).map((o) => (
-                    <Pressable
-                      key={`${o.classroom_id}-${o.subject_id}`}
-                      onPress={() => {
-                        setClassroomId(o.classroom_id);
-                        setSubjectId(o.subject_id);
-                        setExamId(pickerExamId);
-                      }}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor:
-                            classroomId === o.classroom_id && subjectId === o.subject_id
-                              ? colors.primary
-                              : palette.surface,
-                          borderColor:
-                            classroomId === o.classroom_id && subjectId === o.subject_id
-                              ? colors.primary
-                              : palette.border,
-                          borderRadius: radius.full,
-                          marginRight: spacing.xs,
-                        },
-                      ]}
-                    >
-                      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
-                        {o.classroom_name} · {o.subject_name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </>
+            {sessionsQuery.isLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : sessions.length === 0 ? (
+              <ListEmptyState title="No exams" message="No exam sessions for this class and term." icon="document-outline" />
             ) : (
-              <>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
-                  Class
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
-                  {(classesQuery.data ?? []).map((c) => (
-                    <Pressable
-                      key={c.id}
-                      onPress={() => setClassroomId(c.id)}
-                      style={[
-                        styles.chip,
-                        {
-                          backgroundColor: classroomId === c.id ? colors.primary : palette.surface,
-                          borderColor: classroomId === c.id ? colors.primary : palette.border,
-                          borderRadius: radius.full,
-                          marginRight: spacing.xs,
-                        },
-                      ]}
-                    >
-                      <Text style={{ color: classroomId === c.id ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
-                        {c.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </>
+              <FilterChipRow label="">
+                {sessions.map(({ label, session }) => (
+                  <FilterChip
+                    key={session.id}
+                    label={label}
+                    active={sessionId === session.id}
+                    onPress={() => setSessionId(session.id)}
+                  />
+                ))}
+              </FilterChipRow>
             )}
-            <View style={[styles.headerRow, { borderBottomColor: palette.border, paddingBottom: spacing.xs, marginBottom: spacing.xs }]}>
-              <Text style={{ flex: 2, color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>Student</Text>
-              <Text style={{ flex: 1, color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700', textAlign: 'right' }}>Score</Text>
-              <Text style={{ flex: 1, color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700', textAlign: 'right' }}>%</Text>
-            </View>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <MarksRow
-            row={{
-              studentName: item.studentName,
-              marks: item.marks,
-              totalMarks: item.totalMarks,
-              percentage: item.percentage,
-              remarks: item.remarks,
-            }}
-          />
+          </>
+        ) : (
+          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: spacing.md }}>
+            Select year, term, and class to load exams.
+          </Text>
         )}
-        ListEmptyComponent={
-          !filters ? (
-            <ListEmptyState
-              title="Select filters"
-              message="Choose an exam, class, and subject to load marks."
-              icon="options-outline"
-            />
-          ) : marksQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : marksQuery.isError ? (
-            <ListEmptyState
-              title="Could not load marks"
-              message={(marksQuery.error as Error).message}
-              icon="alert-circle-outline"
-              actionLabel="Retry"
-              onAction={() => void marksQuery.refetch()}
-            />
-          ) : (
-            <ListEmptyState entityName="marks" icon="grid-outline" />
-          )
-        }
-      />
+
+        {selectedSession && classroomId ? (
+          <Button label="View class mark grid" onPress={openGrid} style={{ marginTop: spacing.lg }} />
+        ) : null}
+
+        <Text
+          onPress={() => navigation.navigate('MarksMatrix')}
+          style={{ color: colors.primary, fontWeight: '600', marginTop: spacing.lg, textAlign: 'center' }}
+        >
+          Open marks entry matrix →
+        </Text>
+      </ScrollView>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: StyleSheet.hairlineWidth, maxWidth: 200 },
-  headerRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
 });

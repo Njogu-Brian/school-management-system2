@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Student;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Exam;
+use App\Models\Academics\ExamSession;
 use App\Models\Academics\ExamType;
 use App\Models\Academics\ExamMark;
 use App\Models\Academics\Stream;
@@ -46,6 +47,15 @@ class ApiAcademicsController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
+        if ($request->filled('academic_year_id')) {
+            $query->where('academic_year_id', (int) $request->input('academic_year_id'));
+        }
+        if ($request->filled('term_id')) {
+            $query->where('term_id', (int) $request->input('term_id'));
+        }
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', (int) $request->input('classroom_id'));
+        }
 
         $paginated = $query->paginate($perPage);
         $data = $paginated->getCollection()->map(fn ($e) => $this->formatExam($e))->values();
@@ -59,6 +69,47 @@ class ApiAcademicsController extends Controller
                 'per_page' => $paginated->perPage(),
                 'total' => $paginated->total(),
             ],
+        ]);
+    }
+
+    /** Exam sittings (Midterm, Opener, etc.) for combined class result grids. */
+    public function examSessions(Request $request)
+    {
+        $query = ExamSession::query()
+            ->with(['examType', 'classroom', 'term'])
+            ->orderByDesc('starts_on')
+            ->orderByDesc('id');
+
+        if ($request->filled('academic_year_id')) {
+            $query->where('academic_year_id', (int) $request->input('academic_year_id'));
+        }
+        if ($request->filled('term_id')) {
+            $query->where('term_id', (int) $request->input('term_id'));
+        }
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', (int) $request->input('classroom_id'));
+        }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', (int) $request->input('stream_id'));
+        }
+
+        $sessions = $query->limit(200)->get()->map(fn (ExamSession $s) => [
+            'id' => $s->id,
+            'name' => $s->name,
+            'exam_type_id' => $s->exam_type_id,
+            'exam_type_name' => $s->examType?->name,
+            'academic_year_id' => $s->academic_year_id,
+            'term_id' => $s->term_id,
+            'classroom_id' => $s->classroom_id,
+            'stream_id' => $s->stream_id,
+            'classroom_name' => $s->classroom?->name,
+            'term_name' => $s->term?->name,
+            'status' => $s->status,
+        ])->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $sessions,
         ]);
     }
 

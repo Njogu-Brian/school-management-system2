@@ -25,6 +25,9 @@ export const academicsWorkspaceApi = {
   ): Promise<ApiResponse<PaginatedResponse<ExamListRecord>>> {
     const query: Record<string, string | number> = {};
     if (params?.status) query.status = params.status;
+    if (params?.academic_year_id != null) query.academic_year_id = params.academic_year_id;
+    if (params?.term_id != null) query.term_id = params.term_id;
+    if (params?.classroom_id != null) query.classroom_id = params.classroom_id;
     if (params?.page != null) query.page = params.page;
     if (params?.per_page != null) query.per_page = params.per_page;
     return apiClient.get<PaginatedResponse<ExamListRecord>>('/exams', query);
@@ -36,6 +39,20 @@ export const academicsWorkspaceApi = {
 
   getExamMarkingOptions(examId: number): Promise<ApiResponse<ExamMarkingOption[]>> {
     return apiClient.get<ExamMarkingOption[]>(`/exams/${examId}/marking-options`);
+  },
+
+  listExamSessions(params?: {
+    academic_year_id?: number;
+    term_id?: number;
+    classroom_id?: number;
+    stream_id?: number;
+  }): Promise<ApiResponse<import('../types/academics').ExamSessionRecord[]>> {
+    const query: Record<string, number> = {};
+    if (params?.academic_year_id != null) query.academic_year_id = params.academic_year_id;
+    if (params?.term_id != null) query.term_id = params.term_id;
+    if (params?.classroom_id != null) query.classroom_id = params.classroom_id;
+    if (params?.stream_id != null) query.stream_id = params.stream_id;
+    return apiClient.get('/exam-sessions', query);
   },
 
   listMarks(

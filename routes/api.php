@@ -376,6 +376,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/lesson-plans/{id}/reject', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'reject']);
 
     Route::get('/exams', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'exams']);
+    Route::get('/exam-sessions', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examSessions']);
     Route::get('/exams/{id}/marking-options', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examMarkingOptions']);
     Route::get('/exams/{id}', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'showExam']);
     Route::get('/marks', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'marks']);

@@ -10,7 +10,7 @@ export interface RequirementsTabProps {
 
 /** Term requirements from `GET /teacher/requirements/students/{id}/templates`. */
 export const RequirementsTab: React.FC<RequirementsTabProps> = ({ studentId }) => {
-  const { colors, palette, fontSizes } = useTheme();
+  const { colors } = useTheme();
   const query = useStudentRequirements(studentId);
 
   const rows = useMemo(() => {
@@ -50,14 +50,8 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({ studentId }) =
     );
   }
 
-  const termLabel = query.data?.current_term?.name;
-
   return (
     <>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
-        API: GET /teacher/requirements/students/{'{id}'}/templates
-        {termLabel ? ` · ${termLabel}` : ''}
-      </Text>
       <FinanceFieldSection title="Requirements checklist" rows={rows} />
     </>
   );

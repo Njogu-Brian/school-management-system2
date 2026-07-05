@@ -366,7 +366,8 @@ export function useEnterMarksMatrix() {
 
 export function useExamClassSheet(
   params: {
-    examId: number;
+    examId?: number;
+    examSessionId?: number;
     classroomId: number;
     streamId?: number;
   } | null,
@@ -376,9 +377,11 @@ export function useExamClassSheet(
     queryKey: queryKeys.academics.examClassSheet(params ?? {}),
     queryFn: async () => {
       if (!params) throw new Error('Class sheet params required.');
+      const mode = params.examSessionId ? 'exam_session' : 'exam';
       const res = await examReportsApi.getClassSheet({
-        mode: 'exam',
+        mode,
         exam_id: params.examId,
+        exam_session_id: params.examSessionId,
         classroom_id: params.classroomId,
         stream_id: params.streamId,
       });
@@ -387,7 +390,34 @@ export function useExamClassSheet(
       }
       return res.data;
     },
-    enabled: options?.enabled !== false && params != null && params.examId > 0 && params.classroomId > 0,
+    enabled:
+      options?.enabled !== false &&
+      params != null &&
+      params.classroomId > 0 &&
+      (params.examSessionId != null || (params.examId ?? 0) > 0),
+    staleTime: 60_000,
+  });
+}
+
+export function useExamSessions(
+  filters: {
+    academic_year_id?: number;
+    term_id?: number;
+    classroom_id?: number;
+    stream_id?: number;
+  },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: [...queryKeys.academics.all, 'exam-sessions', filters],
+    queryFn: async () => {
+      const res = await academicsWorkspaceApi.listExamSessions(filters);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load exam sessions.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
     staleTime: 60_000,
   });
 }

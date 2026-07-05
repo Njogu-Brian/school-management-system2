@@ -8,7 +8,8 @@ export type AcademicsStackParamList = {
   ExamsList: undefined;
   ExamDetail: { examId: number; summary?: ExamSummary };
   ExamClassSheet: {
-    examId: number;
+    examId?: number;
+    examSessionId?: number;
     classroomId: number;
     streamId?: number;
     title?: string;

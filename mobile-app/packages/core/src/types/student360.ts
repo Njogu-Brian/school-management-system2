@@ -85,6 +85,15 @@ export interface StudentStatementRecord {
   total_paid: number;
   closing_balance: number;
   transactions: StatementTransactionRecord[];
+  filters?: {
+    available_years: Array<{ id: number; year: number | string; is_active?: boolean }>;
+    available_terms: Array<{
+      id: number;
+      name: string;
+      academic_year_id: number;
+      is_current?: boolean;
+    }>;
+  };
 }
 
 export type {

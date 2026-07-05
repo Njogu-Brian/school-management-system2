@@ -47,6 +47,20 @@ export interface ExamListFilters {
   per_page?: number;
 }
 
+export interface ExamSessionRecord {
+  id: number;
+  name: string;
+  exam_type_id: number | null;
+  exam_type_name: string | null;
+  academic_year_id: number | null;
+  term_id: number | null;
+  classroom_id: number | null;
+  stream_id: number | null;
+  classroom_name: string | null;
+  term_name: string | null;
+  status: string | null;
+}
+
 export interface MarkListRecord {
   id: number;
   exam_id: number;

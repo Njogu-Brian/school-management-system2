@@ -7,6 +7,7 @@ use App\Exports\TermWorkbookExport;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Exam;
+use App\Models\Academics\ExamSession;
 use App\Models\User;
 use App\Services\Academics\ExamReports\AnalyticsService;
 use App\Services\Academics\ExamReports\ClassSheetBuilder;
@@ -22,8 +23,9 @@ class ApiExamReportsController extends Controller
     public function classSheet(Request $request)
     {
         $data = $request->validate([
-            'mode' => 'nullable|in:exam,term',
+            'mode' => 'nullable|in:exam,term,exam_session',
             'exam_id' => 'nullable|required_if:mode,exam|exists:exams,id',
+            'exam_session_id' => 'nullable|required_if:mode,exam_session|exists:exam_sessions,id',
             'academic_year_id' => 'nullable|required_if:mode,term|integer',
             'term_id' => 'nullable|required_if:mode,term|exists:terms,id',
             'classroom_id' => 'required|exists:classrooms,id',
@@ -44,6 +46,10 @@ class ApiExamReportsController extends Controller
             $ay = (int) $data['academic_year_id'];
             $termId = (int) $data['term_id'];
             $payload = $cache->rememberTermClassSheet($ay, $termId, $classroom, $streamId, fn () => $builder->buildForTerm($ay, $termId, $classroom, $streamId));
+        } elseif ($mode === 'exam_session') {
+            $session = ExamSession::findOrFail($data['exam_session_id']);
+            $cache = new ReportCache();
+            $payload = $cache->rememberExamSessionClassSheet($session, $classroom, $streamId, fn () => $builder->buildForExamSession($session, $classroom, $streamId));
         } else {
             $exam = Exam::findOrFail($data['exam_id']);
             $cache = new ReportCache();

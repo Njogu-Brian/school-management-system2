@@ -14,23 +14,64 @@ import type { AcademicsStackParamList } from '../../../navigation/academicsStack
 
 type Props = StackScreenProps<AcademicsStackParamList, 'ExamClassSheet'>;
 
+function parseScore(raw: string | number | null | undefined): number | null {
+  if (raw == null || raw === '—' || raw === '-') return null;
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[^\d.-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
 export const ExamClassSheetScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { examId, classroomId, streamId, title } = route.params;
+  const { examId, examSessionId, classroomId, streamId, title } = route.params;
   const canView = useCan('academics.view') && useCan('exams.view');
   const { colors, palette, spacing, fontSizes } = useTheme();
-  const examQuery = useExamDetail(examId, { enabled: canView });
+  const examQuery = useExamDetail(examId ?? 0, { enabled: canView && (examId ?? 0) > 0 });
   const sheetQuery = useExamClassSheet(
-    canView ? { examId, classroomId, streamId } : null,
+    canView
+      ? {
+          examId,
+          examSessionId,
+          classroomId,
+          streamId,
+        }
+      : null,
     { enabled: canView },
   );
 
   const headerTitle = useMemo(() => {
     if (title) return title;
-    const examName = sheetQuery.data?.meta.exam?.name ?? examQuery.data?.name;
+    const sessionName = sheetQuery.data?.meta.exam?.name;
+    const examName = sessionName ?? examQuery.data?.name;
     const className = sheetQuery.data?.meta.classroom.name;
     if (examName && className) return `${examName} · ${className}`;
-    return examName ?? `Exam #${examId}`;
-  }, [title, sheetQuery.data, examQuery.data, examId]);
+    return examName ?? `Exam results`;
+  }, [title, sheetQuery.data, examQuery.data]);
+
+  const grid = useMemo(() => {
+    const sheet = sheetQuery.data;
+    if (!sheet) return null;
+    const { subjects, rows } = sheet;
+    const studentCols = rows.map((r) => ({
+      id: r.student_id,
+      name: r.name.split(' ')[0] ?? r.name,
+      fullName: r.name,
+      admission: r.admission_number,
+      average: r.average,
+      position: r.class_position ?? r.position,
+    }));
+    const subjectRows = subjects.map((sub) => ({
+      id: sub.id,
+      label: sub.name,
+      scores: rows.map((r) => r.subject_scores[String(sub.id)] ?? '—'),
+    }));
+    const colAverages = studentCols.map((_, ci) => {
+      const vals = subjectRows
+        .map((sr) => parseScore(sr.scores[ci]))
+        .filter((v): v is number => v != null);
+      if (!vals.length) return null;
+      return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+    });
+    return { studentCols, subjectRows, colAverages };
+  }, [sheetQuery.data]);
 
   if (!canView) {
     return (
@@ -48,7 +89,7 @@ export const ExamClassSheetScreen: React.FC<Props> = ({ route, navigation }) => 
     );
   }
 
-  if (sheetQuery.isError || !sheetQuery.data) {
+  if (sheetQuery.isError || !sheetQuery.data || !grid) {
     return (
       <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
         <AcademicScreenHeader title={headerTitle} onBack={() => navigation.goBack()} />
@@ -62,66 +103,71 @@ export const ExamClassSheetScreen: React.FC<Props> = ({ route, navigation }) => 
     );
   }
 
-  const { subjects, rows } = sheetQuery.data;
+  const { studentCols, subjectRows, colAverages } = grid;
+  const cellW = 56;
+  const labelW = 120;
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader
           title={headerTitle}
-          subtitle="Combined results — all subjects"
+          subtitle="Subjects × students · scroll horizontally"
           onBack={() => navigation.goBack()}
         />
 
         <ScrollView horizontal showsHorizontalScrollIndicator>
           <View>
             <View style={[styles.headerRow, { borderBottomColor: palette.border }]}>
-              <Text style={[styles.cellName, styles.headerCell, { color: palette.textPrimary }]}>#</Text>
-              <Text style={[styles.cellName, styles.headerCell, { color: palette.textPrimary }]}>Student</Text>
-              {subjects.map((sub) => (
-                <Text
-                  key={sub.id}
-                  style={[styles.cellScore, styles.headerCell, { color: palette.textPrimary }]}
-                  numberOfLines={1}
-                >
-                  {sub.code ?? sub.name}
-                </Text>
+              <Text style={[styles.labelCell, styles.headerCell, { width: labelW, color: palette.textPrimary }]}>
+                Subject
+              </Text>
+              {studentCols.map((s) => (
+                <View key={s.id} style={{ width: cellW, alignItems: 'center' }}>
+                  <Text style={[styles.headerCell, { color: palette.textPrimary, fontSize: fontSizes.xs }]} numberOfLines={1}>
+                    {s.name}
+                  </Text>
+                </View>
               ))}
-              <Text style={[styles.cellTotal, styles.headerCell, { color: palette.textPrimary }]}>Total</Text>
-              <Text style={[styles.cellTotal, styles.headerCell, { color: palette.textPrimary }]}>Avg</Text>
-              <Text style={[styles.cellPos, styles.headerCell, { color: palette.textPrimary }]}>Pos</Text>
             </View>
 
-            {rows.map((row, index) => (
-              <View key={row.student_id} style={[styles.dataRow, { borderBottomColor: palette.border }]}>
-                <Text style={[styles.cellName, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-                  {index + 1}
+            {subjectRows.map((sub) => (
+              <View key={sub.id} style={[styles.dataRow, { borderBottomColor: palette.border }]}>
+                <Text style={[styles.labelCell, { width: labelW, color: palette.textPrimary, fontSize: fontSizes.xs }]} numberOfLines={2}>
+                  {sub.label}
                 </Text>
-                <View style={styles.cellName}>
-                  <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.xs }}>
-                    {row.name}
-                  </Text>
-                  <Text style={{ color: palette.textSecondary, fontSize: 10 }}>{row.admission_number}</Text>
-                </View>
-                {subjects.map((sub) => (
+                {sub.scores.map((score, i) => (
                   <Text
-                    key={sub.id}
-                    style={[styles.cellScore, { color: palette.textPrimary, fontSize: fontSizes.xs }]}
+                    key={`${sub.id}-${studentCols[i]?.id ?? i}`}
+                    style={{ width: cellW, textAlign: 'center', color: palette.textPrimary, fontSize: fontSizes.xs }}
                   >
-                    {row.subject_scores[String(sub.id)] ?? '—'}
+                    {score}
                   </Text>
                 ))}
-                <Text style={[styles.cellTotal, { color: palette.textPrimary, fontSize: fontSizes.xs }]}>
-                  {row.total ?? '—'}
-                </Text>
-                <Text style={[styles.cellTotal, { color: palette.textPrimary, fontSize: fontSizes.xs }]}>
-                  {row.average ?? '—'}
-                </Text>
-                <Text style={[styles.cellPos, { color: colors.primary, fontWeight: '700', fontSize: fontSizes.xs }]}>
-                  {row.class_position ?? row.position ?? '—'}
-                </Text>
               </View>
             ))}
+
+            <View style={[styles.dataRow, { borderBottomColor: palette.border, backgroundColor: palette.surfaceRaised }]}>
+              <Text style={[styles.labelCell, { width: labelW, fontWeight: '700', color: palette.textPrimary, fontSize: fontSizes.xs }]}>
+                Average
+              </Text>
+              {colAverages.map((avg, i) => (
+                <Text key={`avg-${studentCols[i]?.id ?? i}`} style={{ width: cellW, textAlign: 'center', fontWeight: '700', color: colors.primary, fontSize: fontSizes.xs }}>
+                  {avg ?? '—'}
+                </Text>
+              ))}
+            </View>
+
+            <View style={[styles.dataRow, { borderBottomColor: palette.border, backgroundColor: palette.surfaceRaised }]}>
+              <Text style={[styles.labelCell, { width: labelW, fontWeight: '700', color: palette.textPrimary, fontSize: fontSizes.xs }]}>
+                Position
+              </Text>
+              {studentCols.map((s) => (
+                <Text key={`pos-${s.id}`} style={{ width: cellW, textAlign: 'center', fontWeight: '700', color: colors.primary, fontSize: fontSizes.xs }}>
+                  {s.position ?? '—'}
+                </Text>
+              ))}
+            </View>
           </View>
         </ScrollView>
       </ScrollView>
@@ -138,8 +184,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerCell: { fontWeight: '700', fontSize: 11 },
-  cellName: { width: 120, paddingRight: 8 },
-  cellScore: { width: 44, textAlign: 'center' },
-  cellTotal: { width: 52, textAlign: 'center' },
-  cellPos: { width: 36, textAlign: 'center' },
+  labelCell: { paddingRight: 8 },
 });
