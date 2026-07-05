@@ -13,7 +13,7 @@ const config: ExpoConfig = {
   name: 'Royal Kings Admin',
   slug: 'royal-kings-admin',
   scheme: 'royalkingsadmin',
-  version: '1.0.1',
+  version: '1.0.2',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
@@ -40,7 +40,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.admin',
-    versionCode: 2,
+    versionCode: 3,
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: primaryColor,

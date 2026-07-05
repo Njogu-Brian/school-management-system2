@@ -11,7 +11,9 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "typecheck": "tsc --noEmit",
     "build:preview": "eas build --platform android --profile preview",
-    "build:production": "eas build --platform android --profile production"
+    "build:production": "eas build --platform android --profile production",
+    "android:local": "expo run:android",
+    "android:device": "expo run:android --device"
   },
   "dependencies": {
     "@erp/core": "*",
@@ -39,7 +41,6 @@
     "expo-notifications": "~0.32.16",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
-    "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-updates": "~29.0.18",
     "expo-web-browser": "~15.0.11",

@@ -29,6 +29,23 @@ import { BiometricUnlockStrategy, BiometricLoginLockedError } from './providers/
 import type { AuthMethod, AuthProviderResult } from './providers/types';
 import { useSession } from './SessionContext';
 
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('AUTH_BOOTSTRAP_TIMEOUT')), ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 const passwordProvider = new PasswordAuthProvider();
 const googleProvider = new GoogleSignInStrategy();
 const biometricProvider = new BiometricUnlockStrategy();
@@ -144,7 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const res = await authApi.getProfile();
+        const res = await withTimeout(authApi.getProfile(), AUTH_BOOTSTRAP_TIMEOUT_MS);
         if (cancelled) {
           return;
         }

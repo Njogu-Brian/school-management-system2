@@ -54,22 +54,37 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   useEffect(() => {
     let cancelled = false;
+    const failSafe = setTimeout(() => {
+      if (!cancelled) {
+        setHydrated(true);
+      }
+    }, 5000);
+
     (async () => {
-      const [storedToken, storedMeta] = await Promise.all([getToken(), getSessionMeta()]);
-      if (cancelled) {
-        return;
+      try {
+        const [storedToken, storedMeta] = await Promise.all([getToken(), getSessionMeta()]);
+        if (cancelled) {
+          return;
+        }
+        if (storedToken && !isSessionExpired(storedMeta)) {
+          setToken(storedToken);
+          setMeta(storedMeta);
+        } else if (storedToken || storedMeta) {
+          await clearAuthData();
+        }
+      } catch {
+        /* storage read failed — start unauthenticated */
+      } finally {
+        if (!cancelled) {
+          clearTimeout(failSafe);
+          setHydrated(true);
+        }
       }
-      if (storedToken && !isSessionExpired(storedMeta)) {
-        setToken(storedToken);
-        setMeta(storedMeta);
-      } else if (storedToken || storedMeta) {
-        // Stale/expired remnants — clear so we start from a clean slate.
-        await clearAuthData();
-      }
-      setHydrated(true);
     })();
+
     return () => {
       cancelled = true;
+      clearTimeout(failSafe);
     };
   }, []);
 
