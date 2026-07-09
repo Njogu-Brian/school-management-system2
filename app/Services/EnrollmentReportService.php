@@ -27,7 +27,12 @@ class EnrollmentReportService
     $termNumber = $termNumber ?? get_current_term_number() ?? 1;
 
     $classroomsQuery = Classroom::query()
-      ->where('is_alumni', false)
+      ->where(function ($q) {
+        $q->where('is_alumni', false)
+          ->orWhereHas('students', function ($sq) {
+            $sq->where('archive', 0)->where('is_alumni', false);
+          });
+      })
       ->orderBy('name');
 
     if ($campus) {

@@ -46,43 +46,16 @@
       </div>
       <div class="card-body">
         <form class="row g-2" method="GET" action="{{ route('students.enrollment-report') }}">
-          <div class="col-md-3">
-            <label class="form-label">Academic Year</label>
-            <select name="academic_year_id" class="form-select">
-              @foreach ($context['years'] ?? [] as $yearOption)
-                <option value="{{ $yearOption->id }}" @selected(($context['selectedYearId'] ?? null) == $yearOption->id)>
-                  {{ $yearOption->year }}
-                </option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Term</label>
-            <select name="term_id" class="form-select">
-              @forelse ($context['terms'] ?? [] as $termOption)
-                @php
-                  $rawName = trim((string) ($termOption->name ?? ''));
-                  $label = $rawName !== '' ? $rawName : ('Term #' . $termOption->id);
-                  $ay = $termOption->academicYear->year ?? null;
-                  if ($ay) {
-                    $label .= ' (' . $ay . ')';
-                  }
-                  if (!empty($termOption->is_current)) {
-                    $label .= ' — Current';
-                  }
-                @endphp
-                <option
-                  value="{{ $termOption->id }}"
-                  data-academic-year-id="{{ $termOption->academic_year_id ?? '' }}"
-                  @selected(($context['selectedTermId'] ?? null) == $termOption->id)
-                >
-                  {{ $label }}
-                </option>
-              @empty
-                <option value="">No terms found</option>
-              @endforelse
-            </select>
-          </div>
+          @include('partials.academic_year_term_selects', [
+            'years' => $context['years'] ?? collect(),
+            'terms' => $context['terms'] ?? collect(),
+            'selectedYearId' => $context['selectedYearId'] ?? null,
+            'selectedTermId' => $context['selectedTermId'] ?? null,
+            'yearSelectId' => 'enrollment_report_year_id',
+            'termSelectId' => 'enrollment_report_term_id',
+            'yearCol' => 'col-md-3',
+            'termCol' => 'col-md-3',
+          ])
           <div class="col-md-3">
             <label class="form-label">Campus</label>
             <select name="campus" class="form-select">
