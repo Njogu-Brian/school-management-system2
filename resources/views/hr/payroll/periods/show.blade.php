@@ -7,6 +7,12 @@
 @section('content')
 <div class="settings-page">
     <div class="settings-shell">
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
         <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
             <div>
                 <div class="crumb">HR & Payroll / Payroll Periods</div>
