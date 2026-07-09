@@ -11,7 +11,7 @@
             <div>
                 <div class="crumb">HR & Payroll / Payroll Records</div>
                 <h1 class="mb-1">Payroll Record Details</h1>
-                <p class="text-muted mb-0">Full breakdown for {{ $record->staff->name }}</p>
+                <p class="text-muted mb-0">Full breakdown for {{ $record->staff?->name ?? ('Staff #'.$record->staff_id) }}</p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
                 <span class="pill-badge {{ $record->status === 'approved' ? 'pill-success' : ($record->status === 'paid' ? 'pill-info' : 'pill-warning') }}">
@@ -38,8 +38,10 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label class="text-muted small">Staff Member</label>
-                        <div class="fw-semibold">{{ $record->staff->name }}</div>
-                        <div class="small text-muted">ID: {{ $record->staff->staff_id }}</div>
+                        <div class="fw-semibold">{{ $record->staff?->name ?? ('Staff #'.$record->staff_id) }}</div>
+                        @if($record->staff?->staff_id)
+                            <div class="small text-muted">ID: {{ $record->staff->staff_id }}</div>
+                        @endif
                     </div>
                     <div class="col-md-6">
                         <label class="text-muted small">Payroll Period</label>

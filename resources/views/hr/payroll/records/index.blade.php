@@ -95,8 +95,12 @@
                                         <div class="small text-muted">{{ $record->payrollPeriod->pay_date->format('M d, Y') }}</div>
                                     </td>
                                     <td>
-                                        <div class="fw-semibold">{{ $record->staff->name }}</div>
-                                        <div class="small text-muted">{{ $record->staff->staff_id }}</div>
+                                        @if($record->staff)
+                                            <div class="fw-semibold">{{ $record->staff->name }}</div>
+                                            <div class="small text-muted">{{ $record->staff->staff_id }}</div>
+                                        @else
+                                            <span class="text-muted">Staff #{{ $record->staff_id }}</span>
+                                        @endif
                                     </td>
                                     <td>Ksh {{ number_format($record->basic_salary, 2) }}</td>
                                     <td><strong class="text-success">Ksh {{ number_format($record->gross_salary, 2) }}</strong></td>

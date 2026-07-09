@@ -200,7 +200,14 @@
                         <tbody>
                             @foreach($period->payrollRecords as $record)
                                 <tr>
-                                    <td>{{ $record->staff->name }}</td>
+                                    <td>
+                                        @if($record->staff)
+                                            <div class="fw-semibold">{{ $record->staff->name }}</div>
+                                            <div class="small text-muted">{{ $record->staff->staff_id }}</div>
+                                        @else
+                                            <span class="text-muted">Staff #{{ $record->staff_id }}</span>
+                                        @endif
+                                    </td>
                                     <td>Ksh {{ number_format($record->gross_salary, 2) }}</td>
                                     <td>Ksh {{ number_format($record->total_deductions, 2) }}</td>
                                     <td><strong>Ksh {{ number_format($record->net_salary, 2) }}</strong></td>

@@ -131,7 +131,18 @@ class Staff extends Model
     public function jobTitle(){ return $this->belongsTo(JobTitle::class, 'job_title_id'); }
     public function position(){ return $this->belongsTo(JobTitle::class, 'job_title_id'); } // Alias for jobTitle
 
-    public function getFullNameAttribute(){ return "{$this->first_name} {$this->last_name}"; }
+    public function getFullNameAttribute(): string
+    {
+        return trim(collect([$this->first_name, $this->middle_name, $this->last_name])
+            ->filter(fn ($part) => filled($part))
+            ->implode(' '));
+    }
+
+    /** Alias used across HR/payroll views (`$staff->name`). */
+    public function getNameAttribute(): string
+    {
+        return $this->full_name !== '' ? $this->full_name : (string) ($this->staff_id ?? ('#'.$this->id));
+    }
 
     public function teachesSubjectInClass(int $subjectId, int $classroomId): bool
     {
