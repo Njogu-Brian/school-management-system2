@@ -61,6 +61,11 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
         <i class="bi bi-mortarboard"></i> Alumni Only
     </a>
     @endif
+    @if(Route::has('students.enrollment-report'))
+    <a href="{{ route('students.enrollment-report') }}" class="{{ request()->routeIs('students.enrollment-report*') ? 'active' : '' }}">
+        <i class="bi bi-bar-chart-steps"></i> Enrollment by Class
+    </a>
+    @endif
     <a href="{{ route('student-categories.index') }}" class="{{ Request::is('student-categories*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Student Categories</a>
     <a href="{{ route('families.index') }}" class="{{ Request::is('families*') && !request()->routeIs('families.integrity-report') && !request()->routeIs('families.integrity-report.missing-contacts') ? 'active' : '' }}"><i class="bi bi-people"></i> Families (Siblings)</a>
     @if(Route::has('families.integrity-report'))

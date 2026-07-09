@@ -1127,6 +1127,14 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::get('/students/parents-contact', [StudentController::class, 'parentsContact'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('students.parents-contact');
 
+    // Enrollment by class (boys/girls) — must be before students resource
+    Route::get('/students/enrollment-report', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'index'])
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.enrollment-report');
+    Route::get('/students/enrollment-report/export-excel', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'exportExcel'])
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.enrollment-report.export-excel');
+    Route::get('/students/enrollment-report/export-pdf', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'exportPdf'])
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.enrollment-report.export-pdf');
+
     // Export filtered list (must be before students resource — otherwise {student}=export)
     Route::match(['get', 'post'], '/students/export', [\App\Http\Controllers\DirectoryExportController::class, 'exportStudents'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher')->name('students.export');

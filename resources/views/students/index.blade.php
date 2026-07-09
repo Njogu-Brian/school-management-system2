@@ -31,6 +31,11 @@
             <i class="bi bi-download"></i> Export
           </button>
         @endif
+        @if(Route::has('students.enrollment-report'))
+          <a href="{{ route('students.enrollment-report') }}" class="btn btn-ghost-strong">
+            <i class="bi bi-bar-chart-steps"></i> Enrollment by Class
+          </a>
+        @endif
         @if(Route::has('students.bulk.assign-streams'))
           <a href="{{ route('students.bulk.assign-streams') }}" class="btn btn-ghost-strong">
             <i class="bi bi-diagram-3"></i> Bulk Assign Streams

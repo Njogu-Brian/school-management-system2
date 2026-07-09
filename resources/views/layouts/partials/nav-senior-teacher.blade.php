@@ -57,6 +57,13 @@
     <i class="bi bi-people"></i> All Students
   </a>
 
+  @if(Route::has('students.enrollment-report'))
+  <a href="{{ route('students.enrollment-report') }}"
+     class="{{ request()->routeIs('students.enrollment-report*') ? 'active' : '' }}">
+    <i class="bi bi-bar-chart-steps"></i> Enrollment by Class
+  </a>
+  @endif
+
   {{-- Streams (assign streams to classes) --}}
   @if (Route::has('academics.streams.index'))
     <a href="{{ route('academics.streams.index') }}" class="{{ Request::is('academics/streams*') ? 'active' : '' }}">
