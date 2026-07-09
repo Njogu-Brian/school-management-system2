@@ -74,6 +74,13 @@
               <option value="upper" @selected($campus === 'upper')>Upper</option>
             </select>
           </div>
+          <div class="col-md-3">
+            <label class="form-label">Enrollment Scope</label>
+            <select name="current_term_only" class="form-select">
+              <option value="0" @selected(empty($currentTermOnly))>All active students (includes future-term admissions)</option>
+              <option value="1" @selected(!empty($currentTermOnly))>Current term only (excludes future-term admissions)</option>
+            </select>
+          </div>
           <div class="col-md-3 d-flex align-items-end gap-2">
             <button type="submit" class="btn btn-settings-primary">
               <i class="bi bi-funnel"></i> Apply

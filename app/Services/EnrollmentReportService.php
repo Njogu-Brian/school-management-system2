@@ -16,7 +16,12 @@ class EnrollmentReportService
    *   term:int
    * }
    */
-  public function buildReport(?int $year = null, ?int $termNumber = null, ?string $campus = null): array
+  public function buildReport(
+    ?int $year = null,
+    ?int $termNumber = null,
+    ?string $campus = null,
+    bool $currentTermOnly = false,
+  ): array
   {
     $year = $year ?? (int) (setting('current_year') ?? date('Y'));
     $termNumber = $termNumber ?? get_current_term_number() ?? 1;
@@ -31,12 +36,13 @@ class EnrollmentReportService
 
     $classrooms = $classroomsQuery->get();
 
-    $students = Student::query()
+    $studentQuery = Student::query()
       ->where('archive', 0)
       ->where('is_alumni', false)
-      ->activeForCurrentTerm($year, $termNumber)
-      ->when($campus, fn ($q) => $q->whereHas('classroom', fn ($cq) => $cq->where('campus', $campus)))
-      ->get(['classroom_id', 'gender']);
+      ->when($currentTermOnly, fn ($q) => $q->activeForCurrentTerm($year, $termNumber))
+      ->when($campus, fn ($q) => $q->whereHas('classroom', fn ($cq) => $cq->where('campus', $campus)));
+
+    $students = $studentQuery->get(['classroom_id', 'gender']);
 
     $assignedStudents = $students->whereNotNull('classroom_id');
     $countsByClass = $assignedStudents->groupBy('classroom_id')->map(function (Collection $group) {

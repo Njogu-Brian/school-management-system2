@@ -28,8 +28,9 @@ class EnrollmentReportController extends Controller
     $year = $this->resolveYearNumber($request, $context);
     $termNumber = $this->resolveTermNumber($request, $context);
     $campus = $this->resolveCampus($request);
+    $currentTermOnly = $this->boolQuery($request, 'current_term_only', false);
 
-    $report = $this->service->buildReport($year, $termNumber, $campus);
+    $report = $this->service->buildReport($year, $termNumber, $campus, $currentTermOnly);
 
     return view('students.enrollment_report', [
       'rows' => $report['rows'],
@@ -37,6 +38,7 @@ class EnrollmentReportController extends Controller
       'year' => $report['year'],
       'termNumber' => $report['term'],
       'campus' => $campus,
+      'currentTermOnly' => $currentTermOnly,
       'context' => $context,
       'subtitle' => $this->service->subtitle($report['year'], $report['term'], $campus),
     ]);
@@ -89,9 +91,10 @@ class EnrollmentReportController extends Controller
     $year = $this->resolveYearNumber($request, $context);
     $termNumber = $this->resolveTermNumber($request, $context);
     $campus = $this->resolveCampus($request);
+    $currentTermOnly = $this->boolQuery($request, 'current_term_only', false);
     $includeCampus = $campus === null;
 
-    $report = $this->service->buildReport($year, $termNumber, $campus);
+    $report = $this->service->buildReport($year, $termNumber, $campus, $currentTermOnly);
     $rows = $this->service->toExportRows($report['rows'], $includeCampus);
     $rows[] = $this->service->toExportTotalsRow($report['totals'], $includeCampus);
 
@@ -135,5 +138,16 @@ class EnrollmentReportController extends Controller
     $campus = strtolower(trim((string) $request->input('campus', '')));
 
     return in_array($campus, ['lower', 'upper'], true) ? $campus : null;
+  }
+
+  protected function boolQuery(Request $request, string $key, bool $default = false): bool
+  {
+    if (! $request->has($key)) {
+      return $default;
+    }
+
+    $raw = strtolower(trim((string) $request->query($key)));
+
+    return in_array($raw, ['1', 'true', 'yes', 'on'], true);
   }
 }
