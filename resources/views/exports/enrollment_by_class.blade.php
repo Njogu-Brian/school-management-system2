@@ -27,17 +27,26 @@
     </style>
 </head>
 <body>
-    <h1>{{ $title ?? 'Enrollment by Class' }}</h1>
-    <div class="meta">
-        {{ $subtitle ?? '' }}
-        @if(!empty($recordCount))
-            · {{ number_format($recordCount) }} class{{ $recordCount === 1 ? '' : 'es' }}
-        @endif
-        · Generated {{ $generated_at ?? now()->format('Y-m-d H:i') }}
-        @if(!empty($generated_by))
-            by {{ $generated_by }}
-        @endif
-    </div>
+    @php
+      $reportTitle = $title ?? 'Enrollment by Class';
+      $reportSubtitle = $subtitle ?? null;
+      $generatedAt = isset($generated_at) ? \Illuminate\Support\Carbon::parse($generated_at) : now();
+      $generatedBy = $generated_by ?? (auth()->user()?->name ?? 'System');
+    @endphp
+
+    @include('academics.exam_reports.partials.report_letterhead', [
+        'variant' => 'pdf',
+        'reportTitle' => $reportTitle,
+        'reportSubtitle' => $reportSubtitle,
+        'generatedAt' => $generatedAt,
+        'generatedBy' => $generatedBy,
+    ])
+
+    @if(!empty($recordCount))
+      <div class="meta">
+        {{ number_format($recordCount) }} class{{ $recordCount === 1 ? '' : 'es' }}
+      </div>
+    @endif
 
     <table>
         <thead>

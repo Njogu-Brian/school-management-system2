@@ -59,11 +59,23 @@
           <div class="col-md-3">
             <label class="form-label">Term</label>
             <select name="term_id" class="form-select">
-              @foreach ($context['terms'] ?? [] as $termOption)
+              @forelse ($context['terms'] ?? [] as $termOption)
+                @php
+                  $label = $termOption->name ?? ('Term #' . $termOption->id);
+                  $ay = $termOption->academicYear->year ?? null;
+                  if ($ay) {
+                    $label .= ' (' . $ay . ')';
+                  }
+                  if (!empty($termOption->is_current)) {
+                    $label .= ' — Current';
+                  }
+                @endphp
                 <option value="{{ $termOption->id }}" @selected(($context['selectedTermId'] ?? null) == $termOption->id)>
-                  {{ $termOption->name }}
+                  {{ $label }}
                 </option>
-              @endforeach
+              @empty
+                <option value="">No terms found</option>
+              @endforelse
             </select>
           </div>
           <div class="col-md-3">
