@@ -51,6 +51,7 @@ class AcademicContext
     {
         return Term::query()
             ->with('academicYear')
+            ->orderByDesc('is_current')
             ->orderByDesc('academic_year_id')
             ->orderBy('opening_date')
             ->orderBy('id')

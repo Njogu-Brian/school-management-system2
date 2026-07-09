@@ -61,7 +61,8 @@
             <select name="term_id" class="form-select">
               @forelse ($context['terms'] ?? [] as $termOption)
                 @php
-                  $label = $termOption->name ?? ('Term #' . $termOption->id);
+                  $rawName = trim((string) ($termOption->name ?? ''));
+                  $label = $rawName !== '' ? $rawName : ('Term #' . $termOption->id);
                   $ay = $termOption->academicYear->year ?? null;
                   if ($ay) {
                     $label .= ' (' . $ay . ')';
