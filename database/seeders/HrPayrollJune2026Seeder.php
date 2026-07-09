@@ -78,12 +78,28 @@ class HrPayrollJune2026Seeder extends Seeder
             StaffCategory::firstOrCreate(['name' => $name]);
         }
 
-        $titles = [
-            'Teacher', 'Driver', 'Cleaner', 'Cook', 'Caretaker', 'Watchman',
-            'Office Staff', 'Director', 'Support Staff',
+        // job_titles.department_id is NOT NULL on production — always set it.
+        $titlesByDepartment = [
+            'Pre School' => ['Teacher'],
+            'Grade 1-3' => ['Teacher'],
+            'Grade 4-6' => ['Teacher'],
+            'Grade 7-9' => ['Teacher'],
+            'Support Staff' => ['Driver', 'Cleaner', 'Cook', 'Caretaker', 'Watchman', 'Support Staff'],
+            'Office' => ['Office Staff'],
+            'Directors' => ['Director'],
         ];
-        foreach ($titles as $name) {
-            JobTitle::firstOrCreate(['name' => $name]);
+
+        foreach ($titlesByDepartment as $deptName => $titles) {
+            $departmentId = Department::where('name', $deptName)->value('id');
+            if (! $departmentId) {
+                continue;
+            }
+            foreach ($titles as $title) {
+                JobTitle::firstOrCreate(
+                    ['name' => $title, 'department_id' => $departmentId],
+                    ['name' => $title, 'department_id' => $departmentId],
+                );
+            }
         }
     }
 
@@ -232,7 +248,10 @@ class HrPayrollJune2026Seeder extends Seeder
         $isNew = false;
 
         $departmentId = Department::where('name', $row['department'])->value('id');
-        $jobTitleId = JobTitle::where('name', $row['jobTitle'])->value('id');
+        $jobTitleId = JobTitle::where('name', $row['jobTitle'])
+            ->when($departmentId, fn ($q) => $q->where('department_id', $departmentId))
+            ->value('id')
+            ?? JobTitle::where('name', $row['jobTitle'])->value('id');
         $categoryId = StaffCategory::where('name', $row['category'])->value('id');
 
         $workEmail = $staff?->work_email ?: $this->makeWorkEmail($row['first'], $row['last']);
