@@ -48,6 +48,15 @@
                     </form>
                 @endif
 
+                @if(in_array($period->status, ['completed', 'processing']) && $period->payrollRecords->count() > 0)
+                    <form action="{{ route('hr.payroll.periods.recalculate', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Recalculate NSSF/SHIF/housing/PAYE for this period using current staff exemption ticks? Kids fees, uniform, loan and advances are kept.')">
+                        @csrf
+                        <button type="submit" class="btn btn-ghost-strong">
+                            <i class="bi bi-arrow-repeat"></i> Recalculate Statutory
+                        </button>
+                    </form>
+                @endif
+
                 @if(in_array($period->status, ['completed', 'locked']) && $period->payrollRecords->count() > 0)
                     <div class="btn-group">
                         <button type="button" class="btn btn-ghost-strong dropdown-toggle" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">

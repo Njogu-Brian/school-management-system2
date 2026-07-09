@@ -268,6 +268,35 @@ class PayrollPeriodController extends Controller
     }
 
     /**
+     * Recalculate statutory deductions on an already-processed period
+     * using current staff exemption ticks (NSSF/SHIF/housing/PAYE).
+     */
+    public function recalculate($id)
+    {
+        $period = PayrollPeriod::with(['statutoryRuleset', 'payrollRecords.staff.statutoryExemptions'])->findOrFail($id);
+
+        if ($period->isLocked()) {
+            return back()->with('error', 'Locked payroll periods cannot be recalculated. Unlock first if needed.');
+        }
+
+        if (! in_array($period->status, ['completed', 'processing'], true)) {
+            return back()->with('error', 'Only processed payroll periods can be recalculated.');
+        }
+
+        $exit = \Artisan::call('hr:recalculate-payroll-period', [
+            'period' => $period->id,
+        ]);
+
+        $output = trim(\Artisan::output());
+
+        if ($exit !== 0) {
+            return back()->with('error', 'Recalculation failed. '.$output);
+        }
+
+        return back()->with('success', 'Statutory deductions recalculated from current staff exemptions. Re-download exports if needed.');
+    }
+
+    /**
      * Lock the payroll period
      */
     public function lock($id)

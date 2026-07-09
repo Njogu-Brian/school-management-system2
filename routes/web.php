@@ -860,6 +860,7 @@ Route::middleware('auth')->group(function () {
                 // Payroll Periods
                 Route::resource('periods', \App\Http\Controllers\Hr\PayrollPeriodController::class);
                 Route::post('/periods/{id}/process', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'process'])->name('periods.process');
+                Route::post('/periods/{id}/recalculate', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'recalculate'])->name('periods.recalculate');
                 Route::post('/periods/{id}/lock', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'lock'])->name('periods.lock');
                 Route::post('/periods/{id}/mark-paid', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'markPaid'])->name('periods.mark-paid');
 
