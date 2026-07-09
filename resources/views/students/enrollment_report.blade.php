@@ -71,7 +71,11 @@
                     $label .= ' — Current';
                   }
                 @endphp
-                <option value="{{ $termOption->id }}" @selected(($context['selectedTermId'] ?? null) == $termOption->id)>
+                <option
+                  value="{{ $termOption->id }}"
+                  data-academic-year-id="{{ $termOption->academic_year_id ?? '' }}"
+                  @selected(($context['selectedTermId'] ?? null) == $termOption->id)
+                >
                   {{ $label }}
                 </option>
               @empty
