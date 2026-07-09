@@ -225,9 +225,18 @@
             <label class="form-label">Bank Branch</label>
             <input type="text" name="bank_branch" class="form-control" value="{{ old('bank_branch', $staff->bank_branch ?? '') }}">
           </div>
-          <div class="col-md-6">
+          <div class="col-md-4">
             <label class="form-label">Bank Account</label>
             <input type="text" name="bank_account" class="form-control" value="{{ old('bank_account', $staff->bank_account ?? '') }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Payment Method</label>
+            <select name="payment_method" class="form-select">
+              @php($pm = old('payment_method', $staff->payment_method ?? 'bank'))
+              <option value="bank" {{ $pm === 'bank' ? 'selected' : '' }}>Bank</option>
+              <option value="mpesa" {{ $pm === 'mpesa' ? 'selected' : '' }}>MPESA</option>
+            </select>
+            <div class="form-text">MPESA staff are excluded from IM Bank upload.</div>
           </div>
 
           <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Statutory Exemptions</h6></div>
@@ -243,10 +252,19 @@
           </div>
           <div class="col-md-4">
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="statutory_exemptions[]" value="nhif" id="exempt_nhif"
-                {{ in_array('nhif', $statutoryDefaults ?? []) ? 'checked' : '' }}>
-              <label class="form-check-label" for="exempt_nhif">
-                Exempt from NHIF
+              <input class="form-check-input" type="checkbox" name="statutory_exemptions[]" value="shif" id="exempt_shif"
+                {{ in_array('shif', $statutoryDefaults ?? []) ? 'checked' : '' }}>
+              <label class="form-check-label" for="exempt_shif">
+                Exempt from SHIF
+              </label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="statutory_exemptions[]" value="housing_levy" id="exempt_housing"
+                {{ in_array('housing_levy', $statutoryDefaults ?? []) ? 'checked' : '' }}>
+              <label class="form-check-label" for="exempt_housing">
+                Exempt from Housing Levy
               </label>
             </div>
           </div>
@@ -256,6 +274,15 @@
                 {{ in_array('paye', $statutoryDefaults ?? []) ? 'checked' : '' }}>
               <label class="form-check-label" for="exempt_paye">
                 Exempt from PAYE
+              </label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="statutory_exemptions[]" value="nhif" id="exempt_nhif"
+                {{ in_array('nhif', $statutoryDefaults ?? []) ? 'checked' : '' }}>
+              <label class="form-check-label" for="exempt_nhif">
+                Exempt from NHIF (legacy)
               </label>
             </div>
           </div>

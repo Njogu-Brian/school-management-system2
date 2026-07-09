@@ -61,6 +61,11 @@
                                     KRA PAYE (CSV)
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('hr.payroll.periods.exports.mpesa', $period->id) }}">
+                                    MPESA Payout List (CSV)
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 @endif

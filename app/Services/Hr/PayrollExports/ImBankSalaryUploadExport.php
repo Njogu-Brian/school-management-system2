@@ -64,6 +64,8 @@ final class ImBankSalaryUploadExport
             meta: [
                 'record_count' => $rows['record_count'],
                 'total_amount' => $rows['total_amount'],
+                'excluded_mpesa_count' => $rows['excluded_mpesa_count'],
+                'excluded_mpesa_total' => $rows['excluded_mpesa_total'],
                 'template_source' => $templatePath,
                 'payment_description' => $description,
             ],
@@ -87,6 +89,8 @@ final class ImBankSalaryUploadExport
     {
         $items = [];
         $total = 0.0;
+        $excludedMpesaCount = 0;
+        $excludedMpesaTotal = 0.0;
 
         foreach ($period->records as $record) {
             if (! $record instanceof PayrollRecord) {
@@ -104,6 +108,15 @@ final class ImBankSalaryUploadExport
 
             $account = $staff->bank_account ?: null;
             $bank = $staff->bank_name ?: null;
+            $paymentMethod = strtolower((string) ($staff->payment_method ?? ''));
+
+            // Rule: MPESA payment method OR missing bank account => exclude from bank upload.
+            $isMpesa = $paymentMethod === 'mpesa' || ! $account || trim((string) $account) === '';
+            if ($isMpesa) {
+                $excludedMpesaCount++;
+                $excludedMpesaTotal += $amount;
+                continue;
+            }
 
             $items[] = [
                 'employee_number' => $staff->staff_id ?: (string) $staff->id,
@@ -122,6 +135,8 @@ final class ImBankSalaryUploadExport
             'record_count' => count($items),
             'total_amount' => round($total, 2),
             'items' => $items,
+            'excluded_mpesa_count' => $excludedMpesaCount,
+            'excluded_mpesa_total' => round($excludedMpesaTotal, 2),
         ];
     }
 

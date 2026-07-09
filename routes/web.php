@@ -868,6 +868,7 @@ Route::middleware('auth')->group(function () {
                 Route::get('/periods/{id}/exports/nssf', [\App\Http\Controllers\Hr\PayrollExportsController::class, 'nssf'])->name('periods.exports.nssf');
                 Route::get('/periods/{id}/exports/shif', [\App\Http\Controllers\Hr\PayrollExportsController::class, 'shif'])->name('periods.exports.shif');
                 Route::get('/periods/{id}/exports/kra-paye', [\App\Http\Controllers\Hr\PayrollExportsController::class, 'kraPaye'])->name('periods.exports.kra_paye');
+                Route::get('/periods/{id}/exports/mpesa', [\App\Http\Controllers\Hr\PayrollExportsController::class, 'mpesa'])->name('periods.exports.mpesa');
 
                 // Imports
                 Route::get('/imports/budget', [\App\Http\Controllers\Hr\PayrollImportsController::class, 'budgetForm'])->name('imports.budget.form');

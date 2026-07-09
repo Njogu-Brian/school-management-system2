@@ -29,7 +29,7 @@ use App\Services\Academics\TeacherAssignmentService;
 class StaffController extends Controller
 {
     protected $comm;
-    protected array $statutoryDeductionCodes = ['nssf', 'nhif', 'paye'];
+    protected array $statutoryDeductionCodes = ['nssf', 'nhif', 'shif', 'housing_levy', 'paye'];
 
     public function __construct(CommunicationService $comm)
     {
@@ -129,8 +129,9 @@ class StaffController extends Controller
             'photo' => 'nullable|image|max:2048',
             'basic_salary' => 'nullable|numeric|min:0',
             'max_lessons_per_week' => 'nullable|integer|min:0',
+            'payment_method' => 'nullable|in:bank,mpesa',
             'statutory_exemptions' => 'nullable|array',
-            'statutory_exemptions.*' => 'in:nssf,nhif,paye',
+            'statutory_exemptions.*' => 'in:nssf,nhif,shif,housing_levy,paye',
         ]);
 
         DB::beginTransaction();
@@ -174,13 +175,14 @@ class StaffController extends Controller
             'date_of_birth','gender','marital_status',
             'residential_address',
             'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
-            'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
+            'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account','payment_method',
             'department_id','job_title_id','supervisor_id','staff_category_id',
             'basic_salary','max_lessons_per_week'
         ]);
         $phoneService = app(\App\Services\PhoneNumberService::class);
         $staffData['phone_number'] = $phoneService->formatWithCountryCode($staffData['phone_number'] ?? null, '+254');
         $staffData['emergency_contact_phone'] = $phoneService->formatWithCountryCode($staffData['emergency_contact_phone'] ?? null, '+254');
+        $staffData['payment_method'] = $staffData['payment_method'] ?? 'bank';
         $staffData['user_id']  = $user->id;
         $staffData['staff_id'] = $staffId;
 
@@ -417,8 +419,9 @@ class StaffController extends Controller
             'contract_end_date' => 'nullable|date|after_or_equal:contract_start_date',
             'basic_salary' => 'nullable|numeric|min:0',
             'max_lessons_per_week' => 'nullable|integer|min:0',
+            'payment_method' => 'nullable|in:bank,mpesa',
             'statutory_exemptions' => 'nullable|array',
-            'statutory_exemptions.*' => 'in:nssf,nhif,paye',
+            'statutory_exemptions.*' => 'in:nssf,nhif,shif,housing_levy,paye',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png|max:2048',
             'date_of_birth' => 'nullable|date',
         ]);
@@ -457,7 +460,7 @@ class StaffController extends Controller
                 'basic_salary','max_lessons_per_week',
                 'residential_address',
                 'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
-                'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
+                'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account','payment_method',
                 'department_id','job_title_id','supervisor_id','staff_category_id',
                 'hire_date','termination_date','employment_status','employment_type',
                 'contract_start_date','contract_end_date'
@@ -465,6 +468,9 @@ class StaffController extends Controller
             $phoneService = app(\App\Services\PhoneNumberService::class);
             $staffData['phone_number'] = $phoneService->formatWithCountryCode($staffData['phone_number'] ?? null, '+254');
             $staffData['emergency_contact_phone'] = $phoneService->formatWithCountryCode($staffData['emergency_contact_phone'] ?? null, '+254');
+            if (empty($staffData['payment_method'])) {
+                $staffData['payment_method'] = 'bank';
+            }
 
             if ($request->hasFile('photo')) {
                 // Delete old photo if exists

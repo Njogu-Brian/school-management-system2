@@ -23,7 +23,7 @@ class Staff extends Model
         'work_email','personal_email','phone_number','id_number',
         'date_of_birth','gender','marital_status','residential_address',
         'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
-        'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
+        'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account','payment_method',
         'department_id','job_title_id','staff_category_id','supervisor_id',
         'photo','status',
         'hire_date','termination_date','employment_status','employment_type',

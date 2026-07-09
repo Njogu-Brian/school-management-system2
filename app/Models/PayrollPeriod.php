@@ -27,6 +27,7 @@ class PayrollPeriod extends Model
         'processed_by',
         'accrual_journal_entry_id',
         'payment_journal_entry_id',
+        'expense_id',
         'paid_at',
         'notes',
     ];
@@ -68,6 +69,11 @@ class PayrollPeriod extends Model
     public function statutoryRuleset()
     {
         return $this->belongsTo(StatutoryRuleset::class, 'statutory_ruleset_id');
+    }
+
+    public function expense()
+    {
+        return $this->belongsTo(Expense::class, 'expense_id');
     }
 
     /**
