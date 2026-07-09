@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             ChartOfAccountsSeeder::class,
             ExpensePermissionSeeder::class,
             CanonicalRolesAndPermissionsSeeder::class,
+            StatutoryRulesetSeeder::class,
         ]);
     }
 }

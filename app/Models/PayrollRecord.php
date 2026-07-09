@@ -23,7 +23,9 @@ class PayrollRecord extends Model
         'gross_salary',
         'nssf_deduction',
         'nhif_deduction',
+        'shif_deduction',
         'paye_deduction',
+        'housing_levy_deduction',
         'other_deductions',
         'deductions_breakdown',
         'total_deductions',
@@ -53,7 +55,9 @@ class PayrollRecord extends Model
         'gross_salary' => 'decimal:2',
         'nssf_deduction' => 'decimal:2',
         'nhif_deduction' => 'decimal:2',
+        'shif_deduction' => 'decimal:2',
         'paye_deduction' => 'decimal:2',
+        'housing_levy_deduction' => 'decimal:2',
         'other_deductions' => 'decimal:2',
         'deductions_breakdown' => 'array',
         'total_deductions' => 'decimal:2',
@@ -124,7 +128,9 @@ class PayrollRecord extends Model
         // Calculate total deductions
         $this->total_deductions = $this->nssf_deduction 
             + $this->nhif_deduction 
+            + $this->shif_deduction
             + $this->paye_deduction 
+            + $this->housing_levy_deduction
             + $this->other_deductions
             + $this->advance_deduction
             + $this->custom_deductions_total;

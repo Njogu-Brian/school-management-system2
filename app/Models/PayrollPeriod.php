@@ -17,6 +17,7 @@ class PayrollPeriod extends Model
         'start_date',
         'end_date',
         'pay_date',
+        'statutory_ruleset_id',
         'status',
         'total_gross',
         'total_deductions',
@@ -62,6 +63,11 @@ class PayrollPeriod extends Model
     public function processedBy()
     {
         return $this->belongsTo(User::class, 'processed_by');
+    }
+
+    public function statutoryRuleset()
+    {
+        return $this->belongsTo(StatutoryRuleset::class, 'statutory_ruleset_id');
     }
 
     /**

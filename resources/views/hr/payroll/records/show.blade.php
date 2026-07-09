@@ -97,8 +97,16 @@
                         <div class="h6 mb-0">Ksh {{ number_format($record->nhif_deduction, 2) }}</div>
                     </div>
                     <div class="col-md-4 mb-2">
+                        <label class="text-muted small">SHIF</label>
+                        <div class="h6 mb-0">Ksh {{ number_format($record->shif_deduction ?? 0, 2) }}</div>
+                    </div>
+                    <div class="col-md-4 mb-2">
                         <label class="text-muted small">PAYE</label>
                         <div class="h6 mb-0">Ksh {{ number_format($record->paye_deduction, 2) }}</div>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label class="text-muted small">Housing Levy</label>
+                        <div class="h6 mb-0">Ksh {{ number_format($record->housing_levy_deduction ?? 0, 2) }}</div>
                     </div>
                     <div class="col-md-4 mb-2">
                         <label class="text-muted small">Other Deductions</label>

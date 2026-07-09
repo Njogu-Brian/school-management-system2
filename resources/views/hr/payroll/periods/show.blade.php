@@ -35,6 +35,35 @@
                         </button>
                     </form>
                 @endif
+                @if(in_array($period->status, ['completed', 'locked']) && $period->payrollRecords->count() > 0)
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-ghost-strong dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-download"></i> Exports
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="{{ route('hr.payroll.periods.exports.imbank', $period->id) }}">
+                                    IM Bank Salary Upload (XLS)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('hr.payroll.periods.exports.nssf', $period->id) }}">
+                                    NSSF Upload (XLSX)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('hr.payroll.periods.exports.shif', $period->id) }}">
+                                    SHIF Upload (XLSX)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('hr.payroll.periods.exports.kra_paye', $period->id) }}">
+                                    KRA PAYE (CSV)
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                @endif
                 @if($period->status === 'completed')
                     <form action="{{ route('hr.payroll.periods.lock', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Lock this payroll period?')">
                         @csrf

@@ -14,6 +14,9 @@
                 <p class="text-muted mb-0">Manage payroll processing windows and status.</p>
             </div>
             <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('hr.payroll.imports.budget.form') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-upload"></i> Import Budget PDF
+                </a>
                 <a href="{{ route('hr.payroll.periods.create') }}" class="btn btn-settings-primary">
                     <i class="bi bi-plus-circle"></i> New Period
                 </a>

@@ -10,6 +10,7 @@ use App\Models\SalaryStructure;
 use App\Models\StaffAdvance;
 use App\Models\CustomDeduction;
 use App\Services\PayrollCalculationService;
+use App\Models\StatutoryRuleset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -67,6 +68,7 @@ class PayrollPeriodController extends Controller
         }
 
         $validated['period_name'] = Carbon::create($validated['year'], $validated['month'], 1)->format('F Y');
+        $validated['statutory_ruleset_id'] = StatutoryRuleset::default()->value('id');
 
         $period = PayrollPeriod::create($validated);
 
@@ -91,7 +93,7 @@ class PayrollPeriodController extends Controller
      */
     public function process($id)
     {
-        $period = PayrollPeriod::findOrFail($id);
+        $period = PayrollPeriod::with('statutoryRuleset')->findOrFail($id);
 
         if (!$period->canProcess()) {
             return back()->with('error', 'This payroll period cannot be processed.');
@@ -151,10 +153,16 @@ class PayrollPeriodController extends Controller
                 // Calculate deductions
                 $record->calculateTotals(); // Calculate gross first
                 $statutoryExemptions = $member->statutoryExemptionCodes();
-                $deductions = $this->payrollCalc->calculateAllDeductions($record->gross_salary, $statutoryExemptions);
+                $deductions = $this->payrollCalc->calculateAllDeductions(
+                    $record->gross_salary,
+                    $statutoryExemptions,
+                    $period->statutoryRuleset,
+                );
                 $record->nssf_deduction = $deductions['nssf'];
-                $record->nhif_deduction = $deductions['nhif'];
+                $record->nhif_deduction = $deductions['nhif']; // legacy
+                $record->shif_deduction = $deductions['shif'];
                 $record->paye_deduction = $deductions['paye'];
+                $record->housing_levy_deduction = $deductions['housing_levy'];
                 $record->other_deductions = $salaryStructure->other_deductions ?? 0;
                 $record->deductions_breakdown = $salaryStructure->deductions_breakdown ?? null;
 

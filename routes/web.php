@@ -862,6 +862,17 @@ Route::middleware('auth')->group(function () {
                 Route::post('/periods/{id}/process', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'process'])->name('periods.process');
                 Route::post('/periods/{id}/lock', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'lock'])->name('periods.lock');
                 Route::post('/periods/{id}/mark-paid', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'markPaid'])->name('periods.mark-paid');
+
+                // Exports
+                Route::get('/periods/{id}/exports/imbank', [\App\Http\Controllers\Hr\PayrollExportsController::class, 'imbank'])->name('periods.exports.imbank');
+                Route::get('/periods/{id}/exports/nssf', [\App\Http\Controllers\Hr\PayrollExportsController::class, 'nssf'])->name('periods.exports.nssf');
+                Route::get('/periods/{id}/exports/shif', [\App\Http\Controllers\Hr\PayrollExportsController::class, 'shif'])->name('periods.exports.shif');
+                Route::get('/periods/{id}/exports/kra-paye', [\App\Http\Controllers\Hr\PayrollExportsController::class, 'kraPaye'])->name('periods.exports.kra_paye');
+
+                // Imports
+                Route::get('/imports/budget', [\App\Http\Controllers\Hr\PayrollImportsController::class, 'budgetForm'])->name('imports.budget.form');
+                Route::post('/imports/budget/parse', [\App\Http\Controllers\Hr\PayrollImportsController::class, 'budgetParse'])->name('imports.budget.parse');
+                Route::post('/imports/budget/commit', [\App\Http\Controllers\Hr\PayrollImportsController::class, 'budgetCommit'])->name('imports.budget.commit');
                 
                 // Payroll Records
                 Route::resource('records', \App\Http\Controllers\Hr\PayrollRecordController::class);
