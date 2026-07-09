@@ -135,8 +135,11 @@ class PayrollRecord extends Model
             + $this->advance_deduction
             + $this->custom_deductions_total;
 
-        // Add custom deductions
-        if ($this->deductions_breakdown && is_array($this->deductions_breakdown)) {
+        // Only fold deductions_breakdown in when custom_deductions_total is unused,
+        // otherwise imported kids/uniform/loan amounts get double-counted.
+        if ((float) $this->custom_deductions_total <= 0
+            && $this->deductions_breakdown
+            && is_array($this->deductions_breakdown)) {
             foreach ($this->deductions_breakdown as $amount) {
                 $this->total_deductions += (float) $amount;
             }

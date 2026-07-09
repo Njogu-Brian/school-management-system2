@@ -127,41 +127,38 @@ class FixKraPayeRulesCommand extends Command
                 $payeAmt = round($this->calculatePaye($taxableIncome, $params), 2);
             }
 
-            $before = [
-                'housing' => (float) ($record->housing_levy_deduction ?? 0),
-                'paye' => (float) $record->paye_deduction,
-                'net' => (float) $record->net_salary,
-            ];
+            $beforeHousing = (float) ($record->housing_levy_deduction ?? 0);
+            $beforePaye = (float) $record->paye_deduction;
+            $beforeNet = (float) $record->net_salary;
+            $beforeTotal = (float) $record->total_deductions;
+
+            $housingDelta = round($housingAmt - $beforeHousing, 2);
+            $payeDelta = round($payeAmt - $beforePaye, 2);
+
+            if (abs($housingDelta) < 0.01 && abs($payeDelta) < 0.01) {
+                continue;
+            }
 
             $record->housing_levy_deduction = $housingAmt;
             $record->paye_deduction = $payeAmt;
-            $record->calculateTotals();
+            $record->total_deductions = round($beforeTotal + $housingDelta + $payeDelta, 2);
+            $record->net_salary = round((float) $record->gross_salary - (float) $record->total_deductions, 2);
 
-            $after = [
-                'housing' => (float) $record->housing_levy_deduction,
-                'paye' => (float) $record->paye_deduction,
-                'net' => (float) $record->net_salary,
-            ];
+            $changed++;
+            $this->line(sprintf(
+                '  %s%s | PAYE %s→%s | Housing %s→%s | Net %s→%s',
+                $staff->full_name ?: $staff->staff_id,
+                $hasPin ? ' [PIN]' : '',
+                number_format($beforePaye, 2),
+                number_format($payeAmt, 2),
+                number_format($beforeHousing, 2),
+                number_format($housingAmt, 2),
+                number_format($beforeNet, 2),
+                number_format((float) $record->net_salary, 2),
+            ));
 
-            if (abs($before['housing'] - $after['housing']) > 0.009
-                || abs($before['paye'] - $after['paye']) > 0.009
-                || abs($before['net'] - $after['net']) > 0.009) {
-                $changed++;
-                $this->line(sprintf(
-                    '  %s%s | PAYE %s→%s | Housing %s→%s | Net %s→%s',
-                    $staff->full_name ?: $staff->staff_id,
-                    $hasPin ? ' [PIN]' : '',
-                    number_format($before['paye'], 2),
-                    number_format($after['paye'], 2),
-                    number_format($before['housing'], 2),
-                    number_format($after['housing'], 2),
-                    number_format($before['net'], 2),
-                    number_format($after['net'], 2),
-                ));
-
-                if (! $dry) {
-                    $record->save();
-                }
+            if (! $dry) {
+                $record->save();
             }
         }
 
