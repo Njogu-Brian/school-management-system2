@@ -45,6 +45,9 @@ class PayrollCalculationService
         if (($taxableCfg['subtract_shif'] ?? true) === true) {
             $taxableIncome -= $shif;
         }
+        if (($taxableCfg['subtract_housing_levy'] ?? true) === true) {
+            $taxableIncome -= $housing;
+        }
         if (($taxableCfg['subtract_nhif'] ?? false) === true) {
             $taxableIncome -= $legacyNhif;
         }

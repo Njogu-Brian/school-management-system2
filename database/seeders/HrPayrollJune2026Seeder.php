@@ -351,12 +351,18 @@ class HrPayrollJune2026Seeder extends Seeder
             )->calculateTotals()->save();
         }
 
-        // Statutory exemptions from budget (zero statutory amounts => exempt)
+        // Statutory exemptions from budget (zero statutory amounts => exempt).
+        // Rule: a KRA PIN means PAYE + housing levy are eligible by default.
+        // Do not auto-exempt those just because PAYE is 0 after personal relief.
         StaffStatutoryExemption::where('staff_id', $staff->id)->delete();
-        foreach ($row['exemptions'] as $code) {
+        $exemptions = collect($row['exemptions'])->map(fn ($c) => strtolower((string) $c));
+        if (filled($row['kra'])) {
+            $exemptions = $exemptions->reject(fn ($c) => in_array($c, ['paye', 'housing_levy'], true));
+        }
+        foreach ($exemptions as $code) {
             StaffStatutoryExemption::firstOrCreate([
                 'staff_id' => $staff->id,
-                'deduction_code' => strtolower($code),
+                'deduction_code' => $code,
             ]);
         }
 

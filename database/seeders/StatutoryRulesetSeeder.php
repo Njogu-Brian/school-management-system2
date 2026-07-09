@@ -42,6 +42,8 @@ class StatutoryRulesetSeeder extends Seeder
                     'taxable_income' => [
                         'subtract_nssf' => true,
                         'subtract_shif' => true,
+                        // KRA P10 / PAYE: housing levy is deductible before tax.
+                        'subtract_housing_levy' => true,
                     ],
                 ],
             ],

@@ -239,7 +239,14 @@
             <div class="form-text">MPESA staff are excluded from IM Bank upload.</div>
           </div>
 
-          <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Statutory Exemptions</h6></div>
+          <div class="col-12 pt-2">
+            <h6 class="text-uppercase text-muted">Statutory Exemptions</h6>
+            <p class="small text-muted mb-2">
+              Staff with a KRA PIN are eligible for PAYE and Housing Levy by default.
+              Only tick PAYE / Housing Levy here for a true exemption.
+              PAYE of 0 after the KSh 2,400 personal relief is not an exemption.
+            </p>
+          </div>
           <div class="col-md-4">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="statutory_exemptions[]" value="nssf" id="exempt_nssf"
