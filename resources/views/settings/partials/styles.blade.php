@@ -84,8 +84,27 @@
         color: var(--settings-primary-dark);
     }
 
-    .settings-page .page-header a:not(.btn) {
+    .settings-page .page-header a:not(.btn):not(.dropdown-item) {
         color: #fff;
+    }
+
+    /* Keep Bootstrap dropdown menus readable on gradient headers */
+    .settings-page .page-header .dropdown-menu {
+        background: #fff;
+        border: 1px solid var(--settings-border);
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+        z-index: 1080;
+    }
+
+    .settings-page .page-header .dropdown-menu .dropdown-item {
+        color: var(--settings-text) !important;
+        font-weight: 600;
+    }
+
+    .settings-page .page-header .dropdown-menu .dropdown-item:hover,
+    .settings-page .page-header .dropdown-menu .dropdown-item:focus {
+        background: #f0fdfa;
+        color: var(--settings-primary) !important;
     }
 
     .settings-page .page-header .btn-outline-secondary,

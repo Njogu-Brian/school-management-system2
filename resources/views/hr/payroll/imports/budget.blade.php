@@ -2,10 +2,11 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('hr.payroll.partials.styles')
 @endpush
 
 @section('content')
-<div class="settings-page">
+<div class="settings-page payroll-page">
     <div class="settings-shell">
         <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
             <div>

@@ -2,10 +2,11 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('hr.payroll.partials.styles')
 @endpush
 
 @section('content')
-<div class="settings-page">
+<div class="settings-page payroll-page">
     <div class="settings-shell">
         @if(session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
@@ -13,13 +14,14 @@
         @if(session('error'))
             <div class="alert alert-danger">{{ session('error') }}</div>
         @endif
-        <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
-            <div>
-                <div class="crumb">HR & Payroll / Payroll Periods</div>
-                <h1 class="mb-1">Payroll Period: {{ $period->period_name }}</h1>
-                <p class="text-muted mb-0">View and manage payroll period.</p>
-            </div>
-            <div class="d-flex gap-2 flex-wrap">
+
+        <div class="page-header">
+            <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+                <div class="flex-grow-1" style="min-width: min(100%, 16rem);">
+                    <div class="crumb">HR & Payroll / Payroll Periods</div>
+                    <h1 class="mb-1">Payroll Period: {{ $period->period_name }}</h1>
+                    <p class="text-muted mb-0">View and manage payroll period.</p>
+                </div>
                 @php
                     $badgeColors = [
                         'draft' => 'pill-secondary',
@@ -30,9 +32,13 @@
                     $badge = $badgeColors[$period->status] ?? 'pill-secondary';
                 @endphp
                 <span class="pill-badge {{ $badge }}">{{ ucfirst($period->status) }}</span>
+            </div>
+
+            <div class="payroll-actions mt-3">
                 <a href="{{ route('hr.payroll.periods.index') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-arrow-left"></i> Back to Periods
                 </a>
+
                 @if($period->status === 'draft')
                     <form action="{{ route('hr.payroll.periods.process', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Process payroll for this period? This will generate payroll records for all active staff.')">
                         @csrf
@@ -41,9 +47,10 @@
                         </button>
                     </form>
                 @endif
+
                 @if(in_array($period->status, ['completed', 'locked']) && $period->payrollRecords->count() > 0)
                     <div class="btn-group">
-                        <button type="button" class="btn btn-ghost-strong dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button type="button" class="btn btn-ghost-strong dropdown-toggle" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
                             <i class="bi bi-download"></i> Exports
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
@@ -75,16 +82,20 @@
                         </ul>
                     </div>
                 @endif
+
                 @if($period->status === 'completed')
                     <form action="{{ route('hr.payroll.periods.lock', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Lock this payroll period?')">
                         @csrf
-                        <button type="submit" class="btn btn-danger"><i class="bi bi-lock"></i> Lock</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-lock"></i> Lock
+                        </button>
                     </form>
                 @endif
+
                 @if(in_array($period->status, ['completed', 'locked']) && !$period->payment_journal_entry_id)
-                    <form action="{{ route('hr.payroll.periods.mark-paid', $period->id) }}" method="POST" class="d-inline-flex gap-2 align-items-center" onsubmit="return confirm('Mark payroll as paid and post to the general ledger?')">
+                    <form action="{{ route('hr.payroll.periods.mark-paid', $period->id) }}" method="POST" class="payroll-pay-form" onsubmit="return confirm('Mark payroll as paid and post to the general ledger?')">
                         @csrf
-                        <select name="bank_account_id" class="form-select form-select-sm">
+                        <select name="bank_account_id" class="form-select">
                             <option value="">Pay from default bank GL</option>
                             @foreach($bankAccounts ?? [] as $bank)
                                 <option value="{{ $bank->id }}">{{ $bank->name }}</option>
@@ -95,6 +106,7 @@
                         </button>
                     </form>
                 @endif
+
                 @if($period->payment_journal_entry_id)
                     <span class="pill-badge pill-success">Paid {{ optional($period->paid_at)->format('d M Y') }}</span>
                 @endif
@@ -104,7 +116,7 @@
         @include('partials.alerts')
 
         <div class="row mb-3 g-3">
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="settings-card stat-card primary">
                     <div class="card-body">
                         <p class="mb-1 text-muted small">Total Staff</p>
@@ -112,7 +124,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="settings-card stat-card success">
                     <div class="card-body">
                         <p class="mb-1 text-muted small">Total Gross</p>
@@ -120,7 +132,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="settings-card stat-card danger">
                     <div class="card-body">
                         <p class="mb-1 text-muted small">Total Deductions</p>
@@ -128,7 +140,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="settings-card stat-card info">
                     <div class="card-body">
                         <p class="mb-1 text-muted small">Total Net</p>
@@ -148,28 +160,28 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-sm-6 mb-3">
                         <label class="text-muted small">Period Name</label>
                         <div class="fw-semibold">{{ $period->period_name }}</div>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-sm-6 mb-3">
                         <label class="text-muted small">Status</label>
                         <div><span class="pill-badge {{ $badge }}">{{ ucfirst($period->status) }}</span></div>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-sm-6 mb-3">
                         <label class="text-muted small">Start Date</label>
                         <div>{{ $period->start_date->format('F d, Y') }}</div>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-sm-6 mb-3">
                         <label class="text-muted small">End Date</label>
                         <div>{{ $period->end_date->format('F d, Y') }}</div>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-sm-6 mb-3">
                         <label class="text-muted small">Pay Date</label>
                         <div>{{ $period->pay_date->format('F d, Y') }}</div>
                     </div>
                     @if($period->processed_at)
-                    <div class="col-md-6 mb-3">
+                    <div class="col-sm-6 mb-3">
                         <label class="text-muted small">Processed At</label>
                         <div>{{ $period->processed_at->format('F d, Y H:i') }}</div>
                         @if($period->processedBy)
@@ -234,4 +246,3 @@
     </div>
 </div>
 @endsection
-

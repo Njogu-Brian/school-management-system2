@@ -2,10 +2,11 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    @include('hr.payroll.partials.styles')
 @endpush
 
 @section('content')
-<div class="settings-page">
+<div class="settings-page payroll-page">
     <div class="settings-shell">
         <div class="page-header">
             <div class="crumb">HR & Payroll / Payslips</div>
