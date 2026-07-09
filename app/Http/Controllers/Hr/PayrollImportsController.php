@@ -29,10 +29,19 @@ class PayrollImportsController extends Controller
             'pay_date' => 'required|date',
         ]);
 
+        // Drop any previous upload left in session before storing a new one.
+        $this->deleteBudgetImportFile(session('payroll_budget_import.file_path'));
+
         $stored = $request->file('pdf')->store('payroll/imports', 'local');
         $abs = Storage::disk('local')->path($stored);
 
-        $rows = app(BudgetPdfParser::class)->parse($abs);
+        try {
+            $rows = app(BudgetPdfParser::class)->parse($abs);
+        } catch (\Throwable $e) {
+            Storage::disk('local')->delete($stored);
+            throw $e;
+        }
+
         $matcher = app(StaffMatcher::class);
 
         $preview = [];
@@ -88,7 +97,10 @@ class PayrollImportsController extends Controller
             return back()->with('error', 'Resolve all unmatched/ambiguous staff before committing.')->withInput();
         }
 
-        DB::transaction(function () use ($import, $rows) {
+        $rulesetId = \App\Models\StatutoryRuleset::default()->value('id')
+            ?? \App\Models\StatutoryRuleset::query()->value('id');
+
+        DB::transaction(function () use ($import, $rows, $rulesetId) {
             $period = PayrollPeriod::firstOrCreate(
                 ['year' => $import['year'], 'month' => $import['month']],
                 [
@@ -97,8 +109,14 @@ class PayrollImportsController extends Controller
                     'end_date' => now()->setDate($import['year'], $import['month'], 1)->endOfMonth()->toDateString(),
                     'pay_date' => $import['pay_date'],
                     'status' => 'draft',
+                    'statutory_ruleset_id' => $rulesetId,
                 ],
             );
+
+            if (! $period->statutory_ruleset_id && $rulesetId) {
+                $period->statutory_ruleset_id = $rulesetId;
+                $period->saveQuietly();
+            }
 
             // Create/update records deterministically from budget numbers (no recalculation).
             foreach ($rows as $r) {
@@ -150,9 +168,23 @@ class PayrollImportsController extends Controller
             $period->saveQuietly();
         });
 
+        $this->deleteBudgetImportFile($import['file_path'] ?? null);
         session()->forget('payroll_budget_import');
 
         return redirect()->route('hr.payroll.periods.index')->with('success', 'Budget import committed successfully.');
+    }
+
+    private function deleteBudgetImportFile(mixed $path): void
+    {
+        if (! is_string($path) || $path === '') {
+            return;
+        }
+
+        try {
+            Storage::disk('local')->delete($path);
+        } catch (\Throwable) {
+            // Best-effort cleanup; do not block the import flow.
+        }
     }
 }
 

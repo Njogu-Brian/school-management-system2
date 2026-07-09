@@ -67,8 +67,18 @@ class PayrollPeriodController extends Controller
             return back()->withInput()->with('error', 'A payroll period for this month already exists.');
         }
 
+        $rulesetId = StatutoryRuleset::default()->value('id')
+            ?? StatutoryRuleset::query()->value('id');
+
+        if (! $rulesetId) {
+            return back()->withInput()->with(
+                'error',
+                'No statutory ruleset is configured. Run StatutoryRulesetSeeder before creating payroll periods.'
+            );
+        }
+
         $validated['period_name'] = Carbon::create($validated['year'], $validated['month'], 1)->format('F Y');
-        $validated['statutory_ruleset_id'] = StatutoryRuleset::default()->value('id');
+        $validated['statutory_ruleset_id'] = $rulesetId;
 
         $period = PayrollPeriod::create($validated);
 
