@@ -27,8 +27,9 @@ class StatutoryRulesetSeeder extends Seeder
                         ['min' => 800000.0, 'max' => null, 'rate' => 0.35],
                     ],
                     'nssf' => [
-                        'tier1_max' => 6000.0,
-                        'tier2_max' => 18000.0,
+                        // Kenya NSSF earnings limits (employee 6% of pensionable pay).
+                        'tier1_max' => 8000.0,
+                        'tier2_max' => 72000.0,
                         'rate' => 0.06,
                     ],
                     'shif' => [

@@ -7,9 +7,7 @@ use App\Models\PayrollRecord;
 use App\Models\Staff;
 use App\Models\StaffStatutoryExemption;
 use App\Models\StatutoryRuleset;
-use App\Services\PayrollCalculationService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 class FixKraPayeRulesCommand extends Command
 {
@@ -17,9 +15,9 @@ class FixKraPayeRulesCommand extends Command
         {--period= : Payroll period id to recalculate (default: latest)}
         {--dry-run : Show changes without writing}';
 
-    protected $description = 'Apply KRA rules: PIN holders are PAYE/housing eligible; housing levy is deductible for PAYE; recalculate period statutory amounts.';
+    protected $description = 'Apply KRA rules: PIN holders are PAYE/housing eligible; housing levy deductible for PAYE; recalculate PAYE/housing while preserving imported NSSF/SHIF.';
 
-    public function handle(PayrollCalculationService $calc): int
+    public function handle(): int
     {
         $dry = (bool) $this->option('dry-run');
 
@@ -38,13 +36,23 @@ class FixKraPayeRulesCommand extends Command
         $params['taxable_income'] = $taxable;
         $params['personal_relief_monthly'] = (float) ($params['personal_relief_monthly'] ?? 2400.0);
 
+        // Current NSSF upper earnings limit (employee 6%) — used for future payroll runs.
+        $nssf = (array) ($params['nssf'] ?? []);
+        $nssf['tier1_max'] = (float) ($nssf['tier1_max'] ?? 8000.0);
+        $nssf['tier2_max'] = max((float) ($nssf['tier2_max'] ?? 0), 72000.0);
+        $nssf['rate'] = (float) ($nssf['rate'] ?? 0.06);
+        $params['nssf'] = $nssf;
+
         $this->info('Ruleset: '.$ruleset->name);
-        $this->line('  taxable_income.subtract_housing_levy = true');
+        $this->line('  subtract_housing_levy=true, nssf.tier2_max='.$nssf['tier2_max']);
 
         if (! $dry) {
             $ruleset->params = $params;
             $ruleset->save();
         }
+
+        // Temporary in-memory ruleset for this run (even on dry-run).
+        $ruleset->params = $params;
 
         $pinStaffIds = Staff::query()
             ->whereNotNull('kra_pin')
@@ -64,8 +72,8 @@ class FixKraPayeRulesCommand extends Command
 
         $periodId = $this->option('period');
         $period = $periodId
-            ? PayrollPeriod::with('statutoryRuleset')->findOrFail($periodId)
-            : PayrollPeriod::with('statutoryRuleset')->orderByDesc('id')->first();
+            ? PayrollPeriod::findOrFail($periodId)
+            : PayrollPeriod::query()->orderByDesc('id')->first();
 
         if (! $period) {
             $this->warn('No payroll period to recalculate.');
@@ -73,29 +81,28 @@ class FixKraPayeRulesCommand extends Command
             return self::SUCCESS;
         }
 
-        $period->loadMissing('statutoryRuleset');
-        $activeRuleset = $period->statutoryRuleset ?: $ruleset;
-
-        $records = PayrollRecord::with('staff')
+        $records = PayrollRecord::with('staff.statutoryExemptions')
             ->where('payroll_period_id', $period->id)
             ->get();
 
-        $this->info("Recalculating {$records->count()} payroll record(s) for {$period->period_name} (#{$period->id}).");
+        $this->info("Recalculating PAYE/housing for {$records->count()} record(s) in {$period->period_name} (#{$period->id}).");
+        $this->line('Preserving existing NSSF/SHIF and post-tax deductions from the imported payroll.');
 
+        $housingRate = (float) (($params['housing_levy']['rate'] ?? 0.015));
         $changed = 0;
+
         foreach ($records as $record) {
             $staff = $record->staff;
             if (! $staff) {
                 continue;
             }
 
-            $exemptions = $staff->fresh()->statutoryExemptionCodes();
-            // Safety: even if exemption rows remain, PIN holders stay eligible unless dry-run preview only.
-            if (filled($staff->kra_pin)) {
-                $exemptions = array_values(array_filter(
-                    $exemptions,
-                    fn ($c) => ! in_array(strtolower((string) $c), ['paye', 'housing_levy'], true)
-                ));
+            $hasPin = filled(trim((string) $staff->kra_pin));
+            $exemptions = collect($staff->statutoryExemptionCodes())
+                ->map(fn ($c) => strtolower((string) $c));
+
+            if ($hasPin) {
+                $exemptions = $exemptions->reject(fn ($c) => in_array($c, ['paye', 'housing_levy'], true));
             }
 
             $gross = (float) $record->gross_salary;
@@ -104,36 +111,46 @@ class FixKraPayeRulesCommand extends Command
                 $gross = (float) $record->gross_salary;
             }
 
-            $deductions = $calc->calculateAllDeductions($gross, $exemptions, $activeRuleset);
+            $nssfAmt = (float) $record->nssf_deduction;
+            $shifAmt = (float) ($record->shif_deduction ?? 0);
+
+            $housingExempt = $exemptions->contains('housing_levy');
+            $payeExempt = $exemptions->contains('paye');
+
+            $housingAmt = $housingExempt
+                ? 0.0
+                : round(max(0.0, $gross) * $housingRate, 2);
+
+            $payeAmt = 0.0;
+            if (! $payeExempt) {
+                $taxableIncome = max(0.0, $gross - $nssfAmt - $shifAmt - $housingAmt);
+                $payeAmt = round($this->calculatePaye($taxableIncome, $params), 2);
+            }
 
             $before = [
-                'nssf' => (float) $record->nssf_deduction,
-                'shif' => (float) ($record->shif_deduction ?? 0),
                 'housing' => (float) ($record->housing_levy_deduction ?? 0),
                 'paye' => (float) $record->paye_deduction,
                 'net' => (float) $record->net_salary,
             ];
 
-            $record->nssf_deduction = $deductions['nssf'];
-            $record->shif_deduction = $deductions['shif'];
-            $record->nhif_deduction = $deductions['nhif'];
-            $record->housing_levy_deduction = $deductions['housing_levy'];
-            $record->paye_deduction = $deductions['paye'];
+            $record->housing_levy_deduction = $housingAmt;
+            $record->paye_deduction = $payeAmt;
             $record->calculateTotals();
 
             $after = [
-                'nssf' => (float) $record->nssf_deduction,
-                'shif' => (float) $record->shif_deduction,
                 'housing' => (float) $record->housing_levy_deduction,
                 'paye' => (float) $record->paye_deduction,
                 'net' => (float) $record->net_salary,
             ];
 
-            if ($before != $after) {
+            if (abs($before['housing'] - $after['housing']) > 0.009
+                || abs($before['paye'] - $after['paye']) > 0.009
+                || abs($before['net'] - $after['net']) > 0.009) {
                 $changed++;
                 $this->line(sprintf(
-                    '  %s | PAYE %s→%s | Housing %s→%s | Net %s→%s',
+                    '  %s%s | PAYE %s→%s | Housing %s→%s | Net %s→%s',
                     $staff->full_name ?: $staff->staff_id,
+                    $hasPin ? ' [PIN]' : '',
                     number_format($before['paye'], 2),
                     number_format($after['paye'], 2),
                     number_format($before['housing'], 2),
@@ -149,14 +166,40 @@ class FixKraPayeRulesCommand extends Command
         }
 
         if (! $dry) {
-            DB::transaction(function () use ($period) {
-                $period->calculateTotals();
-                $period->save();
-            });
+            $period->calculateTotals();
+            $period->save();
         }
 
-        $this->info(($dry ? 'Dry-run: ' : '')."{$changed} record(s) would change / changed.");
+        $this->info(($dry ? 'Dry-run: ' : '')."{$changed} record(s) changed.");
 
         return self::SUCCESS;
+    }
+
+    private function calculatePaye(float $taxableIncome, array $params): float
+    {
+        $bands = (array) ($params['paye_bands'] ?? []);
+        $personalRelief = (float) ($params['personal_relief_monthly'] ?? 2400.0);
+        if ($taxableIncome <= 0) {
+            return 0.0;
+        }
+
+        $paye = 0.0;
+        foreach ($bands as $band) {
+            $min = (float) ($band['min'] ?? 0.0);
+            $max = $band['max'] ?? null;
+            $rate = (float) ($band['rate'] ?? 0.0);
+
+            if ($taxableIncome <= $min) {
+                continue;
+            }
+            $upper = $max === null ? $taxableIncome : min($taxableIncome, (float) $max);
+            $bandAmount = max(0.0, $upper - $min);
+            if ($bandAmount <= 0) {
+                continue;
+            }
+            $paye += $bandAmount * $rate;
+        }
+
+        return max(0.0, $paye - $personalRelief);
     }
 }
