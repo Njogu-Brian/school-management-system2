@@ -142,7 +142,8 @@ class HrPayrollJune2026Seeder extends Seeder
         // nssf_amt, shif_amt, paye_amt, housing_amt, net, exemptions[], personal_email, staff_no
         return [
             // PRE SCHOOL
-            $this->row('Susan', 'Wanjiru', null, null, null, null, null, '+254700273226', null, null, 'mpesa', 'Pre School', 'Teacher', 'Teaching', 'Teacher', 13000, 2000, 0, 0, 0, 0, 357.50, 0, 0, 10642.50, ['nssf', 'shif', 'paye', 'housing_levy'], null, null),
+            // NOTE: Budget "Susan" is Philemon Iminza (same phone +254700273226). Do NOT create Susan Wanjiru.
+            $this->row('Philemon', 'Iminza', 'Achevi', '33977774', null, null, null, '+254700273226', null, null, 'mpesa', 'Pre School', 'Teacher', 'Teaching', 'Teacher', 13000, 2000, 0, 0, 0, 0, 357.50, 0, 0, 10642.50, ['nssf', 'shif', 'paye', 'housing_levy'], 'Philemonacheviiminza@gmail.com', '207'),
             $this->row('Faith', 'Chelangat', null, '37447752', 'A018113889X', null, null, '+254796897166', null, null, 'mpesa', 'Pre School', 'Teacher', 'Teaching', 'Teacher', 15000, 0, 0, 0, 0, 0, 412.50, 0, 0, 14587.50, ['nssf', 'paye', 'housing_levy'], 'fchelangat538@gmail.com', null),
             $this->row('Judy', 'Kanana', null, '34266404', 'A010914635U', '2016750159', 'CR6756928782220-8', '+254792014422', 'EQUITY BANK - 68', '0400172719413', 'bank', 'Pre School', 'Teacher', 'Teaching', 'Teacher', 16000, 1000, 0, 960, 0, 440, 440, 0, 240, 13360, [], null, '27'),
             $this->row('Catherine', 'Ndungu', 'Watati', '20140426', 'A005280109C', '488126827', 'CR3555743436173-2', '+254799587593', 'EQUITY BANK - 68', '0120190499405', 'bank', 'Pre School', 'Teacher', 'Teaching', 'Teacher', 20000, 1200, 0, 0, 0, 0, 550, 0, 300, 17950, ['nssf', 'paye'], 'katehuho@gmail.com', '31'),
@@ -186,15 +187,15 @@ class HrPayrollJune2026Seeder extends Seeder
 
             // OFFICE
             $this->row('Sharon', 'James', null, '40103927', 'A018834139B', '2045688148', null, null, null, null, 'mpesa', 'Office', 'Office Staff', 'Office', 'Secretary', 20000, 0, 0, 0, 0, 1200, 550, 0, 300, 17950, ['paye'], null, null),
-            $this->row('Lyn', 'Office', null, null, null, null, null, null, 'EQUITY BANK - 68', null, 'bank', 'Office', 'Office Staff', 'Office', 'Secretary', 30000, 0, 0, 0, 0, 1800, 825, 731.25, 450, 26193.75, [], null, null),
+            // NOTE: Budget "Lyn" (office, Equity, 30k) is Lilian Atieno — do NOT create "Lyn Office".
+            $this->row('Lilian', 'Atieno', 'Ojwang', '21593142', 'A005616100K', '2000445518', 'CRI200445518', '+254738115823', 'EQUITY BANK - 68', '0130185775126', 'bank', 'Office', 'Office Staff', 'Office', 'Secretary', 30000, 0, 0, 0, 0, 1800, 825, 731.25, 450, 26193.75, [], 'lynearlyyearseducation@gmail.com', '229'),
 
             // DIRECTORS
             $this->row('Brian', 'Njogu', 'Murage', '34165387', 'A010123476H', '2027410852', 'CR0591266695838-0', '+254708225397', 'I & M BANK LTD - 57', '03604789316150', 'bank', 'Directors', 'Director', 'Director', 'Director', 19000, 0, 0, 0, 0, 1140, 522.50, 0, 285, 17052.50, ['paye'], null, '35'),
             $this->row('Dickson', 'Njogu', 'Murage', '10316164', 'A002353152J', '049316915', 'CR9176379405828-7', '+254721404848', 'EQUITY BANK - 68', null, 'bank', 'Directors', 'Director', 'Director', 'Director', 35000, 0, 0, 0, 0, 2100, 962.50, 1853.13, 525, 29559.37, [], 'pstdickson@gmail.com', null),
             $this->row('Purity', 'Njogu', 'Mwari', '9854143', 'A002279824Y', '564869813', 'CR5887255501429-7', '+254722716989', 'EQUITY BANK - 68', null, 'bank', 'Directors', 'Director', 'Director', 'Director', 35000, 0, 0, 0, 0, 2100, 962.50, 1853.13, 525, 29559.37, [], null, null),
 
-            // Extra from SHIF/NSSF not clearly on budget (ensure they exist)
-            $this->row('Lilian', 'Atieno', 'Ojwang', '21593142', 'A005616100K', '2000445518', 'CRI200445518', '+254738115823', 'EQUITY BANK - 68', '0130185775126', 'bank', 'Grade 7-9', 'Teacher', 'Teaching', 'Teacher', 30000, 0, 0, 0, 0, 0, 825, 0, 0, 0, ['nssf', 'paye', 'housing_levy'], 'lynearlyyearseducation@gmail.com', '48'),
+            // Extra from SHIF/NSSF (already covered above where possible)
             $this->row('Julia', 'Wanjiru', 'Peter', '30040097', 'A010660502B', '2017228333', null, null, null, null, 'mpesa', 'Grade 1-3', 'Teacher', 'Teaching', 'Teacher', 18000, 0, 0, 0, 0, 0, 495, 0, 0, 0, ['nssf', 'paye', 'housing_levy'], null, null),
             $this->row('Emmaculate', 'Sikuku', null, '39308109', null, null, null, '+254758813855', null, null, 'mpesa', 'Grade 1-3', 'Teacher', 'Teaching', 'Teacher', 0, 0, 0, 0, 0, 0, 517, 0, 0, 0, ['nssf', 'paye', 'housing_levy'], 'sikuku5emma@gmail.com', null),
         ];
