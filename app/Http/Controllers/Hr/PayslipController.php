@@ -4,49 +4,42 @@ namespace App\Http\Controllers\Hr;
 
 use App\Http\Controllers\Controller;
 use App\Models\PayrollRecord;
-use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class PayslipController extends Controller
 {
     /**
-     * Generate payslip for a payroll record
+     * View payslip for a payroll record.
+     */
+    public function show($id)
+    {
+        return $this->generate($id);
+    }
+
+    /**
+     * Generate payslip for a payroll record.
      */
     public function generate($id)
     {
-        $record = PayrollRecord::with(['staff', 'payrollPeriod', 'salaryStructure'])->findOrFail($id);
-
-        // Generate payslip number if not exists
-        if (!$record->payslip_number) {
-            $record->generatePayslipNumber();
-            $record->payslip_generated_at = now();
-            $record->save();
-        }
+        $record = $this->loadRecord($id);
 
         return view('hr.payroll.payslips.show', compact('record'));
     }
 
     /**
-     * Download payslip as PDF
+     * Download payslip as PDF.
      */
     public function download($id)
     {
-        $record = PayrollRecord::with(['staff', 'payrollPeriod', 'salaryStructure'])->findOrFail($id);
-
-        // Generate payslip number if not exists
-        if (!$record->payslip_number) {
-            $record->generatePayslipNumber();
-            $record->payslip_generated_at = now();
-            $record->save();
-        }
+        $record = $this->loadRecord($id);
 
         $pdf = Pdf::loadView('hr.payroll.payslips.pdf', compact('record'));
-        
-        return $pdf->download('payslip-' . $record->payslip_number . '.pdf');
+
+        return $pdf->download('payslip-' . ($record->payslip_number ?: $record->id) . '.pdf');
     }
 
     /**
-     * View staff's payslips
+     * View staff's payslips.
      */
     public function staffPayslips($staffId)
     {
@@ -56,5 +49,18 @@ class PayslipController extends Controller
             ->paginate(12);
 
         return view('hr.payroll.payslips.staff', compact('records'));
+    }
+
+    protected function loadRecord($id): PayrollRecord
+    {
+        $record = PayrollRecord::with(['staff', 'payrollPeriod', 'salaryStructure'])->findOrFail($id);
+
+        if (!$record->payslip_number) {
+            $record->generatePayslipNumber();
+            $record->payslip_generated_at = now();
+            $record->save();
+        }
+
+        return $record;
     }
 }
