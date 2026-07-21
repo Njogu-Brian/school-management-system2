@@ -7,15 +7,18 @@ import {
 import {
   ApprovalActionBar,
   ApprovalDetailView,
+  Button,
+  ConfirmDialog,
   ScreenContainer,
   TextField,
+  useTheme,
 } from '@erp/ui';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { navigateToDrawer } from '../../../navigation/navigateWorkspace';
+import { showError } from '../../shared/utils/feedback';
 import { buildApprovalDetailFields } from '../utils/detailFields';
 
 type ApprovalDetailRoute = {
@@ -33,9 +36,11 @@ type Props = {
 export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { id, item: initialItem } = route.params;
   const rootNavigation = useNavigation();
-  const { palette, spacing, fontSizes, colors } = useTheme();
+  const { palette, spacing, typography, colors } = useTheme();
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectConfirmVisible, setRejectConfirmVisible] = useState(false);
+  const [approveConfirmVisible, setApproveConfirmVisible] = useState(false);
 
   const detailQuery = useApprovalDetail(id as ApprovalCompositeId, initialItem);
   const { approve, reject } = useApprovalActions();
@@ -43,37 +48,46 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
   const item: ApprovalItem | undefined = detailQuery.data ?? initialItem;
   const isSubmitting = approve.isPending || reject.isPending;
 
-  const confirmApprove = () => {
+  const submitApprove = () => {
     if (!item) return;
-    Alert.alert('Approve', `Approve "${item.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    approve.mutate(
+      { id: item.id },
       {
-        text: 'Approve',
-        onPress: () => {
-          approve.mutate(
-            { id: item.id },
-            {
-              onSuccess: () => navigation.goBack(),
-              onError: (e) => Alert.alert('Error', (e as Error).message),
-            },
-          );
+        onSuccess: () => {
+          setApproveConfirmVisible(false);
+          navigation.goBack();
+        },
+        onError: (e) => {
+          setApproveConfirmVisible(false);
+          showError('Error', (e as Error).message);
         },
       },
-    ]);
+    );
+  };
+
+  const openRejectConfirm = () => {
+    const reason = rejectReason.trim();
+    if (reason.length < 3) {
+      showError('Reason required', 'Enter a rejection reason (min 3 characters).');
+      return;
+    }
+    setRejectConfirmVisible(true);
   };
 
   const submitReject = () => {
     if (!item) return;
     const reason = rejectReason.trim();
-    if (reason.length < 3) {
-      Alert.alert('Reason required', 'Enter a rejection reason (min 3 characters).');
-      return;
-    }
     reject.mutate(
       { id: item.id, reason },
       {
-        onSuccess: () => navigation.goBack(),
-        onError: (e) => Alert.alert('Error', (e as Error).message),
+        onSuccess: () => {
+          setRejectConfirmVisible(false);
+          navigation.goBack();
+        },
+        onError: (e) => {
+          setRejectConfirmVisible(false);
+          showError('Error', (e as Error).message);
+        },
       },
     );
   };
@@ -88,7 +102,9 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
   if (detailQuery.isLoading && !item) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
-        <Text style={{ color: palette.textSecondary }}>Loading…</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
+          Loading…
+        </Text>
       </ScreenContainer>
     );
   }
@@ -96,7 +112,9 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
   if (!item) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
-        <Text style={{ color: colors.error }}>Approval not found.</Text>
+        <Text style={{ color: colors.error, fontSize: typography.body.fontSize }}>
+          Approval not found.
+        </Text>
       </ScreenContainer>
     );
   }
@@ -114,7 +132,13 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
         >
           {item.sourceType === 'online_admission' ? (
             <Pressable onPress={openApplication} style={{ marginTop: spacing.md }}>
-              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: fontSizes.sm }}>
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontWeight: '700',
+                  fontSize: typography.label.fontSize,
+                }}
+              >
                 Open application in Admissions →
               </Text>
             </Pressable>
@@ -128,17 +152,14 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
                 placeholder="Required for rejection"
                 multiline
               />
-              <Text
-                onPress={submitReject}
-                style={{
-                  color: colors.error,
-                  fontWeight: '700',
-                  marginTop: spacing.sm,
-                  fontSize: fontSizes.sm,
-                }}
-              >
-                Confirm reject
-              </Text>
+              <View style={{ marginTop: spacing.sm }}>
+                <Button
+                  label="Confirm reject"
+                  variant="destructive"
+                  onPress={openRejectConfirm}
+                  disabled={isSubmitting}
+                />
+              </View>
             </View>
           ) : null}
         </ApprovalDetailView>
@@ -147,8 +168,31 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
       <ApprovalActionBar
         canAct={item.canAct}
         isSubmitting={isSubmitting}
-        onApprove={confirmApprove}
+        onApprove={() => setApproveConfirmVisible(true)}
         onReject={() => setRejectMode(true)}
+      />
+
+      <ConfirmDialog
+        visible={approveConfirmVisible}
+        title="Approve"
+        message={`Approve "${item.title}"?`}
+        confirmLabel="Approve"
+        cancelLabel="Cancel"
+        loading={approve.isPending}
+        onConfirm={submitApprove}
+        onCancel={() => setApproveConfirmVisible(false)}
+      />
+
+      <ConfirmDialog
+        visible={rejectConfirmVisible}
+        title="Reject approval"
+        message={`Reject "${item.title}"? This cannot be undone.`}
+        confirmLabel="Reject"
+        cancelLabel="Cancel"
+        destructive
+        loading={reject.isPending}
+        onConfirm={submitReject}
+        onCancel={() => setRejectConfirmVisible(false)}
       />
     </View>
   );

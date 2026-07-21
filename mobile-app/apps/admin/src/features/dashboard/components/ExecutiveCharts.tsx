@@ -53,7 +53,11 @@ export const ExecutiveCharts: React.FC<ExecutiveChartsProps> = ({
 
   return (
     <>
-      <ChartCard title="Fee collections" subtitle="Trend over selected period">
+      <ChartCard
+        title="Fee collections"
+        subtitle="Trend over selected period"
+        accessibilityLabel="Fee collections chart showing trend over selected period"
+      >
         <LineChart
           data={{
             labels: collections.labels,
@@ -69,7 +73,11 @@ export const ExecutiveCharts: React.FC<ExecutiveChartsProps> = ({
         />
       </ChartCard>
 
-      <ChartCard title="Attendance %" subtitle="Daily attendance rate">
+      <ChartCard
+        title="Attendance %"
+        subtitle="Daily attendance rate"
+        accessibilityLabel="Attendance chart showing daily attendance rate percentage"
+      >
         <BarChart
           data={{
             labels: attendance.labels,
@@ -87,7 +95,11 @@ export const ExecutiveCharts: React.FC<ExecutiveChartsProps> = ({
       </ChartCard>
 
       {pieData.length > 0 ? (
-        <ChartCard title="Enrollment mix" subtitle="Distribution by category">
+        <ChartCard
+          title="Enrollment mix"
+          subtitle="Distribution by category"
+          accessibilityLabel="Enrollment mix chart showing distribution by category"
+        >
           <PieChart
             data={pieData.map((s) => ({
               name: s.name,

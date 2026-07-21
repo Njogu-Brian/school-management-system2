@@ -26,7 +26,7 @@ export const StaffEmploymentBadge: React.FC<StaffEmploymentBadgeProps> = ({
   status,
   compact,
 }) => {
-  const { fontSizes, radius, spacing } = useTheme();
+  const { typography, radius, spacing } = useTheme();
   if (!status) return null;
 
   const palette = COLORS[status] ?? COLORS.active;
@@ -43,7 +43,12 @@ export const StaffEmploymentBadge: React.FC<StaffEmploymentBadgeProps> = ({
         },
       ]}
     >
-      <Text style={{ color: palette.fg, fontSize: compact ? fontSizes.xs - 1 : fontSizes.xs }}>
+      <Text
+        style={{
+          color: palette.fg,
+          fontSize: compact ? typography.tiny.fontSize : typography.overline.fontSize,
+        }}
+      >
         {LABELS[status]}
       </Text>
     </View>

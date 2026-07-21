@@ -1,6 +1,7 @@
 import { useBalanceSheet, useCan, useTrialBalance } from '@erp/core';
 import {
   AcademicScreenHeader,
+  EmptyState,
   FinanceFieldSection,
   KpiCard,
   ListEmptyState,
@@ -26,8 +27,12 @@ export const BalanceSheetScreen: React.FC<Props> = ({ navigation }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need reports.view permission to view the balance sheet."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -48,6 +53,7 @@ export const BalanceSheetScreen: React.FC<Props> = ({ navigation }) => {
               void trialQuery.refetch();
             }}
             colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
       >
@@ -67,7 +73,13 @@ export const BalanceSheetScreen: React.FC<Props> = ({ navigation }) => {
             actionLabel="Retry"
             onAction={() => void query.refetch()}
           />
-        ) : data ? (
+        ) : !data ? (
+          <EmptyState
+            title="No balance sheet data"
+            message="Financial position data is not available yet."
+            icon="scale-outline"
+          />
+        ) : (
           <>
             <WidgetGrid>
               <WidgetShell state={state} title="Assets">
@@ -112,17 +124,25 @@ export const BalanceSheetScreen: React.FC<Props> = ({ navigation }) => {
               </View>
             ) : null}
 
-            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: spacing.md }}>
-              Derived snapshot: cash = collections minus expense payments; receivables = outstanding
-              invoices; payables = approved unpaid expenses. Fixed assets and inventory are at cost.
+            <Text
+              style={{
+                color: palette.textMuted,
+                fontSize: typography.caption.fontSize,
+                fontWeight: typography.caption.fontWeight,
+                lineHeight: typography.caption.lineHeight,
+                marginTop: spacing.md,
+              }}
+            >
+              Derived snapshot: cash = collections minus expense payments; receivables = outstanding invoices;
+              payables = approved unpaid expenses. Fixed assets and inventory are at cost.
             </Text>
           </>
-        ) : null}
+        )}
       </ScrollView>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

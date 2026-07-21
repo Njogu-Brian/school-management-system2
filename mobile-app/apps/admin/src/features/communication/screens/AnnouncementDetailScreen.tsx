@@ -4,7 +4,7 @@ import {
   useDeleteAnnouncement,
   useUpdateAnnouncement,
 } from '@erp/core';
-import { AcademicScreenHeader, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, EmptyState, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -17,7 +17,7 @@ type Props = StackScreenProps<CommunicationStackParamList, 'AnnouncementDetail'>
 export const AnnouncementDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { announcementId } = route.params;
   const canEdit = useCan('communication.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const query = useAnnouncement(announcementId, { enabled: canEdit });
   const updateMutation = useUpdateAnnouncement();
   const deleteMutation = useDeleteAnnouncement();
@@ -57,7 +57,11 @@ export const AnnouncementDetailScreen: React.FC<Props> = ({ navigation, route })
   if (!canEdit) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need communication.view permission to view this announcement."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -73,10 +77,13 @@ export const AnnouncementDetailScreen: React.FC<Props> = ({ navigation, route })
   if (query.isError || !announcement) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
-        <Text style={{ color: colors.error }}>{(query.error as Error)?.message ?? 'Not found'}</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: 12 }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
+        <EmptyState
+          title="Announcement not found"
+          message={(query.error as Error)?.message ?? 'This announcement could not be loaded.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void query.refetch()}
+        />
       </ScreenContainer>
     );
   }
@@ -101,11 +108,34 @@ export const AnnouncementDetailScreen: React.FC<Props> = ({ navigation, route })
           ]}
         />
 
-        <View style={[styles.card, { borderColor: palette.border, marginTop: spacing.md }]}>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.lg }}>
+        <View
+          style={[
+            styles.card,
+            {
+              borderColor: palette.border,
+              marginTop: spacing.md,
+              borderRadius: radius.card,
+              padding: spacing.md,
+            },
+          ]}
+        >
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontWeight: typography.title.fontWeight,
+              fontSize: typography.title.fontSize,
+            }}
+          >
             {announcement.title}
           </Text>
-          <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, lineHeight: 22 }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              marginTop: spacing.sm,
+              lineHeight: typography.body.lineHeight,
+              fontSize: typography.body.fontSize,
+            }}
+          >
             {announcement.content}
           </Text>
         </View>
@@ -113,17 +143,51 @@ export const AnnouncementDetailScreen: React.FC<Props> = ({ navigation, route })
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg }}>
           <Pressable
             onPress={() => navigation.navigate('AnnouncementForm', { announcementId: announcement.id })}
-            style={[styles.btn, { borderColor: colors.primary }]}
+            style={[
+              styles.btn,
+              {
+                borderColor: colors.primary,
+                borderRadius: radius.control,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+              },
+            ]}
           >
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>Edit</Text>
+            <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.button.fontSize }}>
+              Edit
+            </Text>
           </Pressable>
-          <Pressable onPress={togglePublish} style={[styles.btn, { borderColor: colors.primary }]}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>
+          <Pressable
+            onPress={togglePublish}
+            style={[
+              styles.btn,
+              {
+                borderColor: colors.primary,
+                borderRadius: radius.control,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+              },
+            ]}
+          >
+            <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.button.fontSize }}>
               {announcement.active ? 'Unpublish' : 'Publish'}
             </Text>
           </Pressable>
-          <Pressable onPress={onDelete} style={[styles.btn, { borderColor: colors.error }]}>
-            <Text style={{ color: colors.error, fontWeight: '600' }}>Delete</Text>
+          <Pressable
+            onPress={onDelete}
+            style={[
+              styles.btn,
+              {
+                borderColor: colors.error,
+                borderRadius: radius.control,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+              },
+            ]}
+          >
+            <Text style={{ color: colors.error, fontWeight: '600', fontSize: typography.button.fontSize }}>
+              Delete
+            </Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -132,8 +196,8 @@ export const AnnouncementDetailScreen: React.FC<Props> = ({ navigation, route })
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 16 },
-  btn: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  denied: { flex: 1, justifyContent: 'center' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  card: { borderWidth: StyleSheet.hairlineWidth },
+  btn: { borderWidth: 1 },
 });

@@ -1,8 +1,8 @@
 import { useAuth, useBiometricAuth } from '@erp/core';
-import { Button, ScreenContainer, useTheme } from '@erp/ui';
-import { Ionicons } from '@expo/vector-icons';
+import { AccentIcon, Button, ScreenContainer, useTheme } from '@erp/ui';
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
+import { showError } from '../../shared/utils/feedback';
 
 /**
  * Shown once after the first successful password login when the device
@@ -11,7 +11,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 export const BiometricEnableScreen: React.FC = () => {
   const { enableBiometrics, skipBiometricEnrollment } = useAuth();
   const { typeLabel } = useBiometricAuth();
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const [loading, setLoading] = useState(false);
 
   const handleEnable = async (): Promise<void> => {
@@ -20,37 +20,54 @@ export const BiometricEnableScreen: React.FC = () => {
       await enableBiometrics();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not enable biometrics.';
-      Alert.alert('Biometrics', message);
+      showError('Biometrics', message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScreenContainer edges={['top', 'bottom']} contentContainerStyle={styles.content}>
-      <View style={[styles.iconWrap, { backgroundColor: `${colors.primary}18` }]}>
-        <Ionicons name="finger-print" size={40} color={colors.primary} />
-      </View>
-      <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.xl }]}>
+    <ScreenContainer
+      edges={['top', 'bottom']}
+      contentContainerStyle={[styles.content, { paddingHorizontal: spacing.lg }]}
+    >
+      <AccentIcon name="finger-print" tone="blue" size={88} iconSize={40} style={{ marginBottom: spacing.lg }} />
+      <Text
+        style={{
+          color: palette.textPrimary,
+          fontSize: typography.headline.fontSize,
+          fontWeight: typography.headline.fontWeight,
+          letterSpacing: typography.headline.letterSpacing,
+          marginBottom: spacing.mdSm,
+          textAlign: 'center',
+        }}
+      >
         Enable {typeLabel}?
       </Text>
-      <Text style={[styles.body, { color: palette.textSecondary, fontSize: fontSizes.md }]}>
-        Sign in faster next time. {typeLabel} only unlocks your existing session on this
-        device — you will still need your password if the session expires.
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontSize: typography.body.fontSize,
+          lineHeight: typography.body.lineHeight,
+          textAlign: 'center',
+        }}
+      >
+        Sign in faster next time. {typeLabel} only unlocks your existing session on this device — you
+        will still need your password if the session expires.
       </Text>
 
       <Button
         label={`Enable ${typeLabel}`}
         onPress={handleEnable}
         loading={loading}
-        style={{ marginTop: spacing.xl }}
+        style={{ marginTop: spacing.xl, alignSelf: 'stretch' }}
       />
       <Button
         label="Not now"
         variant="ghost"
         onPress={skipBiometricEnrollment}
         disabled={loading}
-        style={{ marginTop: spacing.md }}
+        style={{ marginTop: spacing.md, alignSelf: 'stretch' }}
       />
     </ScreenContainer>
   );
@@ -58,18 +75,7 @@ export const BiometricEnableScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrap: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  title: { fontWeight: '700', marginBottom: 12, textAlign: 'center' },
-  body: { textAlign: 'center', lineHeight: 22 },
 });

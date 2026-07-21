@@ -1,15 +1,15 @@
 import { downloadAuthenticatedFile, useStudentDocuments } from '@erp/core';
-import { EmptyState } from '@erp/ui';
+import { EmptyState, useTheme } from '@erp/ui';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { showError } from '../../../shared/utils/feedback';
 
 export interface DocumentsTabProps {
   studentId: number;
 }
 
 export const DocumentsTab: React.FC<DocumentsTabProps> = ({ studentId }) => {
-  const { colors, palette, fontSizes, spacing } = useTheme();
+  const { colors, palette, typography, spacing, radius } = useTheme();
   const query = useStudentDocuments(studentId);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
@@ -20,7 +20,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ studentId }) => {
       try {
         await downloadAuthenticatedFile(doc.download_path, doc.title);
       } catch (err) {
-        Alert.alert('Download failed', (err as Error).message);
+        showError('Download failed', (err as Error).message);
       } finally {
         setDownloadingId(null);
       }
@@ -30,7 +30,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ studentId }) => {
 
   if (query.isLoading) {
     return (
-      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -38,12 +38,13 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ studentId }) => {
 
   if (query.isError) {
     return (
-      <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-        <Text style={{ color: colors.error }}>{(query.error as Error).message}</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: 8 }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load documents"
+        message={(query.error as Error).message}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
@@ -64,19 +65,25 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ studentId }) => {
         <View
           key={doc.id}
           style={{
-            borderWidth: 1,
+            borderWidth: StyleSheet.hairlineWidth,
             borderColor: palette.border,
-            borderRadius: 8,
+            borderRadius: radius.md,
             padding: spacing.sm,
             marginBottom: spacing.xs,
           }}
         >
-          <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{doc.title}</Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+          <Text style={{ color: palette.textMain, fontWeight: '600' }}>{doc.title}</Text>
+          <Text
+            style={{
+              color: palette.textSub,
+              fontSize: typography.caption.fontSize,
+              marginTop: spacing.xs,
+            }}
+          >
             {[doc.document_type, doc.category, doc.file_name].filter(Boolean).join(' · ') || '—'}
           </Text>
           {doc.download_path ? (
-            <Pressable onPress={() => void handleDownload(doc)} style={{ marginTop: 8 }}>
+            <Pressable onPress={() => void handleDownload(doc)} style={{ marginTop: spacing.sm }}>
               <Text style={{ color: colors.primary, fontWeight: '600' }}>
                 {downloadingId === doc.id ? 'Downloading…' : 'Download'}
               </Text>

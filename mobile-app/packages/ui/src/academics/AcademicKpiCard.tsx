@@ -1,38 +1,59 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { AccentIcon, type AccentTone } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 import type { AcademicKpiCardProps } from './types';
 
-export const AcademicKpiCard: React.FC<AcademicKpiCardProps> = ({ label, value, icon }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+const TONES: AccentTone[] = ['blue', 'teal', 'violet', 'amber', 'rose', 'emerald', 'cyan', 'indigo'];
+
+export const AcademicKpiCard: React.FC<AcademicKpiCardProps> = ({
+  label,
+  value,
+  icon = 'stats-chart',
+}) => {
+  const { palette, spacing, typography, radius, elevation } = useTheme();
+  const tone = TONES[Math.abs(label.length) % TONES.length];
 
   return (
     <View
       style={[
         styles.card,
+        elevation[2],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
         },
-        shadows.sm,
       ]}
     >
-      {icon ? (
-        <Ionicons name={icon} size={20} color={colors.primary} style={{ marginBottom: spacing.xs }} />
-      ) : null}
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>
-        {label}
-      </Text>
+      <View style={styles.header}>
+        <AccentIcon name={icon} tone={tone} size={44} iconSize={20} />
+        <Text
+          style={[
+            styles.label,
+            {
+              color: palette.textMuted,
+              fontSize: typography.overline.fontSize,
+              letterSpacing: typography.overline.letterSpacing,
+              marginLeft: spacing.sm,
+            },
+          ]}
+          numberOfLines={2}
+        >
+          {label.toUpperCase()}
+        </Text>
+      </View>
       <Text
-        style={{
-          color: palette.textPrimary,
-          fontSize: fontSizes.lg,
-          fontWeight: '700',
-          marginTop: 4,
-        }}
+        style={[
+          styles.value,
+          {
+            color: palette.textMain,
+            fontSize: typography.headlineLarge.fontSize,
+            lineHeight: typography.headlineLarge.lineHeight,
+            marginTop: spacing.sm,
+          },
+        ]}
         numberOfLines={1}
       >
         {value}
@@ -47,4 +68,7 @@ const styles = StyleSheet.create({
     minWidth: 140,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  header: { flexDirection: 'row', alignItems: 'center' },
+  label: { fontWeight: '700', flex: 1 },
+  value: { fontWeight: '800' },
 });

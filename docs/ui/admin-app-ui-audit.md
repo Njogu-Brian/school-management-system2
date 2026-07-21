@@ -1,5 +1,7 @@
 # Admin App UX/UI Audit — Post Design System V2
 
+> **SUPERSEDED (July 2026).** Canonical audit is now [`docs/design-system-v3/UI_AUDIT.md`](../design-system-v3/UI_AUDIT.md) (V3 premium bar). Keep this file as the June 2026 seed audit.
+
 > **Scope:** Review of the completed Design System V2 implementation against premium / Google Stitch quality bar.  
 > **Method:** Source review of `docs/ui/admin-app-design-system-v2.md`, `docs/admin-app/*`, `apps/admin`, and `packages/ui`. No runtime screenshots; findings reference actual components and screen files.  
 > **Date:** June 2026

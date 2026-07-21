@@ -24,7 +24,7 @@ function groupResults(results: ApiProbeResult[]): Array<{ group: string; items: 
 }
 
 export const ApiDiagnosticsScreen: React.FC<ApiDiagnosticsScreenProps> = ({ onClose }) => {
-  const { colors, spacing, fontSizes, palette } = useTheme();
+  const { colors, spacing, typography, palette } = useTheme();
   const [results, setResults] = useState<ApiProbeResult[] | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -60,10 +60,10 @@ export const ApiDiagnosticsScreen: React.FC<ApiDiagnosticsScreenProps> = ({ onCl
         }}
       >
         <View>
-          <Text style={{ fontSize: fontSizes.lg, fontWeight: '700', color: palette.textPrimary }}>
+          <Text style={{ fontSize: typography.title.fontSize, fontWeight: '700', color: palette.textPrimary }}>
             API Diagnostics
           </Text>
-          <Text style={{ fontSize: fontSizes.sm, color: palette.textSecondary, marginTop: 2 }}>
+          <Text style={{ fontSize: typography.body.fontSize, color: palette.textSecondary, marginTop: 2 }}>
             Development only — probes live endpoints with your session token.
           </Text>
         </View>
@@ -97,7 +97,7 @@ export const ApiDiagnosticsScreen: React.FC<ApiDiagnosticsScreenProps> = ({ onCl
           </Pressable>
         )}
         {results ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
             {passCount} healthy · {failCount} failed
           </Text>
         ) : null}
@@ -111,7 +111,7 @@ export const ApiDiagnosticsScreen: React.FC<ApiDiagnosticsScreenProps> = ({ onCl
           <View style={{ marginBottom: spacing.lg }}>
             <Text
               style={{
-                fontSize: fontSizes.md,
+                fontSize: typography.titleSmall.fontSize,
                 fontWeight: '700',
                 color: palette.textPrimary,
                 marginBottom: spacing.xs,
@@ -136,7 +136,7 @@ export const ApiDiagnosticsScreen: React.FC<ApiDiagnosticsScreenProps> = ({ onCl
                 </Text>
                 <Text
                   style={{
-                    fontSize: fontSizes.sm,
+                    fontSize: typography.body.fontSize,
                     color: palette.textSecondary,
                     marginTop: 2,
                     fontFamily: 'monospace',
@@ -145,12 +145,12 @@ export const ApiDiagnosticsScreen: React.FC<ApiDiagnosticsScreenProps> = ({ onCl
                   {probe.endpoint}
                 </Text>
                 {!probe.ok ? (
-                  <Text style={{ fontSize: fontSizes.sm, color: '#b91c1c', marginTop: 4 }}>
+                  <Text style={{ fontSize: typography.body.fontSize, color: '#b91c1c', marginTop: 4 }}>
                     {probe.status ? `HTTP ${probe.status} — ` : ''}
                     {probe.message}
                   </Text>
                 ) : (
-                  <Text style={{ fontSize: fontSizes.sm, color: palette.textSecondary, marginTop: 4 }}>
+                  <Text style={{ fontSize: typography.body.fontSize, color: palette.textSecondary, marginTop: 4 }}>
                     {probe.durationMs}ms
                   </Text>
                 )}

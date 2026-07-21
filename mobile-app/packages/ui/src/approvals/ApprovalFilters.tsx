@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
+import { FilterChip, FilterChipRow } from '../primitives/FilterChip';
 import { useTheme } from '../theme/ThemeContext';
 import type { ApprovalPriority, ApprovalSourceType, ApprovalStatus } from './types';
 
@@ -42,53 +43,34 @@ const SOURCE_CHIPS: ApprovalFilterChipOption<ApprovalSourceType | 'all'>[] = [
 ];
 
 function ChipRow<T extends string>({
+  label,
   chips,
   selected,
   onSelect,
 }: {
+  label: string;
   chips: ApprovalFilterChipOption<T>[];
   selected: T;
   onSelect: (v: T) => void;
 }) {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
-
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[styles.row, { gap: spacing.xs, paddingVertical: spacing.xs }]}
-    >
-      {chips.map((chip) => {
-        const active = chip.value === selected;
-        return (
-          <Pressable
-            key={chip.value}
-            onPress={() => onSelect(chip.value)}
-            style={[
-              styles.chip,
-              {
-                borderRadius: radius.full,
-                borderColor: active ? colors.primary : palette.border,
-                backgroundColor: active ? `${colors.primary}14` : palette.surface,
-              },
-            ]}
-          >
-            <Text
-              style={{
-                color: active ? colors.primary : palette.textSecondary,
-                fontSize: fontSizes.xs,
-                fontWeight: active ? '700' : '500',
-              }}
-            >
-              {chip.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+    <FilterChipRow label={label}>
+      {chips.map((chip) => (
+        <FilterChip
+          key={chip.value}
+          label={chip.label}
+          active={chip.value === selected}
+          onPress={() => onSelect(chip.value)}
+        />
+      ))}
+    </FilterChipRow>
   );
 }
 
+/**
+ * Chip rows for the approvals filter sheet (FilterBottomSheet via ApprovalsInbox).
+ * Keep FilterChip usage; do not render as an always-visible multi-row wall on the list.
+ */
 export const ApprovalFilters: React.FC<ApprovalFiltersProps> = ({
   status,
   priority,
@@ -97,42 +79,23 @@ export const ApprovalFilters: React.FC<ApprovalFiltersProps> = ({
   onPriorityChange,
   onSourceTypeChange,
 }) => {
-  const { spacing, palette, fontSizes } = useTheme();
+  const { spacing } = useTheme();
 
   return (
-    <View style={{ marginBottom: spacing.sm }}>
-      <Text style={[styles.label, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-        Status
-      </Text>
-      <ChipRow chips={STATUS_CHIPS} selected={status} onSelect={onStatusChange} />
-      <Text
-        style={[
-          styles.label,
-          { color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.xs },
-        ]}
-      >
-        Priority
-      </Text>
-      <ChipRow chips={PRIORITY_CHIPS} selected={priority} onSelect={onPriorityChange} />
-      <Text
-        style={[
-          styles.label,
-          { color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.xs },
-        ]}
-      >
-        Type
-      </Text>
-      <ChipRow chips={SOURCE_CHIPS} selected={sourceType} onSelect={onSourceTypeChange} />
+    <View style={{ marginBottom: spacing.md }}>
+      <ChipRow label="Status" chips={STATUS_CHIPS} selected={status} onSelect={onStatusChange} />
+      <ChipRow
+        label="Priority"
+        chips={PRIORITY_CHIPS}
+        selected={priority}
+        onSelect={onPriorityChange}
+      />
+      <ChipRow
+        label="Type"
+        chips={SOURCE_CHIPS}
+        selected={sourceType}
+        onSelect={onSourceTypeChange}
+      />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  label: { fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase', marginLeft: 2 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  chip: {
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-});

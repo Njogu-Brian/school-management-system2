@@ -11,21 +11,29 @@ export const SettingsSectionHeader: React.FC<SettingsSectionHeaderProps> = ({
   title,
   subtitle,
 }) => {
-  const { palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography } = useTheme();
 
   return (
     <View style={{ marginBottom: spacing.md }}>
       <Text
         style={{
           color: palette.textPrimary,
-          fontSize: fontSizes.lg,
-          fontWeight: '700',
+          fontSize: typography.title.fontSize,
+          lineHeight: typography.title.lineHeight,
+          fontWeight: typography.title.fontWeight,
         }}
       >
         {title}
       </Text>
       {subtitle ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 4 }}>
+        <Text
+          style={{
+            color: palette.textSecondary,
+            fontSize: typography.body.fontSize,
+            lineHeight: typography.body.lineHeight,
+            marginTop: spacing.xs,
+          }}
+        >
           {subtitle}
         </Text>
       ) : null}

@@ -1,6 +1,7 @@
 import { useCan, useInfiniteLedgerPostings } from '@erp/core';
 import {
   AcademicScreenHeader,
+  EmptyState,
   FilterChip,
   FilterChipRow,
   ListEmptyState,
@@ -26,7 +27,7 @@ const ACCOUNT_FILTERS = [
 
 export const LedgerScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('reports.view');
-  const { colors, palette, typography } = useTheme();
+  const { colors, palette, spacing, typography, radius, elevation } = useTheme();
   const [account, setAccount] = useState('');
 
   const listQuery = useInfiniteLedgerPostings({
@@ -38,8 +39,12 @@ export const LedgerScreen: React.FC<Props> = ({ navigation }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need reports.view permission to view the general ledger."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -58,29 +63,72 @@ export const LedgerScreen: React.FC<Props> = ({ navigation }) => {
               subtitle="Posted double entries"
               onBack={() => navigation.goBack()}
             />
-            <FilterChipRow>
+            <FilterChipRow label="Account">
               {ACCOUNT_FILTERS.map((a) => (
-                <FilterChip key={a.value} label={a.label} active={account === a.value} onPress={() => setAccount(a.value)} />
+                <FilterChip
+                  key={a.value}
+                  label={a.label}
+                  active={account === a.value}
+                  onPress={() => setAccount(a.value)}
+                />
               ))}
             </FilterChipRow>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: palette.surfaceRaised, borderColor: palette.borderSubtle }]}>
-            <View style={styles.cardHeader}>
-              <Text style={{ color: palette.textPrimary, fontWeight: '700', flex: 1 }}>{item.account_code}</Text>
+          <View
+            style={[
+              elevation[1],
+              {
+                backgroundColor: palette.surfaceRaised,
+                borderColor: palette.borderSubtle,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderRadius: radius.card,
+                padding: spacing.md,
+                marginBottom: spacing.sm,
+              },
+            ]}
+          >
+            <View style={[styles.cardHeader, { gap: spacing.sm }]}>
+              <Text
+                style={{
+                  color: palette.textPrimary,
+                  fontSize: typography.titleSmall.fontSize,
+                  fontWeight: typography.titleSmall.fontWeight,
+                  lineHeight: typography.titleSmall.lineHeight,
+                  flex: 1,
+                }}
+              >
+                {item.account_code}
+              </Text>
               <StatusBadge
                 label={item.dr_cr === 'dr' ? 'Debit' : 'Credit'}
                 tone={item.dr_cr === 'dr' ? 'info' : 'success'}
                 compact
               />
             </View>
-            <View style={styles.cardFooter}>
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+            <View style={[styles.cardFooter, { marginTop: spacing.sm }]}>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: typography.caption.fontSize,
+                  fontWeight: typography.caption.fontWeight,
+                  lineHeight: typography.caption.lineHeight,
+                  flex: 1,
+                }}
+              >
                 {formatDateLabel(item.posting_date)}
                 {item.source_type ? ` · ${item.source_type.replace(/_/g, ' ')} #${item.source_id ?? ''}` : ''}
               </Text>
-              <Text style={{ color: palette.textPrimary, fontWeight: '800' }}>{formatKes(item.amount)}</Text>
+              <Text
+                style={{
+                  color: palette.textPrimary,
+                  fontSize: typography.titleSmall.fontSize,
+                  fontWeight: typography.titleSmall.fontWeight,
+                }}
+              >
+                {formatKes(item.amount)}
+              </Text>
             </View>
           </View>
         )}
@@ -89,6 +137,7 @@ export const LedgerScreen: React.FC<Props> = ({ navigation }) => {
             refreshing={listQuery.isRefetching && !listQuery.isFetchingNextPage}
             onRefresh={() => void listQuery.refetch()}
             colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
         onEndReached={() => {
@@ -112,6 +161,7 @@ export const LedgerScreen: React.FC<Props> = ({ navigation }) => {
               title="No postings"
               message="Ledger entries are created automatically when expenses are paid."
               icon="book-outline"
+              onClearFilters={account ? () => setAccount('') : undefined}
             />
           )
         }
@@ -121,18 +171,11 @@ export const LedgerScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  denied: { flex: 1, justifyContent: 'center' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center' },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
   },
 });

@@ -4,11 +4,12 @@ import {
   useCan,
   useSystemAlerts,
 } from '@erp/core';
-import { AlertCard, DashboardSection, EmptyState } from '@erp/ui';
+import { AlertCard, DashboardSection, EmptyState, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Alert, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { navigateToDrawer } from '../../../navigation/navigateWorkspace';
+import { confirmAction } from '../../shared/utils/feedback';
 
 type AlertRow = {
   id: string;
@@ -32,6 +33,7 @@ export const AlertsSection: React.FC = () => {
   const canViewSystem = useCan(['dashboard.view']);
   const navigation = useNavigation();
   const acknowledge = useAcknowledgeSystemAlert();
+  const { spacing, palette } = useTheme();
 
   const approvalsQuery = useApprovalList({
     filters: { status: 'pending', priority: 'all', sourceType: 'all' },
@@ -46,13 +48,7 @@ export const AlertsSection: React.FC = () => {
 
     for (const alert of systemQuery.data?.alerts ?? []) {
       rows.push(systemAlertRow(alert, () => {
-        Alert.alert(alert.title, alert.body, [
-          { text: 'Dismiss', style: 'cancel' },
-          {
-            text: 'Acknowledge',
-            onPress: () => void acknowledge.mutateAsync(alert.id),
-          },
-        ]);
+        confirmAction(alert.title, alert.body, 'Acknowledge', () => void acknowledge.mutateAsync(alert.id));
       }));
     }
 
@@ -87,8 +83,8 @@ export const AlertsSection: React.FC = () => {
   return (
     <DashboardSection title="Alerts" subtitle="System alerts and pending approvals">
       {loading ? (
-        <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-          <ActivityIndicator />
+        <View style={{ paddingVertical: spacing.md, alignItems: 'center' }}>
+          <ActivityIndicator color={palette.primary} />
         </View>
       ) : null}
 

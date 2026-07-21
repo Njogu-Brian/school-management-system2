@@ -1,14 +1,22 @@
 import { useStaffClockRoster, useStaffMemberClockHistory } from '@erp/core';
-import { AcademicScreenHeader, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  EmptyState,
+  FilterChip,
+  FilterChipRow,
+  ScreenContainer,
+  SkeletonListRows,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
 
 type Props = StackScreenProps<PeopleStackParamList, 'StaffClockTeam'>;
 
 export const StaffClockTeamScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const rosterQuery = useStaffClockRoster();
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
   const historyQuery = useStaffMemberClockHistory(selectedStaffId ?? 0, {
@@ -36,58 +44,81 @@ export const StaffClockTeamScreen: React.FC<Props> = ({ navigation }) => {
         />
 
         {rosterQuery.isLoading ? (
-          <ActivityIndicator color={colors.primary} />
+          <SkeletonListRows variant="compact" count={5} />
         ) : (rosterQuery.data?.length ?? 0) === 0 ? (
-          <Text style={{ color: palette.textSecondary }}>No staff available for your access level.</Text>
+          <EmptyState
+            title="No staff available"
+            message="No staff available for your access level."
+            icon="people-outline"
+          />
         ) : (
           <>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.sm }}>
-              Select a staff member
-            </Text>
-            <View style={styles.roster}>
-              {(rosterQuery.data ?? []).map((member) => {
-                const active = selectedStaffId === member.id;
-                return (
-                  <Pressable
-                    key={member.id}
-                    onPress={() => setSelectedStaffId(member.id)}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: active ? colors.primary : 'transparent',
-                        borderColor: active ? colors.primary : palette.border,
-                      },
-                    ]}
-                  >
-                    <Text style={{ color: active ? colors.white : palette.textPrimary, fontSize: fontSizes.sm }}>
-                      {member.full_name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <FilterChipRow label="Select a staff member">
+              {(rosterQuery.data ?? []).map((member) => (
+                <FilterChip
+                  key={member.id}
+                  label={member.full_name}
+                  active={selectedStaffId === member.id}
+                  onPress={() => setSelectedStaffId(member.id)}
+                />
+              ))}
+            </FilterChipRow>
 
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
+            <Text
+              style={{
+                color: palette.textPrimary,
+                fontWeight: '700',
+                fontSize: typography.titleSmall.fontSize,
+                marginTop: spacing.lg,
+                marginBottom: spacing.sm,
+              }}
+            >
               {selectedName}
             </Text>
 
             {historyQuery.isLoading ? (
-              <ActivityIndicator color={colors.primary} />
+              <SkeletonListRows variant="compact" count={4} />
             ) : (historyQuery.data?.history.length ?? 0) === 0 ? (
-              <Text style={{ color: palette.textSecondary }}>No clock records found.</Text>
+              <EmptyState
+                title="No clock records"
+                message="No clock records found for this staff member."
+                icon="time-outline"
+              />
             ) : (
               (historyQuery.data?.history ?? []).map((item) => (
-                <View key={item.id} style={[styles.row, { borderBottomColor: palette.border }]}>
-                  <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.sm }}>
+                <View
+                  key={item.id}
+                  style={[styles.row, { borderBottomColor: palette.borderSubtle, paddingVertical: spacing.sm }]}
+                >
+                  <Text
+                    style={{
+                      color: palette.textPrimary,
+                      fontWeight: '700',
+                      fontSize: typography.caption.fontSize,
+                    }}
+                  >
                     {item.date ?? '—'}
                   </Text>
-                  <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+                  <Text
+                    style={{
+                      color: palette.textSecondary,
+                      fontSize: typography.overline.fontSize,
+                      marginTop: 2,
+                    }}
+                  >
                     In: {item.check_in_time ?? '—'}
                     {item.check_in_distance_meters != null ? ` (${item.check_in_distance_meters}m)` : ''}
                   </Text>
-                  <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
+                  <Text
+                    style={{
+                      color: palette.textSecondary,
+                      fontSize: typography.overline.fontSize,
+                    }}
+                  >
                     Out: {item.check_out_time ?? '—'}
-                    {item.check_out_distance_meters != null ? ` (${item.check_out_distance_meters}m)` : ''}
+                    {item.check_out_distance_meters != null
+                      ? ` (${item.check_out_distance_meters}m)`
+                      : ''}
                   </Text>
                 </View>
               ))
@@ -100,7 +131,5 @@ export const StaffClockTeamScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  roster: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  row: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  row: { borderBottomWidth: StyleSheet.hairlineWidth },
 });

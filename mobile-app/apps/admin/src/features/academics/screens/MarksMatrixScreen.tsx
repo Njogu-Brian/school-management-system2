@@ -18,7 +18,7 @@ type Props = StackScreenProps<AcademicsStackParamList, 'MarksMatrix'>;
 
 export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('academics.view') && useCan('exams.view');
-  const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const [examTypeId, setExamTypeId] = useState<number | null>(null);
   const [classroomId, setClassroomId] = useState<number | null>(null);
   const [streamId, setStreamId] = useState<number | null>(null);
@@ -87,7 +87,7 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => navigation.navigate('MarksMatrixSetup')}
               style={{ marginBottom: spacing.sm }}
             />
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
               Class
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
@@ -105,18 +105,18 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
                     },
                   ]}
                 >
-                  <Text style={{ color: classroomId === c.id ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                  <Text style={{ color: classroomId === c.id ? colors.white : palette.textSecondary, fontSize: typography.caption.fontSize, fontWeight: '700' }}>
                     {c.name}
                   </Text>
                 </Pressable>
               ))}
             </ScrollView>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
               Exam type
             </Text>
             {classroomId != null && (contextQuery.data?.streams?.length ?? 0) > 0 ? (
               <>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
                   Stream (optional)
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
@@ -132,7 +132,7 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
                       },
                     ]}
                   >
-                    <Text style={{ color: streamId === null ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                    <Text style={{ color: streamId === null ? colors.white : palette.textSecondary, fontSize: typography.caption.fontSize, fontWeight: '700' }}>
                       All
                     </Text>
                   </Pressable>
@@ -150,7 +150,7 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
                         },
                       ]}
                     >
-                      <Text style={{ color: streamId === s.id ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                      <Text style={{ color: streamId === s.id ? colors.white : palette.textSecondary, fontSize: typography.caption.fontSize, fontWeight: '700' }}>
                         {s.name}
                       </Text>
                     </Pressable>
@@ -173,7 +173,7 @@ export const MarksMatrixScreen: React.FC<Props> = ({ navigation }) => {
                     },
                   ]}
                 >
-                  <Text style={{ color: examTypeId === t.id ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                  <Text style={{ color: examTypeId === t.id ? colors.white : palette.textSecondary, fontSize: typography.caption.fontSize, fontWeight: '700' }}>
                     {t.name}
                   </Text>
                 </Pressable>

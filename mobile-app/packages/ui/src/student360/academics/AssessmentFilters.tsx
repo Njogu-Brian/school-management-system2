@@ -20,7 +20,7 @@ export const AssessmentFilters: React.FC<AssessmentFiltersProps> = ({
   selectedSubjectId = null,
   onSubjectChange,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius } = useTheme();
 
   return (
     <View style={{ marginBottom: spacing.sm }}>
@@ -45,7 +45,7 @@ export const AssessmentFilters: React.FC<AssessmentFiltersProps> = ({
               <Text
                 style={{
                   color: active ? colors.primary : palette.textSecondary,
-                  fontSize: fontSizes.xs,
+                  fontSize: typography.caption.fontSize,
                   fontWeight: '700',
                 }}
               >
@@ -76,7 +76,7 @@ export const AssessmentFilters: React.FC<AssessmentFiltersProps> = ({
               },
             ]}
           >
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, fontWeight: '600' }}>
               All subjects
             </Text>
           </Pressable>
@@ -100,7 +100,7 @@ export const AssessmentFilters: React.FC<AssessmentFiltersProps> = ({
                 <Text
                   style={{
                     color: active ? colors.primary : palette.textSecondary,
-                    fontSize: fontSizes.xs,
+                    fontSize: typography.caption.fontSize,
                     fontWeight: '600',
                   }}
                 >

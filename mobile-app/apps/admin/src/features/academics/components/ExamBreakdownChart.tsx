@@ -1,6 +1,6 @@
 import { ChartCard, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 
 export interface ExamBreakdownChartProps {
@@ -9,7 +9,7 @@ export interface ExamBreakdownChartProps {
 
 /** Bar chart for exam status breakdown from academic dashboard data. */
 export const ExamBreakdownChart: React.FC<ExamBreakdownChartProps> = ({ breakdown }) => {
-  const { palette, spacing } = useTheme();
+  const { palette, spacing, colors, radius } = useTheme();
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width - spacing.md * 4, 360);
 
@@ -27,21 +27,31 @@ export const ExamBreakdownChart: React.FC<ExamBreakdownChartProps> = ({ breakdow
       backgroundGradientFrom: palette.surfaceRaised,
       backgroundGradientTo: palette.surfaceRaised,
       decimalPlaces: 0,
-      color: (opacity = 1) => `rgba(20, 184, 166, ${opacity})`,
+      color: (opacity = 1) => {
+        const hex = colors.primary.replace('#', '');
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      },
       labelColor: () => palette.textSecondary,
       propsForBackgroundLines: { stroke: palette.borderSubtle, strokeWidth: 1 },
     }),
-    [palette],
+    [palette, colors.primary],
   );
 
   return (
-    <ChartCard title="Exam pipeline" subtitle="Status breakdown">
+    <ChartCard
+      title="Exam pipeline"
+      subtitle="Status breakdown"
+      accessibilityLabel="Exam pipeline chart showing status breakdown counts"
+    >
       <BarChart
         data={{ labels, datasets: [{ data: values }] }}
         width={chartWidth}
         height={160}
         chartConfig={chartConfig}
-        style={styles.chart}
+        style={{ borderRadius: radius.lg, marginLeft: -spacing.sm }}
         yAxisLabel=""
         yAxisSuffix=""
         fromZero
@@ -50,7 +60,3 @@ export const ExamBreakdownChart: React.FC<ExamBreakdownChartProps> = ({ breakdow
     </ChartCard>
   );
 };
-
-const styles = StyleSheet.create({
-  chart: { borderRadius: 12, marginLeft: -8 },
-});

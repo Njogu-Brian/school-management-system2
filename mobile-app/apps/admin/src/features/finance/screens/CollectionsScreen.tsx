@@ -7,6 +7,7 @@ import {
   type PaymentSummary,
 } from '@erp/core';
 import {
+  EmptyState,
   FinanceScreenHeader,
   FinanceSearchBar,
   FinanceTransactionListItem,
@@ -26,7 +27,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
@@ -45,7 +45,7 @@ const TABS = [
 
 export const CollectionsScreen: React.FC<Props> = ({ navigation, route }) => {
   const canView = useCan('finance.view');
-  const { colors, palette, spacing } = useTheme();
+  const { palette, spacing } = useTheme();
   const initialTab = route.params?.initialTab ?? 'payments';
   const initialView = (route.params?.transactionView ?? 'all') as FinanceTransactionViewFilter;
 
@@ -98,7 +98,11 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation, route }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You do not have permission to view collections."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -158,8 +162,8 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation, route }) => {
             <RefreshControl
               refreshing={paymentsQuery.isRefetching && !paymentsQuery.isFetchingNextPage}
               onRefresh={() => void paymentsQuery.refetch()}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
+              colors={[palette.primary]}
+              tintColor={palette.primary}
             />
           }
           onEndReached={() => {
@@ -170,19 +174,27 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation, route }) => {
           onEndReachedThreshold={0.4}
           ListFooterComponent={
             paymentsQuery.isFetchingNextPage ? (
-              <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
+              <ActivityIndicator color={palette.primary} style={{ marginVertical: spacing.md }} />
             ) : null
           }
           ListEmptyComponent={
             paymentsQuery.isLoading ? (
               <SkeletonListRows variant="card" />
-            ) : !paymentsQuery.isError ? (
+            ) : paymentsQuery.isError ? (
+              <ListEmptyState
+                title="Could not load payments"
+                message={(paymentsQuery.error as Error).message}
+                icon="alert-circle-outline"
+                actionLabel="Retry"
+                onAction={() => void paymentsQuery.refetch()}
+              />
+            ) : (
               <ListEmptyState
                 entityName="payments"
                 icon="cash-outline"
                 onClearFilters={() => paymentsState.setSearchInput('')}
               />
-            ) : null
+            )
           }
         />
       </ScreenContainer>
@@ -215,8 +227,8 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation, route }) => {
           <RefreshControl
             refreshing={txnQuery.isRefetching && !txnQuery.isFetchingNextPage}
             onRefresh={() => void txnQuery.refetch()}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={[palette.primary]}
+            tintColor={palette.primary}
           />
         }
         onEndReached={() => {
@@ -227,19 +239,27 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation, route }) => {
         onEndReachedThreshold={0.4}
         ListFooterComponent={
           txnQuery.isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
+            <ActivityIndicator color={palette.primary} style={{ marginVertical: spacing.md }} />
           ) : null
         }
         ListEmptyComponent={
           txnQuery.isLoading ? (
             <SkeletonListRows variant="card" />
-          ) : !txnQuery.isError ? (
+          ) : txnQuery.isError ? (
+            <ListEmptyState
+              title="Could not load transactions"
+              message={(txnQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void txnQuery.refetch()}
+            />
+          ) : (
             <ListEmptyState
               entityName="transactions"
               icon="swap-horizontal-outline"
               onClearFilters={() => txnState.setSearchInput('')}
             />
-          ) : null
+          )
         }
       />
     </ScreenContainer>
@@ -247,5 +267,5 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

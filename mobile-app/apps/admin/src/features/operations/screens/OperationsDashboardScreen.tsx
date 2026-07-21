@@ -2,6 +2,7 @@ import { useCan, useOperationsSummary } from '@erp/core';
 import {
   DashboardHero,
   DashboardSection,
+  EmptyState,
   KpiCard,
   QuickAction,
   ScreenContainer,
@@ -11,7 +12,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 
 type Props = StackScreenProps<OperationsStackParamList, 'OperationsDashboard'>;
@@ -38,7 +39,7 @@ const FRONT_DESK_SECTIONS = [
 
 export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('operations.view');
-  const { colors, palette, spacing } = useTheme();
+  const { palette, spacing } = useTheme();
   const summaryQuery = useOperationsSummary({ enabled: canView });
 
   const openSection = useCallback(
@@ -49,10 +50,12 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
-          You need operations.view permission to open this workspace.
-        </Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need operations.view permission to open this workspace."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -68,8 +71,8 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
           <RefreshControl
             refreshing={summaryQuery.isRefetching}
             onRefresh={() => void summaryQuery.refetch()}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={[palette.primary]}
+            tintColor={palette.primary}
           />
         }
       >
@@ -83,6 +86,16 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
               : undefined
           }
         />
+
+        {summaryQuery.isError ? (
+          <EmptyState
+            title="Could not load dashboard"
+            message={(summaryQuery.error as Error).message}
+            icon="alert-circle-outline"
+            actionLabel="Retry"
+            onAction={() => void summaryQuery.refetch()}
+          />
+        ) : null}
 
         <WidgetGrid>
           {[
@@ -100,7 +113,7 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
         </WidgetGrid>
 
         <DashboardSection title="Transport">
-          <View style={styles.grid}>
+          <View style={[styles.grid, { gap: spacing.mdSm }]}>
             {TRANSPORT_SECTIONS.map((section) => (
               <QuickAction
                 key={section.route}
@@ -113,7 +126,7 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
         </DashboardSection>
 
         <DashboardSection title="Logistics">
-          <View style={styles.grid}>
+          <View style={[styles.grid, { gap: spacing.mdSm }]}>
             {LOGISTICS_SECTIONS.map((section) => (
               <QuickAction
                 key={section.route}
@@ -126,7 +139,7 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
         </DashboardSection>
 
         <DashboardSection title="Front desk & students">
-          <View style={styles.grid}>
+          <View style={[styles.grid, { gap: spacing.mdSm }]}>
             {FRONT_DESK_SECTIONS.map((section) => (
               <QuickAction
                 key={section.route}
@@ -143,6 +156,6 @@ export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  denied: { flex: 1, justifyContent: 'center' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
 });

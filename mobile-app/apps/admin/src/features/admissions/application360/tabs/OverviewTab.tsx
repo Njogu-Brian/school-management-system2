@@ -5,15 +5,16 @@ import {
 } from '@erp/core';
 import { ApplicationFieldSection, Button } from '@erp/ui';
 import React from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
+import { confirmAction, showError } from '../../../shared/utils/feedback';
 
 export interface OverviewTabProps {
   application: ApplicationDetail;
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ application }) => {
-  const { colors, spacing, fontSizes } = useTheme();
+  const { colors, spacing, typography } = useTheme();
   const { updateStatus, waitlist, reject } = useAdmissionActions(application.id);
 
   const canAct =
@@ -22,15 +23,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ application }) => {
     application.applicationStatus !== 'enrolled';
 
   const runAction = (label: string, action: () => Promise<unknown>) => {
-    Alert.alert(label, `Confirm: ${label.toLowerCase()} for ${application.fullName}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: label,
-        onPress: () => {
-          void action().catch((err: Error) => Alert.alert('Action failed', err.message));
-        },
+    confirmAction(
+      label,
+      `Confirm: ${label.toLowerCase()} for ${application.fullName}?`,
+      label,
+      () => {
+        void action().catch((err: Error) => showError('Action failed', err.message));
       },
-    ]);
+      label === 'Reject application',
+    );
   };
 
   const busy = updateStatus.isPending || waitlist.isPending || reject.isPending;
@@ -64,7 +65,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ application }) => {
 
       {canAct ? (
         <View style={{ gap: spacing.sm, paddingBottom: spacing.xl }}>
-          <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+          <Text
+            style={{
+              color: colors.primary,
+              fontSize: typography.label.fontSize,
+              fontWeight: typography.label.fontWeight,
+            }}
+          >
             Quick actions
           </Text>
           <Button
@@ -93,7 +100,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ application }) => {
             disabled={busy}
           />
           {actionError ? (
-            <Text style={{ color: colors.error, fontSize: fontSizes.sm }}>{actionError}</Text>
+            <Text style={{ color: colors.error, fontSize: typography.body.fontSize }}>
+              {actionError}
+            </Text>
           ) : null}
         </View>
       ) : null}

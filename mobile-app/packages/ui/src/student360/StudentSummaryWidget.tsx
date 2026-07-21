@@ -9,7 +9,7 @@ export interface StudentSummaryWidgetsProps {
 }
 
 export const StudentSummaryWidgets: React.FC<StudentSummaryWidgetsProps> = ({ widgets }) => {
-  const { palette, spacing, fontSizes, radius, shadows, colors } = useTheme();
+  const { palette, spacing, typography, radius, shadows, colors } = useTheme();
 
   if (widgets.length === 0) return null;
 
@@ -40,14 +40,22 @@ export const StudentSummaryWidgets: React.FC<StudentSummaryWidgetsProps> = ({ wi
                 style={{ marginRight: 6 }}
               />
             ) : null}
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.overline.fontSize,
+                lineHeight: typography.overline.lineHeight,
+                letterSpacing: typography.overline.letterSpacing,
+                fontWeight: typography.overline.fontWeight,
+              }}
+            >
               {w.label}
             </Text>
           </View>
           <Text
             style={{
               color: palette.textPrimary,
-              fontSize: fontSizes.lg,
+              fontSize: typography.title.fontSize,
               fontWeight: '700',
               marginTop: 4,
             }}
@@ -55,7 +63,13 @@ export const StudentSummaryWidgets: React.FC<StudentSummaryWidgetsProps> = ({ wi
             {w.value}
           </Text>
           {w.delta ? (
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                marginTop: 2,
+              }}
+            >
               {w.delta}
             </Text>
           ) : null}

@@ -16,7 +16,7 @@ export interface AttendanceDayListItemProps {
 }
 
 export const AttendanceDayListItem: React.FC<AttendanceDayListItemProps> = ({ item }) => {
-  const { palette, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
 
   const timeLabel =
     item.checkInTime || item.checkOutTime
@@ -28,22 +28,28 @@ export const AttendanceDayListItem: React.FC<AttendanceDayListItemProps> = ({ it
       style={[
         styles.row,
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.md,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
           marginBottom: spacing.sm,
         },
       ]}
     >
       <View style={styles.header}>
-        <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.md }}>
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontWeight: '600',
+            fontSize: typography.bodyLarge.fontSize,
+          }}
+        >
           {item.date}
         </Text>
         <Text
           style={{
             color: palette.textSecondary,
-            fontSize: fontSizes.xs,
+            fontSize: typography.overline.fontSize,
             fontWeight: '600',
             textTransform: 'capitalize',
           }}
@@ -52,11 +58,23 @@ export const AttendanceDayListItem: React.FC<AttendanceDayListItemProps> = ({ it
         </Text>
       </View>
       {timeLabel ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 4 }}>
+        <Text
+          style={{
+            color: palette.textSecondary,
+            fontSize: typography.caption.fontSize,
+            marginTop: 4,
+          }}
+        >
           {timeLabel}
         </Text>
       ) : null}
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontSize: typography.overline.fontSize,
+          marginTop: 4,
+        }}
+      >
         {item.source === 'clock' ? 'Geofence clock' : 'Manual mark'}
       </Text>
     </View>

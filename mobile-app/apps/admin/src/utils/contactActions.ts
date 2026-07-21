@@ -1,4 +1,5 @@
-import { ActionSheetIOS, Alert, Linking, Platform } from 'react-native';
+import { ActionSheetIOS, Linking, Platform } from 'react-native';
+import { confirmAction, showError } from '../features/shared/utils/feedback';
 
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, '');
@@ -16,10 +17,10 @@ export async function openPhoneActions(phone: string, label?: string): Promise<v
   const wa = normalizePhone(trimmed);
 
   const call = () => void Linking.openURL(`tel:${tel}`);
-  const sms = () => void Linking.openURL(`sms:${tel}`);
-  const whatsapp = () => void Linking.openURL(`https://wa.me/${wa}`);
 
   if (Platform.OS === 'ios') {
+    const sms = () => void Linking.openURL(`sms:${tel}`);
+    const whatsapp = () => void Linking.openURL(`https://wa.me/${wa}`);
     ActionSheetIOS.showActionSheetWithOptions(
       {
         title: label ?? trimmed,
@@ -35,12 +36,8 @@ export async function openPhoneActions(phone: string, label?: string): Promise<v
     return;
   }
 
-  Alert.alert(label ?? 'Contact', trimmed, [
-    { text: 'Call', onPress: call },
-    { text: 'SMS', onPress: sms },
-    { text: 'WhatsApp', onPress: whatsapp },
-    { text: 'Cancel', style: 'cancel' },
-  ]);
+  // Android: branded confirm for primary Call path
+  confirmAction(label ?? 'Contact', trimmed, 'Call', call);
 }
 
 export async function openEmail(email: string): Promise<void> {
@@ -49,7 +46,7 @@ export async function openEmail(email: string): Promise<void> {
   const url = `mailto:${encodeURIComponent(trimmed)}`;
   const can = await Linking.canOpenURL(url);
   if (!can) {
-    Alert.alert('Email', 'No email app is available on this device.');
+    showError('Email', 'No email app is available on this device.');
     return;
   }
   await Linking.openURL(url);

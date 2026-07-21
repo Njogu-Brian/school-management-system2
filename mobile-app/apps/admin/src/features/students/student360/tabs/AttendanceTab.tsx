@@ -1,8 +1,7 @@
 import type { AttendanceTrendPoint } from '@erp/core';
-import { StudentSummaryWidgets, type StudentSummaryWidgetData } from '@erp/ui';
+import { EmptyState, StudentSummaryWidgets, type StudentSummaryWidgetData, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
 
 export interface AttendanceTabProps {
   isLoading: boolean;
@@ -25,7 +24,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   percentage,
   trend,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius } = useTheme();
 
   const widgets = useMemo(
     (): StudentSummaryWidgetData[] => [
@@ -44,7 +43,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
   if (isLoading) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingVertical: spacing.xl }]}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -52,17 +51,13 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
   if (isError) {
     return (
-      <View style={styles.centered}>
-        <Text style={{ color: colors.error, fontSize: fontSizes.sm }}>Could not load attendance.</Text>
-        {onRetry ? (
-          <Text
-            onPress={onRetry}
-            style={{ color: colors.primary, marginTop: spacing.sm, fontWeight: '600' }}
-          >
-            Retry
-          </Text>
-        ) : null}
-      </View>
+      <EmptyState
+        title="Could not load attendance"
+        message="Pull to refresh or retry to load attendance marks."
+        icon="alert-circle-outline"
+        actionLabel={onRetry ? 'Retry' : undefined}
+        onAction={onRetry}
+      />
     );
   }
 
@@ -75,22 +70,35 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       <Text
         style={[
           styles.section,
-          { color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.lg },
+          {
+            color: palette.textSub,
+            fontSize: typography.overline.fontSize,
+            letterSpacing: typography.overline.letterSpacing,
+            marginTop: spacing.lg,
+          },
         ]}
       >
         Attendance trend (weekly)
       </Text>
       {trend.length === 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-          Not enough attendance marks yet.
-        </Text>
+        <EmptyState
+          title="No trend yet"
+          message="Not enough attendance marks to chart a weekly trend."
+          icon="stats-chart-outline"
+        />
       ) : (
         trend.map((point) => {
           const total = point.present + point.absent + point.late;
           const height = Math.max(8, Math.round((total / maxBar) * 72));
           return (
             <View key={point.label} style={[styles.trendRow, { marginBottom: spacing.sm }]}>
-              <Text style={{ width: 56, color: palette.textSecondary, fontSize: fontSizes.xs }}>
+              <Text
+                style={{
+                  width: 56,
+                  color: palette.textSub,
+                  fontSize: typography.caption.fontSize,
+                }}
+              >
                 {point.label}
               </Text>
               <View style={styles.barTrack}>
@@ -106,7 +114,13 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                   ]}
                 />
               </View>
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginLeft: 8 }}>
+              <Text
+                style={{
+                  color: palette.textSub,
+                  fontSize: typography.caption.fontSize,
+                  marginLeft: spacing.sm,
+                }}
+              >
                 P{point.present} A{point.absent} L{point.late}
               </Text>
             </View>
@@ -118,8 +132,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 };
 
 const styles = StyleSheet.create({
-  centered: { paddingVertical: 32, alignItems: 'center' },
-  section: { fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
+  centered: { alignItems: 'center' },
+  section: { fontWeight: '700', textTransform: 'uppercase' },
   trendRow: { flexDirection: 'row', alignItems: 'center' },
   barTrack: { flex: 1, height: 72, justifyContent: 'flex-end' },
   bar: { minWidth: 4 },

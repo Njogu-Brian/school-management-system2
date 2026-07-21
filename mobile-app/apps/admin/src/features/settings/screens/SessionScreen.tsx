@@ -9,10 +9,19 @@ import {
   type NotificationPreferences,
   type PersistedSessionMeta,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  FinanceFieldSection,
+  ScreenContainer,
+  useTheme,
+} from '@erp/ui';
 import Constants from 'expo-constants';
 import React, { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 import { formatDateTimeLabel } from '../../shared/utils/formatters';
 import { confirmAction, showSuccess } from '../../shared/utils/feedback';
 
@@ -23,7 +32,10 @@ export interface SessionScreenProps {
 export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
   const { user, logout } = useAuth();
   const [meta, setMeta] = useState<PersistedSessionMeta | null>(null);
-  const { palette, spacing, fontSizes, colors, isDark, toggleTheme, themeMode, setThemeMode } = useTheme();
+  const [signOutVisible, setSignOutVisible] = useState(false);
+  const { palette, spacing, typography, radius, elevation, colors, isDark, toggleTheme, themeMode, setThemeMode } =
+    useTheme();
+  const { surfaceMode, setSurfaceMode } = useSurfaceModeControl();
   const sessionsQuery = useActiveSessions();
   const revokeSession = useRevokeSession();
   const revokeOthers = useRevokeOtherSessions();
@@ -43,10 +55,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
   const deviceName = Constants.deviceName ?? 'This device';
 
   const forceReauth = () => {
-    Alert.alert('Sign out', 'You will need to sign in again on this device.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => void logout() },
-    ]);
+    setSignOutVisible(true);
   };
 
   const revokeDevice = (tokenId: number, label: string) => {
@@ -68,32 +77,113 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
           },
         ]}
       />
-      <View style={[styles.deviceRow, { borderColor: palette.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-        <Text style={{ color: palette.textPrimary }}>Use dark theme</Text>
+      <View
+        style={[
+          styles.deviceRow,
+          elevation[1],
+          {
+            backgroundColor: palette.surfaceRaised,
+            borderColor: palette.borderSubtle,
+            borderRadius: radius.card,
+            padding: spacing.md,
+            marginTop: spacing.sm,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            minHeight: 48,
+          },
+        ]}
+      >
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontSize: typography.body.fontSize,
+            fontWeight: '600',
+          }}
+        >
+          Use dark theme
+        </Text>
         <Switch value={isDark} onValueChange={() => toggleTheme()} />
       </View>
-      <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.md }}>
+      <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.sm }}>
         {(['light', 'dark', 'auto'] as const).map((mode) => (
           <Pressable
             key={mode}
             onPress={() => setThemeMode(mode)}
             style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: themeMode === mode ? colors.primary : palette.border,
-              backgroundColor: themeMode === mode ? `${colors.primary}18` : 'transparent',
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              minHeight: 48,
+              justifyContent: 'center',
+              borderRadius: radius.control,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: themeMode === mode ? palette.primary : palette.borderSubtle,
+              backgroundColor: themeMode === mode ? palette.primaryMuted : palette.surfaceRaised,
             }}
           >
-            <Text style={{ color: themeMode === mode ? colors.primary : palette.textSecondary, fontWeight: '600', textTransform: 'capitalize' }}>
+            <Text
+              style={{
+                color: themeMode === mode ? palette.primary : palette.textSub,
+                fontWeight: '600',
+                fontSize: typography.body.fontSize,
+                textTransform: 'capitalize',
+              }}
+            >
               {mode}
             </Text>
           </Pressable>
         ))}
       </View>
+      <View
+        style={[
+          styles.deviceRow,
+          elevation[1],
+          {
+            backgroundColor: palette.surfaceRaised,
+            borderColor: palette.borderSubtle,
+            borderRadius: radius.card,
+            padding: spacing.md,
+            marginBottom: spacing.md,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            minHeight: 48,
+            opacity: isDark ? 1 : 0.5,
+          },
+        ]}
+      >
+        <View style={{ flex: 1, marginRight: spacing.sm }}>
+          <Text
+            style={{
+              color: palette.textMain,
+              fontSize: typography.body.fontSize,
+              fontWeight: '600',
+            }}
+          >
+            AMOLED black
+          </Text>
+          <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+            True black canvas in dark mode (saves battery on OLED)
+          </Text>
+        </View>
+        <Switch
+          value={surfaceMode === 'amoled'}
+          disabled={!isDark}
+          onValueChange={(on) => setSurfaceMode(on ? 'amoled' : 'default')}
+        />
+      </View>
 
-      <Text style={{ fontWeight: '700', marginTop: spacing.lg, color: palette.textPrimary }}>Notifications</Text>
+      <Text
+        style={{
+          fontWeight: '700',
+          marginTop: spacing.lg,
+          marginBottom: spacing.sm,
+          color: palette.textPrimary,
+          fontSize: typography.titleSmall.fontSize,
+        }}
+      >
+        Notifications
+      </Text>
       {(
         [
           ['push_enabled', 'Push notifications'],
@@ -104,8 +194,35 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
           ['announcements', 'Announcements'],
         ] as const
       ).map(([key, label]) => (
-        <View key={key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm }}>
-          <Text style={{ color: palette.textPrimary, flex: 1 }}>{label}</Text>
+        <View
+          key={key}
+          style={[
+            styles.deviceRow,
+            elevation[1],
+            {
+              backgroundColor: palette.surfaceRaised,
+              borderColor: palette.borderSubtle,
+              borderRadius: radius.card,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm,
+              marginTop: spacing.sm,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              minHeight: 48,
+            },
+          ]}
+        >
+          <Text
+            style={{
+              color: palette.textPrimary,
+              flex: 1,
+              fontSize: typography.body.fontSize,
+              paddingRight: spacing.sm,
+            }}
+          >
+            {label}
+          </Text>
           <Switch
             value={prefsQuery.data?.[key] ?? false}
             onValueChange={() => togglePref(key)}
@@ -126,45 +243,139 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
           },
           {
             label: 'Last activity',
-            value: meta?.lastActivityAt ? formatDateTimeLabel(new Date(meta.lastActivityAt).toISOString()) : '—',
+            value: meta?.lastActivityAt
+              ? formatDateTimeLabel(new Date(meta.lastActivityAt).toISOString())
+              : '—',
           },
           { label: 'Remember me', value: meta?.rememberMe ? 'Yes' : 'No' },
         ]}
       />
 
-      <Text style={{ fontWeight: '700', marginTop: spacing.lg, color: palette.textPrimary }}>Active devices</Text>
-      {(sessionsQuery.data ?? []).map((session) => (
-        <View key={session.id} style={[styles.deviceRow, { borderColor: palette.border }]}>
-          <Text style={{ fontWeight: '600', color: palette.textPrimary }}>
-            {session.device}{session.is_current ? ' (this device)' : ''}
-          </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
-            Last active {formatDateTimeLabel(session.last_activity)}
-          </Text>
-          {!session.is_current ? (
-            <Pressable onPress={() => revokeDevice(session.id, session.device)} style={{ marginTop: 6 }}>
-              <Text style={{ color: colors.error, fontSize: fontSizes.xs, fontWeight: '600' }}>Logout device</Text>
-            </Pressable>
-          ) : null}
+      <Text
+        style={{
+          fontWeight: '700',
+          marginTop: spacing.lg,
+          marginBottom: spacing.sm,
+          color: palette.textPrimary,
+          fontSize: typography.titleSmall.fontSize,
+        }}
+      >
+        Active devices
+      </Text>
+      {sessionsQuery.isLoading ? (
+        <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.primary} />
         </View>
-      ))}
+      ) : sessionsQuery.isError ? (
+        <EmptyState
+          title="Could not load sessions"
+          message={(sessionsQuery.error as Error)?.message ?? 'Try again in a moment.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void sessionsQuery.refetch()}
+        />
+      ) : (sessionsQuery.data ?? []).length === 0 ? (
+        <EmptyState
+          title="No active devices"
+          message="Only this session appears to be signed in."
+          icon="phone-portrait-outline"
+        />
+      ) : (
+        (sessionsQuery.data ?? []).map((session) => (
+          <View
+            key={session.id}
+            style={[
+              styles.deviceRow,
+              elevation[1],
+              {
+                backgroundColor: palette.surfaceRaised,
+                borderColor: palette.borderSubtle,
+                borderRadius: radius.card,
+                padding: spacing.md,
+                marginTop: spacing.sm,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                fontWeight: '600',
+                color: palette.textPrimary,
+                fontSize: typography.body.fontSize,
+              }}
+            >
+              {session.device}
+              {session.is_current ? ' (this device)' : ''}
+            </Text>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                marginTop: spacing.xs,
+              }}
+            >
+              Last active {formatDateTimeLabel(session.last_activity)}
+            </Text>
+            {!session.is_current ? (
+              <Pressable
+                onPress={() => revokeDevice(session.id, session.device)}
+                style={{ marginTop: spacing.sm, minHeight: 48, justifyContent: 'center' }}
+              >
+                <Text
+                  style={{
+                    color: colors.error,
+                    fontSize: typography.body.fontSize,
+                    fontWeight: '600',
+                  }}
+                >
+                  Logout device
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ))
+      )}
 
       <Button
         label="Logout all other devices"
         variant="ghost"
         onPress={() =>
-          confirmAction('Logout others', 'End all sessions except this device?', 'Logout all', async () => {
-            await revokeOthers.mutateAsync();
-            showSuccess('Done', 'Other sessions ended.');
-          }, true)
+          confirmAction(
+            'Logout others',
+            'End all sessions except this device?',
+            'Logout all',
+            async () => {
+              await revokeOthers.mutateAsync();
+              showSuccess('Done', 'Other sessions ended.');
+            },
+            true,
+          )
         }
         style={{ marginTop: spacing.md }}
       />
-      <Button label="Force re-authentication" variant="ghost" onPress={forceReauth} style={{ marginTop: spacing.sm }} />
+      <Button
+        label="Force re-authentication"
+        variant="ghost"
+        onPress={forceReauth}
+        style={{ marginTop: spacing.sm }}
+      />
+
+      <ConfirmDialog
+        visible={signOutVisible}
+        title="Sign out"
+        message="You will need to sign in again on this device."
+        confirmLabel="Sign out"
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={() => {
+          setSignOutVisible(false);
+          void logout();
+        }}
+        onCancel={() => setSignOutVisible(false)}
+      />
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  deviceRow: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12, marginTop: 8 },
+  deviceRow: { borderWidth: StyleSheet.hairlineWidth },
 });

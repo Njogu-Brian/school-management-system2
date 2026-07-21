@@ -1,8 +1,7 @@
 import { useStudentRequirements } from '@erp/core';
-import { EmptyState, FinanceFieldSection } from '@erp/ui';
+import { EmptyState, FinanceFieldSection, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, View } from 'react-native';
 
 export interface RequirementsTabProps {
   studentId: number;
@@ -10,7 +9,7 @@ export interface RequirementsTabProps {
 
 /** Term requirements from `GET /teacher/requirements/students/{id}/templates`. */
 export const RequirementsTab: React.FC<RequirementsTabProps> = ({ studentId }) => {
-  const { colors } = useTheme();
+  const { colors, spacing } = useTheme();
   const query = useStudentRequirements(studentId);
 
   const rows = useMemo(() => {
@@ -23,7 +22,7 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({ studentId }) =
 
   if (query.isLoading) {
     return (
-      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -31,12 +30,13 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({ studentId }) =
 
   if (query.isError) {
     return (
-      <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-        <Text style={{ color: colors.error }}>{(query.error as Error).message}</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: 8 }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load requirements"
+        message={(query.error as Error).message}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
@@ -50,9 +50,5 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({ studentId }) =
     );
   }
 
-  return (
-    <>
-      <FinanceFieldSection title="Requirements checklist" rows={rows} />
-    </>
-  );
+  return <FinanceFieldSection title="Requirements checklist" rows={rows} />;
 };

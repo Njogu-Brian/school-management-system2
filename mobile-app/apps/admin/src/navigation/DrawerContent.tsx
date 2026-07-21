@@ -13,8 +13,9 @@ import {
   DrawerContentScrollView,
 } from '@react-navigation/drawer';
 import React from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { confirmAction } from '../features/shared/utils/feedback';
 import { navigateDrawerAreaHome } from './areaRoutes';
 function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey {
   const current = state.routes[state.index];
@@ -45,7 +46,7 @@ function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey
 }
 
 export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, colors, spacing, typography } = useTheme();
   const insets = useSafeAreaInsets();
   const activeKey = getActiveKey(props.state);
   const { drawerAreas } = useRbac();
@@ -54,10 +55,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const { logout } = useAuth();
 
   const confirmLogout = (): void => {
-    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => void logout() },
-    ]);
+    confirmAction('Sign out', 'Are you sure you want to sign out?', 'Sign out', () => void logout(), true);
   };
 
   const handlePress = (area: AdminNavArea): void => {
@@ -86,11 +84,11 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
           </View>
         )}
         <View style={styles.headerText}>
-          <Text style={[styles.appName, { color: palette.textPrimary, fontSize: fontSizes.md }]}>
+          <Text style={[styles.appName, { color: palette.textPrimary, fontSize: typography.titleSmall.fontSize }]}>
             {schoolName}
           </Text>
           <Text
-            style={[styles.appRole, { color: palette.textSecondary, fontSize: fontSizes.xs }]}
+            style={[styles.appRole, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}
           >
             Admin
           </Text>
@@ -107,7 +105,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
               accessibilityLabel={area.label}
               accessibilityState={{ selected: active }}
               onPress={() => handlePress(area)}
-              style={[styles.item, active && { backgroundColor: palette.accent }]}
+              style={[styles.item, active && { backgroundColor: palette.primaryMuted }]}
             >
               <Ionicons
                 name={area.icon as keyof typeof Ionicons.glyphMap}
@@ -119,7 +117,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
                   styles.itemLabel,
                   {
                     color: active ? colors.primary : palette.textPrimary,
-                    fontSize: fontSizes.md,
+                    fontSize: typography.titleSmall.fontSize,
                     fontWeight: active ? '700' : '500',
                   },
                 ]}
@@ -142,14 +140,14 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
             <View style={styles.userText}>
               <Text
                 numberOfLines={1}
-                style={[styles.userName, { color: palette.textPrimary, fontSize: fontSizes.sm }]}
+                style={[styles.userName, { color: palette.textPrimary, fontSize: typography.body.fontSize }]}
               >
                 {user.name}
               </Text>
               {user.roleName ? (
                 <Text
                   numberOfLines={1}
-                  style={[styles.userRole, { color: palette.textSecondary, fontSize: fontSizes.xs }]}
+                  style={[styles.userRole, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}
                 >
                   {user.roleName}
                 </Text>
@@ -165,7 +163,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
           style={styles.logout}
         >
           <Ionicons name="log-out-outline" size={22} color={colors.error} />
-          <Text style={[styles.logoutLabel, { color: colors.error, fontSize: fontSizes.md }]}>
+          <Text style={[styles.logoutLabel, { color: colors.error, fontSize: typography.titleSmall.fontSize }]}>
             Sign out
           </Text>
         </Pressable>

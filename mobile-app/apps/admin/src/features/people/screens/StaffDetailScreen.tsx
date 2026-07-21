@@ -9,10 +9,9 @@ import {
   type StaffSummary,
 } from '@erp/core';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { ScreenContainer, Staff360Layout, type Staff360TabId } from '@erp/ui';
+import { EmptyState, ScreenContainer, Staff360Layout, useTheme, type Staff360TabId } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
-import { useTheme } from '@erp/ui';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
 import { AttendanceTab } from '../staff360/tabs/AttendanceTab';
 import { DocumentsTab } from '../staff360/tabs/DocumentsTab';
@@ -110,10 +109,12 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ textAlign: 'center', color: colors.error }}>
-          You need people.view permission to view staff profiles.
-        </Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { paddingHorizontal: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need people.view permission to view staff profiles."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -128,13 +129,14 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   if (!staff || !header) {
     return (
-      <ScreenContainer contentContainerStyle={styles.centered}>
-        <Text style={{ color: colors.error }}>Staff member not found.</Text>
-        {detailQuery.isError ? (
-          <Pressable onPress={() => void detailQuery.refetch()} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-          </Pressable>
-        ) : null}
+      <ScreenContainer contentContainerStyle={[styles.centered, { paddingHorizontal: spacing.lg }]}>
+        <EmptyState
+          title="Staff not found"
+          message="This staff member could not be loaded."
+          icon="person-outline"
+          actionLabel={detailQuery.isError ? 'Retry' : undefined}
+          onAction={detailQuery.isError ? () => void detailQuery.refetch() : undefined}
+        />
       </ScreenContainer>
     );
   }
@@ -227,7 +229,6 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         tabs={TABS}
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onBack={() => navigation.goBack()}
       >
         {tabContent}
       </Staff360Layout>
@@ -238,5 +239,5 @@ export const StaffDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

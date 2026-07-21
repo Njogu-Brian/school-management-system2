@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FilterChip } from '../primitives/FilterChip';
 import { useTheme } from '../theme/ThemeContext';
+
 export type StudentEnrollmentStatusFilter = 'all' | 'active' | 'fee_pending' | 'fee_cleared';
 export type StudentGenderFilter = 'all' | 'male' | 'female' | 'other';
 
@@ -53,15 +54,14 @@ function FilterRow<T extends string>({
   return (
     <View style={{ marginBottom: spacing.sm }}>
       <Text
-        style={[
-          styles.sectionLabel,
-          {
-            color: palette.textMuted,
-            fontSize: typography.overline.fontSize,
-            letterSpacing: typography.overline.letterSpacing,
-            marginBottom: spacing.xs,
-          },
-        ]}
+        style={{
+          color: palette.textMuted,
+          fontSize: typography.overline.fontSize,
+          lineHeight: typography.overline.lineHeight,
+          letterSpacing: typography.overline.letterSpacing,
+          fontWeight: typography.overline.fontWeight,
+          marginBottom: spacing.xs,
+        }}
       >
         {label.toUpperCase()}
       </Text>
@@ -87,6 +87,10 @@ function FilterRow<T extends string>({
   );
 }
 
+/**
+ * Chip rows for the student registry filter sheet (FilterBottomSheet via RegistryListLayout).
+ * Keep FilterChip usage; do not render as an always-visible multi-row wall on the list.
+ */
 export const StudentFilters: React.FC<StudentFiltersProps> = ({
   gradeLevel,
   classroomId,
@@ -177,6 +181,5 @@ export const StudentFilters: React.FC<StudentFiltersProps> = ({
 };
 
 const styles = StyleSheet.create({
-  sectionLabel: { fontWeight: '600', marginLeft: 2 },
   row: { flexDirection: 'row', alignItems: 'center' },
 });

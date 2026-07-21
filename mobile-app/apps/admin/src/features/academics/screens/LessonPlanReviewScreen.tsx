@@ -4,7 +4,6 @@ import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,13 +12,14 @@ import {
   View,
 } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
+import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<AcademicsStackParamList, 'LessonPlanReview'>;
 
 export const LessonPlanReviewScreen: React.FC<Props> = ({ route, navigation }) => {
   const { lessonPlanId, summary } = route.params;
   const canView = useCan('academics.view') && useCan('lesson_plans.view');
-  const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const detailQuery = useLessonPlanDetail(lessonPlanId, { enabled: canView });
   const { approve, reject } = useLessonPlanModerationActions();
   const [notes, setNotes] = useState('');
@@ -41,44 +41,37 @@ export const LessonPlanReviewScreen: React.FC<Props> = ({ route, navigation }) =
   }, [plan]);
 
   const runApprove = () => {
-    Alert.alert('Approve lesson plan', 'Approve this submitted lesson plan?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Approve',
-        onPress: () => {
-          void approve
-            .mutateAsync({ id: lessonPlanId, notes: notes.trim() || undefined })
-            .then(() => {
-              Alert.alert('Approved', 'Lesson plan approved.');
-              navigation.goBack();
-            })
-            .catch((e: Error) => Alert.alert('Failed', e.message));
-        },
-      },
-    ]);
+    confirmAction('Approve lesson plan', 'Approve this submitted lesson plan?', 'Approve', () => {
+      void approve
+        .mutateAsync({ id: lessonPlanId, notes: notes.trim() || undefined })
+        .then(() => {
+          showSuccess('Approved', 'Lesson plan approved.');
+          navigation.goBack();
+        })
+        .catch((e: Error) => showError('Failed', e.message));
+    });
   };
 
   const runReject = () => {
     if (!notes.trim()) {
-      Alert.alert('Rejection reason required', 'Enter rejection notes before rejecting.');
+      showError('Rejection reason required', 'Enter rejection notes before rejecting.');
       return;
     }
-    Alert.alert('Reject lesson plan', 'Reject this lesson plan?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reject',
-        style: 'destructive',
-        onPress: () => {
-          void reject
-            .mutateAsync({ id: lessonPlanId, notes: notes.trim() })
-            .then(() => {
-              Alert.alert('Rejected', 'Lesson plan rejected.');
-              navigation.goBack();
-            })
-            .catch((e: Error) => Alert.alert('Failed', e.message));
-        },
+    confirmAction(
+      'Reject lesson plan',
+      'Reject this lesson plan?',
+      'Reject',
+      () => {
+        void reject
+          .mutateAsync({ id: lessonPlanId, notes: notes.trim() })
+          .then(() => {
+            showSuccess('Rejected', 'Lesson plan rejected.');
+            navigation.goBack();
+          })
+          .catch((e: Error) => showError('Failed', e.message));
       },
-    ]);
+      true,
+    );
   };
 
   if (!canView) {
@@ -124,7 +117,7 @@ export const LessonPlanReviewScreen: React.FC<Props> = ({ route, navigation }) =
                 padding: spacing.sm,
                 minHeight: 80,
                 color: palette.textPrimary,
-                fontSize: fontSizes.sm,
+                fontSize: typography.body.fontSize,
                 backgroundColor: palette.surface,
               }}
             />

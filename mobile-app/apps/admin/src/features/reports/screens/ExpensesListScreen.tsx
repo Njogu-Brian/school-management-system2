@@ -2,6 +2,7 @@ import { useCan, useInfiniteExpenses } from '@erp/core';
 import {
   AcademicScreenHeader,
   countActiveFilters,
+  EmptyState,
   FilterChip,
   FilterChipRow,
   ListEmptyState,
@@ -36,7 +37,7 @@ const formatAmount = (value: number) =>
 
 export const ExpensesListScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('reports.view');
-  const { colors, palette, radius, typography } = useTheme();
+  const { colors, palette, radius, spacing, typography, elevation } = useTheme();
   const [status, setStatus] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -52,10 +53,20 @@ export const ExpensesListScreen: React.FC<Props> = ({ navigation }) => {
     [listQuery.data],
   );
 
+  const clearFilters = () => {
+    setStatus('all');
+    setSearch('');
+    setFiltersOpen(false);
+  };
+
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need reports.view permission to view expenses."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -80,11 +91,7 @@ export const ExpensesListScreen: React.FC<Props> = ({ navigation }) => {
         onOpenFilters={() => setFiltersOpen(true)}
         onCloseFilters={() => setFiltersOpen(false)}
         onApplyFilters={() => setFiltersOpen(false)}
-        onClearFilters={() => {
-          setStatus('all');
-          setSearch('');
-          setFiltersOpen(false);
-        }}
+        onClearFilters={clearFilters}
         filterContent={
           <FilterChipRow label="Status">
             {STATUS_FILTERS.map((s) => (
@@ -97,28 +104,56 @@ export const ExpensesListScreen: React.FC<Props> = ({ navigation }) => {
             onPress={() => navigation.navigate('ExpenseDetail', { expenseId: item.id })}
             accessibilityRole="button"
             style={({ pressed }) => [
-              styles.card,
+              elevation[1],
               {
                 backgroundColor: palette.surfaceRaised,
                 borderColor: palette.borderSubtle,
-                borderRadius: radius.lg,
+                borderRadius: radius.card,
+                borderWidth: StyleSheet.hairlineWidth,
+                padding: spacing.md,
+                marginBottom: spacing.sm,
                 opacity: pressed ? 0.9 : 1,
               },
             ]}
           >
-            <View style={styles.cardHeader}>
+            <View style={[styles.cardHeader, { gap: spacing.sm }]}>
               <Text
-                style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.body.fontSize, flex: 1 }}
+                style={{
+                  color: palette.textPrimary,
+                  fontWeight: typography.titleSmall.fontWeight,
+                  fontSize: typography.titleSmall.fontSize,
+                  lineHeight: typography.titleSmall.lineHeight,
+                  flex: 1,
+                }}
                 numberOfLines={1}
               >
                 {item.expense_no ?? `Expense #${item.id}`}
               </Text>
-              <StatusBadge label={capitalizeStatus(item.status ?? 'draft')} tone={STATUS_TONES[item.status ?? ''] ?? 'brand'} />
+              <StatusBadge
+                label={capitalizeStatus(item.status ?? 'draft')}
+                tone={STATUS_TONES[item.status ?? ''] ?? 'brand'}
+              />
             </View>
-            <Text style={{ color: palette.textSecondary, marginTop: 4 }} numberOfLines={1}>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                fontWeight: typography.caption.fontWeight,
+                lineHeight: typography.caption.lineHeight,
+                marginTop: spacing.xs,
+              }}
+              numberOfLines={1}
+            >
               {[item.vendor, formatDateLabel(item.expense_date)].filter(Boolean).join(' · ') || '—'}
             </Text>
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: 6 }}>
+            <Text
+              style={{
+                color: palette.textPrimary,
+                fontWeight: typography.titleSmall.fontWeight,
+                fontSize: typography.body.fontSize,
+                marginTop: spacing.sm,
+              }}
+            >
               {formatAmount(item.total)}
             </Text>
           </Pressable>
@@ -128,6 +163,7 @@ export const ExpensesListScreen: React.FC<Props> = ({ navigation }) => {
             refreshing={listQuery.isRefetching && !listQuery.isFetchingNextPage}
             onRefresh={() => void listQuery.refetch()}
             colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
         onEndReached={() => {
@@ -151,10 +187,7 @@ export const ExpensesListScreen: React.FC<Props> = ({ navigation }) => {
               title="No expenses"
               message="No expenses match your filters."
               icon="wallet-outline"
-              onClearFilters={() => {
-                setStatus('all');
-                setSearch('');
-              }}
+              onClearFilters={clearFilters}
             />
           )
         }
@@ -164,16 +197,6 @@ export const ExpensesListScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 14,
-    marginBottom: 10,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  denied: { flex: 1, justifyContent: 'center' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center' },
 });

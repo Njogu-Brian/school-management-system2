@@ -10,6 +10,7 @@ import {
 import {
   countActiveFilters,
   DashboardHero,
+  EmptyState,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -27,7 +28,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   StyleSheet,
-  Text,
 } from 'react-native';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { useStudentRegistryState } from '../hooks/useStudentRegistryState';
@@ -36,7 +36,7 @@ import { summaryToListItem } from '../utils/mapToListItem';
 export const StudentRegistryScreen: React.FC = () => {
   const canView = useCan('students.view');
   const navigation = useNavigation<StackNavigationProp<StudentsStackParamList>>();
-  const { colors, palette, typography } = useTheme();
+  const { colors, spacing } = useTheme();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const {
@@ -151,15 +151,17 @@ export const StudentRegistryScreen: React.FC = () => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, textAlign: 'center' }}>
-          You need students.view permission to open the registry.
-        </Text>
+        <EmptyState
+          title="Access denied"
+          message="You need students.view permission to open the registry."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={styles.flex}>
       <RegistryListLayout
         data={students}
         keyExtractor={(item) => String(item.id)}
@@ -184,6 +186,7 @@ export const StudentRegistryScreen: React.FC = () => {
         onCloseFilters={() => setFiltersOpen(false)}
         onApplyFilters={() => setFiltersOpen(false)}
         onClearFilters={clearFilters}
+        filterSheetTitle="Student filters"
         filterContent={
           <StudentFilters
             gradeLevel={gradeLevel}
@@ -220,7 +223,7 @@ export const StudentRegistryScreen: React.FC = () => {
         onEndReachedThreshold={0.4}
         ListFooterComponent={
           listQuery.isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
           ) : null
         }
         ListEmptyComponent={
@@ -248,5 +251,6 @@ export const StudentRegistryScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  flex: { flex: 1 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

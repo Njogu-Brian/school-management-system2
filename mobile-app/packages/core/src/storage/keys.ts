@@ -12,6 +12,7 @@ export const ASYNC_KEYS = {
   BIOMETRIC_ENABLED: '@admin_erp_biometric_enabled',
   BIOMETRIC_FAILURE_COUNT: '@admin_erp_biometric_failure_count',
   THEME_MODE: '@admin_erp_theme_mode',
+  SURFACE_MODE: '@admin_erp_surface_mode',
 } as const;
 
 export const BIOMETRIC_SECURE_KEYS = {

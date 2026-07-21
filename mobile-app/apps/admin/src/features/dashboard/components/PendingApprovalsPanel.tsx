@@ -1,5 +1,5 @@
 import { useApprovalList } from '@erp/core';
-import { ApprovalCard, DashboardSection, QueueEmptyState, useTheme } from '@erp/ui';
+import { ApprovalCard, DashboardSection, EmptyState, QueueEmptyState, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
@@ -14,7 +14,7 @@ const PANEL_LIMIT = 5;
 export const PendingApprovalsPanel: React.FC = () => {
   const canView = useCanViewApprovals();
   const navigation = useNavigation<StackNavigationProp<DashboardStackParamList>>();
-  const { colors, spacing, typography } = useTheme();
+  const { palette, spacing, typography } = useTheme();
 
   const query = useApprovalList({
     filters: { status: 'pending', priority: 'all', sourceType: 'all' },
@@ -43,29 +43,32 @@ export const PendingApprovalsPanel: React.FC = () => {
       subtitle="Leave requests and lesson plans awaiting action"
       headerRight={
         <Pressable onPress={() => navigateToDrawer(navigation, 'Approvals', 'ApprovalsHome')}>
-          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
+          <Text
+            style={{
+              color: palette.primary,
+              fontWeight: '600',
+              fontSize: typography.caption.fontSize,
+            }}
+          >
             View all
           </Text>
         </Pressable>
       }
     >
       {query.isLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.primary} />
+        <View style={[styles.centered, { paddingVertical: spacing.md }]}>
+          <ActivityIndicator color={palette.primary} />
         </View>
       ) : null}
 
       {query.isError ? (
-        <View style={styles.centered}>
-          <Text style={{ color: colors.error, fontSize: typography.caption.fontSize }}>
-            {(query.error as Error).message}
-          </Text>
-          <Pressable onPress={() => void query.refetch()} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
-              Retry
-            </Text>
-          </Pressable>
-        </View>
+        <EmptyState
+          title="Couldn’t load approvals"
+          message={(query.error as Error).message}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void query.refetch()}
+        />
       ) : null}
 
       {!query.isLoading && !query.isError && cards.length === 0 ? (
@@ -83,5 +86,5 @@ export const PendingApprovalsPanel: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  centered: { paddingVertical: 16, alignItems: 'center' },
+  centered: { alignItems: 'center' },
 });

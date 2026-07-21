@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { AccentIcon } from '../primitives/AccentIcon';
+import { Button } from '../primitives/Button';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface EmptyStateProps {
@@ -18,22 +20,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   actionLabel,
   onAction,
 }) => {
-  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
+  const { palette, spacing, typography } = useTheme();
 
   return (
     <View style={[styles.wrap, { padding: spacing.lg }]}>
-      <View
-        style={[
-          styles.iconCircle,
-          elevation[1],
-          {
-            backgroundColor: palette.surfaceMuted,
-            borderRadius: radius['2xl'],
-          },
-        ]}
-      >
-        <Ionicons name={icon} size={36} color={colors.primary} />
-      </View>
+      <AccentIcon name={icon} tone="blue" size={80} iconSize={36} />
       <Text
         style={{
           color: palette.textPrimary,
@@ -60,32 +51,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         </Text>
       ) : null}
       {actionLabel && onAction ? (
-        <Pressable
-          onPress={onAction}
-          style={[
-            styles.action,
-            elevation[1],
-            {
-              marginTop: spacing.md,
-              backgroundColor: palette.surfaceRaised,
-              borderColor: colors.primary,
-              borderRadius: radius.control,
-              paddingHorizontal: spacing.lg,
-              paddingVertical: spacing.sm,
-              borderWidth: 1,
-            },
-          ]}
-        >
-          <Text
-            style={{
-              color: colors.primary,
-              fontWeight: '600',
-              fontSize: typography.body.fontSize,
-            }}
-          >
-            {actionLabel}
-          </Text>
-        </Pressable>
+        <View style={{ marginTop: spacing.md, alignSelf: 'stretch', maxWidth: 280 }}>
+          <Button label={actionLabel} onPress={onAction} variant="primary" fullWidth />
+        </View>
       ) : null}
     </View>
   );
@@ -93,11 +61,4 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  action: {},
 });

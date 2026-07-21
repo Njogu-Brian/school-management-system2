@@ -2,6 +2,7 @@ import { useCan, useInfiniteCommunicationLogs } from '@erp/core';
 import {
   AcademicScreenHeader,
   countActiveFilters,
+  EmptyState,
   FilterChip,
   FilterChipRow,
   ListEmptyState,
@@ -64,7 +65,11 @@ export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need communication.view permission to view SMS history."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -118,12 +123,12 @@ export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
               {item.contact ?? item.title ?? 'SMS'}
             </Text>
             <Text
-              style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}
+              style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}
               numberOfLines={2}
             >
               {item.message ?? '—'}
             </Text>
-            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 6 }}>
+            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
               {formatDateTimeLabel(item.sent_at ?? item.created_at)}
             </Text>
             {item.status ? (
@@ -131,7 +136,7 @@ export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
                 label={capitalizeStatus(item.status)}
                 tone={STATUS_TONES[item.status] ?? 'info'}
                 compact
-                style={{ alignSelf: 'flex-start', marginTop: 6 }}
+                style={{ alignSelf: 'flex-start', marginTop: spacing.xs }}
               />
             ) : null}
           </Pressable>
@@ -177,5 +182,5 @@ export const SmsHistoryScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

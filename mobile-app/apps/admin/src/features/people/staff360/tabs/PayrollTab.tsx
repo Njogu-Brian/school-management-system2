@@ -1,8 +1,8 @@
 import { downloadAuthenticatedFile, payrollApi, toPayrollSummary, useStaffPayrollRecords } from '@erp/core';
-import { EmptyState } from '@erp/ui';
+import { EmptyState, useTheme } from '@erp/ui';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { showError } from '../../../shared/utils/feedback';
 import { capitalizeStatus, formatKes } from '../utils/formatters';
 
 export interface PayrollTabProps {
@@ -11,7 +11,7 @@ export interface PayrollTabProps {
 }
 
 export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance }) => {
-  const { colors, palette, fontSizes, spacing } = useTheme();
+  const { colors, palette, typography, spacing, radius } = useTheme();
   const query = useStaffPayrollRecords(staffId, { enabled: canViewFinance, perPage: 12 });
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
@@ -20,7 +20,7 @@ export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance 
     try {
       await downloadAuthenticatedFile(payrollApi.payslipDownloadPath(recordId), `payslip-${label}`);
     } catch (err) {
-      Alert.alert('Download failed', (err as Error).message);
+      showError('Download failed', (err as Error).message);
     } finally {
       setDownloadingId(null);
     }
@@ -28,15 +28,17 @@ export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance 
 
   if (!canViewFinance) {
     return (
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-        You need finance.view to see payroll records.
-      </Text>
+      <EmptyState
+        title="Finance access required"
+        message="You need finance.view to see payroll records."
+        icon="lock-closed-outline"
+      />
     );
   }
 
   if (query.isLoading) {
     return (
-      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -44,12 +46,13 @@ export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance 
 
   if (query.isError) {
     return (
-      <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-        <Text style={{ color: colors.error }}>{(query.error as Error).message}</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: 8 }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load payroll"
+        message={(query.error as Error).message}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
@@ -66,9 +69,6 @@ export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance 
 
   return (
     <>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
-        API: GET /payroll-records?staff_id=
-      </Text>
       {records.map((raw) => {
         const row = toPayrollSummary(raw);
         return (
@@ -76,18 +76,33 @@ export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance 
             key={raw.id}
             style={{
               borderWidth: 1,
-              borderColor: palette.border,
-              borderRadius: 8,
-              padding: spacing.sm,
-              marginBottom: spacing.xs,
+              borderColor: palette.borderSubtle,
+              borderRadius: radius.card,
+              padding: spacing.md,
+              marginBottom: spacing.sm,
+              backgroundColor: palette.surfaceRaised,
             }}
           >
-            <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{row.periodLabel}</Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+            <Text
+              style={{
+                color: palette.textPrimary,
+                fontWeight: '600',
+                fontSize: typography.body.fontSize,
+              }}
+            >
+              {row.periodLabel}
+            </Text>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.overline.fontSize,
+                marginTop: 4,
+              }}
+            >
               {formatKes(row.netSalary)} · {capitalizeStatus(row.status)}
             </Text>
             <Pressable onPress={() => void handlePayslip(raw.id, row.periodLabel)} style={{ marginTop: 8 }}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>
+              <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
                 {downloadingId === raw.id ? 'Downloading…' : 'Download payslip PDF'}
               </Text>
             </Pressable>

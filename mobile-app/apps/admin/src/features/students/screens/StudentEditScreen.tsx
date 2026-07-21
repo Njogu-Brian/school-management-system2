@@ -17,8 +17,9 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Switch, Text, View } from 'react-native';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<StudentsStackParamList, 'StudentEdit'>;
 
@@ -26,7 +27,7 @@ type MuteParent = '' | 'father' | 'mother';
 
 export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
   const { studentId } = route.params;
-  const { colors, spacing, fontSizes, palette } = useTheme();
+  const { colors, spacing, typography, palette } = useTheme();
   const updateMutation = useUpdateStudent(studentId);
   const classroomsQuery = useClassrooms();
   const categoriesQuery = useStudentCategories();
@@ -107,13 +108,13 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const save = async () => {
     if (!classroomId || !categoryId) {
-      Alert.alert('Missing fields', 'Class and category are required.');
+      showError('Missing fields', 'Class and category are required.');
       return;
     }
     const parentPhone = fatherPhone.trim() || motherPhone.trim() || guardianPhone.trim();
     const parentName = fatherName.trim() || motherName.trim() || guardianName.trim();
     if (!parentName || !parentPhone) {
-      Alert.alert('Parent required', 'At least one parent/guardian name and phone is required.');
+      showError('Parent required', 'At least one parent/guardian name and phone is required.');
       return;
     }
     try {
@@ -149,10 +150,10 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
         marital_status: maritalStatus || null,
         school_notifications_muted_parent: muteParent || null,
       });
-      Alert.alert('Saved', 'Student profile updated.');
+      showSuccess('Saved', 'Student profile updated.');
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Update failed.');
+      showError('Error', err instanceof Error ? err.message : 'Update failed.');
     }
   };
 
@@ -169,7 +170,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
       <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader title="Edit student" onBack={() => navigation.goBack()} />
 
-        <SectionTitle label="Student" palette={palette} fontSizes={fontSizes} spacing={spacing} />
+        <SectionTitle label="Student" palette={palette} typography={typography} spacing={spacing} />
         <TextField label="First name" value={firstName} onChangeText={setFirstName} />
         <TextField label="Middle name" value={middleName} onChangeText={setMiddleName} />
         <TextField label="Last name" value={lastName} onChangeText={setLastName} />
@@ -202,7 +203,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
         <TextField label="KNEC assessment number" value={knecNumber} onChangeText={setKnecNumber} />
         <TextField label="Admission date (YYYY-MM-DD)" value={admissionDate} onChangeText={setAdmissionDate} />
 
-        <SectionTitle label="Health" palette={palette} fontSizes={fontSizes} spacing={spacing} />
+        <SectionTitle label="Health" palette={palette} typography={typography} spacing={spacing} />
         <TextField label="Preferred hospital" value={preferredHospital} onChangeText={setPreferredHospital} />
         <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: spacing.sm }}>
           <Switch value={hasAllergies} onValueChange={setHasAllergies} />
@@ -219,7 +220,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
         <TextField label="Emergency contact name" value={emergencyName} onChangeText={setEmergencyName} />
         <TextField label="Emergency phone" value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" />
 
-        <SectionTitle label="Parents" palette={palette} fontSizes={fontSizes} spacing={spacing} />
+        <SectionTitle label="Parents" palette={palette} typography={typography} spacing={spacing} />
         <TextField label="Father name" value={fatherName} onChangeText={setFatherName} />
         <TextField label="Father phone" value={fatherPhone} onChangeText={setFatherPhone} keyboardType="phone-pad" />
         <TextField label="Father email" value={fatherEmail} onChangeText={setFatherEmail} keyboardType="email-address" autoCapitalize="none" />
@@ -239,7 +240,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
           <FilterChip label="Mother only" active={muteParent === 'father'} onPress={() => setMuteParent('father')} />
           <FilterChip label="Father only" active={muteParent === 'mother'} onPress={() => setMuteParent('mother')} />
         </FilterChipRow>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.md }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.md }}>
           &quot;Do not contact&quot; — choose which parent should not receive school SMS/email.
         </Text>
 
@@ -252,19 +253,19 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
 function SectionTitle({
   label,
   palette,
-  fontSizes,
+  typography,
   spacing,
 }: {
   label: string;
   palette: { textSecondary: string };
-  fontSizes: { xs: number };
+  typography: { caption: { fontSize: number } };
   spacing: { md: number; sm: number };
 }) {
   return (
     <Text
       style={{
         color: palette.textSecondary,
-        fontSize: fontSizes.xs,
+        fontSize: typography.caption.fontSize,
         fontWeight: '700',
         letterSpacing: 0.4,
         textTransform: 'uppercase',

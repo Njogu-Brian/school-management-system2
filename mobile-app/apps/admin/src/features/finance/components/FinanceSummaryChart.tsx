@@ -15,13 +15,13 @@ const ROWS = [
   { key: 'outstanding', label: 'Outstanding fees', field: 'outstandingFees' as const },
 ];
 
-/** Currency progress bars — absolute KES values, no misleading % scaling. */
+/** Currency progress bars — absolute KES values scaled to the max row (not a fake %). */
 export const FinanceSummaryChart: React.FC<FinanceSummaryChartProps> = ({
   collectedToday,
   collectedThisMonth,
   outstandingFees,
 }) => {
-  const { palette, colors, spacing, typography, radius } = useTheme();
+  const { palette, semantic, spacing, typography, radius } = useTheme();
 
   const data = { collectedToday, collectedThisMonth, outstandingFees };
   const max = Math.max(collectedToday, collectedThisMonth, outstandingFees, 1);
@@ -29,20 +29,24 @@ export const FinanceSummaryChart: React.FC<FinanceSummaryChartProps> = ({
   if (!hasData) return null;
 
   return (
-    <ChartCard title="Collections overview" subtitle="Absolute amounts in KES">
+    <ChartCard
+      title="Collections overview"
+      subtitle="Absolute amounts in KES"
+      accessibilityLabel="Finance collections chart showing absolute KES amounts"
+    >
       <View style={{ gap: spacing.md }}>
         {ROWS.map((row) => {
           const amount = data[row.field];
-          const pct = Math.min(100, Math.round((amount / max) * 100));
+          const barWidth = Math.min(100, Math.round((amount / max) * 100));
           return (
             <View key={row.key}>
-              <View style={styles.rowHeader}>
-                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+              <View style={[styles.rowHeader, { marginBottom: spacing.xs }]}>
+                <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize }}>
                   {row.label}
                 </Text>
                 <Text
                   style={{
-                    color: palette.textPrimary,
+                    color: palette.textMain,
                     fontSize: typography.body.fontSize,
                     fontWeight: '600',
                   }}
@@ -60,8 +64,9 @@ export const FinanceSummaryChart: React.FC<FinanceSummaryChartProps> = ({
                   style={[
                     styles.fill,
                     {
-                      width: `${pct}%`,
-                      backgroundColor: row.key === 'outstanding' ? colors.warning : colors.primary,
+                      width: `${barWidth}%`,
+                      backgroundColor:
+                        row.key === 'outstanding' ? semantic.warning.fg : palette.primary,
                       borderRadius: radius.full,
                     },
                   ]}
@@ -76,7 +81,7 @@ export const FinanceSummaryChart: React.FC<FinanceSummaryChartProps> = ({
 };
 
 const styles = StyleSheet.create({
-  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   track: { height: 8, overflow: 'hidden' },
   fill: { height: 8, minWidth: 4 },
 });

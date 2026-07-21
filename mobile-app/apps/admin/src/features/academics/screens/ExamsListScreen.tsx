@@ -9,8 +9,11 @@ import {
   AcademicScreenHeader,
   AcademicSearchBar,
   countActiveFilters,
+  EmptyState,
   ExamFilters,
   ExamListItem,
+  FilterChip,
+  FilterChipRow,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -19,15 +22,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { useExamsRegistryState } from '../hooks/useExamsRegistryState';
 
@@ -35,7 +30,7 @@ type Props = StackScreenProps<AcademicsStackParamList, 'ExamsList'>;
 
 export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('academics.view') && useCan('exams.view');
-  const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const { colors, spacing } = useTheme();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const {
     searchInput,
@@ -71,7 +66,7 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
 
   const clearFilters = useCallback(() => {
     setSearchInput('');
-    setStatus('all');
+    setStatus('');
     setAcademicYearId(null);
     setTermId(null);
     setFiltersOpen(false);
@@ -80,70 +75,30 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
   const filterContent = (
     <View>
       <ExamFilters status={status} onStatusChange={setStatus} />
-      <Text style={[styles.sectionLabel, { color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.sm }]}>
-        Academic year
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
+      <FilterChipRow label="Academic year">
         {(yearsQuery.data ?? []).map((y) => (
-          <Pressable
+          <FilterChip
             key={y.id}
+            label={y.label}
+            active={academicYearId === y.id}
             onPress={() => {
               setAcademicYearId(academicYearId === y.id ? null : y.id);
               setTermId(null);
             }}
-            style={[
-              styles.chip,
-              {
-                backgroundColor: academicYearId === y.id ? colors.primary : palette.surface,
-                borderColor: academicYearId === y.id ? colors.primary : palette.border,
-                borderRadius: radius.full,
-                marginRight: spacing.xs,
-              },
-            ]}
-          >
-            <Text
-              style={{
-                color: academicYearId === y.id ? colors.white : palette.textSecondary,
-                fontSize: fontSizes.xs,
-                fontWeight: '700',
-              }}
-            >
-              {y.label}
-            </Text>
-          </Pressable>
+          />
         ))}
-      </ScrollView>
+      </FilterChipRow>
       {(termsQuery.data ?? []).length > 0 ? (
-        <>
-          <Text style={[styles.sectionLabel, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>Term</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {(termsQuery.data ?? []).map((t) => (
-              <Pressable
-                key={t.id}
-                onPress={() => setTermId(termId === t.id ? null : t.id)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: termId === t.id ? colors.primary : palette.surface,
-                    borderColor: termId === t.id ? colors.primary : palette.border,
-                    borderRadius: radius.full,
-                    marginRight: spacing.xs,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color: termId === t.id ? colors.white : palette.textSecondary,
-                    fontSize: fontSizes.xs,
-                    fontWeight: '700',
-                  }}
-                >
-                  {t.name}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </>
+        <FilterChipRow label="Term">
+          {(termsQuery.data ?? []).map((t) => (
+            <FilterChip
+              key={t.id}
+              label={t.name}
+              active={termId === t.id}
+              onPress={() => setTermId(termId === t.id ? null : t.id)}
+            />
+          ))}
+        </FilterChipRow>
       ) : null}
     </View>
   );
@@ -151,7 +106,11 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need exams.view permission to open the exam registry."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -200,7 +159,7 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
           listQuery.isLoading ? (
             <SkeletonListRows variant="compact" />
           ) : listQuery.isError ? (
-            <ListEmptyState
+            <EmptyState
               title="Could not load exams"
               message={(listQuery.error as Error).message}
               icon="alert-circle-outline"
@@ -218,7 +177,9 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
         }}
         onEndReachedThreshold={0.3}
         ListFooterComponent={
-          listQuery.isFetchingNextPage ? <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} /> : null
+          listQuery.isFetchingNextPage ? (
+            <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
+          ) : null
         }
       />
     </ScreenContainer>
@@ -227,6 +188,4 @@ export const ExamsListScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: StyleSheet.hairlineWidth },
-  sectionLabel: { fontWeight: '600', marginBottom: 6, textTransform: 'uppercase' },
 });

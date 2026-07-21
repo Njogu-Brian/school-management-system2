@@ -1,12 +1,11 @@
 import type { StudentDetail } from '@erp/core';
 import { useMedicalRecords, useUploadMedicalCertificate } from '@erp/core';
-import { Button, FinanceFieldSection } from '@erp/ui';
+import { Button, EmptyState, FinanceFieldSection, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import * as DocumentPicker from 'expo-document-picker';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
 import type { StudentsStackParamList } from '../../../../navigation/studentsStackTypes';
 import { showError, showSuccess } from '../../../shared/utils/feedback';
 
@@ -15,7 +14,7 @@ export interface HealthTabProps {
 }
 
 export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
-  const { colors, palette, fontSizes } = useTheme();
+  const { colors, palette, typography, spacing, radius } = useTheme();
   const navigation = useNavigation<StackNavigationProp<StudentsStackParamList>>();
   const medicalQuery = useMedicalRecords(student.id);
   const uploadMutation = useUploadMedicalCertificate();
@@ -77,7 +76,7 @@ export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
 
   return (
     <>
-      <View style={{ marginBottom: 12 }}>
+      <View style={{ marginBottom: spacing.md }}>
         <Button
           label="Log medical record"
           variant="secondary"
@@ -91,35 +90,83 @@ export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
       </View>
       <FinanceFieldSection title="Health profile" rows={profileRows} />
       {medicalQuery.isLoading ? (
-        <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+        <View style={{ paddingVertical: spacing.md, alignItems: 'center' }}>
           <ActivityIndicator color={colors.primary} />
         </View>
+      ) : medicalQuery.isError ? (
+        <EmptyState
+          title="Could not load clinic records"
+          message={(medicalQuery.error as Error).message}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void medicalQuery.refetch()}
+        />
       ) : records.length > 0 ? (
-        <View style={{ marginTop: 12 }}>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700', letterSpacing: 0.4, marginBottom: 8 }}>
+        <View style={{ marginTop: spacing.md }}>
+          <Text
+            style={{
+              color: palette.textSub,
+              fontSize: typography.overline.fontSize,
+              fontWeight: '700',
+              letterSpacing: typography.overline.letterSpacing,
+              marginBottom: spacing.sm,
+            }}
+          >
             CLINIC RECORDS
           </Text>
           {records.map((record) => (
             <View
               key={record.id}
-              style={[styles.recordCard, { backgroundColor: palette.surfaceRaised, borderColor: palette.borderSubtle }]}
+              style={[
+                styles.recordCard,
+                {
+                  backgroundColor: palette.surfaceRaised,
+                  borderColor: palette.borderSubtle,
+                  borderRadius: radius.md,
+                  padding: spacing.md,
+                  marginBottom: spacing.sm,
+                },
+              ]}
             >
-              <Text style={{ color: palette.textPrimary, fontWeight: '700' }} numberOfLines={2}>
+              <Text style={{ color: palette.textMain, fontWeight: '700' }} numberOfLines={2}>
                 {record.title ?? record.record_type ?? 'Medical record'}
               </Text>
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
-                {[record.record_date, record.doctor_name, record.vaccination_name].filter(Boolean).join(' · ') || '—'}
+              <Text
+                style={{
+                  color: palette.textSub,
+                  fontSize: typography.caption.fontSize,
+                  marginTop: spacing.xs,
+                }}
+              >
+                {[record.record_date, record.doctor_name, record.vaccination_name]
+                  .filter(Boolean)
+                  .join(' · ') || '—'}
               </Text>
-              <View style={styles.recordActions}>
+              <View style={[styles.recordActions, { marginTop: spacing.sm, gap: spacing.md }]}>
                 {record.certificate_url ? (
                   <Pressable onPress={() => void Linking.openURL(record.certificate_url!)}>
-                    <Text style={{ color: colors.primary, fontWeight: '700', fontSize: fontSizes.xs }}>
+                    <Text
+                      style={{
+                        color: colors.primary,
+                        fontWeight: '700',
+                        fontSize: typography.caption.fontSize,
+                      }}
+                    >
                       View certificate
                     </Text>
                   </Pressable>
                 ) : null}
-                <Pressable onPress={() => void onAttachCertificate(record.id)} disabled={uploadingId === record.id}>
-                  <Text style={{ color: colors.primary, fontWeight: '700', fontSize: fontSizes.xs }}>
+                <Pressable
+                  onPress={() => void onAttachCertificate(record.id)}
+                  disabled={uploadingId === record.id}
+                >
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontWeight: '700',
+                      fontSize: typography.caption.fontSize,
+                    }}
+                  >
                     {uploadingId === record.id
                       ? 'Uploading…'
                       : record.certificate_url
@@ -132,9 +179,11 @@ export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
           ))}
         </View>
       ) : (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 12 }}>
-          No clinic visit records on file.
-        </Text>
+        <EmptyState
+          title="No clinic records"
+          message="No clinic visit records on file for this student."
+          icon="medkit-outline"
+        />
       )}
     </>
   );
@@ -143,9 +192,6 @@ export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
 const styles = StyleSheet.create({
   recordCard: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
   },
-  recordActions: { flexDirection: 'row', gap: 18, marginTop: 8 },
+  recordActions: { flexDirection: 'row', flexWrap: 'wrap' },
 });

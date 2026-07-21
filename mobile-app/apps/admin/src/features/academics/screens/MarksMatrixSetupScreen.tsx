@@ -2,13 +2,14 @@ import { useMarksMatrixContext } from '@erp/core';
 import { AcademicScreenHeader, Button, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
+import { showError } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<AcademicsStackParamList, 'MarksMatrixSetup'>;
 
 export const MarksMatrixSetupScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const [selectedExamType, setSelectedExamType] = useState<number | null>(null);
   const [selectedClassroom, setSelectedClassroom] = useState<number | null>(null);
   const [selectedStream, setSelectedStream] = useState<number | null>(null);
@@ -37,7 +38,7 @@ export const MarksMatrixSetupScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleContinue = () => {
     if (!selectedExamType || !selectedClassroom) {
-      Alert.alert('Select context', 'Please select exam type and class.');
+      showError('Select context', 'Please select exam type and class.');
       return;
     }
     navigation.navigate('MarksMatrixEntry', {
@@ -59,16 +60,16 @@ export const MarksMatrixSetupScreen: React.FC<Props> = ({ navigation }) => {
 
       <View style={[styles.summary, { borderColor: palette.border, padding: spacing.md, marginBottom: spacing.md }]}>
         <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.xs }}>Selected context</Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>Exam type: {selectedExamTypeName}</Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>Class: {selectedClassroomName}</Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>Stream: {selectedStreamName}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>Exam type: {selectedExamTypeName}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>Class: {selectedClassroomName}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>Stream: {selectedStreamName}</Text>
       </View>
 
       <Text style={[styles.sectionTitle, { color: palette.textPrimary }]}>1) Exam type</Text>
       <View style={styles.grid}>
         {examTypes.map((t) => (
           <Pressable key={t.id} onPress={() => setSelectedExamType(t.id)} style={[styles.pill, pill(selectedExamType === t.id)]}>
-            <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>{t.name}</Text>
+            <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: typography.body.fontSize }}>{t.name}</Text>
           </Pressable>
         ))}
       </View>
@@ -77,7 +78,7 @@ export const MarksMatrixSetupScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.grid}>
         {classrooms.map((c) => (
           <Pressable key={c.id} onPress={() => setSelectedClassroom(c.id)} style={[styles.pill, pill(selectedClassroom === c.id)]}>
-            <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>{c.name}</Text>
+            <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: typography.body.fontSize }}>{c.name}</Text>
           </Pressable>
         ))}
       </View>
@@ -87,11 +88,11 @@ export const MarksMatrixSetupScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={[styles.sectionTitle, { color: palette.textPrimary }]}>3) Stream (optional)</Text>
           <View style={styles.grid}>
             <Pressable onPress={() => setSelectedStream(null)} style={[styles.pill, pill(selectedStream === null)]}>
-              <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>All streams</Text>
+              <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: typography.body.fontSize }}>All streams</Text>
             </Pressable>
             {streams.map((s) => (
               <Pressable key={s.id} onPress={() => setSelectedStream(s.id)} style={[styles.pill, pill(selectedStream === s.id)]}>
-                <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>{s.name}</Text>
+                <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: typography.body.fontSize }}>{s.name}</Text>
               </Pressable>
             ))}
           </View>

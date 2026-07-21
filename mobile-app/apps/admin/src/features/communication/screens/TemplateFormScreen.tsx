@@ -2,6 +2,7 @@ import { useCan, useCommunicationTemplate, useCreateTemplate, useUpdateTemplate 
 import {
   AcademicScreenHeader,
   Button,
+  EmptyState,
   FilterChip,
   FilterChipRow,
   ScreenContainer,
@@ -48,7 +49,11 @@ export const TemplateFormScreen: React.FC<Props> = ({ navigation, route }) => {
   if (!canEdit) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need communication.view permission to manage templates."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -58,6 +63,20 @@ export const TemplateFormScreen: React.FC<Props> = ({ navigation, route }) => {
       <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
         <AcademicScreenHeader title="Edit template" onBack={() => navigation.goBack()} />
         <SkeletonListRows count={5} variant="compact" />
+      </ScreenContainer>
+    );
+  }
+
+  if (isEdit && (detailQuery.isError || !detailQuery.data)) {
+    return (
+      <ScreenContainer contentContainerStyle={styles.denied}>
+        <EmptyState
+          title="Could not load template"
+          message={(detailQuery.error as Error)?.message ?? 'Template not found.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void detailQuery.refetch()}
+        />
       </ScreenContainer>
     );
   }
@@ -98,7 +117,19 @@ export const TemplateFormScreen: React.FC<Props> = ({ navigation, route }) => {
         onBack={() => navigation.goBack()}
       />
 
-      <Text style={[styles.label, { color: palette.textSecondary, marginTop: spacing.sm }]}>CHANNEL</Text>
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontSize: typography.label.fontSize,
+          fontWeight: typography.label.fontWeight,
+          letterSpacing: typography.label.letterSpacing,
+          marginBottom: spacing.xs,
+          marginTop: spacing.sm,
+          textTransform: 'uppercase',
+        }}
+      >
+        Channel
+      </Text>
       <FilterChipRow>
         {TYPES.map((t) => (
           <FilterChip key={t} label={t.toUpperCase()} active={type === t} onPress={() => setType(t)} />
@@ -120,7 +151,7 @@ export const TemplateFormScreen: React.FC<Props> = ({ navigation, route }) => {
         textAlignVertical="top"
       />
 
-      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
         Placeholders such as {'{{parent_name}}'}, {'{{student_name}}'} and {'{{school_name}}'} are
         resolved at send time.
       </Text>
@@ -138,6 +169,5 @@ export const TemplateFormScreen: React.FC<Props> = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  label: { fontSize: 12, fontWeight: '700', letterSpacing: 0.4, marginBottom: 6 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

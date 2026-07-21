@@ -36,14 +36,14 @@ export const AssessmentTimeline: React.FC<AssessmentTimelineProps> = ({
   items,
   emptyMessage = 'No assessments match these filters.',
 }) => {
-  const { palette, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
 
   return (
     <View style={{ marginTop: spacing.md }}>
       <Text
         style={{
           color: palette.textSecondary,
-          fontSize: fontSizes.xs,
+          fontSize: typography.caption.fontSize,
           fontWeight: '700',
           textTransform: 'uppercase',
           letterSpacing: 0.4,
@@ -53,7 +53,7 @@ export const AssessmentTimeline: React.FC<AssessmentTimelineProps> = ({
         {title}
       </Text>
       {items.length === 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{emptyMessage}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>{emptyMessage}</Text>
       ) : (
         items.map((item, index) => {
           const tint = COLOR[item.displayCategory] ?? COLOR.exam;
@@ -73,20 +73,20 @@ export const AssessmentTimeline: React.FC<AssessmentTimelineProps> = ({
                 ) : null}
               </View>
               <View style={[styles.content, { paddingBottom: spacing.md }]}>
-                <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+                <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize, fontWeight: '600' }}>
                   {item.title}
                 </Text>
                 {item.subtitle ? (
-                  <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+                  <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
                     {item.subtitle}
                   </Text>
                 ) : null}
                 <View style={styles.metaRow}>
-                  <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
+                  <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
                     {item.occurredAtLabel}
                   </Text>
                   {item.scoreDisplay ? (
-                    <Text style={{ color: tint, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                    <Text style={{ color: tint, fontSize: typography.caption.fontSize, fontWeight: '700' }}>
                       {item.scoreDisplay}
                       {item.gradeLabel ? ` · ${item.gradeLabel}` : ''}
                     </Text>

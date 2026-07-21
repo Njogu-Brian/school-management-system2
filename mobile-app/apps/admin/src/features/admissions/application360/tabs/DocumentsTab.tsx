@@ -3,7 +3,8 @@ import { ApplicationDocumentList } from '@erp/ui';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
+import { showError, showSuccess } from '../../../shared/utils/feedback';
 
 export interface DocumentsTabProps {
   application: ApplicationDetail;
@@ -46,10 +47,10 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ application }) => {
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(result.uri);
         } else {
-          Alert.alert('Downloaded', 'File saved to app cache.');
+          showSuccess('Downloaded', 'File saved to app cache.');
         }
       } catch (err) {
-        Alert.alert('Download failed', (err as Error).message);
+        showError('Download failed', (err as Error).message);
       } finally {
         setDownloadingField(null);
       }

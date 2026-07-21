@@ -12,8 +12,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useState } from 'react';
-import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
+import { confirmAction, showError } from '../../shared/utils/feedback';
 import { OpsListCard } from '../components/OpsListCard';
 
 type Props = StackScreenProps<OperationsStackParamList, 'VehiclesList'>;
@@ -26,15 +27,13 @@ export const VehiclesListScreen: React.FC<Props> = ({ navigation }) => {
   const { remove } = useVehicleMutations();
 
   const onDelete = (id: number, label: string) => {
-    Alert.alert('Delete vehicle', `Remove ${label}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () =>
-          void remove.mutateAsync(id).catch((e) => Alert.alert('Failed', (e as Error).message)),
-      },
-    ]);
+    confirmAction(
+      'Delete vehicle',
+      `Remove ${label}?`,
+      'Delete',
+      () => void remove.mutateAsync(id).catch((e) => showError('Failed', (e as Error).message)),
+      true,
+    );
   };
 
   if (!canView) {

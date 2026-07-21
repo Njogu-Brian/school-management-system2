@@ -10,7 +10,7 @@ type Props = StackScreenProps<ReportsStackParamList, 'BoardPack'>;
 
 export const BoardPackScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('reports.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const query = useBoardPack({ enabled: canView });
 
   if (!canView) {
@@ -82,10 +82,10 @@ export const BoardPackScreen: React.FC<Props> = ({ navigation }) => {
           ]}
         />
 
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.md }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.md }}>
           Generated {formatDateTimeLabel(pack?.generated_at)}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.sm }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.sm }}>
           PDF export and print are available on the web portal.
         </Text>
       </ScrollView>

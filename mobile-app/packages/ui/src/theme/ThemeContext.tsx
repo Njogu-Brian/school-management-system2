@@ -6,13 +6,20 @@ import {
   ColorTokens,
   ELEVATION,
   FONT_SIZES,
+  MOTION,
+  OPACITY,
   SEMANTIC,
+  SEMANTIC_DARK,
+  SemanticTone,
+  SemanticToneSet,
   SHADOWS,
   SPACING,
   TYPOGRAPHY,
+  Z_INDEX,
 } from './tokens';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
+export type SurfaceMode = 'default' | 'amoled';
 
 export interface SurfaceHierarchy {
   background: string;
@@ -23,18 +30,34 @@ export interface SurfaceHierarchy {
 }
 
 export interface ResolvedPalette extends SurfaceHierarchy {
+  /** @deprecated Prefer textMain */
   textPrimary: string;
+  /** @deprecated Prefer textSub */
   textSecondary: string;
+  textMain: string;
+  textSub: string;
   textMuted: string;
+  textOnPrimary: string;
+  textLink: string;
   border: string;
   borderSubtle: string;
   accent: string;
+  primary: string;
+  primaryDark: string;
+  primaryLight: string;
+  primaryMuted: string;
+  secondary: string;
+  disabled: string;
+  disabledBg: string;
 }
+
+export type ResolvedSemantic = Record<SemanticTone, SemanticToneSet>;
 
 export interface ThemeValue {
   isDark: boolean;
   mode: 'light' | 'dark';
   themeMode: ThemeMode;
+  surfaceMode: SurfaceMode;
   colors: ColorTokens;
   spacing: typeof SPACING;
   fontSizes: typeof FONT_SIZES;
@@ -42,26 +65,80 @@ export interface ThemeValue {
   radius: typeof BORDER_RADIUS;
   shadows: typeof SHADOWS;
   elevation: typeof ELEVATION;
-  semantic: typeof SEMANTIC;
+  semantic: ResolvedSemantic;
+  motion: typeof MOTION;
+  opacity: typeof OPACITY;
+  zIndex: typeof Z_INDEX;
   palette: ResolvedPalette;
   setThemeMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
 }
 
-function resolvePalette(colors: ColorTokens, isDark: boolean): ResolvedPalette {
+function resolvePalette(
+  colors: ColorTokens,
+  isDark: boolean,
+  surfaceMode: SurfaceMode,
+): ResolvedPalette {
+  const amoled = isDark && surfaceMode === 'amoled';
+  const background = amoled
+    ? colors.backgroundAmoled
+    : isDark
+      ? colors.backgroundDark
+      : colors.backgroundLight;
+  const surface = amoled
+    ? colors.surfaceAmoled
+    : isDark
+      ? colors.surfaceDark
+      : colors.surfaceLight;
+  const surfaceRaised = amoled
+    ? colors.surfaceRaisedAmoled
+    : isDark
+      ? colors.surfaceRaisedDark
+      : colors.surfaceRaisedLight;
+  const surfaceMuted = amoled
+    ? colors.surfaceMutedAmoled
+    : isDark
+      ? colors.surfaceMutedDark
+      : colors.surfaceMutedLight;
+  const surfaceOverlay = amoled
+    ? colors.surfaceOverlayAmoled
+    : isDark
+      ? colors.surfaceOverlayDark
+      : colors.surfaceOverlayLight;
+
+  const textMain = isDark ? colors.textMainDark : colors.textMainLight;
+  const textSub = isDark ? colors.textSubDark : colors.textSubLight;
+  const textMuted = isDark ? colors.textMutedDark : colors.textMutedLight;
+  const primary = isDark ? colors.primaryOnDark : colors.primary;
+
   return {
-    background: isDark ? colors.backgroundDark : colors.backgroundLight,
-    surface: isDark ? colors.surfaceDark : colors.surfaceLight,
-    surfaceRaised: isDark ? colors.surfaceRaisedDark : colors.surfaceRaisedLight,
-    surfaceMuted: isDark ? colors.surfaceMutedDark : colors.surfaceMutedLight,
-    surfaceOverlay: isDark ? colors.surfaceOverlayDark : colors.surfaceOverlayLight,
-    textPrimary: isDark ? colors.textMainDark : colors.textMainLight,
-    textSecondary: isDark ? colors.textSubDark : colors.textSubLight,
-    textMuted: isDark ? colors.textMutedDark : colors.textMutedLight,
+    background,
+    surface,
+    surfaceRaised,
+    surfaceMuted,
+    surfaceOverlay,
+    textPrimary: textMain,
+    textSecondary: textSub,
+    textMain,
+    textSub,
+    textMuted,
+    textOnPrimary: colors.textOnPrimary,
+    textLink: primary,
     border: isDark ? colors.borderDark : colors.borderLight,
     borderSubtle: isDark ? colors.borderSubtleDark : colors.borderSubtleLight,
     accent: isDark ? colors.accentDark : colors.accentLight,
+    primary,
+    primaryDark: colors.primaryDark,
+    primaryLight: colors.primaryLight,
+    primaryMuted: isDark ? colors.primaryMutedDark : colors.primaryMuted,
+    secondary: isDark ? colors.secondaryOnDark : colors.secondary,
+    disabled: isDark ? colors.disabledDark : colors.disabledLight,
+    disabledBg: isDark ? colors.disabledBgDark : colors.disabledBgLight,
   };
+}
+
+function resolveSemantic(isDark: boolean): ResolvedSemantic {
+  return isDark ? SEMANTIC_DARK : { ...SEMANTIC };
 }
 
 const ThemeContext = createContext<ThemeValue | undefined>(undefined);
@@ -71,6 +148,8 @@ export interface ThemeProviderProps {
   forcedMode?: 'light' | 'dark';
   themeMode?: ThemeMode;
   onThemeModeChange?: (mode: ThemeMode) => void;
+  /** When dark, use true-black AMOLED surfaces (V3 prepared). */
+  surfaceMode?: SurfaceMode;
   colorOverrides?: Partial<Record<keyof ColorTokens, string>>;
 }
 
@@ -79,6 +158,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   forcedMode,
   themeMode = 'auto',
   onThemeModeChange,
+  surfaceMode = 'default',
   colorOverrides,
 }) => {
   const scheme = useColorScheme();
@@ -101,6 +181,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       isDark,
       mode: isDark ? 'dark' : 'light',
       themeMode,
+      surfaceMode,
       colors,
       spacing: SPACING,
       fontSizes: FONT_SIZES,
@@ -108,12 +189,15 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       radius: BORDER_RADIUS,
       shadows: SHADOWS,
       elevation: ELEVATION,
-      semantic: SEMANTIC,
-      palette: resolvePalette(colors, isDark),
+      semantic: resolveSemantic(isDark),
+      motion: MOTION,
+      opacity: OPACITY,
+      zIndex: Z_INDEX,
+      palette: resolvePalette(colors, isDark, surfaceMode),
       setThemeMode,
       toggleTheme,
     };
-  }, [isDark, themeMode, colorOverrides, onThemeModeChange]);
+  }, [isDark, themeMode, surfaceMode, colorOverrides, onThemeModeChange]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
@@ -124,4 +208,9 @@ export function useTheme(): ThemeValue {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
   return ctx;
+}
+
+/** Soft theme access for primitives that may render outside ThemeProvider. */
+export function useOptionalTheme(): ThemeValue | undefined {
+  return useContext(ThemeContext);
 }

@@ -38,7 +38,8 @@ export const WidgetShell: React.FC<WidgetShellProps> = ({
       backgroundColor: palette.surfaceRaised,
       borderColor: palette.borderSubtle,
       borderRadius: radius.card,
-      padding: spacing.md,
+      padding: spacing.mdLg,
+      borderWidth: StyleSheet.hairlineWidth,
     },
     style,
   ];

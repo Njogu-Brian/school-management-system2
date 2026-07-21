@@ -1,6 +1,7 @@
 import { useCan, useWeeklyReports } from '@erp/core';
 import {
   AcademicScreenHeader,
+  EmptyState,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -36,8 +37,12 @@ export const WeeklyReportsListScreen: React.FC<Props> = ({ navigation }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need reports.view permission to view weekly reports."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -72,10 +77,25 @@ export const WeeklyReportsListScreen: React.FC<Props> = ({ navigation }) => {
               },
             ]}
           >
-            <Text style={{ fontWeight: '700', color: palette.textPrimary, fontSize: typography.body.fontSize }}>
+            <Text
+              style={{
+                fontWeight: typography.titleSmall.fontWeight,
+                color: palette.textPrimary,
+                fontSize: typography.titleSmall.fontSize,
+                lineHeight: typography.titleSmall.lineHeight,
+              }}
+            >
               {item.title}
             </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                fontWeight: typography.caption.fontWeight,
+                lineHeight: typography.caption.lineHeight,
+                marginTop: spacing.xs,
+              }}
+            >
               {[capitalizeStatus(item.type.replace(/_/g, ' ')), formatDateLabel(item.week_ending), item.subtitle]
                 .filter(Boolean)
                 .join(' · ')}
@@ -83,7 +103,12 @@ export const WeeklyReportsListScreen: React.FC<Props> = ({ navigation }) => {
           </Pressable>
         )}
         refreshControl={
-          <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} colors={[colors.primary]} />
+          <RefreshControl
+            refreshing={query.isRefetching}
+            onRefresh={() => void query.refetch()}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
         }
         ListEmptyComponent={
           query.isLoading ? (
@@ -101,6 +126,7 @@ export const WeeklyReportsListScreen: React.FC<Props> = ({ navigation }) => {
               title="No weekly reports"
               message={search ? 'No reports match your search.' : 'No reports have been submitted yet.'}
               icon="calendar-outline"
+              onClearFilters={search ? () => setSearch('') : undefined}
             />
           )
         }
@@ -110,5 +136,5 @@ export const WeeklyReportsListScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

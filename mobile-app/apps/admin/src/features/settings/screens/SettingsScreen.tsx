@@ -1,5 +1,11 @@
 import { getNavArea, useCan, useSchoolSettings } from '@erp/core';
-import { PlaceholderScreen, ScreenContainer, SettingsHubLayout, type SettingsSectionId } from '@erp/ui';
+import {
+  PlaceholderScreen,
+  ScreenContainer,
+  SettingsHubLayout,
+  useTheme,
+  type SettingsSectionId,
+} from '@erp/ui';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, ScrollView } from 'react-native';
@@ -24,6 +30,7 @@ const ALL_SECTIONS = [
 
 export const SettingsScreen: React.FC = () => {
   const route = useRoute<RouteProp<DrawerParamList, 'Settings'>>();
+  const { spacing } = useTheme();
   const canView = useCan('settings.view');
   const schoolQuery = useSchoolSettings({ enabled: canView });
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('school');
@@ -73,19 +80,24 @@ export const SettingsScreen: React.FC = () => {
     }
   })();
 
+  const schoolName = schoolQuery.data?.school_name?.trim() || 'Settings';
+  const schoolSubtitle =
+    schoolQuery.data?.school_email?.trim() || 'Administration & configuration';
+
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: spacing.xl }}
       >
         <SettingsHubLayout
           sections={sections}
           activeSection={activeSection}
           onSectionChange={setActiveSection}
-          schoolName={schoolQuery.data?.school_name ?? 'School settings'}
-          schoolSubtitle={schoolQuery.data?.school_email ?? 'Administration & configuration'}
+          schoolName={schoolName}
+          schoolSubtitle={schoolSubtitle}
+          meta="Read-only on mobile"
           footerLinks={[
             {
               id: 'geofence',

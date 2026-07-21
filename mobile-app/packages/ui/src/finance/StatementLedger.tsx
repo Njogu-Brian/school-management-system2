@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { EmptyState } from '../feedback/EmptyState';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface StatementLedgerRow {
@@ -23,13 +24,15 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
   rows,
   formatAmount = (n) => `KES ${n.toLocaleString('en-KE')}`,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius, semantic } = useTheme();
 
   if (rows.length === 0) {
     return (
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-        No transactions for this year.
-      </Text>
+      <EmptyState
+        title="No transactions"
+        message="No transactions for this period."
+        icon="receipt-outline"
+      />
     );
   }
 
@@ -40,7 +43,7 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
         {
           backgroundColor: palette.surface,
           borderColor: palette.border,
-          borderRadius: radius.lg,
+          borderRadius: radius.card,
           padding: spacing.md,
         },
       ]}
@@ -53,35 +56,40 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
             {
               borderBottomColor: palette.border,
               borderBottomWidth: index < rows.length - 1 ? StyleSheet.hairlineWidth : 0,
+              paddingVertical: spacing.sm,
             },
           ]}
         >
           <View style={{ flex: 1 }}>
-            <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+            <Text style={{ color: palette.textMain, fontSize: typography.body.fontSize, fontWeight: '600' }}>
               {row.reference}
             </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+            <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
               {row.date} · {row.type}
             </Text>
             {row.description ? (
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+              <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
                 {row.description}
               </Text>
             ) : null}
             {row.votehead ? (
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+              <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
                 {row.votehead}
               </Text>
             ) : null}
           </View>
           <View style={{ alignItems: 'flex-end', marginLeft: spacing.sm }}>
             {row.debit > 0 ? (
-              <Text style={{ color: colors.error, fontSize: fontSizes.sm }}>+{formatAmount(row.debit)}</Text>
+              <Text style={{ color: semantic.danger.fg, fontSize: typography.body.fontSize }}>
+                +{formatAmount(row.debit)}
+              </Text>
             ) : null}
             {row.credit > 0 ? (
-              <Text style={{ color: colors.success, fontSize: fontSizes.sm }}>-{formatAmount(row.credit)}</Text>
+              <Text style={{ color: semantic.success.fg, fontSize: typography.body.fontSize }}>
+                -{formatAmount(row.credit)}
+              </Text>
             ) : null}
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+            <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
               Bal {formatAmount(row.balance)}
             </Text>
           </View>
@@ -93,5 +101,5 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
 
 const styles = StyleSheet.create({
   card: { borderWidth: StyleSheet.hairlineWidth },
-  row: { flexDirection: 'row', paddingVertical: 10 },
+  row: { flexDirection: 'row' },
 });

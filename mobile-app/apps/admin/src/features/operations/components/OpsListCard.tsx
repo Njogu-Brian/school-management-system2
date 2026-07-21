@@ -10,7 +10,7 @@ export interface OpsListCardProps {
   right?: React.ReactNode;
 }
 
-/** Standard V2 card row for Operations registries. */
+/** Standard V3 card row for Operations registries. */
 export const OpsListCard: React.FC<OpsListCardProps> = ({ title, lines = [], badge, onPress, right }) => {
   const { palette, spacing, typography, radius, elevation } = useTheme();
   const visibleLines = lines.filter((l): l is string => Boolean(l && l.trim()));
@@ -18,20 +18,38 @@ export const OpsListCard: React.FC<OpsListCardProps> = ({ title, lines = [], bad
   const body = (
     <View style={styles.rowWrap}>
       <View style={styles.main}>
-        <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.body.fontSize }}>
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontSize: typography.titleSmall.fontSize,
+            fontWeight: typography.titleSmall.fontWeight,
+            lineHeight: typography.titleSmall.lineHeight,
+          }}
+        >
           {title}
         </Text>
         {visibleLines.map((line, i) => (
           <Text
             key={i}
-            style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 3 }}
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              fontWeight: typography.caption.fontWeight,
+              lineHeight: typography.caption.lineHeight,
+              marginTop: spacing.xs,
+            }}
             numberOfLines={2}
           >
             {line}
           </Text>
         ))}
         {badge ? (
-          <StatusBadge label={badge.label} tone={badge.tone} compact style={{ alignSelf: 'flex-start', marginTop: 6 }} />
+          <StatusBadge
+            label={badge.label}
+            tone={badge.tone}
+            compact
+            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
+          />
         ) : null}
       </View>
       {right}

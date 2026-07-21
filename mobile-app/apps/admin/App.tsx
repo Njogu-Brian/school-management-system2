@@ -22,8 +22,8 @@ const ThemedStatusBar: React.FC = () => {
 export default function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppThemeProvider>
-        <SafeAreaProvider>
+      <SafeAreaProvider>
+        <AppThemeProvider>
           <AppErrorBoundary>
             <ThemedStatusBar />
             <SessionProvider>
@@ -39,8 +39,8 @@ export default function App(): React.JSX.Element {
               </AuthProvider>
             </SessionProvider>
           </AppErrorBoundary>
-        </SafeAreaProvider>
-      </AppThemeProvider>
+        </AppThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

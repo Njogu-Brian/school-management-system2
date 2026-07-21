@@ -13,17 +13,17 @@ import {
 import {
   AcademicScreenHeader,
   Button,
+  EmptyState,
   FilterChip,
   FilterChipRow,
   ScreenContainer,
+  SkeletonListRows,
   useTheme,
 } from '@erp/ui';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -32,6 +32,7 @@ import {
   View,
 } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<AcademicsStackParamList, 'MarkAttendance'>;
 
@@ -57,12 +58,14 @@ function StatusButton({
   onPress,
   colors,
   palette,
+  typography,
 }: {
   status: AttendanceMarkStatus;
   active: boolean;
   onPress: () => void;
   colors: { primary: string; success: string; error: string; warning: string };
-  palette: { surfaceMuted: string; textPrimary: string };
+  palette: { surfaceMuted: string; textPrimary: string; textOnPrimary: string };
+  typography: { caption: { fontSize: number } };
 }) {
   const label = status === 'present' ? 'P' : status === 'absent' ? 'A' : 'L';
   const bg =
@@ -80,7 +83,13 @@ function StatusButton({
         },
       ]}
     >
-      <Text style={{ color: active ? '#fff' : palette.textPrimary, fontWeight: '800', fontSize: 12 }}>
+      <Text
+        style={{
+          color: active ? palette.textOnPrimary : palette.textPrimary,
+          fontWeight: '800',
+          fontSize: typography.caption.fontSize,
+        }}
+      >
         {label}
       </Text>
     </Pressable>
@@ -88,7 +97,7 @@ function StatusButton({
 }
 
 export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const networkStatus = useNetworkStatus();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
@@ -180,9 +189,9 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
         setStatusById(draft.statusById);
         serverSnapshotRef.current = draft.serverSnapshot ?? {};
         setHasLocalDraft(true);
-        Alert.alert('Offline', 'Showing your saved draft. Server data unavailable.');
+        showSuccess('Offline', 'Showing your saved draft. Server data unavailable.');
       } else {
-        Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load class.');
+        showError('Error', err instanceof Error ? err.message : 'Failed to load class.');
       }
     } finally {
       setLoading(false);
@@ -218,7 +227,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const save = async () => {
     if (!classId) return;
     if (schoolDayOk === false) {
-      Alert.alert('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
+      showError('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
       return;
     }
     const records = students
@@ -229,7 +238,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       }))
       .filter((r) => r.status !== 'unmarked');
     if (records.length === 0) {
-      Alert.alert('Nothing to save', 'Mark at least one student as Present, Absent, or Late.');
+      showError('Nothing to save', 'Mark at least one student as Present, Absent, or Late.');
       return;
     }
 
@@ -261,15 +270,15 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       );
 
       if (result === 'queued') {
-        Alert.alert('Queued offline', 'Attendance will sync when you reconnect.');
+        showSuccess('Queued offline', 'Attendance will sync when you reconnect.');
       } else {
-        Alert.alert('Saved', 'Attendance updated successfully.');
+        showSuccess('Saved', 'Attendance updated successfully.');
         await clearDraft();
         setHasLocalDraft(false);
         void loadStudents();
       }
     } catch (err) {
-      Alert.alert('Could not save', (err as Error).message);
+      showError('Could not save', (err as Error).message);
     }
   };
 
@@ -290,7 +299,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
 
         {hasLocalDraft ? (
           <View style={[styles.warnBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
-            <Text style={{ color: colors.primary, fontSize: fontSizes.sm }}>
+            <Text style={{ color: colors.primary, fontSize: typography.body.fontSize }}>
               Local draft in progress — auto-saved on this device.
             </Text>
           </View>
@@ -300,9 +309,9 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
           onPress={() => setShowDatePicker(true)}
           style={[styles.dateRow, { borderColor: palette.border, backgroundColor: palette.surfaceRaised }]}
         >
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>Date</Text>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.md }}>{dateStr}</Text>
-          <Text style={{ color: colors.primary, fontSize: fontSizes.xs, fontWeight: '600' }}>Change</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Date</Text>
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.titleSmall.fontSize }}>{dateStr}</Text>
+          <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, fontWeight: '600' }}>Change</Text>
         </Pressable>
 
         {showDatePicker ? (
@@ -319,11 +328,11 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
 
         {schoolDayMessage ? (
           <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
-            <Text style={{ color: colors.warning, fontSize: fontSizes.sm }}>{schoolDayMessage}</Text>
+            <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
           </View>
         ) : null}
 
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs, marginTop: spacing.sm }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs, marginTop: spacing.sm }}>
           Class
         </Text>
         <FilterChipRow>
@@ -334,7 +343,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
 
         {streams.length > 0 ? (
           <>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginVertical: spacing.xs }}>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginVertical: spacing.xs }}>
               Stream
             </Text>
             <FilterChipRow>
@@ -362,14 +371,14 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
             <Pressable onPress={() => markAll('late')}>
               <Text style={{ color: colors.warning, fontWeight: '700' }}>All Late</Text>
             </Pressable>
-            <Text style={{ color: palette.textMuted, fontSize: fontSizes.xs }}>
+            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
               {markedCount}/{students.length}
             </Text>
           </View>
         ) : null}
 
         {loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+          <SkeletonListRows variant="avatar" count={6} />
         ) : (
           <FlatList
             data={students}
@@ -386,7 +395,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
                 >
                   <View style={{ flex: 1, marginRight: spacing.sm }}>
                     <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{item.name}</Text>
-                    <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>{item.admission}</Text>
+                    <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>{item.admission}</Text>
                   </View>
                   <View style={styles.statusRow}>
                     {STATUS_OPTIONS.map((opt) => (
@@ -397,6 +406,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
                         onPress={() => setStatus(item.id, opt)}
                         colors={colors}
                         palette={palette}
+                        typography={typography}
                       />
                     ))}
                   </View>
@@ -405,13 +415,17 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
             }}
             ListEmptyComponent={
               classId ? (
-                <Text style={{ color: palette.textSecondary, textAlign: 'center', marginTop: 24 }}>
-                  No students in this class.
-                </Text>
+                <EmptyState
+                  title="No students"
+                  message="No students in this class."
+                  icon="people-outline"
+                />
               ) : (
-                <Text style={{ color: palette.textSecondary, textAlign: 'center', marginTop: 24 }}>
-                  Select a class to begin.
-                </Text>
+                <EmptyState
+                  title="Select a class"
+                  message="Choose a class to begin marking attendance."
+                  icon="school-outline"
+                />
               )
             }
           />

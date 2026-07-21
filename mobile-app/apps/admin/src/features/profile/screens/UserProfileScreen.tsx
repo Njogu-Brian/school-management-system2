@@ -10,14 +10,15 @@ import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } fr
 import type { StackScreenProps } from '@react-navigation/stack';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DashboardStackParamList } from '../../../navigation/dashboardStackTypes';
 import { navigateDashboardBack } from '../../../navigation/navigateWorkspace';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<DashboardStackParamList, 'UserProfile'>;
 
 export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography, radius, elevation } = useTheme();
   const user = useCurrentUser();
   const { refreshUser } = useAuth();
   const staffId = user?.staffId ?? 0;
@@ -59,9 +60,9 @@ export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
       const res = await staffApi.uploadPhoto(staffId, form);
       if (!res.success) throw new Error(res.message || 'Upload failed.');
       await refreshUser();
-      Alert.alert('Photo updated', 'Your profile photo has been updated.');
+      showSuccess('Photo updated', 'Your profile photo has been updated.');
     } catch (err) {
-      Alert.alert('Upload failed', err instanceof Error ? err.message : 'Could not upload photo.');
+      showError('Upload failed', err instanceof Error ? err.message : 'Could not upload photo.');
     }
   };
 
@@ -75,12 +76,12 @@ export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
         residential_address: address.trim() || null,
         id_number: staffQuery.data?.idNumber ?? undefined,
       });
-      Alert.alert(
+      showSuccess(
         'Submitted',
         'Your profile changes were submitted and are pending admin approval (same as web).',
       );
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Could not save profile.');
+      showError('Error', err instanceof Error ? err.message : 'Could not save profile.');
     } finally {
       setSavingProfile(false);
     }
@@ -88,7 +89,7 @@ export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   const changePassword = async () => {
     if (!newPassword || newPassword !== confirmPassword) {
-      Alert.alert('Password', 'New passwords do not match.');
+      showError('Password', 'New passwords do not match.');
       return;
     }
     setChangingPassword(true);
@@ -102,13 +103,41 @@ export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      Alert.alert('Password changed', 'Your password has been updated.');
+      showSuccess('Password changed', 'Your password has been updated.');
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Could not change password.');
+      showError('Error', err instanceof Error ? err.message : 'Could not change password.');
     } finally {
       setChangingPassword(false);
     }
   };
+
+  const sectionHeader = (label: string) => (
+    <Text
+      style={{
+        color: palette.textMuted,
+        fontSize: typography.overline.fontSize,
+        fontWeight: typography.overline.fontWeight,
+        letterSpacing: typography.overline.letterSpacing,
+        textTransform: 'uppercase',
+        marginBottom: spacing.sm,
+        marginTop: spacing.md,
+      }}
+    >
+      {label}
+    </Text>
+  );
+
+  const groupStyle = [
+    elevation[1],
+    {
+      borderRadius: radius.card,
+      backgroundColor: palette.surfaceRaised,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: palette.borderSubtle,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+  ];
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
@@ -118,7 +147,7 @@ export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
           onBack={() => navigateDashboardBack(navigation)}
         />
 
-        <View style={{ alignItems: 'center', marginBottom: spacing.lg }}>
+        <View style={[groupStyle, { alignItems: 'center', marginTop: spacing.sm }]}>
           {user?.avatarUrl ? (
             <Image
               source={{ uri: user.avatarUrl }}
@@ -136,15 +165,33 @@ export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
                 marginBottom: spacing.sm,
               }}
             >
-              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 28 }}>
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontWeight: typography.display.fontWeight,
+                  fontSize: typography.display.fontSize,
+                }}
+              >
                 {user?.name?.charAt(0) ?? '?'}
               </Text>
             </View>
           )}
-          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.lg }}>
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontWeight: typography.title.fontWeight,
+              fontSize: typography.title.fontSize,
+            }}
+          >
             {user?.name ?? '—'}
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginTop: spacing.xs,
+            }}
+          >
             {user?.roleName ?? user?.role ?? 'Staff'}
           </Text>
           {staffId > 0 ? (
@@ -157,62 +204,71 @@ export const UserProfileScreen: React.FC<Props> = ({ navigation }) => {
           ) : null}
         </View>
 
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
-          WORK EMAIL (ADMIN-MANAGED)
-        </Text>
-        <Text style={{ color: palette.textPrimary, marginBottom: spacing.md }}>{user?.email ?? '—'}</Text>
+        {sectionHeader('Account')}
+        <View style={groupStyle}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginBottom: spacing.xs,
+            }}
+          >
+            Work email (admin-managed)
+          </Text>
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontSize: typography.body.fontSize,
+              marginBottom: staffId > 0 ? spacing.md : 0,
+            }}
+          >
+            {user?.email ?? '—'}
+          </Text>
 
-        {staffId > 0 ? (
-          <>
-            <TextField label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-            <TextField
-              label="Personal email"
-              value={personalEmail}
-              onChangeText={setPersonalEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TextField label="Residential address" value={address} onChangeText={setAddress} />
-            <Button
-              label="Submit profile changes"
-              onPress={() => void saveProfile()}
-              loading={savingProfile || updateStaff.isPending}
-              style={{ marginTop: spacing.sm, marginBottom: spacing.lg }}
-            />
-          </>
-        ) : null}
+          {staffId > 0 ? (
+            <>
+              <TextField label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+              <TextField
+                label="Personal email"
+                value={personalEmail}
+                onChangeText={setPersonalEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <TextField label="Residential address" value={address} onChangeText={setAddress} />
+              <Button
+                label="Submit profile changes"
+                onPress={() => void saveProfile()}
+                loading={savingProfile || updateStaff.isPending}
+                style={{ marginTop: spacing.sm }}
+              />
+            </>
+          ) : null}
+        </View>
 
-        <Text
-          style={{
-            color: palette.textSecondary,
-            fontSize: fontSizes.xs,
-            fontWeight: '700',
-            letterSpacing: 0.4,
-            marginBottom: spacing.sm,
-          }}
-        >
-          CHANGE PASSWORD
-        </Text>
-        <TextField
-          label="Current password"
-          value={currentPassword}
-          onChangeText={setCurrentPassword}
-          secureTextEntry
-        />
-        <TextField label="New password" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
-        <TextField
-          label="Confirm new password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-        />
-        <Button
-          label="Update password"
-          variant="secondary"
-          onPress={() => void changePassword()}
-          loading={changingPassword}
-          style={{ marginTop: spacing.sm }}
-        />
+        {sectionHeader('Security')}
+        <View style={groupStyle}>
+          <TextField
+            label="Current password"
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+          />
+          <TextField label="New password" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
+          <TextField
+            label="Confirm new password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+          />
+          <Button
+            label="Update password"
+            variant="secondary"
+            onPress={() => void changePassword()}
+            loading={changingPassword}
+            style={{ marginTop: spacing.sm }}
+          />
+        </View>
       </ScrollView>
     </ScreenContainer>
   );

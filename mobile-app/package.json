@@ -13,7 +13,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "jest",
+    "test": "jest --config jest.config.js",
+    "test:design-system": "jest --config jest.config.js packages/ui/src/__tests__",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "eas:update:preview": "eas update --channel preview --message \"Update\"",
     "eas:update:production": "eas update --channel production --message \"Update\""
@@ -85,6 +86,7 @@
     "metro-runtime": "^0.84.4",
     "prettier": "^3.1.1",
     "react-test-renderer": "19.1.0",
+    "ts-jest": "^29.4.11",
     "typescript": "^5.3.3"
   },
   "engines": {

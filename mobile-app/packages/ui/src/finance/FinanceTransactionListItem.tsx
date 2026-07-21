@@ -24,7 +24,7 @@ export const FinanceTransactionListItem: React.FC<FinanceTransactionListItemProp
   onPress,
   formatAmount = (n) => (n == null ? '—' : `KES ${n.toLocaleString('en-KE')}`),
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
   const source = transaction.transactionType === 'c2b' ? 'M-Pesa C2B' : 'Bank';
 
   return (
@@ -35,7 +35,7 @@ export const FinanceTransactionListItem: React.FC<FinanceTransactionListItemProp
         {
           backgroundColor: palette.surface,
           borderColor: palette.border,
-          borderRadius: radius.lg,
+          borderRadius: radius.card,
           padding: spacing.md,
           opacity: pressed ? 0.9 : 1,
         },
@@ -45,26 +45,26 @@ export const FinanceTransactionListItem: React.FC<FinanceTransactionListItemProp
         <Ionicons
           name={transaction.transactionType === 'c2b' ? 'phone-portrait-outline' : 'business-outline'}
           size={22}
-          color={colors.primary}
+          color={palette.primary}
         />
         <View style={{ flex: 1, marginLeft: spacing.sm }}>
-          <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700' }}>
+          <Text style={{ color: palette.textMain, fontSize: typography.titleSmall.fontSize, fontWeight: '700' }}>
             {transaction.reference ?? `#${transaction.id}`}
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 2 }}>
+          <Text style={{ color: palette.textSub, fontSize: typography.body.fontSize, marginTop: 2 }}>
             {source}
             {transaction.studentName ? ` · ${transaction.studentName}` : ''}
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+          <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
             {transaction.transDate ?? '—'}
             {transaction.status ? ` · ${transaction.status}` : ''}
           </Text>
         </View>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700' }}>
+        <Text style={{ color: palette.textMain, fontSize: typography.titleSmall.fontSize, fontWeight: '700' }}>
           {formatAmount(transaction.amount)}
         </Text>
         {onPress ? (
-          <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} style={{ marginLeft: spacing.xs }} />
+          <Ionicons name="chevron-forward" size={18} color={palette.textSub} style={{ marginLeft: spacing.xs }} />
         ) : null}
       </View>
     </Pressable>

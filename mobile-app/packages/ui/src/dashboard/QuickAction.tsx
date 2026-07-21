@@ -1,13 +1,33 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { AccentIcon, type AccentTone } from '../primitives/AccentIcon';
+
+const LABEL_TONES: Record<string, AccentTone> = {
+  pay: 'emerald',
+  fee: 'emerald',
+  student: 'indigo',
+  staff: 'cyan',
+  sms: 'rose',
+  announce: 'rose',
+  admit: 'amber',
+  transport: 'amber',
+  report: 'blue',
+  default: 'blue',
+};
+
+function toneForLabel(label: string): AccentTone {
+  const key = Object.keys(LABEL_TONES).find((k) => label.toLowerCase().includes(k));
+  return LABEL_TONES[key ?? 'default'];
+}
 
 export interface QuickActionProps {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress?: () => void;
   disabled?: boolean;
+  accentTone?: AccentTone;
 }
 
 export const QuickAction: React.FC<QuickActionProps> = ({
@@ -15,8 +35,10 @@ export const QuickAction: React.FC<QuickActionProps> = ({
   icon,
   onPress,
   disabled = false,
+  accentTone,
 }) => {
-  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
+  const { palette, spacing, typography, radius, elevation } = useTheme();
+  const tone = accentTone ?? toneForLabel(label);
 
   return (
     <Pressable
@@ -26,29 +48,26 @@ export const QuickAction: React.FC<QuickActionProps> = ({
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
-        elevation[1],
+        elevation[2],
         {
           backgroundColor: palette.surfaceRaised,
           borderColor: palette.borderSubtle,
-          borderRadius: radius.control,
+          borderRadius: radius.card,
           paddingVertical: spacing.md,
-          paddingHorizontal: spacing.md,
-          opacity: disabled ? 0.5 : pressed ? 0.88 : 1,
+          paddingHorizontal: spacing.sm,
+          opacity: disabled ? 0.5 : pressed ? 0.9 : 1,
         },
       ]}
     >
-      <View style={[styles.iconWrap, { backgroundColor: `${colors.primary}10`, borderRadius: radius.sm }]}>
-        <Ionicons name={icon} size={22} color={colors.primary} />
-      </View>
+      <AccentIcon name={icon} tone={tone} size={48} iconSize={22} />
       <Text
-        style={[
-          styles.label,
-          {
-            color: palette.textPrimary,
-            fontSize: typography.caption.fontSize,
-            marginTop: spacing.xs,
-          },
-        ]}
+        style={{
+          color: palette.textMain,
+          fontSize: typography.caption.fontSize,
+          marginTop: spacing.sm,
+          fontWeight: '700',
+          textAlign: 'center',
+        }}
         numberOfLines={2}
       >
         {label}
@@ -65,11 +84,4 @@ const styles = StyleSheet.create({
     flex: 1,
     maxWidth: '48%',
   },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: { fontWeight: '600', textAlign: 'center' },
 });

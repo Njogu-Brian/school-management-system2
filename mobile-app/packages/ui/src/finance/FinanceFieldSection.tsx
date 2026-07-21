@@ -13,7 +13,7 @@ export interface FinanceFieldSectionProps {
 }
 
 export const FinanceFieldSection: React.FC<FinanceFieldSectionProps> = ({ title, rows }) => {
-  const { palette, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
 
   return (
     <View
@@ -22,22 +22,32 @@ export const FinanceFieldSection: React.FC<FinanceFieldSectionProps> = ({ title,
         {
           backgroundColor: palette.surface,
           borderColor: palette.border,
-          borderRadius: radius.lg,
+          borderRadius: radius.card,
           padding: spacing.md,
           marginBottom: spacing.md,
         },
       ]}
     >
-      <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700', marginBottom: spacing.sm }}>
+      <Text
+        style={{
+          color: palette.textMain,
+          fontSize: typography.titleSmall.fontSize,
+          fontWeight: '700',
+          marginBottom: spacing.sm,
+        }}
+      >
         {title}
       </Text>
       {rows.map((row) => (
-        <View key={row.label} style={[styles.row, { borderBottomColor: palette.border }]}>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, flex: 1 }}>{row.label}</Text>
+        <View
+          key={row.label}
+          style={[styles.row, { borderBottomColor: palette.border, paddingVertical: spacing.sm }]}
+        >
+          <Text style={{ color: palette.textSub, fontSize: typography.body.fontSize, flex: 1 }}>{row.label}</Text>
           <Text
             style={{
-              color: palette.textPrimary,
-              fontSize: fontSizes.sm,
+              color: palette.textMain,
+              fontSize: typography.body.fontSize,
               fontWeight: '600',
               flex: 1.2,
               textAlign: 'right',
@@ -56,7 +66,6 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

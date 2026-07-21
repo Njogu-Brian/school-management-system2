@@ -12,7 +12,7 @@ type Props = StackScreenProps<OperationsStackParamList, 'RequisitionDetail'>;
 export const RequisitionDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { requisitionId } = route.params;
   const canView = useCan('operations.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const query = useRequisition(requisitionId, { enabled: canView });
   const approveMutation = useApproveRequisition();
   const rejectMutation = useRejectRequisition();
@@ -106,7 +106,7 @@ export const RequisitionDetailScreen: React.FC<Props> = ({ navigation, route }) 
         {(req.items ?? []).map((item) => (
           <View key={item.id} style={[styles.line, { borderColor: palette.border }]}>
             <Text style={{ fontWeight: '600', color: palette.textPrimary }}>{item.item_name}</Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
               Requested: {item.quantity_requested} {item.unit ?? ''}
             </Text>
             {req.can_approve ? (
@@ -117,7 +117,7 @@ export const RequisitionDetailScreen: React.FC<Props> = ({ navigation, route }) 
                 keyboardType="numeric"
               />
             ) : (
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
                 Approved: {item.quantity_approved ?? '—'} · Issued: {item.quantity_issued ?? '—'}
               </Text>
             )}

@@ -1,8 +1,7 @@
 import { useAuth, useCurrentUser } from '@erp/core';
-import { Button, ScreenContainer, useTheme } from '@erp/ui';
-import { Ionicons } from '@expo/vector-icons';
+import { Button, EmptyState, ScreenContainer, useTheme } from '@erp/ui';
 import React from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 
 /**
  * Shown when a user authenticates successfully but their role is not an Admin App role
@@ -12,7 +11,7 @@ import { Linking, StyleSheet, Text, View } from 'react-native';
 export const AccessDeniedScreen: React.FC = () => {
   const user = useCurrentUser();
   const { logout } = useAuth();
-  const { palette, colors, fontSizes, spacing } = useTheme();
+  const { spacing } = useTheme();
 
   const roleLabel = user?.roleName ?? 'Your account';
 
@@ -23,25 +22,15 @@ export const AccessDeniedScreen: React.FC = () => {
 
   return (
     <ScreenContainer edges={['top', 'bottom']} contentContainerStyle={styles.content}>
-      <View style={[styles.iconWrap, { backgroundColor: `${colors.warning}1a` }]}>
-        <Ionicons name="lock-closed" size={36} color={colors.warning} />
-      </View>
-      <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.xl }]}>
-        Access denied
-      </Text>
-      <Text style={[styles.body, { color: palette.textSecondary, fontSize: fontSizes.md }]}>
-        {roleLabel} doesn’t have access to the Admin Console. This app is for school
-        administrators. Please use the Staff App instead.
-      </Text>
-
-      <View style={{ marginTop: spacing.xl, alignSelf: 'stretch' }}>
-        <Button label="Open Staff App" variant="secondary" onPress={openStaffApp} />
-        <Button
-          label="Sign in with a different account"
-          variant="ghost"
-          onPress={logout}
-          style={{ marginTop: spacing.md }}
-        />
+      <EmptyState
+        title="Access denied"
+        message={`${roleLabel} doesn’t have access to the Admin Console. This app is for school administrators. Please use the Staff App instead.`}
+        icon="lock-closed-outline"
+        actionLabel="Open Staff App"
+        onAction={openStaffApp}
+      />
+      <View style={{ marginTop: spacing.sm, alignSelf: 'stretch', paddingHorizontal: spacing.lg }}>
+        <Button label="Sign in with a different account" variant="ghost" onPress={logout} />
       </View>
     </ScreenContainer>
   );
@@ -49,18 +38,7 @@ export const AccessDeniedScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   content: {
-    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrap: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  title: { fontWeight: '700', marginBottom: 12, textAlign: 'center' },
-  body: { textAlign: 'center', lineHeight: 22 },
 });

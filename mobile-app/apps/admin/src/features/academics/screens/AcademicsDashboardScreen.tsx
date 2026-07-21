@@ -4,27 +4,17 @@ import {
   AcademicTrendCard,
   DashboardHero,
   DashboardSection,
-  KpiCard,
+  EmptyState,
   QuickAction,
   ScreenContainer,
-  WidgetGrid,
-  WidgetShell,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { ExamBreakdownChart } from '../components/ExamBreakdownChart';
-
-const KPI_CONFIG = [
-  { key: 'examsDraft' as const, label: 'Exams Draft', icon: 'document-outline' as const },
-  { key: 'examsMarking' as const, label: 'Exams Marking', icon: 'create-outline' as const },
-  { key: 'examsModeration' as const, label: 'Exams Moderation', icon: 'git-compare-outline' as const },
-  { key: 'examsPublished' as const, label: 'Exams Published', icon: 'checkmark-circle-outline' as const },
-  { key: 'lessonPlansPendingReview' as const, label: 'Lesson Plans Pending', icon: 'time-outline' as const },
-];
 
 const SECTIONS = [
   { route: 'Assessments' as const, label: 'Assessments', icon: 'analytics-outline' as const },
@@ -39,7 +29,7 @@ const SECTIONS = [
 export const AcademicsDashboardScreen: React.FC = () => {
   const canView = useCan('academics.view');
   const navigation = useNavigation<StackNavigationProp<AcademicsStackParamList>>();
-  const { colors, palette, spacing, typography } = useTheme();
+  const { colors, spacing } = useTheme();
   const dashboardQuery = useAcademicDashboard({ enabled: canView });
 
   const openSection = useCallback(
@@ -52,9 +42,11 @@ export const AcademicsDashboardScreen: React.FC = () => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, textAlign: 'center' }}>
-          You need academics.view permission to open the academics workspace.
-        </Text>
+        <EmptyState
+          title="Access denied"
+          message="You need academics.view permission to open the academics workspace."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -82,36 +74,14 @@ export const AcademicsDashboardScreen: React.FC = () => {
           meta={totalExams > 0 ? `${totalExams} exams in pipeline` : undefined}
         />
 
-        <WidgetGrid>
-          {KPI_CONFIG.map((kpi) => {
-            const raw = dashboardQuery.data?.[kpi.key];
-            const value = String(raw ?? 0);
-            const state = dashboardQuery.isLoading
-              ? 'loading'
-              : dashboardQuery.isError
-                ? 'error'
-                : raw == null
-                  ? 'empty'
-                  : 'success';
-            return (
-              <WidgetShell
-                key={kpi.key}
-                state={state}
-                title={kpi.label}
-                onRetry={() => void dashboardQuery.refetch()}
-              >
-                <KpiCard label={kpi.label} value={value} icon={kpi.icon} />
-              </WidgetShell>
-            );
-          })}
-        </WidgetGrid>
-
         {dashboardQuery.isError ? (
-          <Pressable onPress={() => void dashboardQuery.refetch()} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.error, textAlign: 'center' }}>
-              {(dashboardQuery.error as Error).message}
-            </Text>
-          </Pressable>
+          <EmptyState
+            title="Could not load dashboard"
+            message={(dashboardQuery.error as Error).message}
+            icon="alert-circle-outline"
+            actionLabel="Retry"
+            onAction={() => void dashboardQuery.refetch()}
+          />
         ) : null}
 
         {Object.keys(breakdown).length > 0 ? (

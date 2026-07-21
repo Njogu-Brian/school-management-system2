@@ -1,18 +1,23 @@
 import { useApplicationDetail, type ApplicationSummary, type EnrolledStudentRecord } from '@erp/core';
-import { Admissions360Layout, ScreenContainer, type Admissions360TabId } from '@erp/ui';
+import {
+  Admissions360Layout,
+  EmptyState,
+  ScreenContainer,
+  useTheme,
+  type Admissions360TabId,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, View } from 'react-native';
 import type { AdmissionsStackParamList } from '../../../navigation/admissionsStackTypes';
-
-type Props = StackScreenProps<AdmissionsStackParamList, 'ApplicationDetail'>;
 import { DocumentsTab } from '../application360/tabs/DocumentsTab';
 import { EnrollmentTab } from '../application360/tabs/EnrollmentTab';
 import { OverviewTab } from '../application360/tabs/OverviewTab';
 import { ParentsTab } from '../application360/tabs/ParentsTab';
 import { StudentTab } from '../application360/tabs/StudentTab';
 import { TimelineTab } from '../application360/tabs/TimelineTab';
+
+type Props = StackScreenProps<AdmissionsStackParamList, 'ApplicationDetail'>;
 
 const TABS: Array<{ id: Admissions360TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
@@ -25,7 +30,7 @@ const TABS: Array<{ id: Admissions360TabId; label: string }> = [
 
 export const ApplicationDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { applicationId, summary } = route.params;
-  const { colors, spacing } = useTheme();
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<Admissions360TabId>('overview');
 
   const detailQuery = useApplicationDetail(applicationId);
@@ -81,14 +86,13 @@ export const ApplicationDetailScreen: React.FC<Props> = ({ route, navigation }) 
     }
     if (detailQuery.isError || !detailQuery.data) {
       return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md }}>
-          <Text style={{ color: colors.error, textAlign: 'center' }}>
-            {(detailQuery.error as Error)?.message ?? 'Could not load application.'}
-          </Text>
-          <Pressable onPress={() => void detailQuery.refetch()} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-          </Pressable>
-        </View>
+        <EmptyState
+          title="Could not load application"
+          message={(detailQuery.error as Error)?.message ?? 'Something went wrong.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void detailQuery.refetch()}
+        />
       );
     }
 
@@ -120,6 +124,7 @@ export const ApplicationDetailScreen: React.FC<Props> = ({ route, navigation }) 
         tabs={TABS}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        onBack={() => navigation.goBack()}
       >
         {content}
       </Admissions360Layout>

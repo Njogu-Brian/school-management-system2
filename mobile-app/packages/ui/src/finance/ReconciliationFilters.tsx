@@ -20,7 +20,7 @@ export const ReconciliationFilters: React.FC<ReconciliationFiltersProps> = ({
   queue,
   onQueueChange,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
 
   return (
     <ScrollView
@@ -37,9 +37,9 @@ export const ReconciliationFilters: React.FC<ReconciliationFiltersProps> = ({
             style={[
               styles.chip,
               {
-                borderRadius: radius.full,
-                backgroundColor: active ? `${colors.primary}18` : palette.surface,
-                borderColor: active ? colors.primary : palette.border,
+                borderRadius: radius.chip,
+                backgroundColor: active ? `${palette.primary}18` : palette.surface,
+                borderColor: active ? palette.primary : palette.border,
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.xs,
               },
@@ -47,8 +47,8 @@ export const ReconciliationFilters: React.FC<ReconciliationFiltersProps> = ({
           >
             <Text
               style={{
-                color: active ? colors.primary : palette.textSecondary,
-                fontSize: fontSizes.xs,
+                color: active ? palette.primary : palette.textSub,
+                fontSize: typography.caption.fontSize,
                 fontWeight: '700',
               }}
             >

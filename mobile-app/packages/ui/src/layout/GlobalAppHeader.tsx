@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,9 +23,7 @@ export interface GlobalAppHeaderProps {
 }
 
 /**
- * Persistent top chrome (IA §1): menu · title · branch switcher · search · notifications ·
- * approvals · profile. Presentational only — all actions are injected callbacks so the
- * design system stays navigation-agnostic. The shell wires no-op/drawer handlers.
+ * Persistent top chrome — brand gradient strip, soft surface, icon wells.
  */
 export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   title,
@@ -39,115 +38,160 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   showApprovalsBadge = false,
   showNotificationsBadge = false,
 }) => {
-  const { palette, colors, spacing, typography, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
-    <View
-      style={[
-        styles.wrap,
-        {
-          paddingTop: insets.top + spacing.sm,
-          backgroundColor: palette.surface,
-          borderBottomColor: palette.border,
-        },
-      ]}
-    >
-      <View style={styles.topRow}>
-        <View style={styles.left}>
-        {onMenuPress ? (
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[colors.primaryLight, palette.primary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ height: 3 }}
+      />
+      <View
+        style={[
+          styles.wrap,
+          elevation[2],
+          {
+            paddingTop: insets.top + spacing.sm,
+            backgroundColor: palette.surfaceRaised,
+            borderBottomColor: palette.borderSubtle,
+          },
+        ]}
+      >
+        <View style={[styles.topRow, { paddingHorizontal: spacing.mdSm }]}>
+          <View style={styles.left}>
+            {onMenuPress ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open menu"
+                hitSlop={8}
+                onPress={onMenuPress}
+                style={[
+                  styles.menuWell,
+                  {
+                    backgroundColor: isDark ? 'rgba(75,159,255,0.12)' : palette.primaryMuted,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              >
+                <Ionicons name="menu" size={22} color={palette.primary} />
+              </Pressable>
+            ) : null}
+            <View style={[styles.titleBlock, { marginLeft: spacing.sm }]}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: palette.textMain,
+                  fontSize: typography.title.fontSize,
+                  lineHeight: typography.title.lineHeight,
+                  fontWeight: '700',
+                }}
+              >
+                {title}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Switch branch"
+                onPress={onBranchPress}
+                style={[
+                  styles.branch,
+                  {
+                    backgroundColor: isDark ? 'rgba(75,159,255,0.14)' : palette.primaryMuted,
+                    borderRadius: radius.full,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: 3,
+                    marginTop: spacing.xs,
+                  },
+                ]}
+              >
+                <Ionicons name="business-outline" size={12} color={palette.primary} />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: palette.primary,
+                    fontSize: typography.caption.fontSize,
+                    marginHorizontal: 3,
+                    maxWidth: 160,
+                    fontWeight: '600',
+                  }}
+                >
+                  {branchLabel}
+                </Text>
+                <Ionicons name="chevron-down" size={12} color={palette.primary} />
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.right}>
+            <HeaderIcon
+              name="checkmark-done-outline"
+              color={palette.textMain}
+              onPress={onApprovalsPress}
+              label="Approvals"
+              warningDot={showApprovalsBadge}
+              mutedBg={isDark ? 'rgba(255,255,255,0.06)' : palette.surfaceMuted}
+              radius={radius.md}
+            />
+            <HeaderIcon
+              name="notifications-outline"
+              color={palette.textMain}
+              onPress={onNotificationsPress}
+              label="Notifications"
+              dangerDot={showNotificationsBadge}
+              mutedBg={isDark ? 'rgba(255,255,255,0.06)' : palette.surfaceMuted}
+              radius={radius.md}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+              hitSlop={8}
+              onPress={onProfilePress}
+              style={{ marginLeft: 6 }}
+            >
+              <LinearGradient
+                colors={[palette.primary, colors.primaryLight]}
+                style={styles.avatar}
+              >
+                <Ionicons name="person" size={16} color={palette.textOnPrimary} />
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </View>
+
+        {onSearchPress ? (
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open menu"
-            hitSlop={8}
-            onPress={onMenuPress}
-            style={styles.iconBtn}
+            onPress={onSearchPress}
+            accessibilityRole="search"
+            accessibilityLabel={searchPrompt}
+            style={[
+              styles.searchPrompt,
+              elevation[1],
+              {
+                marginHorizontal: spacing.md,
+                marginTop: spacing.xs,
+                marginBottom: spacing.sm,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : palette.surfaceMuted,
+                borderColor: palette.borderSubtle,
+                borderRadius: radius.control,
+              },
+            ]}
           >
-            <Ionicons name="menu" size={24} color={palette.textPrimary} />
-          </Pressable>
-        ) : null}
-        <View style={styles.titleBlock}>
-          <Text
-            numberOfLines={1}
-            style={[styles.title, { color: palette.textPrimary, fontSize: typography.heading.fontSize }]}
-          >
-            {title}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Switch branch"
-            onPress={onBranchPress}
-            style={styles.branch}
-          >
-            <Ionicons name="business-outline" size={12} color={palette.textSecondary} />
+            <Ionicons name="search-outline" size={18} color={palette.textMuted} />
             <Text
               numberOfLines={1}
-              style={[styles.branchText, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}
+              style={{
+                flex: 1,
+                color: palette.textMuted,
+                fontSize: typography.body.fontSize,
+              }}
             >
-              {branchLabel}
+              {searchPrompt}
             </Text>
-            <Ionicons name="chevron-down" size={12} color={palette.textSecondary} />
           </Pressable>
-        </View>
-        </View>
-
-        <View style={styles.right}>
-        <HeaderIcon
-          name="checkmark-done-outline"
-          color={palette.textPrimary}
-          onPress={onApprovalsPress}
-          label="Approvals"
-          dotColor={showApprovalsBadge ? colors.warning : undefined}
-        />
-        <HeaderIcon
-          name="notifications-outline"
-          color={palette.textPrimary}
-          onPress={onNotificationsPress}
-          label="Notifications"
-          dotColor={showNotificationsBadge ? colors.error : undefined}
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Profile"
-          hitSlop={8}
-          onPress={onProfilePress}
-          style={[styles.avatar, { backgroundColor: colors.primary }]}
-        >
-          <Ionicons name="person" size={16} color={colors.white} />
-        </Pressable>
+        ) : null}
       </View>
-      </View>
-
-      {onSearchPress ? (
-        <Pressable
-          onPress={onSearchPress}
-          accessibilityRole="search"
-          accessibilityLabel={searchPrompt}
-          style={[
-            styles.searchPrompt,
-            {
-              marginHorizontal: spacing.sm,
-              marginTop: spacing.xs,
-              marginBottom: spacing.sm,
-              backgroundColor: palette.surfaceRaised,
-              borderColor: palette.borderSubtle,
-              borderRadius: radius.control,
-            },
-          ]}
-        >
-          <Ionicons name="search-outline" size={18} color={palette.textMuted} />
-          <Text
-            numberOfLines={1}
-            style={{
-              flex: 1,
-              color: palette.textMuted,
-              fontSize: typography.body.fontSize,
-            }}
-          >
-            {searchPrompt}
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 };
@@ -157,23 +201,40 @@ interface HeaderIconProps {
   color: string;
   label: string;
   onPress?: () => void;
-  dotColor?: string;
+  warningDot?: boolean;
+  dangerDot?: boolean;
+  mutedBg: string;
+  radius: number;
 }
 
-const HeaderIcon: React.FC<HeaderIconProps> = ({ name, color, label, onPress, dotColor }) => (
-  <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={label}
-    hitSlop={8}
-    onPress={onPress}
-    style={styles.iconBtn}
-  >
-    <Ionicons name={name} size={22} color={color} />
-    {dotColor ? <View style={[styles.dot, { backgroundColor: dotColor }]} /> : null}
-  </Pressable>
-);
+const HeaderIcon: React.FC<HeaderIconProps> = ({
+  name,
+  color,
+  label,
+  onPress,
+  warningDot,
+  dangerDot,
+  mutedBg,
+  radius,
+}) => {
+  const { colors } = useTheme();
+  const dot = warningDot ? colors.warning : dangerDot ? colors.error : undefined;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+      onPress={onPress}
+      style={[styles.iconWell, { backgroundColor: mutedBg, borderRadius: radius }]}
+    >
+      <Ionicons name={name} size={20} color={color} />
+      {dot ? <View style={[styles.dot, { backgroundColor: dot }]} /> : null}
+    </Pressable>
+  );
+};
 
 const styles = StyleSheet.create({
+  root: {},
   wrap: {
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
@@ -181,31 +242,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingBottom: 4,
+    paddingBottom: 6,
   },
   left: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
-  titleBlock: { marginLeft: 4, flexShrink: 1 },
-  title: { fontWeight: '700' },
-  branch: { flexDirection: 'row', alignItems: 'center', marginTop: 1 },
-  branchText: { marginHorizontal: 3, maxWidth: 160 },
+  titleBlock: { flexShrink: 1 },
+  branch: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
   right: { flexDirection: 'row', alignItems: 'center' },
-  iconBtn: { padding: 6, marginLeft: 2 },
+  menuWell: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconWell: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
   dot: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 8,
+    right: 8,
     width: 8,
     height: 8,
     borderRadius: 4,
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 6,
   },
   searchPrompt: {
     flexDirection: 'row',
@@ -214,6 +283,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    minHeight: 44,
+    minHeight: 48,
   },
 });

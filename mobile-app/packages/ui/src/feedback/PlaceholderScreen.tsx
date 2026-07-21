@@ -23,7 +23,7 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
   icon = 'cube-outline',
   sections,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, shadows } = useTheme();
 
   return (
     <ScreenContainer contentContainerStyle={styles.content}>
@@ -36,7 +36,17 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
         <Ionicons name={icon} size={40} color={colors.primary} />
       </View>
 
-      <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.xxl }]}>
+      <Text
+        style={[
+          styles.title,
+          {
+            color: palette.textPrimary,
+            fontSize: typography.headlineLarge.fontSize,
+            lineHeight: typography.headlineLarge.lineHeight,
+            fontWeight: typography.headlineLarge.fontWeight,
+          },
+        ]}
+      >
         {title}
       </Text>
 
@@ -44,7 +54,12 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
         <Text
           style={[
             styles.description,
-            { color: palette.textSecondary, fontSize: fontSizes.md, marginTop: spacing.sm },
+            {
+              color: palette.textSecondary,
+              fontSize: typography.bodyLarge.fontSize,
+              lineHeight: typography.bodyLarge.lineHeight,
+              marginTop: spacing.sm,
+            },
           ]}
         >
           {description}
@@ -63,7 +78,12 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
         ]}
       >
         <Ionicons name="construct-outline" size={14} color={colors.warning} />
-        <Text style={[styles.badgeText, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
+        <Text
+          style={[
+            styles.badgeText,
+            { color: palette.textSecondary, fontSize: typography.caption.fontSize },
+          ]}
+        >
           Foundation ready — module arrives in a future sprint
         </Text>
       </View>
@@ -85,7 +105,14 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
           <Text
             style={[
               styles.cardTitle,
-              { color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.sm },
+              {
+                color: palette.textSecondary,
+                fontSize: typography.overline.fontSize,
+                lineHeight: typography.overline.lineHeight,
+                letterSpacing: typography.overline.letterSpacing,
+                fontWeight: typography.overline.fontWeight,
+                marginBottom: spacing.sm,
+              },
             ]}
           >
             PLANNED IN THIS MODULE
@@ -94,7 +121,7 @@ export const PlaceholderScreen: React.FC<PlaceholderScreenProps> = ({
             <View key={section} style={styles.row}>
               <Ionicons name="ellipse" size={6} color={colors.primary} />
               <Text
-                style={[styles.rowText, { color: palette.textPrimary, fontSize: fontSizes.sm }]}
+                style={[styles.rowText, { color: palette.textPrimary, fontSize: typography.body.fontSize }]}
               >
                 {section}
               </Text>
@@ -115,8 +142,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontWeight: '700', textAlign: 'center' },
-  description: { textAlign: 'center', maxWidth: 320, lineHeight: 22 },
+  title: { textAlign: 'center' },
+  description: { textAlign: 'center', maxWidth: 320 },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -126,7 +153,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { marginLeft: 6, fontWeight: '600' },
   card: { width: '100%', maxWidth: 420 },
-  cardTitle: { fontWeight: '700', letterSpacing: 0.5 },
+  cardTitle: { textTransform: 'uppercase' },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },
   rowText: { marginLeft: 10 },
 });

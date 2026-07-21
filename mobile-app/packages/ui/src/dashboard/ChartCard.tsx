@@ -7,14 +7,26 @@ export interface ChartCardProps {
   subtitle?: string;
   children: React.ReactNode;
   style?: ViewStyle;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 /** Elevated card wrapper for charts — consistent V2 chrome. */
-export const ChartCard: React.FC<ChartCardProps> = ({ title, subtitle, children, style }) => {
+export const ChartCard: React.FC<ChartCardProps> = ({
+  title,
+  subtitle,
+  children,
+  style,
+  accessibilityLabel,
+  accessibilityHint,
+}) => {
   const { palette, spacing, typography, radius, elevation } = useTheme();
 
   return (
     <View
+      accessibilityRole="summary"
+      accessibilityLabel={accessibilityLabel ?? `${title}. ${subtitle ?? ''}`.trim()}
+      accessibilityHint={accessibilityHint}
       style={[
         styles.card,
         elevation[2],

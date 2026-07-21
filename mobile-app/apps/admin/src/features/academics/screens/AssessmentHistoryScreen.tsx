@@ -9,7 +9,10 @@ import {
 import {
   AcademicScreenHeader,
   AssessmentCard,
+  EmptyState,
+  ListEmptyState,
   ScreenContainer,
+  SkeletonListRows,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -32,7 +35,7 @@ type Props = StackScreenProps<AcademicsStackParamList, 'AssessmentHistory'>;
 export const AssessmentHistoryScreen: React.FC<Props> = ({ route, navigation }) => {
   const { studentId, studentName } = route.params;
   const canView = useCan('academics.view');
-  const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const [category, setCategory] = useState<AssessmentDisplayCategory>('all');
 
   const summaryQuery = useStudentAcademicSummary(studentId, { enabled: canView });
@@ -46,7 +49,11 @@ export const AssessmentHistoryScreen: React.FC<Props> = ({ route, navigation }) 
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You do not have permission to view assessments."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -74,11 +81,11 @@ export const AssessmentHistoryScreen: React.FC<Props> = ({ route, navigation }) 
             />
             {summaryQuery.data ? (
               <View style={[styles.summary, { backgroundColor: palette.accent, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md }]}>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>Exam average</Text>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Exam average</Text>
                 <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
                   {formatPercent(summaryQuery.data.examAverage)}
                 </Text>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.xs }}>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
                   {summaryQuery.data.marksRecordedCount} marks · {summaryQuery.data.totalAssessmentCount} events
                 </Text>
               </View>
@@ -100,7 +107,7 @@ export const AssessmentHistoryScreen: React.FC<Props> = ({ route, navigation }) 
                       },
                     ]}
                   >
-                    <Text style={{ color: active ? colors.white : palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                    <Text style={{ color: active ? palette.textOnPrimary : palette.textSecondary, fontSize: typography.caption.fontSize, fontWeight: '700' }}>
                       {displayCategoryLabel(cat)}
                     </Text>
                   </Pressable>
@@ -119,13 +126,21 @@ export const AssessmentHistoryScreen: React.FC<Props> = ({ route, navigation }) 
         )}
         ListEmptyComponent={
           historyQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} />
+            <SkeletonListRows variant="compact" count={5} />
           ) : historyQuery.isError ? (
-            <Pressable onPress={() => void historyQuery.refetch()}>
-              <Text style={{ color: colors.error }}>{(historyQuery.error as Error).message}</Text>
-            </Pressable>
+            <ListEmptyState
+              title="Could not load assessments"
+              message={(historyQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void historyQuery.refetch()}
+            />
           ) : (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No assessments found.</Text>
+            <EmptyState
+              title="No assessments"
+              message="No assessments found for this filter."
+              icon="document-outline"
+            />
           )
         }
         onEndReached={() => {

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccentIcon } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 import { ExamStatusBadge } from './ExamStatusBadge';
 import type { ExamListItemData } from './types';
@@ -10,33 +11,54 @@ export interface ExamListItemProps {
 }
 
 export const ExamListItem: React.FC<ExamListItemProps> = ({ exam }) => {
-  const { palette, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, spacing, typography, radius, elevation } = useTheme();
   const meta = [exam.classroomName, exam.subjectName, exam.examTypeName].filter(Boolean).join(' · ');
 
   const body = (
     <View
       style={[
         styles.row,
+        elevation[2],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
         },
-        shadows.sm,
       ]}
     >
+      <AccentIcon name="school-outline" tone="blue" size={44} iconSize={20} style={{ marginRight: spacing.sm }} />
       <View style={{ flex: 1 }}>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700' }} numberOfLines={1}>
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontSize: typography.titleSmall.fontSize,
+            fontWeight: '700',
+          }}
+          numberOfLines={1}
+        >
           {exam.name}
         </Text>
         {meta ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 2 }} numberOfLines={1}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.body.fontSize,
+              marginTop: 2,
+            }}
+            numberOfLines={1}
+          >
             {meta}
           </Text>
         ) : null}
         {exam.startDate ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginTop: 2,
+            }}
+          >
             {exam.startDate}
           </Text>
         ) : null}
@@ -44,7 +66,7 @@ export const ExamListItem: React.FC<ExamListItemProps> = ({ exam }) => {
           <ExamStatusBadge status={exam.status} compact />
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+      <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
     </View>
   );
 

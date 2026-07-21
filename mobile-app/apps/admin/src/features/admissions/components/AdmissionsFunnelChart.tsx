@@ -27,21 +27,28 @@ export const AdmissionsFunnelChart: React.FC<AdmissionsFunnelChartProps> = ({
   const hasData = values.some((v) => v > 0);
   if (!hasData) return null;
 
-  const chartConfig = useMemo(
-    () => ({
+  const chartConfig = useMemo(() => {
+    const hex = palette.primary.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16) || 0;
+    const g = parseInt(hex.slice(2, 4), 16) || 74;
+    const b = parseInt(hex.slice(4, 6), 16) || 153;
+    return {
       backgroundColor: palette.surfaceRaised,
       backgroundGradientFrom: palette.surfaceRaised,
       backgroundGradientTo: palette.surfaceRaised,
       decimalPlaces: 0,
-      color: (opacity = 1) => `rgba(0, 74, 153, ${opacity})`,
+      color: (opacity = 1) => `rgba(${r}, ${g}, ${b}, ${opacity})`,
       labelColor: () => palette.textSecondary,
       propsForBackgroundLines: { stroke: palette.borderSubtle, strokeWidth: 1 },
-    }),
-    [palette],
-  );
+    };
+  }, [palette]);
 
   return (
-    <ChartCard title="Admissions funnel" subtitle="Applications by stage">
+    <ChartCard
+      title="Admissions funnel"
+      subtitle="Applications by stage"
+      accessibilityLabel="Admissions funnel chart showing applications by stage"
+    >
       <BarChart
         data={{
           labels: ['Pending', 'Review', 'Wait', 'Enrolled', 'Rejected'],

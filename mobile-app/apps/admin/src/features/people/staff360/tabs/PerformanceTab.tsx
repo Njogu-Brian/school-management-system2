@@ -1,8 +1,7 @@
 import { useStaffPerformanceReviews } from '@erp/core';
-import { EmptyState } from '@erp/ui';
+import { EmptyState, useTheme } from '@erp/ui';
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
 import { capitalizeStatus, formatDateLabel } from '../../../shared/utils/formatters';
 
 export interface PerformanceTabProps {
@@ -11,12 +10,12 @@ export interface PerformanceTabProps {
 }
 
 export const PerformanceTab: React.FC<PerformanceTabProps> = ({ staffId, onOpenReview }) => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const query = useStaffPerformanceReviews(staffId);
 
   if (query.isLoading) {
     return (
-      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -24,12 +23,13 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ staffId, onOpenR
 
   if (query.isError) {
     return (
-      <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-        <Text style={{ color: colors.error }}>{(query.error as Error).message}</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: 8 }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load reviews"
+        message={(query.error as Error).message}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
@@ -50,12 +50,33 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ staffId, onOpenR
         <Pressable
           key={review.id}
           onPress={() => onOpenReview?.(review.id)}
-          style={[styles.card, { borderColor: palette.border, marginBottom: spacing.xs }]}
+          style={[
+            styles.card,
+            {
+              borderColor: palette.borderSubtle,
+              backgroundColor: palette.surfaceRaised,
+              borderRadius: radius.card,
+              padding: spacing.md,
+              marginBottom: spacing.sm,
+            },
+          ]}
         >
-          <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontWeight: '600',
+              fontSize: typography.body.fontSize,
+            }}
+          >
             {formatDateLabel(review.review_date) ?? review.review_type ?? 'Review'}
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.overline.fontSize,
+              marginTop: 4,
+            }}
+          >
             {[
               review.overall_rating != null ? `Rating ${review.overall_rating}` : null,
               capitalizeStatus(review.status),
@@ -71,5 +92,5 @@ export const PerformanceTab: React.FC<PerformanceTabProps> = ({ staffId, onOpenR
 };
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12 },
+  card: { borderWidth: StyleSheet.hairlineWidth },
 });

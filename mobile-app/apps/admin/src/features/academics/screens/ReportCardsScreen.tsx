@@ -2,6 +2,7 @@ import { useCan, useInfiniteStudentList } from '@erp/core';
 import {
   AcademicScreenHeader,
   AcademicSearchBar,
+  EmptyState,
   ScreenContainer,
   SkeletonListRows,
   StudentListItem,
@@ -9,7 +10,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { summaryToListItem } from '../../students/utils/mapToListItem';
 
@@ -17,7 +18,7 @@ type Props = StackScreenProps<AcademicsStackParamList, 'ReportCards'>;
 
 export const ReportCardsScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('academics.view') && useCan('report_cards.view');
-  const { palette, spacing, fontSizes } = useTheme();
+  const { spacing } = useTheme();
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -39,7 +40,11 @@ export const ReportCardsScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need report_cards.view permission to open report cards."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -58,13 +63,27 @@ export const ReportCardsScreen: React.FC<Props> = ({ navigation }) => {
           placeholder="Search student by name or admission #…"
         />
         {debouncedSearch.length === 0 ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-            Type to search for a student and view their report cards.
-          </Text>
+          <EmptyState
+            title="Find a student"
+            message="Type to search for a student and view their report cards."
+            icon="search-outline"
+          />
         ) : listQuery.isLoading ? (
           <SkeletonListRows variant="avatar" count={5} />
+        ) : listQuery.isError ? (
+          <EmptyState
+            title="Could not search students"
+            message={(listQuery.error as Error).message}
+            icon="alert-circle-outline"
+            actionLabel="Retry"
+            onAction={() => void listQuery.refetch()}
+          />
         ) : students.length === 0 ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No students found.</Text>
+          <EmptyState
+            title="No students found"
+            message="No students match your search."
+            icon="people-outline"
+          />
         ) : (
           students.map((s) => (
             <StudentListItem

@@ -33,6 +33,7 @@ export function ScrollableTabBar<T extends string>({
 
   const renderTab = (tab: ScrollableTab<T>) => {
     const active = activeTab === tab.key;
+    const segmentedActive = variant === 'segmented' && active;
     return (
       <Pressable
         key={tab.key}
@@ -43,14 +44,14 @@ export function ScrollableTabBar<T extends string>({
           styles.tab,
           variant === 'scroll' ? styles.scrollTab : styles.segmentedTab,
           {
-            borderRadius: variant === 'scroll' ? radius.chip : radius.sm,
+            borderRadius: variant === 'scroll' ? radius.chip : radius.md,
             backgroundColor:
               variant === 'scroll'
                 ? active
                   ? `${colors.primary}14`
                   : palette.surfaceRaised
-                : active
-                  ? palette.surfaceRaised
+                : segmentedActive
+                  ? colors.primary
                   : 'transparent',
             borderColor: variant === 'scroll' ? (active ? colors.primary : palette.borderSubtle) : 'transparent',
             paddingVertical: variant === 'scroll' ? spacing.sm : spacing.sm,
@@ -58,7 +59,7 @@ export function ScrollableTabBar<T extends string>({
             minHeight: 44,
             justifyContent: 'center',
           },
-          variant === 'segmented' && active && elevation[1],
+          segmentedActive && elevation[2],
         ]}
       >
         <View style={styles.tabInner}>
@@ -66,13 +67,23 @@ export function ScrollableTabBar<T extends string>({
             <Ionicons
               name={tab.icon}
               size={14}
-              color={active ? colors.primary : palette.textMuted}
+              color={
+                segmentedActive
+                  ? palette.textOnPrimary
+                  : active
+                    ? colors.primary
+                    : palette.textMuted
+              }
               style={tab.label ? { marginRight: 4 } : undefined}
             />
           ) : null}
           <Text
             style={{
-              color: active ? colors.primary : palette.textSecondary,
+              color: segmentedActive
+                ? palette.textOnPrimary
+                : active
+                  ? colors.primary
+                  : palette.textSecondary,
               fontSize: typography.caption.fontSize,
               fontWeight: active ? '700' : '500',
               textAlign: 'center',

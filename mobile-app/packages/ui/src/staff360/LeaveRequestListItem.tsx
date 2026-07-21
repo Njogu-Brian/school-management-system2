@@ -25,7 +25,7 @@ function statusColor(status: string, colors: { success: string; warning: string;
 }
 
 export const LeaveRequestListItem: React.FC<LeaveRequestListItemProps> = ({ item }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius } = useTheme();
   const tint = statusColor(item.status, colors);
 
   return (
@@ -33,22 +33,28 @@ export const LeaveRequestListItem: React.FC<LeaveRequestListItemProps> = ({ item
       style={[
         styles.row,
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.md,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
           marginBottom: spacing.sm,
         },
       ]}
     >
       <View style={styles.header}>
-        <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.md }}>
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontWeight: '600',
+            fontSize: typography.bodyLarge.fontSize,
+          }}
+        >
           {item.leaveTypeName}
         </Text>
         <Text
           style={{
             color: tint ?? palette.textSecondary,
-            fontSize: fontSizes.xs,
+            fontSize: typography.overline.fontSize,
             fontWeight: '700',
             textTransform: 'capitalize',
           }}
@@ -56,11 +62,23 @@ export const LeaveRequestListItem: React.FC<LeaveRequestListItemProps> = ({ item
           {item.status}
         </Text>
       </View>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 4 }}>
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontSize: typography.caption.fontSize,
+          marginTop: 4,
+        }}
+      >
         {item.startDate} → {item.endDate} · {item.days} day{item.days === 1 ? '' : 's'}
       </Text>
       {item.reason ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+        <Text
+          style={{
+            color: palette.textSecondary,
+            fontSize: typography.overline.fontSize,
+            marginTop: 4,
+          }}
+        >
           {item.reason}
         </Text>
       ) : null}

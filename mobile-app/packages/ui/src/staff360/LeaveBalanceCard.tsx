@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { EmptyState } from '../feedback/EmptyState';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface LeaveBalanceCardData {
@@ -15,13 +16,15 @@ export interface LeaveBalanceCardProps {
 }
 
 export const LeaveBalanceCards: React.FC<LeaveBalanceCardProps> = ({ balances }) => {
-  const { palette, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, spacing, typography, radius, elevation } = useTheme();
 
   if (balances.length === 0) {
     return (
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-        No leave balances configured for the active year.
-      </Text>
+      <EmptyState
+        title="No leave balances"
+        message="No leave balances configured for the active year."
+        icon="calendar-outline"
+      />
     );
   }
 
@@ -32,29 +35,41 @@ export const LeaveBalanceCards: React.FC<LeaveBalanceCardProps> = ({ balances })
           key={b.id}
           style={[
             styles.cell,
+            elevation[1],
             {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderRadius: radius.md,
+              backgroundColor: palette.surfaceRaised,
+              borderColor: palette.borderSubtle,
+              borderRadius: radius.card,
               padding: spacing.md,
             },
-            shadows.sm,
           ]}
         >
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.overline.fontSize,
+              fontWeight: '600',
+            }}
+          >
             {b.leaveTypeName}
           </Text>
           <Text
             style={{
               color: palette.textPrimary,
-              fontSize: fontSizes.xl,
+              fontSize: typography.headline.fontSize,
               fontWeight: '700',
               marginTop: 4,
             }}
           >
             {b.remainingDays}d
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.overline.fontSize,
+              marginTop: 2,
+            }}
+          >
             {b.usedDays} used · {b.entitlementDays} entitled
           </Text>
         </View>

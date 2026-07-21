@@ -1,14 +1,21 @@
 import { useDriverTrips } from '@erp/core';
-import { AcademicScreenHeader, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  ListEmptyState,
+  ScreenContainer,
+  SkeletonListRows,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text } from 'react-native';
+import { FlatList } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
+import { OpsListCard } from '../components/OpsListCard';
 
 type Props = StackScreenProps<OperationsStackParamList, 'DriverTrips'>;
 
 export const DriverTripsScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { spacing } = useTheme();
   const query = useDriverTrips();
 
   return (
@@ -18,25 +25,39 @@ export const DriverTripsScreen: React.FC<Props> = ({ navigation }) => {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         ListHeaderComponent={
-          <AcademicScreenHeader title="Driver trips" subtitle="GET /driver/trips" onBack={() => navigation.goBack()} />
+          <AcademicScreenHeader title="Driver trips" subtitle="Today's assigned routes" onBack={() => navigation.goBack()} />
         }
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => navigation.navigate('DriverTripDetail', { tripId: item.id, tripName: item.name ?? undefined })}
-            style={[styles.row, { borderColor: palette.border, padding: spacing.sm, marginBottom: spacing.xs }]}
-          >
-            <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{item.name ?? `Trip #${item.id}`}</Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
-              {[item.direction, item.departure_time, item.vehicle_registration].filter(Boolean).join(' · ')}
-            </Text>
-          </Pressable>
+          <OpsListCard
+            title={item.name ?? `Trip #${item.id}`}
+            lines={[[item.direction, item.departure_time, item.vehicle_registration].filter(Boolean).join(' · ') || null]}
+            onPress={() =>
+              navigation.navigate('DriverTripDetail', { tripId: item.id, tripName: item.name ?? undefined })
+            }
+          />
         )}
-        ListEmptyComponent={query.isLoading ? <ActivityIndicator color={colors.primary} /> : <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No trips assigned today.</Text>}
+        ListEmptyComponent={
+          query.isLoading ? (
+            <SkeletonListRows variant="card" />
+          ) : query.isError ? (
+            <ListEmptyState
+              title="Could not load trips"
+              message={(query.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void query.refetch()}
+            />
+          ) : (
+            <ListEmptyState
+              title="No trips assigned"
+              message="No trips are assigned to you today."
+              icon="car-outline"
+            />
+          )
+        }
         refreshing={query.isRefetching}
         onRefresh={() => void query.refetch()}
       />
     </ScreenContainer>
   );
 };
-
-const styles = StyleSheet.create({ row: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8 } });

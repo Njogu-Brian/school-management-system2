@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { EmptyState } from '../feedback/EmptyState';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface ApplicationTimelineItemData {
@@ -15,13 +15,15 @@ export interface ApplicationTimelineProps {
 }
 
 export const ApplicationTimeline: React.FC<ApplicationTimelineProps> = ({ items }) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, colors, spacing, typography } = useTheme();
 
   if (!items.length) {
     return (
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, textAlign: 'center', marginTop: spacing.lg }}>
-        No timeline events yet.
-      </Text>
+      <EmptyState
+        title="No timeline events"
+        message="Activity for this application will appear here."
+        icon="time-outline"
+      />
     );
   }
 
@@ -32,25 +34,42 @@ export const ApplicationTimeline: React.FC<ApplicationTimelineProps> = ({ items 
           <View style={styles.rail}>
             <View style={[styles.dot, { backgroundColor: colors.primary }]} />
             {index < items.length - 1 ? (
-              <View style={[styles.line, { backgroundColor: palette.border }]} />
+              <View style={[styles.line, { backgroundColor: palette.borderSubtle }]} />
             ) : null}
           </View>
           <View style={{ flex: 1, paddingBottom: spacing.lg }}>
-            <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700' }}>
+            <Text
+              style={{
+                color: palette.textPrimary,
+                fontSize: typography.bodyLarge.fontSize,
+                fontWeight: typography.title.fontWeight,
+              }}
+            >
               {item.title}
             </Text>
             {item.occurredOn ? (
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: typography.caption.fontSize,
+                  marginTop: spacing.xs / 2,
+                }}
+              >
                 {item.occurredOn}
               </Text>
             ) : null}
             {item.description ? (
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 4 }}>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: typography.body.fontSize,
+                  marginTop: spacing.xs,
+                }}
+              >
                 {item.description}
               </Text>
             ) : null}
           </View>
-          <Ionicons name="ellipse" size={4} color="transparent" />
         </View>
       ))}
     </View>

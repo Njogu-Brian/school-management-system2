@@ -1,15 +1,17 @@
 import { useCan, useFinanceTransactionDetail, useReconciliationActions } from '@erp/core';
 import {
   Button,
+  ConfirmDialog,
   FinanceFieldSection,
   FinanceScreenHeader,
   ScreenContainer,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 import { TransactionAssignSection } from '../components/TransactionAssignSection';
 import { formatKes } from '../utils/formatters';
 
@@ -21,6 +23,8 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
   const { colors, palette, spacing } = useTheme();
   const detailQuery = useFinanceTransactionDetail(transactionId, transactionType, { enabled: canView });
   const { confirm, reject } = useReconciliationActions();
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [rejectVisible, setRejectVisible] = useState(false);
 
   const txn = detailQuery.data;
   const title = summary?.reference ?? txn?.trans_id ?? txn?.reference_number ?? `Transaction #${transactionId}`;
@@ -46,41 +50,26 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
     return Boolean(txn.payment_created) || ['confirmed', 'collected', 'processed'].includes(status);
   }, [txn]);
 
-  const runConfirm = () => {
-    Alert.alert('Confirm transaction', 'Create payment from this matched transaction?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Confirm',
-        onPress: () => {
-          void confirm
-            .mutateAsync({ id: transactionId, type: transactionType })
-            .then(() => {
-              Alert.alert('Confirmed', 'Transaction confirmed.');
-              navigation.goBack();
-            })
-            .catch((e: Error) => Alert.alert('Failed', e.message));
-        },
-      },
-    ]);
+  const submitConfirm = () => {
+    setConfirmVisible(false);
+    void confirm
+      .mutateAsync({ id: transactionId, type: transactionType })
+      .then(() => {
+        showSuccess('Confirmed', 'Transaction confirmed.');
+        navigation.goBack();
+      })
+      .catch((e: Error) => showError('Failed', e.message));
   };
 
-  const runReject = () => {
-    Alert.alert('Reject transaction', 'Reject this transaction and reverse any linked payments?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reject',
-        style: 'destructive',
-        onPress: () => {
-          void reject
-            .mutateAsync({ id: transactionId, type: transactionType })
-            .then(() => {
-              Alert.alert('Rejected', 'Transaction rejected.');
-              navigation.goBack();
-            })
-            .catch((e: Error) => Alert.alert('Failed', e.message));
-        },
-      },
-    ]);
+  const submitReject = () => {
+    setRejectVisible(false);
+    void reject
+      .mutateAsync({ id: transactionId, type: transactionType })
+      .then(() => {
+        showSuccess('Rejected', 'Transaction rejected.');
+        navigation.goBack();
+      })
+      .catch((e: Error) => showError('Failed', e.message));
   };
 
   if (!canView) {
@@ -184,14 +173,14 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
           <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
             <Button
               label="Confirm"
-              onPress={runConfirm}
+              onPress={() => setConfirmVisible(true)}
               loading={confirm.isPending}
               disabled={reject.isPending || !canConfirm}
             />
             <Button
               label="Reject"
               variant="ghost"
-              onPress={runReject}
+              onPress={() => setRejectVisible(true)}
               loading={reject.isPending}
               disabled={confirm.isPending}
             />
@@ -204,6 +193,29 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
           </Text>
         ) : null}
       </ScrollView>
+
+      <ConfirmDialog
+        visible={confirmVisible}
+        title="Confirm transaction"
+        message="Create payment from this matched transaction?"
+        confirmLabel="Confirm"
+        cancelLabel="Cancel"
+        loading={confirm.isPending}
+        onConfirm={submitConfirm}
+        onCancel={() => setConfirmVisible(false)}
+      />
+
+      <ConfirmDialog
+        visible={rejectVisible}
+        title="Reject transaction"
+        message="Reject this transaction and reverse any linked payments?"
+        confirmLabel="Reject"
+        cancelLabel="Cancel"
+        destructive
+        loading={reject.isPending}
+        onConfirm={submitReject}
+        onCancel={() => setRejectVisible(false)}
+      />
     </ScreenContainer>
   );
 };

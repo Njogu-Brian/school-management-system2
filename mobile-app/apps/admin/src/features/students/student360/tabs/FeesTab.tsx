@@ -1,7 +1,6 @@
-import { StudentSummaryWidgets, type StudentSummaryWidgetData } from '@erp/ui';
+import { EmptyState, StudentSummaryWidgets, type StudentSummaryWidgetData, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
 import { formatDateLabel, formatKes } from '../utils/formatters';
 
 export interface FeesTabProps {
@@ -31,7 +30,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
   onInvoicePress,
   onPaymentPress,
 }) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, colors, spacing, typography } = useTheme();
 
   const widgets = useMemo(
     (): StudentSummaryWidgetData[] => [
@@ -44,15 +43,17 @@ export const FeesTab: React.FC<FeesTabProps> = ({
 
   if (!canViewFees) {
     return (
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-        You don&apos;t have permission to view fee amounts. Status is shown on the student header.
-      </Text>
+      <EmptyState
+        title="Fees restricted"
+        message="You don't have permission to view fee amounts. Status is shown on the student header."
+        icon="lock-closed-outline"
+      />
     );
   }
 
   if (isLoading) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingVertical: spacing.xl }]}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -60,17 +61,13 @@ export const FeesTab: React.FC<FeesTabProps> = ({
 
   if (isError) {
     return (
-      <View style={styles.centered}>
-        <Text style={{ color: colors.error }}>Could not load fee statement.</Text>
-        {onRetry ? (
-          <Text
-            onPress={onRetry}
-            style={{ color: colors.primary, marginTop: spacing.sm, fontWeight: '600' }}
-          >
-            Retry
-          </Text>
-        ) : null}
-      </View>
+      <EmptyState
+        title="Could not load fees"
+        message="Unable to load the fee statement right now."
+        icon="alert-circle-outline"
+        actionLabel={onRetry ? 'Retry' : undefined}
+        onAction={onRetry}
+      />
     );
   }
 
@@ -78,9 +75,13 @@ export const FeesTab: React.FC<FeesTabProps> = ({
     <View>
       <StudentSummaryWidgets widgets={widgets} />
 
-      <Section title="Invoices" palette={palette} fontSizes={fontSizes} spacing={spacing}>
+      <Section title="Invoices" palette={palette} typography={typography} spacing={spacing}>
         {invoices.length === 0 ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No invoices on file.</Text>
+          <EmptyState
+            title="No invoices"
+            message="No invoices on file for this student."
+            icon="receipt-outline"
+          />
         ) : (
           invoices.slice(0, 10).map((inv) => (
             <Row
@@ -89,16 +90,20 @@ export const FeesTab: React.FC<FeesTabProps> = ({
               right={formatKes(inv.amount)}
               sub={formatDateLabel(inv.date)}
               palette={palette}
-              fontSizes={fontSizes}
+              typography={typography}
               onPress={onInvoicePress ? () => onInvoicePress(inv.id) : undefined}
             />
           ))
         )}
       </Section>
 
-      <Section title="Payments" palette={palette} fontSizes={fontSizes} spacing={spacing}>
+      <Section title="Payments" palette={palette} typography={typography} spacing={spacing}>
         {payments.length === 0 ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No payments on file.</Text>
+          <EmptyState
+            title="No payments"
+            message="No payments on file for this student."
+            icon="cash-outline"
+          />
         ) : (
           payments.slice(0, 10).map((p) => (
             <Row
@@ -107,7 +112,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
               right={formatKes(p.amount)}
               sub={formatDateLabel(p.date)}
               palette={palette}
-              fontSizes={fontSizes}
+              typography={typography}
               onPress={onPaymentPress ? () => onPaymentPress(p.id) : undefined}
             />
           ))
@@ -121,24 +126,26 @@ function Section({
   title,
   children,
   palette,
-  fontSizes,
+  typography,
   spacing,
 }: {
   title: string;
   children: React.ReactNode;
-  palette: { textSecondary: string };
-  fontSizes: { xs: number; sm: number };
+  palette: { textSub: string };
+  typography: {
+    overline: { fontSize: number; letterSpacing: number };
+  };
   spacing: { md: number; sm: number };
 }) {
   return (
     <View style={{ marginTop: spacing.md }}>
       <Text
         style={{
-          color: palette.textSecondary,
-          fontSize: fontSizes.xs,
+          color: palette.textSub,
+          fontSize: typography.overline.fontSize,
           fontWeight: '700',
           textTransform: 'uppercase',
-          letterSpacing: 0.4,
+          letterSpacing: typography.overline.letterSpacing,
           marginBottom: spacing.sm,
         }}
       >
@@ -154,23 +161,28 @@ function Row({
   right,
   sub,
   palette,
-  fontSizes,
+  typography,
   onPress,
 }: {
   left: string;
   right: string;
   sub: string;
-  palette: { textPrimary: string; textSecondary: string; border: string };
-  fontSizes: { sm: number; xs: number };
+  palette: { textMain: string; textSub: string; border: string };
+  typography: {
+    body: { fontSize: number };
+    caption: { fontSize: number };
+  };
   onPress?: () => void;
 }) {
   const content = (
     <>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm }}>{left}</Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>{sub}</Text>
+        <Text style={{ color: palette.textMain, fontSize: typography.body.fontSize }}>{left}</Text>
+        <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize }}>{sub}</Text>
       </View>
-      <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '600' }}>{right}</Text>
+      <Text style={{ color: palette.textMain, fontSize: typography.body.fontSize, fontWeight: '600' }}>
+        {right}
+      </Text>
     </>
   );
   if (onPress) {
@@ -184,7 +196,7 @@ function Row({
 }
 
 const styles = StyleSheet.create({
-  centered: { paddingVertical: 32, alignItems: 'center' },
+  centered: { alignItems: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

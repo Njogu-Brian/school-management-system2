@@ -22,24 +22,57 @@ export const Student360Header: React.FC<Student360HeaderProps> = ({ student }) =
           borderColor: palette.borderSubtle,
           borderRadius: radius.card,
           padding: spacing.md,
+          gap: spacing.md,
         },
       ]}
     >
       {student.avatarUrl ? (
-        <Image source={{ uri: student.avatarUrl }} style={styles.avatar} />
+        <Image
+          source={{ uri: student.avatarUrl }}
+          style={[styles.avatar, { borderRadius: radius['2xl'] }]}
+        />
       ) : (
-        <View style={[styles.avatar, styles.avatarPh, { backgroundColor: `${colors.primary}12`, borderRadius: radius.lg }]}>
+        <View
+          style={[
+            styles.avatar,
+            styles.avatarPh,
+            {
+              backgroundColor: `${colors.primary}12`,
+              borderRadius: radius.lg,
+            },
+          ]}
+        >
           <Ionicons name="person" size={36} color={colors.primary} />
         </View>
       )}
       <View style={styles.meta}>
-        <Text style={[styles.name, { color: palette.textPrimary, fontSize: typography.title.fontSize, fontWeight: typography.title.fontWeight }]}>
+        <Text
+          style={{
+            color: palette.textMain,
+            fontSize: typography.title.fontSize,
+            lineHeight: typography.title.lineHeight,
+            fontWeight: typography.title.fontWeight,
+          }}
+        >
           {student.fullName}
         </Text>
-        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+        <Text
+          style={{
+            color: palette.textMuted,
+            fontSize: typography.caption.fontSize,
+            lineHeight: typography.caption.lineHeight,
+          }}
+        >
           {student.admissionNumber}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+        <Text
+          style={{
+            color: palette.textSub,
+            fontSize: typography.caption.fontSize,
+            lineHeight: typography.caption.lineHeight,
+            marginTop: spacing.xs,
+          }}
+        >
           {student.classLabel}
         </Text>
         <View style={[styles.badges, { marginTop: spacing.xs, gap: spacing.xs }]}>
@@ -63,9 +96,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },
-  avatar: { width: 72, height: 72, borderRadius: 36, marginRight: 14 },
+  avatar: { width: 72, height: 72 },
   avatarPh: { alignItems: 'center', justifyContent: 'center' },
   meta: { flex: 1 },
-  name: { fontWeight: '700' },
   badges: { flexDirection: 'row', flexWrap: 'wrap' },
 });

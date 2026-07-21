@@ -2,8 +2,9 @@ import { useCan, useTransportRoute, useTripMutations, useVehicles } from '@erp/c
 import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<OperationsStackParamList, 'TripForm'>;
 
@@ -11,7 +12,7 @@ export const TripFormScreen: React.FC<Props> = ({ navigation, route }) => {
   const canView = useCan('operations.view');
   const tripId = route.params.tripId;
   const isEdit = tripId != null && tripId > 0;
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const tripQuery = useTransportRoute(isEdit ? tripId : null, { enabled: isEdit && canView });
   const vehiclesQuery = useVehicles({ enabled: canView });
   const { create, update } = useTripMutations();
@@ -37,7 +38,7 @@ export const TripFormScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const submit = async () => {
     if (!name.trim() || !vehicleId) {
-      Alert.alert('Validation', 'Trip name and vehicle are required.');
+      showError('Validation', 'Trip name and vehicle are required.');
       return;
     }
     const payload = {
@@ -51,11 +52,9 @@ export const TripFormScreen: React.FC<Props> = ({ navigation, route }) => {
       } else {
         await create.mutateAsync(payload);
       }
-      Alert.alert('Saved', isEdit ? 'Trip updated.' : 'Trip created.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      showSuccess('Saved', isEdit ? 'Trip updated.' : 'Trip created.', () => navigation.goBack());
     } catch (err) {
-      Alert.alert('Failed', (err as Error).message);
+      showError('Failed', (err as Error).message);
     }
   };
 
@@ -73,7 +72,7 @@ export const TripFormScreen: React.FC<Props> = ({ navigation, route }) => {
       <TextField label="Trip name *" value={name} onChangeText={setName} />
       <TextField label="Direction" value={direction} onChangeText={setDirection} placeholder="e.g. Morning / Evening" />
 
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>Vehicle *</Text>
+      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>Vehicle *</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
         {(vehiclesQuery.data ?? []).map((v) => {
           const active = vehicleId === v.id;
@@ -91,7 +90,7 @@ export const TripFormScreen: React.FC<Props> = ({ navigation, route }) => {
                 marginRight: 8,
               }}
             >
-              <Text style={{ color: active ? colors.primary : palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>
+              <Text style={{ color: active ? colors.primary : palette.textPrimary, fontWeight: '600', fontSize: typography.body.fontSize }}>
                 {v.vehicle_number}
               </Text>
             </Pressable>

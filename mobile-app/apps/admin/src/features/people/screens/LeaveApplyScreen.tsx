@@ -2,8 +2,9 @@ import { useCreateLeaveRequest, useInfiniteStaffList, useLeaveTypes } from '@erp
 import { AcademicScreenHeader, Button, FilterChip, FilterChipRow, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useState } from 'react';
-import { Alert, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<PeopleStackParamList, 'LeaveApply'>;
 
@@ -30,7 +31,7 @@ export const LeaveApplyScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const submit = async () => {
     if (!leaveTypeId || !startDate || !endDate) {
-      Alert.alert('Missing fields', 'Leave type and dates are required.');
+      showError('Missing fields', 'Leave type and dates are required.');
       return;
     }
     try {
@@ -41,10 +42,10 @@ export const LeaveApplyScreen: React.FC<Props> = ({ navigation, route }) => {
         end_date: endDate,
         reason: reason.trim() || undefined,
       });
-      Alert.alert('Submitted', 'Leave request sent for approval.');
+      showSuccess('Submitted', 'Leave request sent for approval.');
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Could not submit leave.');
+      showError('Error', err instanceof Error ? err.message : 'Could not submit leave.');
     }
   };
 

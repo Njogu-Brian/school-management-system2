@@ -2,8 +2,9 @@ import { useCan, useVehicle, useVehicleMutations } from '@erp/core';
 import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<OperationsStackParamList, 'VehicleForm'>;
 
@@ -45,7 +46,7 @@ export const VehicleFormScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const submit = async () => {
     if (!vehicleNumber.trim()) {
-      Alert.alert('Validation', 'Vehicle number is required.');
+      showError('Validation', 'Vehicle number is required.');
       return;
     }
     const payload = {
@@ -63,11 +64,9 @@ export const VehicleFormScreen: React.FC<Props> = ({ navigation, route }) => {
       } else {
         await create.mutateAsync(payload);
       }
-      Alert.alert('Saved', isEdit ? 'Vehicle updated.' : 'Vehicle created.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      showSuccess('Saved', isEdit ? 'Vehicle updated.' : 'Vehicle created.', () => navigation.goBack());
     } catch (err) {
-      Alert.alert('Failed', (err as Error).message);
+      showError('Failed', (err as Error).message);
     }
   };
 

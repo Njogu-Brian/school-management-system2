@@ -3,8 +3,9 @@ import { AcademicScreenHeader, Button, FinanceFieldSection, ScreenContainer, use
 import * as Location from 'expo-location';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<PeopleStackParamList, 'StaffClock'>;
 
@@ -36,15 +37,15 @@ export const StaffClockScreen: React.FC<Props> = ({ navigation }) => {
   const perform = useCallback(
     async (mode: 'in' | 'out') => {
       if (!isConfigured) {
-        Alert.alert('Geofence not configured', 'Ask an admin to configure the school geofence on the web portal.');
+        showError('Geofence not configured', 'Ask an admin to configure the school geofence on the web portal.');
         return;
       }
       try {
         const payload = await getCoords();
         const res = mode === 'in' ? await clockIn.mutateAsync(payload) : await clockOut.mutateAsync(payload);
-        Alert.alert('Success', res.message ?? `Clock-${mode} recorded.`);
+        showSuccess('Success', res.message ?? `Clock-${mode} recorded.`);
       } catch (err) {
-        Alert.alert('Unable to continue', (err as Error).message);
+        showError('Unable to continue', (err as Error).message);
       }
     },
     [clockIn, clockOut, isConfigured],

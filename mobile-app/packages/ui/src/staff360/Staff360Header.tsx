@@ -10,49 +10,72 @@ export interface Staff360HeaderProps {
 }
 
 export const Staff360Header: React.FC<Staff360HeaderProps> = ({ staff }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   return (
     <View
       style={[
         styles.card,
+        elevation[2],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
         },
-        shadows.sm,
       ]}
     >
       {staff.avatarUrl ? (
         <Image source={{ uri: staff.avatarUrl }} style={styles.avatar} />
       ) : (
-        <View style={[styles.avatar, styles.avatarPh, { backgroundColor: palette.accent }]}>
+        <View
+          style={[
+            styles.avatar,
+            styles.avatarPh,
+            { backgroundColor: `${colors.primary}12`, borderRadius: radius.lg },
+          ]}
+        >
           <Ionicons name="person" size={36} color={colors.primary} />
         </View>
       )}
       <View style={styles.meta}>
-        <Text style={[styles.name, { color: palette.textPrimary, fontSize: fontSizes.lg }]}>
+        <Text
+          style={[
+            styles.name,
+            {
+              color: palette.textPrimary,
+              fontSize: typography.title.fontSize,
+              fontWeight: typography.title.fontWeight,
+            },
+          ]}
+        >
           {staff.fullName}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
           {staff.employeeNumber}
         </Text>
         {staff.orgLabel ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 2 }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginTop: 2,
+            }}
+          >
             {staff.orgLabel}
           </Text>
         ) : null}
         <View style={[styles.badges, { marginTop: spacing.xs, gap: spacing.xs }]}>
           <StaffEmploymentBadge
-            status={staff.employmentStatus as 'active' | 'on_leave' | 'terminated' | 'suspended' | null}
+            status={
+              staff.employmentStatus as 'active' | 'on_leave' | 'terminated' | 'suspended' | null
+            }
           />
           {staff.systemRole ? (
             <Text
               style={{
                 color: palette.textSecondary,
-                fontSize: fontSizes.xs,
+                fontSize: typography.overline.fontSize,
                 alignSelf: 'center',
               }}
             >
@@ -74,6 +97,6 @@ const styles = StyleSheet.create({
   avatar: { width: 72, height: 72, borderRadius: 36, marginRight: 14 },
   avatarPh: { alignItems: 'center', justifyContent: 'center' },
   meta: { flex: 1 },
-  name: { fontWeight: '700' },
+  name: {},
   badges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
 });

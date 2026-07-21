@@ -6,10 +6,19 @@ import {
   useSettingsStreams,
   useTermsSettings,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, FilterChip, FilterChipRow, ListEmptyState, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  EmptyState,
+  FilterChip,
+  FilterChipRow,
+  ScreenContainer,
+  SkeletonListRows,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { sessionDisplayLabel } from '../utils/examLabels';
 
@@ -17,7 +26,7 @@ type Props = StackScreenProps<AcademicsStackParamList, 'Marks'>;
 
 export const MarksScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('academics.view') && useCan('exams.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, spacing, typography } = useTheme();
 
   const yearsQuery = useAcademicYearsSettings({ enabled: canView });
   const [yearId, setYearId] = useState<number | null>(null);
@@ -92,7 +101,11 @@ export const MarksScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need exams.view permission to open marks."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -148,15 +161,24 @@ export const MarksScreen: React.FC<Props> = ({ navigation }) => {
 
         {classroomId && termId ? (
           <>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.sm, marginBottom: spacing.xs }}>
-              Exam
-            </Text>
             {sessionsQuery.isLoading ? (
-              <ActivityIndicator color={colors.primary} />
+              <SkeletonListRows variant="compact" count={3} />
+            ) : sessionsQuery.isError ? (
+              <EmptyState
+                title="Could not load exams"
+                message={(sessionsQuery.error as Error).message}
+                icon="alert-circle-outline"
+                actionLabel="Retry"
+                onAction={() => void sessionsQuery.refetch()}
+              />
             ) : sessions.length === 0 ? (
-              <ListEmptyState title="No exams" message="No exam sessions for this class and term." icon="document-outline" />
+              <EmptyState
+                title="No exams"
+                message="No exam sessions for this class and term."
+                icon="document-outline"
+              />
             ) : (
-              <FilterChipRow label="">
+              <FilterChipRow label="Exam">
                 {sessions.map(({ label, session }) => (
                   <FilterChip
                     key={session.id}
@@ -169,21 +191,29 @@ export const MarksScreen: React.FC<Props> = ({ navigation }) => {
             )}
           </>
         ) : (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: spacing.md }}>
-            Select year, term, and class to load exams.
-          </Text>
+          <EmptyState
+            title="Select filters"
+            message="Choose year, term, and class to load exams."
+            icon="funnel-outline"
+          />
         )}
 
         {selectedSession && classroomId ? (
           <Button label="View class mark grid" onPress={openGrid} style={{ marginTop: spacing.lg }} />
         ) : null}
 
-        <Text
-          onPress={() => navigation.navigate('MarksMatrix')}
-          style={{ color: colors.primary, fontWeight: '600', marginTop: spacing.lg, textAlign: 'center' }}
-        >
-          Open marks entry matrix →
-        </Text>
+        <Pressable onPress={() => navigation.navigate('MarksMatrix')} style={{ marginTop: spacing.lg }}>
+          <Text
+            style={{
+              color: colors.primary,
+              fontWeight: '600',
+              fontSize: typography.body.fontSize,
+              textAlign: 'center',
+            }}
+          >
+            Open marks entry matrix →
+          </Text>
+        </Pressable>
       </ScrollView>
     </ScreenContainer>
   );

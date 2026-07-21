@@ -18,12 +18,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "baseUrl": ".",
     "paths": {
-      "@erp/core": ["packages/core/src/index.ts"],
-      "@erp/core/*": ["packages/core/src/*"],
-      "@erp/ui": ["packages/ui/src/index.ts"],
-      "@erp/ui/*": ["packages/ui/src/*"]
+      "@erp/core": ["./packages/core/src/index.ts"],
+      "@erp/core/*": ["./packages/core/src/*"],
+      "@erp/ui": ["./packages/ui/src/index.ts"],
+      "@erp/ui/*": ["./packages/ui/src/*"]
     }
   }
 }

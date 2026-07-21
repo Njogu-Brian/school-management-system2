@@ -1,15 +1,15 @@
 import { downloadAuthenticatedFile, useStaffDocuments } from '@erp/core';
-import { EmptyState } from '@erp/ui';
+import { EmptyState, useTheme } from '@erp/ui';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { showError } from '../../../shared/utils/feedback';
 
 export interface DocumentsTabProps {
   staffId: number;
 }
 
 export const DocumentsTab: React.FC<DocumentsTabProps> = ({ staffId }) => {
-  const { colors, palette, fontSizes, spacing } = useTheme();
+  const { colors, palette, typography, spacing, radius } = useTheme();
   const query = useStaffDocuments(staffId);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
@@ -20,7 +20,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ staffId }) => {
       try {
         await downloadAuthenticatedFile(doc.download_path, doc.title);
       } catch (err) {
-        Alert.alert('Download failed', (err as Error).message);
+        showError('Download failed', (err as Error).message);
       } finally {
         setDownloadingId(null);
       }
@@ -30,7 +30,7 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ staffId }) => {
 
   if (query.isLoading) {
     return (
-      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -38,12 +38,13 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ staffId }) => {
 
   if (query.isError) {
     return (
-      <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-        <Text style={{ color: colors.error }}>{(query.error as Error).message}</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: 8 }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load documents"
+        message={(query.error as Error).message}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
@@ -60,27 +61,39 @@ export const DocumentsTab: React.FC<DocumentsTabProps> = ({ staffId }) => {
 
   return (
     <>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 8 }}>
-        API: GET /staff/{'{id}'}/documents
-      </Text>
       {docs.map((doc) => (
         <View
           key={doc.id}
           style={{
             borderWidth: 1,
-            borderColor: palette.border,
-            borderRadius: 8,
-            padding: spacing.sm,
-            marginBottom: spacing.xs,
+            borderColor: palette.borderSubtle,
+            borderRadius: radius.card,
+            padding: spacing.md,
+            marginBottom: spacing.sm,
+            backgroundColor: palette.surfaceRaised,
           }}
         >
-          <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{doc.title}</Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontWeight: '600',
+              fontSize: typography.body.fontSize,
+            }}
+          >
+            {doc.title}
+          </Text>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.overline.fontSize,
+              marginTop: 4,
+            }}
+          >
             {[doc.document_type, doc.expiry_date].filter(Boolean).join(' · ') || '—'}
           </Text>
           {doc.download_path ? (
             <Pressable onPress={() => void handleDownload(doc)} style={{ marginTop: 8 }}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>
+              <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
                 {downloadingId === doc.id ? 'Downloading…' : 'Download'}
               </Text>
             </Pressable>

@@ -1,5 +1,5 @@
 import { useInfiniteNotifications, useAcknowledgeNotification, useMarkNotificationRead } from '@erp/core';
-import { AcademicScreenHeader, Button, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, EmptyState, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -13,7 +13,7 @@ type Props = StackScreenProps<DashboardStackParamList, 'NotificationDetail'>;
 
 export const NotificationDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { notificationId } = route.params;
-  const { palette, spacing } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const listQuery = useInfiniteNotifications();
   const markRead = useMarkNotificationRead();
   const acknowledge = useAcknowledgeNotification();
@@ -26,16 +26,24 @@ export const NotificationDetailScreen: React.FC<Props> = ({ navigation, route })
   if (listQuery.isLoading) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.primary} />
       </ScreenContainer>
     );
   }
 
-  if (!notification) {
+  if (listQuery.isError || !notification) {
     return (
-      <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
-        <AcademicScreenHeader title="Notification" onBack={() => navigateDashboardBack(navigation)} />
-        <Text style={{ color: palette.textSecondary }}>Notification not found.</Text>
+      <ScreenContainer contentContainerStyle={styles.centered}>
+        <EmptyState
+          title="Notification not found"
+          message={(listQuery.error as Error)?.message ?? 'This notification could not be loaded.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void listQuery.refetch()}
+        />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <Button label="Go back" variant="ghost" onPress={() => navigateDashboardBack(navigation)} />
+        </View>
       </ScreenContainer>
     );
   }
@@ -45,7 +53,7 @@ export const NotificationDetailScreen: React.FC<Props> = ({ navigation, route })
   }
 
   return (
-    <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
+    <ScreenContainer contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader title="Notification" onBack={() => navigateDashboardBack(navigation)} />
       <FinanceFieldSection
         title="Details"
@@ -55,10 +63,26 @@ export const NotificationDetailScreen: React.FC<Props> = ({ navigation, route })
           { label: 'Time', value: formatDateTimeLabel(notification.created_at) },
         ]}
       />
-      <Text style={{ fontWeight: '700', fontSize: 18, color: palette.textPrimary, marginTop: spacing.md }}>
+      <Text
+        style={{
+          fontWeight: typography.title.fontWeight,
+          fontSize: typography.title.fontSize,
+          color: palette.textPrimary,
+          marginTop: spacing.md,
+        }}
+      >
         {notification.title}
       </Text>
-      <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, lineHeight: 22 }}>{notification.body}</Text>
+      <Text
+        style={{
+          color: palette.textSecondary,
+          marginTop: spacing.sm,
+          fontSize: typography.body.fontSize,
+          lineHeight: typography.body.lineHeight,
+        }}
+      >
+        {notification.body}
+      </Text>
       {notification.requires_action && !notification.is_acknowledged ? (
         <Button
           label="Mark as done"
@@ -69,7 +93,7 @@ export const NotificationDetailScreen: React.FC<Props> = ({ navigation, route })
         />
       ) : notification.is_acknowledged ? (
         <View style={{ marginTop: spacing.lg }}>
-          <Text style={{ color: palette.textSecondary }}>Handled</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Handled</Text>
         </View>
       ) : null}
       <Button

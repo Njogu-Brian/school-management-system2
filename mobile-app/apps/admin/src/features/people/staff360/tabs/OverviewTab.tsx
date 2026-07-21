@@ -33,7 +33,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   payrollLoading,
   pendingLeaveCount,
 }) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, colors, spacing, typography } = useTheme();
 
   const widgets = useMemo((): StudentSummaryWidgetData[] => {
     const list: StudentSummaryWidgetData[] = [
@@ -105,7 +105,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       <Text
         style={{
           color: palette.textSecondary,
-          fontSize: fontSizes.xs,
+          fontSize: typography.overline.fontSize,
           textAlign: 'center',
         }}
       >

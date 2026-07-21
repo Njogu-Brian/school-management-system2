@@ -1,11 +1,10 @@
 import { useRolesSettings } from '@erp/core';
-import { SettingCard, SettingsSectionHeader } from '@erp/ui';
+import { EmptyState, SettingCard, SettingsSectionHeader, useTheme } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
 
 export const RolesSettingsSection: React.FC = () => {
-  const { colors, spacing, fontSizes, palette } = useTheme();
+  const { colors, spacing, palette, typography } = useTheme();
   const query = useRolesSettings();
   const [expandedRoleId, setExpandedRoleId] = useState<number | null>(null);
 
@@ -21,17 +20,18 @@ export const RolesSettingsSection: React.FC = () => {
 
   if (query.isError) {
     return (
-      <View>
-        <Text style={{ color: colors.error }}>Could not load roles.</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: spacing.sm }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load roles"
+        message={(query.error as Error)?.message ?? 'Try again in a moment.'}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
   return (
-    <View>
+    <View style={{ gap: spacing.sm }}>
       <SettingsSectionHeader
         title="Roles & permissions"
         subtitle="Read-only view of roles and assigned permissions. Edit on web portal."
@@ -52,7 +52,13 @@ export const RolesSettingsSection: React.FC = () => {
           </Pressable>
         );
       })}
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.sm }}>
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontSize: typography.caption.fontSize,
+          lineHeight: typography.caption.lineHeight,
+        }}
+      >
         Permission changes are not available in the mobile app.
       </Text>
     </View>

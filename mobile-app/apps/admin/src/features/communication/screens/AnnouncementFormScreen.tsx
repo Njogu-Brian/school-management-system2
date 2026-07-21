@@ -1,8 +1,17 @@
 import { useAnnouncement, useCan, useCreateAnnouncement, useUpdateAnnouncement } from '@erp/core';
-import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  EmptyState,
+  FilterChip,
+  FilterChipRow,
+  ScreenContainer,
+  TextField,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { CommunicationStackParamList } from '../../../navigation/communicationStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -12,7 +21,7 @@ export const AnnouncementFormScreen: React.FC<Props> = ({ navigation, route }) =
   const editId = route.params?.announcementId;
   const isEdit = editId != null && editId > 0;
   const canEdit = useCan('communication.view');
-  const { palette, spacing, fontSizes } = useTheme();
+  const { colors, spacing } = useTheme();
   const detailQuery = useAnnouncement(editId ?? 0, { enabled: isEdit && canEdit });
   const createMutation = useCreateAnnouncement();
   const updateMutation = useUpdateAnnouncement();
@@ -34,7 +43,11 @@ export const AnnouncementFormScreen: React.FC<Props> = ({ navigation, route }) =
   if (!canEdit) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need communication.view permission to manage announcements."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -42,7 +55,21 @@ export const AnnouncementFormScreen: React.FC<Props> = ({ navigation, route }) =
   if (isEdit && detailQuery.isLoading) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.primary} />
+      </ScreenContainer>
+    );
+  }
+
+  if (isEdit && (detailQuery.isError || !detailQuery.data)) {
+    return (
+      <ScreenContainer contentContainerStyle={styles.centered}>
+        <EmptyState
+          title="Could not load announcement"
+          message={(detailQuery.error as Error)?.message ?? 'Announcement not found.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void detailQuery.refetch()}
+        />
       </ScreenContainer>
     );
   }
@@ -75,7 +102,7 @@ export const AnnouncementFormScreen: React.FC<Props> = ({ navigation, route }) =
   };
 
   return (
-    <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
+    <ScreenContainer contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader
         title={isEdit ? 'Edit announcement' : 'New announcement'}
         onBack={() => navigation.goBack()}
@@ -98,13 +125,11 @@ export const AnnouncementFormScreen: React.FC<Props> = ({ navigation, route }) =
         placeholder="Optional"
       />
 
-      <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
-        <Pressable onPress={() => setActive(true)} style={[styles.chip, active && styles.chipActive]}>
-          <Text style={{ fontSize: fontSizes.sm }}>Publish now</Text>
-        </Pressable>
-        <Pressable onPress={() => setActive(false)} style={[styles.chip, !active && styles.chipActive]}>
-          <Text style={{ fontSize: fontSizes.sm }}>Save as draft</Text>
-        </Pressable>
+      <View style={{ marginTop: spacing.sm }}>
+        <FilterChipRow>
+          <FilterChip label="Publish now" active={active} onPress={() => setActive(true)} />
+          <FilterChip label="Save as draft" active={!active} onPress={() => setActive(false)} />
+        </FilterChipRow>
       </View>
 
       <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
@@ -123,8 +148,6 @@ export const AnnouncementFormScreen: React.FC<Props> = ({ navigation, route }) =
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  chip: { borderWidth: 1, borderColor: '#ccc', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
-  chipActive: { borderColor: '#004A99', backgroundColor: '#E8F0FA' },
 });

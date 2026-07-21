@@ -12,8 +12,9 @@ import {
 import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<AcademicsStackParamList, 'MarksEntry'>;
 
@@ -24,7 +25,7 @@ type MarksDraft = {
 
 export const MarksEntryScreen: React.FC<Props> = ({ route, navigation }) => {
   const { examId, classroomId, subjectId, classroomName, subjectName } = route.params;
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const networkStatus = useNetworkStatus();
   const examQuery = useExamDetail(examId);
   const marksQuery = useMarks({ exam_id: examId, subject_id: subjectId, classroom_id: classroomId });
@@ -109,7 +110,7 @@ export const MarksEntryScreen: React.FC<Props> = ({ route, navigation }) => {
     }[];
 
     if (payload.length === 0) {
-      Alert.alert('No marks', 'Enter at least one valid mark before saving.');
+      showError('No marks', 'Enter at least one valid mark before saving.');
       return;
     }
 
@@ -139,14 +140,14 @@ export const MarksEntryScreen: React.FC<Props> = ({ route, navigation }) => {
       );
 
       if (result === 'queued') {
-        Alert.alert('Queued offline', 'Marks will sync when you reconnect.');
+        showSuccess('Queued offline', 'Marks will sync when you reconnect.');
       } else {
-        Alert.alert('Saved', 'Marks saved.');
+        showSuccess('Saved', 'Marks saved.');
         await clearDraft();
         navigation.goBack();
       }
     } catch (err) {
-      Alert.alert('Save failed', (err as Error).message);
+      showError('Save failed', (err as Error).message);
     }
   };
 
@@ -160,11 +161,11 @@ export const MarksEntryScreen: React.FC<Props> = ({ route, navigation }) => {
           subtitle={`${classroomName} · ${subjectName}`}
           onBack={() => navigation.goBack()}
         />
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.md }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, marginBottom: spacing.md }}>
           {examQuery.data?.name ?? `Exam #${examId}`}
         </Text>
         {hasLocalDraft ? (
-          <Text style={{ color: colors.primary, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
             Draft auto-saved on this device.
           </Text>
         ) : null}

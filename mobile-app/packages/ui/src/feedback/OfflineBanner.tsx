@@ -19,7 +19,7 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
   conflictCount = 0,
   onReviewConflicts,
 }) => {
-  const { colors, fontSizes } = useTheme();
+  const { colors, typography, palette } = useTheme();
 
   if (status === 'online' && pendingCount === 0 && conflictCount === 0) {
     return null;
@@ -32,7 +32,7 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
         style={[styles.banner, { backgroundColor: colors.warning }]}
         accessibilityRole="alert"
       >
-        <Text style={[styles.text, { fontSize: fontSizes.xs }]}>
+        <Text style={[styles.text, { fontSize: typography.caption.fontSize, color: palette.textOnPrimary }]}>
           {conflictCount} sync conflict{conflictCount === 1 ? '' : 's'} need review. Tap to resolve.
         </Text>
       </Pressable>
@@ -46,7 +46,7 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
         style={[styles.banner, { backgroundColor: colors.primary }]}
         accessibilityRole="alert"
       >
-        <Text style={[styles.text, { fontSize: fontSizes.xs }]}>
+        <Text style={[styles.text, { fontSize: typography.caption.fontSize, color: palette.textOnPrimary }]}>
           {pendingCount} change{pendingCount === 1 ? '' : 's'} waiting to sync. Tap to retry.
         </Text>
       </Pressable>
@@ -68,14 +68,14 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
         accessibilityRole="alert"
         accessibilityHint={onRetry ? 'Tap to retry sync' : undefined}
       >
-        <Text style={[styles.text, { fontSize: fontSizes.xs }]}>
+        <Text style={[styles.text, { fontSize: typography.caption.fontSize, color: palette.textOnPrimary }]}>
           {message}
           {onRetry ? ' Tap to refresh.' : ''}
         </Text>
       </Pressable>
       {pendingCount > 0 ? (
         <View style={[styles.subBanner, { backgroundColor: colors.primary }]}>
-          <Text style={[styles.text, { fontSize: fontSizes.xs }]}>
+          <Text style={[styles.text, { fontSize: typography.caption.fontSize, color: palette.textOnPrimary }]}>
             {pendingCount} unsynced change{pendingCount === 1 ? '' : 's'} queued.
           </Text>
         </View>
@@ -87,5 +87,5 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
 const styles = StyleSheet.create({
   banner: { paddingVertical: 6, paddingHorizontal: 12 },
   subBanner: { paddingVertical: 4, paddingHorizontal: 12 },
-  text: { color: '#fff', textAlign: 'center', fontWeight: '600' },
+  text: { textAlign: 'center', fontWeight: '600' },
 });

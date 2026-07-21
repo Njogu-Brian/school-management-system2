@@ -29,10 +29,15 @@ export const ApprovalDetailView: React.FC<ApprovalDetailViewProps> = ({
   summary,
   children,
 }) => {
-  const { palette, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, spacing, typography, radius, shadows } = useTheme();
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { padding: spacing.md }]}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.content,
+        { padding: spacing.md, paddingBottom: spacing['5xl'] + spacing.xl },
+      ]}
+    >
       <View
         style={[
           styles.hero,
@@ -45,12 +50,23 @@ export const ApprovalDetailView: React.FC<ApprovalDetailViewProps> = ({
           shadows.sm,
         ]}
       >
-        <Text style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.xl }]}>
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontSize: typography.headline.fontSize,
+            fontWeight: typography.headline.fontWeight,
+            letterSpacing: typography.headline.letterSpacing,
+          }}
+        >
           {title}
         </Text>
         {subtitle ? (
           <Text
-            style={[styles.subtitle, { color: palette.textSecondary, fontSize: fontSizes.sm }]}
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginTop: spacing.xs,
+            }}
           >
             {subtitle}
           </Text>
@@ -63,17 +79,41 @@ export const ApprovalDetailView: React.FC<ApprovalDetailViewProps> = ({
 
       {summary ? (
         <View style={{ marginTop: spacing.md }}>
-          <Text style={[styles.sectionLabel, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
+          <Text
+            style={[
+              styles.sectionLabel,
+              {
+                color: palette.textSecondary,
+                fontSize: typography.overline.fontSize,
+                letterSpacing: typography.overline.letterSpacing,
+              },
+            ]}
+          >
             Summary
           </Text>
-          <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, marginTop: 4 }}>
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontSize: typography.body.fontSize,
+              marginTop: spacing.xs,
+            }}
+          >
             {summary}
           </Text>
         </View>
       ) : null}
 
       <View style={{ marginTop: spacing.lg }}>
-        <Text style={[styles.sectionLabel, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
+        <Text
+          style={[
+            styles.sectionLabel,
+            {
+              color: palette.textSecondary,
+              fontSize: typography.overline.fontSize,
+              letterSpacing: typography.overline.letterSpacing,
+            },
+          ]}
+        >
           Details
         </Text>
         {fields.map((field) => (
@@ -84,10 +124,22 @@ export const ApprovalDetailView: React.FC<ApprovalDetailViewProps> = ({
               { borderBottomColor: palette.border, paddingVertical: spacing.sm },
             ]}
           >
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.overline.fontSize,
+                fontWeight: '600',
+              }}
+            >
               {field.label}
             </Text>
-            <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, marginTop: 2 }}>
+            <Text
+              style={{
+                color: palette.textPrimary,
+                fontSize: typography.caption.fontSize,
+                marginTop: spacing.xs / 2,
+              }}
+            >
               {field.value}
             </Text>
           </View>
@@ -100,14 +152,11 @@ export const ApprovalDetailView: React.FC<ApprovalDetailViewProps> = ({
 };
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 120 },
+  content: {},
   hero: { borderWidth: StyleSheet.hairlineWidth },
-  title: { fontWeight: '700' },
-  subtitle: { marginTop: 4 },
   badges: { flexDirection: 'row', flexWrap: 'wrap' },
   sectionLabel: {
     fontWeight: '700',
-    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   fieldRow: { borderBottomWidth: StyleSheet.hairlineWidth },

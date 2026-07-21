@@ -1,16 +1,17 @@
 import { useCan, useCheckInVisitor } from '@erp/core';
-import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, EmptyState, ScreenContainer, TextField, useTheme, useToast } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
-import { showError, showSuccess } from '../../shared/utils/feedback';
+import { showError } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<OperationsStackParamList, 'VisitorCheckIn'>;
 
 export const VisitorCheckInScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('operations.view');
-  const { palette, spacing } = useTheme();
+  const { spacing } = useTheme();
+  const { showToast } = useToast();
   const checkIn = useCheckInVisitor();
 
   const [visitorName, setVisitorName] = useState('');
@@ -23,8 +24,8 @@ export const VisitorCheckInScreen: React.FC<Props> = ({ navigation }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState title="Access denied" message="You need operations.view permission." icon="lock-closed-outline" />
       </ScreenContainer>
     );
   }
@@ -47,10 +48,9 @@ export const VisitorCheckInScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const res = await checkIn.mutateAsync(payload);
       const id = res.data?.id;
-      showSuccess('Checked in', 'Visitor registered and checked in.', () => {
-        if (id) navigation.replace('VisitorDetail', { visitorId: id });
-        else navigation.goBack();
-      });
+      showToast({ message: 'Visitor checked in successfully', tone: 'success' });
+      if (id) navigation.replace('VisitorDetail', { visitorId: id });
+      else navigation.goBack();
     } catch (err) {
       showError('Check-in failed', (err as Error).message);
     }
@@ -78,5 +78,5 @@ export const VisitorCheckInScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

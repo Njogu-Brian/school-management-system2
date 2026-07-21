@@ -10,6 +10,7 @@ import {
   ApplicationSearchBar,
   countActiveFilters,
   DashboardHero,
+  EmptyState,
   KpiCard,
   ListEmptyState,
   RegistryListLayout,
@@ -25,7 +26,6 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -148,21 +148,23 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
         </Text>
       </View>
     ),
-    [spacing, statsQuery, stats, totalApplications, setStatus, typography],
+    [palette.textPrimary, spacing, statsQuery, stats, totalApplications, setStatus, typography],
   );
 
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, textAlign: 'center' }}>
-          You need admissions.view permission to open the admissions workspace.
-        </Text>
+        <EmptyState
+          title="Access denied"
+          message="You need admissions.view permission to open the admissions workspace."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={styles.flex}>
       <RegistryListLayout
         data={applications}
         keyExtractor={(item) => String(item.id)}
@@ -201,32 +203,34 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
         onEndReachedThreshold={0.4}
         ListFooterComponent={
           listQuery.isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
           ) : null
         }
         ListEmptyComponent={
           listQuery.isLoading ? (
             <SkeletonListRows variant="avatar" />
-          ) : !listQuery.isError ? (
-            <ListEmptyState entityName="applications" icon="document-text-outline" onClearFilters={clearFilters} />
-          ) : null
+          ) : listQuery.isError ? (
+            <ListEmptyState
+              title="Could not load applications"
+              message={(listQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void listQuery.refetch()}
+            />
+          ) : (
+            <ListEmptyState
+              entityName="applications"
+              icon="document-text-outline"
+              onClearFilters={clearFilters}
+            />
+          )
         }
       />
-
-      {listQuery.isError ? (
-        <View style={{ padding: spacing.md }}>
-          <Text style={{ color: colors.error, textAlign: 'center' }}>
-            {(listQuery.error as Error).message}
-          </Text>
-          <Pressable onPress={() => void listQuery.refetch()} style={{ marginTop: spacing.sm, alignSelf: 'center' }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
 });

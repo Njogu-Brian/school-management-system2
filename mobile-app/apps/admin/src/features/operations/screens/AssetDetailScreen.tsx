@@ -2,6 +2,7 @@ import { useAsset, useCan, useUpdateAssetStatus } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
+  EmptyState,
   FilterChip,
   FilterChipRow,
   FinanceFieldSection,
@@ -12,7 +13,7 @@ import {
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 import { capitalizeStatus, formatDateLabel, formatKes } from '../../shared/utils/formatters';
@@ -45,7 +46,7 @@ const statusTone = (status?: string | null) => {
 export const AssetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { assetId } = route.params;
   const canView = useCan('operations.view');
-  const { colors, palette, spacing, typography } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const query = useAsset(assetId, { enabled: canView });
   const statusMutation = useUpdateAssetStatus();
   const [pendingStatus, setPendingStatus] = useState<AssetStatus | null>(null);
@@ -53,8 +54,8 @@ export const AssetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState title="Access denied" message="You need operations.view permission." icon="lock-closed-outline" />
       </ScreenContainer>
     );
   }
@@ -62,18 +63,21 @@ export const AssetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   if (query.isLoading) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={palette.primary} />
       </ScreenContainer>
     );
   }
 
   if (query.isError || !query.data) {
     return (
-      <ScreenContainer contentContainerStyle={styles.centered}>
-        <Text style={{ color: colors.error }}>{(query.error as Error)?.message ?? 'Not found'}</Text>
-        <Pressable onPress={() => void query.refetch()}>
-          <Text style={{ color: colors.primary, marginTop: 12 }}>Retry</Text>
-        </Pressable>
+      <ScreenContainer contentContainerStyle={[styles.centered, { padding: spacing.lg }]}>
+        <EmptyState
+          title="Could not load asset"
+          message={(query.error as Error)?.message ?? 'Asset not found'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void query.refetch()}
+        />
       </ScreenContainer>
     );
   }
@@ -166,6 +170,6 @@ export const AssetDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

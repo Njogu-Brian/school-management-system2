@@ -2,7 +2,6 @@ import { studentsApi, useStudentDetail, useStudentFinanceSearch, type InvoiceDet
 import { Button, TextField, useTheme } from '@erp/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 export interface MpesaPromptSheetProps {
   visible: boolean;
@@ -27,7 +27,7 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
   studentName,
   invoice,
 }) => {
-  const { palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
   const [phone, setPhone] = useState('');
   const [shareSiblings, setShareSiblings] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -52,11 +52,11 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
 
   const submit = async (phoneNumber: string) => {
     if (!phoneNumber.trim()) {
-      Alert.alert('Phone required', 'Enter a parent phone number or pick a saved contact.');
+      showError('Phone required', 'Enter a parent phone number or pick a saved contact.');
       return;
     }
     if (amount <= 0) {
-      Alert.alert('Nothing to pay', 'This invoice has no outstanding balance.');
+      showError('Nothing to pay', 'This invoice has no outstanding balance.');
       return;
     }
 
@@ -81,13 +81,13 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
       if (!res.success) {
         throw new Error(res.message || 'Failed to send M-PESA prompt.');
       }
-      Alert.alert(
+      showSuccess(
         'STK sent',
         res.message ?? 'Check the parent phone for the M-PESA payment prompt.',
       );
       onClose();
     } catch (err) {
-      Alert.alert('Prompt failed', err instanceof Error ? err.message : 'Could not send STK push.');
+      showError('Prompt failed', err instanceof Error ? err.message : 'Could not send STK push.');
     } finally {
       setSubmitting(false);
     }
@@ -111,12 +111,23 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: palette.surface }]} onPress={() => undefined}>
+        <Pressable
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: palette.surface,
+              padding: spacing.mdLg,
+              borderTopLeftRadius: radius.sheet,
+              borderTopRightRadius: radius.sheet,
+            },
+          ]}
+          onPress={() => undefined}
+        >
           <ScrollView keyboardShouldPersistTaps="handled">
-            <Text style={{ fontWeight: '700', fontSize: fontSizes.lg, color: palette.textPrimary }}>
+            <Text style={{ fontWeight: '700', fontSize: typography.title.fontSize, color: palette.textMain }}>
               Prompt parent to pay
             </Text>
-            <Text style={{ color: palette.textSecondary, marginTop: spacing.xs, marginBottom: spacing.md }}>
+            <Text style={{ color: palette.textSub, marginTop: spacing.xs, marginBottom: spacing.md }}>
               {invoice.invoice_number} · Balance {amount.toLocaleString('en-KE')} KES
             </Text>
 
@@ -131,13 +142,19 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
             {siblings.length > 0 ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: spacing.sm }}>
                 <Switch value={shareSiblings} onValueChange={setShareSiblings} />
-                <Text style={{ marginLeft: spacing.sm, color: palette.textPrimary, flex: 1 }}>
+                <Text style={{ marginLeft: spacing.sm, color: palette.textMain, flex: 1 }}>
                   Share payment with {siblings.length} sibling{siblings.length === 1 ? '' : 's'}
                 </Text>
               </View>
             ) : null}
 
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.xs }}>
+            <Text
+              style={{
+                color: palette.textSub,
+                fontSize: typography.caption.fontSize,
+                marginBottom: spacing.xs,
+              }}
+            >
               Saved contacts
             </Text>
             {contactOptions.map((c) => (
@@ -146,8 +163,8 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
                 onPress={() => void submit(c.phone)}
                 style={{ paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border }}
               >
-                <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{c.label}</Text>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{c.phone}</Text>
+                <Text style={{ color: palette.textMain, fontWeight: '600' }}>{c.label}</Text>
+                <Text style={{ color: palette.textSub, fontSize: typography.body.fontSize }}>{c.phone}</Text>
               </Pressable>
             ))}
 
@@ -167,5 +184,5 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet: { padding: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '80%' },
+  sheet: { maxHeight: '80%' },
 });

@@ -10,8 +10,9 @@ import {
 import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<AcademicsStackParamList, 'MarksMatrixEntry'>;
 
@@ -24,7 +25,7 @@ type MatrixDraft = {
 
 export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) => {
   const { examTypeId, classroomId, streamId } = route.params;
-  const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const networkStatus = useNetworkStatus();
   const [values, setValues] = useState<Record<string, EntryValue>>({});
   const [search, setSearch] = useState('');
@@ -117,7 +118,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
 
   const save = async () => {
     if (nonEmptyEntries.length === 0) {
-      Alert.alert('Nothing to save', 'Enter at least one score or remark.');
+      showError('Nothing to save', 'Enter at least one score or remark.');
       return;
     }
 
@@ -147,13 +148,13 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
       );
 
       if (result === 'queued') {
-        Alert.alert('Queued offline', 'Matrix marks will sync when you reconnect.');
+        showSuccess('Queued offline', 'Matrix marks will sync when you reconnect.');
       } else {
-        Alert.alert('Success', 'Marks saved.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+        showSuccess('Success', 'Marks saved.', () => navigation.goBack());
         await clearDraft();
       }
     } catch (err) {
-      Alert.alert('Error', (err as Error).message);
+      showError('Error', (err as Error).message);
     }
   };
 
@@ -163,7 +164,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
         <AcademicScreenHeader title="Marks matrix entry" subtitle="Students × exams" onBack={() => navigation.goBack()} />
 
         {hasLocalDraft ? (
-          <Text style={{ color: colors.primary, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
+          <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
             Draft auto-saved on this device.
           </Text>
         ) : null}
@@ -182,7 +183,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
               onChangeText={setSearch}
               placeholder="Name or admission #"
             />
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
               {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'}
             </Text>
 
@@ -191,7 +192,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                 <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
                   {idx + 1}. {s.full_name}
                 </Text>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
                   Adm: {s.admission_number ?? '—'}
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -200,7 +201,7 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                     const v = values[k] ?? { marks: '', remarks: '' };
                     return (
                       <View key={k} style={[styles.cell, { borderColor: palette.border, backgroundColor: palette.surface, borderRadius: radius.md }]}>
-                        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.xs, fontWeight: '700' }} numberOfLines={2}>
+                        <Text style={{ color: palette.textPrimary, fontSize: typography.caption.fontSize, fontWeight: '700' }} numberOfLines={2}>
                           {e.subject_name ? `${e.subject_name} · ` : ''}
                           {e.name}
                         </Text>

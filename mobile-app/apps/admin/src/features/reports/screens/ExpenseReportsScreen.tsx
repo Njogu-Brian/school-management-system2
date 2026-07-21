@@ -25,7 +25,7 @@ function periodRange(period: Period): { from: string; to: string } {
 
 export const ExpenseReportsScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('reports.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const [period, setPeriod] = useState<Period>('mtd');
   const range = useMemo(() => periodRange(period), [period]);
   const query = useExpenseReportSummary({ enabled: canView, fromDate: range.from, toDate: range.to });
@@ -59,9 +59,13 @@ export const ExpenseReportsScreen: React.FC<Props> = ({ navigation }) => {
             <Pressable
               key={p}
               onPress={() => setPeriod(p)}
-              style={[styles.chip, period === p && { borderColor: colors.primary, backgroundColor: '#E8F0FA' }]}
+              style={[
+                styles.chip,
+                { borderColor: palette.border },
+                period === p && { borderColor: colors.primary, backgroundColor: palette.accent },
+              ]}
             >
-              <Text style={{ fontSize: fontSizes.xs, fontWeight: '600' }}>{p.toUpperCase()}</Text>
+              <Text style={{ fontSize: typography.caption.fontSize, fontWeight: '600', color: palette.textPrimary }}>{p.toUpperCase()}</Text>
             </Pressable>
           ))}
         </View>
@@ -92,7 +96,7 @@ export const ExpenseReportsScreen: React.FC<Props> = ({ navigation }) => {
               summary.category_summary.map((cat) => (
                 <View key={cat.category_name} style={[styles.row, { borderColor: palette.border }]}>
                   <Text style={{ fontWeight: '600', color: palette.textPrimary }}>{cat.category_name}</Text>
-                  <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{formatKes(cat.total_amount)}</Text>
+                  <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>{formatKes(cat.total_amount)}</Text>
                 </View>
               ))
             )}
@@ -104,13 +108,13 @@ export const ExpenseReportsScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityRole="button"
           style={({ pressed }) => [
             styles.viewAllBtn,
-            { borderColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+            { borderColor: colors.primary, borderRadius: 10, opacity: pressed ? 0.8 : 1 },
           ]}
         >
           <Text style={{ color: colors.primary, fontWeight: '700' }}>View all expenses</Text>
         </Pressable>
 
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.lg }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.lg }}>
           PDF and Excel export are available on the web portal.
         </Text>
       </ScrollView>
@@ -120,11 +124,10 @@ export const ExpenseReportsScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  chip: { borderWidth: 1, borderColor: '#ccc', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  chip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   row: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12, marginBottom: 8 },
   viewAllBtn: {
     borderWidth: 1,
-    borderRadius: 10,
     padding: 14,
     alignItems: 'center',
     marginTop: 20,

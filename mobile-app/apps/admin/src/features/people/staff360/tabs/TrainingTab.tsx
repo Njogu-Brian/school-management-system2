@@ -1,8 +1,7 @@
 import { useStaffTrainingRecords } from '@erp/core';
-import { EmptyState } from '@erp/ui';
+import { EmptyState, useTheme } from '@erp/ui';
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
 import { capitalizeStatus, formatDateLabel } from '../../../shared/utils/formatters';
 
 export interface TrainingTabProps {
@@ -11,12 +10,12 @@ export interface TrainingTabProps {
 }
 
 export const TrainingTab: React.FC<TrainingTabProps> = ({ staffId, onOpenRecord }) => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const query = useStaffTrainingRecords(staffId);
 
   if (query.isLoading) {
     return (
-      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -24,12 +23,13 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ staffId, onOpenRecord 
 
   if (query.isError) {
     return (
-      <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-        <Text style={{ color: colors.error }}>{(query.error as Error).message}</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: 8 }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load training"
+        message={(query.error as Error).message}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
@@ -50,10 +50,33 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ staffId, onOpenRecord 
         <Pressable
           key={record.id}
           onPress={() => onOpenRecord?.(record.id)}
-          style={[styles.card, { borderColor: palette.border, marginBottom: spacing.xs }]}
+          style={[
+            styles.card,
+            {
+              borderColor: palette.borderSubtle,
+              backgroundColor: palette.surfaceRaised,
+              borderRadius: radius.card,
+              padding: spacing.md,
+              marginBottom: spacing.sm,
+            },
+          ]}
         >
-          <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{record.training_name}</Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 4 }}>
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontWeight: '600',
+              fontSize: typography.body.fontSize,
+            }}
+          >
+            {record.training_name}
+          </Text>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.overline.fontSize,
+              marginTop: 4,
+            }}
+          >
             {[record.provider, formatDateLabel(record.start_date), capitalizeStatus(record.status)]
               .filter(Boolean)
               .join(' · ')}
@@ -65,5 +88,5 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({ staffId, onOpenRecord 
 };
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, padding: 12 },
+  card: { borderWidth: StyleSheet.hairlineWidth },
 });

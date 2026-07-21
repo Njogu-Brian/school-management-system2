@@ -29,7 +29,7 @@ function ConflictItem({
   onKeepLocal: () => void;
   onUseServer: () => void;
 }) {
-  const { palette, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
   const rows = item.conflicts ?? [];
 
   return (
@@ -42,16 +42,16 @@ function ConflictItem({
       <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: 4 }}>
         {item.label ?? syncKindLabel(item.kind)}
       </Text>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
+      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
         Queued {new Date(item.createdAt).toLocaleString()}
       </Text>
 
       {rows.map((row: SyncConflictRow) => (
         <View key={String(row.id)} style={[styles.row, { borderBottomColor: palette.border }]}>
-          <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>
+          <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: typography.body.fontSize }}>
             {row.label}
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
             Yours: {row.localValue} · Server: {row.serverValue}
           </Text>
           {row.baseValue ? (
@@ -69,7 +69,7 @@ function ConflictItem({
 }
 
 export const SyncConflictSheet: React.FC<Props> = ({ visible, onClose }) => {
-  const { palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const { items, loading, forceLocal, discardItem, refresh, process } = useSyncQueue();
 
   const conflictItems = useMemo(
@@ -87,7 +87,7 @@ export const SyncConflictSheet: React.FC<Props> = ({ visible, onClose }) => {
       <View style={styles.overlay}>
         <View style={[styles.sheet, { backgroundColor: palette.surface }]}>
           <View style={styles.header}>
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.lg }}>
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.title.fontSize }}>
               Sync queue
             </Text>
             <Pressable onPress={onClose}>
@@ -131,7 +131,7 @@ export const SyncConflictSheet: React.FC<Props> = ({ visible, onClose }) => {
                     <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>
                       {item.label ?? syncKindLabel(item.kind)}
                     </Text>
-                    <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
+                    <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
                       {new Date(item.createdAt).toLocaleString()}
                     </Text>
                   </View>

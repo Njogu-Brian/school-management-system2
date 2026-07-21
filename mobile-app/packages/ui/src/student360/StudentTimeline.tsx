@@ -23,20 +23,29 @@ export const StudentTimeline: React.FC<StudentTimelineProps> = ({
   events,
   emptyMessage = 'No recent activity.',
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius } = useTheme();
 
   return (
     <View style={{ marginTop: spacing.md }}>
       <Text
         style={[
           styles.section,
-          { color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.sm },
+          {
+            color: palette.textSecondary,
+            fontSize: typography.overline.fontSize,
+            lineHeight: typography.overline.lineHeight,
+            letterSpacing: typography.overline.letterSpacing,
+            fontWeight: typography.overline.fontWeight,
+            marginBottom: spacing.sm,
+          },
         ]}
       >
         {title}
       </Text>
       {events.length === 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{emptyMessage}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
+          {emptyMessage}
+        </Text>
       ) : (
         events.map((ev, index) => (
           <View key={ev.id} style={styles.row}>
@@ -54,15 +63,33 @@ export const StudentTimeline: React.FC<StudentTimelineProps> = ({
               ) : null}
             </View>
             <View style={[styles.content, { paddingBottom: spacing.md }]}>
-              <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+              <Text
+                style={{
+                  color: palette.textPrimary,
+                  fontSize: typography.body.fontSize,
+                  fontWeight: '600',
+                }}
+              >
                 {ev.title}
               </Text>
               {ev.subtitle ? (
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+                <Text
+                  style={{
+                    color: palette.textSecondary,
+                    fontSize: typography.caption.fontSize,
+                    marginTop: 2,
+                  }}
+                >
                   {ev.subtitle}
                 </Text>
               ) : null}
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: typography.caption.fontSize,
+                  marginTop: 2,
+                }}
+              >
                 {ev.occurredAtLabel}
               </Text>
             </View>
@@ -74,7 +101,7 @@ export const StudentTimeline: React.FC<StudentTimelineProps> = ({
 };
 
 const styles = StyleSheet.create({
-  section: { fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
+  section: { textTransform: 'uppercase' },
   row: { flexDirection: 'row' },
   lineCol: { width: 32, alignItems: 'center' },
   dot: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },

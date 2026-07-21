@@ -19,7 +19,7 @@ export const ApprovalActionBar: React.FC<ApprovalActionBarProps> = ({
   onEscalate,
   showEscalate = false,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, shadows } = useTheme();
 
   if (!canAct) {
     return null;
@@ -47,7 +47,13 @@ export const ApprovalActionBar: React.FC<ApprovalActionBarProps> = ({
             { borderColor: palette.border, borderRadius: radius.md, marginBottom: spacing.xs },
           ]}
         >
-          <Text style={{ color: palette.textSecondary, fontWeight: '600', fontSize: fontSizes.sm }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontWeight: '600',
+              fontSize: typography.label.fontSize,
+            }}
+          >
             Escalate
           </Text>
         </Pressable>
@@ -66,7 +72,13 @@ export const ApprovalActionBar: React.FC<ApprovalActionBarProps> = ({
           {isSubmitting ? (
             <ActivityIndicator color={colors.error} />
           ) : (
-            <Text style={{ color: colors.error, fontWeight: '700', fontSize: fontSizes.sm }}>
+            <Text
+              style={{
+                color: colors.error,
+                fontWeight: '700',
+                fontSize: typography.label.fontSize,
+              }}
+            >
               Reject
             </Text>
           )}
@@ -81,9 +93,15 @@ export const ApprovalActionBar: React.FC<ApprovalActionBarProps> = ({
           ]}
         >
           {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={palette.textOnPrimary} />
           ) : (
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: fontSizes.sm }}>
+            <Text
+              style={{
+                color: palette.textOnPrimary,
+                fontWeight: '700',
+                fontSize: typography.label.fontSize,
+              }}
+            >
               Approve
             </Text>
           )}

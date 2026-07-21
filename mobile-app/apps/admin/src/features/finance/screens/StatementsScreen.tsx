@@ -1,10 +1,13 @@
 import { useCan, useInfiniteStudentList, useStudentStatement, useAcademicYearsSettings, useTermsSettings } from '@erp/core';
 import {
+  EmptyState,
   FinanceScreenHeader,
   FinanceSearchBar,
   FilterChip,
   FilterChipRow,
+  ListEmptyState,
   ScreenContainer,
+  SkeletonListRows,
   StatementLedger,
   StudentListItem,
   useTheme,
@@ -12,7 +15,6 @@ import {
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,7 +29,7 @@ type Props = StackScreenProps<FinanceStackParamList, 'Statements'>;
 
 export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('finance.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
@@ -93,7 +95,11 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You do not have permission to view statements."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -106,7 +112,7 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
         {selectedStudentId ? (
           <>
             <Pressable onPress={() => setSelectedStudentId(null)} style={{ marginBottom: spacing.sm }}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>← Search another student</Text>
+              <Text style={{ color: palette.primary, fontWeight: '600' }}>Search another student</Text>
             </Pressable>
 
             <FilterChipRow label="Academic year">
@@ -145,11 +151,27 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
               placeholder="Search student by name or admission #…"
             />
             {debouncedSearch.length === 0 ? (
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-                Type to search for a student and open their statement.
-              </Text>
+              <EmptyState
+                title="Find a student"
+                message="Type to search for a student and open their statement."
+                icon="search-outline"
+              />
             ) : listQuery.isLoading ? (
-              <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
+              <SkeletonListRows variant="avatar" count={5} />
+            ) : listQuery.isError ? (
+              <ListEmptyState
+                title="Could not search students"
+                message={(listQuery.error as Error).message}
+                icon="alert-circle-outline"
+                actionLabel="Retry"
+                onAction={() => void listQuery.refetch()}
+              />
+            ) : students.length === 0 ? (
+              <ListEmptyState
+                title="No students found"
+                message="No students match your search."
+                icon="people-outline"
+              />
             ) : (
               students.map((s) => (
                 <StudentListItem
@@ -164,27 +186,62 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
         {selectedStudentId ? (
           <View style={{ marginTop: spacing.md }}>
             {statementQuery.isLoading ? (
-              <ActivityIndicator color={colors.primary} />
+              <SkeletonListRows variant="compact" count={4} />
             ) : statementQuery.isError ? (
-              <View>
-                <Text style={{ color: colors.error }}>{(statementQuery.error as Error).message}</Text>
-                <Pressable onPress={() => void statementQuery.refetch()}>
-                  <Text style={{ color: colors.primary, marginTop: spacing.sm, fontWeight: '600' }}>Retry</Text>
-                </Pressable>
-              </View>
+              <ListEmptyState
+                title="Could not load statement"
+                message={(statementQuery.error as Error).message}
+                icon="alert-circle-outline"
+                actionLabel="Retry"
+                onAction={() => void statementQuery.refetch()}
+              />
             ) : statementQuery.data ? (
               <>
-                <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700', marginBottom: spacing.sm }}>
+                <Text
+                  style={{
+                    color: palette.textMain,
+                    fontSize: typography.titleSmall.fontSize,
+                    fontWeight: '700',
+                    marginBottom: spacing.sm,
+                  }}
+                >
                   {statementQuery.data.student.full_name}
                 </Text>
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.md }}>
+                <Text
+                  style={{
+                    color: palette.textSub,
+                    fontSize: typography.body.fontSize,
+                    marginBottom: spacing.md,
+                  }}
+                >
                   {statementQuery.data.student.admission_number} · {statementQuery.data.student.class_name} · {periodLabel}
                 </Text>
 
                 <View style={[styles.summaryRow, { marginBottom: spacing.md, gap: spacing.sm }]}>
-                  <SummaryChip label="Invoiced" value={formatKes(statementQuery.data.total_invoiced)} palette={palette} />
-                  <SummaryChip label="Paid" value={formatKes(statementQuery.data.total_paid)} palette={palette} />
-                  <SummaryChip label="Balance" value={formatKes(statementQuery.data.closing_balance)} palette={palette} />
+                  <SummaryChip
+                    label="Invoiced"
+                    value={formatKes(statementQuery.data.total_invoiced)}
+                    palette={palette}
+                    typography={typography}
+                    spacing={spacing}
+                    radius={radius}
+                  />
+                  <SummaryChip
+                    label="Paid"
+                    value={formatKes(statementQuery.data.total_paid)}
+                    palette={palette}
+                    typography={typography}
+                    spacing={spacing}
+                    radius={radius}
+                  />
+                  <SummaryChip
+                    label="Balance"
+                    value={formatKes(statementQuery.data.closing_balance)}
+                    palette={palette}
+                    typography={typography}
+                    spacing={spacing}
+                    radius={radius}
+                  />
                 </View>
 
                 <StatementLedger
@@ -214,27 +271,55 @@ function SummaryChip({
   label,
   value,
   palette,
+  typography,
+  spacing,
+  radius,
 }: {
   label: string;
   value: string;
-  palette: { surface: string; border: string; textSecondary: string; textPrimary: string };
+  palette: { surface: string; border: string; textSub: string; textMain: string };
+  typography: {
+    overline: { fontSize: number };
+    caption: { fontSize: number };
+  };
+  spacing: { sm: number };
+  radius: { control: number };
 }) {
   return (
-    <View style={[styles.chip, { backgroundColor: palette.surface, borderColor: palette.border }]}>
-      <Text style={{ color: palette.textSecondary, fontSize: 10, fontWeight: '700' }}>{label}</Text>
-      <Text style={{ color: palette.textPrimary, fontSize: 12, fontWeight: '700', marginTop: 2 }}>{value}</Text>
+    <View
+      style={[
+        styles.chip,
+        {
+          backgroundColor: palette.surface,
+          borderColor: palette.border,
+          borderRadius: radius.control,
+          padding: spacing.sm,
+        },
+      ]}
+    >
+      <Text style={{ color: palette.textSub, fontSize: typography.overline.fontSize, fontWeight: '700' }}>
+        {label}
+      </Text>
+      <Text
+        style={{
+          color: palette.textMain,
+          fontSize: typography.caption.fontSize,
+          fontWeight: '700',
+          marginTop: 2,
+        }}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap' },
   chip: {
     flex: 1,
     minWidth: 100,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    padding: 8,
   },
 });

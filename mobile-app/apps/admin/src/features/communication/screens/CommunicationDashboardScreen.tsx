@@ -2,6 +2,7 @@ import { useAnnouncements, useCan, useCommunicationLogs } from '@erp/core';
 import {
   DashboardHero,
   DashboardSection,
+  EmptyState,
   KpiCard,
   QuickAction,
   ScreenContainer,
@@ -44,9 +45,11 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>
-          You need communication.view permission to open this workspace.
-        </Text>
+        <EmptyState
+          title="Access denied"
+          message="You need communication.view permission to open this workspace."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -58,6 +61,11 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
       ? 'error'
       : 'success';
   const smsState = logsQuery.isLoading ? 'loading' : logsQuery.isError ? 'error' : 'success';
+  const dashboardError = announcementsQuery.isError || logsQuery.isError;
+  const errorMessage =
+    (announcementsQuery.error as Error | null)?.message ??
+    (logsQuery.error as Error | null)?.message ??
+    'Something went wrong.';
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
@@ -85,6 +93,19 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
               : undefined
           }
         />
+
+        {dashboardError ? (
+          <EmptyState
+            title="Could not load dashboard"
+            message={errorMessage}
+            icon="alert-circle-outline"
+            actionLabel="Retry"
+            onAction={() => {
+              void announcementsQuery.refetch();
+              void logsQuery.refetch();
+            }}
+          />
+        ) : null}
 
         <WidgetGrid>
           <WidgetShell state={kpiState} title="Announcements" onRetry={() => void announcementsQuery.refetch()}>
@@ -119,7 +140,11 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
 
         <DashboardSection title="Recent announcements">
           {recent.length === 0 ? (
-            <Text style={{ color: palette.textSecondary }}>No active announcements.</Text>
+            <EmptyState
+              title="No announcements"
+              message="No active announcements yet."
+              icon="megaphone-outline"
+            />
           ) : (
             recent.map((a) => (
               <Pressable
@@ -142,7 +167,7 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
                   {a.title}
                 </Text>
                 <Text
-                  style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}
+                  style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}
                   numberOfLines={2}
                 >
                   {a.content}
@@ -157,5 +182,5 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

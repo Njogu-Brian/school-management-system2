@@ -17,7 +17,6 @@ import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   Share,
@@ -25,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
+import { showError } from '../../shared/utils/feedback';
 import { MpesaPromptSheet } from '../components/MpesaPromptSheet';
 import { formatKes } from '../utils/formatters';
 
@@ -59,7 +59,7 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const sharePaymentLink = async () => {
     const link = paymentLinkQuery.data;
     if (!link?.url) {
-      Alert.alert('Payment link', 'No payment link is available for this student.');
+      showError('Payment link', 'No payment link is available for this student.');
       return;
     }
     const studentName = invoice?.student_name ?? 'Student';
@@ -68,7 +68,7 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     try {
       await Share.share({ message, title: 'M-Pesa payment link' });
     } catch (err) {
-      Alert.alert('Share failed', (err as Error).message);
+      showError('Share failed', (err as Error).message);
     }
   };
 

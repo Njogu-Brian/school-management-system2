@@ -29,7 +29,7 @@ export const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   onClear,
   children,
 }) => {
-  const { palette, colors, spacing, typography, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius, opacity } = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const maxSheetHeight = height * 0.82;
@@ -37,15 +37,19 @@ export const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close filters" />
+        <Pressable
+          style={[styles.backdrop, { backgroundColor: `rgba(0,0,0,${opacity.scrim})` }]}
+          onPress={onClose}
+          accessibilityLabel="Close filters"
+        />
         <View
           style={[
             styles.sheet,
             elevationStyle,
             {
               backgroundColor: palette.surfaceRaised,
-              borderTopLeftRadius: radius.lg,
-              borderTopRightRadius: radius.lg,
+              borderTopLeftRadius: radius.sheet,
+              borderTopRightRadius: radius.sheet,
               paddingBottom: insets.bottom + spacing.md,
               maxHeight: maxSheetHeight,
             },
@@ -135,7 +139,7 @@ const elevationStyle = {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  backdrop: { ...StyleSheet.absoluteFillObject },
   sheet: { width: '100%' },
   handle: {
     width: 36,

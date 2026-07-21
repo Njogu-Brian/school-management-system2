@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
+import { FilterChip, FilterChipRow } from '../primitives/FilterChip';
 import { useTheme } from '../theme/ThemeContext';
 import type { StaffEmploymentStatusFilterUi, StaffGenderFilterUi } from './types';
 
@@ -23,7 +24,7 @@ export interface StaffFiltersProps {
   onGenderChange: (value: StaffGenderFilterUi) => void;
 }
 
-function FilterRow<T extends string>({
+function StringFilterRow<T extends string>({
   label,
   chips,
   selected,
@@ -34,48 +35,21 @@ function FilterRow<T extends string>({
   selected: T | null;
   onSelect: (v: T | null) => void;
 }) {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
-
   return (
-    <View style={{ marginBottom: spacing.sm }}>
-      <Text style={[styles.sectionLabel, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
-        {label}
-      </Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[styles.row, { gap: spacing.xs, paddingVertical: spacing.xs }]}
-      >
-        {chips.map((chip) => {
-          const active =
-            selected === chip.value || (selected == null && chip.value === ('all' as T));
-          return (
-            <Pressable
-              key={String(chip.value)}
-              onPress={() => onSelect(chip.value === ('all' as T) ? null : chip.value)}
-              style={[
-                styles.chip,
-                {
-                  borderRadius: radius.full,
-                  borderColor: active ? colors.primary : palette.border,
-                  backgroundColor: active ? `${colors.primary}14` : palette.surface,
-                },
-              ]}
-            >
-              <Text
-                style={{
-                  color: active ? colors.primary : palette.textSecondary,
-                  fontSize: fontSizes.sm,
-                  fontWeight: active ? '600' : '400',
-                }}
-              >
-                {chip.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
+    <FilterChipRow label={label}>
+      {chips.map((chip) => {
+        const active =
+          selected === chip.value || (selected == null && chip.value === ('all' as T));
+        return (
+          <FilterChip
+            key={String(chip.value)}
+            label={chip.label}
+            active={active}
+            onPress={() => onSelect(chip.value === ('all' as T) ? null : chip.value)}
+          />
+        );
+      })}
+    </FilterChipRow>
   );
 }
 
@@ -96,7 +70,7 @@ function IdFilterRow({
   ];
 
   return (
-    <FilterRow
+    <StringFilterRow
       label={label}
       chips={allChips}
       selected={selected == null ? 'all' : String(selected)}
@@ -122,7 +96,7 @@ function RoleFilterRow({
   ];
 
   return (
-    <FilterRow
+    <StringFilterRow
       label={label}
       chips={allChips}
       selected={selected ?? 'all'}
@@ -174,19 +148,14 @@ export const StaffFilters: React.FC<StaffFiltersProps> = ({
         selected={staffCategoryId}
         onSelect={onCategoryChange}
       />
-      <RoleFilterRow
-        label="Role"
-        chips={roleOptions}
-        selected={role}
-        onSelect={onRoleChange}
-      />
-      <FilterRow
+      <RoleFilterRow label="Role" chips={roleOptions} selected={role} onSelect={onRoleChange} />
+      <StringFilterRow
         label="Employment status"
         chips={empChips}
         selected={employmentStatus}
         onSelect={(v) => onEmploymentStatusChange((v ?? 'all') as StaffEmploymentStatusFilterUi)}
       />
-      <FilterRow
+      <StringFilterRow
         label="Gender"
         chips={genderChips}
         selected={gender}
@@ -195,13 +164,3 @@ export const StaffFilters: React.FC<StaffFiltersProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  sectionLabel: { fontWeight: '600', marginBottom: 2, textTransform: 'uppercase' },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  chip: {
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-});

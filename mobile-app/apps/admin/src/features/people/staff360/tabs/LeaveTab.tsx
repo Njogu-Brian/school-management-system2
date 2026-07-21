@@ -1,8 +1,7 @@
 import type { LeaveRequestRecord, StaffLeaveBalanceItem } from '@erp/core';
-import { LeaveBalanceCards, LeaveRequestListItem } from '@erp/ui';
+import { EmptyState, LeaveBalanceCards, LeaveRequestListItem, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 export interface LeaveTabProps {
   balances: StaffLeaveBalanceItem[];
@@ -25,7 +24,7 @@ export const LeaveTab: React.FC<LeaveTabProps> = ({
   requestsError,
   onRetryRequests,
 }) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, colors, spacing, typography } = useTheme();
 
   const balanceCards = useMemo(
     () =>
@@ -58,7 +57,12 @@ export const LeaveTab: React.FC<LeaveTabProps> = ({
       <Text
         style={[
           styles.section,
-          { color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.sm },
+          {
+            color: palette.textMuted,
+            fontSize: typography.overline.fontSize,
+            letterSpacing: typography.overline.letterSpacing,
+            marginBottom: spacing.sm,
+          },
         ]}
       >
         Balances (active year)
@@ -67,7 +71,13 @@ export const LeaveTab: React.FC<LeaveTabProps> = ({
       {balancesLoading ? (
         <ActivityIndicator color={colors.primary} />
       ) : balancesError ? (
-        <RetryBlock message="Could not load leave balances." onRetry={onRetryBalances} />
+        <EmptyState
+          title="Could not load balances"
+          message="Leave balances failed to load."
+          icon="alert-circle-outline"
+          actionLabel={onRetryBalances ? 'Retry' : undefined}
+          onAction={onRetryBalances}
+        />
       ) : (
         <LeaveBalanceCards balances={balanceCards} />
       )}
@@ -76,8 +86,9 @@ export const LeaveTab: React.FC<LeaveTabProps> = ({
         style={[
           styles.section,
           {
-            color: palette.textSecondary,
-            fontSize: fontSizes.xs,
+            color: palette.textMuted,
+            fontSize: typography.overline.fontSize,
+            letterSpacing: typography.overline.letterSpacing,
             marginTop: spacing.lg,
             marginBottom: spacing.sm,
           },
@@ -89,11 +100,19 @@ export const LeaveTab: React.FC<LeaveTabProps> = ({
       {requestsLoading ? (
         <ActivityIndicator color={colors.primary} />
       ) : requestsError ? (
-        <RetryBlock message="Could not load leave requests." onRetry={onRetryRequests} />
+        <EmptyState
+          title="Could not load leave"
+          message="Leave requests failed to load."
+          icon="alert-circle-outline"
+          actionLabel={onRetryRequests ? 'Retry' : undefined}
+          onAction={onRetryRequests}
+        />
       ) : requestItems.length === 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-          No leave requests on record.
-        </Text>
+        <EmptyState
+          title="No leave requests"
+          message="No leave requests on record."
+          icon="calendar-outline"
+        />
       ) : (
         requestItems.map((item) => <LeaveRequestListItem key={item.id} item={item} />)
       )}
@@ -101,23 +120,6 @@ export const LeaveTab: React.FC<LeaveTabProps> = ({
   );
 };
 
-function RetryBlock({ message, onRetry }: { message: string; onRetry?: () => void }) {
-  const { colors, spacing, fontSizes } = useTheme();
-  return (
-    <View style={styles.centered}>
-      <Text style={{ color: colors.error, fontSize: fontSizes.sm }}>{message}</Text>
-      {onRetry ? (
-        <Pressable onPress={onRetry}>
-          <Text style={{ color: colors.primary, marginTop: spacing.sm, fontWeight: '600' }}>
-            Retry
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  section: { fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
-  centered: { paddingVertical: 16, alignItems: 'center' },
+  section: { fontWeight: '700', textTransform: 'uppercase' },
 });

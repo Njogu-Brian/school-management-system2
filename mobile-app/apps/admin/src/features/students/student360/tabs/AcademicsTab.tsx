@@ -14,15 +14,16 @@ import {
   AcademicOverviewCard,
   AssessmentFilters,
   AssessmentTimeline,
+  EmptyState,
   PerformanceTrend,
   ReportCardHistoryList,
   type AssessmentFilterOption,
   type AssessmentTimelineItemData,
   type ReportCardHistoryItemData,
+  useTheme,
 } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
 import { formatDateLabel, formatPercent } from '../utils/formatters';
 
 export interface AcademicsTabProps {
@@ -31,7 +32,7 @@ export interface AcademicsTabProps {
 }
 
 export const AcademicsTab: React.FC<AcademicsTabProps> = ({ studentId, onOpenReportCard }) => {
-  const { colors, spacing, fontSizes } = useTheme();
+  const { colors, spacing, typography } = useTheme();
   const [category, setCategory] = useState<AssessmentDisplayCategory>('all');
   const [subjectId, setSubjectId] = useState<number | null>(null);
 
@@ -161,21 +162,17 @@ export const AcademicsTab: React.FC<AcademicsTabProps> = ({ studentId, onOpenRep
 
   if (summaryQuery.isError || historyQuery.isError) {
     return (
-      <View style={{ paddingVertical: spacing.md }}>
-        <Text style={{ color: colors.error, fontSize: fontSizes.sm }}>
-          Could not load academic data.
-        </Text>
-        <Pressable
-          onPress={() => {
-            void summaryQuery.refetch();
-            void historyQuery.refetch();
-            void reportCardsQuery.refetch();
-          }}
-          style={{ marginTop: spacing.sm }}
-        >
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load academics"
+        message="Unable to load academic summary or assessment history."
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => {
+          void summaryQuery.refetch();
+          void historyQuery.refetch();
+          void reportCardsQuery.refetch();
+        }}
+      />
     );
   }
 
@@ -216,7 +213,7 @@ export const AcademicsTab: React.FC<AcademicsTabProps> = ({ studentId, onOpenRep
             paddingHorizontal: spacing.md,
           }}
         >
-          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: fontSizes.sm }}>
+          <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.body.fontSize }}>
             {historyQuery.isFetchingNextPage ? 'Loading…' : 'Load more'}
           </Text>
         </Pressable>

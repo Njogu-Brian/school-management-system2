@@ -1,14 +1,22 @@
 import { useStaffGeofence, useStaffGeofenceUpdate } from '@erp/core';
-import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  EmptyState,
+  ScreenContainer,
+  TextField,
+  useTheme,
+} from '@erp/ui';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView } from 'react-native';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 export interface GeofenceSettingsScreenProps {
   onBack?: () => void;
 }
 
 export const GeofenceSettingsScreen: React.FC<GeofenceSettingsScreenProps> = ({ onBack }) => {
-  const { spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   const geofenceQuery = useStaffGeofence();
   const updateMutation = useStaffGeofenceUpdate();
   const [lat, setLat] = useState('');
@@ -30,20 +38,59 @@ export const GeofenceSettingsScreen: React.FC<GeofenceSettingsScreenProps> = ({ 
         longitude: parseFloat(lng),
         radius_meters: parseInt(radius, 10),
       });
-      Alert.alert('Saved', 'Geofence updated.');
+      showSuccess('Saved', 'Geofence updated.');
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Could not save geofence.');
+      showError('Error', err instanceof Error ? err.message : 'Could not save geofence.');
     }
   };
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         {onBack ? <AcademicScreenHeader title="Staff geofence" onBack={onBack} /> : null}
-        <TextField label="Latitude" value={lat} onChangeText={setLat} keyboardType="decimal-pad" />
-        <TextField label="Longitude" value={lng} onChangeText={setLng} keyboardType="decimal-pad" />
-        <TextField label="Radius (meters)" value={radius} onChangeText={setRadius} keyboardType="number-pad" />
-        <Button label="Save geofence" onPress={() => void save()} loading={updateMutation.isPending} style={{ marginTop: spacing.md }} />
+
+        {geofenceQuery.isLoading ? (
+          <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : geofenceQuery.isError ? (
+          <EmptyState
+            title="Could not load geofence"
+            message={(geofenceQuery.error as Error)?.message ?? 'Try again in a moment.'}
+            icon="alert-circle-outline"
+            actionLabel="Retry"
+            onAction={() => void geofenceQuery.refetch()}
+          />
+        ) : (
+          <>
+            <TextField
+              label="Latitude"
+              value={lat}
+              onChangeText={setLat}
+              keyboardType="decimal-pad"
+            />
+            <View style={{ height: spacing.sm }} />
+            <TextField
+              label="Longitude"
+              value={lng}
+              onChangeText={setLng}
+              keyboardType="decimal-pad"
+            />
+            <View style={{ height: spacing.sm }} />
+            <TextField
+              label="Radius (meters)"
+              value={radius}
+              onChangeText={setRadius}
+              keyboardType="number-pad"
+            />
+            <Button
+              label="Save geofence"
+              onPress={() => void save()}
+              loading={updateMutation.isPending}
+              style={{ marginTop: spacing.md, minHeight: 48 }}
+            />
+          </>
+        )}
       </ScrollView>
     </ScreenContainer>
   );

@@ -11,7 +11,6 @@ import { Button, FinanceSearchBar, useTheme } from '@erp/ui';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -19,6 +18,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type ShareRow = { studentId: number; name: string; amount: string };
 
@@ -37,7 +37,7 @@ export const TransactionAssignSection: React.FC<Props> = ({
   canAct,
   onUpdated,
 }) => {
-  const { colors, palette, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
   const networkStatus = useNetworkStatus();
   const { assign, share } = useReconciliationActions();
   const [searchInput, setSearchInput] = useState('');
@@ -84,7 +84,7 @@ export const TransactionAssignSection: React.FC<Props> = ({
         { transactionId, type: transactionType, studentId: student.id },
         { label: 'Assign transaction' },
       );
-      Alert.alert('Queued offline', 'Assignment will sync when you reconnect.');
+      showSuccess('Queued offline', 'Assignment will sync when you reconnect.');
       return;
     }
 
@@ -94,10 +94,10 @@ export const TransactionAssignSection: React.FC<Props> = ({
         type: transactionType,
         studentId: student.id,
       });
-      Alert.alert('Assigned', `${student.full_name} assigned to this transaction.`);
+      showSuccess('Assigned', `${student.full_name} assigned to this transaction.`);
       onUpdated();
     } catch (err) {
-      Alert.alert('Assign failed', (err as Error).message);
+      showError('Assign failed', (err as Error).message);
     }
   };
 
@@ -110,13 +110,13 @@ export const TransactionAssignSection: React.FC<Props> = ({
       .filter((a) => a.student_id > 0 && !Number.isNaN(a.amount) && a.amount > 0);
 
     if (!allocations.length) {
-      Alert.alert('Share', 'Enter at least one amount greater than 0.');
+      showError('Share', 'Enter at least one amount greater than 0.');
       return;
     }
 
     const total = allocations.reduce((s, a) => s + a.amount, 0);
     if (total - txAmount > 0.01) {
-      Alert.alert('Share', 'Total allocation cannot exceed the transaction amount.');
+      showError('Share', 'Total allocation cannot exceed the transaction amount.');
       return;
     }
 
@@ -126,7 +126,7 @@ export const TransactionAssignSection: React.FC<Props> = ({
         { transactionId, type: transactionType, allocations },
         { label: 'Share transaction' },
       );
-      Alert.alert('Queued offline', 'Share will sync when you reconnect.');
+      showSuccess('Queued offline', 'Share will sync when you reconnect.');
       setShareOpen(false);
       return;
     }
@@ -137,11 +137,11 @@ export const TransactionAssignSection: React.FC<Props> = ({
         type: transactionType,
         allocations,
       });
-      Alert.alert('Shared', 'Transaction split among siblings.');
+      showSuccess('Shared', 'Transaction split among siblings.');
       setShareOpen(false);
       onUpdated();
     } catch (err) {
-      Alert.alert('Share failed', (err as Error).message);
+      showError('Share failed', (err as Error).message);
     }
   };
 
@@ -158,7 +158,7 @@ export const TransactionAssignSection: React.FC<Props> = ({
     <>
       {canAct && !txn.student_id ? (
         <View style={{ marginTop: spacing.md }}>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
+          <Text style={{ color: palette.textMain, fontWeight: '700', marginBottom: spacing.sm }}>
             Assign student
           </Text>
           <FinanceSearchBar
@@ -167,7 +167,7 @@ export const TransactionAssignSection: React.FC<Props> = ({
             placeholder="Search name or admission #…"
           />
           {searchQuery.isLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.sm }} />
+            <ActivityIndicator color={palette.primary} style={{ marginTop: spacing.sm }} />
           ) : null}
           {(searchQuery.data ?? []).map((student) => (
             <Pressable
@@ -176,14 +176,14 @@ export const TransactionAssignSection: React.FC<Props> = ({
               style={{
                 borderWidth: 1,
                 borderColor: palette.border,
-                borderRadius: radius.md,
+                borderRadius: radius.control,
                 padding: spacing.sm,
                 marginTop: spacing.xs,
               }}
             >
-              <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{student.label}</Text>
+              <Text style={{ color: palette.textMain, fontWeight: '600' }}>{student.label}</Text>
               {(student.siblings?.length ?? 0) > 0 ? (
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+                <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
                   {student.siblings.length} sibling(s) — tap to split amount
                 </Text>
               ) : null}
@@ -218,7 +218,7 @@ export const TransactionAssignSection: React.FC<Props> = ({
       ) : null}
 
       {!canConfirm && canAct ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.sm }}>
+        <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: spacing.sm }}>
           Assign a student (or share among siblings) before confirming.
         </Text>
       ) : null}
@@ -228,22 +228,22 @@ export const TransactionAssignSection: React.FC<Props> = ({
           <View
             style={{
               backgroundColor: palette.surface,
-              borderTopLeftRadius: radius.lg,
-              borderTopRightRadius: radius.lg,
+              borderTopLeftRadius: radius.sheet,
+              borderTopRightRadius: radius.sheet,
               padding: spacing.md,
               maxHeight: '80%',
             }}
           >
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.md }}>
+            <Text style={{ color: palette.textMain, fontWeight: '700', fontSize: typography.titleSmall.fontSize }}>
               Share among siblings
             </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginVertical: spacing.sm }}>
+            <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginVertical: spacing.sm }}>
               Total: KES {txAmount.toLocaleString('en-KE')}
             </Text>
             <ScrollView style={{ maxHeight: 320 }}>
               {shareRows.map((row, index) => (
                 <View key={row.studentId} style={{ marginBottom: spacing.sm }}>
-                  <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: fontSizes.sm }}>
+                  <Text style={{ color: palette.textMain, fontWeight: '600', fontSize: typography.body.fontSize }}>
                     {row.name}
                   </Text>
                   <TextInput
@@ -255,14 +255,14 @@ export const TransactionAssignSection: React.FC<Props> = ({
                     }}
                     keyboardType="decimal-pad"
                     placeholder="Amount"
-                    placeholderTextColor={palette.textSecondary}
+                    placeholderTextColor={palette.textSub}
                     style={{
                       borderWidth: 1,
                       borderColor: palette.border,
-                      borderRadius: radius.sm,
+                      borderRadius: radius.control,
                       padding: spacing.sm,
-                      marginTop: 4,
-                      color: palette.textPrimary,
+                      marginTop: spacing.xs,
+                      color: palette.textMain,
                     }}
                   />
                 </View>

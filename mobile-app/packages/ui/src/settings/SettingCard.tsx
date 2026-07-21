@@ -14,42 +14,57 @@ export const SettingCard: React.FC<SettingCardProps> = ({
   hint,
   readOnly = true,
 }) => {
-  const { palette, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, spacing, typography, radius, elevation } = useTheme();
 
   return (
     <View
       style={[
         styles.card,
+        elevation[1],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.md,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
-          marginBottom: spacing.sm,
         },
-        shadows.sm,
       ]}
     >
       <View style={styles.row}>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>
+        <Text
+          style={{
+            color: palette.textSecondary,
+            fontSize: typography.caption.fontSize,
+            lineHeight: typography.caption.lineHeight,
+            fontWeight: typography.caption.fontWeight,
+            letterSpacing: typography.caption.letterSpacing,
+          }}
+        >
           {label}
         </Text>
         {readOnly ? (
-          <Ionicons name="lock-closed-outline" size={14} color={palette.textSecondary} />
+          <Ionicons name="lock-closed-outline" size={14} color={palette.textMuted} />
         ) : null}
       </View>
       <Text
         style={{
           color: palette.textPrimary,
-          fontSize: fontSizes.md,
+          fontSize: typography.body.fontSize,
+          lineHeight: typography.body.lineHeight,
           fontWeight: '600',
-          marginTop: 4,
+          marginTop: spacing.xs,
         }}
       >
         {value || '—'}
       </Text>
       {hint ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+        <Text
+          style={{
+            color: palette.textMuted,
+            fontSize: typography.caption.fontSize,
+            lineHeight: typography.caption.lineHeight,
+            marginTop: spacing.xs,
+          }}
+        >
           {hint}
         </Text>
       ) : null}

@@ -10,10 +10,15 @@ import {
   type StudentSummary,
 } from '@erp/core';
 import type { StackScreenProps } from '@react-navigation/stack';
-import { ScreenContainer, Student360Layout, type Student360TabId } from '@erp/ui';
+import {
+  EmptyState,
+  ScreenContainer,
+  Student360Layout,
+  type Student360TabId,
+  useTheme,
+} from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
-import { useTheme } from '@erp/ui';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { navigateToTab } from '../../../navigation/navigateWorkspace';
 import { AttendanceTab } from '../student360/tabs/AttendanceTab';
@@ -151,12 +156,17 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   if (!student || !header) {
     return (
       <ScreenContainer contentContainerStyle={styles.centered}>
-        <Text style={{ color: colors.error }}>Student not found.</Text>
-        {detailQuery.isError ? (
-          <Pressable onPress={() => void detailQuery.refetch()} style={{ marginTop: spacing.sm }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-          </Pressable>
-        ) : null}
+        <EmptyState
+          title="Student not found"
+          message={
+            detailQuery.isError
+              ? (detailQuery.error as Error).message
+              : 'This student may have been removed or you no longer have access.'
+          }
+          icon="person-outline"
+          actionLabel={detailQuery.isError ? 'Retry' : undefined}
+          onAction={detailQuery.isError ? () => void detailQuery.refetch() : undefined}
+        />
       </ScreenContainer>
     );
   }
@@ -242,18 +252,21 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={styles.flex}>
-      <Pressable
-        onPress={() => navigation.navigate('StudentEdit', { studentId })}
-        style={{ alignSelf: 'flex-end', marginRight: spacing.md, marginTop: spacing.xs }}
-      >
-        <Text style={{ color: colors.primary, fontWeight: '700' }}>Edit profile</Text>
-      </Pressable>
       <Student360Layout
         header={header}
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        onBack={() => navigation.goBack()}
       >
+        <Pressable
+          onPress={() => navigation.navigate('StudentEdit', { studentId })}
+          style={{ alignSelf: 'flex-end', marginBottom: spacing.sm }}
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile"
+        >
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>Edit profile</Text>
+        </Pressable>
         {tabContent}
       </Student360Layout>
     </ScreenContainer>

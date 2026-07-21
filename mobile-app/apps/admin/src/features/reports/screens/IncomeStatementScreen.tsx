@@ -2,6 +2,7 @@ import { useCan, useIncomeStatement } from '@erp/core';
 import {
   AcademicScreenHeader,
   ChartCard,
+  EmptyState,
   FilterChip,
   FilterChipRow,
   KpiCard,
@@ -27,6 +28,14 @@ const RANGE_OPTIONS = [
   { months: 12, label: '12 months' },
 ];
 
+function hexToRgba(hex: string, opacity = 1): string {
+  const cleaned = hex.replace('#', '');
+  const r = parseInt(cleaned.slice(0, 2), 16);
+  const g = parseInt(cleaned.slice(2, 4), 16);
+  const b = parseInt(cleaned.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
 export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('reports.view');
   const { colors, palette, spacing, typography, radius } = useTheme();
@@ -41,13 +50,7 @@ export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
       backgroundGradientFrom: palette.surfaceRaised,
       backgroundGradientTo: palette.surfaceRaised,
       decimalPlaces: 0,
-      color: (opacity = 1) => {
-        const hex = colors.primary.replace('#', '');
-        const r = parseInt(hex.slice(0, 2), 16);
-        const g = parseInt(hex.slice(2, 4), 16);
-        const b = parseInt(hex.slice(4, 6), 16);
-        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-      },
+      color: (opacity = 1) => hexToRgba(colors.primary, opacity),
       labelColor: () => palette.textSecondary,
       propsForBackgroundLines: { strokeDasharray: '', stroke: palette.borderSubtle, strokeWidth: 1 },
     }),
@@ -56,8 +59,12 @@ export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need reports.view permission to view the income statement."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -71,7 +78,12 @@ export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
       <ScrollView
         contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         refreshControl={
-          <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} colors={[colors.primary]} />
+          <RefreshControl
+            refreshing={query.isRefetching}
+            onRefresh={() => void query.refetch()}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
         }
       >
         <AcademicScreenHeader
@@ -82,7 +94,12 @@ export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
 
         <FilterChipRow label="Range">
           {RANGE_OPTIONS.map((opt) => (
-            <FilterChip key={opt.months} label={opt.label} active={months === opt.months} onPress={() => setMonths(opt.months)} />
+            <FilterChip
+              key={opt.months}
+              label={opt.label}
+              active={months === opt.months}
+              onPress={() => setMonths(opt.months)}
+            />
           ))}
         </FilterChipRow>
 
@@ -96,7 +113,13 @@ export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
             actionLabel="Retry"
             onAction={() => void query.refetch()}
           />
-        ) : data ? (
+        ) : !data || data.months.length === 0 ? (
+          <EmptyState
+            title="No income data"
+            message="There is no income statement data for the selected range."
+            icon="stats-chart-outline"
+          />
+        ) : (
           <>
             <WidgetGrid>
               <WidgetShell state={state} title="Income">
@@ -127,7 +150,7 @@ export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
                 yAxisLabel=""
                 yAxisSuffix=""
                 withInnerLines
-                style={{ borderRadius: 12 }}
+                style={{ borderRadius: radius.md, marginLeft: -spacing.sm }}
               />
             </ChartCard>
 
@@ -144,16 +167,17 @@ export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
                 yAxisLabel=""
                 yAxisSuffix=""
                 withInnerLines
-                style={{ borderRadius: 12 }}
+                style={{ borderRadius: radius.md, marginLeft: -spacing.sm }}
               />
             </ChartCard>
 
             <Text
               style={{
-                color: palette.textSecondary,
-                fontSize: typography.caption.fontSize,
-                fontWeight: '700',
-                letterSpacing: 0.4,
+                color: palette.textMuted,
+                fontSize: typography.overline.fontSize,
+                fontWeight: typography.overline.fontWeight,
+                letterSpacing: typography.overline.letterSpacing,
+                lineHeight: typography.overline.lineHeight,
                 marginTop: spacing.lg,
                 marginBottom: spacing.xs,
               }}
@@ -167,46 +191,79 @@ export const IncomeStatementScreen: React.FC<Props> = ({ navigation }) => {
                   borderWidth: StyleSheet.hairlineWidth,
                   borderColor: palette.borderSubtle,
                   backgroundColor: palette.surfaceRaised,
-                  borderRadius: radius.md,
+                  borderRadius: radius.card,
                   padding: spacing.md,
                   marginBottom: spacing.sm,
                 }}
               >
                 <View style={styles.monthHeader}>
-                  <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{m.label}</Text>
+                  <Text
+                    style={{
+                      color: palette.textPrimary,
+                      fontSize: typography.titleSmall.fontSize,
+                      fontWeight: typography.titleSmall.fontWeight,
+                      lineHeight: typography.titleSmall.lineHeight,
+                    }}
+                  >
+                    {m.label}
+                  </Text>
                   <Text
                     style={{
                       color: m.net >= 0 ? colors.success ?? colors.primary : colors.error,
-                      fontWeight: '800',
+                      fontSize: typography.titleSmall.fontSize,
+                      fontWeight: typography.titleSmall.fontWeight,
                     }}
                   >
                     {m.net >= 0 ? '+' : '−'}
                     {formatKes(Math.abs(m.net))}
                   </Text>
                 </View>
-                <View style={styles.monthRow}>
-                  <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                <View style={[styles.monthRow, { marginTop: spacing.sm }]}>
+                  <Text
+                    style={{
+                      color: palette.textSecondary,
+                      fontSize: typography.caption.fontSize,
+                      fontWeight: typography.caption.fontWeight,
+                      lineHeight: typography.caption.lineHeight,
+                    }}
+                  >
                     Income {formatKes(m.income)}
                   </Text>
-                  <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                  <Text
+                    style={{
+                      color: palette.textSecondary,
+                      fontSize: typography.caption.fontSize,
+                      fontWeight: typography.caption.fontWeight,
+                      lineHeight: typography.caption.lineHeight,
+                    }}
+                  >
                     Expenses {formatKes(m.expenses)}
                   </Text>
                 </View>
               </View>
             ))}
 
-            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: spacing.sm }}>
-              Income = fee payments received. Expenses = approved & paid expense vouchers. Period {data.from} to {data.to}.
+            <Text
+              style={{
+                color: palette.textMuted,
+                fontSize: typography.caption.fontSize,
+                fontWeight: typography.caption.fontWeight,
+                lineHeight: typography.caption.lineHeight,
+                marginTop: spacing.sm,
+              }}
+            >
+              Income = fee payments received. Expenses = approved & paid expense vouchers. Period {data.from} to{' '}
+              {data.to}.
             </Text>
           </>
-        ) : null}
+        )}
       </ScrollView>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
   monthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  monthRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
+  monthRow: { flexDirection: 'row', justifyContent: 'space-between' },
 });

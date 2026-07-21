@@ -33,20 +33,27 @@ export const ApplicationListItem: React.FC<ApplicationListItemProps> = ({
       ]}
     >
       {application.avatarUrl ? (
-        <Image source={{ uri: application.avatarUrl }} style={[styles.avatar, { borderRadius: radius.lg }]} />
+        <Image
+          source={{ uri: application.avatarUrl }}
+          style={[styles.avatar, { borderRadius: radius.lg, marginRight: spacing['3xs'] }]}
+        />
       ) : (
         <View
           style={[
             styles.avatar,
             styles.avatarPlaceholder,
-            { backgroundColor: `${colors.primary}12`, borderRadius: radius.lg },
+            {
+              backgroundColor: `${colors.primary}12`,
+              borderRadius: radius.lg,
+              marginRight: spacing['3xs'],
+            },
           ]}
         >
           <Ionicons name="document-text-outline" size={22} color={colors.primary} />
         </View>
       )}
 
-      <View style={styles.content}>
+      <View style={[styles.content, { marginRight: spacing.sm }]}>
         <Text
           style={[
             styles.name,
@@ -92,9 +99,9 @@ export const ApplicationListItem: React.FC<ApplicationListItemProps> = ({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', borderWidth: StyleSheet.hairlineWidth },
-  avatar: { width: 48, height: 48, marginRight: 12 },
+  avatar: { width: 48, height: 48 },
   avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  content: { flex: 1, marginRight: 8 },
+  content: { flex: 1 },
   name: {},
   badges: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
 });

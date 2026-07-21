@@ -1,8 +1,7 @@
 import { useTransportRoute, type StudentDetail } from '@erp/core';
-import { EmptyState, FinanceFieldSection } from '@erp/ui';
+import { EmptyState, FinanceFieldSection, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, View } from 'react-native';
 
 export interface TransportTabProps {
   student: StudentDetail;
@@ -10,13 +9,16 @@ export interface TransportTabProps {
 
 /** Transport trip from `GET /routes/{trip_id}` (trip-backed routes API). */
 export const TransportTab: React.FC<TransportTabProps> = ({ student }) => {
-  const { colors } = useTheme();
+  const { colors, spacing } = useTheme();
   const routeQuery = useTransportRoute(student.tripId, { enabled: student.tripId != null });
 
   const assignmentRows = useMemo(
     () => [
       { label: 'Trip / route ID', value: student.tripId != null ? String(student.tripId) : '—' },
-      { label: 'Drop-off point ID', value: student.dropOffPointId != null ? String(student.dropOffPointId) : '—' },
+      {
+        label: 'Drop-off point ID',
+        value: student.dropOffPointId != null ? String(student.dropOffPointId) : '—',
+      },
       { label: 'Drop-off (other)', value: student.dropOffPointOther ?? '—' },
     ],
     [student],
@@ -34,7 +36,7 @@ export const TransportTab: React.FC<TransportTabProps> = ({ student }) => {
 
   if (routeQuery.isLoading) {
     return (
-      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -42,12 +44,13 @@ export const TransportTab: React.FC<TransportTabProps> = ({ student }) => {
 
   if (routeQuery.isError) {
     return (
-      <View style={{ alignItems: 'center', paddingVertical: 16 }}>
-        <Text style={{ color: colors.error }}>{(routeQuery.error as Error).message}</Text>
-        <Pressable onPress={() => void routeQuery.refetch()} style={{ marginTop: 8 }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load transport"
+        message={(routeQuery.error as Error).message}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void routeQuery.refetch()}
+      />
     );
   }
 

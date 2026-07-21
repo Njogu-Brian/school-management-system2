@@ -1,8 +1,16 @@
 import { useCan, useReportCards } from '@erp/core';
-import { AcademicScreenHeader, ReportCardCard, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  EmptyState,
+  ListEmptyState,
+  ReportCardCard,
+  ScreenContainer,
+  SkeletonListRows,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 
 type Props = StackScreenProps<AcademicsStackParamList, 'ReportCardHistory'>;
@@ -10,13 +18,17 @@ type Props = StackScreenProps<AcademicsStackParamList, 'ReportCardHistory'>;
 export const ReportCardHistoryScreen: React.FC<Props> = ({ route, navigation }) => {
   const { studentId, studentName } = route.params;
   const canView = useCan('academics.view') && useCan('report_cards.view');
-  const { colors, palette, spacing } = useTheme();
+  const { colors, spacing } = useTheme();
   const listQuery = useReportCards(studentId, { enabled: canView });
 
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You do not have permission to view report cards."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -40,13 +52,21 @@ export const ReportCardHistoryScreen: React.FC<Props> = ({ route, navigation }) 
           onBack={() => navigation.goBack()}
         />
         {listQuery.isLoading ? (
-          <ActivityIndicator color={colors.primary} />
+          <SkeletonListRows variant="card" count={4} />
         ) : listQuery.isError ? (
-          <Pressable onPress={() => void listQuery.refetch()}>
-            <Text style={{ color: colors.error }}>{(listQuery.error as Error).message}</Text>
-          </Pressable>
+          <ListEmptyState
+            title="Could not load report cards"
+            message={(listQuery.error as Error).message}
+            icon="alert-circle-outline"
+            actionLabel="Retry"
+            onAction={() => void listQuery.refetch()}
+          />
         ) : (listQuery.data ?? []).length === 0 ? (
-          <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No report cards found.</Text>
+          <EmptyState
+            title="No report cards"
+            message="No report cards found for this student."
+            icon="document-outline"
+          />
         ) : (
           (listQuery.data ?? []).map((rc) => (
             <ReportCardCard

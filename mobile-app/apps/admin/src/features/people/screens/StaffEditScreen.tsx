@@ -2,8 +2,9 @@ import { staffApi, useUpdateStaff } from '@erp/core';
 import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<PeopleStackParamList, 'StaffEdit'>;
 
@@ -45,10 +46,10 @@ export const StaffEditScreen: React.FC<Props> = ({ route, navigation }) => {
         residential_address: address.trim() || null,
         id_number: idNumber.trim() || 'N/A',
       });
-      Alert.alert('Saved', 'Staff profile updated.');
+      showSuccess('Saved', 'Staff profile updated.');
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Update failed.');
+      showError('Error', err instanceof Error ? err.message : 'Update failed.');
     }
   };
 

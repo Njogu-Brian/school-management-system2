@@ -1,8 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../theme/ThemeContext';
 import { ApplicationStatusBadge } from '../admissions/ApplicationStatusBadge';
+import { useTheme } from '../theme/ThemeContext';
 import type { Admissions360HeaderData } from './types';
 
 export interface Admissions360HeaderProps {
@@ -10,62 +10,111 @@ export interface Admissions360HeaderProps {
 }
 
 export const Admissions360Header: React.FC<Admissions360HeaderProps> = ({ application }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   return (
     <View
       style={[
         styles.card,
+        elevation[2],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
+          gap: spacing.md,
         },
       ]}
     >
-      <View style={styles.row}>
-        {application.avatarUrl ? (
-          <Image source={{ uri: application.avatarUrl }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, { backgroundColor: palette.accent, alignItems: 'center', justifyContent: 'center' }]}>
-            <Ionicons name="person-outline" size={28} color={colors.primary} />
-          </View>
-        )}
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: palette.textPrimary, fontSize: fontSizes.lg, fontWeight: '700' }}>
-            {application.fullName}
+      {application.avatarUrl ? (
+        <Image
+          source={{ uri: application.avatarUrl }}
+          style={[styles.avatar, { borderRadius: radius['2xl'] }]}
+        />
+      ) : (
+        <View
+          style={[
+            styles.avatar,
+            styles.avatarPh,
+            {
+              backgroundColor: `${colors.primary}12`,
+              borderRadius: radius.lg,
+            },
+          ]}
+        >
+          <Ionicons name="person" size={36} color={colors.primary} />
+        </View>
+      )}
+      <View style={styles.meta}>
+        <Text
+          style={{
+            color: palette.textMain,
+            fontSize: typography.title.fontSize,
+            lineHeight: typography.title.lineHeight,
+            fontWeight: typography.title.fontWeight,
+          }}
+        >
+          {application.fullName}
+        </Text>
+        <Text
+          style={{
+            color: palette.textMuted,
+            fontSize: typography.caption.fontSize,
+            lineHeight: typography.caption.lineHeight,
+          }}
+        >
+          Application #{application.id}
+        </Text>
+        {application.applicationDate ? (
+          <Text
+            style={{
+              color: palette.textSub,
+              fontSize: typography.caption.fontSize,
+              lineHeight: typography.caption.lineHeight,
+              marginTop: spacing.xs,
+            }}
+          >
+            Applied {application.applicationDate}
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 2 }}>
-            Application #{application.id}
-          </Text>
-          {application.applicationDate ? (
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
-              Applied {application.applicationDate}
+        ) : null}
+        <View style={[styles.badges, { marginTop: spacing.xs, gap: spacing.xs }]}>
+          <ApplicationStatusBadge status={application.applicationStatus} compact />
+          {application.preferredClassName ? (
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                alignSelf: 'center',
+              }}
+            >
+              Preferred: {application.preferredClassName}
+            </Text>
+          ) : null}
+          {application.waitlistPosition != null ? (
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                alignSelf: 'center',
+              }}
+            >
+              Waitlist #{application.waitlistPosition}
             </Text>
           ) : null}
         </View>
-      </View>
-      <View style={[styles.meta, { marginTop: spacing.sm, gap: spacing.xs }]}>
-        <ApplicationStatusBadge status={application.applicationStatus} />
-        {application.preferredClassName ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-            Preferred: {application.preferredClassName}
-          </Text>
-        ) : null}
-        {application.waitlistPosition != null ? (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-            Waitlist position #{application.waitlistPosition}
-          </Text>
-        ) : null}
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 64, height: 64, borderRadius: 32 },
-  meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  avatar: { width: 72, height: 72 },
+  avatarPh: { alignItems: 'center', justifyContent: 'center' },
+  meta: { flex: 1 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
 });

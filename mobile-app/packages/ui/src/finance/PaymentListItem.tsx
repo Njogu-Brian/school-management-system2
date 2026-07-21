@@ -26,7 +26,7 @@ export const PaymentListItem: React.FC<PaymentListItemProps> = ({
   formatAmount = (n) => `KES ${n.toLocaleString('en-KE')}`,
   methodLabel = (m) => m.replace(/_/g, ' '),
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius, semantic } = useTheme();
   const reversed = payment.status === 'reversed';
 
   return (
@@ -37,7 +37,7 @@ export const PaymentListItem: React.FC<PaymentListItemProps> = ({
         {
           backgroundColor: palette.surface,
           borderColor: palette.border,
-          borderRadius: radius.lg,
+          borderRadius: radius.card,
           padding: spacing.md,
           opacity: pressed ? 0.9 : 1,
         },
@@ -45,26 +45,34 @@ export const PaymentListItem: React.FC<PaymentListItemProps> = ({
     >
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700' }}>
+          <Text style={{ color: palette.textMain, fontSize: typography.titleSmall.fontSize, fontWeight: '700' }}>
             {payment.receiptNumber}
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 2 }}>
+          <Text style={{ color: palette.textSub, fontSize: typography.body.fontSize, marginTop: 2 }}>
             {payment.studentName ?? '—'}
           </Text>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+          <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
             {methodLabel(payment.paymentMethod)} · {payment.paymentDate}
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={{ color: reversed ? palette.textSecondary : colors.success, fontSize: fontSizes.md, fontWeight: '700' }}>
+          <Text
+            style={{
+              color: reversed ? palette.textSub : semantic.success.fg,
+              fontSize: typography.titleSmall.fontSize,
+              fontWeight: '700',
+            }}
+          >
             {formatAmount(payment.amount)}
           </Text>
           {reversed ? (
-            <Text style={{ color: colors.error, fontSize: fontSizes.xs, marginTop: 2 }}>Reversed</Text>
+            <Text style={{ color: semantic.danger.fg, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+              Reversed
+            </Text>
           ) : null}
         </View>
         {onPress ? (
-          <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} style={{ marginLeft: spacing.xs }} />
+          <Ionicons name="chevron-forward" size={18} color={palette.textSub} style={{ marginLeft: spacing.xs }} />
         ) : null}
       </View>
     </Pressable>

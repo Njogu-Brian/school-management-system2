@@ -13,37 +13,43 @@ export interface StaffFieldSectionProps {
 }
 
 export const StaffFieldSection: React.FC<StaffFieldSectionProps> = ({ title, rows }) => {
-  const { palette, fontSizes, spacing, radius } = useTheme();
+  const { palette, typography, spacing, radius } = useTheme();
 
   return (
     <View style={{ marginBottom: spacing.lg }}>
       <Text
         style={{
           marginBottom: spacing.sm,
-          fontSize: fontSizes.xs,
-          fontWeight: '700',
-          color: palette.textSecondary,
+          fontSize: typography.overline.fontSize,
+          fontWeight: typography.overline.fontWeight,
+          color: palette.textMuted,
           textTransform: 'uppercase',
-          letterSpacing: 0.4,
+          letterSpacing: typography.overline.letterSpacing,
         }}
       >
         {title}
       </Text>
       <View
         style={{
-          backgroundColor: palette.surface,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderRadius: radius.card,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: palette.border,
+          borderColor: palette.borderSubtle,
           padding: spacing.md,
         }}
       >
         {rows.map((row) => (
           <View key={row.label} style={{ marginBottom: spacing.md }}>
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 4 }}>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.overline.fontSize,
+                marginBottom: 4,
+              }}
+            >
               {row.label}
             </Text>
-            <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md }}>
+            <Text style={{ color: palette.textPrimary, fontSize: typography.bodyLarge.fontSize }}>
               {row.value || '—'}
             </Text>
           </View>

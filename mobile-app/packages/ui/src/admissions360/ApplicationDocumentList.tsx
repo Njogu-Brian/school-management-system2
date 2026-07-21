@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { EmptyState } from '../feedback/EmptyState';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface ApplicationDocumentItemData {
@@ -23,7 +24,17 @@ export const ApplicationDocumentList: React.FC<ApplicationDocumentListProps> = (
   onDownloadPrivate,
   downloadingField,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius } = useTheme();
+
+  if (!documents.length) {
+    return (
+      <EmptyState
+        title="No documents"
+        message="Uploaded application documents will appear here."
+        icon="document-outline"
+      />
+    );
+  }
 
   return (
     <View style={{ paddingBottom: spacing.xl }}>
@@ -33,9 +44,9 @@ export const ApplicationDocumentList: React.FC<ApplicationDocumentListProps> = (
           style={[
             styles.card,
             {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderRadius: radius.lg,
+              backgroundColor: palette.surfaceRaised,
+              borderColor: palette.borderSubtle,
+              borderRadius: radius.card,
               padding: spacing.md,
               marginBottom: spacing.sm,
             },
@@ -48,10 +59,22 @@ export const ApplicationDocumentList: React.FC<ApplicationDocumentListProps> = (
               color={doc.uploaded ? colors.primary : palette.textSecondary}
             />
             <View style={{ flex: 1, marginLeft: spacing.sm }}>
-              <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '600' }}>
+              <Text
+                style={{
+                  color: palette.textPrimary,
+                  fontSize: typography.bodyLarge.fontSize,
+                  fontWeight: '600',
+                }}
+              >
                 {doc.label}
               </Text>
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: typography.caption.fontSize,
+                  marginTop: spacing.xs / 2,
+                }}
+              >
                 {doc.uploaded
                   ? doc.isPrivate
                     ? 'Uploaded (private document)'
@@ -66,8 +89,15 @@ export const ApplicationDocumentList: React.FC<ApplicationDocumentListProps> = (
             )}
           </View>
           {doc.viewUrl ? (
-            <Pressable onPress={() => void Linking.openURL(doc.viewUrl as string)} style={{ marginTop: spacing.sm }}>
-              <Image source={{ uri: doc.viewUrl }} style={styles.preview} resizeMode="cover" />
+            <Pressable
+              onPress={() => void Linking.openURL(doc.viewUrl as string)}
+              style={{ marginTop: spacing.sm }}
+            >
+              <Image
+                source={{ uri: doc.viewUrl }}
+                style={[styles.preview, { borderRadius: radius.md }]}
+                resizeMode="cover"
+              />
             </Pressable>
           ) : null}
           {doc.uploaded && doc.isPrivate && doc.downloadPath && onDownloadPrivate ? (
@@ -76,7 +106,13 @@ export const ApplicationDocumentList: React.FC<ApplicationDocumentListProps> = (
               disabled={downloadingField === doc.field}
               style={{ marginTop: spacing.sm }}
             >
-              <Text style={{ color: colors.primary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontSize: typography.body.fontSize,
+                  fontWeight: '600',
+                }}
+              >
                 {downloadingField === doc.field ? 'Downloading…' : 'Download document'}
               </Text>
             </Pressable>
@@ -90,5 +126,5 @@ export const ApplicationDocumentList: React.FC<ApplicationDocumentListProps> = (
 const styles = StyleSheet.create({
   card: { borderWidth: StyleSheet.hairlineWidth },
   row: { flexDirection: 'row', alignItems: 'center' },
-  preview: { width: '100%', height: 160, borderRadius: 8 },
+  preview: { width: '100%', height: 160 },
 });

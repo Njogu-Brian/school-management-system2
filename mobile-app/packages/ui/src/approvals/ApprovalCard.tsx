@@ -4,32 +4,58 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { ApprovalPriorityBadge } from './ApprovalPriorityBadge';
 import { ApprovalStatusBadge } from './ApprovalStatusBadge';
-import type { ApprovalCardData } from './types';
+import type { ApprovalCardData, ApprovalPriority } from './types';
 
 export interface ApprovalCardProps {
   item: ApprovalCardData;
 }
 
+function priorityStripeColor(
+  priority: ApprovalPriority,
+  colors: { error: string; warning: string; success: string },
+): string {
+  switch (priority) {
+    case 'critical':
+    case 'high':
+      return colors.error;
+    case 'medium':
+      return colors.warning;
+    case 'low':
+    default:
+      return colors.success;
+  }
+}
+
 export const ApprovalCard: React.FC<ApprovalCardProps> = ({ item }) => {
-  const { palette, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
+  const stripe = priorityStripeColor(item.priority, colors);
 
   const content = (
     <View
       style={[
         styles.card,
+        elevation[2],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderLeftColor: stripe,
+          borderRadius: radius.card,
           padding: spacing.md,
+          marginBottom: spacing.sm,
         },
-        shadows.sm,
       ]}
     >
       <View style={styles.topRow}>
-        <View style={styles.titleBlock}>
+        <View style={[styles.titleBlock, { marginRight: spacing.sm }]}>
           <Text
-            style={[styles.title, { color: palette.textPrimary, fontSize: fontSizes.md }]}
+            style={[
+              styles.title,
+              {
+                color: palette.textPrimary,
+                fontSize: typography.titleSmall.fontSize,
+                fontWeight: typography.titleSmall.fontWeight,
+              },
+            ]}
             numberOfLines={1}
           >
             {item.title}
@@ -38,18 +64,29 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ item }) => {
             <Text
               style={[
                 styles.source,
-                { color: palette.textSecondary, fontSize: fontSizes.xs },
+                {
+                  color: palette.textSecondary,
+                  fontSize: typography.overline.fontSize,
+                  marginTop: spacing.xs,
+                },
               ]}
             >
               {item.sourceLabel}
             </Text>
           ) : null}
         </View>
-        <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+        <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
       </View>
 
       <Text
-        style={[styles.subtitle, { color: palette.textSecondary, fontSize: fontSizes.sm }]}
+        style={[
+          styles.subtitle,
+          {
+            color: palette.textSecondary,
+            fontSize: typography.caption.fontSize,
+            marginTop: spacing.xs,
+          },
+        ]}
         numberOfLines={2}
       >
         {item.subtitle}
@@ -64,7 +101,11 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ item }) => {
         <Text
           style={[
             styles.meta,
-            { color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.xs },
+            {
+              color: palette.textSecondary,
+              fontSize: typography.overline.fontSize,
+              marginTop: spacing.xs,
+            },
           ]}
         >
           {item.requestedAtLabel}
@@ -89,12 +130,15 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({ item }) => {
 };
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, marginBottom: 10 },
+  card: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 4,
+  },
   topRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  titleBlock: { flex: 1, marginRight: 8 },
-  title: { fontWeight: '700' },
-  source: { marginTop: 2, fontWeight: '500' },
-  subtitle: { marginTop: 6 },
+  titleBlock: { flex: 1 },
+  title: {},
+  source: { fontWeight: '500' },
+  subtitle: {},
   badges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   meta: { fontWeight: '500' },
 });

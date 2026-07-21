@@ -1,8 +1,13 @@
 import type { StaffAttendanceDay } from '@erp/core';
-import { AttendanceDayListItem, StudentSummaryWidgets, type StudentSummaryWidgetData } from '@erp/ui';
+import {
+  AttendanceDayListItem,
+  EmptyState,
+  StudentSummaryWidgets,
+  type StudentSummaryWidgetData,
+  useTheme,
+} from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { formatPercent } from '../utils/formatters';
 
 export interface AttendanceTabProps {
@@ -30,7 +35,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   rangeLabel,
   days,
 }) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, colors, spacing, typography } = useTheme();
 
   const widgets = useMemo(
     (): StudentSummaryWidgetData[] => [
@@ -57,30 +62,37 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
   if (isError) {
     return (
-      <View style={styles.centered}>
-        <Text style={{ color: colors.error, fontSize: fontSizes.sm }}>
-          Could not load attendance history.
-        </Text>
-        {onRetry ? (
-          <Pressable onPress={onRetry}>
-            <Text style={{ color: colors.primary, marginTop: spacing.sm, fontWeight: '600' }}>
-              Retry
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <EmptyState
+        title="Could not load attendance"
+        message="Attendance history failed to load."
+        icon="alert-circle-outline"
+        actionLabel={onRetry ? 'Retry' : undefined}
+        onAction={onRetry}
+      />
     );
   }
 
   return (
     <View>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontSize: typography.overline.fontSize,
+          marginBottom: spacing.sm,
+        }}
+      >
         {rangeLabel}
       </Text>
       <StudentSummaryWidgets widgets={widgets} />
 
       {halfDay > 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.sm }}>
+        <Text
+          style={{
+            color: palette.textSecondary,
+            fontSize: typography.overline.fontSize,
+            marginTop: spacing.sm,
+          }}
+        >
           Half days: {halfDay}
         </Text>
       ) : null}
@@ -88,16 +100,23 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
       <Text
         style={[
           styles.section,
-          { color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: spacing.lg },
+          {
+            color: palette.textMuted,
+            fontSize: typography.overline.fontSize,
+            letterSpacing: typography.overline.letterSpacing,
+            marginTop: spacing.lg,
+          },
         ]}
       >
         Daily log
       </Text>
 
       {days.length === 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
-          No attendance marks in this period.
-        </Text>
+        <EmptyState
+          title="No attendance marks"
+          message="No attendance marks in this period."
+          icon="calendar-outline"
+        />
       ) : (
         days.map((d) => (
           <AttendanceDayListItem
@@ -119,5 +138,5 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
 
 const styles = StyleSheet.create({
   centered: { paddingVertical: 32, alignItems: 'center' },
-  section: { fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 8 },
+  section: { fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
 });

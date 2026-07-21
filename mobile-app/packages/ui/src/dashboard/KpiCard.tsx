@@ -2,36 +2,38 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { AccentIcon, type AccentTone } from '../primitives/AccentIcon';
+
+const TONES: AccentTone[] = ['blue', 'teal', 'violet', 'amber', 'rose', 'emerald', 'cyan', 'indigo'];
 
 export interface KpiCardProps {
   label: string;
   value: string;
-  /** Optional trend caption, e.g. "+4.2% vs last week". */
   delta?: string;
   deltaPositive?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
+  accentTone?: AccentTone;
   onPress?: () => void;
 }
 
-/** Success-state body for a KPI widget (used inside `WidgetShell`). */
+/** Premium KPI body — gradient accent icon + large value. */
 export const KpiCard: React.FC<KpiCardProps> = ({
   label,
   value,
   delta,
   deltaPositive,
-  icon = 'stats-chart-outline',
+  icon = 'stats-chart',
+  accentTone,
   onPress,
 }) => {
-  const { palette, colors, typography, radius, spacing } = useTheme();
-
+  const { palette, colors, typography, spacing } = useTheme();
+  const tone = accentTone ?? TONES[Math.abs(label.length) % TONES.length];
   const deltaColor = deltaPositive === false ? colors.error : colors.success;
 
   const body = (
     <>
       <View style={styles.header}>
-        <View style={[styles.iconWrap, { backgroundColor: `${colors.primary}12`, borderRadius: radius.sm }]}>
-          <Ionicons name={icon} size={20} color={colors.primary} />
-        </View>
+        <AccentIcon name={icon} tone={tone} size={44} iconSize={20} />
         <Text
           style={[
             styles.label,
@@ -39,6 +41,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
               color: palette.textMuted,
               fontSize: typography.overline.fontSize,
               letterSpacing: typography.overline.letterSpacing,
+              marginLeft: spacing.sm,
             },
           ]}
         >
@@ -49,10 +52,10 @@ export const KpiCard: React.FC<KpiCardProps> = ({
         style={[
           styles.value,
           {
-            color: palette.textPrimary,
-            fontSize: typography.heading.fontSize,
-            lineHeight: typography.heading.lineHeight,
-            marginTop: spacing.xs,
+            color: palette.textMain,
+            fontSize: typography.headlineLarge.fontSize,
+            lineHeight: typography.headlineLarge.lineHeight,
+            marginTop: spacing.sm,
           },
         ]}
       >
@@ -60,14 +63,12 @@ export const KpiCard: React.FC<KpiCardProps> = ({
       </Text>
       {delta ? (
         <Text
-          style={[
-            styles.delta,
-            {
-              color: deltaColor,
-              fontSize: typography.caption.fontSize,
-              marginTop: spacing.xs,
-            },
-          ]}
+          style={{
+            color: deltaColor,
+            fontSize: typography.caption.fontSize,
+            marginTop: spacing.xs,
+            fontWeight: '600',
+          }}
         >
           {delta}
         </Text>
@@ -88,14 +89,6 @@ export const KpiCard: React.FC<KpiCardProps> = ({
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center' },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  label: { fontWeight: '600', flex: 1 },
-  value: { fontWeight: '700' },
-  delta: { fontWeight: '500' },
+  label: { fontWeight: '700', flex: 1 },
+  value: { fontWeight: '800' },
 });

@@ -7,6 +7,7 @@ import {
 import {
   countActiveFilters,
   DashboardHero,
+  EmptyState,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -24,7 +25,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   StyleSheet,
-  Text,
 } from 'react-native';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
 import { useStaffRegistryState } from '../hooks/useStaffRegistryState';
@@ -33,7 +33,7 @@ import { summaryToListItem } from '../utils/mapToListItem';
 export const StaffRegistryScreen: React.FC = () => {
   const canView = useCan(['people.view', 'staff.view']);
   const navigation = useNavigation<StackNavigationProp<PeopleStackParamList>>();
-  const { colors, palette, typography } = useTheme();
+  const { colors, spacing } = useTheme();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const {
@@ -124,10 +124,12 @@ export const StaffRegistryScreen: React.FC = () => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, textAlign: 'center' }}>
-          You need people.view permission to open the staff directory.
-        </Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { paddingHorizontal: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need people.view permission to open the staff directory."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -216,5 +218,5 @@ export const StaffRegistryScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

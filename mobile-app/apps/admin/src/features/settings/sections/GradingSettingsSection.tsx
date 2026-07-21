@@ -1,11 +1,10 @@
 import { useGradingSettings } from '@erp/core';
-import { SettingCard, SettingsSectionHeader } from '@erp/ui';
+import { EmptyState, SettingCard, SettingsSectionHeader, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 export const GradingSettingsSection: React.FC = () => {
-  const { colors, spacing, fontSizes, palette } = useTheme();
+  const { colors, spacing, palette, typography } = useTheme();
   const query = useGradingSettings();
 
   const schemeCards = useMemo(() => {
@@ -45,17 +44,18 @@ export const GradingSettingsSection: React.FC = () => {
 
   if (query.isError) {
     return (
-      <View>
-        <Text style={{ color: colors.error }}>Could not load grading settings.</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: spacing.sm }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load grading settings"
+        message={(query.error as Error)?.message ?? 'Try again in a moment.'}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
   return (
-    <View>
+    <View style={{ gap: spacing.sm }}>
       <SettingsSectionHeader
         title="Grading"
         subtitle="Grading schemes, bands, and exam types (read-only)."
@@ -71,17 +71,22 @@ export const GradingSettingsSection: React.FC = () => {
 
       <Text
         style={{
-          color: palette.textSecondary,
-          fontSize: fontSizes.xs,
-          fontWeight: '700',
+          color: palette.textMuted,
+          fontSize: typography.overline.fontSize,
+          lineHeight: typography.overline.lineHeight,
+          fontWeight: typography.overline.fontWeight,
+          letterSpacing: typography.overline.letterSpacing,
           textTransform: 'uppercase',
           marginTop: spacing.md,
-          marginBottom: spacing.sm,
         }}
       >
         Exam types
       </Text>
-      <SettingCard id="exam-types-count" label="Exam types" value={String(query.data?.exam_types.length ?? 0)} />
+      <SettingCard
+        id="exam-types-count"
+        label="Exam types"
+        value={String(query.data?.exam_types.length ?? 0)}
+      />
       {examTypeCards.map((c) => (
         <SettingCard key={c.id} id={c.id} label={c.label} value={c.value} hint={c.hint} />
       ))}

@@ -1,6 +1,7 @@
 import { useCan, useInfiniteFinanceTransactions, type FinanceTransactionSummary } from '@erp/core';
 import {
   countActiveFilters,
+  EmptyState,
   FinanceScreenHeader,
   FinanceSearchBar,
   FinanceTransactionListItem,
@@ -15,10 +16,8 @@ import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
@@ -29,7 +28,7 @@ type Props = StackScreenProps<FinanceStackParamList, 'ReconciliationList'>;
 
 export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('finance.view');
-  const { colors, palette, spacing } = useTheme();
+  const { palette, spacing } = useTheme();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const { searchInput, setSearchInput, queue, setQueue, filters } = useReconciliationRegistryState();
   const listQuery = useInfiniteFinanceTransactions(filters, { enabled: canView });
@@ -66,7 +65,11 @@ export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You do not have permission to view reconciliation."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -110,8 +113,8 @@ export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
           <RefreshControl
             refreshing={listQuery.isRefetching && !listQuery.isFetchingNextPage}
             onRefresh={() => void listQuery.refetch()}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={[palette.primary]}
+            tintColor={palette.primary}
           />
         }
         onEndReached={() => {
@@ -122,36 +125,34 @@ export const ReconciliationScreen: React.FC<Props> = ({ navigation }) => {
         onEndReachedThreshold={0.4}
         ListFooterComponent={
           listQuery.isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
+            <ActivityIndicator color={palette.primary} style={{ marginVertical: spacing.md }} />
           ) : null
         }
         ListEmptyComponent={
           listQuery.isLoading ? (
             <SkeletonListRows variant="card" />
-          ) : !listQuery.isError ? (
+          ) : listQuery.isError ? (
+            <ListEmptyState
+              title="Could not load queue"
+              message={(listQuery.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void listQuery.refetch()}
+            />
+          ) : (
             <ListEmptyState
               title="Queue is empty"
               message="No transactions in the reconciliation queue."
               icon="git-compare-outline"
               onClearFilters={clearFilters}
             />
-          ) : null
+          )
         }
       />
-      {listQuery.isError ? (
-        <View style={{ padding: spacing.md }}>
-          <Text style={{ color: colors.error, textAlign: 'center' }}>
-            {(listQuery.error as Error).message}
-          </Text>
-          <Pressable onPress={() => void listQuery.refetch()} style={{ marginTop: spacing.sm, alignSelf: 'center' }}>
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

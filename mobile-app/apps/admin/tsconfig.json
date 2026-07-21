@@ -1,13 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@erp/core": ["../../packages/core/src/index.ts"],
       "@erp/core/*": ["../../packages/core/src/*"],
       "@erp/ui": ["../../packages/ui/src/index.ts"],
       "@erp/ui/*": ["../../packages/ui/src/*"],
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["App.tsx", "app.config.ts", "index.js", "src/**/*"],

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccentIcon } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 import type { ReportCardCardData } from './types';
 
@@ -9,27 +10,46 @@ export interface ReportCardCardProps {
 }
 
 export const ReportCardCard: React.FC<ReportCardCardProps> = ({ card }) => {
-  const { palette, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, semantic, spacing, typography, radius, elevation } = useTheme();
   const isPublished = card.status === 'published';
 
   const body = (
     <View
       style={[
         styles.row,
+        elevation[2],
         {
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderRadius: radius.lg,
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
           padding: spacing.md,
         },
-        shadows.sm,
       ]}
     >
+      <AccentIcon
+        name="ribbon-outline"
+        tone={isPublished ? 'emerald' : 'amber'}
+        size={44}
+        iconSize={20}
+        style={{ marginRight: spacing.sm }}
+      />
       <View style={{ flex: 1 }}>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '700' }}>
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontSize: typography.titleSmall.fontSize,
+            fontWeight: '700',
+          }}
+        >
           {card.termLabel}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginTop: 2 }}>
+        <Text
+          style={{
+            color: palette.textSecondary,
+            fontSize: typography.body.fontSize,
+            marginTop: 2,
+          }}
+        >
           {card.overallGrade ?? '—'}
           {card.overallPercentage != null && card.overallPercentage > 0
             ? ` · ${card.overallPercentage}%`
@@ -39,7 +59,7 @@ export const ReportCardCard: React.FC<ReportCardCardProps> = ({ card }) => {
           style={[
             styles.badge,
             {
-              backgroundColor: isPublished ? '#DCFCE7' : '#FEF3C7',
+              backgroundColor: isPublished ? semantic.success.bg : semantic.warning.bg,
               borderRadius: radius.sm,
               marginTop: spacing.xs,
             },
@@ -47,8 +67,8 @@ export const ReportCardCard: React.FC<ReportCardCardProps> = ({ card }) => {
         >
           <Text
             style={{
-              color: isPublished ? '#15803D' : '#B45309',
-              fontSize: fontSizes.xs,
+              color: isPublished ? semantic.success.fg : semantic.warning.fg,
+              fontSize: typography.caption.fontSize,
               fontWeight: '700',
             }}
           >
@@ -56,7 +76,7 @@ export const ReportCardCard: React.FC<ReportCardCardProps> = ({ card }) => {
           </Text>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
+      <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
     </View>
   );
 

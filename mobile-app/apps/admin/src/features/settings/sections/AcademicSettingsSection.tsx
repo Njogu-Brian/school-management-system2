@@ -5,13 +5,12 @@ import {
   useSettingsSubjects,
   useTermsSettings,
 } from '@erp/core';
-import { SettingCard, SettingsSectionHeader } from '@erp/ui';
+import { EmptyState, SettingCard, SettingsSectionHeader, useTheme } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
 
 export const AcademicSettingsSection: React.FC = () => {
-  const { colors, spacing, palette } = useTheme();
+  const { colors, spacing, palette, typography } = useTheme();
   const yearsQuery = useAcademicYearsSettings();
   const termsQuery = useTermsSettings();
   const classesQuery = useSettingsClasses();
@@ -75,27 +74,25 @@ export const AcademicSettingsSection: React.FC = () => {
 
   if (isError) {
     return (
-      <View>
-        <Text style={{ color: colors.error }}>Could not load academic settings.</Text>
-        <Pressable
-          onPress={() => {
-            void yearsQuery.refetch();
-            void termsQuery.refetch();
-            void classesQuery.refetch();
-            void subjectsQuery.refetch();
-          }}
-          style={{ marginTop: spacing.sm }}
-        >
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load academic settings"
+        message="Check your connection and try again."
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => {
+          void yearsQuery.refetch();
+          void termsQuery.refetch();
+          void classesQuery.refetch();
+          void subjectsQuery.refetch();
+        }}
+      />
     );
   }
 
   const classes = classesQuery.data ?? [];
 
   return (
-    <View>
+    <View style={{ gap: spacing.sm }}>
       <SettingsSectionHeader
         title="Academic"
         subtitle="Calendar, classes, streams, and subjects."
@@ -106,11 +103,12 @@ export const AcademicSettingsSection: React.FC = () => {
 
       <Text
         style={{
-          color: palette.textSecondary,
-          fontWeight: '700',
-          fontSize: 12,
+          color: palette.textMuted,
+          fontWeight: typography.overline.fontWeight,
+          fontSize: typography.overline.fontSize,
+          lineHeight: typography.overline.lineHeight,
+          letterSpacing: typography.overline.letterSpacing,
           marginTop: spacing.md,
-          marginBottom: spacing.sm,
           textTransform: 'uppercase',
         }}
       >
@@ -129,7 +127,12 @@ export const AcademicSettingsSection: React.FC = () => {
         </Pressable>
       ))}
       {classes.length > 12 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: 12 }}>
+        <Text
+          style={{
+            color: palette.textSecondary,
+            fontSize: typography.caption.fontSize,
+          }}
+        >
           +{classes.length - 12} more classes on web portal
         </Text>
       ) : null}

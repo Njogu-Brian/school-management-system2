@@ -10,6 +10,7 @@ import {
   ApprovalFilters,
   ApprovalList,
   countActiveFilters,
+  EmptyState,
   FilterBottomSheet,
   FilterTriggerButton,
   ScreenContainer,
@@ -17,7 +18,7 @@ import {
   useTheme,
 } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { approvalItemToCard } from '../utils/mapToCard';
 
 const SECTION_HINT: Record<ApprovalStatus | 'all', string> = {
@@ -40,7 +41,7 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
   onOpenDetail,
   initialStatus = 'pending',
 }) => {
-  const { palette, fontSizes, spacing } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [status, setStatus] = useState<ApprovalStatus | 'all'>(initialStatus);
@@ -71,6 +72,12 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
   }, [query.data, onOpenDetail, searchInput]);
 
   const activeFilterCount = countActiveFilters([status, priority, sourceType]);
+  /** Pending/all with no refining filters → celebration empty; otherwise offer Clear filters. */
+  const isInboxQueueView =
+    (status === 'pending' || status === 'all') &&
+    priority === 'all' &&
+    sourceType === 'all' &&
+    !searchInput.trim();
 
   const clearFilters = () => {
     setStatus('all');
@@ -82,10 +89,14 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.md, textAlign: 'center' }}>
-          You don&apos;t have permission to view approvals.
-        </Text>
+      <ScreenContainer
+        contentContainerStyle={[styles.denied, { padding: spacing.lg }]}
+      >
+        <EmptyState
+          title="Access denied"
+          message="You don't have permission to view approvals."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -107,7 +118,9 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
       >
         <SearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search approvals…" />
         <FilterTriggerButton activeCount={activeFilterCount} onPress={() => setFiltersOpen(true)} />
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{SECTION_HINT[status]}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+          {SECTION_HINT[status]}
+        </Text>
       </View>
 
       <View style={{ flex: 1, paddingHorizontal: spacing.md }}>
@@ -118,7 +131,7 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
           errorMessage={query.isError ? (query.error as Error).message : null}
           onRefresh={() => void query.refetch()}
           onRetry={() => void query.refetch()}
-          onClearFilters={clearFilters}
+          onClearFilters={isInboxQueueView ? undefined : clearFilters}
         />
       </View>
 
@@ -144,5 +157,5 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   sticky: { zIndex: 2, borderBottomWidth: StyleSheet.hairlineWidth },
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

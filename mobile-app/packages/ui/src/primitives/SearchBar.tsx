@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, TextInput, View, ViewStyle } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View, ViewStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface SearchBarProps {
@@ -19,16 +19,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   style,
   autoFocus,
 }) => {
-  const { palette, colors, spacing, typography, radius, elevation } = useTheme();
+  const { palette, spacing, typography, radius, elevation } = useTheme();
+  const [focused, setFocused] = useState(false);
 
   return (
     <View
       style={[
         styles.wrap,
-        elevation[1],
+        elevation[focused ? 2 : 1],
         {
           backgroundColor: palette.surfaceRaised,
-          borderColor: palette.borderSubtle,
+          borderColor: focused ? palette.primary : palette.borderSubtle,
           borderRadius: radius.control,
           paddingHorizontal: spacing.md,
           marginBottom: spacing.sm,
@@ -42,10 +43,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={palette.textMuted}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         style={[
           styles.input,
           {
-            color: palette.textPrimary,
+            color: palette.textMain,
             fontSize: typography.body.fontSize,
             lineHeight: typography.body.lineHeight,
           },
@@ -54,9 +57,19 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         autoCorrect={false}
         autoFocus={autoFocus}
         returnKeyType="search"
-        selectionColor={colors.primary}
+        selectionColor={palette.primary}
         accessibilityRole="search"
       />
+      {value.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
+          hitSlop={8}
+          onPress={() => onChangeText('')}
+        >
+          <Ionicons name="close-circle" size={20} color={palette.textMuted} />
+        </Pressable>
+      ) : null}
     </View>
   );
 };

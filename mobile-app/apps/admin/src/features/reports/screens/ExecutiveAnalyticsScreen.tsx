@@ -3,6 +3,7 @@ import {
   AcademicScreenHeader,
   Button,
   ChartCard,
+  EmptyState,
   FilterChip,
   FilterChipRow,
   KpiCard,
@@ -29,27 +30,33 @@ function safeSeries(series?: ChartSeries): { labels: string[]; data: number[] } 
   return { labels, data };
 }
 
+function hexToRgba(hex: string, opacity = 1): string {
+  const cleaned = hex.replace('#', '');
+  const r = parseInt(cleaned.slice(0, 2), 16);
+  const g = parseInt(cleaned.slice(2, 4), 16);
+  const b = parseInt(cleaned.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
 export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('reports.view');
-  const { colors, palette, spacing, typography } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const { width } = useWindowDimensions();
   const [period, setPeriod] = useState<AnalyticsPeriod>('month');
   const query = useExecutiveAnalytics(period, { enabled: canView });
 
   const chartWidth = Math.min(width - spacing.md * 2, 420);
+  const pieColors = useMemo(
+    () => [colors.primary, colors.secondary, colors.info, colors.success, colors.warning, colors.primaryLight],
+    [colors],
+  );
   const chartConfig = useMemo(
     () => ({
       backgroundColor: palette.surfaceRaised,
       backgroundGradientFrom: palette.surfaceRaised,
       backgroundGradientTo: palette.surfaceRaised,
       decimalPlaces: 0,
-      color: (opacity = 1) => {
-        const hex = colors.primary.replace('#', '');
-        const r = parseInt(hex.slice(0, 2), 16);
-        const g = parseInt(hex.slice(2, 4), 16);
-        const b = parseInt(hex.slice(4, 6), 16);
-        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-      },
+      color: (opacity = 1) => hexToRgba(colors.primary, opacity),
       labelColor: () => palette.textSecondary,
       propsForDots: { r: '4', strokeWidth: '2', stroke: colors.primary },
       propsForBackgroundLines: { strokeDasharray: '', stroke: palette.borderSubtle, strokeWidth: 1 },
@@ -59,8 +66,12 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
 
   if (!canView) {
     return (
-      <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+      <ScreenContainer contentContainerStyle={[styles.denied, { padding: spacing.lg }]}>
+        <EmptyState
+          title="Access denied"
+          message="You need reports.view permission to view executive analytics."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -86,7 +97,12 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
       <ScrollView
         contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         refreshControl={
-          <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} colors={[colors.primary]} />
+          <RefreshControl
+            refreshing={query.isRefetching}
+            onRefresh={() => void query.refetch()}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
         }
       >
         <AcademicScreenHeader
@@ -108,25 +124,53 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
 
         {query.isLoading ? (
           <SkeletonWidgetGrid count={4} />
+        ) : query.isError ? (
+          <EmptyState
+            title="Could not load analytics"
+            message={(query.error as Error).message}
+            icon="alert-circle-outline"
+            actionLabel="Retry"
+            onAction={() => void query.refetch()}
+          />
+        ) : !data ? (
+          <EmptyState
+            title="No analytics data"
+            message="There is no executive analytics data for this period yet."
+            icon="stats-chart-outline"
+          />
         ) : (
-          <WidgetGrid>
-            <WidgetShell state={state} title="Collected" onRetry={() => void query.refetch()}>
-              <KpiCard label="Collected (period)" value={formatKes(data?.finance.monthly_collections)} icon="cash-outline" />
-            </WidgetShell>
-            <WidgetShell state={state} title="Outstanding">
-              <KpiCard label="Outstanding" value={formatKes(data?.finance.outstanding_balances)} icon="wallet-outline" />
-            </WidgetShell>
-            <WidgetShell state={state} title="Inventory alerts">
-              <KpiCard label="Inventory alerts" value={String(data?.operations.inventory_alerts ?? '—')} icon="warning-outline" />
-            </WidgetShell>
-            <WidgetShell state={state} title="Assets">
-              <KpiCard label="Fixed assets" value={String(data?.operations.assets ?? '—')} icon="cube-outline" />
-            </WidgetShell>
-          </WidgetGrid>
-        )}
-
-        {data ? (
           <>
+            <WidgetGrid>
+              <WidgetShell state={state} title="Collected" onRetry={() => void query.refetch()}>
+                <KpiCard
+                  label="Collected (period)"
+                  value={formatKes(data.finance.monthly_collections)}
+                  icon="cash-outline"
+                />
+              </WidgetShell>
+              <WidgetShell state={state} title="Outstanding">
+                <KpiCard
+                  label="Outstanding"
+                  value={formatKes(data.finance.outstanding_balances)}
+                  icon="wallet-outline"
+                />
+              </WidgetShell>
+              <WidgetShell state={state} title="Inventory alerts">
+                <KpiCard
+                  label="Inventory alerts"
+                  value={String(data.operations.inventory_alerts ?? '—')}
+                  icon="warning-outline"
+                />
+              </WidgetShell>
+              <WidgetShell state={state} title="Assets">
+                <KpiCard
+                  label="Fixed assets"
+                  value={String(data.operations.assets ?? '—')}
+                  icon="cube-outline"
+                />
+              </WidgetShell>
+            </WidgetGrid>
+
             <ChartCard title="Fee collections" subtitle="Trend over selected period">
               <LineChart
                 data={{
@@ -137,7 +181,7 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 height={180}
                 chartConfig={chartConfig}
                 bezier
-                style={styles.chart}
+                style={{ borderRadius: radius.md, marginLeft: -spacing.sm }}
                 withInnerLines
                 withOuterLines={false}
               />
@@ -152,7 +196,7 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 width={chartWidth}
                 height={180}
                 chartConfig={chartConfig}
-                style={styles.chart}
+                style={{ borderRadius: radius.md, marginLeft: -spacing.sm }}
                 yAxisLabel=""
                 yAxisSuffix=""
                 fromZero
@@ -169,7 +213,7 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 height={180}
                 chartConfig={chartConfig}
                 bezier
-                style={styles.chart}
+                style={{ borderRadius: radius.md, marginLeft: -spacing.sm }}
                 yAxisSuffix="%"
                 withOuterLines={false}
               />
@@ -185,7 +229,7 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 height={180}
                 chartConfig={chartConfig}
                 bezier
-                style={styles.chart}
+                style={{ borderRadius: radius.md, marginLeft: -spacing.sm }}
                 withOuterLines={false}
               />
             </ChartCard>
@@ -199,7 +243,7 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 width={chartWidth}
                 height={180}
                 chartConfig={chartConfig}
-                style={styles.chart}
+                style={{ borderRadius: radius.md, marginLeft: -spacing.sm }}
                 yAxisLabel=""
                 yAxisSuffix=""
                 fromZero
@@ -215,7 +259,7 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 width={chartWidth}
                 height={180}
                 chartConfig={chartConfig}
-                style={styles.chart}
+                style={{ borderRadius: radius.md, marginLeft: -spacing.sm }}
                 yAxisLabel=""
                 yAxisSuffix=""
                 fromZero
@@ -227,12 +271,12 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 <PieChart
                   data={data.admissions.enrollment_pie
                     .filter((s) => s.value > 0)
-                    .map((s) => ({
+                    .map((s, index) => ({
                       name: s.name,
                       population: s.value,
-                      color: s.color,
+                      color: pieColors[index % pieColors.length],
                       legendFontColor: palette.textSecondary,
-                      legendFontSize: 12,
+                      legendFontSize: typography.caption.fontSize,
                     }))}
                   width={chartWidth}
                   height={180}
@@ -245,11 +289,18 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
               </ChartCard>
             ) : null}
 
-            <Button label="Share summary" variant="secondary" onPress={() => void shareReport()} style={{ marginTop: spacing.sm }} />
+            <Button
+              label="Share summary"
+              variant="secondary"
+              onPress={() => void shareReport()}
+              style={{ marginTop: spacing.sm }}
+            />
             <Text
               style={{
                 color: palette.textMuted,
                 fontSize: typography.caption.fontSize,
+                fontWeight: typography.caption.fontWeight,
+                lineHeight: typography.caption.lineHeight,
                 marginTop: spacing.sm,
                 textAlign: 'center',
               }}
@@ -257,13 +308,12 @@ export const ExecutiveAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
               As of {data.as_of}
             </Text>
           </>
-        ) : null}
+        )}
       </ScrollView>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  chart: { borderRadius: 12, marginLeft: -8 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

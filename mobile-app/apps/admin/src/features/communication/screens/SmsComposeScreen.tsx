@@ -8,6 +8,7 @@ import {
 } from '@erp/core';
 import {
   AcademicScreenHeader,
+  EmptyState,
   FilterBottomSheet,
   FilterChip,
   FilterChipRow,
@@ -105,7 +106,11 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need communication.view permission to send messages."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -118,13 +123,14 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
       color: palette.textPrimary,
       borderRadius: radius.control,
       fontSize: typography.body.fontSize,
+      padding: spacing.mdSm,
     },
   ];
   const labelStyle = {
     color: palette.textSecondary,
     fontSize: typography.caption.fontSize,
     fontWeight: '600' as const,
-    marginBottom: 6,
+    marginBottom: spacing.xs,
     marginTop: spacing.md,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.4,
@@ -203,7 +209,7 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         keyboardType="phone-pad"
         style={inputStyle}
       />
-      <View style={styles.recipientRow}>
+      <View style={[styles.recipientRow, { marginTop: spacing.xs }]}>
         {recipientCount > 0 ? (
           <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
             {recipientCount} recipient{recipientCount === 1 ? '' : 's'}
@@ -288,7 +294,9 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
           styles.sendBtn,
           {
             backgroundColor: colors.primary,
-            borderRadius: radius.md,
+            borderRadius: radius.control,
+            marginTop: spacing.lg,
+            padding: spacing.md,
             opacity: pending ? 0.6 : pressed ? 0.85 : 1,
           },
         ]}
@@ -302,14 +310,13 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
-  input: { borderWidth: StyleSheet.hairlineWidth, padding: 14 },
+  denied: { flex: 1, justifyContent: 'center' },
+  input: { borderWidth: StyleSheet.hairlineWidth },
   recipientRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 6,
   },
   textArea: { minHeight: 120, textAlignVertical: 'top' },
-  sendBtn: { marginTop: 24, padding: 16, alignItems: 'center' },
+  sendBtn: { alignItems: 'center' },
 });

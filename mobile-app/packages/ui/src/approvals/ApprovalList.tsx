@@ -5,7 +5,8 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { ListEmptyState } from '../feedback/ListEmptyState';
+import { EmptyState } from '../feedback/EmptyState';
+import { ListEmptyState, QueueEmptyState } from '../feedback/ListEmptyState';
 import { SkeletonListRows } from '../feedback/SkeletonListRows';
 import { useTheme } from '../theme/ThemeContext';
 import { ApprovalCard } from './ApprovalCard';
@@ -34,11 +35,11 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
   onRetry,
   onClearFilters,
 }) => {
-  const { colors } = useTheme();
+  const { colors, spacing } = useTheme();
 
   if (isLoading && items.length === 0) {
     return (
-      <View style={styles.centered}>
+      <View style={[styles.centered, { paddingVertical: spacing.xl, paddingHorizontal: spacing.lg }]}>
         <SkeletonListRows count={5} variant="compact" />
       </View>
     );
@@ -46,7 +47,7 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
 
   if (errorMessage && items.length === 0) {
     return (
-      <ListEmptyState
+      <EmptyState
         title="Could not load approvals"
         message={errorMessage}
         icon="alert-circle-outline"
@@ -73,18 +74,25 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
         ) : undefined
       }
       ListEmptyComponent={
-        <ListEmptyState
-          title={emptyTitle}
-          message={emptyMessage}
-          icon={onClearFilters ? 'filter-outline' : 'checkmark-circle-outline'}
-          onClearFilters={onClearFilters}
-        />
+        onClearFilters ? (
+          <ListEmptyState
+            title={emptyTitle}
+            message={emptyMessage}
+            icon="filter-outline"
+            onClearFilters={onClearFilters}
+          />
+        ) : (
+          <QueueEmptyState
+            title="All caught up"
+            message="You're all caught up — nothing needs your action right now."
+          />
+        )
       }
     />
   );
 };
 
 const styles = StyleSheet.create({
-  centered: { paddingVertical: 32, alignItems: 'center', paddingHorizontal: 24 },
+  centered: { alignItems: 'center' },
   emptyList: { flexGrow: 1 },
 });

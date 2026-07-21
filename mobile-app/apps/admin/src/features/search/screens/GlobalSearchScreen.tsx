@@ -70,7 +70,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, palette, spacing, fontSizes, typography } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const network = useNetworkStatus();
   const isOffline = network === 'offline';
 
@@ -141,6 +141,13 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
     [navigation, debouncedQuery, saveHistory],
   );
 
+  const rowStyle = {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.card,
+    padding: spacing.mdSm,
+    marginBottom: spacing.sm,
+  };
+
   const listHeader = (
     <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm }}>
       <AcademicScreenHeader
@@ -149,14 +156,28 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
         onBack={() => navigateDashboardBack(navigation)}
       />
       {isOffline ? (
-        <Text style={{ color: colors.warning, fontSize: fontSizes.xs, marginBottom: spacing.sm }}>
+        <Text
+          style={{
+            color: colors.warning,
+            fontSize: typography.caption.fontSize,
+            marginBottom: spacing.sm,
+          }}
+        >
           Offline — searching cached data
         </Text>
       ) : null}
 
       {history.length > 0 && debouncedQuery.length < 2 ? (
         <View style={{ marginBottom: spacing.sm }}>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 4 }}>Recent</Text>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginBottom: spacing.xs,
+            }}
+          >
+            Recent
+          </Text>
           <FilterChipRow>
             {history.map((h) => (
               <FilterChip key={h} label={h} active={false} onPress={() => setQuery(h)} />
@@ -167,15 +188,23 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
 
       {showSuggestions && (suggestionsQuery.data?.length ?? 0) > 0 ? (
         <View style={{ marginBottom: spacing.sm }}>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginBottom: 4 }}>Suggestions</Text>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              marginBottom: spacing.xs,
+            }}
+          >
+            Suggestions
+          </Text>
           {suggestionsQuery.data?.map((s) => (
             <Pressable
               key={s.id}
               onPress={() => setQuery(s.title)}
-              style={[styles.row, { borderColor: palette.borderSubtle, backgroundColor: palette.surfaceRaised }]}
+              style={[rowStyle, { borderColor: palette.borderSubtle, backgroundColor: palette.surfaceRaised }]}
             >
-              <Text style={{ color: palette.textPrimary }}>{s.title}</Text>
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>{s.module}</Text>
+              <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize }}>{s.title}</Text>
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>{s.module}</Text>
             </Pressable>
           ))}
         </View>
@@ -228,7 +257,7 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
                 style={{
                   color: palette.textMuted,
                   fontSize: typography.overline.fontSize,
-                  fontWeight: '700',
+                  fontWeight: typography.overline.fontWeight,
                   letterSpacing: typography.overline.letterSpacing,
                   textTransform: 'uppercase',
                   marginTop: spacing.md,
@@ -245,7 +274,7 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
             <Pressable
               onPress={() => onSelect(hit)}
               style={[
-                styles.row,
+                rowStyle,
                 {
                   marginHorizontal: spacing.md,
                   borderColor: palette.borderSubtle,
@@ -253,8 +282,22 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
                 },
               ]}
             >
-              <Text style={{ fontWeight: '600', color: palette.textPrimary }}>{hit.title}</Text>
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+              <Text
+                style={{
+                  fontWeight: typography.titleSmall.fontWeight,
+                  color: palette.textPrimary,
+                  fontSize: typography.titleSmall.fontSize,
+                }}
+              >
+                {hit.title}
+              </Text>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: typography.caption.fontSize,
+                  marginTop: spacing.xs / 2,
+                }}
+              >
                 {hit.subtitle ?? MODULE_LABELS[hit.module ?? ''] ?? hit.module}
               </Text>
             </Pressable>
@@ -283,6 +326,14 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
         ListEmptyComponent={
           searchQuery.isLoading && debouncedQuery.length >= 2 ? (
             <SkeletonListRows count={5} variant="compact" />
+          ) : searchQuery.isError && debouncedQuery.length >= 2 ? (
+            <EmptyState
+              title="Search failed"
+              message={(searchQuery.error as Error)?.message ?? 'Could not load results.'}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void searchQuery.refetch()}
+            />
           ) : !searchQuery.isLoading && debouncedQuery.length >= 2 ? (
             <EmptyState title="No results" message="Try a different term or filter." icon="search-outline" />
           ) : null
@@ -294,5 +345,4 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   sticky: { zIndex: 2, borderBottomWidth: StyleSheet.hairlineWidth },
-  row: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12, marginBottom: 8 },
 });

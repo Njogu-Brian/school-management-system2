@@ -17,7 +17,7 @@ function priorityTone(priority: ApprovalPriority): SemanticTone {
     case 'high':
       return 'warning';
     case 'medium':
-      return 'brand';
+      return 'info';
     default:
       return 'brand';
   }

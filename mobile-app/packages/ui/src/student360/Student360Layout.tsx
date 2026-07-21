@@ -14,14 +14,20 @@ export interface Student360LayoutProps {
   tabs: Student360Tab[];
   activeTab: Student360TabId;
   onTabChange: (tab: Student360TabId) => void;
+  /** Ionicons back via Profile360Layout — never Unicode arrows. */
+  onBack?: () => void;
   children: React.ReactNode;
 }
 
+/**
+ * Student 360 shell — collapsing header + ScrollableTabBar (minHeight 44) via Profile360Layout.
+ */
 export const Student360Layout: React.FC<Student360LayoutProps> = ({
   header,
   tabs,
   activeTab,
   onTabChange,
+  onBack,
   children,
 }) => (
   <Profile360Layout
@@ -32,6 +38,7 @@ export const Student360Layout: React.FC<Student360LayoutProps> = ({
     tabs={tabs.map((t) => ({ key: t.id, label: t.label }))}
     activeTab={activeTab}
     onTabChange={onTabChange}
+    topBar={onBack ? { label: header.fullName, onBack } : undefined}
   >
     {children}
   </Profile360Layout>

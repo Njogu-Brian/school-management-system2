@@ -14,7 +14,7 @@ export const PerformanceTrend: React.FC<PerformanceTrendProps> = ({
   points,
   emptyMessage = 'Not enough data for a trend yet.',
 }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius } = useTheme();
   const max = Math.max(...points.map((p) => p.percentage), 1);
 
   return (
@@ -22,7 +22,7 @@ export const PerformanceTrend: React.FC<PerformanceTrendProps> = ({
       <Text
         style={{
           color: palette.textSecondary,
-          fontSize: fontSizes.xs,
+          fontSize: typography.caption.fontSize,
           fontWeight: '700',
           textTransform: 'uppercase',
           letterSpacing: 0.4,
@@ -32,7 +32,7 @@ export const PerformanceTrend: React.FC<PerformanceTrendProps> = ({
         {title}
       </Text>
       {points.length === 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{emptyMessage}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>{emptyMessage}</Text>
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View
@@ -51,7 +51,7 @@ export const PerformanceTrend: React.FC<PerformanceTrendProps> = ({
               const barHeight = Math.max(12, Math.round((p.percentage / max) * 88));
               return (
                 <View key={`${p.label}-${p.percentage}`} style={styles.barCol}>
-                  <Text style={{ color: palette.textPrimary, fontSize: fontSizes.xs, fontWeight: '700' }}>
+                  <Text style={{ color: palette.textPrimary, fontSize: typography.caption.fontSize, fontWeight: '700' }}>
                     {p.percentage.toFixed(0)}%
                   </Text>
                   <View

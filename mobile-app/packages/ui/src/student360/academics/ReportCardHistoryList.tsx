@@ -17,14 +17,14 @@ export const ReportCardHistoryList: React.FC<ReportCardHistoryListProps> = ({
   onPressItem,
   emptyMessage = 'No report cards yet.',
 }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, shadows } = useTheme();
 
   return (
     <View style={{ marginTop: spacing.lg }}>
       <Text
         style={{
           color: palette.textSecondary,
-          fontSize: fontSizes.xs,
+          fontSize: typography.caption.fontSize,
           fontWeight: '700',
           textTransform: 'uppercase',
           letterSpacing: 0.4,
@@ -34,7 +34,7 @@ export const ReportCardHistoryList: React.FC<ReportCardHistoryListProps> = ({
         {title}
       </Text>
       {items.length === 0 ? (
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>{emptyMessage}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>{emptyMessage}</Text>
       ) : (
         items.map((item) => (
           <Pressable
@@ -57,26 +57,26 @@ export const ReportCardHistoryList: React.FC<ReportCardHistoryListProps> = ({
               <Ionicons name="document-text-outline" size={20} color={colors.primary} />
             </View>
             <View style={styles.body}>
-              <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '600' }}>
+              <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize, fontWeight: '600' }}>
                 {item.title}
               </Text>
-              <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
                 {item.subtitle}
               </Text>
               {item.generatedAtLabel ? (
-                <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, marginTop: 2 }}>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
                   {item.generatedAtLabel}
                 </Text>
               ) : null}
             </View>
             <View style={styles.trailing}>
-              <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '700' }}>
+              <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize, fontWeight: '700' }}>
                 {item.percentageLabel}
               </Text>
               <Text
                 style={{
                   color: item.status === 'published' ? colors.success : palette.textSecondary,
-                  fontSize: fontSizes.xs,
+                  fontSize: typography.caption.fontSize,
                   marginTop: 2,
                   textTransform: 'capitalize',
                 }}

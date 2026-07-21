@@ -13,7 +13,7 @@ export const AcademicOverviewCard: React.FC<AcademicOverviewCardProps> = ({
   trendDelta,
   isLoading,
 }) => {
-  const { palette, colors, spacing, fontSizes, radius, shadows } = useTheme();
+  const { palette, colors, spacing, typography, radius, shadows } = useTheme();
 
   if (isLoading) {
     return (
@@ -40,7 +40,7 @@ export const AcademicOverviewCard: React.FC<AcademicOverviewCardProps> = ({
         shadows.sm,
       ]}
     >
-      <Text style={[styles.heading, { color: palette.textSecondary, fontSize: fontSizes.xs }]}>
+      <Text style={[styles.heading, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}>
         Academic overview
       </Text>
       <View style={[styles.grid, { marginTop: spacing.sm, gap: spacing.sm }]}>
@@ -51,16 +51,16 @@ export const AcademicOverviewCard: React.FC<AcademicOverviewCardProps> = ({
       </View>
       <View style={[styles.trendRow, { marginTop: spacing.md, borderTopColor: palette.border }]}>
         <Ionicons name="analytics-outline" size={16} color={colors.primary} />
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, marginLeft: 6, flex: 1 }}>
+        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize, marginLeft: 6, flex: 1 }}>
           {trendLabel}
         </Text>
         {trendDelta != null ? (
-          <Text style={{ color: trendColor, fontSize: fontSizes.sm, fontWeight: '700' }}>
+          <Text style={{ color: trendColor, fontSize: typography.body.fontSize, fontWeight: '700' }}>
             {trendDelta > 0 ? '+' : ''}
             {trendDelta}%
           </Text>
         ) : (
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>—</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>—</Text>
         )}
       </View>
     </View>
@@ -68,11 +68,11 @@ export const AcademicOverviewCard: React.FC<AcademicOverviewCardProps> = ({
 };
 
 const Metric: React.FC<{ label: string; value: string }> = ({ label, value }) => {
-  const { palette, fontSizes } = useTheme();
+  const { palette, typography } = useTheme();
   return (
     <View style={styles.metric}>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs, fontWeight: '600' }}>{label}</Text>
-      <Text style={{ color: palette.textPrimary, fontSize: fontSizes.lg, fontWeight: '700', marginTop: 2 }}>
+      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: palette.textPrimary, fontSize: typography.title.fontSize, fontWeight: '700', marginTop: 2 }}>
         {value}
       </Text>
     </View>

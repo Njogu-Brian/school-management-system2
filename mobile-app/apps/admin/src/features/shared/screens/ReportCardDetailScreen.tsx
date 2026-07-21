@@ -17,7 +17,7 @@ export const SharedReportCardDetailScreen: React.FC<SharedReportCardDetailProps>
   onBack,
 }) => {
   const canView = useCan('academics.view') && useCan('report_cards.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const detailQuery = useReportCardDetail(reportCardId, { enabled: canView });
 
   const card = detailQuery.data;
@@ -78,7 +78,7 @@ export const SharedReportCardDetailScreen: React.FC<SharedReportCardDetailProps>
                 <Text
                   style={{
                     color: palette.textPrimary,
-                    fontSize: fontSizes.md,
+                    fontSize: typography.titleSmall.fontSize,
                     fontWeight: '700',
                     marginBottom: spacing.sm,
                   }}

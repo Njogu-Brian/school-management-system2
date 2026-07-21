@@ -13,7 +13,7 @@ export const MarksMatrixRow: React.FC<MarksMatrixRowProps> = ({
   admissionNumber,
   cells,
 }) => {
-  const { palette, spacing, fontSizes, radius } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
 
   return (
     <View
@@ -26,10 +26,19 @@ export const MarksMatrixRow: React.FC<MarksMatrixRowProps> = ({
       ]}
     >
       <View style={{ marginBottom: spacing.xs }}>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '700' }} numberOfLines={1}>
+        <Text
+          style={{
+            color: palette.textPrimary,
+            fontSize: typography.body.fontSize,
+            fontWeight: '700',
+          }}
+          numberOfLines={1}
+        >
           {studentName}
         </Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>{admissionNumber}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+          {admissionNumber}
+        </Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={{ flexDirection: 'row', gap: spacing.xs }}>
@@ -46,10 +55,24 @@ export const MarksMatrixRow: React.FC<MarksMatrixRowProps> = ({
                 },
               ]}
             >
-              <Text style={{ color: palette.textSecondary, fontSize: 9, fontWeight: '600' }} numberOfLines={1}>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: typography.tiny.fontSize,
+                  fontWeight: '600',
+                }}
+                numberOfLines={1}
+              >
                 {cell.examName}
               </Text>
-              <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '700', marginTop: 2 }}>
+              <Text
+                style={{
+                  color: palette.textPrimary,
+                  fontSize: typography.body.fontSize,
+                  fontWeight: '700',
+                  marginTop: 2,
+                }}
+              >
                 {cell.score}
               </Text>
             </View>

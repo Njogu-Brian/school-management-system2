@@ -1,12 +1,13 @@
-import { useCan } from '@erp/core';
+import { useAuth, useCan } from '@erp/core';
 import {
   DashboardHero,
+  EmptyState,
   ScrollableTabBar,
   ScreenContainer,
   useTheme,
 } from '@erp/ui';
-import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import {
   AlertsSection,
   CriticalKpisSection,
@@ -26,33 +27,52 @@ const DASHBOARD_TABS = [
   { key: 'alerts' as const, label: 'Alerts' },
 ];
 
+function greetingForHour(hour: number): string {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export const DashboardLayout: React.FC = () => {
   const canViewDashboard = useCan('dashboard.view');
-  const { palette, typography } = useTheme();
+  const { spacing, palette } = useTheme();
+  const { user } = useAuth();
   const [tab, setTab] = useState<DashboardTab>('overview');
+
+  const greeting = useMemo(() => greetingForHour(new Date().getHours()), []);
+  const displayName = (user?.name ?? 'Admin').split(' ')[0];
+
+  const contentStyle = useMemo(
+    () => ({
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing['5xl'] + spacing['3xl'],
+      backgroundColor: palette.background,
+    }),
+    [spacing, palette.background],
+  );
 
   if (!canViewDashboard) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text
-          style={[
-            styles.deniedText,
-            { color: palette.textSecondary, fontSize: typography.body.fontSize },
-          ]}
-        >
-          You don&apos;t have permission to view the dashboard.
-        </Text>
+        <EmptyState
+          title="Access denied"
+          message="You don't have permission to view the dashboard."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScreenContainer contentContainerStyle={styles.content}>
+    <View style={{ flex: 1, backgroundColor: palette.background }}>
+      <ScreenContainer contentContainerStyle={contentStyle}>
         <DashboardHero
           variant="default"
-          title="School Command Center"
-          subtitle="Overview for your branch"
+          greeting={greeting}
+          userName={displayName}
+          title="Command Center"
+          subtitle="Live pulse across your school"
           meta="KPIs · Approvals · Alerts"
         />
 
@@ -66,6 +86,7 @@ export const DashboardLayout: React.FC = () => {
         {tab === 'overview' ? (
           <>
             <CriticalKpisSection />
+            <PendingApprovalsSection />
             <QuickActionsSection />
             <OperationalStatusSection />
           </>
@@ -80,16 +101,8 @@ export const DashboardLayout: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 88,
-  },
   denied: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
   },
-  deniedText: { textAlign: 'center' },
 });

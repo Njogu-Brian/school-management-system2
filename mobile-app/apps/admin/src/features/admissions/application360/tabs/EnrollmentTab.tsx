@@ -6,8 +6,9 @@ import {
 } from '@erp/core';
 import { ApplicationFieldSection, Button, TextField } from '@erp/ui';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
+import { confirmAction, showError } from '../../../shared/utils/feedback';
 
 export interface EnrollmentTabProps {
   application: ApplicationDetail;
@@ -20,11 +21,17 @@ const ChipRow: React.FC<{
   value: number | string | null;
   onChange: (id: number | string) => void;
 }> = ({ label, options, value, onChange }) => {
-  const { palette, colors, spacing, fontSizes, radius } = useTheme();
+  const { palette, colors, spacing, typography, radius } = useTheme();
 
   return (
     <View style={{ marginBottom: spacing.md }}>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm, marginBottom: spacing.xs }}>
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontSize: typography.body.fontSize,
+          marginBottom: spacing.xs,
+        }}
+      >
         {label}
       </Text>
       <View style={[styles.chipRow, { gap: spacing.xs }]}>
@@ -38,8 +45,8 @@ const ChipRow: React.FC<{
                 styles.chip,
                 {
                   borderRadius: radius.full,
-                  backgroundColor: active ? `${colors.primary}18` : palette.surface,
-                  borderColor: active ? colors.primary : palette.border,
+                  backgroundColor: active ? `${colors.primary}18` : palette.surfaceRaised,
+                  borderColor: active ? colors.primary : palette.borderSubtle,
                   paddingHorizontal: spacing.md,
                   paddingVertical: spacing.xs,
                 },
@@ -48,7 +55,7 @@ const ChipRow: React.FC<{
               <Text
                 style={{
                   color: active ? colors.primary : palette.textSecondary,
-                  fontSize: fontSizes.xs,
+                  fontSize: typography.overline.fontSize,
                   fontWeight: '700',
                 }}
               >
@@ -63,7 +70,7 @@ const ChipRow: React.FC<{
 };
 
 export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onViewStudent }) => {
-  const { palette, colors, spacing, fontSizes } = useTheme();
+  const { palette, colors, spacing, typography } = useTheme();
   const enrollment = application.enrollment;
   const { enroll } = useAdmissionActions(application.id);
 
@@ -116,45 +123,42 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
   const handleEnroll = () => {
     if (!canSubmit || classroomId == null || categoryId == null) return;
 
-    Alert.alert(
+    confirmAction(
       'Enroll student',
       `Create a student record for ${application.fullName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Enroll',
-          onPress: () => {
-            void enroll.mutateAsync({
-              classroom_id: classroomId,
-              stream_id: streamId,
-              category_id: categoryId,
-              trip_id: enrollment.transport_needed ? tripId : null,
-              drop_off_point_id: enrollment.transport_needed ? dropOffId : null,
-              drop_off_point_other: application.dropOffPointOther,
-              residential_area: residentialArea.trim(),
-              preferred_hospital: application.preferredHospital,
-              enrollment_year: selectedTerm?.year,
-              enrollment_term: selectedTerm?.term,
-              has_allergies: application.hasAllergies,
-              allergies_notes: application.allergiesNotes,
-              is_fully_immunized: application.isFullyImmunized,
-              emergency_contact_name: application.emergencyContactName,
-              emergency_contact_phone: application.emergencyContactPhone,
-              marital_status: application.maritalStatus,
-            }).then((result) => {
-              Alert.alert('Enrolled', `${result.student.full_name} was enrolled successfully.`, [
-                { text: 'Stay here', style: 'cancel' },
-                {
-                  text: 'View student',
-                  onPress: () => onViewStudent?.(result.student),
-                },
-              ]);
-            }).catch((err: Error) => {
-              Alert.alert('Enrollment failed', err.message);
-            });
-          },
-        },
-      ],
+      'Enroll',
+      () => {
+        void enroll
+          .mutateAsync({
+            classroom_id: classroomId,
+            stream_id: streamId,
+            category_id: categoryId,
+            trip_id: enrollment.transport_needed ? tripId : null,
+            drop_off_point_id: enrollment.transport_needed ? dropOffId : null,
+            drop_off_point_other: application.dropOffPointOther,
+            residential_area: residentialArea.trim(),
+            preferred_hospital: application.preferredHospital,
+            enrollment_year: selectedTerm?.year,
+            enrollment_term: selectedTerm?.term,
+            has_allergies: application.hasAllergies,
+            allergies_notes: application.allergiesNotes,
+            is_fully_immunized: application.isFullyImmunized,
+            emergency_contact_name: application.emergencyContactName,
+            emergency_contact_phone: application.emergencyContactPhone,
+            marital_status: application.maritalStatus,
+          })
+          .then((result) => {
+            confirmAction(
+              'Enrolled',
+              `${result.student.full_name} was enrolled successfully.`,
+              'View student',
+              () => onViewStudent?.(result.student),
+            );
+          })
+          .catch((err: Error) => {
+            showError('Enrollment failed', err.message);
+          });
+      },
     );
   };
 
@@ -169,7 +173,7 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
           ]}
         />
         <View style={{ paddingBottom: spacing.xl }}>
-          <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
             {enrollment.enrolled
               ? 'This application has already been enrolled.'
               : 'This application cannot be enrolled (rejected or closed).'}
@@ -181,7 +185,14 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
-      <Text style={{ color: palette.textPrimary, fontSize: fontSizes.md, fontWeight: '600', marginBottom: spacing.sm }}>
+      <Text
+        style={{
+          color: palette.textPrimary,
+          fontSize: typography.titleSmall.fontSize,
+          fontWeight: typography.titleSmall.fontWeight,
+          marginBottom: spacing.sm,
+        }}
+      >
         Complete enrollment
       </Text>
 
@@ -249,7 +260,13 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
       />
 
       {enroll.isError ? (
-        <Text style={{ color: colors.error, fontSize: fontSizes.sm, marginBottom: spacing.sm }}>
+        <Text
+          style={{
+            color: colors.error,
+            fontSize: typography.body.fontSize,
+            marginBottom: spacing.sm,
+          }}
+        >
           {(enroll.error as Error).message}
         </Text>
       ) : null}

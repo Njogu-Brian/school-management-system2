@@ -23,7 +23,7 @@ function parseScore(raw: string | number | null | undefined): number | null {
 export const ExamClassSheetScreen: React.FC<Props> = ({ route, navigation }) => {
   const { examId, examSessionId, classroomId, streamId, title } = route.params;
   const canView = useCan('academics.view') && useCan('exams.view');
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const examQuery = useExamDetail(examId ?? 0, { enabled: canView && (examId ?? 0) > 0 });
   const sheetQuery = useExamClassSheet(
     canView
@@ -124,7 +124,7 @@ export const ExamClassSheetScreen: React.FC<Props> = ({ route, navigation }) => 
               </Text>
               {studentCols.map((s) => (
                 <View key={s.id} style={{ width: cellW, alignItems: 'center' }}>
-                  <Text style={[styles.headerCell, { color: palette.textPrimary, fontSize: fontSizes.xs }]} numberOfLines={1}>
+                  <Text style={[styles.headerCell, { color: palette.textPrimary, fontSize: typography.caption.fontSize }]} numberOfLines={1}>
                     {s.name}
                   </Text>
                 </View>
@@ -133,13 +133,13 @@ export const ExamClassSheetScreen: React.FC<Props> = ({ route, navigation }) => 
 
             {subjectRows.map((sub) => (
               <View key={sub.id} style={[styles.dataRow, { borderBottomColor: palette.border }]}>
-                <Text style={[styles.labelCell, { width: labelW, color: palette.textPrimary, fontSize: fontSizes.xs }]} numberOfLines={2}>
+                <Text style={[styles.labelCell, { width: labelW, color: palette.textPrimary, fontSize: typography.caption.fontSize }]} numberOfLines={2}>
                   {sub.label}
                 </Text>
                 {sub.scores.map((score, i) => (
                   <Text
                     key={`${sub.id}-${studentCols[i]?.id ?? i}`}
-                    style={{ width: cellW, textAlign: 'center', color: palette.textPrimary, fontSize: fontSizes.xs }}
+                    style={{ width: cellW, textAlign: 'center', color: palette.textPrimary, fontSize: typography.caption.fontSize }}
                   >
                     {score}
                   </Text>
@@ -148,22 +148,22 @@ export const ExamClassSheetScreen: React.FC<Props> = ({ route, navigation }) => 
             ))}
 
             <View style={[styles.dataRow, { borderBottomColor: palette.border, backgroundColor: palette.surfaceRaised }]}>
-              <Text style={[styles.labelCell, { width: labelW, fontWeight: '700', color: palette.textPrimary, fontSize: fontSizes.xs }]}>
+              <Text style={[styles.labelCell, { width: labelW, fontWeight: '700', color: palette.textPrimary, fontSize: typography.caption.fontSize }]}>
                 Average
               </Text>
               {colAverages.map((avg, i) => (
-                <Text key={`avg-${studentCols[i]?.id ?? i}`} style={{ width: cellW, textAlign: 'center', fontWeight: '700', color: colors.primary, fontSize: fontSizes.xs }}>
+                <Text key={`avg-${studentCols[i]?.id ?? i}`} style={{ width: cellW, textAlign: 'center', fontWeight: '700', color: colors.primary, fontSize: typography.caption.fontSize }}>
                   {avg ?? '—'}
                 </Text>
               ))}
             </View>
 
             <View style={[styles.dataRow, { borderBottomColor: palette.border, backgroundColor: palette.surfaceRaised }]}>
-              <Text style={[styles.labelCell, { width: labelW, fontWeight: '700', color: palette.textPrimary, fontSize: fontSizes.xs }]}>
+              <Text style={[styles.labelCell, { width: labelW, fontWeight: '700', color: palette.textPrimary, fontSize: typography.caption.fontSize }]}>
                 Position
               </Text>
               {studentCols.map((s) => (
-                <Text key={`pos-${s.id}`} style={{ width: cellW, textAlign: 'center', fontWeight: '700', color: colors.primary, fontSize: fontSizes.xs }}>
+                <Text key={`pos-${s.id}`} style={{ width: cellW, textAlign: 'center', fontWeight: '700', color: colors.primary, fontSize: typography.caption.fontSize }}>
                   {s.position ?? '—'}
                 </Text>
               ))}

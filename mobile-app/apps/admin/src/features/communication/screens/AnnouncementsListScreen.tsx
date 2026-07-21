@@ -1,6 +1,7 @@
 import { useCan, useInfiniteAnnouncements } from '@erp/core';
 import {
   AcademicScreenHeader,
+  EmptyState,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -42,7 +43,11 @@ export const AnnouncementsListScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need communication.view permission to view announcements."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -62,15 +67,19 @@ export const AnnouncementsListScreen: React.FC<Props> = ({ navigation }) => {
                 styles.newBtn,
                 {
                   backgroundColor: colors.primary,
-                  borderRadius: radius.md,
+                  borderRadius: radius.control,
                   paddingVertical: spacing.sm,
                   paddingHorizontal: spacing.md,
+                  gap: spacing.xs,
+                  marginBottom: spacing.xs,
                   opacity: pressed ? 0.85 : 1,
                 },
               ]}
             >
               <Ionicons name="add" size={18} color={colors.white} />
-              <Text style={{ color: colors.white, fontWeight: '700' }}>New announcement</Text>
+              <Text style={{ color: colors.white, fontWeight: '700', fontSize: typography.button.fontSize }}>
+                New announcement
+              </Text>
             </Pressable>
           </View>
         }
@@ -144,12 +153,10 @@ export const AnnouncementsListScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
   newBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 6,
-    marginBottom: 4,
   },
 });

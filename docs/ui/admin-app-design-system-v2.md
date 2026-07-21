@@ -1,6 +1,8 @@
 # Admin App Design System V2
 
-> **Scope:** Visual modernization of the Admin App (`mobile-app/apps/admin`) from MVP enterprise styling to a modern, Google Stitch–quality interface. **No workflow, API, or navigation changes.**
+> **SUPERSEDED (July 2026).** Canonical design source of truth is now **Design System V3**: [`docs/design-system-v3/README.md`](../design-system-v3/README.md). Keep this file for migration history only — do not extend V2.
+
+> **Scope (historical):** Visual modernization of the Admin App (`mobile-app/apps/admin`) from MVP enterprise styling to a modern, Google Stitch–quality interface. **No workflow, API, or navigation changes.**
 
 **Package:** `@erp/ui` (`mobile-app/packages/ui`)  
 **Authored:** June 2026  

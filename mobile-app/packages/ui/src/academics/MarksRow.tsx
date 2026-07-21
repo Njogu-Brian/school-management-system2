@@ -8,7 +8,7 @@ export interface MarksRowProps {
 }
 
 export const MarksRow: React.FC<MarksRowProps> = ({ row }) => {
-  const { palette, spacing, fontSizes } = useTheme();
+  const { palette, spacing, typography } = useTheme();
 
   return (
     <View
@@ -21,13 +21,35 @@ export const MarksRow: React.FC<MarksRowProps> = ({ row }) => {
         },
       ]}
     >
-      <Text style={{ flex: 2, color: palette.textPrimary, fontSize: fontSizes.sm, fontWeight: '600' }} numberOfLines={1}>
+      <Text
+        style={{
+          flex: 2,
+          color: palette.textPrimary,
+          fontSize: typography.body.fontSize,
+          fontWeight: '600',
+        }}
+        numberOfLines={1}
+      >
         {row.studentName}
       </Text>
-      <Text style={{ flex: 1, color: palette.textPrimary, fontSize: fontSizes.sm, textAlign: 'right' }}>
+      <Text
+        style={{
+          flex: 1,
+          color: palette.textPrimary,
+          fontSize: typography.body.fontSize,
+          textAlign: 'right',
+        }}
+      >
         {row.marks}/{row.totalMarks}
       </Text>
-      <Text style={{ flex: 1, color: palette.textSecondary, fontSize: fontSizes.sm, textAlign: 'right' }}>
+      <Text
+        style={{
+          flex: 1,
+          color: palette.textSecondary,
+          fontSize: typography.body.fontSize,
+          textAlign: 'right',
+        }}
+      >
         {row.percentage}%
       </Text>
     </View>

@@ -16,49 +16,48 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "resolveJsonModule": true,
-        "baseUrl": "./src",
         "paths": {
             "@/*": [
-                "*"
+                "./src/*"
             ],
             "@components/*": [
-                "components/*"
+                "./src/components/*"
             ],
             "@screens/*": [
-                "screens/*"
+                "./src/screens/*"
             ],
             "@navigation/*": [
-                "navigation/*"
+                "./src/navigation/*"
             ],
             "@api/*": [
-                "api/*"
+                "./src/api/*"
             ],
             "@contexts/*": [
-                "contexts/*"
+                "./src/contexts/*"
             ],
             "@hooks/*": [
-                "hooks/*"
+                "./src/hooks/*"
             ],
             "@utils/*": [
-                "utils/*"
+                "./src/utils/*"
             ],
             "types/*": [
-                "types/*"
+                "./src/types/*"
             ],
             "@constants/*": [
-                "constants/*"
+                "./src/constants/*"
             ],
             "@services/*": [
-                "services/*"
+                "./src/services/*"
             ],
             "@styles": [
-                "styles/index"
+                "./src/styles/index"
             ],
             "@styles/*": [
-                "styles/*"
+                "./src/styles/*"
             ],
             "@theme/*": [
-                "theme/*"
+                "./src/theme/*"
             ]
         }
     },

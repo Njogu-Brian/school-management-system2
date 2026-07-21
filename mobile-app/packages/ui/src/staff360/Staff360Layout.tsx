@@ -15,16 +15,18 @@ export interface Staff360LayoutProps {
   activeTab: Staff360TabId;
   onTabChange: (tab: Staff360TabId) => void;
   children: React.ReactNode;
-  onBack?: () => void;
 }
 
+/**
+ * Staff 360 shell — collapsing header + ScrollableTabBar via Profile360Layout.
+ * Back navigation relies on the stack / ScreenHeader; no custom Unicode back bar.
+ */
 export const Staff360Layout: React.FC<Staff360LayoutProps> = ({
   header,
   tabs,
   activeTab,
   onTabChange,
   children,
-  onBack,
 }) => (
   <Profile360Layout
     header={<Staff360Header staff={header} />}
@@ -34,7 +36,6 @@ export const Staff360Layout: React.FC<Staff360LayoutProps> = ({
     tabs={tabs.map((t) => ({ key: t.id, label: t.label }))}
     activeTab={activeTab}
     onTabChange={onTabChange}
-    topBar={onBack ? { label: 'Staff profile', onBack } : undefined}
   >
     {children}
   </Profile360Layout>

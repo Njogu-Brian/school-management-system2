@@ -6,12 +6,18 @@ import {
   useTeacherTransportStudents,
   useTeacherTransportVehicles,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  ListEmptyState,
+  ScreenContainer,
+  SkeletonListRows,
+  TextField,
+  useTheme,
+} from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   FlatList,
   Modal,
   Platform,
@@ -23,6 +29,7 @@ import {
   View,
 } from 'react-native';
 import type { OperationsStackParamList } from '../../../navigation/operationsStackTypes';
+import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Props = StackScreenProps<OperationsStackParamList, 'TeacherTransport'>;
 
@@ -34,18 +41,25 @@ function formatLeg(leg: TeacherTransportStudent['morning']): string {
 }
 
 function FeeBadge({ status, balance }: { status?: 'cleared' | 'pending'; balance?: number | null }) {
-  const { colors, fontSizes } = useTheme();
+  const { colors, spacing, typography } = useTheme();
   if (!status) return null;
   const pending = status === 'pending';
   return (
-    <Text style={{ color: pending ? colors.warning : colors.success, fontSize: fontSizes.xs, fontWeight: '700', marginTop: 4 }}>
+    <Text
+      style={{
+        color: pending ? colors.warning : colors.success,
+        fontSize: typography.caption.fontSize,
+        fontWeight: typography.label.fontWeight,
+        marginTop: spacing.xs,
+      }}
+    >
       Fees: {pending ? `Pending${balance != null ? ` (${balance})` : ''}` : 'Cleared'}
     </Text>
   );
 }
 
 export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, palette, spacing, fontSizes } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const date = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const query = useTeacherTransportStudents({ date });
   const vehiclesQuery = useTeacherTransportVehicles({ enabled: false });
@@ -88,9 +102,9 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
       });
       setPickupFor(null);
       setPickupNotes('');
-      Alert.alert('Recorded', 'Parent pickup logged.');
+      showSuccess('Recorded', 'Parent pickup logged.');
     } catch (err) {
-      Alert.alert('Error', (err as Error).message);
+      showError('Error', (err as Error).message);
     }
   };
 
@@ -99,7 +113,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await cancelPickup.mutateAsync(student.pickup.id);
     } catch (err) {
-      Alert.alert('Error', (err as Error).message);
+      showError('Error', (err as Error).message);
     }
   };
 
@@ -116,11 +130,11 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
     if (!reassignFor) return;
     if (reassignMode === 'vehicle') {
       if (!selectedVehicle || !selectedTrip) {
-        Alert.alert('Select vehicle and trip', 'Choose a vehicle, then a trip for that vehicle.');
+        showError('Select vehicle and trip', 'Choose a vehicle, then a trip for that vehicle.');
         return;
       }
     } else if (!selectedTrip) {
-      Alert.alert('Select a trip', 'Please choose a trip.');
+      showError('Select a trip', 'Please choose a trip.');
       return;
     }
     try {
@@ -134,9 +148,9 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
         reason: reassignReason.trim() || undefined,
       });
       setReassignFor(null);
-      Alert.alert('Saved', 'Temporary transport change applied for today.');
+      showSuccess('Saved', 'Temporary transport change applied for today.');
     } catch (err) {
-      Alert.alert('Error', (err as Error).message);
+      showError('Error', (err as Error).message);
     }
   };
 
@@ -150,7 +164,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.surface }]}>
         <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{item.full_name}</Text>
-        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.xs }}>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
           {item.admission_number}
           {item.class_name ? ` · ${item.class_name}` : ''}
           {item.stream_name ? ` / ${item.stream_name}` : ''}
@@ -158,15 +172,15 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
         <FeeBadge status={item.fee_status} balance={item.outstanding_balance} />
 
         <Text style={[styles.legLabel, { color: palette.textSecondary }]}>Morning</Text>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm }}>{formatLeg(item.morning)}</Text>
+        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize }}>{formatLeg(item.morning)}</Text>
         <Text style={[styles.legLabel, { color: palette.textSecondary }]}>Evening</Text>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm }}>
+        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize }}>
           {pickupActive ? 'Picked by parent — evening trip skipped' : formatLeg(item.evening)}
         </Text>
 
         <View style={styles.actionRow}>
           {bothOwn ? (
-            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>Own means — no actions today</Text>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>Own means — no actions today</Text>
           ) : eveningOwn ? null : pickupActive ? (
             <Button label="Undo pickup" variant="secondary" onPress={() => void undoPickup(item)} disabled={busy} />
           ) : (
@@ -195,13 +209,21 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
         renderItem={renderItem}
         ListEmptyComponent={
           query.isLoading ? (
-            <ActivityIndicator color={colors.primary} />
+            <SkeletonListRows variant="card" />
           ) : query.isError ? (
-            <Pressable onPress={() => void query.refetch()}>
-              <Text style={{ color: colors.error, textAlign: 'center' }}>{(query.error as Error).message}</Text>
-            </Pressable>
+            <ListEmptyState
+              title="Could not load transport"
+              message={(query.error as Error).message}
+              icon="alert-circle-outline"
+              actionLabel="Retry"
+              onAction={() => void query.refetch()}
+            />
           ) : (
-            <Text style={{ color: palette.textSecondary, textAlign: 'center' }}>No transport data for today.</Text>
+            <ListEmptyState
+              title="No transport data"
+              message="No student transport assignments for today."
+              icon="bus-outline"
+            />
           )
         }
       />
@@ -209,7 +231,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
       <Modal visible={!!pickupFor} transparent animationType="slide" onRequestClose={() => setPickupFor(null)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: palette.surface }]}>
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.lg }}>Parent pickup</Text>
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.title.fontSize }}>Parent pickup</Text>
             <Text style={{ color: palette.textSecondary, marginVertical: spacing.sm }}>
               {pickupFor?.full_name} — evening trip skipped for today.
             </Text>
@@ -226,7 +248,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
       <Modal visible={!!reassignFor} transparent animationType="slide" onRequestClose={() => setReassignFor(null)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: palette.surface, maxHeight: '85%' }]}>
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: fontSizes.lg }}>Temporary change</Text>
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.title.fontSize }}>Temporary change</Text>
             <Text style={{ color: palette.textSecondary, marginVertical: spacing.sm }}>
               {reassignFor?.full_name} — applies to {date}
             </Text>
@@ -253,7 +275,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
                       style={[styles.option, { borderColor: palette.border, backgroundColor: selectedVehicle === v.id ? `${colors.primary}20` : 'transparent' }]}
                     >
                       <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{v.vehicle_number}</Text>
-                      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
+                      <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
                         {v.driver_name ?? 'No driver'} · Cap {v.capacity ?? '—'}
                       </Text>
                     </Pressable>
@@ -262,7 +284,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
                     <>
                       <Text style={{ color: palette.textPrimary, fontWeight: '600', marginTop: spacing.sm }}>Trips for vehicle</Text>
                       {tripsForSelectedVehicle.length === 0 ? (
-                        <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>No trips for this vehicle.</Text>
+                        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>No trips for this vehicle.</Text>
                       ) : (
                         tripsForSelectedVehicle.map((t) => (
                           <Pressable
@@ -271,7 +293,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
                             style={[styles.option, { borderColor: palette.border, backgroundColor: selectedTrip === t.id ? `${colors.primary}20` : 'transparent' }]}
                           >
                             <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{t.name ?? `Trip #${t.id}`}</Text>
-                            <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
+                            <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
                               {[t.direction, t.departure_time].filter(Boolean).join(' · ')}
                             </Text>
                           </Pressable>
@@ -288,7 +310,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
                     style={[styles.option, { borderColor: palette.border, backgroundColor: selectedTrip === t.id ? `${colors.primary}20` : 'transparent' }]}
                   >
                     <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{t.name ?? `Trip #${t.id}`}</Text>
-                    <Text style={{ color: palette.textSecondary, fontSize: fontSizes.sm }}>
+                    <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize }}>
                       {[t.direction, t.departure_time, t.vehicle?.vehicle_number].filter(Boolean).join(' · ')}
                     </Text>
                   </Pressable>

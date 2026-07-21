@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { AdminAreaKey } from '@erp/core';
 import { useRbac } from '@erp/core';
-import { useTheme } from '@erp/ui';
+import { PremiumTabBar, useTheme } from '@erp/ui';
 import { AppHeaderChrome } from './AppHeaderChrome';
 import { DrawerActions } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import React from 'react';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import React, { useCallback } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { DashboardStackNavigator } from './DashboardStackNavigator';
 import { FinanceStackNavigator } from './FinanceStackNavigator';
@@ -24,6 +25,13 @@ const TAB_ICON: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
   People: 'briefcase-outline',
 };
 
+const TAB_ICON_FOCUSED: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
+  Dashboard: 'grid',
+  Students: 'people',
+  Finance: 'cash',
+  People: 'briefcase',
+};
+
 const TAB_AREA_KEY: Record<keyof TabsParamList, AdminAreaKey> = {
   Dashboard: 'dashboard',
   Students: 'students',
@@ -38,7 +46,6 @@ const TAB_SCREENS: Record<keyof TabsParamList, React.ComponentType> = {
   People: PeopleStackNavigator,
 };
 
-/** Full title in the stack header. */
 const TAB_HEADER_LABEL: Record<keyof TabsParamList, string> = {
   Dashboard: 'Dashboard',
   Students: 'Students',
@@ -46,19 +53,18 @@ const TAB_HEADER_LABEL: Record<keyof TabsParamList, string> = {
   People: 'Human Resource',
 };
 
-/** Short label on the bottom tab bar. */
 const TAB_BAR_LABEL: Record<keyof TabsParamList, string> = {
-  Dashboard: 'Dashboard',
+  Dashboard: 'Home',
   Students: 'Students',
   Finance: 'Finance',
   People: 'HR',
 };
 
 const NoTabsFallback: React.FC = () => {
-  const { palette, fontSizes } = useTheme();
+  const { palette, typography } = useTheme();
   return (
     <View style={styles.fallback}>
-      <Text style={{ color: palette.textSecondary, fontSize: fontSizes.md, textAlign: 'center' }}>
+      <Text style={{ color: palette.textSub, fontSize: typography.body.fontSize, textAlign: 'center' }}>
         No modules are assigned to your account for quick access. Open the menu to reach your
         modules.
       </Text>
@@ -66,8 +72,30 @@ const NoTabsFallback: React.FC = () => {
   );
 };
 
+function AdminFloatingTabBar({ state, navigation }: BottomTabBarProps) {
+  const items = state.routes.map((route) => {
+    const name = route.name as keyof TabsParamList;
+    return {
+      key: route.name,
+      label: TAB_BAR_LABEL[name],
+      icon: TAB_ICON[name],
+      iconFocused: TAB_ICON_FOCUSED[name],
+    };
+  });
+  const activeKey = state.routes[state.index]?.name ?? items[0]?.key;
+
+  const onTabPress = useCallback(
+    (key: string) => {
+      const routeName = key as keyof TabsParamList;
+      navigateTabHome(navigation, routeName);
+    },
+    [navigation],
+  );
+
+  return <PremiumTabBar items={items} activeKey={activeKey} onTabPress={onTabPress} />;
+}
+
 export const BottomTabsNavigator: React.FC = () => {
-  const { palette, colors } = useTheme();
   const { tabAreas } = useRbac();
 
   const allowedRoutes = tabAreas
@@ -86,6 +114,7 @@ export const BottomTabsNavigator: React.FC = () => {
   return (
     <Tab.Navigator
       initialRouteName={initialRoute}
+      tabBar={(props) => <AdminFloatingTabBar {...props} />}
       screenOptions={({ navigation, route }) => ({
         headerShown: true,
         header: () => (
@@ -93,15 +122,6 @@ export const BottomTabsNavigator: React.FC = () => {
             title={TAB_HEADER_LABEL[route.name]}
             onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
           />
-        ),
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: palette.textSecondary,
-        tabBarStyle: {
-          backgroundColor: palette.surface,
-          borderTopColor: palette.border,
-        },
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name={TAB_ICON[route.name]} size={size} color={color} />
         ),
       })}
     >
@@ -111,12 +131,6 @@ export const BottomTabsNavigator: React.FC = () => {
           name={routeName}
           component={withAreaGuard(TAB_AREA_KEY[routeName], TAB_SCREENS[routeName])}
           options={{ tabBarLabel: TAB_BAR_LABEL[routeName] }}
-          listeners={({ navigation }) => ({
-            tabPress: (e) => {
-              e.preventDefault();
-              navigateTabHome(navigation, routeName);
-            },
-          })}
         />
       ))}
     </Tab.Navigator>

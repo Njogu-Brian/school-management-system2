@@ -2,6 +2,7 @@ import { useCan, useCommunicationTemplates } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
+  EmptyState,
   ListEmptyState,
   RegistryListLayout,
   ScreenContainer,
@@ -43,7 +44,11 @@ export const TemplatesListScreen: React.FC<Props> = ({ navigation }) => {
   if (!canView) {
     return (
       <ScreenContainer contentContainerStyle={styles.denied}>
-        <Text style={{ color: palette.textSecondary }}>Access denied.</Text>
+        <EmptyState
+          title="Access denied"
+          message="You need communication.view permission to view templates."
+          icon="lock-closed-outline"
+        />
       </ScreenContainer>
     );
   }
@@ -83,12 +88,12 @@ export const TemplatesListScreen: React.FC<Props> = ({ navigation }) => {
               {item.title}
             </Text>
             {item.code ? (
-              <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+              <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
                 {item.code}
               </Text>
             ) : null}
             <Text
-              style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 6 }}
+              style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}
               numberOfLines={2}
             >
               {item.content ?? '—'}
@@ -123,5 +128,5 @@ export const TemplatesListScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  denied: { flex: 1, justifyContent: 'center', padding: 24 },
+  denied: { flex: 1, justifyContent: 'center' },
 });

@@ -28,7 +28,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   statementLoading,
   statement,
 }) => {
-  const { palette, fontSizes, spacing, colors } = useTheme();
+  const { palette, typography, spacing, colors } = useTheme();
 
   const widgets = useMemo((): StudentSummaryWidgetData[] => {
     const list: StudentSummaryWidgetData[] = [
@@ -97,7 +97,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         <Text
           style={{
             color: palette.textSecondary,
-            fontSize: fontSizes.xs,
+            fontSize: typography.caption.fontSize,
             fontWeight: '700',
             textTransform: 'uppercase',
             letterSpacing: 0.4,
@@ -106,10 +106,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         >
           Parent summary
         </Text>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm }}>
+        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize }}>
           {student.parent?.fatherName ? `Father: ${student.parent.fatherName}` : 'Father: —'}
         </Text>
-        <Text style={{ color: palette.textPrimary, fontSize: fontSizes.sm, marginTop: 4 }}>
+        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize, marginTop: 4 }}>
           {student.parent?.motherName ? `Mother: ${student.parent.motherName}` : 'Mother: —'}
         </Text>
         {(student.parent?.fatherPhone || student.parent?.motherPhone) && (
@@ -121,7 +121,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                   <Text
                     style={{
                       color: colors.primary,
-                      fontSize: fontSizes.xs,
+                      fontSize: typography.caption.fontSize,
                       textDecorationLine: 'underline',
                       marginTop: 2,
                     }}

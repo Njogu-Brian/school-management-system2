@@ -1,8 +1,7 @@
 import { useSchoolSettings } from '@erp/core';
-import { SettingCard, SettingsSectionHeader } from '@erp/ui';
+import { EmptyState, SettingCard, SettingsSectionHeader, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { useTheme } from '@erp/ui';
+import { ActivityIndicator, View } from 'react-native';
 
 export const SchoolSettingsSection: React.FC = () => {
   const { colors, spacing } = useTheme();
@@ -44,17 +43,18 @@ export const SchoolSettingsSection: React.FC = () => {
 
   if (query.isError) {
     return (
-      <View>
-        <Text style={{ color: colors.error }}>Could not load school settings.</Text>
-        <Pressable onPress={() => void query.refetch()} style={{ marginTop: spacing.sm }}>
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>Retry</Text>
-        </Pressable>
-      </View>
+      <EmptyState
+        title="Could not load school settings"
+        message={(query.error as Error)?.message ?? 'Try again in a moment.'}
+        icon="alert-circle-outline"
+        actionLabel="Retry"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
   return (
-    <View>
+    <View style={{ gap: spacing.sm }}>
       <SettingsSectionHeader
         title="School"
         subtitle="Identity, branding, and regional defaults (read-only on mobile)."
