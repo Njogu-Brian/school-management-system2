@@ -13,12 +13,12 @@
                 <h1>Edit Vehicle</h1>
                 <p>Update vehicle details.</p>
             </div>
-            <a href="{{ route('vehicles.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
+            <a href="{{ route('transport.vehicles.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
         </div>
 
         <div class="settings-card">
             <div class="card-body">
-                <form action="{{ route('vehicles.update', $vehicle->id) }}" method="POST" class="row g-3">
+                <form action="{{ route('transport.vehicles.update', $vehicle->id) }}" method="POST" class="row g-3">
                     @csrf
                     @method('PUT')
 
@@ -44,7 +44,7 @@
                     </div>
 
                     <div class="d-flex justify-content-end gap-2 mt-3">
-                        <a href="{{ route('vehicles.index') }}" class="btn btn-ghost-strong">Cancel</a>
+                        <a href="{{ route('transport.vehicles.index') }}" class="btn btn-ghost-strong">Cancel</a>
                         <button type="submit" class="btn btn-settings-primary">Update</button>
                     </div>
                 </form>

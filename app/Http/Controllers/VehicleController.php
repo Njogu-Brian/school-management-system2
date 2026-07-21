@@ -56,7 +56,7 @@ class VehicleController extends Controller
 
         $vehicle->save();
 
-        return redirect()->route('vehicles.index')->with('success', 'Vehicle added successfully.');
+        return redirect()->route('transport.vehicles.index')->with('success', 'Vehicle added successfully.');
     }
 
     public function edit(Vehicle $vehicle)
@@ -76,12 +76,12 @@ class VehicleController extends Controller
             'driver_name'
         ]));
 
-        return redirect()->route('vehicles.index')->with('success', 'Vehicle updated.');
+        return redirect()->route('transport.vehicles.index')->with('success', 'Vehicle updated.');
     }
 
     public function destroy(Vehicle $vehicle)
     {
         $vehicle->delete();
-        return redirect()->route('vehicles.index')->with('success', 'Vehicle deleted.');
+        return redirect()->route('transport.vehicles.index')->with('success', 'Vehicle deleted.');
     }
 }

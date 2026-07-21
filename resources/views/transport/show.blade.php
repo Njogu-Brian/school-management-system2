@@ -12,7 +12,7 @@
                 <div class="crumb">Transport / Vehicles</div>
                 <h1>Vehicle Details</h1>
             </div>
-            <a href="{{ route('vehicles.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
+            <a href="{{ route('transport.vehicles.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
         </div>
 
         <div class="settings-card">
