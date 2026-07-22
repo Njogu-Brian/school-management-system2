@@ -24,6 +24,7 @@ export { AssetFormScreen } from './screens/AssetFormScreen';
 export { TeacherTransportScreen } from './screens/TeacherTransportScreen';
 export { DriverTripsScreen } from './screens/DriverTripsScreen';
 export { DriverTripDetailScreen } from './screens/DriverTripDetailScreen';
+export { LiveFleetScreen } from './screens/LiveFleetScreen';
 export { VehiclesListScreen } from './screens/VehiclesListScreen';
 export { VehicleFormScreen } from './screens/VehicleFormScreen';
 export { TripFormScreen } from './screens/TripFormScreen';

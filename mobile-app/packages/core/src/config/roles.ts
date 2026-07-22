@@ -24,7 +24,7 @@ export enum UserRole {
 
 /**
  * Roles whose home is the Admin App. Used by the app-mismatch guard
- * (a staff-only role logging in here is denied and pointed to the Staff App — build plan §5.1).
+ * (a users-only role logging in here is denied and pointed to the Users App — build plan §5.1).
  */
 export const ADMIN_APP_ROLES: readonly UserRole[] = [
   UserRole.SUPER_ADMIN,
@@ -35,8 +35,8 @@ export const ADMIN_APP_ROLES: readonly UserRole[] = [
   UserRole.FINANCE,
 ];
 
-/** Roles whose home is the Staff App (the symmetric guard, enforced by that binary). */
-export const STAFF_APP_ROLES: readonly UserRole[] = [
+/** Roles whose home is the Users App (the symmetric guard, enforced by that binary). */
+export const USERS_APP_ROLES: readonly UserRole[] = [
   UserRole.TEACHER,
   UserRole.SENIOR_TEACHER,
   UserRole.SUPERVISOR,
@@ -47,10 +47,18 @@ export const STAFF_APP_ROLES: readonly UserRole[] = [
   UserRole.TRANSPORT,
 ];
 
+/** @deprecated Use USERS_APP_ROLES — kept for temporary import compatibility. */
+export const STAFF_APP_ROLES = USERS_APP_ROLES;
+
 export function isAdminAppRole(role: UserRole | null | undefined): boolean {
   return role != null && ADMIN_APP_ROLES.includes(role);
 }
 
+export function isUsersAppRole(role: UserRole | null | undefined): boolean {
+  return role != null && USERS_APP_ROLES.includes(role);
+}
+
+/** @deprecated Use isUsersAppRole */
 export function isStaffAppRole(role: UserRole | null | undefined): boolean {
-  return role != null && STAFF_APP_ROLES.includes(role);
+  return isUsersAppRole(role);
 }

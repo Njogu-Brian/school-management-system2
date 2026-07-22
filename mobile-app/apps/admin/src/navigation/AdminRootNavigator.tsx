@@ -12,24 +12,17 @@ import {
   AuthLoadingScreen,
   BiometricEnableScreen,
   LoginScreen,
+  PinEnableScreen,
 } from '../features/auth';
 import { DrawerNavigator } from './DrawerNavigator';
 import { linking } from './linking';
 import { OfflineShell } from '../providers/OfflineShell';
 
 /**
- * Route guard (build plan §5.1). Resolves the four authentication states:
- *   initializing            → splash while the session is restored
- *   unauthenticated         → Login
- *   authenticated, wrong app→ Access Denied (e.g. a Teacher in the Admin Console)
- *   authenticated, enrollment → biometric enable prompt (first login, skippable)
- *   authenticated, allowed    → the app (drawer shell)
- *
- * Login / loading / denied render outside NavigationContainer (they need no navigator),
- * so deep links only resolve once the user is inside the app.
+ * Route guard (build plan §5.1). Resolves authentication + enrollment states.
  */
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending } = useAuth();
+  const { status, user, biometricEnrollmentPending, pinEnrollmentPending } = useAuth();
 
   if (status === 'initializing') {
     return <AuthLoadingScreen />;
@@ -42,6 +35,9 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
+  }
+  if (pinEnrollmentPending) {
+    return <PinEnableScreen />;
   }
   return (
     <OfflineShell>

@@ -220,3 +220,23 @@ export interface ExamClassSheetRecord {
   subjects: ExamClassSheetSubject[];
   rows: ExamClassSheetRow[];
 }
+
+/** `GET /timetables/teacher/{staffId}` and `/timetables/student/{studentId}`. */
+export interface TimetableSlotRecord {
+  id: number;
+  day: string;
+  start_time: string;
+  end_time: string;
+  subject_id: number;
+  subject_name: string;
+  teacher_id?: number;
+  teacher_name?: string | null;
+  room?: string | null;
+}
+
+export interface TimetableRecord {
+  class_name?: string | null;
+  academic_year_id: number;
+  term_id: number;
+  slots: TimetableSlotRecord[];
+}

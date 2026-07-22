@@ -304,6 +304,41 @@ export function useLessonPlanDetail(lessonPlanId: number, options?: { enabled?: 
   });
 }
 
+export function useCreateLessonPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Parameters<typeof academicsWorkspaceApi.createLessonPlan>[0]) => {
+      const res = await academicsWorkspaceApi.createLessonPlan(payload);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to create lesson plan.');
+      }
+      return res.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.academics.all });
+      void queryClient.invalidateQueries({ queryKey: ['lesson-plans'] });
+    },
+  });
+}
+
+export function useSubmitLessonPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await academicsWorkspaceApi.submitLessonPlan(id);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to submit lesson plan.');
+      }
+      return res.data;
+    },
+    onSuccess: (_data, id) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.academics.lessonPlanDetail(id) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.academics.all });
+      void queryClient.invalidateQueries({ queryKey: ['lesson-plans'] });
+    },
+  });
+}
+
 export function useLessonPlanModerationActions() {
   const queryClient = useQueryClient();
 

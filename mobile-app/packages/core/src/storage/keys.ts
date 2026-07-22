@@ -13,8 +13,17 @@ export const ASYNC_KEYS = {
   BIOMETRIC_FAILURE_COUNT: '@admin_erp_biometric_failure_count',
   THEME_MODE: '@admin_erp_theme_mode',
   SURFACE_MODE: '@admin_erp_surface_mode',
+  PIN_ENABLED: '@erp_pin_enabled',
+  PIN_FAILURE_COUNT: '@erp_pin_failure_count',
+  REMEMBERED_USERNAME: '@erp_remembered_username',
 } as const;
 
 export const BIOMETRIC_SECURE_KEYS = {
   AUTH_BUNDLE: 'admin_erp_biometric_auth_bundle',
+} as const;
+
+export const PIN_SECURE_KEYS = {
+  PIN_HASH: 'erp_pin_hash',
+  PIN_SALT: 'erp_pin_salt',
+  AUTH_BUNDLE: 'erp_pin_auth_bundle',
 } as const;

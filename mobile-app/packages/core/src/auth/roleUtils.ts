@@ -1,6 +1,6 @@
 import {
   ADMIN_APP_ROLES,
-  STAFF_APP_ROLES,
+  USERS_APP_ROLES,
   UserRole,
 } from '../config/roles';
 import type { AppTarget, User } from '../types';
@@ -21,6 +21,8 @@ export function normalizeRole(role: unknown): UserRole | null {
     teacher: UserRole.TEACHER,
     'senior teacher': UserRole.SENIOR_TEACHER,
     senior_teacher: UserRole.SENIOR_TEACHER,
+    'deputy senior teacher': UserRole.SENIOR_TEACHER,
+    deputy_senior_teacher: UserRole.SENIOR_TEACHER,
     supervisor: UserRole.SUPERVISOR,
     'super admin': UserRole.SUPER_ADMIN,
     super_admin: UserRole.SUPER_ADMIN,
@@ -45,13 +47,13 @@ export function normalizeRole(role: unknown): UserRole | null {
 
 /** Roles allowed into a given app binary. */
 export function rolesForApp(target: AppTarget): readonly UserRole[] {
-  return target === 'admin' ? ADMIN_APP_ROLES : STAFF_APP_ROLES;
+  return target === 'admin' ? ADMIN_APP_ROLES : USERS_APP_ROLES;
 }
 
 /**
  * Whether a user may enter the given app. Returns false for unauthenticated users
  * and for recognized-but-wrong-app roles (→ Access Denied). The Admin App passes
- * `'admin'`; the Staff App will pass `'staff'` using the same helper.
+ * `'admin'`; the Users App passes `'users'` using the same helper.
  */
 export function canAccessApp(user: User | null, target: AppTarget): boolean {
   if (!user || user.role == null) {

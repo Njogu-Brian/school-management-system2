@@ -7,6 +7,7 @@ import type {
   ReportCardDetailRecord,
   ReportCardListRecord,
 } from '../types/studentAcademics';
+import type { TimetableRecord } from '../types/academics';
 import { apiClient } from './client';
 
 /**
@@ -57,6 +58,24 @@ export const academicsApi = {
 
   getReportCard(id: number): Promise<ApiResponse<ReportCardDetailRecord>> {
     return apiClient.get<ReportCardDetailRecord>(`/report-cards/${id}`);
+  },
+
+  getTeacherTimetable(
+    staffId: number,
+    params?: { term_id?: number },
+  ): Promise<ApiResponse<TimetableRecord>> {
+    const query: Record<string, number> = {};
+    if (params?.term_id != null) query.term_id = params.term_id;
+    return apiClient.get<TimetableRecord>(`/timetables/teacher/${staffId}`, query);
+  },
+
+  getStudentTimetable(
+    studentId: number,
+    params?: { term_id?: number },
+  ): Promise<ApiResponse<TimetableRecord>> {
+    const query: Record<string, number> = {};
+    if (params?.term_id != null) query.term_id = params.term_id;
+    return apiClient.get<TimetableRecord>(`/timetables/student/${studentId}`, query);
   },
 };
 

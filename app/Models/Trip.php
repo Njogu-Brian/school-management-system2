@@ -64,4 +64,9 @@ class Trip extends Model
     {
         return $this->hasMany(TripAttendance::class);
     }
+
+    public function runs()
+    {
+        return $this->hasMany(TripRun::class);
+    }
 }

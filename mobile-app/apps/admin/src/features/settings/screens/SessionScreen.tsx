@@ -1,5 +1,9 @@
 import {
+  getRememberedUsername,
   getSessionMeta,
+  isPinEnabled,
+  PIN_MAX_LENGTH,
+  PIN_MIN_LENGTH,
   useActiveSessions,
   useAuth,
   useNotificationPreferences,
@@ -16,6 +20,7 @@ import {
   EmptyState,
   FinanceFieldSection,
   ScreenContainer,
+  TextField,
   useTheme,
 } from '@erp/ui';
 import Constants from 'expo-constants';
@@ -23,16 +28,20 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 import { formatDateTimeLabel } from '../../shared/utils/formatters';
-import { confirmAction, showSuccess } from '../../shared/utils/feedback';
+import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
 
 export interface SessionScreenProps {
   onBack?: () => void;
 }
 
 export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, enablePin, disablePin } = useAuth();
   const [meta, setMeta] = useState<PersistedSessionMeta | null>(null);
   const [signOutVisible, setSignOutVisible] = useState(false);
+  const [pinOn, setPinOn] = useState(false);
+  const [remembered, setRemembered] = useState<string | null>(null);
+  const [pinDraft, setPinDraft] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
   const { palette, spacing, typography, radius, elevation, colors, isDark, toggleTheme, themeMode, setThemeMode } =
     useTheme();
   const { surfaceMode, setSurfaceMode } = useSurfaceModeControl();
@@ -50,7 +59,28 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
 
   useEffect(() => {
     void getSessionMeta().then(setMeta);
+    void isPinEnabled().then(setPinOn);
+    void getRememberedUsername().then(setRemembered);
   }, []);
+
+  const savePinFromDraft = async () => {
+    if (!/^\d+$/.test(pinDraft) || pinDraft.length < PIN_MIN_LENGTH || pinDraft.length > PIN_MAX_LENGTH) {
+      showError('Invalid PIN', `Use ${PIN_MIN_LENGTH}–${PIN_MAX_LENGTH} digits.`);
+      return;
+    }
+    setPinBusy(true);
+    try {
+      await enablePin(pinDraft);
+      setPinDraft('');
+      setPinOn(true);
+      setRemembered(await getRememberedUsername());
+      showSuccess('PIN saved', 'You can unlock with your PIN next time.');
+    } catch (err) {
+      showError('PIN', err instanceof Error ? err.message : 'Could not save PIN.');
+    } finally {
+      setPinBusy(false);
+    }
+  };
 
   const deviceName = Constants.deviceName ?? 'This device';
 
@@ -172,6 +202,50 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
           onValueChange={(on) => setSurfaceMode(on ? 'amoled' : 'default')}
         />
       </View>
+
+      <Text
+        style={{
+          fontWeight: '700',
+          marginTop: spacing.lg,
+          marginBottom: spacing.sm,
+          color: palette.textPrimary,
+          fontSize: typography.titleSmall.fontSize,
+        }}
+      >
+        App PIN
+      </Text>
+      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+        Status: {pinOn ? 'On' : 'Off'}
+        {remembered ? ` · Remembered user: ${remembered}` : ''}
+      </Text>
+      <TextField
+        label={`${pinOn ? 'Change' : 'Create'} PIN (${PIN_MIN_LENGTH}–${PIN_MAX_LENGTH} digits)`}
+        value={pinDraft}
+        onChangeText={(t) => setPinDraft(t.replace(/\D/g, '').slice(0, PIN_MAX_LENGTH))}
+        keyboardType="number-pad"
+        secureTextEntry
+        placeholder="••••"
+      />
+      <Button
+        label={pinOn ? 'Update PIN' : 'Save PIN'}
+        onPress={() => void savePinFromDraft()}
+        loading={pinBusy}
+        style={{ marginTop: spacing.sm }}
+      />
+      {pinOn ? (
+        <Button
+          label="Remove PIN"
+          variant="ghost"
+          onPress={() =>
+            confirmAction('Remove PIN', 'You will need your password next time.', 'Remove', async () => {
+              await disablePin();
+              setPinOn(false);
+              showSuccess('PIN removed', 'PIN unlock is off.');
+            }, true)
+          }
+          style={{ marginTop: spacing.xs }}
+        />
+      ) : null}
 
       <Text
         style={{

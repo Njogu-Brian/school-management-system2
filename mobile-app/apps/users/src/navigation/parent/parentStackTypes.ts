@@ -1,0 +1,22 @@
+export type ParentStackParamList = {
+  ParentHome: undefined;
+  ChildrenList: undefined;
+  ChildHub: { studentId: number };
+  ChildResults: { studentId: number };
+  ChildAttendance: { studentId: number };
+  ChildHomework: { studentId: number };
+  FeesHome: undefined;
+  StudentDetail: { studentId: number };
+  StudentStatement: { studentId: number };
+  MpesaPrompt: { studentId: number; amount?: number };
+  DiaryList: undefined;
+  DiaryChat: { studentId: number };
+  Announcements: undefined;
+  Notifications: undefined;
+  Settings: undefined;
+  MoreMenu: undefined;
+  ConcernsList: undefined;
+  Transport: { studentId: number };
+  LiveBusTrack: { studentId: number };
+  RaiseConcern: { studentId?: number };
+};

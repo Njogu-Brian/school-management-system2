@@ -118,6 +118,10 @@ export const queryKeys = {
     moderationQueue: (filters?: LessonPlanQueueFilters) =>
       [...queryKeys.academics.all, 'moderation-queue', filters ?? {}] as const,
     lessonPlanDetail: (id: number) => [...queryKeys.academics.all, 'lesson-plan', id] as const,
+    teacherTimetable: (staffId: number, termId?: number) =>
+      [...queryKeys.academics.all, 'teacher-timetable', staffId, termId ?? 'current'] as const,
+    studentTimetable: (studentId: number, termId?: number) =>
+      [...queryKeys.academics.all, 'student-timetable', studentId, termId ?? 'current'] as const,
   },
   finance: {
     all: ['finance'] as const,
@@ -217,6 +221,9 @@ export const queryKeys = {
     all: ['driver-transport'] as const,
     trips: (date?: string) => [...queryKeys.driverTransport.all, 'trips', date ?? 'today'] as const,
     trip: (id: number, date?: string) => [...queryKeys.driverTransport.all, 'trip', id, date ?? 'today'] as const,
+    boarding: (id: number, date?: string) =>
+      [...queryKeys.driverTransport.all, 'boarding', id, date ?? 'today'] as const,
+    vehicle: () => [...queryKeys.driverTransport.all, 'vehicle'] as const,
   },
   reports: {
     all: ['reports'] as const,

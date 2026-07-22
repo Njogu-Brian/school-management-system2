@@ -45,4 +45,8 @@ export * from './hooks/useLeaveRequests';
 export * from './hooks/useStaffAdvances';
 export * from './hooks/useConcerns';
 export * from './hooks/usePayrollRecordsList';
+export * from './hooks/useDiary';
+export * from './hooks/useTimetable';
+export * from './hooks/useHomework';
+export * from './hooks/useTransportLive';
 export * from '../sync';

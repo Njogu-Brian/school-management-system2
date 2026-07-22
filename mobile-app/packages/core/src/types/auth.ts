@@ -18,7 +18,7 @@ export interface LoginResult {
 export type AuthStatus = 'initializing' | 'authenticated' | 'unauthenticated';
 
 /** Which app a session is allowed into (drives the app-mismatch guard, build plan §5.1). */
-export type AppTarget = 'admin' | 'staff';
+export type AppTarget = 'admin' | 'users';
 
 /** Google account identity decoded from the ID token (stored in Auth Context). */
 export interface GoogleIdentity {

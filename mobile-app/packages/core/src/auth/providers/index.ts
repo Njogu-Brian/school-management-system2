@@ -7,3 +7,8 @@ export {
   BiometricLoginLockedError,
   BiometricNoBundleError,
 } from './BiometricAuthProvider';
+export {
+  PinUnlockStrategy,
+  PinLoginLockedError,
+  PinNoBundleError,
+} from './PinAuthProvider';

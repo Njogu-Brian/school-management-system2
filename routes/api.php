@@ -335,6 +335,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/concerns/{id}', [\App\Http\Controllers\Api\ApiConcernController::class, 'show']);
     Route::put('/concerns/{id}', [\App\Http\Controllers\Api\ApiConcernController::class, 'update']);
 
+    // Digital diary (WhatsApp-style parent ↔ teacher ↔ admin threads)
+    Route::get('/diaries', [\App\Http\Controllers\Api\ApiDiaryController::class, 'index']);
+    Route::get('/diaries/students/{studentId}', [\App\Http\Controllers\Api\ApiDiaryController::class, 'showForStudent']);
+    Route::post('/diaries/students/{studentId}/entries', [\App\Http\Controllers\Api\ApiDiaryController::class, 'storeEntry']);
+
     Route::get('/inventory/items', [\App\Http\Controllers\Api\ApiInventoryController::class, 'index']);
     Route::get('/inventory/items/{id}', [\App\Http\Controllers\Api\ApiInventoryController::class, 'show']);
     Route::post('/inventory/items/{id}/adjust', [\App\Http\Controllers\Api\ApiInventoryController::class, 'adjust']);
@@ -476,6 +481,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/driver/trips', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'index']);
     Route::get('/driver/trips/{trip}', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'show']);
+    Route::post('/driver/trips/{trip}/start', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'start']);
+    Route::post('/driver/trips/{trip}/stop', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'stop']);
+    Route::get('/driver/trips/{trip}/boarding', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'boarding']);
+    Route::post('/driver/trips/{trip}/boarding', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'markBoarding']);
+    Route::post('/driver/trips/{trip}/location', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'pingLocation']);
+    Route::get('/driver/vehicle', [\App\Http\Controllers\Api\ApiDriverTransportController::class, 'vehicle']);
+
+    Route::get('/transport/live/students/{studentId}', [\App\Http\Controllers\Api\ApiTransportTrackingController::class, 'liveForStudent']);
+    Route::get('/transport/live/fleet', [\App\Http\Controllers\Api\ApiTransportTrackingController::class, 'liveFleet']);
+    Route::get('/transport/live/trips/{trip}', [\App\Http\Controllers\Api\ApiTransportTrackingController::class, 'activeRunForTrip']);
 
     Route::get('/report-cards', [\App\Http\Controllers\Api\ApiReportCardController::class, 'index']);
     Route::get('/report-cards/{id}', [\App\Http\Controllers\Api\ApiReportCardController::class, 'show']);

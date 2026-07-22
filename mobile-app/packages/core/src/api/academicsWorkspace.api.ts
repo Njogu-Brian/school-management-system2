@@ -116,6 +116,28 @@ export const academicsWorkspaceApi = {
     return apiClient.get<LessonPlanRecord>(`/lesson-plans/${id}`);
   },
 
+  createLessonPlan(payload: {
+    title: string;
+    planned_date: string;
+    classroom_id: number;
+    subject_id: number;
+    academic_year_id: number;
+    term_id: number;
+    timetable_id?: number;
+    duration_minutes?: number;
+    learning_outcomes?: string;
+    introduction?: string;
+    lesson_development?: string;
+    assessment?: string;
+    conclusion?: string;
+  }): Promise<ApiResponse<LessonPlanRecord>> {
+    return apiClient.post<LessonPlanRecord>('/lesson-plans', payload);
+  },
+
+  submitLessonPlan(id: number): Promise<ApiResponse<LessonPlanRecord>> {
+    return apiClient.post<LessonPlanRecord>(`/lesson-plans/${id}/submit`, {});
+  },
+
   approveLessonPlan(
     id: number,
     approvalNotes?: string,

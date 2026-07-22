@@ -27,6 +27,7 @@ import {
   TeacherTransportScreen,
   DriverTripsScreen,
   DriverTripDetailScreen,
+  LiveFleetScreen,
   VehiclesListScreen,
   VehicleFormScreen,
   TripFormScreen,
@@ -63,6 +64,7 @@ export const OperationsStackNavigator: React.FC = () => (
     <Stack.Screen name="TeacherTransport" component={TeacherTransportScreen} />
     <Stack.Screen name="DriverTrips" component={DriverTripsScreen} />
     <Stack.Screen name="DriverTripDetail" component={DriverTripDetailScreen} />
+    <Stack.Screen name="LiveFleet" component={LiveFleetScreen} />
     <Stack.Screen name="VehiclesList" component={VehiclesListScreen} />
     <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
     <Stack.Screen name="TripForm" component={TripFormScreen} />

@@ -35,3 +35,8 @@ export * from './attendance.api';
 export * from './examReports.api';
 export * from './notificationPreferences.api';
 export * from './cbc.api';
+export * from './diary.api';
+export * from './homework.api';
+export * from './transportLive.api';
+export { transportSpecialApi } from './transportSpecial.api';
+export type { TransportSpecialAssignmentRecord as TransportSpecialApiAssignmentRecord } from './transportSpecial.api';
