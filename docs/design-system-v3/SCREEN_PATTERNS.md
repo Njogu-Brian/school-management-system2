@@ -128,8 +128,8 @@ Charts: absolute currency — never misleading normalized %
 ```
 Hub: single breakdown viz + trends
 Lists: ExamListItem with status accent
+Attendance: large touch targets for status toggles; sticky **Submit** above tab clearance; local draft banner only while dirty, cleared after successful submit/queue
 Marks: pickers in sheet or compact sticky bar; matrix with Save bar
-Attendance: large touch targets for status toggles
 Moderation: honest EmptyState if mobile read-only
 ```
 
