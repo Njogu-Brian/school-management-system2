@@ -8,6 +8,8 @@ import {
   ApplicationFilters,
   ApplicationListItem,
   ApplicationSearchBar,
+  FilterChip,
+  FilterChipRow,
   countActiveFilters,
   DashboardHero,
   EmptyState,
@@ -19,6 +21,7 @@ import {
   SkeletonWidgetGrid,
   WidgetGrid,
   WidgetShell,
+  applicationStatusLabel,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -142,13 +145,34 @@ export const AdmissionsWorkspaceScreen: React.FC = () => {
             fontSize: typography.title.fontSize,
             fontWeight: typography.title.fontWeight,
             marginTop: spacing.sm,
+            marginBottom: spacing.xs,
           }}
         >
           Applications
+          {status !== 'all' ? ` · ${applicationStatusLabel(status)}` : ''}
         </Text>
+        <FilterChipRow>
+          {(
+            [
+              'all',
+              'pending',
+              'under_review',
+              'waitlisted',
+              'enrolled',
+              'rejected',
+            ] as const
+          ).map((option) => (
+            <FilterChip
+              key={option}
+              label={option === 'all' ? 'All' : applicationStatusLabel(option)}
+              active={status === option}
+              onPress={() => setStatus(option)}
+            />
+          ))}
+        </FilterChipRow>
       </View>
     ),
-    [palette.textPrimary, spacing, statsQuery, stats, totalApplications, setStatus, typography],
+    [palette.textPrimary, spacing, statsQuery, stats, totalApplications, setStatus, status, typography],
   );
 
   if (!canView) {

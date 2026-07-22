@@ -90,7 +90,8 @@ export const Admissions360Header: React.FC<Admissions360HeaderProps> = ({ applic
               Preferred: {application.preferredClassName}
             </Text>
           ) : null}
-          {application.waitlistPosition != null ? (
+          {application.waitlistPosition != null &&
+          application.applicationStatus === 'waitlisted' ? (
             <Text
               style={{
                 color: palette.textSecondary,

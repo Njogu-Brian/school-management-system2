@@ -38,9 +38,13 @@ class OnlineAdmissionWorkflowService
             'review_date' => now(),
             'classroom_id' => $data['classroom_id'] ?? $admission->classroom_id,
             'stream_id' => $data['stream_id'] ?? $admission->stream_id,
+            // Leaving waitlist clears position so UI/filters stay accurate.
+            'waitlist_position' => $data['application_status'] === 'waitlisted'
+                ? $admission->waitlist_position
+                : null,
         ]);
 
-        if ($data['application_status'] === 'waitlisted') {
+        if ($data['application_status'] === 'waitlisted' && ! $admission->waitlist_position) {
             $maxPosition = OnlineAdmission::where('application_status', 'waitlisted')
                 ->max('waitlist_position') ?? 0;
             $admission->update(['waitlist_position' => $maxPosition + 1]);
@@ -55,6 +59,17 @@ class OnlineAdmissionWorkflowService
             throw ValidationException::withMessages([
                 'application' => 'This application has already been enrolled.',
             ]);
+        }
+
+        // Idempotent: already waitlisted keeps current position.
+        if ($admission->application_status === 'waitlisted' && $admission->waitlist_position) {
+            $admission->update([
+                'reviewed_by' => $userId,
+                'review_date' => now(),
+                'review_notes' => $reviewNotes ?? $admission->review_notes ?? 'Added to waiting list',
+            ]);
+
+            return $admission->fresh();
         }
 
         $maxPosition = OnlineAdmission::where('application_status', 'waitlisted')

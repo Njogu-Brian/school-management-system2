@@ -75,7 +75,8 @@ export const ApplicationListItem: React.FC<ApplicationListItemProps> = ({
         ) : null}
         <View style={[styles.badges, { marginTop: spacing.xs, gap: spacing.xs }]}>
           <ApplicationStatusBadge status={application.applicationStatus} compact />
-          {application.waitlistPosition != null ? (
+        {application.waitlistPosition != null &&
+        application.applicationStatus === 'waitlisted' ? (
             <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
               #{application.waitlistPosition} waitlist
             </Text>

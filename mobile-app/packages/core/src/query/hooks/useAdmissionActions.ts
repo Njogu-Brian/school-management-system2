@@ -7,7 +7,14 @@ import type {
 } from '../../types/admissions';
 import { queryKeys } from '../queryKeys';
 
-function invalidateAdmissionsCaches(queryClient: ReturnType<typeof useQueryClient>, applicationId: number) {
+function invalidateAdmissionsCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  applicationId: number,
+  detail?: unknown,
+) {
+  if (detail) {
+    queryClient.setQueryData(queryKeys.admissions.detail(applicationId), detail);
+  }
   void queryClient.invalidateQueries({ queryKey: queryKeys.admissions.stats() });
   void queryClient.invalidateQueries({ queryKey: queryKeys.admissions.detail(applicationId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.admissions.all });
@@ -24,7 +31,7 @@ export function useAdmissionActions(applicationId: number) {
       }
       return normalizeApplicationDetail(res.data);
     },
-    onSuccess: () => invalidateAdmissionsCaches(queryClient, applicationId),
+    onSuccess: (detail) => invalidateAdmissionsCaches(queryClient, applicationId, detail),
   });
 
   const waitlist = useMutation({
@@ -35,7 +42,7 @@ export function useAdmissionActions(applicationId: number) {
       }
       return normalizeApplicationDetail(res.data);
     },
-    onSuccess: () => invalidateAdmissionsCaches(queryClient, applicationId),
+    onSuccess: (detail) => invalidateAdmissionsCaches(queryClient, applicationId, detail),
   });
 
   const reject = useMutation({
@@ -46,7 +53,7 @@ export function useAdmissionActions(applicationId: number) {
       }
       return normalizeApplicationDetail(res.data);
     },
-    onSuccess: () => invalidateAdmissionsCaches(queryClient, applicationId),
+    onSuccess: (detail) => invalidateAdmissionsCaches(queryClient, applicationId, detail),
   });
 
   const enroll = useMutation({
@@ -60,8 +67,8 @@ export function useAdmissionActions(applicationId: number) {
         application: normalizeApplicationDetail(res.data.application),
       };
     },
-    onSuccess: () => {
-      invalidateAdmissionsCaches(queryClient, applicationId);
+    onSuccess: (result) => {
+      invalidateAdmissionsCaches(queryClient, applicationId, result.application);
       void queryClient.invalidateQueries({ queryKey: queryKeys.students.all });
     },
   });
