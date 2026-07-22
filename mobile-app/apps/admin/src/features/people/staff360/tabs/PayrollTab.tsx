@@ -1,7 +1,10 @@
 import { downloadAuthenticatedFile, payrollApi, toPayrollSummary, useStaffPayrollRecords } from '@erp/core';
 import { EmptyState, useTheme } from '@erp/ui';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import type { PeopleStackParamList } from '../../../../navigation/peopleStackTypes';
 import { showError } from '../../../shared/utils/feedback';
 import { capitalizeStatus, formatKes } from '../utils/formatters';
 
@@ -12,6 +15,7 @@ export interface PayrollTabProps {
 
 export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance }) => {
   const { colors, palette, typography, spacing, radius } = useTheme();
+  const navigation = useNavigation<StackNavigationProp<PeopleStackParamList>>();
   const query = useStaffPayrollRecords(staffId, { enabled: canViewFinance, perPage: 12 });
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
@@ -83,26 +87,38 @@ export const PayrollTab: React.FC<PayrollTabProps> = ({ staffId, canViewFinance 
               backgroundColor: palette.surfaceRaised,
             }}
           >
-            <Text
-              style={{
-                color: palette.textPrimary,
-                fontWeight: '600',
-                fontSize: typography.body.fontSize,
-              }}
-            >
-              {row.periodLabel}
-            </Text>
-            <Text
-              style={{
-                color: palette.textSecondary,
-                fontSize: typography.overline.fontSize,
-                marginTop: 4,
-              }}
-            >
-              {formatKes(row.netSalary)} · {capitalizeStatus(row.status)}
-            </Text>
+            <Pressable onPress={() => navigation.navigate('PayrollDetail', { recordId: raw.id })}>
+              <Text
+                style={{
+                  color: palette.textPrimary,
+                  fontWeight: '600',
+                  fontSize: typography.body.fontSize,
+                }}
+              >
+                {row.periodLabel}
+              </Text>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: typography.overline.fontSize,
+                  marginTop: 4,
+                }}
+              >
+                {formatKes(row.netSalary)} · {capitalizeStatus(row.status)}
+              </Text>
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontWeight: '600',
+                  fontSize: typography.caption.fontSize,
+                  marginTop: 8,
+                }}
+              >
+                View full details
+              </Text>
+            </Pressable>
             <Pressable onPress={() => void handlePayslip(raw.id, row.periodLabel)} style={{ marginTop: 8 }}>
-              <Text style={{ color: colors.primary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
+              <Text style={{ color: palette.textSecondary, fontWeight: '600', fontSize: typography.caption.fontSize }}>
                 {downloadingId === raw.id ? 'Downloading…' : 'Download payslip PDF'}
               </Text>
             </Pressable>

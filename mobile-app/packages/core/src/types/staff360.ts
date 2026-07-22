@@ -96,6 +96,31 @@ export interface PayrollRecordRow {
   updated_at: string;
 }
 
+/** Full payslip from `GET /payroll-records/{id}`. */
+export interface PayrollRecordDetail extends PayrollRecordRow {
+  housing_allowance: number;
+  transport_allowance: number;
+  medical_allowance: number;
+  other_allowances: number;
+  allowances_breakdown?: Record<string, unknown> | null;
+  nssf_deduction: number;
+  nhif_deduction: number;
+  shif_deduction: number;
+  paye_deduction: number;
+  housing_levy_deduction: number;
+  other_deductions: number;
+  deductions_breakdown?: Record<string, unknown> | null;
+  bonus: number;
+  advance_deduction: number;
+  custom_deductions_total: number;
+  custom_deductions_breakdown?: Record<string, unknown> | null;
+  days_worked?: number | null;
+  days_in_period?: number | null;
+  payslip_number?: string | null;
+  notes?: string | null;
+  adjustments_notes?: string | null;
+}
+
 export interface StaffPayrollSummary {
   id: number;
   periodLabel: string;

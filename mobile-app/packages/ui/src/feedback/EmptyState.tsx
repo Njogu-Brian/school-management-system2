@@ -51,7 +51,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         </Text>
       ) : null}
       {actionLabel && onAction ? (
-        <View style={{ marginTop: spacing.md, alignSelf: 'stretch', maxWidth: 280 }}>
+        <View style={{ marginTop: spacing.md, width: 280, maxWidth: '100%', alignSelf: 'center' }}>
           <Button label={actionLabel} onPress={onAction} variant="primary" fullWidth />
         </View>
       ) : null}
@@ -60,5 +60,5 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 };
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', justifyContent: 'center' },
+  wrap: { alignItems: 'center', justifyContent: 'center', width: '100%' },
 });

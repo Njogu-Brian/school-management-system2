@@ -29,6 +29,7 @@ export const QuickActionFab: React.FC = () => {
   const canOps = useCan('operations.view');
   const canApprovals = useCan(['approvals.view', 'dashboard.approvals.view']);
   const canPeople = useCan(['people.view', 'staff.view']);
+  const canAcademics = useCan(['academics.view', 'dashboard.view']);
 
   const allActions: Action[] = [
     {
@@ -74,15 +75,15 @@ export const QuickActionFab: React.FC = () => {
       onPress: () => navigateToDrawer(navigation, 'Operations', 'RequisitionsList'),
     },
     {
-      id: 'payroll',
-      label: 'Payroll records',
-      icon: 'wallet-outline',
-      visible: canPeople,
-      onPress: () => navigateToTab(navigation, 'People', 'PayrollRecords'),
+      id: 'attendance',
+      label: 'Mark attendance',
+      icon: 'clipboard-outline',
+      visible: canAcademics,
+      onPress: () => navigateToDrawer(navigation, 'Academics', 'MarkAttendance'),
     },
     {
       id: 'staff_clock',
-      label: 'Staff sign in/out',
+      label: 'Sign in / out',
       icon: 'time-outline',
       visible: canPeople,
       onPress: () => navigateToTab(navigation, 'People', 'StaffClock'),

@@ -1,10 +1,12 @@
 import type { ApiResponse, PaginatedResponse } from '../types/api';
-import type { PayrollRecordRow } from '../types/staff360';
+import type { PayrollRecordDetail, PayrollRecordRow } from '../types/staff360';
 import { apiClient } from './client';
 
 export interface PayrollListParams {
   staff_id?: number;
   status?: string;
+  /** YYYY-MM */
+  month?: string;
   page?: number;
   per_page?: number;
 }
@@ -15,6 +17,10 @@ export const payrollApi = {
     params?: PayrollListParams,
   ): Promise<ApiResponse<PaginatedResponse<PayrollRecordRow>>> {
     return apiClient.get<PaginatedResponse<PayrollRecordRow>>('/payroll-records', params);
+  },
+
+  getById(id: number): Promise<ApiResponse<PayrollRecordDetail>> {
+    return apiClient.get<PayrollRecordDetail>(`/payroll-records/${id}`);
   },
 
   payslipDownloadPath(recordId: number): string {

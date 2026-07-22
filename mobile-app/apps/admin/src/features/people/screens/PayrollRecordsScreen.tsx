@@ -1,6 +1,8 @@
 import { usePayrollRecordsList } from '@erp/core';
 import {
   AcademicScreenHeader,
+  FilterChip,
+  FilterChipRow,
   ListEmptyState,
   ScreenContainer,
   SkeletonListRows,
@@ -8,16 +10,30 @@ import {
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
 
 type Props = StackScreenProps<PeopleStackParamList, 'PayrollRecords'>;
 
+function buildMonthOptions(count = 12): Array<{ key: string | null; label: string }> {
+  const options: Array<{ key: string | null; label: string }> = [{ key: null, label: 'All months' }];
+  const now = new Date();
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString(undefined, { month: 'short', year: 'numeric' });
+    options.push({ key, label });
+  }
+  return options;
+}
+
 export const PayrollRecordsScreen: React.FC<Props> = ({ navigation }) => {
   const { palette, spacing, typography, colors } = useTheme();
   const tabClearance = useFloatingTabBarClearance();
-  const listQuery = usePayrollRecordsList();
+  const [month, setMonth] = useState<string | null>(null);
+  const monthOptions = useMemo(() => buildMonthOptions(12), []);
+  const listQuery = usePayrollRecordsList({ month });
   const items = useMemo(
     () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [listQuery.data],
@@ -28,13 +44,25 @@ export const PayrollRecordsScreen: React.FC<Props> = ({ navigation }) => {
       <View style={{ padding: spacing.md, flex: 1 }}>
         <AcademicScreenHeader
           title="Payroll records"
-          subtitle="School-wide payslips and net pay"
+          subtitle="Filter by month · tap a row for full payslip"
           onBack={() => navigation.goBack()}
         />
+
+        <FilterChipRow>
+          {monthOptions.map((opt) => (
+            <FilterChip
+              key={opt.key ?? 'all'}
+              label={opt.label}
+              active={month === opt.key}
+              onPress={() => setMonth(opt.key)}
+            />
+          ))}
+        </FilterChipRow>
+
         <FlatList
           data={items}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{ paddingBottom: tabClearance }}
+          contentContainerStyle={{ paddingBottom: tabClearance, paddingTop: spacing.sm }}
           refreshControl={
             <RefreshControl
               refreshing={listQuery.isFetching && !listQuery.isLoading}
@@ -49,10 +77,12 @@ export const PayrollRecordsScreen: React.FC<Props> = ({ navigation }) => {
             }
           }}
           renderItem={({ item }) => (
-            <View
-              style={[
+            <Pressable
+              onPress={() => navigation.navigate('PayrollDetail', { recordId: item.id })}
+              style={({ pressed }) => [
                 styles.row,
                 {
+                  opacity: pressed ? 0.92 : 1,
                   borderColor: palette.borderSubtle,
                   paddingVertical: spacing.md,
                   backgroundColor: palette.surfaceRaised,
@@ -78,7 +108,7 @@ export const PayrollRecordsScreen: React.FC<Props> = ({ navigation }) => {
                   marginTop: 2,
                 }}
               >
-                {item.period_name ?? item.month ?? '—'}
+                {item.period_name ?? item.month ?? '—'} · {item.status}
               </Text>
               <Text
                 style={{
@@ -90,7 +120,7 @@ export const PayrollRecordsScreen: React.FC<Props> = ({ navigation }) => {
               >
                 KES {Number(item.net_salary ?? 0).toLocaleString()}
               </Text>
-            </View>
+            </Pressable>
           )}
           ListEmptyComponent={
             listQuery.isLoading ? (

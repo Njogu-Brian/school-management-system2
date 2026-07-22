@@ -90,6 +90,10 @@ export const linking: LinkingOptions<DrawerParamList> = {
               LeaveApply: 'leave-apply',
               StaffAdvances: 'advances',
               PayrollRecords: 'payroll',
+              PayrollDetail: {
+                path: 'payroll/:recordId',
+                parse: { recordId: Number },
+              },
             },
           },
         },

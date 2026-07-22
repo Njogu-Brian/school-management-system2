@@ -40,6 +40,7 @@ class ApiPayrollRecordsController extends Controller
         $request->validate([
             'staff_id' => 'nullable|integer|exists:staff,id',
             'status' => 'nullable|string|max:32',
+            'month' => 'nullable|string|regex:/^\d{4}-\d{2}$/',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
@@ -70,6 +71,12 @@ class ApiPayrollRecordsController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
+        if ($request->filled('month')) {
+            [$year, $month] = array_map('intval', explode('-', $request->input('month')));
+            $query->whereHas('payrollPeriod', function ($q) use ($year, $month) {
+                $q->where('year', $year)->where('month', $month);
+            });
+        }
 
         $paginated = $query->orderByDesc('id')->paginate($perPage);
 
@@ -86,6 +93,30 @@ class ApiPayrollRecordsController extends Controller
                 'from' => $paginated->firstItem(),
                 'to' => $paginated->lastItem(),
             ],
+        ]);
+    }
+
+    public function show(Request $request, int $id)
+    {
+        $this->assertPayrollApiAccess($request);
+
+        $user = $request->user();
+        $privileged = $user->hasAnyRole([
+            'Super Admin', 'Admin', 'Secretary', 'Senior Teacher', 'Finance Officer', 'Accountant',
+        ]);
+
+        $record = PayrollRecord::with(['staff', 'payrollPeriod'])->findOrFail($id);
+
+        if ($user->hasTeacherLikeRole() && ! $privileged) {
+            $ownStaffId = $user->staff?->id;
+            if (! $ownStaffId || (int) $record->staff_id !== (int) $ownStaffId) {
+                abort(403, 'You can only view your own payslip.');
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->formatRecordDetail($record),
         ]);
     }
 
@@ -118,5 +149,34 @@ class ApiPayrollRecordsController extends Controller
             'created_at' => $r->created_at->toIso8601String(),
             'updated_at' => $r->updated_at->toIso8601String(),
         ];
+    }
+
+    protected function formatRecordDetail(PayrollRecord $r): array
+    {
+        $base = $this->formatRecord($r);
+
+        return array_merge($base, [
+            'housing_allowance' => (float) $r->housing_allowance,
+            'transport_allowance' => (float) $r->transport_allowance,
+            'medical_allowance' => (float) $r->medical_allowance,
+            'other_allowances' => (float) $r->other_allowances,
+            'allowances_breakdown' => $r->allowances_breakdown,
+            'nssf_deduction' => (float) $r->nssf_deduction,
+            'nhif_deduction' => (float) $r->nhif_deduction,
+            'shif_deduction' => (float) $r->shif_deduction,
+            'paye_deduction' => (float) $r->paye_deduction,
+            'housing_levy_deduction' => (float) $r->housing_levy_deduction,
+            'other_deductions' => (float) $r->other_deductions,
+            'deductions_breakdown' => $r->deductions_breakdown,
+            'bonus' => (float) $r->bonus,
+            'advance_deduction' => (float) $r->advance_deduction,
+            'custom_deductions_total' => (float) $r->custom_deductions_total,
+            'custom_deductions_breakdown' => $r->custom_deductions_breakdown,
+            'days_worked' => $r->days_worked,
+            'days_in_period' => $r->days_in_period,
+            'payslip_number' => $r->payslip_number,
+            'notes' => $r->notes,
+            'adjustments_notes' => $r->adjustments_notes,
+        ]);
     }
 }

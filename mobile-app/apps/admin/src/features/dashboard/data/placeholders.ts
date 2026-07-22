@@ -59,12 +59,6 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     permissions: ['students.view'],
   },
   {
-    id: 'qa_finance',
-    label: 'Collections',
-    icon: 'cash-outline',
-    permissions: ['finance.view'],
-  },
-  {
     id: 'qa_approvals',
     label: 'Approvals inbox',
     icon: 'checkbox-outline',
@@ -77,27 +71,15 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     permissions: ['admissions.view'],
   },
   {
-    id: 'qa_clock',
-    label: 'Staff clock',
-    icon: 'time-outline',
-    permissions: ['people.view', 'staff.view'],
-  },
-  {
     id: 'qa_attendance',
     label: 'Mark attendance',
     icon: 'clipboard-outline',
     permissions: ['academics.view', 'dashboard.view'],
   },
   {
-    id: 'qa_leave',
-    label: 'Leave requests',
-    icon: 'calendar-outline',
-    permissions: ['people.view', 'staff.view', 'approvals.view'],
-  },
-  {
-    id: 'qa_payroll',
-    label: 'Payroll',
-    icon: 'cash-outline',
-    permissions: ['finance.view', 'people.view', 'staff.view'],
+    id: 'qa_clock',
+    label: 'Sign in / out',
+    icon: 'time-outline',
+    permissions: ['people.view', 'staff.view'],
   },
 ];

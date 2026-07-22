@@ -267,6 +267,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);
     Route::post('/staff/{id}/photo', [\App\Http\Controllers\Api\ApiStaffController::class, 'uploadPhoto']);
     Route::get('/payroll-records', [\App\Http\Controllers\Api\ApiPayrollRecordsController::class, 'index']);
+    Route::get('/payroll-records/{id}', [\App\Http\Controllers\Api\ApiPayrollRecordsController::class, 'show']);
     Route::get('/payroll-records/{id}/payslip/download', [\App\Http\Controllers\Api\ApiPayslipController::class, 'download']);
     Route::get('/vehicles', [\App\Http\Controllers\Api\ApiVehicleController::class, 'index']);
     Route::get('/vehicles/{id}', [\App\Http\Controllers\Api\ApiVehicleController::class, 'show']);

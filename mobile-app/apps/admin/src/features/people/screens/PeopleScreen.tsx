@@ -61,20 +61,22 @@ export const PeopleScreen: React.FC = () => {
             onPress={() => navigation.navigate('PayrollRecords')}
           />
           <QuickAction
-            label="Staff clock"
+            label="Sign in / out"
             icon="time-outline"
             onPress={() => navigation.navigate('StaffClock')}
           />
         </View>
       </DashboardSection>
 
-      <EmptyState
-        title="Open staff registry"
-        message="Browse and manage staff profiles, leave, and HR records."
-        icon="people-outline"
-        actionLabel="Open staff registry"
-        onAction={() => navigation.navigate('StaffRegistry')}
-      />
+      <View style={{ alignItems: 'center', marginTop: spacing.lg }}>
+        <EmptyState
+          title="Open staff registry"
+          message="Browse and manage staff profiles, leave, and HR records."
+          icon="people-outline"
+          actionLabel="Open staff registry"
+          onAction={() => navigation.navigate('StaffRegistry')}
+        />
+      </View>
     </ScreenContainer>
   );
 };
