@@ -150,6 +150,10 @@ use App\Http\Controllers\BackupRestoreController;
 */
 Route::get('/', fn () => redirect()->route('login'));
 
+// Public legal pages (no auth — required for Play Store / App Store listings)
+Route::view('/privacy', 'legal.privacy')->name('privacy');
+Route::view('/terms', 'legal.terms')->name('terms');
+
 // Passkeys (WebAuthn)
 // CSRF is disabled for these routes in bootstrap/app.php (validateCsrfTokens except list)
 // because the browser's WebAuthn client posts JSON directly without a CSRF token.

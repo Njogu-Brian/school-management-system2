@@ -7,6 +7,8 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 const SUPPORT_PHONE = '0719396233';
 const SUPPORT_EMAIL = 'info@royalkingsschools.sc.ke';
 const WEBSITE = 'https://royalkingsschools.sc.ke';
+/** Live on ERP (public, no login) — use for Play Store privacy URL */
+const LEGAL_BASE = 'https://erp.royalkingsschools.sc.ke';
 
 export interface AboutScreenProps {
   onBack?: () => void;
@@ -55,14 +57,14 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
       label: 'Privacy policy',
       value: 'View',
       icon: 'shield-checkmark-outline',
-      url: `${WEBSITE}/privacy`,
+      url: `${LEGAL_BASE}/privacy`,
     },
     {
       id: 'terms',
       label: 'Terms of use',
       value: 'View',
       icon: 'document-text-outline',
-      url: `${WEBSITE}/terms`,
+      url: `${LEGAL_BASE}/terms`,
     },
   ];
 
