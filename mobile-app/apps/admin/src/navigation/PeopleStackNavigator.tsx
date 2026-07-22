@@ -10,6 +10,8 @@ import {
   StaffEditScreen,
   LeaveApplyScreen,
   LeaveManagementScreen,
+  LeaveTypesScreen,
+  StaffAdvancesScreen,
   PayrollRecordsScreen,
 } from '../features/people';
 import type { PeopleStackParamList } from './peopleStackTypes';
@@ -28,6 +30,8 @@ export const PeopleStackNavigator: React.FC = () => (
     <Stack.Screen name="StaffEdit" component={StaffEditScreen} />
     <Stack.Screen name="LeaveApply" component={LeaveApplyScreen} />
     <Stack.Screen name="LeaveManagement" component={LeaveManagementScreen} />
+    <Stack.Screen name="LeaveTypes" component={LeaveTypesScreen} />
+    <Stack.Screen name="StaffAdvances" component={StaffAdvancesScreen} />
     <Stack.Screen name="PayrollRecords" component={PayrollRecordsScreen} />
   </Stack.Navigator>
 );

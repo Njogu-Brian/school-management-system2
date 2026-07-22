@@ -1,10 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { StyleSheet, View, ViewStyle } from 'react-native';
-import { useOptionalTheme } from '../theme/ThemeContext';
+import {
+  resolveSoft3DGlyph,
+  Soft3DGlyph,
+  type Soft3DGlyphKey,
+} from './Soft3DGlyphs';
 
-export type AccentTone =
+export type { Soft3DGlyphKey };
+
+/** Kept for callers that still pass tone — ignored for fill; glyphs own their colors. */
+export type Soft3DTone =
   | 'blue'
   | 'teal'
   | 'violet'
@@ -12,79 +18,71 @@ export type AccentTone =
   | 'rose'
   | 'emerald'
   | 'cyan'
-  | 'indigo';
+  | 'indigo'
+  | 'muted';
 
-const TONE_GRADIENTS: Record<AccentTone, readonly [string, string]> = {
-  blue: ['#1a6bc4', '#004A99'],
-  teal: ['#2dd4bf', '#0d9488'],
-  violet: ['#a78bfa', '#7c3aed'],
-  amber: ['#fbbf24', '#d97706'],
-  rose: ['#fb7185', '#e11d48'],
-  emerald: ['#34d399', '#059669'],
-  cyan: ['#22d3ee', '#0891b2'],
-  indigo: ['#818cf8', '#4f46e5'],
-};
+/** @deprecated Prefer Soft3DTone — kept for AccentIcon callers. */
+export type AccentTone = Soft3DTone;
 
-export interface AccentIconProps {
-  name: keyof typeof Ionicons.glyphMap;
-  tone?: AccentTone;
+export interface Soft3DIconProps {
+  /** Soft-3D glyph key. If omitted, resolved from `name`. */
+  glyph?: Soft3DGlyphKey;
+  /** Ionicons name (also used for glyph resolution). */
+  name?: keyof typeof Ionicons.glyphMap;
+  /** Ignored for fill — glyphs use their own color schemes (KCB-style). Kept for API compat. */
+  tone?: Soft3DTone;
   size?: number;
+  /** @deprecated Soft-3D glyphs size themselves; kept for API compat. */
   iconSize?: number;
+  /** Dim inactive nav icons. */
+  muted?: boolean;
+  /** Active tab lift. */
+  active?: boolean;
   style?: ViewStyle;
 }
 
 /**
- * Premium gradient icon well — colorful like flagship banking shortcuts,
- * not flat monochrome Ionicons alone.
+ * Soft-3D illustration icon — colorful volumetric glyph with NO colored square/circle well.
+ * Sits directly on the parent surface (flagship banking shortcut style).
  */
-export const AccentIcon: React.FC<AccentIconProps> = ({
+export const Soft3DIcon: React.FC<Soft3DIconProps> = ({
+  glyph,
   name,
-  tone = 'blue',
   size = 52,
-  iconSize = 24,
+  muted = false,
+  active = false,
   style,
 }) => {
-  const theme = useOptionalTheme();
-  const gradientColors =
-    tone === 'blue' && theme
-      ? ([theme.colors.primaryLight, theme.palette.primary] as const)
-      : TONE_GRADIENTS[tone];
+  const glyphKey = resolveSoft3DGlyph(name, glyph);
+  const renderSize = Math.round(size);
 
   return (
-    <LinearGradient
-      colors={[...gradientColors]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+    <View
       style={[
-        styles.well,
+        styles.wrap,
         {
-          width: size,
-          height: size,
-          borderRadius: size * 0.32,
+          width: renderSize,
+          height: renderSize,
+          opacity: muted ? 0.5 : 1,
+          // Always pass an array — `undefined` crashes RN processTransform (forEach of null)
+          transform: active ? [{ translateY: -1 }, { scale: 1.06 }] : [{ translateY: 0 }, { scale: 1 }],
         },
         style,
       ]}
     >
-      <View style={styles.shine} />
-      <Ionicons name={name} size={iconSize} color="#ffffff" />
-    </LinearGradient>
+      <Soft3DGlyph glyph={glyphKey} size={renderSize} muted={muted} />
+    </View>
   );
 };
 
+/** Backward-compatible alias. */
+export type AccentIconProps = Soft3DIconProps;
+
+export const AccentIcon: React.FC<AccentIconProps> = (props) => <Soft3DIcon {...props} />;
+
 const styles = StyleSheet.create({
-  well: {
+  wrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    shadowColor: '#004A99',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  shine: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    height: '45%',
   },
 });

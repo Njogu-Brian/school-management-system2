@@ -41,6 +41,21 @@ export const PeopleScreen: React.FC = () => {
             onPress={() => navigation.navigate('LeaveManagement')}
           />
           <QuickAction
+            label="Leave types"
+            icon="list-outline"
+            onPress={() => navigation.navigate('LeaveTypes')}
+          />
+          <QuickAction
+            label="Apply leave"
+            icon="add-circle-outline"
+            onPress={() => navigation.navigate('LeaveApply')}
+          />
+          <QuickAction
+            label="Staff advances"
+            icon="wallet-outline"
+            onPress={() => navigation.navigate('StaffAdvances')}
+          />
+          <QuickAction
             label="Payroll"
             icon="cash-outline"
             onPress={() => navigation.navigate('PayrollRecords')}

@@ -22,8 +22,7 @@ export interface KpiWidgetData {
 }
 
 const STATS_WIDGET_IDS = new Set<DashboardWidgetId>([
-  'enrollment_kpi',
-  'attendance_kpi',
+  'population_attendance_kpi',
   'collections_kpi',
   'outstanding_fees_kpi',
 ]);

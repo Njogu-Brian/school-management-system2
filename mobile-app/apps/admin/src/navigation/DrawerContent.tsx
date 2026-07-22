@@ -7,16 +7,18 @@ import {
   useCurrentUser,
   useRbac,
 } from '@erp/core';
-import { useTheme } from '@erp/ui';
+import { Soft3DIcon, useTheme, type Soft3DTone } from '@erp/ui';
+import { BlurView } from 'expo-blur';
 import {
   DrawerContentComponentProps,
   DrawerContentScrollView,
 } from '@react-navigation/drawer';
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { confirmAction } from '../features/shared/utils/feedback';
 import { navigateDrawerAreaHome } from './areaRoutes';
+
 function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey {
   const current = state.routes[state.index];
   if (current.name === 'Workspace') {
@@ -45,9 +47,24 @@ function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey
   return map[current.name] ?? 'dashboard';
 }
 
+const AREA_TONE: Record<string, Soft3DTone> = {
+  dashboard: 'blue',
+  students: 'indigo',
+  finance: 'emerald',
+  people: 'cyan',
+  approvals: 'violet',
+  admissions: 'amber',
+  academics: 'violet',
+  operations: 'amber',
+  communication: 'rose',
+  reports: 'blue',
+  settings: 'teal',
+};
+
 export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
-  const { palette, colors, spacing, typography } = useTheme();
+  const { palette, colors, spacing, typography, radius, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const activeKey = getActiveKey(props.state);
   const { drawerAreas } = useRbac();
   const { schoolName, logoUrl } = useBranding();
@@ -63,130 +80,169 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
     props.navigation.closeDrawer();
   };
 
-  return (
-    <DrawerContentScrollView
-      {...props}
-      contentContainerStyle={[
-        styles.content,
-        {
-          backgroundColor: palette.surface,
-          paddingTop: insets.top + spacing.sm,
-          paddingBottom: insets.bottom + spacing.md,
-        },
-      ]}
-    >
-      <View style={[styles.header, { borderBottomColor: palette.border }]}>
-        {logoUrl ? (
-          <Image source={{ uri: logoUrl }} style={styles.logoImage} />
-        ) : (
-          <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-            <Ionicons name="school" size={20} color={colors.white} />
-          </View>
-        )}
-        <View style={styles.headerText}>
-          <Text style={[styles.appName, { color: palette.textPrimary, fontSize: typography.titleSmall.fontSize }]}>
-            {schoolName}
-          </Text>
-          <Text
-            style={[styles.appRole, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}
-          >
-            Admin
-          </Text>
-        </View>
-      </View>
+  const frosted = (
+    <BlurView
+      intensity={Platform.OS === 'ios' ? 64 : 80}
+      tint={isDark ? 'dark' : 'light'}
+      experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+      style={StyleSheet.absoluteFill}
+    />
+  );
 
-      <View style={{ paddingVertical: spacing.sm }}>
-        {drawerAreas.map((area) => {
-          const active = area.key === activeKey;
-          return (
-            <Pressable
-              key={area.key}
-              accessibilityRole="button"
-              accessibilityLabel={area.label}
-              accessibilityState={{ selected: active }}
-              onPress={() => handlePress(area)}
-              style={[styles.item, active && { backgroundColor: palette.primaryMuted }]}
+  return (
+    <View style={[styles.root, { width: Math.min(280, windowWidth * 0.72) }]}>
+      {frosted}
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: isDark ? 'rgba(12,16,24,0.28)' : 'rgba(0,74,153,0.06)',
+          },
+        ]}
+      />
+      <DrawerContentScrollView
+        {...props}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + spacing.sm,
+            paddingBottom: insets.bottom + spacing.md,
+          },
+        ]}
+        style={{ backgroundColor: 'transparent' }}
+      >
+        <View style={[styles.header, { borderBottomColor: palette.borderSubtle }]}>
+          {logoUrl ? (
+            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+          ) : (
+            <Soft3DIcon name="school" tone="blue" size={40} />
+          )}
+          <View style={[styles.headerText, { marginLeft: spacing.sm }]}>
+            <Text
+              style={{
+                color: palette.textPrimary,
+                fontSize: typography.titleSmall.fontSize,
+                fontWeight: '700',
+              }}
+              numberOfLines={2}
             >
-              <Ionicons
-                name={area.icon as keyof typeof Ionicons.glyphMap}
-                size={22}
-                color={active ? colors.primary : palette.textSecondary}
-              />
-              <Text
+              {schoolName}
+            </Text>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                fontWeight: '600',
+                marginTop: 2,
+              }}
+            >
+              Admin
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ paddingVertical: spacing.sm }}>
+          {drawerAreas.map((area) => {
+            const active = area.key === activeKey;
+            const tone = AREA_TONE[area.key] ?? 'blue';
+            return (
+              <Pressable
+                key={area.key}
+                accessibilityRole="button"
+                accessibilityLabel={area.label}
+                accessibilityState={{ selected: active }}
+                onPress={() => handlePress(area)}
                 style={[
-                  styles.itemLabel,
+                  styles.item,
                   {
-                    color: active ? colors.primary : palette.textPrimary,
-                    fontSize: typography.titleSmall.fontSize,
-                    fontWeight: active ? '700' : '500',
+                    borderRadius: radius.control,
+                    backgroundColor: active ? palette.primaryMuted : 'transparent',
                   },
                 ]}
               >
-                {area.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+                <Soft3DIcon
+                  name={area.icon as keyof typeof Ionicons.glyphMap}
+                  tone={active ? tone : 'muted'}
+                  muted={!active}
+                  active={active}
+                  size={36}
+                />
+                <Text
+                  style={{
+                    marginLeft: spacing.mdSm,
+                    color: active ? palette.primary : palette.textPrimary,
+                    fontSize: typography.body.fontSize,
+                    fontWeight: active ? '700' : '500',
+                    flex: 1,
+                  }}
+                >
+                  {area.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
-      <View style={[styles.footer, { borderTopColor: palette.border }]}>
-        {user ? (
-          <View style={styles.userRow}>
-            <View style={[styles.avatar, { backgroundColor: palette.accent }]}>
-              <Text style={[styles.avatarText, { color: colors.primary }]}>
-                {user.name?.trim()?.charAt(0)?.toUpperCase() ?? '?'}
-              </Text>
-            </View>
-            <View style={styles.userText}>
-              <Text
-                numberOfLines={1}
-                style={[styles.userName, { color: palette.textPrimary, fontSize: typography.body.fontSize }]}
-              >
-                {user.name}
-              </Text>
-              {user.roleName ? (
+        <View style={[styles.footer, { borderTopColor: palette.borderSubtle }]}>
+          {user ? (
+            <View style={styles.userRow}>
+              <View style={[styles.avatar, { backgroundColor: palette.primaryMuted }]}>
+                <Text style={[styles.avatarText, { color: colors.primary }]}>
+                  {user.name?.trim()?.charAt(0)?.toUpperCase() ?? '?'}
+                </Text>
+              </View>
+              <View style={styles.userText}>
                 <Text
                   numberOfLines={1}
-                  style={[styles.userRole, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}
+                  style={{ color: palette.textPrimary, fontSize: typography.body.fontSize, fontWeight: '700' }}
                 >
-                  {user.roleName}
+                  {user.name}
                 </Text>
-              ) : null}
+                {user.roleName ? (
+                  <Text
+                    numberOfLines={1}
+                    style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 1 }}
+                  >
+                    {user.roleName}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-          </View>
-        ) : null}
+          ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Sign out"
-          onPress={confirmLogout}
-          style={styles.logout}
-        >
-          <Ionicons name="log-out-outline" size={22} color={colors.error} />
-          <Text style={[styles.logoutLabel, { color: colors.error, fontSize: typography.titleSmall.fontSize }]}>
-            Sign out
-          </Text>
-        </Pressable>
-      </View>
-    </DrawerContentScrollView>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+            onPress={confirmLogout}
+            style={styles.logout}
+          >
+            <Soft3DIcon name="log-out-outline" tone="rose" size={32} />
+            <Text
+              style={{
+                marginLeft: spacing.mdSm,
+                color: colors.error,
+                fontSize: typography.titleSmall.fontSize,
+                fontWeight: '600',
+              }}
+            >
+              Sign out
+            </Text>
+          </Pressable>
+        </View>
+      </DrawerContentScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, paddingTop: 0 },
+  root: { flex: 1, overflow: 'hidden' },
+  content: { flexGrow: 1, paddingTop: 0, backgroundColor: 'transparent' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  logo: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   logoImage: {
     width: 40,
@@ -194,41 +250,36 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     resizeMode: 'contain',
   },
-  headerText: { marginLeft: 12 },
-  appName: { fontWeight: '700' },
-  appRole: { marginTop: 1, fontWeight: '600', letterSpacing: 0.5 },
+  headerText: { flex: 1 },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     marginHorizontal: 8,
-    borderRadius: 12,
+    marginVertical: 2,
+    minHeight: 48,
   },
-  itemLabel: { marginLeft: 14 },
   footer: {
     marginTop: 'auto',
     paddingTop: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   userRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { fontWeight: '700', fontSize: 16 },
-  userText: { marginLeft: 12, flex: 1 },
-  userName: { fontWeight: '700' },
-  userRole: { marginTop: 1, fontWeight: '500' },
+  avatarText: { fontWeight: '700', fontSize: 15 },
+  userText: { marginLeft: 10, flex: 1 },
   logout: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
-  logoutLabel: { marginLeft: 14, fontWeight: '600' },
 });

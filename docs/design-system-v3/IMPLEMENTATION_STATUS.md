@@ -1,41 +1,44 @@
 # Implementation Status — Design System V3
 
-> Updated July 2026. **Full plan implemented** for Admin Expo + `@erp/ui` (docs → tokens → chrome → modules → visual overhaul → a11y/feedback).
+> Updated July 2026. Soft-3D + frosted nav + critical UX bugfixes (attendance loop, approvals crash, bio/OTP, persistent tabs).
 
 ## Tracks
 
 | Track | Status | Visible? |
 |-------|--------|----------|
-| Stage 1 Foundation (tokens, theme, primitives, dialogs, splash) | Done | Subtle → chrome |
-| Stage 2 Modules (hubs, empties, registries, 360 shells) | Done | Yes |
-| Stage 3 Polish (typography ban, skeletons, AMOLED, health tests) | Done | Yes |
-| **Visual Overhaul** (login, heroes, AccentIcon, floating tabs, gradients) | Done | **Yes** |
-| Motion a11y + branded feedback (reduce motion, Alert→Toast/Confirm) | Done | Yes |
+| Stage 1–3 foundation / modules / polish | Done | Yes |
+| Visual Overhaul (login, heroes, floating tabs) | Done | Yes |
+| Motion a11y + branded feedback | Done | Yes |
+| **Soft-3D icons + frosted nav** | Done | **Yes** |
+| Critical UX bugfixes (Jul 21) | Done | **Yes** |
 
-## Visual Overhaul checklist
+## Soft-3D + nav chrome checklist
 
 | Surface | Status |
 |---------|--------|
-| Login full-bleed hero + dark glass sheet | Done |
-| Dashboard greeting / Command Center hero + motion | Done |
-| KPI / Quick actions gradient `AccentIcon` | Done |
-| Floating `PremiumTabBar` | Done |
-| `GlobalAppHeader` brand strip + icon wells | Done |
-| Primary `Button` gradients | Done |
-| Segmented tabs filled active | Done |
-| Empty states AccentIcon + primary CTA | Done |
-| FAB gradient + AccentIcon rows | Done |
-| Charcoal dark + AMOLED toggle | Done |
-| Domain cards `radius.card` + AccentIcon (academics/approvals/settings) | Done |
-| Approval priority left stripe | Done |
-| FilterBottomSheet `radius.sheet` + scrim | Done |
-| SearchBar clear + focus elevation | Done |
-| TextField left/right slots | Done |
-| `useReducedMotion` gates DashboardHero | Done |
-| Palette `secondary` / AMOLED-safe chrome | Done |
-| Drawer active `primaryMuted` + confirm logout | Done |
-| Admin workflows off `Alert.alert` → FeedbackProvider | Done |
-| Docs COLOR_SYSTEM synced to shipping tokens | Done |
+| `Soft3DIcon` free-standing soft-3D glyphs | Done |
+| Floating frosted `PremiumTabBar` (BlurView on iOS + Android) | Done |
+| Drawer tabs on drawer-only routes via `withWorkspaceTabBar` | Done |
+| Compact drawer (~280dp / 72%) + real blur (not solid white) | Done |
+| Global “Search anything” on **Dashboard only** | Done |
+| Soft-3D header approvals / notifications icons | Done |
+| Distinct Soft3D: Mark attendance = clipboard; Approvals = check | Done |
+
+## Auth / biometrics
+
+| Behavior | Status |
+|----------|--------|
+| Enable biometrics stores token + last password credentials | Done |
+| Logout keeps biometric enrollment (unlock on next visit) | Done |
+| Different user login clears bio binding and re-prompts enable | Done |
+| Login screen biometric-first when enrolled | Done |
+| OTP sign-in (`/login/otp/request` + `/verify`) | Done |
+
+## Known mismatch — collections figures
+
+Android Admin and Web may show different **collections / total invoiced** totals because they use different aggregations or date scopes (e.g. `GET /finance/summary` vs dashboard stats vs web finance reports; mobile fallbacks also sum only the first page of payments). Align term / academic year / campus filters when comparing. Tracked for a follow-up API parity pass.
+
+**Mitigation (Jul 21):** Billing and Collections list screens now show a KPI strip from `useFinanceDashboardKpis` / `GET /finance/summary` (same source as the Finance dashboard), so list + hub figures stay aligned within the mobile app.
 
 ## How to verify
 
@@ -44,10 +47,11 @@ cd mobile-app
 npm run test:design-system
 ```
 
-Reload Expo Go after pull (`r` or restart with `--clear`).
+Reload Expo Go (`r`). Prefer `npx.cmd expo start --offline` if online CLI validation fails.
 
-## Deferred (product / later)
+## Deferred
 
-- Custom display font (needs branding decision)
-- Detox E2E on device
+- Custom display font
+- Detox E2E
+- Full finance / settings visual depth pass beyond Soft3D + tab clearance
 - KPI sparklines / tablet master-detail

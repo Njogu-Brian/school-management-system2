@@ -3,8 +3,7 @@ import type { PermissionInput } from '@erp/core';
 
 /** Stable widget identifiers for registry and future API mapping. */
 export type DashboardWidgetId =
-  | 'enrollment_kpi'
-  | 'attendance_kpi'
+  | 'population_attendance_kpi'
   | 'collections_kpi'
   | 'outstanding_fees_kpi'
   | 'pending_approvals_kpi';

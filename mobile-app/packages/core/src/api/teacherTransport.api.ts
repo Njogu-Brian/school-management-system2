@@ -56,7 +56,12 @@ export interface TeacherTransportTrip {
 }
 
 export const teacherTransportApi = {
-  getStudents(params?: { date?: string; classroom_id?: number }): Promise<ApiResponse<TeacherTransportResponse>> {
+  getStudents(params?: {
+    date?: string;
+    classroom_id?: number;
+    stream_id?: number;
+    search?: string;
+  }): Promise<ApiResponse<TeacherTransportResponse>> {
     return apiClient.get<TeacherTransportResponse>('/teacher/transport/students', params);
   },
 

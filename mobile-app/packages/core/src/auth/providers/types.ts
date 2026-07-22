@@ -1,7 +1,7 @@
 import type { LoginCredentials, User } from '../../types';
 
 /** Authentication methods supported by the strategy registry. */
-export type AuthMethod = 'password' | 'google' | 'biometric';
+export type AuthMethod = 'password' | 'google' | 'biometric' | 'otp';
 
 /** Normalized outcome from any auth provider before session establishment. */
 export interface AuthProviderResult {

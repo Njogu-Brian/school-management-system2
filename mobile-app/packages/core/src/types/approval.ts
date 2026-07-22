@@ -8,7 +8,11 @@ export type ApprovalStatus =
 
 export type ApprovalPriority = 'critical' | 'high' | 'medium' | 'low';
 
-export type ApprovalSourceType = 'leave_request' | 'lesson_plan' | 'online_admission';
+export type ApprovalSourceType =
+  | 'leave_request'
+  | 'lesson_plan'
+  | 'online_admission'
+  | 'staff_advance';
 
 /** Composite id: `{sourceType}:{numericId}` */
 export type ApprovalCompositeId = `${ApprovalSourceType}:${number}`;

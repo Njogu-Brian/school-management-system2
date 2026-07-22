@@ -8,6 +8,17 @@
         if ($invoice->balance > 0) {
             $payNowBtn = '<a href="' . route('finance.mpesa.prompt-payment.form', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) . '" class="btn btn-finance btn-success"><i class="bi bi-phone"></i> Prompt Parent to Pay (M-PESA)</a>';
             $payNowBtn .= '<a href="' . route('finance.mpesa.links.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) . '" class="btn btn-finance btn-primary"><i class="bi bi-link-45deg"></i> Generate Payment Link</a>';
+            try {
+                if ($invoice->student?->family_id) {
+                    $familyLink = ensure_family_payment_link($invoice->student->family_id);
+                    if ($familyLink) {
+                        $shareUrl = url('/pay/' . ($familyLink->hashed_id ?? $familyLink->token));
+                        $payNowBtn .= '<button type="button" class="btn btn-finance btn-finance-outline" onclick="navigator.clipboard.writeText(' . json_encode($shareUrl) . '); this.innerText=\'Copied!\'; setTimeout(() => this.innerHTML=\'<i class=\\\'bi bi-share\\\'></i> Copy payment link\', 1500);"><i class="bi bi-share"></i> Copy payment link</button>';
+                    }
+                }
+            } catch (\Throwable $e) {
+                // ignore — generate link button still available
+            }
         }
     @endphp
     

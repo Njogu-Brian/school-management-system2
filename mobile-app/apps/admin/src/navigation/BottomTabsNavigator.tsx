@@ -60,6 +60,13 @@ const TAB_BAR_LABEL: Record<keyof TabsParamList, string> = {
   People: 'HR',
 };
 
+const TAB_TONE: Record<keyof TabsParamList, 'blue' | 'indigo' | 'emerald' | 'cyan'> = {
+  Dashboard: 'blue',
+  Students: 'indigo',
+  Finance: 'emerald',
+  People: 'cyan',
+};
+
 const NoTabsFallback: React.FC = () => {
   const { palette, typography } = useTheme();
   return (
@@ -80,6 +87,7 @@ function AdminFloatingTabBar({ state, navigation }: BottomTabBarProps) {
       label: TAB_BAR_LABEL[name],
       icon: TAB_ICON[name],
       iconFocused: TAB_ICON_FOCUSED[name],
+      tone: TAB_TONE[name],
     };
   });
   const activeKey = state.routes[state.index]?.name ?? items[0]?.key;
@@ -87,7 +95,7 @@ function AdminFloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const onTabPress = useCallback(
     (key: string) => {
       const routeName = key as keyof TabsParamList;
-      navigateTabHome(navigation, routeName);
+      navigateTabHome(navigation as never, routeName);
     },
     [navigation],
   );
@@ -121,6 +129,7 @@ export const BottomTabsNavigator: React.FC = () => {
           <AppHeaderChrome
             title={TAB_HEADER_LABEL[route.name]}
             onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+            showGlobalSearch={route.name === 'Dashboard'}
           />
         ),
       })}

@@ -7,6 +7,7 @@ use App\Models\LeaveRequest;
 use App\Models\Academics\LessonPlan;
 use App\Models\OnlineAdmission;
 use App\Models\Requisition;
+use App\Models\StaffAdvance;
 use Illuminate\Http\Request;
 
 /**
@@ -33,6 +34,9 @@ class ApiApprovalsController extends Controller
         }
         if ($sourceType === 'all' || $sourceType === 'requisition') {
             $items = array_merge($items, $this->requisitionItems($status, $perPage));
+        }
+        if ($sourceType === 'all' || $sourceType === 'staff_advance') {
+            $items = array_merge($items, $this->advanceItems($status, $perPage));
         }
 
         usort($items, function ($a, $b) {
@@ -68,6 +72,9 @@ class ApiApprovalsController extends Controller
             'requisition' => $this->formatRequisitionItem(
                 Requisition::with(['requestedBy', 'items'])->findOrFail((int) $id)
             ),
+            'staff_advance' => $this->formatAdvanceItem(
+                StaffAdvance::with(['staff', 'createdBy'])->findOrFail((int) $id)
+            ),
             default => null,
         };
 
@@ -86,6 +93,7 @@ class ApiApprovalsController extends Controller
             'leave_request' => app(ApiLeaveRequestController::class)->approve($request, (int) $id),
             'lesson_plan' => app(ApiLessonPlansController::class)->approve($request, (int) $id),
             'requisition' => app(ApiRequisitionController::class)->approve($request, (int) $id),
+            'staff_advance' => app(ApiStaffAdvanceController::class)->approve($request, (int) $id),
             default => response()->json([
                 'success' => false,
                 'message' => 'Approve not supported for this approval type in mobile.',
@@ -97,10 +105,19 @@ class ApiApprovalsController extends Controller
     {
         [$type, $id] = $this->parseComposite($compositeId);
 
+        if ($type === 'staff_advance' && ! $request->filled('reason')) {
+            $request->merge([
+                'reason' => $request->input('rejection_reason')
+                    ?? $request->input('rejection_notes')
+                    ?? 'Rejected',
+            ]);
+        }
+
         return match ($type) {
             'leave_request' => app(ApiLeaveRequestController::class)->reject($request, (int) $id),
             'lesson_plan' => app(ApiLessonPlansController::class)->reject($request, (int) $id),
             'requisition' => app(ApiRequisitionController::class)->reject($request, (int) $id),
+            'staff_advance' => app(ApiStaffAdvanceController::class)->reject($request, (int) $id),
             default => response()->json([
                 'success' => false,
                 'message' => 'Reject not supported for this approval type in mobile.',
@@ -238,6 +255,45 @@ class ApiApprovalsController extends Controller
             'requester_name' => $r->requestedBy?->name,
             'summary' => $r->purpose,
             'can_act' => $r->status === 'pending',
+        ];
+    }
+
+    protected function advanceItems(string $status, int $limit): array
+    {
+        $query = StaffAdvance::with(['staff', 'createdBy'])->orderByDesc('created_at');
+        if ($status === 'approved') {
+            $query->whereIn('status', ['approved', 'active', 'completed']);
+        } elseif ($status === 'rejected') {
+            $query->where('status', 'cancelled');
+        } elseif ($status === 'pending') {
+            $query->where('status', 'pending');
+        }
+
+        return $query->limit($limit)->get()->map(fn ($a) => $this->formatAdvanceItem($a))->all();
+    }
+
+    protected function formatAdvanceItem(StaffAdvance $a): array
+    {
+        $approvalStatus = match ($a->status) {
+            'approved', 'active', 'completed' => 'approved',
+            'cancelled' => 'rejected',
+            default => 'pending',
+        };
+        $requested = (float) ($a->requested_amount ?? $a->amount);
+
+        return [
+            'id' => 'staff_advance:'.$a->id,
+            'source_type' => 'staff_advance',
+            'source_id' => $a->id,
+            'title' => 'Salary advance',
+            'subtitle' => ($a->staff?->full_name ?? $a->staff?->name ?? 'Staff').' · KES '.number_format($requested, 2),
+            'status' => $approvalStatus,
+            'priority' => 'medium',
+            'requested_at' => optional($a->created_at)?->toIso8601String(),
+            'due_date' => optional($a->advance_date)?->format('Y-m-d'),
+            'requester_name' => $a->staff?->full_name ?? $a->staff?->name,
+            'summary' => $a->purpose ?? $a->description,
+            'can_act' => $a->status === 'pending',
         ];
     }
 

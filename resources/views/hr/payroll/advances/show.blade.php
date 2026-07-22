@@ -70,15 +70,19 @@
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-md-4">
-                                <label class="text-muted small">Advance Amount</label>
+                            <div class="col-md-3">
+                                <label class="text-muted small">Requested Amount</label>
+                                <div class="h5 mb-0">Ksh {{ number_format($advance->requested_amount ?? $advance->amount, 2) }}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="text-muted small">Issued / Approved Amount</label>
                                 <div class="h4 text-primary mb-0">Ksh {{ number_format($advance->amount, 2) }}</div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="text-muted small">Amount Repaid</label>
                                 <div class="h4 text-success mb-0">Ksh {{ number_format($advance->amount_repaid, 2) }}</div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="text-muted small">Balance</label>
                                 <div class="h4 text-info mb-0">Ksh {{ number_format($advance->balance, 2) }}</div>
                             </div>
@@ -180,9 +184,43 @@
                         <h5 class="mb-0">Actions</h5>
                     </div>
                     <div class="card-body">
-                        <form action="{{ route('hr.payroll.advances.approve', $advance->id) }}" method="POST" onsubmit="return confirm('Approve this advance?')">
+                        <form action="{{ route('hr.payroll.advances.approve', $advance->id) }}" method="POST">
                             @csrf
-                            <button type="submit" class="btn btn-success w-100 mb-2">
+                            <div class="mb-3">
+                                <label class="form-label">Issued amount (KES)</label>
+                                <input type="number" name="amount" step="0.01" min="0.01"
+                                       class="form-control"
+                                       value="{{ old('amount', $advance->amount) }}"
+                                       required>
+                                <div class="form-text">
+                                    Requested: Ksh {{ number_format($advance->requested_amount ?? $advance->amount, 2) }}.
+                                    You may approve a lower amount (e.g. issue 3000 of 5000).
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Repayment method</label>
+                                <select name="repayment_method" class="form-select" id="approveRepaymentMethod">
+                                    @foreach(['lump_sum' => 'Lump Sum', 'installments' => 'Installments', 'monthly_deduction' => 'Monthly Deduction'] as $key => $label)
+                                        <option value="{{ $key }}" @selected(old('repayment_method', $advance->repayment_method) === $key)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="mb-3" id="approveInstallments">
+                                <label class="form-label">Installment count</label>
+                                <input type="number" name="installment_count" min="1" class="form-control"
+                                       value="{{ old('installment_count', $advance->installment_count) }}">
+                            </div>
+                            <div class="mb-3" id="approveMonthly">
+                                <label class="form-label">Monthly deduction (KES)</label>
+                                <input type="number" name="monthly_deduction_amount" step="0.01" min="0.01" class="form-control"
+                                       value="{{ old('monthly_deduction_amount', $advance->monthly_deduction_amount) }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notes</label>
+                                <textarea name="notes" rows="2" class="form-control" placeholder="Optional approval notes"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 mb-2"
+                                    onclick="return confirm('Approve this advance with the issued amount?')">
                                 <i class="bi bi-check-circle"></i> Approve Advance
                             </button>
                         </form>

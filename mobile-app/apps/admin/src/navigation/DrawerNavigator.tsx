@@ -1,5 +1,3 @@
-import { useRbac } from '@erp/core';
-import { useTheme } from '@erp/ui';
 import { AppHeaderChrome } from './AppHeaderChrome';
 import {
   createDrawerNavigator,
@@ -8,6 +6,7 @@ import {
 } from '@react-navigation/drawer';
 import { DrawerActions } from '@react-navigation/native';
 import React from 'react';
+import { useWindowDimensions } from 'react-native';
 import { AcademicsStackNavigator } from './AcademicsStackNavigator';
 import { AdmissionsStackNavigator } from './AdmissionsStackNavigator';
 import { ApprovalsStackNavigator } from './ApprovalsStackNavigator';
@@ -18,8 +17,10 @@ import { SettingsScreen } from '../features/settings';
 import { AREA_TO_DRAWER_ROUTE } from './areaRoutes';
 import { BottomTabsNavigator } from './BottomTabsNavigator';
 import { DrawerContent } from './DrawerContent';
+import { withWorkspaceTabBar } from './PersistentWorkspaceTabBar';
 import { withAreaGuard } from './guards/ProtectedAreaScreen';
 import type { DrawerParamList } from './types';
+import { useRbac } from '@erp/core';
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
 
@@ -54,8 +55,8 @@ const DRAWER_SCREENS: Array<{
 ];
 
 export const DrawerNavigator: React.FC = () => {
-  const { palette } = useTheme();
   const { drawerAreas, tabAreas } = useRbac();
+  const { width: windowWidth } = useWindowDimensions();
 
   const allowedDrawerKeys = new Set(drawerAreas.map((a) => a.key));
 
@@ -69,13 +70,23 @@ export const DrawerNavigator: React.FC = () => {
         ? AREA_TO_DRAWER_ROUTE[firstDrawerScreen.areaKey]
         : 'Workspace';
 
+  const drawerWidth = Math.min(280, Math.round(windowWidth * 0.72));
+
   return (
     <Drawer.Navigator
       initialRouteName={initialRoute}
       drawerContent={(props) => <DrawerContent {...props} />}
       screenOptions={{
         headerShown: false,
-        drawerStyle: { backgroundColor: palette.surface },
+        drawerType: 'front',
+        overlayColor: 'rgba(0,0,0,0.45)',
+        drawerStyle: {
+          width: drawerWidth,
+          backgroundColor: 'transparent',
+          borderTopRightRadius: 24,
+          borderBottomRightRadius: 24,
+          overflow: 'hidden',
+        },
       }}
     >
       {tabAreas.length > 0 ? (
@@ -95,7 +106,7 @@ export const DrawerNavigator: React.FC = () => {
           <Drawer.Screen
             key={routeName}
             name={routeName}
-            component={withAreaGuard(areaKey, component)}
+            component={withAreaGuard(areaKey, withWorkspaceTabBar(component))}
             options={headerOptions(title)}
           />
         );

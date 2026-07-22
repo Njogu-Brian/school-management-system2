@@ -305,12 +305,19 @@
         }
     </script>
 
-    {{-- ✅ Announcements --}}
+    {{-- Announcements --}}
     <div class="announcements mt-4">
-        <strong>📢 Announcements:</strong>
-        <ul class="mb-0">
+        <strong>Announcements</strong>
+        <ul class="mb-0 mt-2">
             @forelse ($announcements as $note)
-                <li>{{ $note }}</li>
+                <li class="mb-2">
+                    @if(is_object($note) && !empty($note->title))
+                        <div class="fw-semibold">{{ $note->title }}</div>
+                        <div class="text-muted small">{{ \Illuminate\Support\Str::limit(strip_tags($note->content ?? ''), 160) }}</div>
+                    @else
+                        {{ is_object($note) ? ($note->content ?? '') : $note }}
+                    @endif
+                </li>
             @empty
                 <li>No current announcements</li>
             @endforelse

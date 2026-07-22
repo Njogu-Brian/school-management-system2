@@ -7,9 +7,15 @@ import { navigateToDrawer, navigateToTab } from './navigateWorkspace';
 export interface AppHeaderChromeProps {
   title: string;
   onMenuPress?: () => void;
+  /** Global “Search anything” prompt — dashboard only to avoid duplicate search bars. */
+  showGlobalSearch?: boolean;
 }
 
-export const AppHeaderChrome: React.FC<AppHeaderChromeProps> = ({ title, onMenuPress }) => {
+export const AppHeaderChrome: React.FC<AppHeaderChromeProps> = ({
+  title,
+  onMenuPress,
+  showGlobalSearch = false,
+}) => {
   const navigation = useNavigation();
   const unreadQuery = useUnreadNotificationCount();
   const approvalsQuery = usePendingApprovals();
@@ -37,7 +43,7 @@ export const AppHeaderChrome: React.FC<AppHeaderChromeProps> = ({ title, onMenuP
     <GlobalAppHeader
       title={title}
       onMenuPress={onMenuPress}
-      onSearchPress={onSearch}
+      onSearchPress={showGlobalSearch ? onSearch : undefined}
       onNotificationsPress={onNotifications}
       onApprovalsPress={onApprovals}
       onProfilePress={onProfile}

@@ -3,6 +3,7 @@ import { FlatList, StyleSheet, View, type FlatListProps } from 'react-native';
 import { FilterBottomSheet } from '../filters/FilterBottomSheet';
 import { FilterTriggerButton } from '../filters/FilterTriggerButton';
 import { useTheme } from '../theme/ThemeContext';
+import { FLOATING_TAB_BAR_CLEARANCE } from './PremiumTabBar';
 
 export interface RegistryListLayoutProps<T> extends Omit<
   FlatListProps<T>,
@@ -70,7 +71,7 @@ export function RegistryListLayout<T>({
       <FlatList
         {...flatListProps}
         contentContainerStyle={[
-          { paddingHorizontal: horizontal, paddingBottom: spacing.xl },
+          { paddingHorizontal: horizontal, paddingBottom: FLOATING_TAB_BAR_CLEARANCE },
           contentContainerStyle,
         ]}
         ListHeaderComponent={

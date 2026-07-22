@@ -54,6 +54,7 @@ class StaffAdvanceController extends Controller
         $validated['amount_repaid'] = 0;
         $validated['status'] = 'pending';
         $validated['created_by'] = auth()->id();
+        $validated['requested_amount'] = $validated['amount'];
 
         // Calculate expected completion date if not provided
         if ($validated['repayment_method'] === 'monthly_deduction' && !$request->filled('expected_completion_date')) {
@@ -119,6 +120,36 @@ class StaffAdvanceController extends Controller
 
         if ($advance->status !== 'pending') {
             return back()->with('error', 'Only pending advances can be approved.');
+        }
+
+        $validated = $request->validate([
+            'amount' => 'nullable|numeric|min:0.01',
+            'repayment_method' => 'nullable|in:lump_sum,installments,monthly_deduction',
+            'installment_count' => 'nullable|integer|min:1',
+            'monthly_deduction_amount' => 'nullable|numeric|min:0.01',
+            'notes' => 'nullable|string',
+        ]);
+
+        if (! $advance->requested_amount) {
+            $advance->requested_amount = $advance->amount;
+        }
+
+        // Admin may issue less than requested (e.g. approve 3000 of 5000).
+        if (isset($validated['amount'])) {
+            $advance->amount = (float) $validated['amount'];
+            $advance->balance = $advance->amount - (float) $advance->amount_repaid;
+        }
+        if (! empty($validated['repayment_method'])) {
+            $advance->repayment_method = $validated['repayment_method'];
+        }
+        if (array_key_exists('installment_count', $validated)) {
+            $advance->installment_count = $validated['installment_count'];
+        }
+        if (array_key_exists('monthly_deduction_amount', $validated)) {
+            $advance->monthly_deduction_amount = $validated['monthly_deduction_amount'];
+        }
+        if (! empty($validated['notes'])) {
+            $advance->notes = trim(($advance->notes ? $advance->notes."\n" : '').$validated['notes']);
         }
 
         $advance->status = 'approved';

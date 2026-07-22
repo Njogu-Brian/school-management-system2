@@ -6,8 +6,8 @@
 Root
  └─ Auth stack (Login, Biometric, Access Denied)
  └─ App shell
-     ├─ Drawer (secondary areas)
-     └─ Bottom tabs (Workspace)
+     ├─ Drawer (secondary areas) — compact + frosted glass
+     └─ Bottom tabs (Workspace) — floating soft-3D bar
          ├─ Dashboard stack
          ├─ Students stack
          ├─ Finance stack
@@ -28,29 +28,37 @@ Sources: `mobile-app/apps/admin/src/navigation/` (`DrawerNavigator`, `BottomTabs
 | Finance | Money workflows |
 | People | Staff / HR |
 
-### V3 chrome rules
+Drawer-only routes (Approvals, Academics, Settings, …) also show the floating workspace tab bar via `withWorkspaceTabBar` so primary navigation is always reachable.
 
-- Custom tab bar styling: `surfaceRaised`, soft top border, **not** stock Material look-alike
-- Active: primary color + filled icon + indicator
-- Inactive: outline icon + `textMuted`
-- Min height 56 + safe area; labels `caption`
-- Optional future: elevated center action — only if product requires; do not copy competitor “Explore” metaphor blindly
+### V3 chrome rules (flagship)
+
+- **Floating pill bar** inset from edges (`marginHorizontal` ≥ 16), elevated above content
+- **Frosted / translucent** surface (`BlurView` on iOS + Android `dimezisBlurView`) + soft border — not a flat opaque strip
+- Soft-3D icons for every tab (active + inactive); active lifts with primary ring / stronger sheen
+- Labels: `tiny` / `caption`, primary when focused, muted when idle
+- Min height 56 + safe area; `ScreenContainer` applies `FLOATING_TAB_BAR_CLEARANCE` so content is not covered
+- Do **not** use stock Material default tab chrome
+- Global “Search anything…” prompt appears on **Dashboard** header only (local list search bars remain on feature screens)
 
 ## Drawer
 
-- Group items by IA sections (Approvals, Academics, Operations, etc.)
-- Permission-filtered (`withAreaGuard` / RBAC)
-- Active row: `primaryMuted` background + primary label
-- Header: school/branding snippet — not a second dashboard
+| Spec | Value |
+|------|-------|
+| Width | **~72% of screen**, prefer **≤280dp** on phones — never full-bleed wall |
+| Surface | **Frosted glass** (`BlurView` on iOS + Android) + light primary wash — not solid white |
+| Scrim | Dimmed backdrop (`opacity.scrim`) over the main shell |
+| Active row | Soft-3D icon + `primaryMuted` pill background + primary label |
+| Inactive row | Soft-3D icon (muted tone) + `textMain` label |
+| Header | Compact branding (logo 32–36) — not a second dashboard |
 
 ## Top app bar / headers
 
 | Context | Pattern |
 |---------|---------|
-| Tab roots | `GlobalAppHeader` — menu, title/branch, search, notifications |
+| Tab roots | `GlobalAppHeader` — menu, title/branch, Soft3D approvals + notifications, profile; search on Dashboard only |
 | Stack children | Shared screen header: back (Ionicons), title `title`, optional actions |
 | Module hubs | `DashboardHero` below header (or integrated) |
-| Finance / Academics subflows | Domain headers (`FinanceScreenHeader`, `AcademicScreenHeader`) — migrate to shared `ScreenHeader` |
+| Finance / Academics subflows | Domain headers — migrate to shared `ScreenHeader` |
 | 360 profiles | Collapsing header + `ScrollableTabBar`; avoid double back bars |
 
 **V3:** One `ScreenHeader` primitive; domain headers become thin wrappers. No Unicode `←`.
@@ -61,7 +69,7 @@ Sources: `mobile-app/apps/admin/src/navigation/` (`DrawerNavigator`, `BottomTabs
 |-----|---------|
 | Drill into entity | Stack **push** |
 | Filters, quick actions, pickers | **Bottom sheet** (`FilterBottomSheet` pattern) |
-| Confirm destructive / branded success | **Dialog** (shared primitive — NEW) |
+| Confirm destructive / branded success | **Dialog** (shared primitive) |
 | Session / About from Settings | Modal or sheet — keep hub uncluttered |
 | M-Pesa / payment prompt | Sheet (existing `MpesaPromptSheet`) |
 
@@ -89,6 +97,8 @@ See [ANIMATION_GUIDE.md](./ANIMATION_GUIDE.md): stack slide slow; sheets emphasi
 
 | Do | Don't |
 |----|-------|
+| Compact frosted drawer | Full-width solid white drawer |
+| Floating frosted tab bar + soft-3D icons | Flat Material tabs with outline-only icons |
 | One header system | Stack header + custom Unicode back + 360 title bar |
 | Sheets for filters | Five always-visible filter rows above lists |
 | Permission-aware menus | Showing locked modules as broken screens |

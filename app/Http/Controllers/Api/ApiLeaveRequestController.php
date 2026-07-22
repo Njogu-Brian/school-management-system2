@@ -15,16 +15,160 @@ class ApiLeaveRequestController extends Controller
 {
     public function leaveTypes(Request $request)
     {
-        $types = LeaveType::active()->orderBy('name')->get()->map(fn ($t) => [
+        $includeInactive = $request->boolean('include_inactive')
+            && $request->user()?->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+
+        $query = LeaveType::query()->orderBy('name');
+        if (! $includeInactive) {
+            $query->active();
+        }
+
+        $types = $query->get()->map(fn ($t) => [
             'id' => $t->id,
             'name' => $t->name,
             'code' => $t->code,
             'max_days' => $t->max_days,
             'is_paid' => (bool) $t->is_paid,
             'requires_approval' => (bool) $t->requires_approval,
+            'description' => $t->description,
+            'is_active' => (bool) $t->is_active,
         ])->values();
 
         return response()->json(['success' => true, 'data' => $types]);
+    }
+
+    public function storeLeaveType(Request $request)
+    {
+        if (! $request->user()?->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            return response()->json(['success' => false, 'message' => 'Not allowed.'], 403);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:100',
+            'code' => 'required|string|max:50|unique:leave_types,code',
+            'max_days' => 'required|integer|min:0',
+            'is_paid' => 'required|boolean',
+            'requires_approval' => 'nullable|boolean',
+            'description' => 'nullable|string|max:1000',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $type = LeaveType::create([
+            'name' => $validated['name'],
+            'code' => $validated['code'],
+            'max_days' => $validated['max_days'],
+            'is_paid' => $validated['is_paid'],
+            'requires_approval' => $validated['requires_approval'] ?? true,
+            'description' => $validated['description'] ?? null,
+            'is_active' => $validated['is_active'] ?? true,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Leave type created.',
+            'data' => [
+                'id' => $type->id,
+                'name' => $type->name,
+                'code' => $type->code,
+                'max_days' => $type->max_days,
+                'is_paid' => (bool) $type->is_paid,
+                'requires_approval' => (bool) $type->requires_approval,
+                'description' => $type->description,
+                'is_active' => (bool) $type->is_active,
+            ],
+        ], 201);
+    }
+
+    public function updateLeaveType(Request $request, int $id)
+    {
+        if (! $request->user()?->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            return response()->json(['success' => false, 'message' => 'Not allowed.'], 403);
+        }
+
+        $type = LeaveType::findOrFail($id);
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:100',
+            'code' => 'sometimes|required|string|max:50|unique:leave_types,code,'.$type->id,
+            'max_days' => 'sometimes|required|integer|min:0',
+            'is_paid' => 'sometimes|required|boolean',
+            'requires_approval' => 'nullable|boolean',
+            'description' => 'nullable|string|max:1000',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $type->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Leave type updated.',
+            'data' => [
+                'id' => $type->id,
+                'name' => $type->name,
+                'code' => $type->code,
+                'max_days' => $type->max_days,
+                'is_paid' => (bool) $type->is_paid,
+                'requires_approval' => (bool) $type->requires_approval,
+                'description' => $type->description,
+                'is_active' => (bool) $type->is_active,
+            ],
+        ]);
+    }
+
+    /** Assign leave type entitlement to a staff member (creates/updates StaffLeaveBalance). */
+    public function assignLeaveType(Request $request)
+    {
+        if (! $request->user()?->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            return response()->json(['success' => false, 'message' => 'Not allowed.'], 403);
+        }
+
+        $validated = $request->validate([
+            'staff_id' => 'required|exists:staff,id',
+            'leave_type_id' => 'required|exists:leave_types,id',
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+            'entitlement_days' => 'required|integer|min:0',
+            'carried_forward' => 'nullable|integer|min:0',
+        ]);
+
+        $yearId = $validated['academic_year_id']
+            ?? AcademicYear::where('is_active', true)->value('id');
+
+        if (! $yearId) {
+            return response()->json(['success' => false, 'message' => 'No active academic year.'], 422);
+        }
+
+        $carried = (int) ($validated['carried_forward'] ?? 0);
+        $entitlement = (int) $validated['entitlement_days'];
+
+        $balance = StaffLeaveBalance::updateOrCreate(
+            [
+                'staff_id' => $validated['staff_id'],
+                'leave_type_id' => $validated['leave_type_id'],
+                'academic_year_id' => $yearId,
+            ],
+            [
+                'entitlement_days' => $entitlement,
+                'carried_forward' => $carried,
+                'used_days' => 0,
+                'remaining_days' => $entitlement + $carried,
+            ]
+        );
+
+        $balance->load('leaveType');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Leave type assigned to staff.',
+            'data' => [
+                'id' => $balance->id,
+                'staff_id' => $balance->staff_id,
+                'leave_type_id' => $balance->leave_type_id,
+                'leave_type_name' => $balance->leaveType?->name,
+                'is_paid' => (bool) $balance->leaveType?->is_paid,
+                'academic_year_id' => $balance->academic_year_id,
+                'entitlement_days' => $balance->entitlement_days,
+                'remaining_days' => $balance->remaining_days,
+            ],
+        ]);
     }
 
     public function index(Request $request)

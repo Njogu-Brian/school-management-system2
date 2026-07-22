@@ -26,7 +26,7 @@ class AuthController extends Controller
             })
             ->latest()
             ->take(5)
-            ->pluck('content');
+            ->get(['id', 'title', 'content']);
 
         return view('auth.login', compact('settings', 'announcements'));
     }

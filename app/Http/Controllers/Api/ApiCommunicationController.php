@@ -124,6 +124,7 @@ class ApiCommunicationController extends Controller
      */
     public function recipients(Request $request)
     {
+        $channel = $request->input('channel', 'sms');
         $query = Student::query()
             ->where('archive', 0)
             ->where('is_alumni', false)
@@ -137,25 +138,43 @@ class ApiCommunicationController extends Controller
         $students = $query->orderBy('first_name')->limit(2000)->get();
 
         $recipients = [];
-        $seenPhones = [];
+        $seen = [];
         foreach ($students as $student) {
             $parent = $student->parent;
             if (! $parent) {
                 continue;
             }
-            foreach ($parent->schoolNotificationSmsRecipients() as $r) {
-                $phone = $r['phone'] ?? null;
-                if (! $phone || isset($seenPhones[$phone])) {
-                    continue;
+            if ($channel === 'email') {
+                foreach ($parent->schoolNotificationEmailRecipients() as $r) {
+                    $email = $r['email'] ?? null;
+                    if (! $email || isset($seen[$email])) {
+                        continue;
+                    }
+                    $seen[$email] = true;
+                    $recipients[] = [
+                        'phone' => $email,
+                        'email' => $email,
+                        'name' => $r['name'] ?? null,
+                        'relation' => $r['slot'] ?? null,
+                        'student_name' => $student->full_name,
+                        'classroom' => $student->classroom?->name,
+                    ];
                 }
-                $seenPhones[$phone] = true;
-                $recipients[] = [
-                    'phone' => $phone,
-                    'name' => $r['name'] ?? null,
-                    'relation' => $r['slot'] ?? null,
-                    'student_name' => $student->full_name,
-                    'classroom' => $student->classroom?->name,
-                ];
+            } else {
+                foreach ($parent->schoolNotificationSmsRecipients() as $r) {
+                    $phone = $r['phone'] ?? null;
+                    if (! $phone || isset($seen[$phone])) {
+                        continue;
+                    }
+                    $seen[$phone] = true;
+                    $recipients[] = [
+                        'phone' => $phone,
+                        'name' => $r['name'] ?? null,
+                        'relation' => $r['slot'] ?? null,
+                        'student_name' => $student->full_name,
+                        'classroom' => $student->classroom?->name,
+                    ];
+                }
             }
         }
 
@@ -216,6 +235,7 @@ class ApiCommunicationController extends Controller
             'phones' => 'nullable|array',
             'phones.*' => 'string',
             'sender_id' => 'nullable|string|in:finance,default',
+            'from_system_recipients' => 'sometimes|boolean',
         ]);
 
         $message = $data['message'] ?? '';
@@ -243,6 +263,13 @@ class ApiCommunicationController extends Controller
 
         if (count($phones) === 0) {
             return response()->json(['success' => false, 'message' => 'At least one valid phone number is required.'], 422);
+        }
+
+        if (! empty($data['template_id']) && ! $request->boolean('from_system_recipients')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'When using a template, select recipients from the system (e.g. a class). Custom numbers alone are not allowed.',
+            ], 422);
         }
 
         $sender = null;
@@ -280,6 +307,7 @@ class ApiCommunicationController extends Controller
             'custom_numbers' => 'nullable|string',
             'phones' => 'nullable|array',
             'phones.*' => 'string',
+            'from_system_recipients' => 'sometimes|boolean',
         ]);
 
         $message = $data['message'] ?? '';
@@ -309,6 +337,13 @@ class ApiCommunicationController extends Controller
             return response()->json(['success' => false, 'message' => 'At least one valid phone number is required.'], 422);
         }
 
+        if (! empty($data['template_id']) && ! $request->boolean('from_system_recipients')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'When using a template, select recipients from the system (e.g. a class). Custom numbers alone are not allowed.',
+            ], 422);
+        }
+
         $sent = 0;
         $failed = 0;
         foreach ($phones as $phone) {
@@ -328,6 +363,68 @@ class ApiCommunicationController extends Controller
             'success' => true,
             'message' => "WhatsApp dispatch complete. Sent: {$sent}, failed: {$failed}.",
             'data' => ['sent' => $sent, 'failed' => $failed, 'total' => count($phones)],
+        ]);
+    }
+
+    public function sendEmail(Request $request)
+    {
+        $data = $request->validate([
+            'subject' => 'nullable|string|max:255',
+            'message' => 'nullable|string',
+            'template_id' => 'nullable|exists:communication_templates,id',
+            'emails' => 'nullable|array',
+            'emails.*' => 'email',
+            'custom_emails' => 'nullable|string',
+            'from_system_recipients' => 'sometimes|boolean',
+        ]);
+
+        $subject = $data['subject'] ?? 'School message';
+        $message = $data['message'] ?? '';
+        if (! empty($data['template_id'])) {
+            $tpl = CommunicationTemplate::find($data['template_id']);
+            $subject = $tpl?->subject ?: ($tpl?->title ?: $subject);
+            $message = $tpl?->content ?: $message;
+        }
+
+        if (! filled($message)) {
+            return response()->json(['success' => false, 'message' => 'Message content is required.'], 422);
+        }
+
+        if (! empty($data['template_id']) && ! $request->boolean('from_system_recipients')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'When using a template, select recipients from the system (e.g. a class). Custom emails alone are not allowed.',
+            ], 422);
+        }
+
+        $emails = $data['emails'] ?? [];
+        if (! empty($data['custom_emails'])) {
+            $emails = array_merge(
+                $emails,
+                preg_split('/[\s,;]+/', $data['custom_emails'], -1, PREG_SPLIT_NO_EMPTY) ?: []
+            );
+        }
+        $emails = array_values(array_unique(array_filter(array_map('trim', $emails))));
+
+        if (count($emails) === 0) {
+            return response()->json(['success' => false, 'message' => 'At least one email address is required.'], 422);
+        }
+
+        $sent = 0;
+        $failed = 0;
+        foreach ($emails as $email) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\GenericMail($subject, $message));
+                $sent++;
+            } catch (\Throwable $e) {
+                $failed++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Email dispatch complete. Sent: {$sent}, failed: {$failed}.",
+            'data' => ['sent' => $sent, 'failed' => $failed, 'total' => count($emails)],
         ]);
     }
 

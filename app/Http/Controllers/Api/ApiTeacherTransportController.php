@@ -41,8 +41,23 @@ class ApiTeacherTransportController extends Controller
 
         if ($this->isTeacherOnly($user)) {
             $user->applyTeacherStudentFilter($query);
-        } elseif ($request->filled('classroom_id')) {
-            $query->where('classroom_id', (int) $request->classroom_id);
+        } else {
+            if ($request->filled('classroom_id')) {
+                $query->where('classroom_id', (int) $request->classroom_id);
+            }
+            if ($request->filled('stream_id')) {
+                $query->where('stream_id', (int) $request->stream_id);
+            }
+        }
+
+        if ($request->filled('search')) {
+            $search = '%' . addcslashes((string) $request->search, '%_\\') . '%';
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', $search)
+                    ->orWhere('middle_name', 'like', $search)
+                    ->orWhere('last_name', 'like', $search)
+                    ->orWhere('admission_number', 'like', $search);
+            });
         }
 
         $students = $query->orderBy('first_name')->limit(200)->get();

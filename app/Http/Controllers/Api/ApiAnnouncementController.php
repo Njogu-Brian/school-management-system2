@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Services\ExpoPushService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ApiAnnouncementController extends Controller
 {
@@ -45,6 +46,33 @@ class ApiAnnouncementController extends Controller
                 'from' => $paginated->firstItem(),
                 'to' => $paginated->lastItem(),
             ],
+        ]);
+    }
+
+    /**
+     * Guest-facing active announcements for the login screen.
+     */
+    public function publicIndex(Request $request)
+    {
+        $limit = min((int) $request->input('limit', 5), 10);
+        $items = Announcement::where('active', 1)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->latest()
+            ->limit($limit)
+            ->get()
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'title' => $a->title ?? '',
+                'content' => Str::limit(trim(strip_tags($a->content ?? '')), 180),
+                'created_at' => $a->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $items,
         ]);
     }
 

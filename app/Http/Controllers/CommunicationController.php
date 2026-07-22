@@ -95,6 +95,10 @@ class CommunicationController extends Controller
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
 
+        if (! empty($data['template_id']) && ($data['target'] ?? '') === 'custom') {
+            return back()->with('error', 'When using a template, select system recipients (parents, staff, class, or students)—not custom numbers/emails.');
+        }
+
         $subject     = $data['title'] ?? 'Untitled Email';
         $messageBody = $data['message'];
 
@@ -278,6 +282,10 @@ class CommunicationController extends Controller
         $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
+
+        if (! empty($data['template_id']) && ($data['target'] ?? '') === 'custom') {
+            return back()->with('error', 'When using a template, select system recipients (parents, staff, class, or students)—not custom numbers.');
+        }
 
         $message = $data['message'];
         if ($data['template_id']) {
@@ -537,6 +545,10 @@ class CommunicationController extends Controller
         $data['no_fee_balance_only'] = !empty($request->boolean('no_fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
         $data = $this->normalizeClassroomIdsForRecipients($data);
+
+        if (! empty($data['template_id']) && ($data['target'] ?? '') === 'custom') {
+            return back()->with('error', 'When using a template, select system recipients (parents, staff, class, or students)—not custom numbers.');
+        }
 
         $message = $data['message'];
         $title = 'WhatsApp';

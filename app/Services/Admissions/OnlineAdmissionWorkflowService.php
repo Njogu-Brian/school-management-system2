@@ -83,6 +83,8 @@ class OnlineAdmissionWorkflowService
             'application_status' => 'rejected',
             'reviewed_by' => $userId,
             'review_date' => now(),
+            // Keep the row; clear waitlist position when leaving waitlist
+            'waitlist_position' => null,
         ]);
 
         return $admission->fresh();
@@ -250,6 +252,7 @@ class OnlineAdmissionWorkflowService
                 'review_date' => now(),
                 'classroom_id' => $validated['classroom_id'],
                 'stream_id' => $validated['stream_id'] ?? null,
+                'waitlist_position' => null,
             ]);
 
             try {

@@ -15,7 +15,8 @@ import { getCachedUser, saveUser } from '../storage/authStorage';
 import {
   authenticateWithBiometrics,
   canUseBiometrics,
-  clearBiometricAuthBundle,
+  clearBiometricEnrollment,
+  getBiometricAuthBundle,
   getBiometricEnabled,
   saveBiometricAuthBundle,
   setBiometricEnabled,
@@ -63,6 +64,10 @@ export interface AuthContextValue {
   biometricEnrollmentPending: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   loginWithGoogleIdToken: (idToken: string) => Promise<void>;
+  /** Request a login OTP for phone/email identifier. */
+  requestLoginOtp: (identifier: string) => Promise<void>;
+  /** Verify login OTP and establish a session. */
+  verifyLoginOtp: (identifier: string, code: string) => Promise<void>;
   /** Unlock an existing session with device biometrics (no backend login). */
   unlockWithBiometrics: () => Promise<void>;
   dismissBiometricEnrollment: () => void;
@@ -85,6 +90,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [biometricEnrollmentPending, setBiometricEnrollmentPending] = useState(false);
 
   const logoutRef = useRef<() => Promise<void>>(async () => {});
+  /** Last password/OTP credentials — used when enabling biometrics so unlock can re-login. */
+  const lastCredentialsRef = useRef<{ identifier: string; password: string } | null>(null);
 
   const completeAuth = useCallback(
     async (result: AuthProviderResult, options?: { offerBiometricEnrollment?: boolean }) => {
@@ -102,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             : null) ?? null;
         setGoogleIdentity(identity);
-      } else if (result.method === 'password') {
+      } else if (result.method === 'password' || result.method === 'otp') {
         setGoogleIdentity(null);
       }
 
@@ -110,13 +117,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (offerEnrollment && result.method !== 'biometric') {
         const enabled = await getBiometricEnabled();
         const deviceOk = await canUseBiometrics();
-        if (!enabled && deviceOk) {
+        const existing = await getBiometricAuthBundle();
+        const switchedUser =
+          Boolean(existing?.userId) && existing!.userId !== result.user.id;
+
+        if (switchedUser) {
+          await clearBiometricEnrollment();
+          if (deviceOk) {
+            setBiometricEnrollmentPending(true);
+            setStatus('authenticated');
+            return;
+          }
+        } else if (!enabled && deviceOk) {
           setBiometricEnrollmentPending(true);
           setStatus('authenticated');
           return;
-        }
-        if (enabled && deviceOk) {
-          await saveBiometricAuthBundle(result.token);
+        } else if (enabled && deviceOk) {
+          const creds = lastCredentialsRef.current;
+          await saveBiometricAuthBundle(result.token, {
+            userId: result.user.id,
+            identifier: creds?.identifier,
+            password: creds?.password,
+          });
         }
       }
 
@@ -133,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } finally {
       await session.clearSession();
-      await clearBiometricAuthBundle();
+      // Keep biometric enrollment so the next visit can unlock without retyping a password.
       setUser(null);
       setLastAuthMethod(null);
       setGoogleIdentity(null);
@@ -219,7 +241,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const login = useCallback(
-    (credentials: LoginCredentials) => runAuth(() => passwordProvider.authenticate(credentials)),
+    (credentials: LoginCredentials) =>
+      runAuth(async () => {
+        lastCredentialsRef.current = {
+          identifier: credentials.identifier,
+          password: credentials.password,
+        };
+        return passwordProvider.authenticate(credentials);
+      }),
+    [runAuth],
+  );
+
+  const requestLoginOtp = useCallback(async (identifier: string) => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await authApi.requestLoginOtp(identifier.trim());
+      if (!res.success) {
+        throw new Error(res.message || 'Could not send OTP.');
+      }
+    } catch (err) {
+      const message = toAuthError(err);
+      setError(message);
+      throw err;
+    } finally {
+      setSubmitting(false);
+    }
+  }, []);
+
+  const verifyLoginOtp = useCallback(
+    (identifier: string, code: string) =>
+      runAuth(async () => {
+        const res = await authApi.verifyLoginOtp(identifier.trim(), code.trim());
+        if (!res.success || !res.data) {
+          throw new Error(res.message || 'Invalid OTP.');
+        }
+        lastCredentialsRef.current = null;
+        return {
+          method: 'otp' as const,
+          token: res.data.token,
+          user: mapApiUser(res.data.user),
+          expiresAt: res.data.expires_at ?? null,
+          rememberMe: true,
+        };
+      }),
     [runAuth],
   );
 
@@ -260,10 +325,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!verified) {
       throw new Error('Biometric verification was cancelled.');
     }
+    const creds = lastCredentialsRef.current;
     await setBiometricEnabled(true);
-    await saveBiometricAuthBundle(token);
+    await saveBiometricAuthBundle(token, {
+      userId: user?.id,
+      identifier: creds?.identifier,
+      password: creds?.password,
+    });
     setBiometricEnrollmentPending(false);
-  }, [session.token]);
+  }, [session.token, user?.id]);
 
   const skipBiometricEnrollment = useCallback(() => {
     setBiometricEnrollmentPending(false);
@@ -314,6 +384,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       biometricEnrollmentPending,
       login,
       loginWithGoogleIdToken,
+      requestLoginOtp,
+      verifyLoginOtp,
       unlockWithBiometrics,
       dismissBiometricEnrollment,
       enableBiometrics,
@@ -331,6 +403,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       biometricEnrollmentPending,
       login,
       loginWithGoogleIdToken,
+      requestLoginOtp,
+      verifyLoginOtp,
       unlockWithBiometrics,
       dismissBiometricEnrollment,
       enableBiometrics,

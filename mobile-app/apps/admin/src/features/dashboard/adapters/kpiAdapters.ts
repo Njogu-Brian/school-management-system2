@@ -44,17 +44,25 @@ function chartPeriodTrend(
   };
 }
 
-export function adaptEnrollmentKpi(stats: AdminDashboardStats): KpiAdapterResult {
-  const { label, icon } = meta('enrollment_kpi');
+export function adaptPopulationAttendanceKpi(stats: AdminDashboardStats): KpiAdapterResult {
+  const { label, icon } = meta('population_attendance_kpi');
   const total = stats.total_students ?? 0;
-  const trend = chartPeriodTrend(stats.charts?.enrollment);
+  const present = stats.present_today ?? 0;
+  const absent = stats.absent_today ?? 0;
+  const unmarked =
+    stats.unmarked_today ?? Math.max(0, total - present - absent);
+  const pct = total > 0 ? (present / total) * 100 : null;
 
   const admissionsToday = stats.admissions_today ?? 0;
   const lastAdmission = stats.last_admission;
   let admissionCaption: string | undefined;
   if (lastAdmission?.date) {
     const d = new Date(lastAdmission.date);
-    const formatted = d.toLocaleDateString('en-KE', { day: 'numeric', month: 'numeric', year: 'numeric' });
+    const formatted = d.toLocaleDateString('en-KE', {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+    });
     const count = lastAdmission.count ?? 1;
     const studentWord = count === 1 ? 'student' : 'students';
     admissionCaption = `Last admission ${formatted} · ${count} ${studentWord}`;
@@ -62,32 +70,22 @@ export function adaptEnrollmentKpi(stats: AdminDashboardStats): KpiAdapterResult
     admissionCaption = `${formatInteger(admissionsToday)} joined today`;
   }
 
+  const attendanceCaption =
+    pct != null ? `${formatPercent(pct)} present` : 'Attendance today';
+
   return {
     isEmpty: total === 0,
     kpi: {
       label,
       icon: icon as KpiCardProps['icon'],
       value: formatInteger(total),
-      delta: admissionCaption ?? trend?.delta ?? 'Active students',
-      deltaPositive: trend?.deltaPositive ?? true,
-    },
-  };
-}
-
-export function adaptAttendanceKpi(stats: AdminDashboardStats): KpiAdapterResult {
-  const { label, icon } = meta('attendance_kpi');
-  const total = stats.total_students ?? 0;
-  const present = stats.present_today ?? 0;
-  const pct = total > 0 ? (present / total) * 100 : null;
-
-  return {
-    isEmpty: total === 0,
-    kpi: {
-      label,
-      icon: icon as KpiCardProps['icon'],
-      value: pct != null ? formatPercent(pct) : '—',
-      delta: `${formatInteger(present)} present today`,
-      deltaPositive: pct != null && pct >= 85,
+      delta: admissionCaption ?? attendanceCaption,
+      deltaPositive: pct != null ? pct >= 85 : true,
+      stats: [
+        { label: 'Present today', value: formatInteger(present) },
+        { label: 'Absent today', value: formatInteger(absent) },
+        { label: 'Unmarked today', value: formatInteger(unmarked) },
+      ],
     },
   };
 }
@@ -172,8 +170,7 @@ const STATS_ADAPTERS: Record<
   Exclude<DashboardWidgetId, 'pending_approvals_kpi'>,
   (stats: AdminDashboardStats) => KpiAdapterResult
 > = {
-  enrollment_kpi: adaptEnrollmentKpi,
-  attendance_kpi: adaptAttendanceKpi,
+  population_attendance_kpi: adaptPopulationAttendanceKpi,
   collections_kpi: adaptCollectionsKpi,
   outstanding_fees_kpi: adaptOutstandingFeesKpi,
 };

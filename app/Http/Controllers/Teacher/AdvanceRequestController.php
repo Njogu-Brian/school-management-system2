@@ -46,28 +46,26 @@ class AdvanceRequestController extends Controller
             'purpose' => 'nullable|string|max:255',
             'description' => 'nullable|string',
             'advance_date' => 'required|date',
-            'repayment_method' => 'required|in:lump_sum,installments,monthly_deduction',
-            'installment_count' => 'nullable|integer|min:1|required_if:repayment_method,installments',
-            'monthly_deduction_amount' => 'nullable|numeric|min:0.01|required_if:repayment_method,monthly_deduction',
-            'expected_completion_date' => 'nullable|date|after_or_equal:advance_date',
             'notes' => 'nullable|string',
         ]);
 
-        $payload = $validated;
-        $payload['staff_id'] = $staff->id;
-        $payload['balance'] = $payload['amount'];
-        $payload['amount_repaid'] = 0;
-        $payload['status'] = 'pending';
-        $payload['created_by'] = Auth::id();
-
-        if (
-            $payload['repayment_method'] === 'monthly_deduction'
-            && !$request->filled('expected_completion_date')
-            && !empty($payload['monthly_deduction_amount'])
-        ) {
-            $months = (int) ceil($payload['amount'] / $payload['monthly_deduction_amount']);
-            $payload['expected_completion_date'] = Carbon::parse($payload['advance_date'])->addMonths($months);
-        }
+        // Staff may only request a specific amount — installment plans are admin-only.
+        $payload = [
+            'amount' => $validated['amount'],
+            'requested_amount' => $validated['amount'],
+            'purpose' => $validated['purpose'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'advance_date' => $validated['advance_date'],
+            'notes' => $validated['notes'] ?? null,
+            'repayment_method' => 'lump_sum',
+            'installment_count' => null,
+            'monthly_deduction_amount' => null,
+            'staff_id' => $staff->id,
+            'balance' => $validated['amount'],
+            'amount_repaid' => 0,
+            'status' => 'pending',
+            'created_by' => Auth::id(),
+        ];
 
         StaffAdvance::create($payload);
 

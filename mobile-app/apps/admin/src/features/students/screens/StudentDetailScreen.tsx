@@ -4,6 +4,7 @@ import {
   useInfinitePaymentList,
   useStudentAttendanceTrend,
   useStudentDetail,
+  useStudentPaymentLink,
   useStudentStatement,
   useStudentStats,
   type StudentDetail,
@@ -18,9 +19,10 @@ import {
   useTheme,
 } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, Share, StyleSheet, Text } from 'react-native';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { navigateToTab } from '../../../navigation/navigateWorkspace';
+import { showError } from '../../shared/utils/feedback';
 import { AttendanceTab } from '../student360/tabs/AttendanceTab';
 import { DocumentsTab } from '../student360/tabs/DocumentsTab';
 import { FamilyTab } from '../student360/tabs/FamilyTab';
@@ -30,7 +32,7 @@ import { RequirementsTab } from '../student360/tabs/RequirementsTab';
 import { TransportTab } from '../student360/tabs/TransportTab';
 import { AcademicsTab } from '../student360/tabs/AcademicsTab';
 import { OverviewTab } from '../student360/tabs/OverviewTab';
-
+import { formatKes } from '../student360/utils/formatters';
 type Props = StackScreenProps<StudentsStackParamList, 'StudentDetail'>;
 
 const BASE_TABS: Array<{ id: Student360TabId; label: string }> = [
@@ -95,6 +97,26 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const attendanceQuery = useStudentAttendanceTrend(studentId, {
     enabled: activeTab === 'attendance' || activeTab === 'overview',
   });
+  const paymentLinkQuery = useStudentPaymentLink(studentId, {
+    enabled: canViewFees && activeTab === 'fees',
+  });
+
+  const sharePaymentLink = async () => {
+    const link = paymentLinkQuery.data;
+    if (!link?.url) {
+      showError('Payment link', 'No payment link is available for this student.');
+      return;
+    }
+    const studentName =
+      detailQuery.data?.fullName ?? summary?.fullName ?? 'Student';
+    const balance = formatKes(statementQuery.data?.closing_balance ?? link.amount);
+    const message = `School fees payment for ${studentName}\nBalance: ${balance}\nPay here: ${link.short_url ?? link.url}`;
+    try {
+      await Share.share({ message, title: 'M-Pesa payment link' });
+    } catch (err) {
+      showError('Share failed', (err as Error).message);
+    }
+  };
 
   const tabs = useMemo(() => {
     const list = [...BASE_TABS];
@@ -233,6 +255,8 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             onPaymentPress={(paymentId) =>
               navigateToTab(navigation, 'Finance', 'PaymentDetail', { paymentId })
             }
+            onSharePaymentLink={() => void sharePaymentLink()}
+            sharePaymentLinkLoading={paymentLinkQuery.isFetching}
           />
         );
       case 'family':

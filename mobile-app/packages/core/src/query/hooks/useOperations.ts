@@ -588,7 +588,42 @@ export function useTripMutations() {
     },
     onSuccess: invalidate,
   });
-  return { create, update, remove };
+  const assignStudent = useMutation({
+    mutationFn: async (payload: Parameters<typeof operationsApi.assignStudentToTrip>[0]) => {
+      const res = await operationsApi.assignStudentToTrip(payload);
+      if (!res.success) throw new Error(res.message || 'Failed to assign student.');
+      return res.data;
+    },
+    onSuccess: invalidate,
+  });
+  const assignRouteStudent = useMutation({
+    mutationFn: async ({
+      routeId,
+      ...payload
+    }: {
+      routeId: number;
+      student_id: number;
+      mode: 'permanent' | 'short_term';
+      leg?: 'morning' | 'evening' | 'both';
+      start_date?: string;
+      end_date?: string;
+      reason?: string;
+    }) => {
+      const res = await operationsApi.assignStudentToRoute(routeId, payload);
+      if (!res.success) throw new Error(res.message || 'Failed to assign student to route.');
+      return res.data;
+    },
+    onSuccess: invalidate,
+  });
+  const createSpecial = useMutation({
+    mutationFn: async (payload: Parameters<typeof operationsApi.createSpecialAssignment>[0]) => {
+      const res = await operationsApi.createSpecialAssignment(payload);
+      if (!res.success) throw new Error(res.message || 'Failed to create short-term assignment.');
+      return res.data;
+    },
+    onSuccess: invalidate,
+  });
+  return { create, update, remove, assignStudent, assignRouteStudent, createSpecial };
 }
 
 export function useInventoryItem(id: number, options?: { enabled?: boolean }) {

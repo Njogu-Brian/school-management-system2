@@ -4,6 +4,9 @@ import {
   AssetDetailScreen,
   AssetFormScreen,
   AssetsListScreen,
+  ConcernCreateScreen,
+  ConcernDetailScreen,
+  ConcernsListScreen,
   InventoryItemDetailScreen,
   InventoryListScreen,
   IssueBookScreen,
@@ -16,6 +19,7 @@ import {
   RequisitionFormScreen,
   RequisitionsListScreen,
   TripDetailScreen,
+  TripStudentsScreen,
   TripsListScreen,
   VisitorCheckInScreen,
   VisitorDetailScreen,
@@ -36,6 +40,10 @@ export const OperationsStackNavigator: React.FC = () => (
     <Stack.Screen name="OperationsDashboard" component={OperationsDashboardScreen} />
     <Stack.Screen name="TripsList" component={TripsListScreen} />
     <Stack.Screen name="TripDetail" component={TripDetailScreen} />
+    <Stack.Screen name="TripStudents" component={TripStudentsScreen} />
+    <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
+    <Stack.Screen name="ConcernCreate" component={ConcernCreateScreen} />
+    <Stack.Screen name="ConcernDetail" component={ConcernDetailScreen} />
     <Stack.Screen name="InventoryList" component={InventoryListScreen} />
     <Stack.Screen name="InventoryItemDetail" component={InventoryItemDetailScreen} />
     <Stack.Screen name="RequirementsRoster" component={RequirementsRosterScreen} />

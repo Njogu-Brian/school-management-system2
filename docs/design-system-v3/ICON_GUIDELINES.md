@@ -1,62 +1,78 @@
 # Icon Guidelines — Design System V3
 
-## Baseline
+## Baseline (soft-3D — free-standing)
 
 | Rule | Spec |
 |------|------|
-| Library | `@expo/vector-icons` **Ionicons** (default) |
-| Primary style | **Outline** for navigation and chrome; **Filled** for selected/active |
-| Sizes | 16 (inline), **20** (list), **24** (nav / actions), 28–32 (hero wells) |
+| Primary treatment | **Soft-3D illustrations** with depth/highlights — each glyph has its **own** color scheme |
+| Background | **None** — no colored circle/square well behind icons (KCB-style free-standing glyphs) |
+| Component | `@erp/ui` `Soft3DIcon` (`AccentIcon` is an alias) |
+| Sizes | 28 (nav compact), **36–44** (list / drawer), **48–56** (quick actions / KPIs), 64–80 (empty / hero) |
 | Touch | Icon-only controls ≥ 44dp hit area |
-| Color | `palette.textMain` / `textSub` / `primary` — never random hex |
 | No emoji | Do not use emoji as UI icons |
+
+## Soft-3D anatomy
+
+```
+┌─────────────────────┐
+│  soft contact shadow│
+│     ┌─────────┐     │
+│     │ colorful│     │  ← NO colored circle/square well
+│     │ 3D glyph│     │  ← each glyph owns its own palette
+│     └─────────┘     │
+└─────────────────────┘
+```
+
+| Layer | Purpose |
+|-------|---------|
+| Contact shadow | Soft ellipse under the glyph only (depth) |
+| Glyph | Soft-3D SVG with unique colors (gold coins, green notes, cyan people, orange card, …) |
+
+**Do not** place icons inside a solid/gradient colored square or circle. Icons sit directly on the parent surface (section card / drawer / tab bar).
 
 ## Families
 
 | Family | When to use |
 |--------|-------------|
-| **Outlined** | Default chrome, list trailing actions, form adornments |
-| **Filled** | Active bottom-tab, selected chip leading icon, emphasis |
-| **Rounded wells** | Circular/squircle background (`primaryMuted` or semantic bg) behind icon — dashboard quick actions, settings rows |
-| **Accent / gradient wells** | Module hubs and marketing moments only; keep glyph itself monochrome white or primary |
-| **Status** | Pair icon with semantic color (success check, danger alert) — color never sole signal |
+| **Soft-3D free-standing** | Dashboard quick actions, KPIs, empty states, bottom tabs, drawer, settings, FAB |
+| **Chrome outline** | Dense form adornments, chevrons, tiny meta (16–18dp) |
+| **Status** | Soft-3D glyph whose colors convey meaning — color never sole signal |
 
-## Domain sets (naming guidance)
+## Domain glyph keys
 
-Prefer consistent Ionicons names across modules:
+| Domain | Glyph keys / Ionicons aliases |
+|--------|-------------------------------|
+| Home / Dashboard | `home`, `grid` |
+| Finance | `wallet`, `cash`, `card`, `receipt` |
+| Education | `school`, `book`, `attendance` |
+| People / HR | `people`, `person`, `briefcase`, `leave`, `payroll`, `clock` |
+| Admissions | `admissions`, `person-add` |
+| Approvals | `approvals`, `checkbox`, `checkmark` |
+| Transport / Ops | `bus`, `car`, `clipboard`, `visitor` |
+| Reports | `chart` |
+| Communication | `megaphone`, `chat`, `mail` |
+| System | `settings`, `notifications`, `search`, `shield` |
 
-| Domain | Examples |
-|--------|----------|
-| Finance | `wallet-outline`, `card-outline`, `cash-outline`, `receipt-outline` |
-| Education | `school-outline`, `book-outline`, `ribbon-outline`, `create-outline` |
-| People | `people-outline`, `person-outline`, `id-card-outline` |
-| Transport | `bus-outline`, `car-outline`, `navigate-outline` |
-| Reports | `bar-chart-outline`, `pie-chart-outline`, `analytics-outline` |
-| Communication | `megaphone-outline`, `chatbubble-outline`, `mail-outline` |
-| System | `settings-outline`, `notifications-outline`, `search-outline`, `shield-checkmark-outline` |
+Optional later: WebP assets under `apps/admin/assets/icons/3d/`. Default remains SVG glyphs in `@erp/ui`.
 
-Document any custom SVG assets under `apps/admin/assets/` with 24×24 viewBox and primary-tintable fills.
+## Navigation icons
 
-## Badges on icons
-
-| Badge | Style |
-|-------|-------|
-| `NEW` | Tiny overline, danger/orange pill, top-end of icon well — sparingly |
-| Count | Capsule on bell; max “9+”; semantic danger or brand |
-| Status dot | 8dp circle, semantic tone, not overlapping glyph baseline |
+| Surface | Spec |
+|---------|------|
+| Bottom tabs | Free-standing soft-3D glyphs; active tab slightly lifts |
+| Drawer | Soft-3D glyphs ~36dp; compact frosted drawer |
+| Header actions | Chrome outline or small soft-3D — not oversized |
 
 ## Empty-state & dialog icons
 
-- Large well: 72–80dp circle, `surfaceMuted` or semantic bg
-- Glyph: 32–40dp, primary or semantic fg
-- Same treatment for success dialogs (branded, not system `Alert` icon only)
+- Large soft-3D glyph: 72–80dp — no colored well behind it
 
 ## Do / Don't
 
 | Do | Don't |
 |----|-------|
-| One library (Ionicons) app-wide | Mix Feather + Material + emoji |
-| Match outline/fill to state | Random filled icons in inactive nav |
-| Tint with tokens | Hardcoded `#4B9FFF` in JSX |
-| Align icons to 24 grid | Stretch SVGs unevenly |
-| Use chevron-forward for drill-in | Unicode `>` or `←` as navigation |
+| Free-standing multi-color 3D glyphs | Colored circle/square wells behind every shortcut |
+| Unique palette per action (cash≠approvals≠students) | One purple fill for all module icons |
+| Soft contact shadow under glyph | Flat 2D Ionicons as the hero language |
+| Map domain actions to glyph keys | Random unrelated glyphs |
+| Use chevron-forward for drill-in | Unicode `>` as navigation |

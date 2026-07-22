@@ -1,5 +1,6 @@
 import type { StudentDetail } from '@erp/core';
-import { EmptyState, useTheme } from '@erp/ui';
+import { EmptyState, Soft3DIcon, useTheme } from '@erp/ui';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { openEmail, openPhoneActions } from '../../../../utils/contactActions';
@@ -8,7 +9,7 @@ export interface FamilyTabProps {
   student: StudentDetail;
 }
 
-function ContactRow({
+function ContactCard({
   label,
   name,
   phone,
@@ -19,62 +20,88 @@ function ContactRow({
   phone?: string | null;
   email?: string | null;
 }) {
-  const { palette, typography, spacing } = useTheme();
+  const { palette, typography, spacing, radius, elevation } = useTheme();
   if (!name && !phone && !email) return null;
   return (
-    <View style={[styles.row, { borderBottomColor: palette.border, paddingVertical: spacing.sm }]}>
-      <Text
-        style={{
-          color: palette.textSub,
-          fontSize: typography.caption.fontSize,
-          fontWeight: '600',
-        }}
-      >
-        {label}
-      </Text>
-      <Text
-        style={{
-          color: palette.textMain,
-          fontSize: typography.body.fontSize,
-          marginTop: spacing.xs,
-        }}
-      >
-        {name ?? '—'}
-      </Text>
-      {phone ? (
-        <Pressable onPress={() => void openPhoneActions(phone, name ?? label)}>
+    <View
+      style={[
+        styles.card,
+        elevation[1],
+        {
+          backgroundColor: palette.surfaceRaised,
+          borderColor: palette.borderSubtle,
+          borderRadius: radius.card,
+          padding: spacing.md,
+          marginBottom: spacing.sm,
+        },
+      ]}
+    >
+      <View style={styles.cardHeader}>
+        <Soft3DIcon name="person-outline" size={36} />
+        <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+          <Text
+            style={{
+              color: palette.textMuted,
+              fontSize: typography.caption.fontSize,
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              letterSpacing: 0.4,
+            }}
+          >
+            {label}
+          </Text>
           <Text
             style={{
               color: palette.textMain,
-              fontSize: typography.caption.fontSize,
-              marginTop: spacing.xs,
-              textDecorationLine: 'underline',
+              fontSize: typography.bodyLarge.fontSize,
+              fontWeight: '700',
+              marginTop: 2,
             }}
           >
-            {phone}
+            {name ?? '—'}
           </Text>
+        </View>
+      </View>
+      {phone ? (
+        <Pressable
+          onPress={() => void openPhoneActions(phone, name ?? label)}
+          style={[styles.actionRow, { marginTop: spacing.sm }]}
+        >
+          <Ionicons name="call-outline" size={16} color={palette.primary} />
+          <Text style={{ color: palette.primary, marginLeft: 8, fontWeight: '600' }}>{phone}</Text>
         </Pressable>
       ) : null}
       {email ? (
-        <Pressable onPress={() => void openEmail(email)}>
-          <Text
-            style={{
-              color: palette.textMain,
-              fontSize: typography.caption.fontSize,
-              marginTop: spacing.xs,
-              textDecorationLine: 'underline',
-            }}
-          >
-            {email}
-          </Text>
+        <Pressable onPress={() => void openEmail(email)} style={[styles.actionRow, { marginTop: spacing.xs }]}>
+          <Ionicons name="mail-outline" size={16} color={palette.primary} />
+          <Text style={{ color: palette.primary, marginLeft: 8, fontWeight: '600' }}>{email}</Text>
         </Pressable>
       ) : null}
     </View>
   );
 }
 
-export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
+function SectionTitle({ title }: { title: string }) {
   const { palette, typography, spacing } = useTheme();
+  return (
+    <Text
+      style={{
+        color: palette.textSub,
+        fontSize: typography.overline.fontSize,
+        letterSpacing: typography.overline.letterSpacing,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        marginBottom: spacing.sm,
+        marginTop: spacing.md,
+      }}
+    >
+      {title}
+    </Text>
+  );
+}
+
+export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
+  const { spacing } = useTheme();
   const { parent, guardians, emergencyContact } = student;
 
   const hasParent =
@@ -103,20 +130,8 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
   }
 
   return (
-    <View>
-      <Text
-        style={[
-          styles.section,
-          {
-            color: palette.textSub,
-            fontSize: typography.overline.fontSize,
-            letterSpacing: typography.overline.letterSpacing,
-            marginBottom: spacing.xs,
-          },
-        ]}
-      >
-        Parents
-      </Text>
+    <View style={{ paddingBottom: spacing.md }}>
+      <SectionTitle title="Parents" />
       {!hasParent ? (
         <EmptyState
           title="No parents listed"
@@ -125,19 +140,19 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
         />
       ) : (
         <>
-          <ContactRow
+          <ContactCard
             label="Father"
             name={parent?.fatherName}
             phone={parent?.fatherPhone}
             email={parent?.fatherEmail}
           />
-          <ContactRow
+          <ContactCard
             label="Mother"
             name={parent?.motherName}
             phone={parent?.motherPhone}
             email={parent?.motherEmail}
           />
-          <ContactRow
+          <ContactCard
             label="Guardian"
             name={parent?.guardianName}
             phone={parent?.guardianPhone}
@@ -146,20 +161,7 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
         </>
       )}
 
-      <Text
-        style={[
-          styles.section,
-          {
-            color: palette.textSub,
-            fontSize: typography.overline.fontSize,
-            letterSpacing: typography.overline.letterSpacing,
-            marginTop: spacing.lg,
-            marginBottom: spacing.xs,
-          },
-        ]}
-      >
-        Contacts
-      </Text>
+      <SectionTitle title="Contacts" />
       {guardians.length === 0 ? (
         <EmptyState
           title="No guardians"
@@ -168,9 +170,9 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
         />
       ) : (
         guardians.map((g) => (
-          <ContactRow
+          <ContactCard
             key={g.id}
-            label={`${g.relationship}${g.isPrimary ? ' (primary)' : ''}`}
+            label={`${g.relationship}${g.isPrimary ? ' · primary' : ''}`}
             name={g.name}
             phone={g.phone}
             email={g.email}
@@ -178,20 +180,7 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
         ))
       )}
 
-      <Text
-        style={[
-          styles.section,
-          {
-            color: palette.textSub,
-            fontSize: typography.overline.fontSize,
-            letterSpacing: typography.overline.letterSpacing,
-            marginTop: spacing.lg,
-            marginBottom: spacing.xs,
-          },
-        ]}
-      >
-        Emergency
-      </Text>
+      <SectionTitle title="Emergency" />
       {!hasEmergency ? (
         <EmptyState
           title="No emergency contact"
@@ -199,7 +188,7 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
           icon="call-outline"
         />
       ) : (
-        <ContactRow
+        <ContactCard
           label="Emergency contact"
           name={emergencyContact.name}
           phone={emergencyContact.phone}
@@ -210,6 +199,7 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
 };
 
 const styles = StyleSheet.create({
-  section: { fontWeight: '700', textTransform: 'uppercase' },
-  row: { borderBottomWidth: StyleSheet.hairlineWidth },
+  card: { borderWidth: StyleSheet.hairlineWidth },
+  cardHeader: { flexDirection: 'row', alignItems: 'center' },
+  actionRow: { flexDirection: 'row', alignItems: 'center' },
 });

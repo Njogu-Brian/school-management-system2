@@ -2,6 +2,8 @@ import {
   type TeacherTransportStudent,
   type TeacherTransportTrip,
   type TeacherTransportVehicle,
+  useClassroomStreams,
+  useClassrooms,
   useTeacherTransportActions,
   useTeacherTransportStudents,
   useTeacherTransportVehicles,
@@ -9,6 +11,8 @@ import {
 import {
   AcademicScreenHeader,
   Button,
+  FilterChip,
+  FilterChipRow,
   ListEmptyState,
   ScreenContainer,
   SkeletonListRows,
@@ -16,6 +20,7 @@ import {
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -59,9 +64,24 @@ function FeeBadge({ status, balance }: { status?: 'cleared' | 'pending'; balance
 }
 
 export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, palette, spacing, typography } = useTheme();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const date = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const query = useTeacherTransportStudents({ date });
+  const [classId, setClassId] = useState<number | null>(null);
+  const [streamId, setStreamId] = useState<number | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const classroomsQuery = useClassrooms();
+  const streamsQuery = useClassroomStreams(classId, { enabled: classId != null });
+  const classrooms = classroomsQuery.data ?? [];
+  const streams = streamsQuery.data ?? [];
+
+  const query = useTeacherTransportStudents({
+    date,
+    classroom_id: classId,
+    stream_id: streamId,
+    search: search.trim() || undefined,
+  });
   const vehiclesQuery = useTeacherTransportVehicles({ enabled: false });
   const { markPickup, cancelPickup, reassign } = useTeacherTransportActions();
 
@@ -204,7 +224,87 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
           <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={colors.primary} />
         }
         ListHeaderComponent={
-          <AcademicScreenHeader title="Teacher transport" subtitle={`Today · ${date}`} onBack={() => navigation.goBack()} />
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                <AcademicScreenHeader title="Teacher transport" subtitle={`Today · ${date}`} onBack={() => navigation.goBack()} />
+              </View>
+              <Pressable
+                onPress={() => setSearchOpen((v) => !v)}
+                accessibilityLabel="Search students"
+                style={{
+                  marginTop: spacing.sm,
+                  padding: spacing.sm,
+                  borderRadius: radius.full,
+                  backgroundColor: searchOpen ? `${colors.primary}18` : palette.surfaceRaised,
+                }}
+              >
+                <Ionicons name="search" size={22} color={colors.primary} />
+              </Pressable>
+            </View>
+
+            {searchOpen ? (
+              <TextField
+                label="Search"
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Name or admission number"
+                autoFocus
+              />
+            ) : null}
+
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
+              Class
+            </Text>
+            <FilterChipRow>
+              <FilterChip
+                label="All"
+                active={classId == null}
+                onPress={() => {
+                  setClassId(null);
+                  setStreamId(null);
+                }}
+              />
+              {classrooms.map((c) => (
+                <FilterChip
+                  key={c.id}
+                  label={c.name}
+                  active={classId === c.id}
+                  onPress={() => {
+                    setClassId(c.id);
+                    setStreamId(null);
+                  }}
+                />
+              ))}
+            </FilterChipRow>
+
+            {streams.length > 0 ? (
+              <>
+                <Text
+                  style={{
+                    color: palette.textSecondary,
+                    fontSize: typography.caption.fontSize,
+                    marginTop: spacing.sm,
+                    marginBottom: spacing.xs,
+                  }}
+                >
+                  Stream
+                </Text>
+                <FilterChipRow>
+                  <FilterChip label="All" active={streamId == null} onPress={() => setStreamId(null)} />
+                  {streams.map((s) => (
+                    <FilterChip
+                      key={s.id}
+                      label={s.name}
+                      active={streamId === s.id}
+                      onPress={() => setStreamId(s.id)}
+                    />
+                  ))}
+                </FilterChipRow>
+              </>
+            ) : null}
+            <View style={{ height: spacing.md }} />
+          </View>
         }
         renderItem={renderItem}
         ListEmptyComponent={
@@ -221,7 +321,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
           ) : (
             <ListEmptyState
               title="No transport data"
-              message="No student transport assignments for today."
+              message="No student transport assignments match the filters."
               icon="bus-outline"
             />
           )

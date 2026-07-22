@@ -2,6 +2,7 @@ import { useCan, useInfiniteInvoiceList, type InvoiceSummary } from '@erp/core';
 import {
   countActiveFilters,
   EmptyState,
+  FinanceListKpiStrip,
   FinanceScreenHeader,
   FinanceSearchBar,
   InvoiceFilters,
@@ -72,7 +73,14 @@ export const BillingListScreen: React.FC<Props> = ({ navigation, route }) => {
         data={invoices}
         keyExtractor={(item) => String(item.id)}
         hero={
-          <FinanceScreenHeader title="Billing" subtitle="Invoices (read-only)" onBack={() => navigation.goBack()} />
+          <View style={{ gap: spacing.sm }}>
+            <FinanceScreenHeader
+              title="Billing"
+              subtitle="Invoices (read-only)"
+              onBack={() => navigation.goBack()}
+            />
+            <FinanceListKpiStrip variant="billing" />
+          </View>
         }
         searchBar={
           <FinanceSearchBar

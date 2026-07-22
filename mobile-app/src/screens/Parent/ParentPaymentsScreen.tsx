@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, RefreshControl, TouchableOpacity, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, RefreshControl, TouchableOpacity, Alert, Linking, Share } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { Card } from '@components/common/Card';
 import { EmptyState, LoadingState } from '@components/common/EmptyState';
@@ -66,8 +66,17 @@ export const ParentPaymentsScreen: React.FC<Props> = ({ navigation }) => {
         try {
             const res = await financeApi.getMpesaPaymentLink(studentId);
             if (res.success && res.data?.url) {
-                Alert.alert('Pay fees', 'Open the school payment page?', [
-                    { text: 'Open', onPress: () => Linking.openURL(res.data!.url) },
+                const url = res.data.short_url || res.data.url;
+                Alert.alert('Pay fees', 'Open or share the school payment page?', [
+                    { text: 'Open', onPress: () => Linking.openURL(url) },
+                    {
+                        text: 'Share',
+                        onPress: () =>
+                            void Share.share({
+                                message: `School fees payment link: ${url}`,
+                                title: 'School fees payment',
+                            }),
+                    },
                     { text: 'Cancel', style: 'cancel' },
                 ]);
             }
@@ -105,7 +114,7 @@ export const ParentPaymentsScreen: React.FC<Props> = ({ navigation }) => {
             ) : null}
             <Text style={[styles.title, { color: textMain }]}>Fees & pay</Text>
             <Text style={[styles.sub, { color: textSub }]}>
-                Outstanding per child. Tap Pay to open the school payment page in the browser.
+                Outstanding per child. Tap Pay to open or share the school payment page.
             </Text>
             <FlatList
                 data={rows}

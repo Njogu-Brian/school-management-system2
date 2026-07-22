@@ -11,6 +11,7 @@ import {
   BIOMETRIC_MAX_FAILURES,
 } from '../../storage/biometricStorage';
 import { mapApiUser } from '../mapUser';
+import { PasswordAuthProvider } from './PasswordAuthProvider';
 import type { AuthProviderResult, BiometricAuthInput, IAuthProvider } from './types';
 
 export class BiometricLoginLockedError extends Error {
@@ -29,9 +30,12 @@ export class BiometricNoBundleError extends Error {
   }
 }
 
+const passwordProvider = new PasswordAuthProvider();
+
 /**
- * Unlocks an existing Sanctum session stored behind device biometrics.
- * Never calls `/login` — only rehydrates the token and validates with `GET /user`.
+ * Biometric unlock:
+ * 1. Prefer stored credentials → fresh `POST /login` (works after logout).
+ * 2. Fall back to saved Sanctum token + refresh.
  */
 /** Strategy implementation — use the React `BiometricAuthProvider` for unlock UI state. */
 export class BiometricUnlockStrategy implements IAuthProvider {
@@ -56,7 +60,30 @@ export class BiometricUnlockStrategy implements IAuthProvider {
     }
 
     const bundle = await getBiometricAuthBundle();
-    if (!bundle?.token) {
+    if (!bundle) {
+      throw new BiometricNoBundleError();
+    }
+
+    if (bundle.identifier && bundle.password) {
+      try {
+        const result = await passwordProvider.authenticate({
+          identifier: bundle.identifier,
+          password: bundle.password,
+          remember: true,
+        });
+        await clearBiometricFailureCount();
+        await saveBiometricAuthBundle(result.token, {
+          userId: result.user.id,
+          identifier: bundle.identifier,
+          password: bundle.password,
+        });
+        return { ...result, method: 'biometric' };
+      } catch {
+        /* fall through to token unlock */
+      }
+    }
+
+    if (!bundle.token) {
       throw new BiometricNoBundleError();
     }
 
@@ -82,7 +109,11 @@ export class BiometricUnlockStrategy implements IAuthProvider {
     }
 
     await clearBiometricFailureCount();
-    await saveBiometricAuthBundle(token);
+    await saveBiometricAuthBundle(token, {
+      userId: profile.data.id,
+      identifier: bundle.identifier,
+      password: bundle.password,
+    });
 
     return {
       method: 'biometric',

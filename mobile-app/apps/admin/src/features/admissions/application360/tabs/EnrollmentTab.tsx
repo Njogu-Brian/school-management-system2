@@ -69,6 +69,10 @@ const ChipRow: React.FC<{
   );
 };
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onViewStudent }) => {
   const { palette, colors, spacing, typography } = useTheme();
   const enrollment = application.enrollment;
@@ -89,8 +93,19 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
     defaultTerm ? `${defaultTerm.year}-${defaultTerm.term}` : '',
   );
   const [tripId, setTripId] = useState<number | null>(enrollment.trip_id);
-  const [dropOffId, setDropOffId] = useState<number | null>(enrollment.drop_off_point_id);
+  const [dropOffId, setDropOffId] = useState<number | null | 'other'>(
+    enrollment.drop_off_point_id,
+  );
+  const [dropOffOther, setDropOffOther] = useState(application.dropOffPointOther ?? '');
+  const [transportFee, setTransportFee] = useState('');
+  const [admissionDate, setAdmissionDate] = useState(todayIso());
   const [residentialArea, setResidentialArea] = useState(application.residentialArea ?? '');
+  const [preferredHospital, setPreferredHospital] = useState(application.preferredHospital ?? '');
+  const [emergencyName, setEmergencyName] = useState(application.emergencyContactName ?? '');
+  const [emergencyPhone, setEmergencyPhone] = useState(application.emergencyContactPhone ?? '');
+  const [allergiesNotes, setAllergiesNotes] = useState(application.allergiesNotes ?? '');
+  const [hasAllergies, setHasAllergies] = useState(!!application.hasAllergies);
+  const [isFullyImmunized, setIsFullyImmunized] = useState(!!application.isFullyImmunized);
 
   const streamsQuery = useClassroomStreams(classroomId, { enabled: enrollment.can_enroll });
   const streams = streamsQuery.data ?? [];
@@ -118,14 +133,21 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
     classroomId != null &&
     categoryId != null &&
     residentialArea.trim().length > 0 &&
-    (!streamsRequired || streamId != null);
+    (!streamsRequired || streamId != null) &&
+    (dropOffId !== 'other' || dropOffOther.trim().length > 0);
 
   const handleEnroll = () => {
     if (!canSubmit || classroomId == null || categoryId == null) return;
 
+    const feeParsed = transportFee.trim() ? Number(transportFee.trim()) : null;
+    if (feeParsed != null && (Number.isNaN(feeParsed) || feeParsed < 0)) {
+      showError('Invalid fee', 'Enter a valid transport fee amount.');
+      return;
+    }
+
     confirmAction(
       'Enroll student',
-      `Create a student record for ${application.fullName}?`,
+      `Create a student record for ${application.fullName}? Class will be assigned and fees invoiced.`,
       'Enroll',
       () => {
         void enroll
@@ -133,24 +155,26 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
             classroom_id: classroomId,
             stream_id: streamId,
             category_id: categoryId,
-            trip_id: enrollment.transport_needed ? tripId : null,
-            drop_off_point_id: enrollment.transport_needed ? dropOffId : null,
-            drop_off_point_other: application.dropOffPointOther,
+            trip_id: tripId,
+            drop_off_point_id: dropOffId === 'other' ? null : dropOffId,
+            drop_off_point_other: dropOffId === 'other' ? dropOffOther.trim() : null,
+            transport_fee_amount: feeParsed,
+            admission_date: admissionDate || undefined,
             residential_area: residentialArea.trim(),
-            preferred_hospital: application.preferredHospital,
+            preferred_hospital: preferredHospital.trim() || null,
             enrollment_year: selectedTerm?.year,
             enrollment_term: selectedTerm?.term,
-            has_allergies: application.hasAllergies,
-            allergies_notes: application.allergiesNotes,
-            is_fully_immunized: application.isFullyImmunized,
-            emergency_contact_name: application.emergencyContactName,
-            emergency_contact_phone: application.emergencyContactPhone,
+            has_allergies: hasAllergies,
+            allergies_notes: allergiesNotes.trim() || null,
+            is_fully_immunized: isFullyImmunized,
+            emergency_contact_name: emergencyName.trim() || null,
+            emergency_contact_phone: emergencyPhone.trim() || null,
             marital_status: application.maritalStatus,
           })
           .then((result) => {
             confirmAction(
               'Enrolled',
-              `${result.student.full_name} was enrolled successfully.`,
+              `${result.student.full_name} was enrolled. Class assigned and fees posted where applicable.`,
               'View student',
               () => onViewStudent?.(result.student),
             );
@@ -229,34 +253,102 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
         onChange={(id) => setTermKey(String(id))}
       />
 
-      {enrollment.transport_needed ? (
-        <>
-          <ChipRow
-            label="Trip"
-            options={[
-              { id: 0, label: 'None' },
-              ...enrollment.trips.map((t) => ({ id: t.id, label: t.name })),
-            ]}
-            value={tripId ?? 0}
-            onChange={(id) => setTripId(Number(id) === 0 ? null : Number(id))}
-          />
-          <ChipRow
-            label="Drop-off point"
-            options={[
-              { id: 0, label: 'None' },
-              ...enrollment.drop_off_points.map((p) => ({ id: p.id, label: p.name })),
-            ]}
-            value={dropOffId ?? 0}
-            onChange={(id) => setDropOffId(Number(id) === 0 ? null : Number(id))}
-          />
-        </>
+      <TextField
+        label="Admission date"
+        value={admissionDate}
+        onChangeText={setAdmissionDate}
+        placeholder="YYYY-MM-DD"
+      />
+
+      <ChipRow
+        label="Trip"
+        options={[
+          { id: 0, label: 'None' },
+          ...enrollment.trips.map((t) => ({ id: t.id, label: t.name })),
+        ]}
+        value={tripId ?? 0}
+        onChange={(id) => setTripId(Number(id) === 0 ? null : Number(id))}
+      />
+      <ChipRow
+        label="Drop-off point"
+        options={[
+          { id: 0, label: 'None' },
+          ...enrollment.drop_off_points.map((p) => ({ id: p.id, label: p.name })),
+          { id: 'other', label: 'Other' },
+        ]}
+        value={dropOffId ?? 0}
+        onChange={(id) => {
+          if (id === 'other') {
+            setDropOffId('other');
+            return;
+          }
+          setDropOffId(Number(id) === 0 ? null : Number(id));
+        }}
+      />
+      {dropOffId === 'other' ? (
+        <TextField
+          label="Other drop-off point *"
+          value={dropOffOther}
+          onChangeText={setDropOffOther}
+          placeholder="Describe drop-off location"
+        />
       ) : null}
+      <TextField
+        label="Transport fee amount"
+        value={transportFee}
+        onChangeText={setTransportFee}
+        placeholder="Optional — included on first invoice"
+        keyboardType="decimal-pad"
+      />
 
       <TextField
         label="Residential area *"
         value={residentialArea}
         onChangeText={setResidentialArea}
         placeholder="Enter residential area"
+      />
+
+      <ChipRow
+        label="Has allergies"
+        options={[
+          { id: 'yes', label: 'Yes' },
+          { id: 'no', label: 'No' },
+        ]}
+        value={hasAllergies ? 'yes' : 'no'}
+        onChange={(id) => setHasAllergies(id === 'yes')}
+      />
+      {hasAllergies ? (
+        <TextField
+          label="Allergy notes"
+          value={allergiesNotes}
+          onChangeText={setAllergiesNotes}
+          multiline
+        />
+      ) : null}
+      <ChipRow
+        label="Fully immunized"
+        options={[
+          { id: 'yes', label: 'Yes' },
+          { id: 'no', label: 'No' },
+        ]}
+        value={isFullyImmunized ? 'yes' : 'no'}
+        onChange={(id) => setIsFullyImmunized(id === 'yes')}
+      />
+      <TextField
+        label="Preferred hospital"
+        value={preferredHospital}
+        onChangeText={setPreferredHospital}
+      />
+      <TextField
+        label="Emergency contact name"
+        value={emergencyName}
+        onChangeText={setEmergencyName}
+      />
+      <TextField
+        label="Emergency contact phone"
+        value={emergencyPhone}
+        onChangeText={setEmergencyPhone}
+        keyboardType="phone-pad"
       />
 
       {enroll.isError ? (

@@ -1,6 +1,10 @@
 export { OperationsDashboardScreen } from './screens/OperationsDashboardScreen';
 export { TripsListScreen } from './screens/TripsListScreen';
 export { TripDetailScreen } from './screens/TripDetailScreen';
+export { TripStudentsScreen } from './screens/TripStudentsScreen';
+export { ConcernsListScreen } from './screens/ConcernsListScreen';
+export { ConcernCreateScreen } from './screens/ConcernCreateScreen';
+export { ConcernDetailScreen } from './screens/ConcernDetailScreen';
 export { InventoryListScreen } from './screens/InventoryListScreen';
 export { InventoryItemDetailScreen } from './screens/InventoryItemDetailScreen';
 export { RequirementsRosterScreen } from './screens/RequirementsRosterScreen';

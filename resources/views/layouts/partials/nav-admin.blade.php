@@ -894,6 +894,27 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
 </a>
 @endif
 
+<!-- School Operations -->
+@php
+  $opsActive = Request::is('operations/*');
+@endphp
+<a href="#schoolOpsMenu" data-bs-toggle="collapse"
+   aria-expanded="{{ $opsActive ? 'true' : 'false' }}"
+   class="{{ $opsActive ? 'parent-active' : '' }}">
+  <i class="bi bi-building"></i> School Operations
+</a>
+<div class="collapse {{ $opsActive ? 'show' : '' }}" id="schoolOpsMenu">
+  <a href="{{ route('operations.concerns.index') }}" class="sublink {{ Request::is('operations/concerns*') ? 'active' : '' }}">
+    <i class="bi bi-exclamation-triangle"></i> Concerns
+  </a>
+  <a href="{{ route('operations.visitors.index') }}" class="sublink {{ Request::is('operations/visitors*') ? 'active' : '' }}">
+    <i class="bi bi-person-badge"></i> Visitor log
+  </a>
+  <a href="{{ route('operations.assets.index') }}" class="sublink {{ Request::is('operations/assets*') ? 'active' : '' }}">
+    <i class="bi bi-hdd-stack"></i> Fixed assets
+  </a>
+</div>
+
 <!-- Inventory & Requirements -->
 @if(nav_can('inventory'))
 @php $inventoryActive = Request::is('inventory*'); @endphp

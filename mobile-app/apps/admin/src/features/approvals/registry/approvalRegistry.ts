@@ -24,6 +24,11 @@ export const APPROVAL_SOURCE_REGISTRY: ApprovalSourceDefinition[] = [
     label: 'Admission application',
     permissions: ['admissions.view', 'approvals.view'],
   },
+  {
+    type: 'staff_advance',
+    label: 'Staff advance',
+    permissions: ['finance.view', 'people.view', 'staff.view', 'dashboard.approvals.view'],
+  },
 ];
 
 export function getSourceLabel(type: ApprovalSourceType): string {

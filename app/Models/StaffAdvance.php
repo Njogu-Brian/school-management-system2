@@ -13,6 +13,7 @@ class StaffAdvance extends Model
     protected $fillable = [
         'staff_id',
         'amount',
+        'requested_amount',
         'purpose',
         'description',
         'advance_date',
@@ -32,6 +33,7 @@ class StaffAdvance extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'requested_amount' => 'decimal:2',
         'monthly_deduction_amount' => 'decimal:2',
         'amount_repaid' => 'decimal:2',
         'balance' => 'decimal:2',

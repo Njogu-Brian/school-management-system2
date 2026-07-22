@@ -19,6 +19,7 @@ import {
   ScreenContainer,
   SkeletonListRows,
   useTheme,
+  FLOATING_TAB_BAR_CLEARANCE,
 } from '@erp/ui';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -118,6 +119,11 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const serverSnapshotRef = useRef<Record<number, string>>({});
   const draftKey = classId ? attendanceDraftKey(dateStr, classId, streamId) : null;
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<AttendanceDraft>(draftKey);
+  /** Keep draft out of loadStudents deps — setDraft after load was causing an infinite refetch loop. */
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const draftLoadedRef = useRef(draftLoaded);
+  draftLoadedRef.current = draftLoaded;
 
   useEffect(() => {
     void attendanceApi.getSchoolDay(dateStr).then((res) => {
@@ -176,18 +182,20 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       }
       serverSnapshotRef.current = snapshot;
 
-      if (draftLoaded && draft?.statusById) {
-        setStatusById({ ...byId, ...draft.statusById });
-        serverSnapshotRef.current = draft.serverSnapshot ?? snapshot;
+      const savedDraft = draftRef.current;
+      if (draftLoadedRef.current && savedDraft?.statusById) {
+        setStatusById({ ...byId, ...savedDraft.statusById });
+        serverSnapshotRef.current = savedDraft.serverSnapshot ?? snapshot;
         setHasLocalDraft(true);
       } else {
         setStatusById(byId);
         setHasLocalDraft(false);
       }
     } catch (err) {
-      if (draftLoaded && draft?.statusById) {
-        setStatusById(draft.statusById);
-        serverSnapshotRef.current = draft.serverSnapshot ?? {};
+      const savedDraft = draftRef.current;
+      if (draftLoadedRef.current && savedDraft?.statusById) {
+        setStatusById(savedDraft.statusById);
+        serverSnapshotRef.current = savedDraft.serverSnapshot ?? {};
         setHasLocalDraft(true);
         showSuccess('Offline', 'Showing your saved draft. Server data unavailable.');
       } else {
@@ -196,11 +204,11 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  }, [classId, streamId, dateStr, draft, draftLoaded]);
+  }, [classId, streamId, dateStr]);
 
   useEffect(() => {
     if (classId && draftLoaded) void loadStudents();
-  }, [classId, streamId, draftLoaded, loadStudents]);
+  }, [classId, streamId, dateStr, draftLoaded, loadStudents]);
 
   useEffect(() => {
     if (!draftKey || students.length === 0) return;
@@ -383,7 +391,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
           <FlatList
             data={students}
             keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={{ paddingBottom: 100 }}
+            contentContainerStyle={{ paddingBottom: FLOATING_TAB_BAR_CLEARANCE }}
             renderItem={({ item }) => {
               const status = statusById[item.id] ?? 'unmarked';
               return (

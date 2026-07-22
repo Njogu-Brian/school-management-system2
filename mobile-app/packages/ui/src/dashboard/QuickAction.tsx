@@ -4,29 +4,12 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { AccentIcon, type AccentTone } from '../primitives/AccentIcon';
 
-const LABEL_TONES: Record<string, AccentTone> = {
-  pay: 'emerald',
-  fee: 'emerald',
-  student: 'indigo',
-  staff: 'cyan',
-  sms: 'rose',
-  announce: 'rose',
-  admit: 'amber',
-  transport: 'amber',
-  report: 'blue',
-  default: 'blue',
-};
-
-function toneForLabel(label: string): AccentTone {
-  const key = Object.keys(LABEL_TONES).find((k) => label.toLowerCase().includes(k));
-  return LABEL_TONES[key ?? 'default'];
-}
-
 export interface QuickActionProps {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress?: () => void;
   disabled?: boolean;
+  /** @deprecated Glyphs own their colors; kept for API compat. */
   accentTone?: AccentTone;
 }
 
@@ -35,10 +18,8 @@ export const QuickAction: React.FC<QuickActionProps> = ({
   icon,
   onPress,
   disabled = false,
-  accentTone,
 }) => {
   const { palette, spacing, typography, radius, elevation } = useTheme();
-  const tone = accentTone ?? toneForLabel(label);
 
   return (
     <Pressable
@@ -59,7 +40,7 @@ export const QuickAction: React.FC<QuickActionProps> = ({
         },
       ]}
     >
-      <AccentIcon name={icon} tone={tone} size={48} iconSize={22} />
+      <AccentIcon name={icon} size={56} />
       <Text
         style={{
           color: palette.textMain,

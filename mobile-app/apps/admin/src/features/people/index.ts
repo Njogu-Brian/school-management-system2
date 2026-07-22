@@ -9,4 +9,6 @@ export * from './screens/StaffClockTeamScreen';
 export * from './screens/StaffEditScreen';
 export * from './screens/LeaveApplyScreen';
 export * from './screens/LeaveManagementScreen';
+export * from './screens/LeaveTypesScreen';
+export * from './screens/StaffAdvancesScreen';
 export * from './screens/PayrollRecordsScreen';

@@ -35,6 +35,7 @@ const FRONT_DESK_SECTIONS = [
   { route: 'VisitorsList' as const, label: 'Visitors', icon: 'person-outline' as const },
   { route: 'VisitorCheckIn' as const, label: 'Check in visitor', icon: 'log-in-outline' as const },
   { route: 'RequirementsRoster' as const, label: 'Requirements', icon: 'checkbox-outline' as const },
+  { route: 'ConcernsList' as const, label: 'Concerns', icon: 'alert-circle-outline' as const },
 ];
 
 export const OperationsDashboardScreen: React.FC<Props> = ({ navigation }) => {

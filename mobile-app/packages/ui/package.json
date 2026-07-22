@@ -8,10 +8,12 @@
   "sideEffects": false,
   "peerDependencies": {
     "@expo/vector-icons": "*",
+    "expo-blur": "*",
     "expo-linear-gradient": "*",
     "react": "*",
     "react-native": "*",
     "react-native-reanimated": "*",
-    "react-native-safe-area-context": "*"
+    "react-native-safe-area-context": "*",
+    "react-native-svg": "*"
   }
 }

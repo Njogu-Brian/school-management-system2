@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Soft3DIcon } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface GlobalAppHeaderProps {
@@ -23,7 +24,7 @@ export interface GlobalAppHeaderProps {
 }
 
 /**
- * Persistent top chrome — brand gradient strip, soft surface, icon wells.
+ * Persistent top chrome — brand gradient strip, soft surface, soft-3D action icons.
  */
 export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   title,
@@ -55,7 +56,7 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
           elevation[2],
           {
             paddingTop: insets.top + spacing.sm,
-            backgroundColor: palette.surfaceRaised,
+            backgroundColor: isDark ? palette.surfaceRaised : palette.surface,
             borderBottomColor: palette.borderSubtle,
           },
         ]}
@@ -86,7 +87,8 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
                   color: palette.textMain,
                   fontSize: typography.title.fontSize,
                   lineHeight: typography.title.lineHeight,
-                  fontWeight: '700',
+                  fontWeight: '800',
+                  letterSpacing: -0.3,
                 }}
               >
                 {title}
@@ -124,31 +126,25 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
             </View>
           </View>
 
-          <View style={styles.right}>
-            <HeaderIcon
-              name="checkmark-done-outline"
-              color={palette.textMain}
+          <View style={[styles.right, { alignSelf: 'center' }]}>
+            <HeaderAction
+              glyph="approvals"
               onPress={onApprovalsPress}
               label="Approvals"
-              warningDot={showApprovalsBadge}
-              mutedBg={isDark ? 'rgba(255,255,255,0.06)' : palette.surfaceMuted}
-              radius={radius.md}
+              badge={showApprovalsBadge ? colors.warning : undefined}
             />
-            <HeaderIcon
-              name="notifications-outline"
-              color={palette.textMain}
+            <HeaderAction
+              glyph="notifications"
               onPress={onNotificationsPress}
               label="Notifications"
-              dangerDot={showNotificationsBadge}
-              mutedBg={isDark ? 'rgba(255,255,255,0.06)' : palette.surfaceMuted}
-              radius={radius.md}
+              badge={showNotificationsBadge ? colors.error : undefined}
             />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Profile"
               hitSlop={8}
               onPress={onProfilePress}
-              style={{ marginLeft: 6 }}
+              style={styles.avatarWell}
             >
               <LinearGradient
                 colors={[palette.primary, colors.primaryLight]}
@@ -178,17 +174,29 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
               },
             ]}
           >
-            <Ionicons name="search-outline" size={18} color={palette.textMuted} />
+            <Soft3DIcon name="search-outline" size={28} muted />
             <Text
               numberOfLines={1}
               style={{
                 flex: 1,
                 color: palette.textMuted,
                 fontSize: typography.body.fontSize,
+                fontWeight: '500',
               }}
             >
               {searchPrompt}
             </Text>
+            <View
+              style={[
+                styles.searchHint,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : palette.surfaceRaised,
+                  borderRadius: radius.sm,
+                },
+              ]}
+            >
+              <Text style={{ color: palette.textMuted, fontSize: 11, fontWeight: '600' }}>Go</Text>
+            </View>
           </Pressable>
         ) : null}
       </View>
@@ -196,39 +204,27 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   );
 };
 
-interface HeaderIconProps {
-  name: keyof typeof Ionicons.glyphMap;
-  color: string;
+interface HeaderActionProps {
+  glyph: 'approvals' | 'notifications';
   label: string;
   onPress?: () => void;
-  warningDot?: boolean;
-  dangerDot?: boolean;
-  mutedBg: string;
-  radius: number;
+  badge?: string;
 }
 
-const HeaderIcon: React.FC<HeaderIconProps> = ({
-  name,
-  color,
-  label,
-  onPress,
-  warningDot,
-  dangerDot,
-  mutedBg,
-  radius,
-}) => {
-  const { colors } = useTheme();
-  const dot = warningDot ? colors.warning : dangerDot ? colors.error : undefined;
+const HeaderAction: React.FC<HeaderActionProps> = ({ glyph, label, onPress, badge }) => {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={8}
       onPress={onPress}
-      style={[styles.iconWell, { backgroundColor: mutedBg, borderRadius: radius }]}
+      style={styles.iconWell}
     >
-      <Ionicons name={name} size={20} color={color} />
-      {dot ? <View style={[styles.dot, { backgroundColor: dot }]} /> : null}
+      <Soft3DIcon
+        name={glyph === 'approvals' ? 'checkmark-done-outline' : 'notifications-outline'}
+        size={28}
+      />
+      {badge ? <View style={[styles.dot, { backgroundColor: badge }]} /> : null}
     </Pressable>
   );
 };
@@ -244,10 +240,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 6,
   },
-  left: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+  left: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, flex: 1 },
   titleBlock: { flexShrink: 1 },
   branch: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
-  right: { flexDirection: 'row', alignItems: 'center' },
+  right: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 40,
+  },
   menuWell: {
     width: 40,
     height: 40,
@@ -259,20 +260,27 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 6,
+    marginLeft: 2,
+  },
+  avatarWell: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 2,
   },
   dot: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 6,
+    right: 6,
     width: 8,
     height: 8,
     borderRadius: 4,
   },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -281,8 +289,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     minHeight: 48,
+  },
+  searchHint: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
 });

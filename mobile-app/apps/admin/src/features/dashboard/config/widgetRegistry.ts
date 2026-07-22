@@ -2,18 +2,13 @@ import { AdminPermission } from '@erp/core';
 import type { DashboardWidgetDefinition } from '../types/widget';
 
 /**
- * Dashboard widget registry — permission metadata + stable ids for future
- * `GET /dashboard/stats` mapping (Sprint 2+).
+ * Dashboard widget registry — permission metadata + stable ids for
+ * `GET /dashboard/stats` mapping.
  */
 export const DASHBOARD_WIDGET_REGISTRY: readonly DashboardWidgetDefinition[] = [
   {
-    id: 'enrollment_kpi',
+    id: 'population_attendance_kpi',
     permissions: [AdminPermission.DASHBOARD_VIEW, AdminPermission.STUDENTS_VIEW],
-    defaultState: 'success',
-  },
-  {
-    id: 'attendance_kpi',
-    permissions: [AdminPermission.STUDENTS_VIEW],
     defaultState: 'success',
   },
   {

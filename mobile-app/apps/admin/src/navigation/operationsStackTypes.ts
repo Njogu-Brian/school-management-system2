@@ -2,6 +2,10 @@ export type OperationsStackParamList = {
   OperationsDashboard: undefined;
   TripsList: undefined;
   TripDetail: { tripId: number; tripName?: string };
+  TripStudents: { tripId: number; tripName?: string };
+  ConcernsList: undefined;
+  ConcernCreate: undefined;
+  ConcernDetail: { concernId: number };
   InventoryList: undefined;
   InventoryItemDetail: { itemId: number };
   RequirementsRoster: undefined;

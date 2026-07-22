@@ -86,7 +86,6 @@ export const DashboardLayout: React.FC = () => {
         {tab === 'overview' ? (
           <>
             <CriticalKpisSection />
-            <PendingApprovalsSection />
             <QuickActionsSection />
             <OperationalStatusSection />
           </>

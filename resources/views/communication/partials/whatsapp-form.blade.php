@@ -4,7 +4,7 @@
     <i class="bi bi-whatsapp fs-5"></i>
     <div>
         <div class="fw-semibold">WhatsApp-style compose</div>
-        <small class="text-muted">Templates plus personalized placeholders; falls back to phone if no WhatsApp field.</small>
+        <small class="text-muted">Templates plus personalized placeholders; falls back to phone if no WhatsApp field. Templates require system recipients—not custom numbers alone.</small>
         <div class="mt-2">
             <small class="text-muted">
                 <i class="bi bi-info-circle"></i> 

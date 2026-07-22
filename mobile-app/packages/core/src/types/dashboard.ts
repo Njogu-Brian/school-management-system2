@@ -37,6 +37,8 @@ export interface AdminDashboardStats {
   total_students: number;
   total_staff: number;
   present_today: number;
+  absent_today?: number;
+  unmarked_today?: number;
   fees_collected: number;
   total_invoiced: number;
   total_payments: number;

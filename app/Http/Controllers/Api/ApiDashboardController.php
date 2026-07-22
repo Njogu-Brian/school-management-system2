@@ -441,9 +441,24 @@ class ApiDashboardController extends Controller
 
         $totalStudents = Student::where('archive', 0)->where('is_alumni', false)->count();
         $totalStaff = Staff::count();
-        $presentToday = SchoolDay::isSchoolDay($today)
-            ? Attendance::whereDate('date', $today)->where('status', 'present')->count()
-            : 0;
+        $presentToday = 0;
+        $absentToday = 0;
+        $unmarkedToday = 0;
+        if (SchoolDay::isSchoolDay($today)) {
+            // Distinct students — attendance may have multiple rows per student per day.
+            $presentToday = (int) Attendance::whereDate('date', $today)
+                ->where('status', 'present')
+                ->distinct('student_id')
+                ->count('student_id');
+            $absentToday = (int) Attendance::whereDate('date', $today)
+                ->where('status', 'absent')
+                ->distinct('student_id')
+                ->count('student_id');
+            $markedIds = Attendance::whereDate('date', $today)
+                ->distinct()
+                ->pluck('student_id');
+            $unmarkedToday = max(0, $totalStudents - $markedIds->count());
+        }
 
         $paymentsQuery = Payment::query()->where(function ($q) {
             $q->whereNull('reversed')->orWhere('reversed', false);
@@ -525,6 +540,8 @@ class ApiDashboardController extends Controller
             'total_students' => $totalStudents,
             'total_staff' => $totalStaff,
             'present_today' => $presentToday,
+            'absent_today' => $absentToday,
+            'unmarked_today' => $unmarkedToday,
             'fees_collected' => round($feesCollected, 2),
             'total_invoiced' => round($totalInvoiced, 2),
             'total_payments' => round($feesCollected, 2),

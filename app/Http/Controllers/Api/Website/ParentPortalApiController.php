@@ -68,6 +68,14 @@ class ParentPortalApiController extends Controller
         return app(ApiAnnouncementController::class)->index($request);
     }
 
+    public function paymentLink(Request $request, int $student): JsonResponse
+    {
+        $this->assertParent($request);
+        abort_unless($request->user()->canAccessStudent($student), 403);
+
+        return app(\App\Http\Controllers\Api\ApiMpesaPaymentController::class)->paymentLinkUrl($request, $student);
+    }
+
     protected function assertParent(Request $request): User
     {
         $user = $request->user();

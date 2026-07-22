@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\StudentAssignment;
+use App\Models\TransportSpecialAssignment;
 use App\Models\Trip;
+use App\Services\TransportAssignmentService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 /**
@@ -57,11 +61,131 @@ class ApiRouteController extends Controller
     public function show(Request $request, int $id)
     {
         $trip = Trip::with(['vehicle', 'driver', 'stops.dropOffPoint'])->findOrFail($id);
+        $date = $request->filled('date') ? Carbon::parse($request->date) : Carbon::today();
+        $students = app(TransportAssignmentService::class)->getStudentsForTrip($trip, $date);
+
+        $payload = $this->formatTripAsRoute($trip);
+        $payload['students_count'] = $students->count();
+        $payload['students'] = $students->map(fn ($s) => $this->formatRouteStudent($s, $trip->id))->values()->all();
 
         return response()->json([
             'success' => true,
-            'data' => $this->formatTripAsRoute($trip),
+            'data' => $payload,
         ]);
+    }
+
+    public function students(Request $request, int $id)
+    {
+        $trip = Trip::findOrFail($id);
+        $date = $request->filled('date') ? Carbon::parse($request->date) : Carbon::today();
+        $students = app(TransportAssignmentService::class)->getStudentsForTrip($trip, $date);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'trip_id' => $trip->id,
+                'date' => $date->toDateString(),
+                'students' => $students->map(fn ($s) => $this->formatRouteStudent($s, $trip->id))->values(),
+            ],
+        ]);
+    }
+
+    /**
+     * Permanent assignment — updates Student.trip_id and StudentAssignment morning/evening trip.
+     * Short-term — TransportSpecialAssignment with start/end (auto-reverts after end_date).
+     */
+    public function assignStudent(Request $request, int $id)
+    {
+        $trip = Trip::findOrFail($id);
+        $validated = $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'mode' => 'required|in:permanent,short_term',
+            'leg' => 'nullable|in:morning,evening,both',
+            'start_date' => 'nullable|date|required_if:mode,short_term',
+            'end_date' => 'nullable|date|after_or_equal:start_date|required_if:mode,short_term',
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        $student = \App\Models\Student::findOrFail($validated['student_id']);
+        $leg = $validated['leg'] ?? 'both';
+
+        if ($validated['mode'] === 'permanent') {
+            $student->trip_id = $trip->id;
+            $student->save();
+
+            $assignment = StudentAssignment::firstOrNew(['student_id' => $student->id]);
+            if ($leg === 'morning' || $leg === 'both') {
+                $assignment->morning_trip_id = $trip->id;
+            }
+            if ($leg === 'evening' || $leg === 'both') {
+                $assignment->evening_trip_id = $trip->id;
+            }
+            $assignment->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Student permanently assigned to this route.',
+                'data' => $this->formatRouteStudent($student->fresh(['classroom']), $trip->id),
+            ]);
+        }
+
+        $special = TransportSpecialAssignment::create([
+            'student_id' => $student->id,
+            'trip_id' => $trip->id,
+            'vehicle_id' => $trip->vehicle_id,
+            'assignment_type' => 'temporary',
+            'transport_mode' => 'trip',
+            'start_date' => $validated['start_date'],
+            'end_date' => $validated['end_date'],
+            'reason' => $validated['reason'] ?? 'Short-term route transfer',
+            'status' => 'active',
+            'created_by' => $request->user()->id,
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Short-term transfer saved. Student reverts after '.$validated['end_date'].'.',
+            'data' => [
+                'special_assignment_id' => $special->id,
+                'student' => $this->formatRouteStudent($student->fresh(['classroom']), $trip->id),
+            ],
+        ], 201);
+    }
+
+    protected function formatRouteStudent($student, int $tripId): array
+    {
+        $assignment = StudentAssignment::where('student_id', $student->id)->first();
+        $special = TransportSpecialAssignment::where('student_id', $student->id)
+            ->where('trip_id', $tripId)
+            ->where('status', 'active')
+            ->where('start_date', '<=', now()->toDateString())
+            ->where(function ($q) {
+                $q->whereNull('end_date')->orWhere('end_date', '>=', now()->toDateString());
+            })
+            ->first();
+
+        $leg = null;
+        if ($assignment) {
+            if ((int) $assignment->morning_trip_id === $tripId) {
+                $leg = 'morning';
+            } elseif ((int) $assignment->evening_trip_id === $tripId) {
+                $leg = 'evening';
+            }
+        }
+
+        return [
+            'id' => $student->id,
+            'full_name' => $student->full_name,
+            'admission_number' => $student->admission_number,
+            'class_name' => $student->classroom?->name,
+            'assignment_id' => $assignment?->id,
+            'leg' => $leg,
+            'is_special' => (bool) $special,
+            'special_assignment_id' => $special?->id,
+            'special_end_date' => $special?->end_date?->toDateString(),
+        ];
     }
 
     public function store(Request $request)

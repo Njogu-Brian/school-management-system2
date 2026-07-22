@@ -4,7 +4,7 @@
     <i class="bi bi-megaphone fs-5"></i>
     <div>
         <div class="fw-semibold">Bulk SMS compose</div>
-        <small class="text-muted">Use templates for repeat sends or switch to manual and drop in placeholders.</small>
+        <small class="text-muted">Use templates for repeat sends or switch to manual and drop in placeholders. Templates require system recipients (parents, staff, class, or students)—not custom numbers alone.</small>
     </div>
 </div>
 

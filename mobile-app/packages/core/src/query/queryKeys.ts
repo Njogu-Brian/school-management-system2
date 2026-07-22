@@ -183,8 +183,8 @@ export const queryKeys = {
     logs: (filters?: { channel?: string; status?: string; infinite?: boolean }) =>
       [...queryKeys.communication.all, 'logs', filters ?? {}] as const,
     log: (id: number) => [...queryKeys.communication.all, 'log', id] as const,
-    recipients: (classroomId?: number) =>
-      [...queryKeys.communication.all, 'recipients', classroomId ?? 'all'] as const,
+    recipients: (classroomId?: number, channel?: string) =>
+      [...queryKeys.communication.all, 'recipients', classroomId ?? 'all', channel ?? 'sms'] as const,
   },
   notifications: {
     all: ['notifications'] as const,
@@ -202,7 +202,15 @@ export const queryKeys = {
   },
   teacherTransport: {
     all: ['teacher-transport'] as const,
-    students: (date?: string) => [...queryKeys.teacherTransport.all, 'students', date ?? 'today'] as const,
+    students: (date?: string, classroomId?: number | null, streamId?: number | null, search?: string) =>
+      [
+        ...queryKeys.teacherTransport.all,
+        'students',
+        date ?? 'today',
+        classroomId ?? 'all',
+        streamId ?? 'all',
+        search ?? '',
+      ] as const,
     vehicles: () => [...queryKeys.teacherTransport.all, 'vehicles'] as const,
   },
   driverTransport: {

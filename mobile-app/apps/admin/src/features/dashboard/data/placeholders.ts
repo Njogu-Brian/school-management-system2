@@ -85,7 +85,7 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
   {
     id: 'qa_attendance',
     label: 'Mark attendance',
-    icon: 'checkmark-done-outline',
+    icon: 'clipboard-outline',
     permissions: ['academics.view', 'dashboard.view'],
   },
   {
@@ -97,7 +97,7 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
   {
     id: 'qa_payroll',
     label: 'Payroll',
-    icon: 'wallet-outline',
+    icon: 'cash-outline',
     permissions: ['finance.view', 'people.view', 'staff.view'],
   },
 ];

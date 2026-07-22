@@ -27,6 +27,7 @@ export const KpiWidgetBase: React.FC<KpiWidgetBaseProps> = ({ widgetId }) => {
           value={kpi.value}
           delta={kpi.delta}
           deltaPositive={kpi.deltaPositive}
+          stats={kpi.stats}
           icon={(kpi.icon ?? meta.icon) as keyof typeof Ionicons.glyphMap}
         />
       ) : null}

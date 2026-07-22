@@ -1,4 +1,5 @@
 import { EmptyState, StudentSummaryWidgets, type StudentSummaryWidgetData, useTheme } from '@erp/ui';
+import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatDateLabel, formatKes } from '../utils/formatters';
@@ -15,6 +16,8 @@ export interface FeesTabProps {
   payments: Array<{ id: number; date: string; reference: string; amount: number }>;
   onInvoicePress?: (invoiceId: number) => void;
   onPaymentPress?: (paymentId: number) => void;
+  onSharePaymentLink?: () => void;
+  sharePaymentLinkLoading?: boolean;
 }
 
 export const FeesTab: React.FC<FeesTabProps> = ({
@@ -29,6 +32,8 @@ export const FeesTab: React.FC<FeesTabProps> = ({
   payments,
   onInvoicePress,
   onPaymentPress,
+  onSharePaymentLink,
+  sharePaymentLinkLoading,
 }) => {
   const { palette, colors, spacing, typography } = useTheme();
 
@@ -74,6 +79,26 @@ export const FeesTab: React.FC<FeesTabProps> = ({
   return (
     <View>
       <StudentSummaryWidgets widgets={widgets} />
+
+      {onSharePaymentLink ? (
+        <Pressable
+          onPress={onSharePaymentLink}
+          disabled={sharePaymentLinkLoading}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: spacing.sm,
+            marginBottom: spacing.md,
+            paddingVertical: spacing.sm,
+          }}
+        >
+          <Ionicons name="share-outline" size={18} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>
+            {sharePaymentLinkLoading ? 'Preparing link…' : 'Share payment link'}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <Section title="Invoices" palette={palette} typography={typography} spacing={spacing}>
         {invoices.length === 0 ? (
@@ -189,6 +214,7 @@ function Row({
     return (
       <Pressable onPress={onPress} style={[styles.row, { borderBottomColor: palette.border }]}>
         {content}
+        <Ionicons name="chevron-forward" size={16} color={palette.textSub} style={{ marginLeft: 8 }} />
       </Pressable>
     );
   }

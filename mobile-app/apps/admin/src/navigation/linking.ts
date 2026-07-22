@@ -150,6 +150,16 @@ export const linking: LinkingOptions<DrawerParamList> = {
           TripForm: 'transport/form',
           TeacherTransport: 'teacher-transport',
           DriverTrips: 'driver-trips',
+          ConcernsList: 'concerns',
+          ConcernCreate: 'concerns/new',
+          ConcernDetail: {
+            path: 'concerns/:concernId',
+            parse: { concernId: Number },
+          },
+          TripStudents: {
+            path: 'transport/:tripId/students',
+            parse: { tripId: Number },
+          },
           InventoryList: 'inventory',
           InventoryItemDetail: {
             path: 'inventory/:itemId',

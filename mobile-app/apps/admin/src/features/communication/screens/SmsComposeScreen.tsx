@@ -1,6 +1,7 @@
 import {
   useCan,
   useCommunicationTemplates,
+  useSendEmail,
   useSendSms,
   useSendWhatsApp,
   useSettingsClasses,
@@ -25,17 +26,21 @@ type Props = StackScreenProps<CommunicationStackParamList, 'SmsCompose'>;
 
 const SMS_SEGMENT = 160;
 type SenderId = 'default' | 'finance';
-type Channel = 'sms' | 'whatsapp';
+type Channel = 'sms' | 'whatsapp' | 'email';
 
 export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
   const canView = useCan('communication.view');
   const { colors, palette, spacing, typography, radius } = useTheme();
   const [channel, setChannel] = useState<Channel>('sms');
-  const templatesQuery = useCommunicationTemplates({ enabled: canView, type: channel });
+  const templateType = channel === 'email' ? 'email' : channel;
+  const templatesQuery = useCommunicationTemplates({ enabled: canView, type: templateType });
   const sendMutation = useSendSms();
   const sendWhatsAppMutation = useSendWhatsApp();
+  const sendEmailMutation = useSendEmail();
   const [message, setMessage] = useState('');
+  const [subject, setSubject] = useState('');
   const [phones, setPhones] = useState('');
+  const [systemRecipientCount, setSystemRecipientCount] = useState(0);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | undefined>();
   const [senderId, setSenderId] = useState<SenderId>('default');
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -45,6 +50,7 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
   const recipientsQuery = useSmsRecipients({
     enabled: canView && pickerVisible,
     classroomId: pickerClassId,
+    channel: channel === 'email' ? 'email' : 'sms',
   });
 
   const applyRecipients = () => {
@@ -56,6 +62,7 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
     const existing = phones.split(/[,;\s]+/).filter(Boolean);
     const merged = Array.from(new Set([...existing, ...fetched.map((r) => r.phone)]));
     setPhones(merged.join(', '));
+    setSystemRecipientCount((prev) => prev + fetched.length);
     setPickerVisible(false);
     showSuccess('Recipients added', `${fetched.length} parent contact${fetched.length === 1 ? '' : 's'} added.`);
   };
@@ -68,7 +75,14 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
   const segments = Math.max(1, Math.ceil(charCount / SMS_SEGMENT));
   const estimatedCost = segments * (recipientCount || 1);
 
-  const pending = sendMutation.isPending || sendWhatsAppMutation.isPending;
+  const pending =
+    sendMutation.isPending || sendWhatsAppMutation.isPending || sendEmailMutation.isPending;
+
+  const switchChannel = (next: Channel) => {
+    setChannel(next);
+    setSelectedTemplateId(undefined);
+    setSystemRecipientCount(0);
+  };
 
   const onSend = async () => {
     if (!message.trim() && !selectedTemplateId) {
@@ -76,25 +90,49 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
     if (!phones.trim()) {
-      showError('Missing fields', 'Enter at least one phone number.');
+      showError(
+        'Missing fields',
+        channel === 'email' ? 'Enter at least one email address.' : 'Enter at least one phone number.',
+      );
+      return;
+    }
+    if (selectedTemplateId && systemRecipientCount <= 0) {
+      showError(
+        'System recipients required',
+        'When using a template, add recipients via class picker (system contacts). Custom numbers alone are not allowed.',
+      );
       return;
     }
     try {
-      const res =
-        channel === 'whatsapp'
-          ? await sendWhatsAppMutation.mutateAsync({
-              message: message.trim() || undefined,
-              template_id: selectedTemplateId,
-              custom_numbers: phones.trim(),
-            })
-          : await sendMutation.mutateAsync({
-              message: message.trim() || undefined,
-              template_id: selectedTemplateId,
-              custom_numbers: phones.trim(),
-              sender_id: senderId,
-            });
+      const fromSystem = systemRecipientCount > 0 ? true : undefined;
+      let res;
+      if (channel === 'whatsapp') {
+        res = await sendWhatsAppMutation.mutateAsync({
+          message: message.trim() || undefined,
+          template_id: selectedTemplateId,
+          custom_numbers: phones.trim(),
+          from_system_recipients: fromSystem,
+        });
+      } else if (channel === 'email') {
+        res = await sendEmailMutation.mutateAsync({
+          subject: subject.trim() || undefined,
+          message: message.trim() || undefined,
+          template_id: selectedTemplateId,
+          custom_emails: phones.trim(),
+          from_system_recipients: fromSystem,
+        });
+      } else {
+        res = await sendMutation.mutateAsync({
+          message: message.trim() || undefined,
+          template_id: selectedTemplateId,
+          custom_numbers: phones.trim(),
+          sender_id: senderId,
+          from_system_recipients: fromSystem,
+        });
+      }
+      const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'email' ? 'Email' : 'SMS';
       showSuccess(
-        channel === 'whatsapp' ? 'WhatsApp sent' : 'SMS sent',
+        `${channelLabel} sent`,
         res.message ?? `Sent: ${res.data?.sent ?? 0}, failed: ${res.data?.failed ?? 0}`,
         () => navigation.goBack(),
       );
@@ -140,33 +178,62 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
     <ScreenContainer contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader
         title="Send message"
-        subtitle="Broadcast via SMS or WhatsApp"
+        subtitle="Broadcast via SMS, WhatsApp, or email"
         onBack={() => navigation.goBack()}
       />
 
       <Text style={[labelStyle, { marginTop: 0 }]}>Channel</Text>
-      <FilterChipRow>
-        <FilterChip
-          label="SMS"
-          active={channel === 'sms'}
-          onPress={() => {
-            setChannel('sms');
-            setSelectedTemplateId(undefined);
-          }}
-        />
-        <FilterChip
-          label="WhatsApp"
-          active={channel === 'whatsapp'}
-          onPress={() => {
-            setChannel('whatsapp');
-            setSelectedTemplateId(undefined);
-          }}
-        />
-      </FilterChipRow>
+      <View
+        style={[
+          styles.channelTabs,
+          {
+            backgroundColor: palette.surfaceRaised,
+            borderColor: palette.borderSubtle,
+            borderRadius: radius.control,
+            padding: 4,
+          },
+        ]}
+      >
+        {([
+          { id: 'sms' as const, label: 'SMS' },
+          { id: 'whatsapp' as const, label: 'WhatsApp' },
+          { id: 'email' as const, label: 'Email' },
+        ]).map((tab) => {
+          const active = channel === tab.id;
+          return (
+            <Pressable
+              key={tab.id}
+              onPress={() => switchChannel(tab.id)}
+              style={[
+                styles.channelTab,
+                {
+                  backgroundColor: active ? colors.primary : 'transparent',
+                  borderRadius: radius.md,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: active ? colors.white : palette.textSecondary,
+                  fontWeight: '700',
+                  fontSize: typography.caption.fontSize,
+                }}
+              >
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {templatesQuery.data && templatesQuery.data.length > 0 ? (
         <View style={{ marginBottom: spacing.sm }}>
           <Text style={labelStyle}>Template</Text>
+          {selectedTemplateId ? (
+            <Text style={{ color: colors.warning, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
+              Template selected — add system recipients via class picker before sending.
+            </Text>
+          ) : null}
           <FilterChipRow>
             <FilterChip
               label="None"
@@ -183,6 +250,7 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
                 onPress={() => {
                   setSelectedTemplateId(tpl.id);
                   setMessage(tpl.content ?? '');
+                  if (tpl.subject) setSubject(tpl.subject);
                 }}
               />
             ))}
@@ -200,19 +268,39 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         </>
       ) : null}
 
-      <Text style={labelStyle}>Phone numbers (comma-separated)</Text>
+      {channel === 'email' ? (
+        <>
+          <Text style={labelStyle}>Subject</Text>
+          <TextInput
+            value={subject}
+            onChangeText={setSubject}
+            placeholder="Email subject"
+            placeholderTextColor={palette.textMuted}
+            style={inputStyle}
+          />
+        </>
+      ) : null}
+
+      <Text style={labelStyle}>
+        {channel === 'email' ? 'Email addresses (comma-separated)' : 'Phone numbers (comma-separated)'}
+      </Text>
       <TextInput
         value={phones}
-        onChangeText={setPhones}
-        placeholder="2547XXXXXXXX, 2541XXXXXXXX"
+        onChangeText={(t) => {
+          setPhones(t);
+          if (!t.trim()) setSystemRecipientCount(0);
+        }}
+        placeholder={channel === 'email' ? 'parent@example.com' : '2547XXXXXXXX, 2541XXXXXXXX'}
         placeholderTextColor={palette.textMuted}
-        keyboardType="phone-pad"
+        keyboardType={channel === 'email' ? 'email-address' : 'phone-pad'}
+        autoCapitalize="none"
         style={inputStyle}
       />
       <View style={[styles.recipientRow, { marginTop: spacing.xs }]}>
         {recipientCount > 0 ? (
           <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
             {recipientCount} recipient{recipientCount === 1 ? '' : 's'}
+            {systemRecipientCount > 0 ? ` · ${systemRecipientCount} from system` : ''}
           </Text>
         ) : (
           <View />
@@ -229,7 +317,7 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         value={message}
         onChangeText={setMessage}
         multiline
-        placeholder="SMS body"
+        placeholder={channel === 'email' ? 'Email body' : 'Message body'}
         placeholderTextColor={palette.textMuted}
         style={[...inputStyle, styles.textArea]}
       />
@@ -241,7 +329,7 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         </Text>
       ) : (
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
-          {charCount} chars · sent via WhatsApp
+          {charCount} chars · sent via {channel === 'whatsapp' ? 'WhatsApp' : 'email'}
         </Text>
       )}
       <FilterBottomSheet
@@ -302,7 +390,13 @@ export const SmsComposeScreen: React.FC<Props> = ({ navigation }) => {
         ]}
       >
         <Text style={{ color: colors.white, fontWeight: '700', fontSize: typography.body.fontSize }}>
-          {pending ? 'Sending…' : channel === 'whatsapp' ? 'Send via WhatsApp' : 'Send SMS'}
+          {pending
+            ? 'Sending…'
+            : channel === 'whatsapp'
+              ? 'Send via WhatsApp'
+              : channel === 'email'
+                ? 'Send email'
+                : 'Send SMS'}
         </Text>
       </Pressable>
     </ScreenContainer>
@@ -319,4 +413,14 @@ const styles = StyleSheet.create({
   },
   textArea: { minHeight: 120, textAlignVertical: 'top' },
   sendBtn: { alignItems: 'center' },
+  channelTabs: {
+    flexDirection: 'row',
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 4,
+  },
+  channelTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
 });

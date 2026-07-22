@@ -3,7 +3,7 @@
 > **Status:** Canonical design source of truth + **implemented** in `@erp/ui` / Admin (July 2026)  
 > **Platform:** React Native / Expo Admin App (`mobile-app/apps/admin`)  
 > **Package:** `@erp/ui` (`mobile-app/packages/ui`)  
-> **Phase:** Design kit approved; Stage 1–3 + Visual Overhaul shipped — see [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)
+> **Phase:** Design kit approved; Stage 1–3 + Visual Overhaul + **soft-3D icons / frosted nav** shipped — see [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)
 
 ## Purpose
 
@@ -64,7 +64,9 @@ Keep V2 files for migration history. Do not extend them. All new design decision
 - Premium blue accent used consistently (`#004A99` ScholarCore primary)
 - Branded empty, loading, error, success, and offline states on every screen
 - Motion system (150 / 250 / 400 ms) with reduced-motion support
-- Custom bottom navigation (not stock Material default look)
+- Custom bottom navigation (floating frosted bar + soft-3D icons — not stock Material)
+- Soft-3D clay icons for shortcuts, KPIs, drawer, and tabs (see [ICON_GUIDELINES.md](./ICON_GUIDELINES.md))
+- Compact frosted drawer (not a full-width solid white panel)
 - Large touch targets (≥ 44–48 dp)
 - Every screen feels like one design language
 

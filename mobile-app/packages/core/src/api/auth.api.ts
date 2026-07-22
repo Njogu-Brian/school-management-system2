@@ -14,6 +14,16 @@ export const authApi = {
     return apiClient.post<ApiLoginData>('/login', credentials);
   },
 
+  /** `POST /login/otp/request` — send SMS OTP for passwordless sign-in. */
+  requestLoginOtp(identifier: string): Promise<ApiResponse<null>> {
+    return apiClient.post<null>('/login/otp/request', { identifier });
+  },
+
+  /** `POST /login/otp/verify` → `{ token, user, expires_at }`. */
+  verifyLoginOtp(identifier: string, code: string): Promise<ApiResponse<ApiLoginData>> {
+    return apiClient.post<ApiLoginData>('/login/otp/verify', { identifier, code });
+  },
+
   /** `POST /login/google` — exchange Google ID token for a Sanctum session. */
   loginWithGoogle(data: GoogleLoginRequest): Promise<ApiResponse<ApiLoginData>> {
     return apiClient.post<ApiLoginData>('/login/google', data);

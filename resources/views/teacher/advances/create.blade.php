@@ -32,38 +32,19 @@
 
     <div class="card shadow-sm">
         <div class="card-body">
+            <p class="text-muted small mb-3">
+                Request a specific amount. Installment repayment plans are set by admin when approving.
+            </p>
             <form method="POST" action="{{ route($routePrefix . '.store') }}">
                 @csrf
                 <div class="row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label">Amount (KES) <span class="text-danger">*</span></label>
                         <input type="number" name="amount" step="0.01" min="0.01" class="form-control" value="{{ old('amount') }}" required>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label">Advance Date <span class="text-danger">*</span></label>
                         <input type="date" name="advance_date" class="form-control" value="{{ old('advance_date', now()->toDateString()) }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Repayment Method <span class="text-danger">*</span></label>
-                        <select name="repayment_method" class="form-select" required id="repaymentMethodSelect">
-                            @foreach(['lump_sum' => 'Lump Sum', 'installments' => 'Fixed Installments', 'monthly_deduction' => 'Monthly Deduction'] as $key => $label)
-                                <option value="{{ $key }}" @selected(old('repayment_method') === $key)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-6 repayment-field" data-method="installments">
-                        <label class="form-label">Number of Installments</label>
-                        <input type="number" name="installment_count" class="form-control" min="1" value="{{ old('installment_count') }}">
-                        <small class="text-muted">Only required if paying via fixed installments.</small>
-                    </div>
-                    <div class="col-md-6 repayment-field" data-method="monthly_deduction">
-                        <label class="form-label">Monthly Deduction Amount</label>
-                        <input type="number" name="monthly_deduction_amount" class="form-control" step="0.01" min="0.01" value="{{ old('monthly_deduction_amount') }}">
-                        <small class="text-muted">Specify the amount to deduct from each payroll.</small>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Expected Completion Date</label>
-                        <input type="date" name="expected_completion_date" class="form-control" value="{{ old('expected_completion_date') }}">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Purpose</label>
@@ -90,21 +71,4 @@
     </div>
 </div>
 </div>
-
-@push('scripts')
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const select = document.getElementById('repaymentMethodSelect');
-        const toggleFields = () => {
-            document.querySelectorAll('.repayment-field').forEach(field => {
-                const method = field.getAttribute('data-method');
-                field.style.display = (select.value === method) ? 'block' : 'none';
-            });
-        };
-        select.addEventListener('change', toggleFields);
-        toggleFields();
-    });
-</script>
-@endpush
 @endsection
-

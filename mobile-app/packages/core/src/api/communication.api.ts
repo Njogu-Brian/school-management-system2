@@ -115,7 +115,10 @@ export const communicationApi = {
     return apiClient.get<CommunicationLogRecord>(`/communication/logs/${id}`);
   },
 
-  listRecipients(params?: { classroom_id?: number }): Promise<ApiResponse<SmsRecipientsResult>> {
+  listRecipients(params?: {
+    classroom_id?: number;
+    channel?: 'sms' | 'whatsapp' | 'email';
+  }): Promise<ApiResponse<SmsRecipientsResult>> {
     return apiClient.get<SmsRecipientsResult>('/communication/recipients', params);
   },
 
@@ -134,6 +137,7 @@ export const communicationApi = {
     custom_numbers?: string;
     phones?: string[];
     sender_id?: 'finance' | 'default';
+    from_system_recipients?: number | boolean;
   }): Promise<ApiResponse<{ sent: number; failed: number; total: number }>> {
     return apiClient.post('/communication/sms', payload);
   },
@@ -143,7 +147,23 @@ export const communicationApi = {
     template_id?: number;
     custom_numbers?: string;
     phones?: string[];
+    from_system_recipients?: number | boolean;
   }): Promise<ApiResponse<{ sent: number; failed: number; total: number }>> {
     return apiClient.post('/communication/whatsapp', payload);
+  },
+
+  sendEmail(payload: {
+    subject?: string;
+    message?: string;
+    template_id?: number;
+    emails?: string[];
+    custom_emails?: string;
+    from_system_recipients?: number | boolean;
+  }): Promise<ApiResponse<{ sent: number; failed: number; total: number }>> {
+    return apiClient.post('/communication/email', payload);
+  },
+
+  listPublicAnnouncements(params?: { limit?: number }): Promise<ApiResponse<AnnouncementRecord[]>> {
+    return apiClient.get<AnnouncementRecord[]>('/public/announcements', params);
   },
 };

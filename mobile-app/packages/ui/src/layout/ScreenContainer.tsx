@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
+import { FLOATING_TAB_BAR_CLEARANCE } from './PremiumTabBar';
 
 export interface ScreenContainerProps {
   children: React.ReactNode;
@@ -21,6 +22,8 @@ export interface ScreenContainerProps {
   scrollProps?: ScrollViewProps;
   edges?: Array<'top' | 'bottom' | 'left' | 'right'>;
   keyboardVerticalOffset?: number;
+  /** Extra bottom inset so floating tab bar does not cover actions (default true). */
+  clearFloatingTabBar?: boolean;
 }
 
 /**
@@ -35,15 +38,21 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   scrollProps,
   edges = ['bottom'],
   keyboardVerticalOffset,
+  clearFloatingTabBar = true,
 }) => {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomClearance = clearFloatingTabBar && scroll ? FLOATING_TAB_BAR_CLEARANCE : 0;
 
   const body = scroll ? (
     <ScrollView
       style={styles.flex}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+      contentContainerStyle={[
+        styles.scrollContent,
+        bottomClearance ? { paddingBottom: bottomClearance } : null,
+        contentContainerStyle,
+      ]}
       showsVerticalScrollIndicator={false}
       {...scrollProps}
     >

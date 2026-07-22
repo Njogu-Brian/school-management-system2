@@ -110,13 +110,18 @@ export function useCommunicationLog(id: number, options?: { enabled?: boolean })
   });
 }
 
-export function useSmsRecipients(options?: { enabled?: boolean; classroomId?: number }) {
+export function useSmsRecipients(options?: {
+  enabled?: boolean;
+  classroomId?: number;
+  channel?: 'sms' | 'whatsapp' | 'email';
+}) {
   return useQuery({
-    queryKey: queryKeys.communication.recipients(options?.classroomId),
+    queryKey: queryKeys.communication.recipients(options?.classroomId, options?.channel),
     queryFn: async () => {
-      const res = await communicationApi.listRecipients(
-        options?.classroomId ? { classroom_id: options.classroomId } : undefined,
-      );
+      const res = await communicationApi.listRecipients({
+        ...(options?.classroomId ? { classroom_id: options.classroomId } : {}),
+        ...(options?.channel ? { channel: options.channel } : {}),
+      });
       if (!res.success || !res.data) {
         throw new Error(res.message || 'Failed to load recipients.');
       }
@@ -207,6 +212,29 @@ export function useSendWhatsApp() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.communication.logs() });
     },
+  });
+}
+
+export function useSendEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: communicationApi.sendEmail,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.communication.logs() });
+    },
+  });
+}
+
+export function usePublicAnnouncements(options?: { enabled?: boolean; limit?: number }) {
+  return useQuery({
+    queryKey: [...queryKeys.communication.all, 'public-announcements', options?.limit ?? 5],
+    queryFn: async () => {
+      const res = await communicationApi.listPublicAnnouncements({ limit: options?.limit ?? 5 });
+      if (!res.success || !res.data) throw new Error(res.message || 'Failed to load announcements.');
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 60_000,
   });
 }
 

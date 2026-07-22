@@ -12,12 +12,56 @@ export interface TransportRouteSummary {
   driver_id?: number | null;
   driver_name?: string | null;
   status?: string;
+  students_count?: number | null;
+  students?: RouteStudentRecord[];
   drop_points?: Array<{
     id: number;
     name: string;
     sequence?: number;
     pickup_time?: string | null;
   }>;
+}
+
+export interface RouteStudentRecord {
+  id: number;
+  full_name: string;
+  admission_number: string;
+  class_name?: string | null;
+  assignment_id?: number | null;
+  leg?: 'morning' | 'evening' | null;
+  is_special?: boolean;
+  special_assignment_id?: number | null;
+  special_end_date?: string | null;
+}
+
+export interface StudentAssignmentRecord {
+  id: number;
+  student_id: number;
+  student_name?: string | null;
+  admission_number?: string | null;
+  class_name?: string | null;
+  stream_name?: string | null;
+  morning_trip_id?: number | null;
+  morning_trip_name?: string | null;
+  evening_trip_id?: number | null;
+  evening_trip_name?: string | null;
+  morning_drop_off_point?: string | null;
+  evening_drop_off_point?: string | null;
+}
+
+export interface TransportSpecialAssignmentRecord {
+  id: number;
+  student_id: number;
+  student_name?: string | null;
+  trip_id?: number | null;
+  trip_name?: string | null;
+  vehicle_id?: number | null;
+  vehicle_number?: string | null;
+  transport_mode: string;
+  start_date: string;
+  end_date?: string | null;
+  reason?: string | null;
+  status: string;
 }
 
 export interface VehicleRecord {
@@ -218,6 +262,69 @@ export const operationsApi = {
 
   getRoute(id: number): Promise<ApiResponse<TransportRouteSummary>> {
     return apiClient.get<TransportRouteSummary>(`/routes/${id}`);
+  },
+
+  getRouteStudents(
+    id: number,
+    params?: { date?: string },
+  ): Promise<ApiResponse<{ trip_id: number; date: string; students: RouteStudentRecord[] }>> {
+    return apiClient.get(`/routes/${id}/students`, params);
+  },
+
+  listStudentAssignments(params?: {
+    student_id?: number;
+    trip_id?: number;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PaginatedResponse<StudentAssignmentRecord>>> {
+    return apiClient.get('/student-assignments', params);
+  },
+
+  assignStudentToTrip(payload: {
+    student_id: number;
+    trip_id: number;
+    leg: 'morning' | 'evening' | 'both';
+  }): Promise<ApiResponse<StudentAssignmentRecord>> {
+    return apiClient.post('/student-assignments/assign-to-trip', payload);
+  },
+
+  /** Permanent or short-term assign via route endpoint (POST /routes/{id}/assign-student). */
+  assignStudentToRoute(
+    routeId: number,
+    payload: {
+      student_id: number;
+      mode: 'permanent' | 'short_term';
+      leg?: 'morning' | 'evening' | 'both';
+      start_date?: string;
+      end_date?: string;
+      reason?: string;
+    },
+  ): Promise<ApiResponse<RouteStudentRecord | { special_assignment_id: number; student: RouteStudentRecord }>> {
+    return apiClient.post(`/routes/${routeId}/assign-student`, payload);
+  },
+
+  updateStudentAssignment(
+    id: number,
+    payload: { morning_trip_id?: number | null; evening_trip_id?: number | null },
+  ): Promise<ApiResponse<StudentAssignmentRecord>> {
+    return apiClient.put(`/student-assignments/${id}`, payload);
+  },
+
+  createSpecialAssignment(payload: {
+    student_id: number;
+    trip_id?: number;
+    vehicle_id?: number;
+    transport_mode: 'vehicle' | 'trip' | 'own_means';
+    start_date: string;
+    end_date?: string;
+    reason?: string;
+    activate?: boolean;
+  }): Promise<ApiResponse<TransportSpecialAssignmentRecord>> {
+    return apiClient.post('/transport/special-assignments', payload);
+  },
+
+  cancelSpecialAssignment(id: number): Promise<ApiResponse<TransportSpecialAssignmentRecord>> {
+    return apiClient.post(`/transport/special-assignments/${id}/cancel`);
   },
 
   createRoute(payload: {

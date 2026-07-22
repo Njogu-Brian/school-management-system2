@@ -10,3 +10,4 @@ export * from './FinanceTransactionListItem';
 export * from './FinanceFieldSection';
 export * from './StatementLedger';
 export * from './FinanceScreenHeader';
+export * from './FinanceListKpiStrip';

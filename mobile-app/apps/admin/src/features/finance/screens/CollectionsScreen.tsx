@@ -8,6 +8,7 @@ import {
 } from '@erp/core';
 import {
   EmptyState,
+  FinanceListKpiStrip,
   FinanceScreenHeader,
   FinanceSearchBar,
   FinanceTransactionListItem,
@@ -129,6 +130,7 @@ export const CollectionsScreen: React.FC<Props> = ({ navigation, route }) => {
           subtitle="Payments & bank/M-Pesa transactions"
           onBack={() => navigation.goBack()}
         />
+        <FinanceListKpiStrip variant="collections" />
         <ScrollableTabBar variant="segmented" tabs={TABS} activeTab={tab} onTabChange={setTab} />
       </View>
     ),

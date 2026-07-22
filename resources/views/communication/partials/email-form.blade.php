@@ -4,7 +4,7 @@
     <i class="bi bi-envelope-paper fs-5"></i>
     <div>
         <div class="fw-semibold">Gmail-style compose</div>
-        <small class="text-muted">Use templates for repeat sends, or switch to manual and insert placeholders below.</small>
+        <small class="text-muted">Use templates for repeat sends, or switch to manual and insert placeholders below. Templates require system recipients (parents, staff, class, or students)—not custom emails alone.</small>
     </div>
 </div>
 

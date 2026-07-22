@@ -15,10 +15,13 @@ class ExpoPushService
     private const CHUNK = 100;
 
     /**
-     * Send a push for a new or newly-activated announcement to all registered Expo device tokens.
+     * Send a push for a new or newly-activated announcement to all registered Expo device tokens,
+     * and create in-app (database) notifications for staff web/app notification centers.
      */
     public function sendAnnouncementNotification(Announcement $announcement): void
     {
+        $this->notifyStaffInApp($announcement);
+
         $tokens = DB::table('user_device_tokens')
             ->distinct()
             ->pluck('token')
@@ -49,6 +52,43 @@ class ExpoPushService
             }
 
             $this->postMessages($messages);
+        }
+    }
+
+    /**
+     * Fan out database notifications so portal + app notification trays show the announcement.
+     */
+    protected function notifyStaffInApp(Announcement $announcement): void
+    {
+        try {
+            $users = \App\Models\User::query()
+                ->whereHas('roles', function ($q) {
+                    $q->whereIn('name', [
+                        'Super Admin',
+                        'Admin',
+                        'Secretary',
+                        'Teacher',
+                        'teacher',
+                        'Senior Teacher',
+                        'senior teacher',
+                        'Accountant',
+                        'Finance',
+                    ]);
+                })
+                ->get();
+
+            if ($users->isEmpty()) {
+                return;
+            }
+
+            \Illuminate\Support\Facades\Notification::send(
+                $users,
+                new \App\Notifications\AnnouncementPublishedNotification($announcement)
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Announcement in-app notify failed: '.$e->getMessage(), [
+                'announcement_id' => $announcement->id,
+            ]);
         }
     }
 

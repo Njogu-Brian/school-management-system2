@@ -33,6 +33,7 @@ Route::post('/password/reset', [AuthApiController::class, 'resetPassword']);
 
 /** School name + logo from portal Settings (General); no auth — for mobile sign-in screen. */
 Route::get('/app-branding', [\App\Http\Controllers\Api\ApiAppBrandingController::class, 'show']);
+Route::get('/public/announcements', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'publicIndex']);
 
 /*
 |--------------------------------------------------------------------------
@@ -127,6 +128,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/children/{student}', [$parent, 'child']);
         Route::get('/children/{student}/statement', [$parent, 'statement']);
         Route::get('/children/{student}/attendance', [$parent, 'attendance']);
+        Route::get('/children/{student}/payment-link', [$parent, 'paymentLink']);
         Route::get('/report-cards', [$parent, 'reportCards']);
         Route::get('/announcements', [$parent, 'announcements']);
     });
@@ -274,14 +276,36 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/routes', [\App\Http\Controllers\Api\ApiRouteController::class, 'index']);
     Route::post('/routes', [\App\Http\Controllers\Api\ApiRouteController::class, 'store']);
     Route::get('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'show']);
+    Route::get('/routes/{id}/students', [\App\Http\Controllers\Api\ApiRouteController::class, 'students']);
+    Route::post('/routes/{id}/assign-student', [\App\Http\Controllers\Api\ApiRouteController::class, 'assignStudent']);
     Route::put('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'update']);
     Route::delete('/routes/{id}', [\App\Http\Controllers\Api\ApiRouteController::class, 'destroy']);
     Route::get('/routes/{id}/fee-clearance-roster', [ApiFeeClearanceController::class, 'tripRoster']);
+
+    Route::get('/student-assignments', [\App\Http\Controllers\Api\ApiStudentAssignmentController::class, 'index']);
+    Route::post('/student-assignments', [\App\Http\Controllers\Api\ApiStudentAssignmentController::class, 'store']);
+    Route::post('/student-assignments/assign-to-trip', [\App\Http\Controllers\Api\ApiStudentAssignmentController::class, 'assignToTrip']);
+    Route::get('/student-assignments/{id}', [\App\Http\Controllers\Api\ApiStudentAssignmentController::class, 'show']);
+    Route::put('/student-assignments/{id}', [\App\Http\Controllers\Api\ApiStudentAssignmentController::class, 'update']);
+    Route::delete('/student-assignments/{id}', [\App\Http\Controllers\Api\ApiStudentAssignmentController::class, 'destroy']);
+
+    Route::get('/transport/special-assignments', [\App\Http\Controllers\Api\ApiTransportSpecialAssignmentController::class, 'index']);
+    Route::post('/transport/special-assignments', [\App\Http\Controllers\Api\ApiTransportSpecialAssignmentController::class, 'store']);
+    Route::post('/transport/special-assignments/{id}/approve', [\App\Http\Controllers\Api\ApiTransportSpecialAssignmentController::class, 'approve']);
+    Route::post('/transport/special-assignments/{id}/cancel', [\App\Http\Controllers\Api\ApiTransportSpecialAssignmentController::class, 'cancel']);
     Route::get('/leave-types', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'leaveTypes']);
+    Route::post('/leave-types', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'storeLeaveType']);
+    Route::put('/leave-types/{id}', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'updateLeaveType']);
+    Route::post('/leave-types/assign', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'assignLeaveType']);
     Route::get('/leave-requests', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'index']);
     Route::post('/leave-requests', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'store']);
     Route::post('/leave-requests/{id}/approve', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'approve']);
     Route::post('/leave-requests/{id}/reject', [\App\Http\Controllers\Api\ApiLeaveRequestController::class, 'reject']);
+    Route::get('/staff-advances', [\App\Http\Controllers\Api\ApiStaffAdvanceController::class, 'index']);
+    Route::post('/staff-advances', [\App\Http\Controllers\Api\ApiStaffAdvanceController::class, 'store']);
+    Route::get('/staff-advances/{id}', [\App\Http\Controllers\Api\ApiStaffAdvanceController::class, 'show']);
+    Route::post('/staff-advances/{id}/approve', [\App\Http\Controllers\Api\ApiStaffAdvanceController::class, 'approve']);
+    Route::post('/staff-advances/{id}/reject', [\App\Http\Controllers\Api\ApiStaffAdvanceController::class, 'reject']);
     Route::get('/library/books', [\App\Http\Controllers\Api\ApiLibraryController::class, 'index']);
     Route::get('/library/borrowings', [\App\Http\Controllers\Api\ApiLibraryController::class, 'borrowings']);
     Route::post('/library/borrowings', [\App\Http\Controllers\Api\ApiLibraryController::class, 'issue']);
@@ -303,6 +327,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/communication/recipients', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'recipients']);
     Route::post('/communication/sms', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendSms']);
     Route::post('/communication/whatsapp', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendWhatsApp']);
+    Route::post('/communication/email', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendEmail']);
+
+    Route::get('/concerns', [\App\Http\Controllers\Api\ApiConcernController::class, 'index']);
+    Route::post('/concerns', [\App\Http\Controllers\Api\ApiConcernController::class, 'store']);
+    Route::get('/concerns/{id}', [\App\Http\Controllers\Api\ApiConcernController::class, 'show']);
+    Route::put('/concerns/{id}', [\App\Http\Controllers\Api\ApiConcernController::class, 'update']);
 
     Route::get('/inventory/items', [\App\Http\Controllers\Api\ApiInventoryController::class, 'index']);
     Route::get('/inventory/items/{id}', [\App\Http\Controllers\Api\ApiInventoryController::class, 'show']);

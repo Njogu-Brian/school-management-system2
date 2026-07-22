@@ -6,7 +6,7 @@ import {
 } from '@erp/core';
 import { StaffFieldSection, StudentSummaryWidgets, type StudentSummaryWidgetData } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@erp/ui';
 import { capitalizeStatus, formatKes, formatPercent } from '../utils/formatters';
 
@@ -84,6 +84,31 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   return (
     <View>
+      <View
+        style={{
+          backgroundColor: palette.surfaceRaised,
+          borderRadius: 16,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: palette.borderSubtle,
+          padding: spacing.md,
+          marginBottom: spacing.md,
+        }}
+      >
+        <Text
+          style={{
+            color: palette.textMain,
+            fontSize: typography.titleSmall.fontSize,
+            fontWeight: '800',
+            marginBottom: spacing.xs,
+          }}
+        >
+          {staff.fullName}
+        </Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+          {[staff.systemRole, staff.staffCategory].filter(Boolean).join(' · ') || 'Staff member'}
+        </Text>
+      </View>
+
       <StudentSummaryWidgets widgets={widgets} />
 
       {(leaveBalancesLoading || payrollLoading) && canViewFinance ? (
@@ -101,16 +126,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           { label: 'Hire date', value: staff.hireDate },
         ]}
       />
-
-      <Text
-        style={{
-          color: palette.textSecondary,
-          fontSize: typography.overline.fontSize,
-          textAlign: 'center',
-        }}
-      >
-        Read-only Staff 360 — no edits in this release.
-      </Text>
     </View>
   );
 };

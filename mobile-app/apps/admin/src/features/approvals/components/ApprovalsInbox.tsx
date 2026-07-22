@@ -18,7 +18,7 @@ import {
   useTheme,
 } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { approvalItemToCard } from '../utils/mapToCard';
 
 const SECTION_HINT: Record<ApprovalStatus | 'all', string> = {

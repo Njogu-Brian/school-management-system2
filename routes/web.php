@@ -1984,6 +1984,12 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('assets', [\App\Http\Controllers\Operations\FixedAssetController::class, 'index'])->name('assets.index');
         Route::get('assets/create', [\App\Http\Controllers\Operations\FixedAssetController::class, 'create'])->name('assets.create');
         Route::post('assets', [\App\Http\Controllers\Operations\FixedAssetController::class, 'store'])->name('assets.store');
+
+        Route::get('concerns', [\App\Http\Controllers\Operations\ConcernController::class, 'index'])->name('concerns.index');
+        Route::get('concerns/create', [\App\Http\Controllers\Operations\ConcernController::class, 'create'])->name('concerns.create');
+        Route::post('concerns', [\App\Http\Controllers\Operations\ConcernController::class, 'store'])->name('concerns.store');
+        Route::get('concerns/{id}', [\App\Http\Controllers\Operations\ConcernController::class, 'show'])->name('concerns.show');
+        Route::put('concerns/{id}', [\App\Http\Controllers\Operations\ConcernController::class, 'update'])->name('concerns.update');
     });
 
     /*

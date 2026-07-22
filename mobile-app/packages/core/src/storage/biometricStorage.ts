@@ -9,8 +9,12 @@ const SECURE_OPTIONS: SecureStore.SecureStoreOptions = {
 
 export const BIOMETRIC_MAX_FAILURES = 5;
 
-type BiometricAuthBundle = {
+/** Session + optional password credentials used to re-authenticate after logout. */
+export type BiometricAuthBundle = {
   token: string;
+  userId?: number;
+  identifier?: string;
+  password?: string;
 };
 
 /** Device has biometric hardware and the user has enrolled biometrics. */
@@ -50,11 +54,20 @@ export async function getBiometricEnabled(): Promise<boolean> {
 }
 
 /**
- * Store the current Sanctum token behind device biometrics. Does not replace
- * backend auth — only unlocks an existing session on this device.
+ * Store Sanctum token (+ optional login credentials) behind device biometrics.
+ * Credentials let the user sign in again after logout without retyping a password.
  */
-export async function saveBiometricAuthBundle(token: string): Promise<void> {
-  const payload: BiometricAuthBundle = { token };
+export async function saveBiometricAuthBundle(
+  token: string,
+  extras?: { userId?: number; identifier?: string; password?: string },
+): Promise<void> {
+  const existing = await getBiometricAuthBundle();
+  const payload: BiometricAuthBundle = {
+    token,
+    userId: extras?.userId ?? existing?.userId,
+    identifier: extras?.identifier ?? existing?.identifier,
+    password: extras?.password ?? existing?.password,
+  };
   await SecureStore.setItemAsync(
     BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE,
     JSON.stringify(payload),
@@ -83,6 +96,11 @@ export async function clearBiometricAuthBundle(): Promise<void> {
   }
 }
 
+/** Disable biometrics and wipe the stored session/credentials binding. */
+export async function clearBiometricEnrollment(): Promise<void> {
+  await setBiometricEnabled(false);
+}
+
 export async function getBiometricFailureCount(): Promise<number> {
   const raw = await AsyncStorage.getItem(ASYNC_KEYS.BIOMETRIC_FAILURE_COUNT);
   const n = raw ? parseInt(raw, 10) : 0;
@@ -103,7 +121,7 @@ export async function isBiometricLoginLocked(): Promise<boolean> {
   return (await getBiometricFailureCount()) >= BIOMETRIC_MAX_FAILURES;
 }
 
-/** True when biometrics are enabled and a saved session bundle exists. */
+/** True when biometrics are enabled and a saved session/credentials bundle exists. */
 export async function hasBiometricUnlockAvailable(): Promise<boolean> {
   if (!(await getBiometricEnabled())) {
     return false;
@@ -115,5 +133,5 @@ export async function hasBiometricUnlockAvailable(): Promise<boolean> {
     return false;
   }
   const bundle = await getBiometricAuthBundle();
-  return Boolean(bundle?.token);
+  return Boolean(bundle?.token || (bundle?.identifier && bundle?.password));
 }

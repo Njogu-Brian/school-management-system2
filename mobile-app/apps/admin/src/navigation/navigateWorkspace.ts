@@ -25,6 +25,8 @@ export function navigateToTab(
   params?: object,
 ): void {
   const root = getDrawerNavigation(navigation);
+  // Explicit nested navigate so StaffClock / LeaveManagement open instead of
+  // landing on the People (HR) registry hub.
   root.dispatch(
     CommonActions.navigate({
       name: 'Workspace',
@@ -33,7 +35,8 @@ export function navigateToTab(
         params: screen
           ? {
               screen,
-              params,
+              params: params ?? {},
+              initial: false,
             }
           : undefined,
       },

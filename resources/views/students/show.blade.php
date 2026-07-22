@@ -517,7 +517,27 @@
             <div class="tab-pane fade" id="finance" role="tabpanel">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="mb-0">Financial Information</h6>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 flex-wrap">
+                  @php
+                    $familyPaymentLink = null;
+                    if ($student->family_id) {
+                        try {
+                            $familyPaymentLink = ensure_family_payment_link($student->family_id);
+                        } catch (\Throwable $e) {
+                            $familyPaymentLink = null;
+                        }
+                    }
+                    $paymentLinkUrl = $familyPaymentLink
+                        ? url('/pay/' . ($familyPaymentLink->hashed_id ?? $familyPaymentLink->token))
+                        : null;
+                  @endphp
+                  @if($paymentLinkUrl)
+                    <button type="button"
+                            class="btn btn-sm btn-success"
+                            onclick="navigator.clipboard.writeText(@json($paymentLinkUrl)); this.innerText='Copied!'; setTimeout(() => this.innerText='Copy payment link', 1500);">
+                      <i class="bi bi-share"></i> Copy payment link
+                    </button>
+                  @endif
                   <a href="{{ route('finance.accountant-dashboard.student-history', $student) }}" class="btn btn-sm btn-ghost-strong">Payment Plan History <i class="bi bi-calendar-check"></i></a>
                   <a href="{{ route('finance.student-statements.show', $student) }}" class="btn btn-sm btn-ghost-strong">View Student Statement <i class="bi bi-arrow-right"></i></a>
                   @if($student->family_id)
