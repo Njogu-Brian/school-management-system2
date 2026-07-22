@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { useFloatingTabBarClearance } from '../layout/PremiumTabBar';
 
 export interface ApprovalActionBarProps {
   canAct: boolean;
@@ -9,7 +10,12 @@ export interface ApprovalActionBarProps {
   onReject: () => void;
   onEscalate?: () => void;
   showEscalate?: boolean;
+  /** When false, only Reject is shown (e.g. admissions enroll elsewhere). */
+  showApprove?: boolean;
 }
+
+/** Approx height of the action row (used by detail screens for scroll padding). */
+export const APPROVAL_ACTION_BAR_HEIGHT = 64;
 
 export const ApprovalActionBar: React.FC<ApprovalActionBarProps> = ({
   canAct,
@@ -18,8 +24,10 @@ export const ApprovalActionBar: React.FC<ApprovalActionBarProps> = ({
   onReject,
   onEscalate,
   showEscalate = false,
+  showApprove = true,
 }) => {
   const { palette, colors, spacing, typography, radius, shadows } = useTheme();
+  const tabClearance = useFloatingTabBarClearance();
 
   if (!canAct) {
     return null;
@@ -33,7 +41,9 @@ export const ApprovalActionBar: React.FC<ApprovalActionBarProps> = ({
           backgroundColor: palette.surface,
           borderTopColor: palette.border,
           paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm,
+          paddingTop: spacing.sm,
+          paddingBottom: spacing.sm,
+          bottom: tabClearance,
         },
         shadows.md,
       ]}
@@ -83,29 +93,31 @@ export const ApprovalActionBar: React.FC<ApprovalActionBarProps> = ({
             </Text>
           )}
         </Pressable>
-        <Pressable
-          onPress={onApprove}
-          disabled={isSubmitting}
-          style={[
-            styles.btn,
-            styles.flex,
-            { backgroundColor: colors.primary, borderRadius: radius.md },
-          ]}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color={palette.textOnPrimary} />
-          ) : (
-            <Text
-              style={{
-                color: palette.textOnPrimary,
-                fontWeight: '700',
-                fontSize: typography.label.fontSize,
-              }}
-            >
-              Approve
-            </Text>
-          )}
-        </Pressable>
+        {showApprove ? (
+          <Pressable
+            onPress={onApprove}
+            disabled={isSubmitting}
+            style={[
+              styles.btn,
+              styles.flex,
+              { backgroundColor: colors.primary, borderRadius: radius.md },
+            ]}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color={palette.textOnPrimary} />
+            ) : (
+              <Text
+                style={{
+                  color: palette.textOnPrimary,
+                  fontWeight: '700',
+                  fontSize: typography.label.fontSize,
+                }}
+              >
+                Approve
+              </Text>
+            )}
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -117,7 +129,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
   },
   row: { flexDirection: 'row' },
   flex: { flex: 1 },

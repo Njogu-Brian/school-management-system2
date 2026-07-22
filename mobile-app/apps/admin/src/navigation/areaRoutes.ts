@@ -41,7 +41,7 @@ export const TAB_HOME_SCREEN: Record<keyof TabsParamList, string> = {
   Dashboard: 'DashboardHome',
   Students: 'StudentRegistry',
   Finance: 'FinanceDashboard',
-  People: 'StaffRegistry',
+  People: 'PeopleHub',
 };
 
 /** Pop a tab stack back to its home screen (menu re-tap or drawer navigation). */
@@ -61,7 +61,7 @@ export function navigateTabHome(
       navigation.navigate('Finance', { screen: homeScreen as 'FinanceDashboard' });
       break;
     case 'People':
-      navigation.navigate('People', { screen: homeScreen as 'StaffRegistry' });
+      navigation.navigate('People', { screen: homeScreen as 'PeopleHub' });
       break;
     default:
       break;

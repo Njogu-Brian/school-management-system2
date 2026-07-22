@@ -18,8 +18,8 @@ import {
   FilterChipRow,
   ScreenContainer,
   SkeletonListRows,
+  useFloatingTabBarClearance,
   useTheme,
-  FLOATING_TAB_BAR_CLEARANCE,
 } from '@erp/ui';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -99,6 +99,7 @@ function StatusButton({
 
 export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, palette, spacing, typography } = useTheme();
+  const tabClearance = useFloatingTabBarClearance();
   const networkStatus = useNetworkStatus();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
@@ -111,12 +112,12 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const [streams, setStreams] = useState<Array<{ id: number; name: string }>>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [statusById, setStatusById] = useState<Record<number, AttendanceMarkStatus>>({});
+  const [serverSnapshot, setServerSnapshot] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
   const [schoolDayMessage, setSchoolDayMessage] = useState<string | null>(null);
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
 
-  const serverSnapshotRef = useRef<Record<number, string>>({});
   const draftKey = classId ? attendanceDraftKey(dateStr, classId, streamId) : null;
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<AttendanceDraft>(draftKey);
   /** Keep draft out of loadStudents deps — setDraft after load was causing an infinite refetch loop. */
@@ -180,22 +181,22 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
         byId[s.id] = status;
         snapshot[s.id] = status;
       }
-      serverSnapshotRef.current = snapshot;
 
       const savedDraft = draftRef.current;
       if (draftLoadedRef.current && savedDraft?.statusById) {
         setStatusById({ ...byId, ...savedDraft.statusById });
-        serverSnapshotRef.current = savedDraft.serverSnapshot ?? snapshot;
+        setServerSnapshot(savedDraft.serverSnapshot ?? snapshot);
         setHasLocalDraft(true);
       } else {
         setStatusById(byId);
+        setServerSnapshot(snapshot);
         setHasLocalDraft(false);
       }
     } catch (err) {
       const savedDraft = draftRef.current;
       if (draftLoadedRef.current && savedDraft?.statusById) {
         setStatusById(savedDraft.statusById);
-        serverSnapshotRef.current = savedDraft.serverSnapshot ?? {};
+        setServerSnapshot(savedDraft.serverSnapshot ?? {});
         setHasLocalDraft(true);
         showSuccess('Offline', 'Showing your saved draft. Server data unavailable.');
       } else {
@@ -209,14 +210,6 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     if (classId && draftLoaded) void loadStudents();
   }, [classId, streamId, dateStr, draftLoaded, loadStudents]);
-
-  useEffect(() => {
-    if (!draftKey || students.length === 0) return;
-    setDraft({
-      statusById,
-      serverSnapshot: serverSnapshotRef.current,
-    });
-  }, [statusById, draftKey, students.length, setDraft]);
 
   const setStatus = (studentId: number, status: AttendanceMarkStatus) => {
     setStatusById((prev) => ({ ...prev, [studentId]: status }));
@@ -232,7 +225,37 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     setHasLocalDraft(true);
   };
 
-  const save = async () => {
+  const isDirty = useMemo(() => {
+    if (students.length === 0) return false;
+    return students.some((s) => (statusById[s.id] ?? 'unmarked') !== (serverSnapshot[s.id] ?? 'unmarked'));
+  }, [students, statusById, serverSnapshot]);
+
+  useEffect(() => {
+    if (!draftKey || students.length === 0) return;
+    if (!isDirty) {
+      void clearDraft();
+      setHasLocalDraft(false);
+      return;
+    }
+    setHasLocalDraft(true);
+    setDraft({
+      statusById,
+      serverSnapshot,
+    });
+  }, [statusById, draftKey, students.length, isDirty, setDraft, clearDraft, serverSnapshot]);
+
+  const markSubmittedLocally = async () => {
+    const snap: Record<number, string> = {};
+    for (const s of students) {
+      snap[s.id] = statusById[s.id] ?? 'unmarked';
+    }
+    setServerSnapshot(snap);
+    draftRef.current = null;
+    await clearDraft();
+    setHasLocalDraft(false);
+  };
+
+  const submit = async () => {
     if (!classId) return;
     if (schoolDayOk === false) {
       showError('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
@@ -246,7 +269,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       }))
       .filter((r) => r.status !== 'unmarked');
     if (records.length === 0) {
-      showError('Nothing to save', 'Mark at least one student as Present, Absent, or Late.');
+      showError('Nothing to submit', 'Mark at least one student as Present, Absent, or Late.');
       return;
     }
 
@@ -258,7 +281,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       stream_id: streamId,
       class_label: classLabel,
       records,
-      baseSnapshot: serverSnapshotRef.current,
+      baseSnapshot: serverSnapshot,
     };
 
     try {
@@ -277,16 +300,16 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
         { label: `Attendance · ${classLabel} · ${dateStr}` },
       );
 
+      await markSubmittedLocally();
+
       if (result === 'queued') {
-        showSuccess('Queued offline', 'Attendance will sync when you reconnect.');
+        showSuccess('Queued for sync', 'Attendance will push to the server when you reconnect.');
       } else {
-        showSuccess('Saved', 'Attendance updated successfully.');
-        await clearDraft();
-        setHasLocalDraft(false);
+        showSuccess('Submitted', 'Attendance saved on the server.');
         void loadStudents();
       }
     } catch (err) {
-      showError('Could not save', (err as Error).message);
+      showError('Could not submit', (err as Error).message);
     }
   };
 
@@ -295,6 +318,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     () => students.filter((s) => (statusById[s.id] ?? 'unmarked') !== 'unmarked').length,
     [students, statusById],
   );
+  const showSubmit = classId != null && students.length > 0 && schoolDayOk !== false;
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
@@ -305,10 +329,10 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
           onBack={() => navigation.goBack()}
         />
 
-        {hasLocalDraft ? (
+        {hasLocalDraft && isDirty ? (
           <View style={[styles.warnBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
             <Text style={{ color: colors.primary, fontSize: typography.body.fontSize }}>
-              Local draft in progress — auto-saved on this device.
+              Unsubmitted changes — saved as a draft on this device until you submit.
             </Text>
           </View>
         ) : null}
@@ -391,7 +415,10 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
           <FlatList
             data={students}
             keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={{ paddingBottom: FLOATING_TAB_BAR_CLEARANCE }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingBottom: showSubmit ? spacing.md : tabClearance,
+            }}
             renderItem={({ item }) => {
               const status = statusById[item.id] ?? 'unmarked';
               return (
@@ -439,13 +466,21 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
           />
         )}
 
-        {classId && students.length > 0 && schoolDayOk !== false ? (
-          <Button
-            label={networkStatus === 'offline' ? 'Queue attendance' : 'Save attendance'}
-            onPress={() => void save()}
-            loading={markMutation.isPending}
-            style={{ marginTop: spacing.sm }}
-          />
+        {showSubmit ? (
+          <View style={{ paddingBottom: tabClearance, paddingTop: spacing.sm }}>
+            <Button
+              label={
+                networkStatus === 'offline'
+                  ? 'Submit (queue offline)'
+                  : isDirty
+                    ? 'Submit attendance'
+                    : 'Submitted'
+              }
+              onPress={() => void submit()}
+              loading={markMutation.isPending}
+              disabled={!isDirty}
+            />
+          </View>
         ) : null}
       </View>
     </ScreenContainer>

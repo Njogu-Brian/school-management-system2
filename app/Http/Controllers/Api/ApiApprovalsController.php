@@ -94,6 +94,10 @@ class ApiApprovalsController extends Controller
             'lesson_plan' => app(ApiLessonPlansController::class)->approve($request, (int) $id),
             'requisition' => app(ApiRequisitionController::class)->approve($request, (int) $id),
             'staff_advance' => app(ApiStaffAdvanceController::class)->approve($request, (int) $id),
+            'online_admission' => response()->json([
+                'success' => false,
+                'message' => 'Open the application in Admissions to enroll or update status.',
+            ], 422),
             default => response()->json([
                 'success' => false,
                 'message' => 'Approve not supported for this approval type in mobile.',
@@ -118,6 +122,10 @@ class ApiApprovalsController extends Controller
             'lesson_plan' => app(ApiLessonPlansController::class)->reject($request, (int) $id),
             'requisition' => app(ApiRequisitionController::class)->reject($request, (int) $id),
             'staff_advance' => app(ApiStaffAdvanceController::class)->reject($request, (int) $id),
+            'online_admission' => app(ApiAdmissionsController::class)->reject(
+                $request,
+                OnlineAdmission::findOrFail((int) $id)
+            ),
             default => response()->json([
                 'success' => false,
                 'message' => 'Reject not supported for this approval type in mobile.',
@@ -318,7 +326,7 @@ class ApiApprovalsController extends Controller
             'requested_at' => ($a->application_date ?? $a->created_at)?->toIso8601String(),
             'requester_name' => $fullName,
             'summary' => $a->application_source,
-            'can_act' => false,
+            'can_act' => in_array($a->application_status, ['pending', 'under_review', 'waitlisted'], true),
         ];
     }
 }

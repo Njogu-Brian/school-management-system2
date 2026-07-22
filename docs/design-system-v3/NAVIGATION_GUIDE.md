@@ -26,7 +26,7 @@ Sources: `mobile-app/apps/admin/src/navigation/` (`DrawerNavigator`, `BottomTabs
 | Dashboard | Command center |
 | Students | Registry + 360 |
 | Finance | Money workflows |
-| People | Staff / HR |
+| People | Staff / HR — **PeopleHub** (leave, payroll, clock, advances, registry) |
 
 Drawer-only routes (Approvals, Academics, Settings, …) also show the floating workspace tab bar via `withWorkspaceTabBar` so primary navigation is always reachable.
 
@@ -36,9 +36,24 @@ Drawer-only routes (Approvals, Academics, Settings, …) also show the floating 
 - **Frosted / translucent** surface (`BlurView` on iOS + Android `dimezisBlurView`) + soft border — not a flat opaque strip
 - Soft-3D icons for every tab (active + inactive); active lifts with primary ring / stronger sheen
 - Labels: `tiny` / `caption`, primary when focused, muted when idle
-- Min height 56 + safe area; `ScreenContainer` applies `FLOATING_TAB_BAR_CLEARANCE` so content is not covered
+- Min height ~80 body + safe area; use **`useFloatingTabBarClearance()`** (or `ScreenContainer` scroll padding) so last content / sticky footers / FABs are never covered
+- Static fallback: `FLOATING_TAB_BAR_CLEARANCE` (~120) for non-hook contexts
 - Do **not** use stock Material default tab chrome
 - Global “Search anything…” prompt appears on **Dashboard** header only (local list search bars remain on feature screens)
+
+## People stack (HR tab)
+
+| Screen | Route | Purpose |
+|--------|-------|---------|
+| PeopleHub | `PeopleHub` (initial) | Hub quick actions |
+| StaffRegistry | `StaffRegistry` | Staff list |
+| LeaveManagement | `LeaveManagement` | Approve / reject leave |
+| LeaveTypes | `LeaveTypes` | Leave type CRUD |
+| StaffAdvances | `StaffAdvances` | Advance requests |
+| PayrollRecords | `PayrollRecords` | School-wide payslips |
+| StaffClock | `StaffClock` | Sign in / out |
+
+Dashboard quick actions must deep-link to these screens (e.g. Payroll → `PayrollRecords`, not advances or registry only).
 
 ## Drawer
 
@@ -69,9 +84,11 @@ Drawer-only routes (Approvals, Academics, Settings, …) also show the floating 
 |-----|---------|
 | Drill into entity | Stack **push** |
 | Filters, quick actions, pickers | **Bottom sheet** (`FilterBottomSheet` pattern) |
-| Confirm destructive / branded success | **Dialog** (shared primitive) |
+| Confirm destructive / branded success | **Dialog** (`ConfirmDialog` / `AlertDialog`) — card **above** scrim, elevated bright surface |
 | Session / About from Settings | Modal or sheet — keep hub uncluttered |
 | M-Pesa / payment prompt | Sheet (existing `MpesaPromptSheet`) |
+
+**Dialog rule:** Never put `zIndex` only on the scrim. Card/center layer must sit above the dimmer so actions remain tappable and readable.
 
 ## Transitions
 

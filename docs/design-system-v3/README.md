@@ -3,7 +3,7 @@
 > **Status:** Canonical design source of truth + **implemented** in `@erp/ui` / Admin (July 2026)  
 > **Platform:** React Native / Expo Admin App (`mobile-app/apps/admin`)  
 > **Package:** `@erp/ui` (`mobile-app/packages/ui`)  
-> **Phase:** Design kit approved; Stage 1–3 + Visual Overhaul + **soft-3D icons / frosted nav** shipped — see [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)
+> **Phase:** Design kit approved; Stage 1–3 + Visual Overhaul + soft-3D / frosted nav + **Jul 22 operations & UX hardening** — see [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)
 
 ## Purpose
 

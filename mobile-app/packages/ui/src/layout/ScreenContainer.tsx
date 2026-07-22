@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
-import { FLOATING_TAB_BAR_CLEARANCE } from './PremiumTabBar';
+import { useFloatingTabBarClearance } from './PremiumTabBar';
 
 export interface ScreenContainerProps {
   children: React.ReactNode;
@@ -24,6 +24,15 @@ export interface ScreenContainerProps {
   keyboardVerticalOffset?: number;
   /** Extra bottom inset so floating tab bar does not cover actions (default true). */
   clearFloatingTabBar?: boolean;
+}
+
+function minPaddingBottom(
+  style: StyleProp<ViewStyle> | undefined,
+  min: number,
+): number {
+  const flat = StyleSheet.flatten(style) as ViewStyle | undefined;
+  const current = typeof flat?.paddingBottom === 'number' ? flat.paddingBottom : 0;
+  return Math.max(current, min);
 }
 
 /**
@@ -42,7 +51,11 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
 }) => {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
-  const bottomClearance = clearFloatingTabBar && scroll ? FLOATING_TAB_BAR_CLEARANCE : 0;
+  const hasBottomEdge = edges.includes('bottom');
+  const tabClearance = useFloatingTabBarClearance(!hasBottomEdge);
+  /** Nested FlatLists own their content padding; only pad ScrollView screens here. */
+  const bottomClearance = clearFloatingTabBar && scroll ? tabClearance : 0;
+  const resolvedPaddingBottom = minPaddingBottom(contentContainerStyle, bottomClearance);
 
   const body = scroll ? (
     <ScrollView
@@ -50,8 +63,8 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[
         styles.scrollContent,
-        bottomClearance ? { paddingBottom: bottomClearance } : null,
         contentContainerStyle,
+        bottomClearance ? { paddingBottom: resolvedPaddingBottom } : null,
       ]}
       showsVerticalScrollIndicator={false}
       {...scrollProps}

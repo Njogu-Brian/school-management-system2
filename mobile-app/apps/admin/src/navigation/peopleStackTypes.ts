@@ -1,6 +1,7 @@
 import type { StaffSummary } from '@erp/core';
 
 export type PeopleStackParamList = {
+  PeopleHub: undefined;
   StaffRegistry: undefined;
   StaffDetail: {
     staffId: number;

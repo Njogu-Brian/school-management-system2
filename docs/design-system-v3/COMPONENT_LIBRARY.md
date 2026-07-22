@@ -58,8 +58,8 @@ V3: migrate Application/Exam/Approval priority badges to wrap this.
 | PlaceholderScreen | `feedback/PlaceholderScreen.tsx` | EXISTS | Unbuilt surfaces |
 | AppErrorBoundary | `feedback/AppErrorBoundary.tsx` | EXISTS | Branded fallback |
 | Toast / Snackbar | `feedback/Toast.tsx` | **EXISTS** | `ToastProvider` + `useToast` |
-| AlertDialog | `feedback/Dialogs.tsx` | **EXISTS** | Branded title, body, primary |
-| ConfirmDialog | `feedback/Dialogs.tsx` | **EXISTS** | Destructive emphasis |
+| AlertDialog | `feedback/Dialogs.tsx` | **EXISTS** | Branded title, body, primary; card above scrim |
+| ConfirmDialog | `feedback/Dialogs.tsx` | **EXISTS** | Destructive emphasis; bright elevated card |
 | LoadingDialog | `feedback/Dialogs.tsx` | **EXISTS** | Blocking progress |
 | SuccessDialog | `feedback/Dialogs.tsx` | **EXISTS** | Branded success |
 

@@ -140,7 +140,7 @@
 | StaffRegistryScreen | B− | Hero present; StaffFilters legacy; plain empty | Registry + FilterChip + EmptyState | P0 |
 | StaffDetailScreen | C | Unicode back; legacy pills; double chrome | Shared 360 shell | P0 |
 | StaffEditScreen | C+ | — | Form | P1 |
-| PeopleScreen | C | Not primary stack home | Align or remove from UX surface | P3 |
+| PeopleScreen | B | **PeopleHub** is HR tab initial route | Keep hub as home; deep-link quick actions | — |
 | StaffClockScreen | C+ | — | Form / action | P2 |
 | StaffClockTeamScreen | C+ | — | Registry | P2 |
 | LeaveApplyScreen | C+ | — | Form | P1 |

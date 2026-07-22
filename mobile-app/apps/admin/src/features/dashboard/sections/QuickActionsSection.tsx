@@ -46,7 +46,7 @@ export const QuickActionsSection: React.FC = () => {
           navigateToTab(navigation, 'People', 'LeaveManagement');
           break;
         case 'qa_payroll':
-          navigateToTab(navigation, 'People', 'StaffAdvances');
+          navigateToTab(navigation, 'People', 'PayrollRecords');
           break;
         default:
           break;

@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 import type { SemanticTone } from '../theme/tokens';
+import { useFloatingTabBarClearance } from '../layout/PremiumTabBar';
 
 export type ToastTone = Extract<SemanticTone, 'success' | 'warning' | 'danger' | 'info' | 'brand'>;
 
@@ -20,7 +20,7 @@ const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { palette, spacing, typography, radius, semantic, motion, zIndex } = useTheme();
-  const insets = useSafeAreaInsets();
+  const tabClearance = useFloatingTabBarClearance();
   const [message, setMessage] = useState<string | null>(null);
   const [tone, setTone] = useState<ToastTone>('brand');
   const opacity = useRef(new Animated.Value(0)).current;
@@ -64,7 +64,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             styles.toast,
             {
               opacity,
-              bottom: insets.bottom + spacing.lg,
+              bottom: tabClearance + spacing.sm,
               backgroundColor: palette.surfaceRaised,
               borderColor: toneColors.border,
               borderRadius: radius.card,

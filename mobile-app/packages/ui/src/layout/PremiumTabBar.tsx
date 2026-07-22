@@ -23,8 +23,32 @@ export interface PremiumTabBarProps {
 
 const DEFAULT_TONES: Soft3DTone[] = ['blue', 'indigo', 'emerald', 'cyan'];
 
-/** Approximate clearance under floating PremiumTabBar (bar + safe area cushion). */
-export const FLOATING_TAB_BAR_CLEARANCE = 96;
+/**
+ * Height of the floating tab chrome (Soft3D icons + labels + vertical padding),
+ * excluding the device home-indicator / nav inset.
+ */
+export const FLOATING_TAB_BAR_BODY_HEIGHT = 80;
+/** Extra gap so last content never sits flush against the bar. */
+export const FLOATING_TAB_BAR_CUSHION = 16;
+
+/**
+ * Static fallback for non-hook contexts (lists, tests). Prefer
+ * `useFloatingTabBarClearance()` in components so safe-area is included.
+ */
+export const FLOATING_TAB_BAR_CLEARANCE =
+  FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + 24;
+
+/**
+ * Bottom inset so scroll content / FABs / sticky footers clear the floating tab bar.
+ * @param includeSafeArea When the host is already inside a bottom safe-area edge,
+ *   pass false so the home-indicator is not double-counted.
+ */
+export function useFloatingTabBarClearance(includeSafeArea = true): number {
+  const insets = useSafeAreaInsets();
+  const safe = includeSafeArea ? Math.max(insets.bottom, 8) : 0;
+  return FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + safe;
+}
+
 export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, onTabPress }) => {
   const { palette, spacing, typography, radius, elevation, isDark } = useTheme();
   const insets = useSafeAreaInsets();

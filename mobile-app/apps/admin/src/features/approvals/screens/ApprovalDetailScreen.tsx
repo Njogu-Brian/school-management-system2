@@ -5,12 +5,14 @@ import {
   type ApprovalItem,
 } from '@erp/core';
 import {
+  APPROVAL_ACTION_BAR_HEIGHT,
   ApprovalActionBar,
   ApprovalDetailView,
   Button,
   ConfirmDialog,
   ScreenContainer,
   TextField,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import type { RouteProp } from '@react-navigation/native';
@@ -37,6 +39,8 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
   const { id, item: initialItem } = route.params;
   const rootNavigation = useNavigation();
   const { palette, spacing, typography, colors } = useTheme();
+  /** ScreenContainer already applies bottom safe-area; only clear the tab chrome + action bar. */
+  const tabClearance = useFloatingTabBarClearance(false);
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectConfirmVisible, setRejectConfirmVisible] = useState(false);
@@ -119,9 +123,15 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
     );
   }
 
+  const scrollBottomPad =
+    tabClearance + (item.canAct ? APPROVAL_ACTION_BAR_HEIGHT + spacing.md : 0);
+
   return (
     <View style={styles.flex}>
-      <ScreenContainer style={styles.flex}>
+      <ScreenContainer
+        style={styles.flex}
+        contentContainerStyle={{ paddingBottom: scrollBottomPad }}
+      >
         <ApprovalDetailView
           title={item.title}
           subtitle={item.subtitle}
@@ -168,6 +178,7 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
       <ApprovalActionBar
         canAct={item.canAct}
         isSubmitting={isSubmitting}
+        showApprove={item.sourceType !== 'online_admission'}
         onApprove={() => setApproveConfirmVisible(true)}
         onReject={() => setRejectMode(true)}
       />

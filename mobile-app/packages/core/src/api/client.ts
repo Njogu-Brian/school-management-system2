@@ -63,7 +63,8 @@ class ApiClient {
 
   private logError(status: number | undefined, url: string, body: unknown, message: string): void {
     if (!__DEV__) return;
-    console.error(`[API] ✗ ${status ?? 'ERR'} ${url}`, { message, body });
+    // Use warn (not error) so transient Network Error / timeouts do not open the red LogBox overlay.
+    console.warn(`[API] ✗ ${status ?? 'ERR'} ${url}`, { message, body });
   }
 
   private setupInterceptors(): void {

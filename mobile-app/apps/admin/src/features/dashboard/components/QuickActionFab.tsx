@@ -1,5 +1,5 @@
 import { useCan } from '@erp/core';
-import { AccentIcon, useTheme } from '@erp/ui';
+import { AccentIcon, useFloatingTabBarClearance, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -20,6 +20,7 @@ const ACTION_TONES = ['emerald', 'indigo', 'rose', 'amber', 'cyan', 'violet', 't
 export const QuickActionFab: React.FC = () => {
   const { palette, spacing, typography, radius, elevation, opacity, zIndex } = useTheme();
   const navigation = useNavigation();
+  const tabClearance = useFloatingTabBarClearance();
   const [open, setOpen] = useState(false);
 
   const canAdmissions = useCan('admissions.view');
@@ -73,6 +74,13 @@ export const QuickActionFab: React.FC = () => {
       onPress: () => navigateToDrawer(navigation, 'Operations', 'RequisitionsList'),
     },
     {
+      id: 'payroll',
+      label: 'Payroll records',
+      icon: 'wallet-outline',
+      visible: canPeople,
+      onPress: () => navigateToTab(navigation, 'People', 'PayrollRecords'),
+    },
+    {
       id: 'staff_clock',
       label: 'Staff sign in/out',
       icon: 'time-outline',
@@ -102,14 +110,14 @@ export const QuickActionFab: React.FC = () => {
       elevation[5],
       {
         right: spacing.mdLg,
-        /** Clear floating premium tab bar */
-        bottom: spacing['5xl'] + spacing.xl,
+        /** Sit fully above floating premium tab bar */
+        bottom: tabClearance + spacing.sm,
         borderRadius: radius.full,
         zIndex: zIndex.fab,
         overflow: 'hidden' as const,
       },
     ],
-    [elevation, radius.full, spacing, zIndex.fab],
+    [elevation, radius.full, spacing, tabClearance, zIndex.fab],
   );
 
   if (actions.length === 0) return null;

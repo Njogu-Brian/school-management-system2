@@ -9,6 +9,7 @@ import { EmptyState } from '../feedback/EmptyState';
 import { ListEmptyState, QueueEmptyState } from '../feedback/ListEmptyState';
 import { SkeletonListRows } from '../feedback/SkeletonListRows';
 import { useTheme } from '../theme/ThemeContext';
+import { useFloatingTabBarClearance } from '../layout/PremiumTabBar';
 import { ApprovalCard } from './ApprovalCard';
 import type { ApprovalCardData } from './types';
 
@@ -36,6 +37,7 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
   onClearFilters,
 }) => {
   const { colors, spacing } = useTheme();
+  const tabClearance = useFloatingTabBarClearance();
 
   if (isLoading && items.length === 0) {
     return (
@@ -62,7 +64,10 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
       data={items}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => <ApprovalCard item={item} />}
-      contentContainerStyle={items.length === 0 ? styles.emptyList : undefined}
+      contentContainerStyle={[
+        items.length === 0 ? styles.emptyList : null,
+        { paddingBottom: tabClearance },
+      ]}
       refreshControl={
         onRefresh ? (
           <RefreshControl

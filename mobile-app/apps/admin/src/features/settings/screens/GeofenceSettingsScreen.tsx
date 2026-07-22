@@ -32,11 +32,26 @@ export const GeofenceSettingsScreen: React.FC<GeofenceSettingsScreenProps> = ({ 
   }, [geofenceQuery.data]);
 
   const save = async () => {
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const radius_meters = parseInt(radius, 10);
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      showError('Invalid latitude', 'Enter a latitude between -90 and 90.');
+      return;
+    }
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      showError('Invalid longitude', 'Enter a longitude between -180 and 180.');
+      return;
+    }
+    if (!Number.isFinite(radius_meters) || radius_meters < 25 || radius_meters > 1000) {
+      showError('Invalid radius', 'Radius must be between 25 and 1000 meters.');
+      return;
+    }
     try {
       await updateMutation.mutateAsync({
-        latitude: parseFloat(lat),
-        longitude: parseFloat(lng),
-        radius_meters: parseInt(radius, 10),
+        latitude,
+        longitude,
+        radius_meters,
       });
       showSuccess('Saved', 'Geofence updated.');
     } catch (err) {

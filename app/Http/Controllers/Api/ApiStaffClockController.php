@@ -63,7 +63,7 @@ class ApiStaffClockController extends Controller
     {
         $cfg = $this->geofenceConfig();
         $user = $request->user();
-        $canManage = $user && $user->hasAnyRole(['Admin', 'Super Admin', 'admin', 'super admin']);
+        $canManage = $user && $user->hasAnyRole(['Admin', 'Super Admin', 'admin', 'super admin', 'Secretary']);
 
         return response()->json([
             'success' => true,
@@ -74,7 +74,7 @@ class ApiStaffClockController extends Controller
     public function updateGeofence(Request $request)
     {
         $user = $request->user();
-        if (! $user || ! $user->hasAnyRole(['Admin', 'Super Admin', 'admin', 'super admin'])) {
+        if (! $user || ! $user->hasAnyRole(['Admin', 'Super Admin', 'admin', 'super admin', 'Secretary'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Only admins can update school geofence coordinates.',

@@ -77,14 +77,18 @@ export const linking: LinkingOptions<DrawerParamList> = {
           People: {
             path: 'people',
             screens: {
-              StaffRegistry: '',
+              PeopleHub: '',
+              StaffRegistry: 'registry',
               StaffDetail: {
-                path: ':staffId',
+                path: 'registry/:staffId',
                 parse: { staffId: Number },
               },
               StaffClock: 'clock',
               StaffClockTeam: 'clock/team',
               LeaveManagement: 'leave',
+              LeaveTypes: 'leave-types',
+              LeaveApply: 'leave-apply',
+              StaffAdvances: 'advances',
               PayrollRecords: 'payroll',
             },
           },

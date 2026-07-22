@@ -1,6 +1,7 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
 import {
+  PeopleScreen,
   PerformanceReviewDetailScreen,
   StaffDetailScreen,
   StaffRegistryScreen,
@@ -18,9 +19,10 @@ import type { PeopleStackParamList } from './peopleStackTypes';
 
 const Stack = createStackNavigator<PeopleStackParamList>();
 
-/** People workspace: staff registry + Staff 360 read-only profile. */
+/** People workspace: hub + staff registry + Staff 360 + leave/payroll/clock. */
 export const PeopleStackNavigator: React.FC = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="PeopleHub">
+    <Stack.Screen name="PeopleHub" component={PeopleScreen} />
     <Stack.Screen name="StaffRegistry" component={StaffRegistryScreen} />
     <Stack.Screen name="StaffDetail" component={StaffDetailScreen} />
     <Stack.Screen name="PerformanceReviewDetail" component={PerformanceReviewDetailScreen} />
