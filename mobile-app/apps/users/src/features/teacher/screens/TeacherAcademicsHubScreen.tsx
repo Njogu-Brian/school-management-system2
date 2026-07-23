@@ -33,7 +33,11 @@ export const TeacherAcademicsHubScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="Academics" subtitle="Subjects you teach — marks, plans, and class work" />
+      <AcademicScreenHeader
+        title="Academics"
+        subtitle="Subjects you teach — marks, plans, and class work"
+        onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+      />
       {ITEMS.map((item) => (
         <Pressable
           key={item.route}

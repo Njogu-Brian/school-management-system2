@@ -50,7 +50,7 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
     >
       {rows.map((row, index) => (
         <View
-          key={String(row.id)}
+          key={`${row.id}-${row.date}-${row.type}-${row.votehead ?? ''}-${index}`}
           style={[
             styles.row,
             {

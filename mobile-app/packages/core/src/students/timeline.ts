@@ -14,15 +14,17 @@ export function buildStudentTimeline(input: {
     b.date.localeCompare(a.date),
   );
 
-  for (const tx of txs.slice(0, 6)) {
+  txs.slice(0, 6).forEach((tx, index) => {
+    const entity = tx.entity_id ?? tx.id;
     events.push({
-      id: `tx-${tx.id}`,
-      title: tx.type === 'payment' ? 'Payment received' : 'Invoice issued',
+      // Include index + entity so duplicate invoice lines never share a React key.
+      id: `tx-${tx.type}-${entity}-${tx.date}-${index}`,
+      title: tx.type === 'payment' || tx.type === 'Payment' ? 'Payment received' : 'Invoice issued',
       subtitle: tx.description || tx.reference,
       occurredAt: tx.date,
-      kind: tx.type === 'payment' ? 'payment' : 'invoice',
+      kind: tx.type === 'payment' || tx.type === 'Payment' ? 'payment' : 'invoice',
     });
-  }
+  });
 
   if (input.admissionDate) {
     events.push({

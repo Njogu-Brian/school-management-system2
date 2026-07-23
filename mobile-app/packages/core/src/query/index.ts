@@ -48,6 +48,7 @@ export * from './hooks/usePayrollRecordsList';
 export * from './hooks/useDiary';
 export * from './hooks/useTimetable';
 export * from './hooks/useHomework';
+export * from './hooks/useActivities';
 export * from './hooks/useTransportLive';
 export * from './hooks/useParentClaim';
 export * from './hooks/useParentProfileReview';

@@ -64,9 +64,10 @@ class ApiAnalyticsController extends Controller
             ->whereBetween('payment_date', [$start, $end])
             ->sum('amount'), 2);
 
-        $outstanding = round((float) Invoice::query()
-            ->whereNull('reversed_at')
-            ->sum('balance'), 2);
+        // Align with web portal / admin dashboard (current-term due outstanding).
+        // Raw sum of all invoice balances includes archived/alumni and other terms.
+        $termKpis = app(\App\Services\FinanceTermKpiService::class)->forCurrentTerm();
+        $outstanding = (float) ($termKpis['fees_outstanding'] ?? 0);
 
         $enrollmentTrend = $this->countByBucket(
             Student::query()->where('archive', 0)->where('is_alumni', false),
@@ -117,7 +118,7 @@ class ApiAnalyticsController extends Controller
                     'daily_collections' => ['labels' => $labels, 'values' => $dailyCollections],
                     'weekly_collections' => ['labels' => $labels, 'values' => $weeklyCollections],
                     'monthly_collections' => $monthlyCollected,
-                    'outstanding_balances' => $outstanding,
+                    'outstanding_balances' => round($outstanding, 2),
                 ],
                 'admissions' => [
                     'enrollment_trends' => ['labels' => $labels, 'values' => $enrollmentTrend],

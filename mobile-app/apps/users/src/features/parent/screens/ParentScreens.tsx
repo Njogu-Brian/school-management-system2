@@ -65,7 +65,7 @@ export const ParentHomeScreen: React.FC = () => {
   }, [childrenCount, unreadQuery.data]);
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="people"
         greeting="Welcome back"
@@ -120,7 +120,7 @@ export const ParentChildrenScreen: React.FC = () => {
   );
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
         <AcademicScreenHeader title="My children" />
       </View>
@@ -309,7 +309,7 @@ export const ParentFeesScreen: React.FC = () => {
   );
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader title="Fees" subtitle="Balances, statements, Pay link & M-Pesa" />
       {listQuery.isLoading ? (
         <SkeletonListRows count={3} />

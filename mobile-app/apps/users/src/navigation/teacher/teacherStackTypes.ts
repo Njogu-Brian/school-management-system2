@@ -1,6 +1,12 @@
 export type TeacherStackParamList = {
   Main: undefined;
   MarkAttendance: undefined;
+  Academics: undefined;
+  ActivityAttendance: {
+    activityId: string;
+    activityName: string;
+    activityType: 'activity' | 'swimming';
+  };
   MarksHub: undefined;
   MarksMatrixSetup: undefined;
   MarksMatrixEntry: { examTypeId: number; classroomId: number; streamId?: number };

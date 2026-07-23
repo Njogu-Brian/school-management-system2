@@ -36,7 +36,7 @@ export const TeacherClassesScreen: React.FC = () => {
   );
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
         <AcademicScreenHeader
           title="My students"

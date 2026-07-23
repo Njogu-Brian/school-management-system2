@@ -42,7 +42,7 @@ export const StudentHomeScreen: React.FC = () => {
   const meta = (unreadQuery.data ?? 0) > 0 ? `${unreadQuery.data} unread notifications` : undefined;
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="academics"
         greeting="Welcome back"
@@ -117,7 +117,7 @@ export const StudentHomeworkScreen: React.FC = () => {
   });
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
         <AcademicScreenHeader title="Homework" />
       </View>
@@ -170,7 +170,7 @@ export const StudentResultsScreen: React.FC = () => {
   const items = useMemo(() => cards.data ?? [], [cards.data]);
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
         <AcademicScreenHeader title="Results" />
       </View>

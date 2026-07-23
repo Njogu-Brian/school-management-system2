@@ -95,9 +95,9 @@ export const StudentStatementScreen: React.FC = () => {
               <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
                 Transactions
               </Text>
-              {(data?.transactions ?? []).map((tx) => (
+              {(data?.transactions ?? []).map((tx, index) => (
                 <View
-                  key={tx.id}
+                  key={`${tx.id}-${tx.date}-${tx.type}-${index}`}
                   style={{
                     backgroundColor: palette.surface,
                     borderColor: palette.border,

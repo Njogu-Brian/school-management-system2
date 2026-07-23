@@ -414,6 +414,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/attendance/school-day', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'schoolDay']);
     Route::post('/attendance/mark', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'mark']);
 
+    // Activities (extra-curricular activity fees + swimming) — teacher attendance marking
+    Route::get('/activities', [\App\Http\Controllers\Api\ApiActivityController::class, 'index']);
+    Route::get('/activities/{activity}/students', [\App\Http\Controllers\Api\ApiActivityController::class, 'students']);
+    Route::get('/activities/{activity}/attendance', [\App\Http\Controllers\Api\ApiActivityController::class, 'attendance']);
+    Route::post('/activities/{activity}/attendance', [\App\Http\Controllers\Api\ApiActivityController::class, 'storeAttendance']);
+
     Route::get('/classes/{classId}/fee-clearance-roster', [ApiFeeClearanceController::class, 'classRoster']);
 
     Route::get('/timetables/teacher/{staffId}', [\App\Http\Controllers\Api\ApiTimetableController::class, 'teacher']);
@@ -421,6 +427,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/assignments', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'index']);
     Route::post('/assignments', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'store']);
+    Route::get('/assignments/{id}/status', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'status']);
+    Route::post('/assignments/{id}/complete', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'complete']);
+    Route::post('/assignments/{id}/uncomplete', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'uncomplete']);
+    Route::get('/assignments/{id}/diary', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'diary']);
+    Route::put('/assignments/{id}', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'update']);
     Route::get('/assignments/{id}', [\App\Http\Controllers\Api\ApiHomeworkController::class, 'show']);
     Route::get('/lesson-plans', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'index']);
     Route::post('/lesson-plans', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'store']);

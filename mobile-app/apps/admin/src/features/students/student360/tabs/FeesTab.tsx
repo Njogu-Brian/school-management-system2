@@ -108,9 +108,9 @@ export const FeesTab: React.FC<FeesTabProps> = ({
             icon="receipt-outline"
           />
         ) : (
-          invoices.slice(0, 10).map((inv) => (
+          invoices.slice(0, 10).map((inv, index) => (
             <Row
-              key={inv.id}
+              key={`inv-${inv.id}-${index}`}
               left={inv.reference}
               right={formatKes(inv.amount)}
               sub={formatDateLabel(inv.date)}
@@ -130,9 +130,9 @@ export const FeesTab: React.FC<FeesTabProps> = ({
             icon="cash-outline"
           />
         ) : (
-          payments.slice(0, 10).map((p) => (
+          payments.slice(0, 10).map((p, index) => (
             <Row
-              key={p.id}
+              key={`pay-${p.id}-${index}`}
               left={p.reference}
               right={formatKes(p.amount)}
               sub={formatDateLabel(p.date)}

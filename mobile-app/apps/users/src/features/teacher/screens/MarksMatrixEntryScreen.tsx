@@ -35,8 +35,13 @@ export const MarksMatrixEntryScreen: React.FC = () => {
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
 
   const serverSnapshotRef = useRef<Record<string, EntryValue>>({});
+  /** Guards autosave so it never fires before the first hydrate — the source of the update-depth loop. */
+  const hydratedRef = useRef(false);
   const draftKey = marksMatrixDraftKey(examTypeId, classroomId, streamId);
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<MatrixDraft>(draftKey);
+  /** Read the offline draft via a ref so it stays out of the hydrate effect deps (breaks the loop). */
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   const matrixQuery = useMarksMatrix(
     { exam_type_id: examTypeId, classroom_id: classroomId, stream_id: streamId },
@@ -49,6 +54,9 @@ export const MarksMatrixEntryScreen: React.FC = () => {
 
   const keyOf = (studentId: number, examId: number) => `${studentId}-${examId}`;
 
+  // Hydrate from the server when matrix data arrives, and merge any offline draft once it has loaded.
+  // `draft` is intentionally excluded from the deps (read via `draftRef`) so autosaving the draft
+  // below cannot re-trigger hydration — that feedback cycle was the "Maximum update depth" loop.
   useEffect(() => {
     if (!matrixQuery.data) return;
     const next: Record<string, EntryValue> = {};
@@ -64,17 +72,21 @@ export const MarksMatrixEntryScreen: React.FC = () => {
     }
     serverSnapshotRef.current = snapshot;
 
-    if (draftLoaded && draft?.values) {
-      setValues({ ...next, ...draft.values });
-      serverSnapshotRef.current = draft.serverSnapshot ?? snapshot;
+    const savedDraft = draftLoaded ? draftRef.current : null;
+    if (savedDraft?.values) {
+      setValues({ ...next, ...savedDraft.values });
+      serverSnapshotRef.current = savedDraft.serverSnapshot ?? snapshot;
       setHasLocalDraft(true);
     } else {
       setValues(next);
     }
-  }, [matrixQuery.data, draft, draftLoaded]);
+    hydratedRef.current = true;
+  }, [matrixQuery.data, draftLoaded]);
 
+  // Autosave the draft on edits, but only after the first hydrate so we never write back the
+  // freshly-hydrated state (which would loop through the hydrate effect).
   useEffect(() => {
-    if (students.length === 0) return;
+    if (!hydratedRef.current || students.length === 0) return;
     setDraft({ values, serverSnapshot: serverSnapshotRef.current });
   }, [values, students.length, setDraft]);
 

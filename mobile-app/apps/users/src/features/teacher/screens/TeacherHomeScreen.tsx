@@ -94,6 +94,7 @@ export const TeacherHomeScreen: React.FC = () => {
   return (
     <ScreenContainer
       scroll
+      edges={['bottom']}
       contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}
     >
       <DashboardHero

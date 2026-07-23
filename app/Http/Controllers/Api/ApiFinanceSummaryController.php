@@ -6,9 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Student;
+use App\Services\FinanceTermKpiService;
+use App\Services\UnifiedTransactionService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use App\Services\UnifiedTransactionService;
 
 class ApiFinanceSummaryController extends Controller
 {
@@ -47,20 +48,29 @@ class ApiFinanceSummaryController extends Controller
         }
 
         $invoiceBase = Invoice::query()->whereNull('reversed_at');
+        // Active students only (Student global scope excludes archive + alumni).
+        $activeInvoiceBase = (clone $invoiceBase)->whereHas('student');
 
-        $totalInvoiced = (float) (clone $invoiceBase)->sum('total');
-        $totalPaid = (float) (clone $invoiceBase)->sum('paid_amount');
-        $outstandingBalance = (float) (clone $invoiceBase)->sum('balance');
+        $totalInvoiced = (float) (clone $activeInvoiceBase)->sum('total');
+        $totalPaid = (float) (clone $activeInvoiceBase)->sum('paid_amount');
 
-        $pendingInvoices = (clone $invoiceBase)->where('balance', '>', 0)->count();
+        // Match web portal + admin dashboard: current-term, due, unpaid/partial.
+        $termKpis = app(FinanceTermKpiService::class)->forCurrentTerm();
+        $outstandingBalance = (float) ($termKpis['fees_outstanding'] ?? 0);
 
-        $overdueInvoices = (clone $invoiceBase)
+        // All-time invoice balances — diagnostics (all includes archived/alumni).
+        $outstandingBalanceAll = (float) (clone $invoiceBase)->sum('balance');
+        $outstandingBalanceActive = (float) (clone $activeInvoiceBase)->sum('balance');
+
+        $pendingInvoices = (clone $activeInvoiceBase)->where('balance', '>', 0)->count();
+
+        $overdueInvoices = (clone $activeInvoiceBase)
             ->where('balance', '>', 0)
             ->whereNotNull('due_date')
             ->whereDate('due_date', '<', $today->toDateString())
             ->count();
 
-        $studentsInArrears = (clone $invoiceBase)
+        $studentsInArrears = (clone $activeInvoiceBase)
             ->where('balance', '>', 0)
             ->distinct('student_id')
             ->count('student_id');
@@ -79,11 +89,16 @@ class ApiFinanceSummaryController extends Controller
                 'total_invoiced' => round($totalInvoiced, 2),
                 'total_paid' => round($totalPaid, 2),
                 'outstanding_balance' => round($outstandingBalance, 2),
+                'outstanding_balance_active' => round($outstandingBalanceActive, 2),
+                'outstanding_balance_all' => round($outstandingBalanceAll, 2),
+                'finance_scope' => $termKpis['finance_scope'] ?? 'term',
+                'term_id' => $termKpis['term_id'] ?? null,
+                'term_name' => $termKpis['term_name'] ?? null,
                 'pending_invoices' => $pendingInvoices,
                 'overdue_invoices' => $overdueInvoices,
                 'students_in_arrears' => $studentsInArrears,
                 'pending_reconciliation' => $pendingReconciliation,
-                'active_students' => Student::query()->where('archive', false)->count(),
+                'active_students' => Student::query()->where('archive', false)->where('is_alumni', false)->count(),
                 'as_of' => now()->toIso8601String(),
             ],
         ]);

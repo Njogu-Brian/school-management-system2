@@ -69,11 +69,15 @@ export const FeeBalancesScreen: React.FC<Props> = ({ navigation }) => {
   const rows = useMemo((): StudentArrearsRow[] => {
     const map = new Map<number, StudentArrearsRow>();
     for (const inv of invoices) {
+      // Skip orphaned invoices (archived/alumni students are hidden by API scope → null name).
+      if (!inv.studentId || !inv.studentName?.trim()) {
+        continue;
+      }
       const existing = map.get(inv.studentId);
       if (!existing) {
         map.set(inv.studentId, {
           studentId: inv.studentId,
-          studentName: inv.studentName ?? 'Student',
+          studentName: inv.studentName.trim(),
           admissionNumber: inv.studentAdmissionNumber ?? null,
           classroom: null,
           balance: inv.balance,

@@ -61,7 +61,7 @@ export const ParentMoreScreen: React.FC = () => {
   const { palette, spacing, typography, radius } = useTheme();
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <AcademicScreenHeader title="More" onProfilePress={() => navigation.navigate('MyProfile')} />
       {LINKS.map((item) => (
         <Pressable

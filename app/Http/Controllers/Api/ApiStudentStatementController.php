@@ -131,10 +131,11 @@ class ApiStudentStatementController extends Controller
     protected function buildSummaryTransactions($invoices, $payments): array
     {
         $transactions = [];
+        $seq = 0;
 
         foreach ($invoices as $inv) {
             $transactions[] = [
-                'id' => 1_000_000 + (int) $inv->id,
+                'id' => ++$seq,
                 'entity_type' => 'invoice',
                 'entity_id' => (int) $inv->id,
                 'date' => $inv->created_at->format('Y-m-d'),
@@ -149,7 +150,7 @@ class ApiStudentStatementController extends Controller
 
         foreach ($payments as $pay) {
             $transactions[] = [
-                'id' => 2_000_000 + (int) $pay->id,
+                'id' => ++$seq,
                 'entity_type' => 'payment',
                 'entity_id' => (int) $pay->id,
                 'date' => Carbon::parse($pay->payment_date)->format('Y-m-d'),
@@ -181,7 +182,7 @@ class ApiStudentStatementController extends Controller
                 $bfDate = Carbon::createFromDate($year, 1, 1)->format('Y-m-d');
                 $isDebit = (float) $legacyBbf > 0;
                 $transactions[] = [
-                    'id' => 100_000 + (++$seq),
+                    'id' => ++$seq,
                     'entity_type' => 'bbf',
                     'entity_id' => null,
                     'date' => $bfDate,
@@ -216,7 +217,7 @@ class ApiStudentStatementController extends Controller
 
                 if ($itemAmount > 0) {
                     $transactions[] = [
-                        'id' => 1_000_000 + ((int) $inv->id * 100) + (++$seq),
+                        'id' => ++$seq,
                         'entity_type' => 'invoice_item',
                         'entity_id' => (int) $item->id,
                         'date' => $dateStr,
@@ -230,7 +231,7 @@ class ApiStudentStatementController extends Controller
                     ];
                 } elseif ($itemAmount < 0) {
                     $transactions[] = [
-                        'id' => 1_000_000 + ((int) $inv->id * 100) + (++$seq),
+                        'id' => ++$seq,
                         'entity_type' => 'invoice_item',
                         'entity_id' => (int) $item->id,
                         'date' => $dateStr,
@@ -246,7 +247,7 @@ class ApiStudentStatementController extends Controller
 
                 if ($discountAmount > 0) {
                     $transactions[] = [
-                        'id' => 1_000_000 + ((int) $inv->id * 100) + (++$seq),
+                        'id' => ++$seq,
                         'entity_type' => 'discount',
                         'entity_id' => (int) $item->id,
                         'date' => $dateStr,
@@ -263,7 +264,7 @@ class ApiStudentStatementController extends Controller
 
             if ((float) ($inv->discount_amount ?? 0) > 0) {
                 $transactions[] = [
-                    'id' => 1_000_000 + ((int) $inv->id * 100) + (++$seq),
+                    'id' => ++$seq,
                     'entity_type' => 'invoice',
                     'entity_id' => (int) $inv->id,
                     'date' => $inv->created_at->format('Y-m-d'),
@@ -287,7 +288,7 @@ class ApiStudentStatementController extends Controller
 
             if ($pay->allocations->isEmpty()) {
                 $transactions[] = [
-                    'id' => 2_000_000 + (int) $pay->id,
+                    'id' => ++$seq,
                     'entity_type' => 'payment',
                     'entity_id' => (int) $pay->id,
                     'date' => $dateStr,
@@ -313,7 +314,7 @@ class ApiStudentStatementController extends Controller
                 }
                 $voteheadName = $item->votehead->name ?? 'Fee';
                 $transactions[] = [
-                    'id' => 2_000_000 + ((int) $pay->id * 100) + (++$seq),
+                    'id' => ++$seq,
                     'entity_type' => 'payment_allocation',
                     'entity_id' => (int) $allocation->id,
                     'date' => $dateStr,

@@ -48,7 +48,7 @@ export const StudentTimeline: React.FC<StudentTimelineProps> = ({
         </Text>
       ) : (
         events.map((ev, index) => (
-          <View key={ev.id} style={styles.row}>
+          <View key={`${ev.id}-${index}`} style={styles.row}>
             <View style={styles.lineCol}>
               <View
                 style={[

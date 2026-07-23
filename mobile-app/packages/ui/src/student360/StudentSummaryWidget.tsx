@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Soft3DIcon } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 import type { StudentSummaryWidgetData } from './types';
 
@@ -9,7 +9,7 @@ export interface StudentSummaryWidgetsProps {
 }
 
 export const StudentSummaryWidgets: React.FC<StudentSummaryWidgetsProps> = ({ widgets }) => {
-  const { palette, spacing, typography, radius, shadows, colors } = useTheme();
+  const { palette, spacing, typography, radius, elevation } = useTheme();
 
   if (widgets.length === 0) return null;
 
@@ -20,45 +20,43 @@ export const StudentSummaryWidgets: React.FC<StudentSummaryWidgetsProps> = ({ wi
           key={w.id}
           style={[
             styles.cell,
+            elevation[1],
             {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderRadius: radius.md,
+              backgroundColor: palette.surfaceRaised,
+              borderColor: palette.borderSubtle,
+              borderRadius: radius.card,
               padding: spacing.md,
               flex: 1,
               minWidth: '46%',
             },
-            shadows.sm,
           ]}
         >
           <View style={styles.row}>
-            {w.icon ? (
-              <Ionicons
-                name={w.icon as keyof typeof Ionicons.glyphMap}
-                size={18}
-                color={colors.primary}
-                style={{ marginRight: 6 }}
-              />
-            ) : null}
+            {w.icon ? <Soft3DIcon name={w.icon as never} size={28} /> : null}
             <Text
               style={{
-                color: palette.textSecondary,
+                color: palette.textMuted,
                 fontSize: typography.overline.fontSize,
                 lineHeight: typography.overline.lineHeight,
                 letterSpacing: typography.overline.letterSpacing,
                 fontWeight: typography.overline.fontWeight,
+                marginLeft: w.icon ? 8 : 0,
+                textTransform: 'uppercase',
+                flex: 1,
               }}
+              numberOfLines={1}
             >
               {w.label}
             </Text>
           </View>
           <Text
             style={{
-              color: palette.textPrimary,
+              color: palette.textMain,
               fontSize: typography.title.fontSize,
-              fontWeight: '700',
-              marginTop: 4,
+              fontWeight: '800',
+              marginTop: spacing.sm,
             }}
+            numberOfLines={2}
           >
             {w.value}
           </Text>
@@ -69,6 +67,7 @@ export const StudentSummaryWidgets: React.FC<StudentSummaryWidgetsProps> = ({ wi
                 fontSize: typography.caption.fontSize,
                 marginTop: 2,
               }}
+              numberOfLines={2}
             >
               {w.delta}
             </Text>

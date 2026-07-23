@@ -27,6 +27,8 @@ import { CreateLessonPlanScreen } from '../../features/teacher/screens/CreateLes
 import { LessonPlanReviewDetailScreen } from '../../features/teacher/screens/LessonPlanReviewDetailScreen';
 import { LessonPlanReviewQueueScreen } from '../../features/teacher/screens/LessonPlanReviewQueueScreen';
 import { LessonPlansHubScreen } from '../../features/teacher/screens/LessonPlansHubScreen';
+import { ActivitiesHubScreen } from '../../features/teacher/screens/ActivitiesHubScreen';
+import { ActivityAttendanceScreen } from '../../features/teacher/screens/ActivityAttendanceScreen';
 import { MarkAttendanceScreen } from '../../features/teacher/screens/MarkAttendanceScreen';
 import { MarksEntryScreen } from '../../features/teacher/screens/MarksEntryScreen';
 import { MarksExamSetupScreen } from '../../features/teacher/screens/MarksExamSetupScreen';
@@ -52,7 +54,7 @@ const TAB_TITLES: Record<string, string> = {
   Home: 'Home',
   Classes: 'My classes',
   Attendance: 'Attendance',
-  Academics: 'Academics',
+  Activities: 'Activities',
   More: 'More',
 };
 
@@ -60,7 +62,7 @@ const teacherTabBar = createUsersTabBar({
   Home: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
   Classes: { label: 'Classes', icon: 'school-outline', iconFocused: 'school', tone: 'indigo' },
   Attendance: { label: 'Attendance', icon: 'checkbox-outline', iconFocused: 'checkbox', tone: 'emerald' },
-  Academics: { label: 'Academics', icon: 'book-outline', iconFocused: 'book', tone: 'cyan' },
+  Activities: { label: 'Activities', icon: 'sparkles-outline', iconFocused: 'sparkles', tone: 'cyan' },
   More: { label: 'More', icon: 'menu-outline', iconFocused: 'menu', tone: 'amber' },
 });
 
@@ -81,7 +83,7 @@ function TeacherTabs() {
       <Tab.Screen name="Home" component={TeacherHomeScreen} />
       <Tab.Screen name="Classes" component={TeacherClassesScreen} />
       <Tab.Screen name="Attendance" component={MarkAttendanceScreen} />
-      <Tab.Screen name="Academics" component={TeacherAcademicsHubScreen} />
+      <Tab.Screen name="Activities" component={ActivitiesHubScreen} />
       <Tab.Screen name="More" component={TeacherMoreHubScreen} />
     </Tab.Navigator>
   );
@@ -91,6 +93,8 @@ export const TeacherNavigator: React.FC = () => (
   <Stack.Navigator initialRouteName="Main" screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Main" component={TeacherTabs} />
     <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
+    <Stack.Screen name="Academics" component={TeacherAcademicsHubScreen} />
+    <Stack.Screen name="ActivityAttendance" component={ActivityAttendanceScreen} />
     <Stack.Screen name="MarksHub" component={MarksHubScreen} />
     <Stack.Screen name="MarksMatrixSetup" component={MarksMatrixSetupScreen} />
     <Stack.Screen name="MarksMatrixEntry" component={MarksMatrixEntryScreen} />

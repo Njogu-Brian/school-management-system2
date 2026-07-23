@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +13,27 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../theme/ThemeContext';
 import { useFloatingTabBarClearance } from './PremiumTabBar';
 
-const DEFAULT_EDGES: Array<'top' | 'bottom' | 'left' | 'right'> = ['bottom'];
+type Edge = 'top' | 'bottom' | 'left' | 'right';
+
+const DEFAULT_EDGES: Array<Edge> = ['top', 'bottom'];
+
+/**
+ * App-level override for the default `ScreenContainer` edges. The Users app relies
+ * on the global default (`['top', 'bottom']`) because only tab-root screens render
+ * the persistent header. The Admin app renders its header at the drawer/tab
+ * navigator level (persistent across every nested screen), so it overrides the
+ * default to `['bottom']` at its root to avoid double top padding everywhere.
+ */
+const ScreenContainerDefaultsContext = createContext<Array<Edge> | undefined>(undefined);
+
+export const ScreenContainerDefaultsProvider: React.FC<{
+  edges: Array<Edge>;
+  children: React.ReactNode;
+}> = ({ edges, children }) => (
+  <ScreenContainerDefaultsContext.Provider value={edges}>
+    {children}
+  </ScreenContainerDefaultsContext.Provider>
+);
 
 export interface ScreenContainerProps {
   children: React.ReactNode;
@@ -50,12 +70,14 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   style,
   contentContainerStyle,
   scrollProps,
-  edges = DEFAULT_EDGES,
+  edges: edgesProp,
   keyboardVerticalOffset,
   clearFloatingTabBar = true,
 }) => {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
+  const defaultEdges = useContext(ScreenContainerDefaultsContext) ?? DEFAULT_EDGES;
+  const edges = edgesProp ?? defaultEdges;
   const hasBottomEdge = edges.includes('bottom');
   /**
    * Always include system nav inset in tab clearance. SafeAreaView bottom edge

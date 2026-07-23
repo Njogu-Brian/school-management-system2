@@ -4,7 +4,7 @@ import {
   RbacProvider,
   SessionProvider,
 } from '@erp/core';
-import { AppErrorBoundary, useTheme } from '@erp/ui';
+import { AppErrorBoundary, ScreenContainerDefaultsProvider, useTheme } from '@erp/ui';
 import { AppThemeProvider } from './src/providers/AppThemeProvider';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
@@ -32,7 +32,9 @@ export default function App(): React.JSX.Element {
                   <RbacProvider>
                     <BiometricAuthProvider>
                       <AdminPushNotifications />
-                      <AdminRootNavigator />
+                      <ScreenContainerDefaultsProvider edges={['bottom']}>
+                        <AdminRootNavigator />
+                      </ScreenContainerDefaultsProvider>
                     </BiometricAuthProvider>
                   </RbacProvider>
                 </PersistedQueryProvider>

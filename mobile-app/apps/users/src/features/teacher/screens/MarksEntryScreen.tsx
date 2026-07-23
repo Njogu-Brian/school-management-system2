@@ -39,8 +39,13 @@ export const MarksEntryScreen: React.FC = () => {
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
 
   const serverSnapshotRef = useRef<Record<number, { marks: string; remarks: string }>>({});
+  /** Guards autosave so it never fires before the first hydrate — the source of the update-depth loop. */
+  const hydratedRef = useRef(false);
   const draftKey = marksDraftKey(examId, subjectId, classroomId);
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<MarksDraft>(draftKey);
+  /** Read the offline draft via a ref so it stays out of the hydrate effect deps (breaks the loop). */
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   useEffect(() => {
     void (async () => {
@@ -56,6 +61,9 @@ export const MarksEntryScreen: React.FC = () => {
     })();
   }, [classroomId]);
 
+  // Hydrate from the server when marks data arrives, and merge any offline draft once it has loaded.
+  // `draft` is intentionally excluded from the deps (read via `draftRef`) so autosaving the draft
+  // below cannot re-trigger hydration — that feedback cycle was the "Maximum update depth" loop.
   useEffect(() => {
     const rows = marksQuery.data ?? [];
     const map: Record<number, { marks: string; remarks: string }> = {};
@@ -67,17 +75,21 @@ export const MarksEntryScreen: React.FC = () => {
     });
     serverSnapshotRef.current = snapshot;
 
-    if (draftLoaded && draft?.marks) {
-      setMarks({ ...map, ...draft.marks });
-      serverSnapshotRef.current = draft.serverSnapshot ?? snapshot;
+    const savedDraft = draftLoaded ? draftRef.current : null;
+    if (savedDraft?.marks) {
+      setMarks({ ...map, ...savedDraft.marks });
+      serverSnapshotRef.current = savedDraft.serverSnapshot ?? snapshot;
       setHasLocalDraft(true);
     } else {
       setMarks(map);
     }
-  }, [marksQuery.data, draft, draftLoaded]);
+    hydratedRef.current = true;
+  }, [marksQuery.data, draftLoaded]);
 
+  // Autosave the draft on edits, but only after the first hydrate so we never write back the
+  // freshly-hydrated state (which would loop through the hydrate effect).
   useEffect(() => {
-    if (students.length === 0) return;
+    if (!hydratedRef.current || students.length === 0) return;
     setDraft({ marks, serverSnapshot: serverSnapshotRef.current });
   }, [marks, students.length, setDraft]);
 

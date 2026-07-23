@@ -34,8 +34,10 @@ export const TeacherMoreHubScreen: React.FC = () => {
         | 'chatbubbles-outline'
         | 'list-outline'
         | 'alert-circle-outline'
+        | 'book-outline'
         | 'cash-outline';
     }> = [
+      { title: 'Academics', route: 'Academics', icon: 'book-outline' },
       { title: 'Clock in / out', route: 'StaffClock', icon: 'time-outline' },
       { title: 'My leave', route: 'MyLeaveList', icon: 'list-outline' },
       { title: 'Apply for leave', route: 'LeaveApply', icon: 'calendar-outline' },
@@ -61,7 +63,7 @@ export const TeacherMoreHubScreen: React.FC = () => {
   }, [isSenior]);
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <AcademicScreenHeader
         title="More"
         subtitle="Self-service and extras"

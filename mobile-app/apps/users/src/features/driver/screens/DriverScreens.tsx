@@ -206,7 +206,7 @@ export const DriverHomeScreen: React.FC = () => {
   const meta = trips.length > 0 ? `${trips.length} trips today` : undefined;
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="operations"
         greeting="Welcome back"
@@ -453,7 +453,7 @@ export const DriverRoutesScreen: React.FC = () => {
   };
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <AcademicScreenHeader title="Routes" subtitle="Use Home for today's assigned trips" />
       <EmptyState
         title="Route map coming soon"
@@ -472,7 +472,7 @@ export const DriverMoreHubScreen: React.FC = () => {
   const { spacing } = useTheme();
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <AcademicScreenHeader
         title="Account"
         subtitle="HR, vehicle, and settings"
