@@ -290,9 +290,33 @@ class ApiTeacherTransportController extends Controller
         $vehicles = Vehicle::orderBy('vehicle_number')
             ->get(['id', 'vehicle_number', 'driver_name', 'capacity']);
 
-        $trips = Trip::with('vehicle:id,vehicle_number,driver_name')
-            ->orderBy('departure_time')
-            ->get(['id', 'name', 'direction', 'departure_time', 'vehicle_id']);
+        $trips = Trip::with([
+            'vehicle:id,vehicle_number,driver_name',
+            'stops' => fn ($q) => $q->orderBy('sequence_order'),
+        ])
+            ->orderBy('trip_name')
+            ->get(['id', 'trip_name', 'direction', 'vehicle_id'])
+            ->map(function (Trip $trip) {
+                $firstStop = $trip->stops->first();
+                $departure = $firstStop?->estimated_time;
+
+                return [
+                    'id' => $trip->id,
+                    'name' => $trip->trip_name,
+                    'trip_name' => $trip->trip_name,
+                    'direction' => $trip->direction,
+                    'departure_time' => $departure
+                        ? (\Illuminate\Support\Carbon::parse($departure)->format('H:i'))
+                        : null,
+                    'vehicle_id' => $trip->vehicle_id,
+                    'vehicle' => $trip->vehicle ? [
+                        'id' => $trip->vehicle->id,
+                        'vehicle_number' => $trip->vehicle->vehicle_number,
+                        'driver_name' => $trip->vehicle->driver_name,
+                    ] : null,
+                ];
+            })
+            ->values();
 
         return response()->json([
             'success' => true,
@@ -313,13 +337,19 @@ class ApiTeacherTransportController extends Controller
 
         $trip = $leg['trip'] ?? null;
         $vehicle = $leg['vehicle'] ?? ($trip?->vehicle ?? null);
+        $firstStop = $trip?->relationLoaded('stops')
+            ? $trip->stops->sortBy('sequence_order')->first()
+            : $trip?->stops()->orderBy('sequence_order')->first();
+        $departure = $firstStop?->estimated_time;
 
         return [
             'type' => $leg['type'] ?? 'trip',
             'trip_id' => $leg['trip_id'] ?? null,
-            'trip_name' => $trip?->name,
+            'trip_name' => $trip?->trip_name ?? $trip?->name,
             'direction' => $trip?->direction,
-            'departure_time' => $trip?->departure_time,
+            'departure_time' => $departure
+                ? (\Illuminate\Support\Carbon::parse($departure)->format('H:i'))
+                : null,
             'vehicle_id' => $vehicle?->id,
             'vehicle_registration' => $vehicle?->vehicle_number,
             'vehicle_name' => $vehicle?->driver_name,
