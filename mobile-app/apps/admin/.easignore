@@ -3,4 +3,7 @@ android/
 ios/
 
 .expo/
+.expo-tmp-export/
 node_modules/
+dist/
+build/

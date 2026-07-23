@@ -1,17 +1,13 @@
 ## Reduce EAS upload size / speed up archive
 .git
 .expo
+.expo-tmp-export
 .eas
 
 node_modules
 dist
+build
 docs
-
-# Full native trees (EAS prebuilds on the server)
-android
-ios
-apps/*/android
-apps/*/ios
 
 # Android build outputs/caches (big + safe to exclude)
 android/.gradle
@@ -19,6 +15,9 @@ android/build
 android/app/build
 android/app/.cxx
 android/.cxx
+**/android/.gradle
+**/android/build
+**/android/app/build
 
 **/*.log
 **/.DS_Store
