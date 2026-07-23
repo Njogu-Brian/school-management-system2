@@ -1,16 +1,25 @@
-import { apiClient, useStudentDetail, type ApiResponse, type PaginatedResponse } from '@erp/core';
+import {
+  apiClient,
+  useStudentDetail,
+  type ApiResponse,
+  type HomeworkAttachment,
+  type PaginatedResponse,
+} from '@erp/core';
 import { useQuery } from '@tanstack/react-query';
 
 export type HomeworkAssignment = {
   id: number;
   title: string;
   description?: string;
+  instructions?: string | null;
   subject_name?: string | null;
   class_name?: string | null;
   teacher_name?: string | null;
   due_date?: string | null;
   status?: string;
   total_marks?: number;
+  max_score?: number | null;
+  attachments?: HomeworkAttachment[] | null;
 };
 
 export function useChildHomework(studentId: number, options?: { enabled?: boolean }) {

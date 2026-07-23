@@ -2,6 +2,7 @@ import {
   useTeacherTransportActions,
   useTeacherTransportStudents,
   useTeacherTransportVehicles,
+  type TeacherTransportLeg,
   type TeacherTransportStudent,
 } from '@erp/core';
 import {
@@ -29,6 +30,47 @@ import {
   View,
 } from 'react-native';
 import { showError, showSuccess } from '../../shared/utils/feedback';
+
+const TransportLegLine: React.FC<{ label: 'Morning' | 'Evening'; leg?: TeacherTransportLeg | null }> = ({
+  label,
+  leg,
+}) => {
+  const { palette, typography, spacing } = useTheme();
+
+  let detail: string;
+  let iconName: React.ComponentProps<typeof Soft3DIcon>['name'] = 'bus-outline';
+  let tone: React.ComponentProps<typeof Soft3DIcon>['tone'] = 'cyan';
+
+  if (!leg) {
+    detail = 'No assignment';
+    iconName = 'help-circle-outline';
+    tone = 'muted';
+  } else if (leg.type === 'own_means') {
+    detail = `Own means${leg.reason ? ` · ${leg.reason}` : ''}`;
+    iconName = 'walk-outline';
+    tone = 'amber';
+  } else {
+    detail =
+      [
+        leg.trip_name,
+        leg.vehicle_registration,
+        leg.departure_time ? `Dep ${leg.departure_time}` : null,
+        leg.drop_off_point ? `Drop: ${leg.drop_off_point}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || 'Assigned';
+  }
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 4 }}>
+      <Soft3DIcon name={iconName} tone={tone} size={22} />
+      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, flex: 1 }} numberOfLines={2}>
+        <Text style={{ fontWeight: '700', color: palette.textSecondary }}>{label}: </Text>
+        {detail}
+      </Text>
+    </View>
+  );
+};
 
 export const TeacherTransportScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -157,13 +199,10 @@ export const TeacherTransportScreen: React.FC = () => {
                 <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
                   {[item.admission_number, item.class_name, item.stream_name].filter(Boolean).join(' · ')}
                 </Text>
-                {item.evening?.vehicle_registration || item.evening?.trip_name ? (
-                  <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 2 }}>
-                    Evening: {item.evening.trip_name ?? item.evening.vehicle_registration}
-                  </Text>
-                ) : null}
               </View>
             </View>
+            <TransportLegLine label="Morning" leg={item.morning} />
+            <TransportLegLine label="Evening" leg={item.evening} />
             <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
               {item.pickup ? (
                 <Button
