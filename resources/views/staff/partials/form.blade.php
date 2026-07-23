@@ -103,17 +103,21 @@
             {{-- Access --}}
           <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Access</h6></div>
           <div class="col-md-4">
-            <label class="form-label">System Role</label>
-            <select name="spatie_role_id" class="form-select">
-              <option value="">— Select system role —</option>
+            <label class="form-label">System Roles</label>
+            @php
+              $selectedRoleIds = old('spatie_role_ids', isset($staff) && $staff->user
+                ? $staff->user->roles->pluck('id')->map(fn ($id) => (int) $id)->all()
+                : []);
+              if (! is_array($selectedRoleIds)) {
+                $selectedRoleIds = [];
+              }
+            @endphp
+            <select name="spatie_role_ids[]" class="form-select" multiple size="4">
               @foreach($spatieRoles as $r)
-                <option value="{{ $r->id }}"
-                  @selected(old('spatie_role_id', isset($staff) ? optional($staff->user?->roles?->first())->id : null) == $r->id)>
-                  {{ $r->name }}
-                </option>
+                <option value="{{ $r->id }}" @selected(in_array($r->id, $selectedRoleIds, true))>{{ $r->name }}</option>
               @endforeach
             </select>
-            <div class="form-text">Controls dashboard & module access.</div>
+            <div class="form-text">Controls dashboard & module access. Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</div>
           </div>
 
           <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">HR</h6></div>

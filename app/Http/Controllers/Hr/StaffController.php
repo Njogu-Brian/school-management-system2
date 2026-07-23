@@ -123,7 +123,8 @@ class StaffController extends Controller
         'supervisor_id'     => 'nullable|exists:staff,id',
         'supervisor_ids'    => 'nullable|array',
         'supervisor_ids.*'  => 'exists:staff,id',
-        'spatie_role_id'    => 'nullable|exists:roles,id',
+        'spatie_role_ids'    => 'nullable|array',
+        'spatie_role_ids.*'  => 'exists:roles,id',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'residential_address' => 'nullable|string|max:255',
             'photo' => 'nullable|image|max:2048',
@@ -146,12 +147,10 @@ class StaffController extends Controller
             'must_change_password' => true,
         ]);
 
-        // 2) Assign Spatie role (guard 'web')
-        if ($request->filled('spatie_role_id')) {
-            $role = \Spatie\Permission\Models\Role::find($request->spatie_role_id);
-            if ($role && $role->guard_name === 'web') {
-                $user->assignRole($role->name);
-            }
+        // 2) Assign Spatie roles (guard 'web')
+        $roleNames = $this->resolveSpatieRoleNamesFromRequest($request);
+        if ($roleNames !== []) {
+            $user->syncRoles($roleNames);
         } else {
             // Auto-role by category if none selected (optional defaults)
             if ((int)$request->staff_category_id === 1) {
@@ -408,7 +407,8 @@ class StaffController extends Controller
             'supervisor_id'     => 'nullable|exists:staff,id',
             'supervisor_ids'    => 'nullable|array',
             'supervisor_ids.*'  => 'exists:staff,id',
-            'spatie_role_id'    => 'nullable|exists:roles,id',
+            'spatie_role_ids'    => 'nullable|array',
+            'spatie_role_ids.*'  => 'exists:roles,id',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'residential_address' => 'nullable|string|max:255',
             'hire_date' => 'nullable|date',
@@ -444,13 +444,8 @@ class StaffController extends Controller
             // sync email on users
             $user->update(['email' => $request->work_email]);
 
-        // 2) sync role if provided
-        if ($request->filled('spatie_role_id')) {
-            $role = \Spatie\Permission\Models\Role::find($request->spatie_role_id);
-            if ($role && $role->guard_name === 'web') {
-                $user->syncRoles([$role->name]); // replace existing
-            }
-        }
+        // 2) sync roles when the form field is present
+        $this->syncStaffRolesFromRequest($user, $request);
 
             // update staff profile
             $staffData = $request->only([
@@ -1240,5 +1235,31 @@ class StaffController extends Controller
         if ($ids !== [] || $request->has('supervisor_ids') || $request->filled('supervisor_id')) {
             $staff->syncSupervisorAssignments($ids);
         }
+    }
+
+    /**
+     * @param  \Illuminate\Http\Request  $request
+     * @return list<string>
+     */
+    protected function resolveSpatieRoleNamesFromRequest($request): array
+    {
+        $ids = $request->input('spatie_role_ids', []);
+        if (! is_array($ids)) {
+            return [];
+        }
+
+        return \Spatie\Permission\Models\Role::query()
+            ->whereIn('id', array_values(array_unique(array_filter(array_map('intval', $ids)))))
+            ->where('guard_name', 'web')
+            ->pluck('name')
+            ->all();
+    }
+
+    /**
+     * @param  \Illuminate\Http\Request  $request
+     */
+    protected function syncStaffRolesFromRequest(User $user, $request): void
+    {
+        $user->syncRoles($this->resolveSpatieRoleNamesFromRequest($request));
     }
 }
