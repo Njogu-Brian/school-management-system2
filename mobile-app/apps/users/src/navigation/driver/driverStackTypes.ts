@@ -12,6 +12,7 @@ export type DriverStackParamList = {
   LeaveApply: undefined;
   MyLeaveList: undefined;
   MyPayslips: undefined;
+  PayslipDetail: { recordId: number };
   MyAdvances: undefined;
   MyProfile: undefined;
   ConcernsList: undefined;

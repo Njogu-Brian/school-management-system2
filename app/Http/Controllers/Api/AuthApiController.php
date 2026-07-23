@@ -397,11 +397,21 @@ class AuthApiController extends Controller
     }
 
     /**
+     * Public wrapper for formatUserForApi (used by the parent-claim flow).
+     */
+    public function formatUserForApiPublic(User $user): array
+    {
+        return $this->formatUserForApi($user);
+    }
+
+    /**
      * Format user for API response (matches mobile app User type).
      */
     protected function formatUserForApi(User $user): array
     {
-        $roleName = $user->roles->first()?->name ?? 'Teacher';
+        // Prefer a staff/work role when the user also has Parent (dual identity).
+        // Otherwise Spatie's roles->first() order is undefined and Work mode can break.
+        $roleName = $this->resolvePrimaryRoleName($user);
         $permissions = $user->getAllPermissions()->pluck('name')->values()->toArray();
 
         $data = [
@@ -418,7 +428,10 @@ class AuthApiController extends Controller
             if (!empty($staff->phone_number)) {
                 $data['phone'] = $staff->phone_number;
             }
-            if (in_array(strtolower($roleName), ['teacher', 'senior teacher', 'supervisor'])) {
+            if (
+                $user->hasTeacherLikeRole()
+                || in_array(strtolower($roleName), ['teacher', 'senior teacher', 'deputy senior teacher', 'supervisor'], true)
+            ) {
                 $data['teacher_id'] = $staff->id;
                 $data['class_teacher_classroom_ids'] = $user->getClassTeacherClassroomIds();
                 $data['assigned_classroom_ids'] = $user->getAssignedClassroomIds();
@@ -427,15 +440,68 @@ class AuthApiController extends Controller
             $data['avatar'] = $staff->photo_url ?: null;
         }
 
+        // Fall back to the user's own phone number when no staff record carries one.
+        if (empty($data['phone']) && Schema::hasColumn('users', 'phone_number') && !empty($user->phone_number)) {
+            $data['phone'] = (string) $user->phone_number;
+        }
+
         // Parent: User has parent_id -> parent_info
         if ($user->parent_id) {
             $data['parent_id'] = $user->parent_id;
+        }
+
+        // Dual-identity / mode flags for the mobile Work|Home switcher.
+        $hasParent = ! empty($user->parent_id);
+        $hasStaff = $staff !== null;
+        $data['can_home_mode'] = $hasParent;
+        $data['can_work_mode'] = $hasStaff
+            || $user->hasAnyRole([
+                'Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance Officer',
+                'Academic Administrator',
+            ]);
+
+        if (Schema::hasColumn('users', 'parent_profile_review_required')) {
+            $data['parent_profile_review_required'] = (bool) $user->parent_profile_review_required;
         }
 
         // Student: linked via parent_id on students table (students.parent_id -> parent_info)
         // No user_id column on students; student users are rare - skip student_id if schema lacks it
 
         return $data;
+    }
+
+    /**
+     * Pick the role string the apps use for shell selection.
+     * Staff + Parent dual accounts must surface the staff role so Work mode works.
+     */
+    protected function resolvePrimaryRoleName(User $user): string
+    {
+        $roles = $user->getRoleNames()->map(fn ($n) => (string) $n)->values();
+        if ($roles->isEmpty()) {
+            return 'Teacher';
+        }
+
+        $parentLike = ['parent', 'guardian'];
+        $staffPreferred = [
+            'Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance Officer',
+            'Academic Administrator', 'Senior Teacher', 'Deputy Senior Teacher',
+            'Supervisor', 'Teacher', 'Driver', 'Transport',
+        ];
+
+        if ($user->staff || $user->hasTeacherLikeRole()) {
+            foreach ($staffPreferred as $preferred) {
+                $match = $roles->first(fn ($r) => strcasecmp($r, $preferred) === 0);
+                if ($match) {
+                    return $match;
+                }
+            }
+            $nonParent = $roles->first(fn ($r) => ! in_array(strtolower($r), $parentLike, true));
+            if ($nonParent) {
+                return $nonParent;
+            }
+        }
+
+        return $roles->first() ?? 'Teacher';
     }
 
     protected function resolveUserAndStaff(string $identifier): array

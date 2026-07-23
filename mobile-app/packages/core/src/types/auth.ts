@@ -49,6 +49,11 @@ export interface ApiUser {
   student_id?: number;
   school_id?: number;
   branch_id?: number;
+  /** Dual-identity flags for the Work|Home switcher. */
+  can_home_mode?: boolean;
+  can_work_mode?: boolean;
+  /** True right after a parent claims their account. */
+  parent_profile_review_required?: boolean;
   /** Classrooms where this teacher is the assigned class teacher (homeroom). */
   class_teacher_classroom_ids?: number[];
   /** All classrooms this teacher can access (class-teacher + subject-teacher scope). */

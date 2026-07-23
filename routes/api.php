@@ -31,6 +31,19 @@ Route::post('/password/otp', [AuthApiController::class, 'requestPasswordResetOtp
 Route::post('/password/verify-otp', [AuthApiController::class, 'verifyPasswordResetOtp']);
 Route::post('/password/reset', [AuthApiController::class, 'resetPassword']);
 
+/*
+|--------------------------------------------------------------------------
+| Parent account claim (first-time self-service signup) — public
+|--------------------------------------------------------------------------
+*/
+Route::prefix('parent-claim')->group(function () {
+    $claim = \App\Http\Controllers\Api\ApiParentClaimController::class;
+    Route::post('/otp/request', [$claim, 'requestOtp']);
+    Route::post('/otp/verify', [$claim, 'verifyOtp']);
+    Route::post('/verify-admission', [$claim, 'verifyAdmission']);
+    Route::post('/complete', [$claim, 'complete']);
+});
+
 /** School name + logo from portal Settings (General); no auth — for mobile sign-in screen. */
 Route::get('/app-branding', [\App\Http\Controllers\Api\ApiAppBrandingController::class, 'show']);
 Route::get('/public/announcements', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'publicIndex']);
@@ -143,6 +156,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/user', [AuthApiController::class, 'user']);
     Route::post('/logout', [AuthApiController::class, 'logout']);
+
+    // Parent profile review (post-claim, data-only, no file uploads)
+    Route::get('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'show']);
+    Route::put('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'update']);
+    Route::post('/parent/profile-review/complete', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'complete']);
     Route::post('/password/change', [ApiAccountController::class, 'changePassword']);
     Route::post('/device-tokens', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'store']);
     Route::post('/device-tokens/revoke', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'destroy']);
@@ -332,6 +350,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/communication/email', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendEmail']);
 
     Route::get('/concerns', [\App\Http\Controllers\Api\ApiConcernController::class, 'index']);
+    Route::get('/concerns/staff-options', [\App\Http\Controllers\Api\ApiConcernController::class, 'staffOptions']);
     Route::post('/concerns', [\App\Http\Controllers\Api\ApiConcernController::class, 'store']);
     Route::get('/concerns/{id}', [\App\Http\Controllers\Api\ApiConcernController::class, 'show']);
     Route::put('/concerns/{id}', [\App\Http\Controllers\Api\ApiConcernController::class, 'update']);

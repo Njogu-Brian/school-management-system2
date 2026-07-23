@@ -13,16 +13,21 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { formatDateTime } from '../utils/format';
 
-/** Shared across every role (Teacher, Parent, Driver, Student) — reuses `/concerns` server scoping. */
+/** Shared across every role — server scopes staff to concerns they are tagged on. */
 export const ConcernsListScreen: React.FC = () => {
   const navigation = useNavigation();
   const { palette, spacing, typography, radius } = useTheme();
   const list = useConcernsList();
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScreenContainer
+      scroll
+      edges={['top', 'bottom']}
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+    >
       <AcademicScreenHeader
         title="Concerns"
+        subtitle="Tagged to you (or raised by you)"
         onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
       />
 

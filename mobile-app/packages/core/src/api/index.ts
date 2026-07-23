@@ -3,6 +3,8 @@ export * from './staffAdvances.api';
 export * from './client';
 export * from './account.api';
 export * from './auth.api';
+export * from './parentClaim.api';
+export * from './parentProfileReview.api';
 export * from './dashboard.api';
 export * from './admissions.api';
 export * from './approvals.api';

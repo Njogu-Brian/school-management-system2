@@ -9,7 +9,8 @@ use Illuminate\Http\Request;
 class ApiPayrollRecordsController extends Controller
 {
     /**
-     * Staff may view their own payslips; HR/finance/senior roles may list broadly.
+     * Any linked staff member may view their own payslips;
+     * HR/finance/admin roles may list broadly.
      */
     protected function assertPayrollApiAccess(Request $request): void
     {
@@ -18,7 +19,8 @@ class ApiPayrollRecordsController extends Controller
             abort(401);
         }
         if (
-            $user->hasTeacherLikeRole()
+            $user->staff
+            || $user->hasTeacherLikeRole()
             || $user->hasAnyRole([
                 'Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant',
             ])
@@ -28,14 +30,19 @@ class ApiPayrollRecordsController extends Controller
         abort(403, 'You do not have permission to view payroll records.');
     }
 
+    protected function isPayrollPrivileged(Request $request): bool
+    {
+        return (bool) $request->user()?->hasAnyRole([
+            'Super Admin', 'Admin', 'Secretary', 'Senior Teacher', 'Finance Officer', 'Accountant',
+        ]);
+    }
+
     public function index(Request $request)
     {
         $this->assertPayrollApiAccess($request);
 
         $user = $request->user();
-        $privileged = $user->hasAnyRole([
-            'Super Admin', 'Admin', 'Secretary', 'Senior Teacher', 'Finance Officer', 'Accountant',
-        ]);
+        $privileged = $this->isPayrollPrivileged($request);
 
         $request->validate([
             'staff_id' => 'nullable|integer|exists:staff,id',
@@ -48,7 +55,7 @@ class ApiPayrollRecordsController extends Controller
 
         $query = PayrollRecord::with(['staff', 'payrollPeriod']);
 
-        if ($user->hasTeacherLikeRole() && ! $privileged) {
+        if (! $privileged) {
             $ownStaffId = $user->staff?->id;
             if (! $ownStaffId) {
                 return response()->json([
@@ -101,13 +108,11 @@ class ApiPayrollRecordsController extends Controller
         $this->assertPayrollApiAccess($request);
 
         $user = $request->user();
-        $privileged = $user->hasAnyRole([
-            'Super Admin', 'Admin', 'Secretary', 'Senior Teacher', 'Finance Officer', 'Accountant',
-        ]);
+        $privileged = $this->isPayrollPrivileged($request);
 
         $record = PayrollRecord::with(['staff', 'payrollPeriod'])->findOrFail($id);
 
-        if ($user->hasTeacherLikeRole() && ! $privileged) {
+        if (! $privileged) {
             $ownStaffId = $user->staff?->id;
             if (! $ownStaffId || (int) $record->staff_id !== (int) $ownStaffId) {
                 abort(403, 'You can only view your own payslip.');

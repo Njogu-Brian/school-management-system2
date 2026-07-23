@@ -5,6 +5,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { Pressable, Text } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
+import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
 
@@ -66,6 +67,7 @@ export const TeacherMoreHubScreen: React.FC = () => {
         subtitle="Self-service and extras"
         onProfilePress={() => navigation.navigate('MyProfile')}
       />
+      <AppModeSwitch style={{ marginBottom: spacing.md }} />
       {items.map((item) => (
         <Pressable
           key={`${item.route}-${item.title}`}

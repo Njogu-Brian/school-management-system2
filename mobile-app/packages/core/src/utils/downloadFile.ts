@@ -15,7 +15,8 @@ export async function downloadAuthenticatedFile(
 
   const url = `${API_BASE_URL}${downloadPath}`;
   const safeName = fileLabel.replace(/[^a-z0-9_-]/gi, '_');
-  const dest = `${FileSystem.cacheDirectory}${safeName}-${Date.now()}`;
+  const ext = downloadPath.toLowerCase().includes('payslip') ? '.pdf' : '';
+  const dest = `${FileSystem.cacheDirectory}${safeName}-${Date.now()}${ext}`;
   const result = await FileSystem.downloadAsync(url, dest, {
     headers: { Authorization: `Bearer ${token}` },
   });

@@ -22,6 +22,7 @@ export type TeacherStackParamList = {
   LeaveApply: undefined;
   MyLeaveList: undefined;
   MyPayslips: undefined;
+  PayslipDetail: { recordId: number };
   MyProfile: undefined;
   TeacherTransportHub: undefined;
   LessonPlanReview: undefined;

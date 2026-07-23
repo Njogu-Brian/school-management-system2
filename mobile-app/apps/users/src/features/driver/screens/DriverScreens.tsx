@@ -19,6 +19,7 @@ import React, { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { DriverStackParamList } from '../../../navigation/driver/driverStackTypes';
 import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
+import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 
 type Nav = StackNavigationProp<DriverStackParamList>;
 
@@ -477,6 +478,7 @@ export const DriverMoreHubScreen: React.FC = () => {
         subtitle="HR, vehicle, and settings"
         onProfilePress={() => navigation.navigate('MyProfile')}
       />
+      <AppModeSwitch style={{ marginBottom: spacing.md }} />
       <HubLinksList onNavigate={(route) => navigation.navigate(route as never)} />
     </ScreenContainer>
   );

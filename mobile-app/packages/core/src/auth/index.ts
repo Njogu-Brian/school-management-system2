@@ -4,6 +4,7 @@ export * from './googleIdentity';
 export * from './sessionPolicy';
 export * from './SessionContext';
 export * from './AuthContext';
+export * from './AppModeContext';
 export * from './GoogleAuthContext';
 export * from './BiometricAuthContext';
 export * from './providers';

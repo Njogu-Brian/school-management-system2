@@ -25,6 +25,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     protected $fillable = [
         'name', 'email', 'password', 'must_change_password',
         'google_id', 'google_email',
+        'parent_id', 'phone_number', 'parent_profile_review_required',
     ];
 
     protected $hidden = [
@@ -35,6 +36,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'parent_profile_review_required' => 'boolean',
     ];
 
     /**

@@ -21,6 +21,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 import { PinUnlockPanel } from './PinUnlockPanel';
+import { ParentClaimFlow } from './ParentClaimFlow';
 
 type AuthMode = 'password' | 'otp';
 
@@ -62,6 +63,7 @@ export const LoginScreen: React.FC = () => {
   const [showCredentialForm, setShowCredentialForm] = useState(false);
   const [preferPassword, setPreferPassword] = useState(false);
   const [announcements, setAnnouncements] = useState<LoginAnnouncement[]>([]);
+  const [showClaim, setShowClaim] = useState(false);
 
   useEffect(() => {
     void refreshBiometric();
@@ -470,6 +472,19 @@ export const LoginScreen: React.FC = () => {
           ) : null}
         </>
       )}
+
+      <Pressable
+        onPress={() => setShowClaim(true)}
+        disabled={busy}
+        style={{ marginTop: spacing.lg, alignItems: 'center' }}
+      >
+        <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: typography.body.fontSize }}>
+          First time?{' '}
+          <Text style={{ color: colors.primaryOnDark ?? '#4B9FFF', fontWeight: '700' }}>
+            Claim parent access
+          </Text>
+        </Text>
+      </Pressable>
     </View>
   );
 
@@ -537,6 +552,10 @@ export const LoginScreen: React.FC = () => {
       </ScrollView>
     </KeyboardAvoidingView>
   );
+
+  if (showClaim) {
+    return <ParentClaimFlow onExit={() => setShowClaim(false)} />;
+  }
 
   return (
     <ScreenContainer edges={[]} scroll={false} clearFloatingTabBar={false} style={styles.transparent}>

@@ -1,4 +1,4 @@
-import { canAccessApp, useAuth } from '@erp/core';
+import { AppModeProvider, canAccessApp, useAppMode, useAuth } from '@erp/core';
 import { useTheme } from '@erp/ui';
 import {
   DarkTheme,
@@ -14,6 +14,7 @@ import {
   LoginScreen,
   PinEnableScreen,
 } from '../features/auth';
+import { AdminParentHomeScreen } from '../features/parent/screens/AdminParentHomeScreen';
 import { DrawerNavigator } from './DrawerNavigator';
 import { linking } from './linking';
 import { OfflineShell } from '../providers/OfflineShell';
@@ -23,6 +24,7 @@ import { OfflineShell } from '../providers/OfflineShell';
  */
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   const { status, user, biometricEnrollmentPending, pinEnrollmentPending } = useAuth();
+  const { mode } = useAppMode();
 
   if (status === 'initializing') {
     return <AuthLoadingScreen />;
@@ -38,6 +40,14 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   }
   if (pinEnrollmentPending) {
     return <PinEnableScreen />;
+  }
+  // Admins who also hold a parent record can flip to a thin "Home" parent shell.
+  if (user?.parentId && mode === 'home') {
+    return (
+      <OfflineShell>
+        <AdminParentHomeScreen />
+      </OfflineShell>
+    );
   }
   return (
     <OfflineShell>
@@ -66,5 +76,9 @@ export const AdminRootNavigator: React.FC = () => {
     };
   }, [isDark, palette, colors]);
 
-  return <RootGate navTheme={navTheme} />;
+  return (
+    <AppModeProvider>
+      <RootGate navTheme={navTheme} />
+    </AppModeProvider>
+  );
 };

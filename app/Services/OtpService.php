@@ -101,6 +101,7 @@ class OtpService
                             ->subject(match ($purpose) {
                                 'password_reset' => 'Password Reset OTP',
                                 'login' => 'Login OTP',
+                                'parent_claim' => 'Parent Account Verification OTP',
                                 default => 'Verification OTP',
                             });
                     }

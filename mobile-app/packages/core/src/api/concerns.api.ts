@@ -23,11 +23,20 @@ export interface ConcernRecord {
   created_at?: string | null;
 }
 
+export type CreateConcernPayload = {
+  student_id?: number;
+  student_ids?: number[];
+  category: ConcernCategory | string;
+  description: string;
+  staff_ids: number[];
+};
+
 export const concernsApi = {
   list(params?: {
     status?: string;
     category?: string;
     search?: string;
+    staff_id?: number;
     page?: number;
   }): Promise<ApiResponse<PaginatedResponse<ConcernRecord>>> {
     return apiClient.get('/concerns', params);
@@ -37,13 +46,14 @@ export const concernsApi = {
     return apiClient.get(`/concerns/${id}`);
   },
 
-  create(payload: {
-    student_id: number;
-    category: ConcernCategory | string;
-    description: string;
-    staff_ids?: number[];
-  }): Promise<ApiResponse<ConcernRecord>> {
+  create(payload: CreateConcernPayload): Promise<ApiResponse<ConcernRecord | ConcernRecord[]>> {
     return apiClient.post('/concerns', payload);
+  },
+
+  staffOptions(search: string): Promise<
+    ApiResponse<Array<{ id: number; full_name: string; employee_number?: string | null; job_title?: string | null }>>
+  > {
+    return apiClient.get('/concerns/staff-options', { search });
   },
 
   update(

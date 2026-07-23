@@ -1,4 +1,4 @@
-import { useCurrentUser, UserRole } from '@erp/core';
+import { useAppMode, useCurrentUser, UserRole } from '@erp/core';
 import { EmptyState, ScreenContainer } from '@erp/ui';
 import React from 'react';
 import { DriverTabNavigator } from './driver/DriverTabNavigator';
@@ -8,10 +8,19 @@ import { TeacherNavigator } from './teacher/TeacherNavigator';
 
 /**
  * Role-adaptive shell — one binary, tabs chosen by role at runtime.
+ *
+ * Dual-identity users (staff who are also parents) can switch between a Work shell
+ * (their staff role) and a Home shell (ParentTabNavigator) via the app-mode switcher.
  */
 export const RoleBasedNavigator: React.FC = () => {
   const user = useCurrentUser();
   const role = user?.role;
+  const { mode, canSwitch } = useAppMode();
+
+  // Home mode (or a pure-parent whose staff role is absent) → parent shell.
+  if (canSwitch && mode === 'home') {
+    return <ParentTabNavigator />;
+  }
 
   if (
     role === UserRole.TEACHER ||

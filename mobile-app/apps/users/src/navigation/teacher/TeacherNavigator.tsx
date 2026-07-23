@@ -5,6 +5,7 @@ import { LeaveApplyScreen } from '../../features/me/screens/LeaveApplyScreen';
 import { MyAdvancesScreen } from '../../features/me/screens/MyAdvancesScreen';
 import { MyLeaveListScreen } from '../../features/me/screens/MyLeaveListScreen';
 import { MyPayslipsScreen } from '../../features/me/screens/MyPayslipsScreen';
+import { PayslipDetailScreen } from '../../features/me/screens/PayslipDetailScreen';
 import { MyProfileScreen } from '../../features/me/screens/MyProfileScreen';
 import { StaffClockScreen } from '../../features/me/screens/StaffClockScreen';
 import { NotificationsListScreen } from '../../features/notifications/screens/NotificationsListScreen';
@@ -105,6 +106,7 @@ export const TeacherNavigator: React.FC = () => (
     <Stack.Screen name="LeaveApply" component={LeaveApplyScreen} />
     <Stack.Screen name="MyLeaveList" component={MyLeaveListScreen} />
     <Stack.Screen name="MyPayslips" component={MyPayslipsScreen} />
+    <Stack.Screen name="PayslipDetail" component={PayslipDetailScreen} />
     <Stack.Screen name="MyProfile" component={MyProfileScreen} />
     <Stack.Screen name="TeacherTransportHub" component={TeacherTransportScreen} />
     <Stack.Screen name="LessonPlanReview" component={LessonPlanReviewQueueScreen} />

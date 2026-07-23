@@ -17,6 +17,7 @@ import React from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { confirmAction } from '../features/shared/utils/feedback';
+import { AppModeSwitch } from '../features/shared/components/AppModeSwitch';
 import { navigateDrawerAreaHome } from './areaRoutes';
 
 function getActiveKey(state: DrawerContentComponentProps['state']): AdminAreaKey {
@@ -184,6 +185,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
         </View>
 
         <View style={[styles.footer, { borderTopColor: palette.borderSubtle }]}>
+          <AppModeSwitch style={{ marginBottom: spacing.md }} />
           {user ? (
             <View style={styles.userRow}>
               <View style={[styles.avatar, { backgroundColor: palette.primaryMuted }]}>

@@ -4,3 +4,8 @@ export { AccessDeniedScreen } from './screens/AccessDeniedScreen';
 export { BiometricEnableScreen } from './screens/BiometricEnableScreen';
 export { PinEnableScreen } from './screens/PinEnableScreen';
 export { PinUnlockPanel, PinUnlockScreen } from './screens/PinUnlockPanel';
+export { ParentClaimFlow } from './screens/ParentClaimFlow';
+export { ParentClaimOtpScreen } from './screens/ParentClaimOtpScreen';
+export { ParentClaimAdmissionScreen } from './screens/ParentClaimAdmissionScreen';
+export { ParentClaimPasswordScreen } from './screens/ParentClaimPasswordScreen';
+export { ParentProfileReviewScreen } from './screens/ParentProfileReviewScreen';

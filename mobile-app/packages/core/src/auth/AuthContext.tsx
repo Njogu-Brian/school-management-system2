@@ -10,7 +10,7 @@ import React, {
 import { AppState, AppStateStatus } from 'react-native';
 import { authApi } from '../api/auth.api';
 import { apiClient } from '../api/client';
-import type { ApiError, AuthStatus, GoogleIdentity, LoginCredentials, User } from '../types';
+import type { ApiError, ApiUser, AuthStatus, GoogleIdentity, LoginCredentials, User } from '../types';
 import { getCachedUser, saveUser } from '../storage/authStorage';
 import {
   authenticateWithBiometrics,
@@ -80,6 +80,8 @@ export interface AuthContextValue {
   requestLoginOtp: (identifier: string) => Promise<void>;
   /** Verify login OTP and establish a session. */
   verifyLoginOtp: (identifier: string, code: string) => Promise<void>;
+  /** Establish a session from a completed parent-claim signup (`{ token, user }`). */
+  completeParentClaim: (data: { token: string; user: ApiUser; expires_at?: string | null }) => Promise<void>;
   /** Unlock an existing session with device biometrics (no backend login). */
   unlockWithBiometrics: () => Promise<void>;
   /** Unlock with app PIN. */
@@ -348,6 +350,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [runAuth],
   );
 
+  const completeParentClaim = useCallback(
+    (data: { token: string; user: ApiUser; expires_at?: string | null }) =>
+      runAuth(async () => {
+        lastCredentialsRef.current = null;
+        return {
+          method: 'otp' as const,
+          token: data.token,
+          user: mapApiUser(data.user),
+          expiresAt: data.expires_at ?? null,
+          rememberMe: true,
+        };
+      }),
+    [runAuth],
+  );
+
   const loginWithGoogleIdToken = useCallback(
     (idToken: string) =>
       runAuth(async () => {
@@ -481,6 +498,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loginWithGoogleIdToken,
       requestLoginOtp,
       verifyLoginOtp,
+      completeParentClaim,
       unlockWithBiometrics,
       unlockWithPin,
       dismissBiometricEnrollment,
@@ -505,6 +523,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loginWithGoogleIdToken,
       requestLoginOtp,
       verifyLoginOtp,
+      completeParentClaim,
       unlockWithBiometrics,
       unlockWithPin,
       dismissBiometricEnrollment,

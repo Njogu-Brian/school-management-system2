@@ -22,7 +22,7 @@ export const ConcernsListScreen: React.FC<Props> = ({ navigation }) => {
       <View style={{ padding: spacing.md, flex: 1 }}>
         <AcademicScreenHeader
           title="Concerns"
-          subtitle="Parent issues & staff follow-up"
+          subtitle="Ops view · staff see only concerns they are tagged on"
           onBack={() => navigation.goBack()}
         />
         <Button

@@ -1,4 +1,4 @@
-import { canAccessApp, useAuth } from '@erp/core';
+import { AppModeProvider, canAccessApp, useAuth } from '@erp/core';
 import { useTheme } from '@erp/ui';
 import {
   DarkTheme,
@@ -12,6 +12,7 @@ import {
   AuthLoadingScreen,
   BiometricEnableScreen,
   LoginScreen,
+  ParentProfileReviewScreen,
   PinEnableScreen,
 } from '../features/auth';
 import { OfflineShell } from '../providers/OfflineShell';
@@ -35,11 +36,17 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   if (pinEnrollmentPending) {
     return <PinEnableScreen />;
   }
+  // Freshly claimed parent accounts must review their family details first (data only).
+  if (user?.parentProfileReviewRequired) {
+    return <ParentProfileReviewScreen />;
+  }
   return (
     <OfflineShell>
-      <NavigationContainer theme={navTheme}>
-        <RoleBasedNavigator />
-      </NavigationContainer>
+      <AppModeProvider>
+        <NavigationContainer theme={navTheme}>
+          <RoleBasedNavigator />
+        </NavigationContainer>
+      </AppModeProvider>
     </OfflineShell>
   );
 };

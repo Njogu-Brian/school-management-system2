@@ -16,6 +16,8 @@ export const ASYNC_KEYS = {
   PIN_ENABLED: '@erp_pin_enabled',
   PIN_FAILURE_COUNT: '@erp_pin_failure_count',
   REMEMBERED_USERNAME: '@erp_remembered_username',
+  /** Work|Home mode for dual-identity users (staff who are also parents). */
+  APP_MODE: '@erp_app_mode',
 } as const;
 
 export const BIOMETRIC_SECURE_KEYS = {

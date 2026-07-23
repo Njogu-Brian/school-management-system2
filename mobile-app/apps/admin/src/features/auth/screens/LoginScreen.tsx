@@ -482,6 +482,23 @@ export const LoginScreen: React.FC = () => {
           ) : null}
         </>
       )}
+
+      <Pressable
+        onPress={() =>
+          showError(
+            'Parents: use the Users app',
+            'Parent accounts are claimed and used in the School Users app. Please download and open the Users app to claim access with your phone or email.',
+          )
+        }
+        style={{ marginTop: spacing.lg, alignItems: 'center' }}
+      >
+        <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: typography.body.fontSize, textAlign: 'center' }}>
+          First time parent?{' '}
+          <Text style={{ color: colors.primaryOnDark ?? '#4B9FFF', fontWeight: '700' }}>
+            Use the Users app
+          </Text>
+        </Text>
+      </Pressable>
     </View>
   );
 

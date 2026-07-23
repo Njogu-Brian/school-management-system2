@@ -319,8 +319,8 @@ export const MarkAttendanceScreen: React.FC = () => {
   const showSubmit = classId != null && students.length > 0 && schoolDayOk !== false;
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <View style={{ padding: spacing.md, flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} clearFloatingTabBar={false}>
+      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, flex: 1 }}>
         <AcademicScreenHeader
           title="Mark attendance"
           subtitle="School-day calendar applies (same as web)"
@@ -415,7 +415,8 @@ export const MarkAttendanceScreen: React.FC = () => {
             keyExtractor={(item) => String(item.id)}
             style={{ flex: 1 }}
             contentContainerStyle={{
-              paddingBottom: showSubmit ? spacing.md : tabClearance,
+              flexGrow: 1,
+              paddingBottom: showSubmit ? 96 : tabClearance,
             }}
             renderItem={({ item }) => {
               const status = statusById[item.id] ?? 'unmarked';
@@ -463,24 +464,35 @@ export const MarkAttendanceScreen: React.FC = () => {
             }
           />
         )}
-
-        {showSubmit ? (
-          <View style={{ paddingBottom: tabClearance, paddingTop: spacing.sm }}>
-            <Button
-              label={
-                networkStatus === 'offline'
-                  ? 'Submit (queue offline)'
-                  : isDirty
-                    ? 'Submit attendance'
-                    : 'Submitted'
-              }
-              onPress={() => void submit()}
-              loading={markMutation.isPending}
-              disabled={!isDirty}
-            />
-          </View>
-        ) : null}
       </View>
+
+      {showSubmit ? (
+        <View
+          style={{
+            position: 'absolute',
+            left: spacing.md,
+            right: spacing.md,
+            bottom: tabClearance,
+            backgroundColor: palette.background,
+            paddingTop: spacing.sm,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: palette.border,
+          }}
+        >
+          <Button
+            label={
+              networkStatus === 'offline'
+                ? 'Submit (queue offline)'
+                : isDirty
+                  ? 'Submit attendance'
+                  : 'Submitted'
+            }
+            onPress={() => void submit()}
+            loading={markMutation.isPending}
+            disabled={!isDirty}
+          />
+        </View>
+      ) : null}
     </ScreenContainer>
   );
 };
