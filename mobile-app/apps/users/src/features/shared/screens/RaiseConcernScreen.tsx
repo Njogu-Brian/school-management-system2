@@ -1,5 +1,6 @@
 import {
   useCreateConcern,
+  useCurrentUser,
   useInfiniteStudentList,
   type ConcernCategory,
 } from '@erp/core';
@@ -16,8 +17,8 @@ import {
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text } from 'react-native';
-import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
-import { showError, showSuccess } from '../../shared/utils/feedback';
+import type { ConcernsSharedParamList } from '../types/concerns';
+import { showError, showSuccess } from '../utils/feedback';
 
 const CATEGORIES: Array<{ id: ConcernCategory; label: string }> = [
   { id: 'academic', label: 'Academic' },
@@ -28,23 +29,38 @@ const CATEGORIES: Array<{ id: ConcernCategory; label: string }> = [
   { id: 'administration', label: 'Admin' },
 ];
 
+/**
+ * Shared across every role (Teacher, Parent, Driver, Student). The student picker
+ * is skipped when a `studentId` is passed in, or when the signed-in user is a
+ * student themselves (`user.studentId`) — otherwise it lists students in scope
+ * (server already scopes `/students` per role: own children, assigned classes, etc.).
+ */
 export const RaiseConcernScreen: React.FC = () => {
   const navigation = useNavigation();
-  const route = useRoute<RouteProp<ParentStackParamList, 'RaiseConcern'>>();
+  const route = useRoute<RouteProp<ConcernsSharedParamList, 'RaiseConcern'>>();
   const { palette, spacing, typography, radius } = useTheme();
   const create = useCreateConcern();
+  const user = useCurrentUser();
 
-  const [studentId, setStudentId] = useState<number | null>(route.params?.studentId ?? null);
+  const selfStudentId = user?.studentId ?? null;
+  const [studentId, setStudentId] = useState<number | null>(
+    route.params?.studentId ?? selfStudentId ?? null,
+  );
   const [category, setCategory] = useState<ConcernCategory>('academic');
   const [description, setDescription] = useState('');
 
-  const listQuery = useInfiniteStudentList({
-    search: '',
-    classroomId: null,
-    streamId: null,
-    status: 'active',
-    perPage: 40,
-  });
+  const needsPicker = !route.params?.studentId && !selfStudentId;
+
+  const listQuery = useInfiniteStudentList(
+    {
+      search: '',
+      classroomId: null,
+      streamId: null,
+      status: 'active',
+      perPage: 40,
+    },
+    { enabled: needsPicker },
+  );
   const students = useMemo(
     () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [listQuery.data],
@@ -52,7 +68,7 @@ export const RaiseConcernScreen: React.FC = () => {
 
   const submit = async () => {
     if (!studentId) {
-      showError('Select a child', 'Choose which child this concern is about.');
+      showError('Select a student', 'Choose who this concern is about.');
       return;
     }
     if (!description.trim()) {
@@ -76,11 +92,11 @@ export const RaiseConcernScreen: React.FC = () => {
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader title="Raise concern" onBack={() => navigation.goBack()} />
 
-      {!route.params?.studentId ? (
+      {needsPicker ? (
         <>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>Child</Text>
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>Student</Text>
           {students.length === 0 ? (
-            <EmptyState title="No children" message="Link a child before raising a concern." icon="people-outline" />
+            <EmptyState title="No students" message="No students found in your scope." icon="people-outline" />
           ) : (
             students.map((s) => (
               <Pressable

@@ -36,6 +36,8 @@ export const queryKeys = {
     detail: (id: number) => [...queryKeys.students.all, 'detail', id] as const,
     classrooms: () => [...queryKeys.students.all, 'classrooms'] as const,
     streams: (classId: number) => [...queryKeys.students.all, 'streams', classId] as const,
+    classroomSubjects: (classId: number) =>
+      [...queryKeys.students.all, 'classroom-subjects', classId] as const,
     stats: (id: number) => [...queryKeys.students.all, 'stats', id] as const,
     attendanceCalendar: (id: number, year: number, month: number) =>
       [...queryKeys.students.all, 'attendance', id, year, month] as const,

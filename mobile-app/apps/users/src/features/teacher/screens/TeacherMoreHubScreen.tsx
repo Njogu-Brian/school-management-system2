@@ -32,6 +32,7 @@ export const TeacherMoreHubScreen: React.FC = () => {
         | 'megaphone-outline'
         | 'chatbubbles-outline'
         | 'list-outline'
+        | 'alert-circle-outline'
         | 'cash-outline';
     }> = [
       { title: 'Clock in / out', route: 'StaffClock', icon: 'time-outline' },
@@ -44,6 +45,8 @@ export const TeacherMoreHubScreen: React.FC = () => {
       { title: 'Student diary', route: 'DiaryList', icon: 'chatbubbles-outline' },
       { title: 'Announcements', route: 'Announcements', icon: 'megaphone-outline' },
       { title: 'Notifications', route: 'Notifications', icon: 'notifications-outline' },
+      { title: 'Raise a concern', route: 'RaiseConcern', icon: 'alert-circle-outline' },
+      { title: 'Concerns', route: 'ConcernsList', icon: 'alert-circle-outline' },
       { title: 'Settings', route: 'Settings', icon: 'settings-outline' },
     ];
     if (isSenior) {

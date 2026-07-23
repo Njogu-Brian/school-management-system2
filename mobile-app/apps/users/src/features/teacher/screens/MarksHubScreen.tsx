@@ -35,7 +35,7 @@ export const MarksHubScreen: React.FC = () => {
           <View style={{ marginBottom: spacing.md }}>
             <AcademicScreenHeader
               title="Marks entry"
-              subtitle="Bulk matrix or per-exam entry"
+              subtitle="Subjects you teach — bulk matrix or per-exam entry"
               onBack={() => navigation.goBack()}
             />
             <Pressable

@@ -33,6 +33,24 @@ export function useClassroomStreams(classId: number | null, options?: { enabled?
   });
 }
 
+/** Subjects for a class — server scopes to "subjects you teach" for teacher-like roles. */
+export function useClassroomSubjects(classId: number | null, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.students.classroomSubjects(classId ?? 0),
+    queryFn: async () => {
+      if (classId == null) return [];
+      const { studentsApi } = await import('../../api/students.api');
+      const res = await studentsApi.listClassroomSubjects(classId);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load subjects.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false && classId != null,
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useInfiniteStudentList(
   filters: StudentListFilters,
   options?: { enabled?: boolean },

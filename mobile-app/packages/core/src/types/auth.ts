@@ -49,6 +49,12 @@ export interface ApiUser {
   student_id?: number;
   school_id?: number;
   branch_id?: number;
+  /** Classrooms where this teacher is the assigned class teacher (homeroom). */
+  class_teacher_classroom_ids?: number[];
+  /** All classrooms this teacher can access (class-teacher + subject-teacher scope). */
+  assigned_classroom_ids?: number[];
+  /** Subjects this teacher is assigned to teach. */
+  assigned_subject_ids?: number[];
   branches?: Array<{
     id: number;
     name: string;

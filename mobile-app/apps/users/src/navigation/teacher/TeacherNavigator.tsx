@@ -1,9 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@erp/ui';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LeaveApplyScreen } from '../../features/me/screens/LeaveApplyScreen';
 import { MyAdvancesScreen } from '../../features/me/screens/MyAdvancesScreen';
 import { MyLeaveListScreen } from '../../features/me/screens/MyLeaveListScreen';
@@ -13,8 +10,12 @@ import { StaffClockScreen } from '../../features/me/screens/StaffClockScreen';
 import { NotificationsListScreen } from '../../features/notifications/screens/NotificationsListScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
 import { DiaryChatScreen, DiaryListScreen } from '../../features/shared/diary';
-import { AnnouncementsListScreen } from '../../features/shared/screens/AnnouncementsListScreen';
-import { StudentDetailScreen } from '../../features/shared/screens/StudentDetailScreen';
+import {
+  AnnouncementsListScreen,
+  ConcernsListScreen,
+  RaiseConcernScreen,
+  StudentDetailScreen,
+} from '../../features/shared/screens';
 import {
   AssignmentDetailScreen,
   AssignmentsHubScreen,
@@ -39,59 +40,48 @@ import { TeacherHomeScreen } from '../../features/teacher/screens/TeacherHomeScr
 import { TeacherMoreHubScreen } from '../../features/teacher/screens/TeacherMoreHubScreen';
 import { TeacherTransportScreen } from '../../features/teacher/screens/TeacherTransportScreen';
 import { TimetableHubScreen } from '../../features/teacher/screens/TimetableHubScreen';
-import { getDefaultTabScreenOptions } from '../tabBarConfig';
+import { UsersAppHeaderChrome } from '../UsersAppHeaderChrome';
+import { createUsersTabBar } from '../UsersPremiumTabBar';
 import type { TeacherStackParamList } from './teacherStackTypes';
 
 const Stack = createStackNavigator<TeacherStackParamList>();
 const Tab = createBottomTabNavigator();
 
+const TAB_TITLES: Record<string, string> = {
+  Home: 'Home',
+  Classes: 'My classes',
+  Attendance: 'Attendance',
+  Academics: 'Academics',
+  More: 'More',
+};
+
+const teacherTabBar = createUsersTabBar({
+  Home: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
+  Classes: { label: 'Classes', icon: 'school-outline', iconFocused: 'school', tone: 'indigo' },
+  Attendance: { label: 'Attendance', icon: 'checkbox-outline', iconFocused: 'checkbox', tone: 'emerald' },
+  Academics: { label: 'Academics', icon: 'book-outline', iconFocused: 'book', tone: 'cyan' },
+  More: { label: 'More', icon: 'menu-outline', iconFocused: 'menu', tone: 'amber' },
+});
+
 function TeacherTabs() {
-  const { isDark, colors, palette } = useTheme();
-  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
-      screenOptions={getDefaultTabScreenOptions(insets, { primary: colors.primary, palette, isDark })}
+      tabBar={teacherTabBar}
+      screenOptions={({ route, navigation }) => ({
+        headerShown: true,
+        header: () => (
+          <UsersAppHeaderChrome
+            title={TAB_TITLES[route.name] ?? route.name}
+            onMenuPress={() => navigation.navigate('More' as never)}
+          />
+        ),
+      })}
     >
-      <Tab.Screen
-        name="Home"
-        component={TeacherHomeScreen}
-        options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="Classes"
-        component={TeacherClassesScreen}
-        options={{
-          tabBarLabel: 'Classes',
-          tabBarIcon: ({ color, size }) => <Ionicons name="school-outline" size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="Attendance"
-        component={MarkAttendanceScreen}
-        options={{
-          tabBarLabel: 'Attendance',
-          tabBarIcon: ({ color, size }) => <Ionicons name="checkbox-outline" size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="Academics"
-        component={TeacherAcademicsHubScreen}
-        options={{
-          tabBarLabel: 'Academics',
-          tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="More"
-        component={TeacherMoreHubScreen}
-        options={{
-          tabBarLabel: 'More',
-          tabBarIcon: ({ color, size }) => <Ionicons name="menu-outline" size={size} color={color} />,
-        }}
-      />
+      <Tab.Screen name="Home" component={TeacherHomeScreen} />
+      <Tab.Screen name="Classes" component={TeacherClassesScreen} />
+      <Tab.Screen name="Attendance" component={MarkAttendanceScreen} />
+      <Tab.Screen name="Academics" component={TeacherAcademicsHubScreen} />
+      <Tab.Screen name="More" component={TeacherMoreHubScreen} />
     </Tab.Navigator>
   );
 }
@@ -129,5 +119,7 @@ export const TeacherNavigator: React.FC = () => (
     <Stack.Screen name="CreateAssignment" component={CreateAssignmentScreen} />
     <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
     <Stack.Screen name="MyAdvances" component={MyAdvancesScreen} />
+    <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
+    <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
   </Stack.Navigator>
 );

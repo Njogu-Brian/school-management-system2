@@ -2,17 +2,21 @@ import { useDriverBoarding, useDriverTrip, useDriverTripActions, useDriverTrips 
 import {
   AcademicScreenHeader,
   Button,
+  DashboardHero,
+  DashboardSection,
   EmptyState,
+  QuickAction,
   ScreenContainer,
   SkeletonListRows,
   Soft3DIcon,
   StatusBadge,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import type { DriverStackParamList } from '../../../navigation/driver/driverStackTypes';
 import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -33,6 +37,7 @@ type HubLink = {
     | 'list-outline'
     | 'wallet-outline'
     | 'cash-outline'
+    | 'alert-circle-outline'
     | 'car-outline';
   tone: 'blue' | 'indigo' | 'cyan' | 'amber' | 'emerald' | 'rose';
 };
@@ -93,6 +98,20 @@ export const DRIVER_HUB_LINKS: HubLink[] = [
     route: 'Notifications',
     icon: 'notifications-outline',
     tone: 'blue',
+  },
+  {
+    title: 'Raise a concern',
+    subtitle: 'Flag an issue about a student',
+    route: 'RaiseConcern',
+    icon: 'alert-circle-outline',
+    tone: 'rose',
+  },
+  {
+    title: 'Concerns',
+    subtitle: 'View concerns you have raised',
+    route: 'ConcernsList',
+    icon: 'alert-circle-outline',
+    tone: 'rose',
   },
   {
     title: 'Settings',
@@ -165,20 +184,40 @@ function HubLinksList({ onNavigate }: { onNavigate: (route: keyof DriverStackPar
   );
 }
 
+const HOME_QUICK_ACTIONS: Array<{
+  label: string;
+  icon: 'car-outline' | 'time-outline' | 'notifications-outline' | 'alert-circle-outline';
+  route: keyof DriverStackParamList;
+}> = [
+  { label: 'My vehicle', icon: 'car-outline', route: 'DriverVehicle' },
+  { label: 'Staff clock', icon: 'time-outline', route: 'StaffClock' },
+  { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications' },
+  { label: 'Raise concern', icon: 'alert-circle-outline', route: 'RaiseConcern' },
+];
+
 export const DriverHomeScreen: React.FC = () => {
   const { palette, spacing, typography, radius } = useTheme();
   const navigation = useNavigation<Nav>();
+  const tabClearance = useFloatingTabBarClearance();
   const tripsQuery = useDriverTrips();
 
+  const trips = tripsQuery.data ?? [];
+  const meta = trips.length > 0 ? `${trips.length} trips today` : undefined;
+
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
-        <AcademicScreenHeader title="Today's trips" subtitle="Start from your assigned roster" />
-      </View>
-      {tripsQuery.isLoading ? (
-        <SkeletonListRows count={4} />
-      ) : tripsQuery.isError ? (
-        <View style={{ padding: spacing.md }}>
+    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+      <DashboardHero
+        variant="operations"
+        greeting="Welcome back"
+        title="Driver portal"
+        subtitle="Today's roster, vehicle status, and self-service"
+        meta={meta}
+      />
+
+      <DashboardSection title="Today's trips" subtitle="Start from your assigned roster">
+        {tripsQuery.isLoading ? (
+          <SkeletonListRows count={4} />
+        ) : tripsQuery.isError ? (
           <EmptyState
             title="Could not load trips"
             message={tripsQuery.error instanceof Error ? tripsQuery.error.message : 'Try again later.'}
@@ -186,24 +225,16 @@ export const DriverHomeScreen: React.FC = () => {
             actionLabel="Retry"
             onAction={() => void tripsQuery.refetch()}
           />
-          <HubLinksList onNavigate={(route) => navigation.navigate(route as never)} />
-        </View>
-      ) : (tripsQuery.data ?? []).length === 0 ? (
-        <View style={{ padding: spacing.md }}>
+        ) : trips.length === 0 ? (
           <EmptyState
             title="No trips today"
             message="Assigned trips for today will appear here when the school schedules them."
             icon="bus-outline"
           />
-          <HubLinksList onNavigate={(route) => navigation.navigate(route as never)} />
-        </View>
-      ) : (
-        <FlatList
-          data={tripsQuery.data ?? []}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{ padding: spacing.md }}
-          renderItem={({ item }) => (
+        ) : (
+          trips.map((item) => (
             <Pressable
+              key={item.id}
               onPress={() => navigation.navigate('TripDetail', { tripId: item.id })}
               style={{
                 backgroundColor: palette.surface,
@@ -226,9 +257,22 @@ export const DriverHomeScreen: React.FC = () => {
                   .join(' · ')}
               </Text>
             </Pressable>
-          )}
-        />
-      )}
+          ))
+        )}
+      </DashboardSection>
+
+      <DashboardSection title="Quick actions">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          {HOME_QUICK_ACTIONS.map((item) => (
+            <QuickAction
+              key={item.route}
+              label={item.label}
+              icon={item.icon}
+              onPress={() => navigation.navigate(item.route as never)}
+            />
+          ))}
+        </View>
+      </DashboardSection>
     </ScreenContainer>
   );
 };

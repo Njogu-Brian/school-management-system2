@@ -14,4 +14,6 @@ export type DriverStackParamList = {
   MyPayslips: undefined;
   MyAdvances: undefined;
   MyProfile: undefined;
+  ConcernsList: undefined;
+  RaiseConcern: { studentId?: number } | undefined;
 };

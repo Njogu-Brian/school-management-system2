@@ -420,6 +420,9 @@ class AuthApiController extends Controller
             }
             if (in_array(strtolower($roleName), ['teacher', 'senior teacher', 'supervisor'])) {
                 $data['teacher_id'] = $staff->id;
+                $data['class_teacher_classroom_ids'] = $user->getClassTeacherClassroomIds();
+                $data['assigned_classroom_ids'] = $user->getAssignedClassroomIds();
+                $data['assigned_subject_ids'] = $user->getAssignedSubjectIds();
             }
             $data['avatar'] = $staff->photo_url ?: null;
         }

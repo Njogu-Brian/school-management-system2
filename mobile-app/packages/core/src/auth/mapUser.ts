@@ -27,5 +27,8 @@ export function mapApiUser(raw: ApiUser): User {
     teacherId: raw.teacher_id ?? null,
     parentId: raw.parent_id ?? null,
     studentId: raw.student_id ?? null,
+    classTeacherClassroomIds: raw.class_teacher_classroom_ids ?? [],
+    assignedClassroomIds: raw.assigned_classroom_ids ?? [],
+    assignedSubjectIds: raw.assigned_subject_ids ?? [],
   };
 }

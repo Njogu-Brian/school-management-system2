@@ -1,9 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@erp/ui';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActiveTripScreen } from '../../features/driver/screens/ActiveTripScreen';
 import { BoardingChecklistScreen } from '../../features/driver/screens/BoardingChecklistScreen';
 import {
@@ -21,7 +18,9 @@ import { MyProfileScreen } from '../../features/me/screens/MyProfileScreen';
 import { StaffClockScreen } from '../../features/me/screens/StaffClockScreen';
 import { NotificationsListScreen } from '../../features/notifications/screens/NotificationsListScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
-import { getDefaultTabScreenOptions } from '../tabBarConfig';
+import { ConcernsListScreen, RaiseConcernScreen } from '../../features/shared/screens';
+import { UsersAppHeaderChrome } from '../UsersAppHeaderChrome';
+import { createUsersTabBar } from '../UsersPremiumTabBar';
 import type { DriverStackParamList } from './driverStackTypes';
 
 const Tab = createBottomTabNavigator();
@@ -43,61 +42,79 @@ const driverSharedScreens = (Stack: typeof HomeStack) => (
     <Stack.Screen name="MyAdvances" component={MyAdvancesScreen} />
     <Stack.Screen name="MyProfile" component={MyProfileScreen} />
     <Stack.Screen name="DriverSettings" component={SettingsScreen} />
+    <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
+    <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
   </>
 );
 
 const DriverHomeStack = () => (
   <HomeStack.Navigator screenOptions={{ headerShown: false }}>
-    <HomeStack.Screen name="DriverHomeMain" component={DriverHomeScreen} />
+    <HomeStack.Screen
+      name="DriverHomeMain"
+      component={DriverHomeScreen}
+      options={{
+        headerShown: true,
+        header: ({ navigation }) => (
+          <UsersAppHeaderChrome
+            title="Home"
+            onMenuPress={() => navigation.getParent()?.navigate('DriverAccountTab' as never)}
+          />
+        ),
+      }}
+    />
     {driverSharedScreens(HomeStack)}
   </HomeStack.Navigator>
 );
 
 const DriverRoutesStackNav = () => (
   <RoutesStack.Navigator screenOptions={{ headerShown: false }}>
-    <RoutesStack.Screen name="RoutesList" component={DriverRoutesScreen} />
+    <RoutesStack.Screen
+      name="RoutesList"
+      component={DriverRoutesScreen}
+      options={{
+        headerShown: true,
+        header: ({ navigation }) => (
+          <UsersAppHeaderChrome
+            title="Routes"
+            onMenuPress={() => navigation.getParent()?.navigate('DriverAccountTab' as never)}
+          />
+        ),
+      }}
+    />
     {driverSharedScreens(RoutesStack)}
   </RoutesStack.Navigator>
 );
 
 const DriverAccountStack = () => (
   <AccountStack.Navigator screenOptions={{ headerShown: false }}>
-    <AccountStack.Screen name="DriverMoreMenu" component={DriverMoreHubScreen} />
+    <AccountStack.Screen
+      name="DriverMoreMenu"
+      component={DriverMoreHubScreen}
+      options={{ headerShown: true, header: () => <UsersAppHeaderChrome title="Account" /> }}
+    />
     {driverSharedScreens(AccountStack)}
   </AccountStack.Navigator>
 );
 
-export const DriverTabNavigator: React.FC = () => {
-  const { isDark, colors, palette } = useTheme();
-  const insets = useSafeAreaInsets();
+const driverTabBar = createUsersTabBar({
+  DriverHomeTab: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
+  DriverRoutesTab: { label: 'Routes', icon: 'map-outline', iconFocused: 'map', tone: 'indigo' },
+  DriverAccountTab: { label: 'Account', icon: 'person-outline', iconFocused: 'person', tone: 'cyan' },
+});
 
+export const DriverTabNavigator: React.FC = () => {
   return (
-    <Tab.Navigator
-      screenOptions={getDefaultTabScreenOptions(insets, { primary: colors.primary, palette, isDark })}
-    >
-      <Tab.Screen
-        name="DriverHomeTab"
-        component={DriverHomeStack}
-        options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
-        }}
-      />
+    <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={driverTabBar}>
+      <Tab.Screen name="DriverHomeTab" component={DriverHomeStack} options={{ tabBarLabel: 'Home' }} />
       <Tab.Screen
         name="DriverRoutesTab"
         component={DriverRoutesStackNav}
-        options={{
-          tabBarLabel: 'Routes',
-          tabBarIcon: ({ color, size }) => <Ionicons name="map-outline" size={size} color={color} />,
-        }}
+        options={{ tabBarLabel: 'Routes' }}
       />
       <Tab.Screen
         name="DriverAccountTab"
         component={DriverAccountStack}
-        options={{
-          tabBarLabel: 'Account',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
-        }}
+        options={{ tabBarLabel: 'Account' }}
       />
     </Tab.Navigator>
   );

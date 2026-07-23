@@ -34,6 +34,13 @@ export interface User {
   parentId?: number | null;
   studentId?: number | null;
 
+  /** Classrooms where this teacher is the assigned class teacher (homeroom / class-teacher duties). */
+  classTeacherClassroomIds?: number[];
+  /** All classrooms this teacher can access (class-teacher + subject-teacher scope). */
+  assignedClassroomIds?: number[];
+  /** Subjects this teacher is assigned to teach (drives "subjects you teach" filters). */
+  assignedSubjectIds?: number[];
+
   /** Set after Google sign-in when the ID token is decoded client-side. */
   googleId?: string | null;
   googleEmail?: string | null;

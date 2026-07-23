@@ -1,14 +1,16 @@
-import { useAuth, useCurrentUser, useInfiniteStudentList, studentsApi, financeApi, useStudentStats } from '@erp/core';
+import { useCurrentUser, useInfiniteStudentList, studentsApi, financeApi, useStudentStats, useUnreadNotificationCount } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
+  DashboardHero,
+  DashboardSection,
   EmptyState,
+  QuickAction,
   ScreenContainer,
   SkeletonListRows,
-  Soft3DIcon,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
@@ -19,114 +21,85 @@ import { formatKes, formatShortDate } from '../utils/format';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
 
+const QUICK_ACTIONS: Array<{
+  label: string;
+  icon: 'people-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
+  route: keyof ParentStackParamList;
+}> = [
+  { label: 'Children', icon: 'people-outline', route: 'ChildrenList' },
+  { label: 'Fees', icon: 'wallet-outline', route: 'FeesHome' },
+  { label: 'Diary', icon: 'chatbubbles-outline', route: 'DiaryList' },
+];
+
+const SCHOOL_ACTIONS: Array<{
+  label: string;
+  icon: 'people-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
+  route: keyof ParentStackParamList;
+}> = [
+  { label: 'Announcements', icon: 'megaphone-outline', route: 'Announcements' },
+  { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications' },
+  { label: 'Raise concern', icon: 'alert-circle-outline', route: 'ConcernsList' },
+];
+
 export const ParentHomeScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { logout } = useAuth();
-  const { palette, spacing, typography, radius, colors } = useTheme();
+  const { spacing } = useTheme();
   const navigation = useNavigation<Nav>();
+  const tabClearance = useFloatingTabBarClearance();
+  const unreadQuery = useUnreadNotificationCount();
+  const childrenQuery = useInfiniteStudentList({
+    search: '',
+    classroomId: null,
+    streamId: null,
+    status: 'active',
+    perPage: 1,
+  });
 
-  const quickActions: Array<{
-    label: string;
-    icon: 'people-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
-    tone: 'indigo' | 'emerald' | 'violet' | 'amber' | 'blue' | 'rose';
-    onPress: () => void;
-  }> = [
-    { label: 'Children', icon: 'people-outline', tone: 'indigo', onPress: () => navigation.navigate('ChildrenList') },
-    { label: 'Fees', icon: 'wallet-outline', tone: 'emerald', onPress: () => navigation.navigate('FeesHome') },
-    { label: 'Diary', icon: 'chatbubbles-outline', tone: 'violet', onPress: () => navigation.navigate('DiaryList') },
-    {
-      label: 'Announcements',
-      icon: 'megaphone-outline',
-      tone: 'amber',
-      onPress: () => navigation.navigate('Announcements'),
-    },
-    {
-      label: 'Notifications',
-      icon: 'notifications-outline',
-      tone: 'blue',
-      onPress: () => navigation.navigate('Notifications'),
-    },
-    {
-      label: 'Concerns',
-      icon: 'alert-circle-outline',
-      tone: 'rose',
-      onPress: () => navigation.navigate('ConcernsList'),
-    },
-  ];
+  const childrenCount = childrenQuery.data?.pages[0]?.total ?? 0;
+  const meta = useMemo(() => {
+    const parts: string[] = [];
+    if (childrenCount > 0) parts.push(`${childrenCount} ${childrenCount === 1 ? 'child' : 'children'}`);
+    const unread = unreadQuery.data ?? 0;
+    if (unread > 0) parts.push(`${unread} unread`);
+    return parts.join(' · ') || undefined;
+  }, [childrenCount, unreadQuery.data]);
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <View style={{ flex: 1, paddingRight: spacing.md }}>
-          <Text
-            style={{
-              color: palette.textSecondary,
-              fontSize: typography.caption.fontSize,
-              textTransform: 'uppercase',
-              letterSpacing: 0.6,
-            }}
-          >
-            Parent portal
-          </Text>
-          <Text
-            style={{
-              color: palette.textPrimary,
-              fontSize: typography.headline.fontSize,
-              fontWeight: '700',
-              marginBottom: spacing.md,
-            }}
-          >
-            {user?.name ?? 'Parent'}
-          </Text>
+    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+      <DashboardHero
+        variant="people"
+        greeting="Welcome back"
+        userName={user?.name ?? 'Parent'}
+        title="Parent portal"
+        subtitle="Track fees, attendance, and school updates for your children"
+        meta={meta}
+      />
+
+      <DashboardSection title="Children & fees">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          {QUICK_ACTIONS.map((item) => (
+            <QuickAction
+              key={item.route}
+              label={item.label}
+              icon={item.icon}
+              onPress={() => navigation.navigate(item.route as never)}
+            />
+          ))}
         </View>
-        <Pressable
-          onPress={() => navigation.navigate('MyProfile')}
-          accessibilityRole="button"
-          accessibilityLabel="Open profile"
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: colors.primary,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Ionicons name="person" size={18} color="#fff" />
-        </Pressable>
-      </View>
+      </DashboardSection>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-        {quickActions.map((item) => (
-          <Pressable
-            key={item.label}
-            onPress={item.onPress}
-            style={{
-              width: '47%',
-              backgroundColor: palette.surface,
-              borderWidth: 1,
-              borderColor: palette.border,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-              minHeight: 110,
-            }}
-          >
-            <Soft3DIcon name={item.icon} tone={item.tone} size={44} />
-            <Text
-              style={{
-                color: palette.textPrimary,
-                fontWeight: '600',
-                marginTop: spacing.sm,
-                fontSize: typography.caption.fontSize,
-              }}
-            >
-              {item.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Button label="Sign out" variant="ghost" onPress={logout} style={{ marginTop: spacing.xl }} />
+      <DashboardSection title="School">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          {SCHOOL_ACTIONS.map((item) => (
+            <QuickAction
+              key={item.route}
+              label={item.label}
+              icon={item.icon}
+              onPress={() => navigation.navigate(item.route as never)}
+            />
+          ))}
+        </View>
+      </DashboardSection>
     </ScreenContainer>
   );
 };

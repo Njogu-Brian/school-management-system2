@@ -5,45 +5,68 @@ import {
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import type { StudentStackParamList } from '../../../navigation/student/studentStackTypes';
 
-const LINKS = [
+type Nav = StackNavigationProp<StudentStackParamList>;
+
+const LINKS: Array<{
+  label: string;
+  subtitle: string;
+  icon: 'person-outline' | 'settings-outline' | 'notifications-outline' | 'alert-circle-outline';
+  tone: 'cyan' | 'indigo' | 'blue' | 'rose';
+  route: keyof StudentStackParamList;
+}> = [
   {
     label: 'My profile',
     subtitle: 'View and edit your account',
-    icon: 'person-outline' as const,
-    tone: 'cyan' as const,
+    icon: 'person-outline',
+    tone: 'cyan',
     route: 'MyProfile',
-  },
-  {
-    label: 'Settings',
-    subtitle: 'Theme and account',
-    icon: 'settings-outline' as const,
-    tone: 'indigo' as const,
-    route: 'Settings',
   },
   {
     label: 'Notifications',
     subtitle: 'Alerts and reminders',
-    icon: 'notifications-outline' as const,
-    tone: 'blue' as const,
+    icon: 'notifications-outline',
+    tone: 'blue',
     route: 'Notifications',
+  },
+  {
+    label: 'Raise a concern',
+    subtitle: 'Tell the school about an issue',
+    icon: 'alert-circle-outline',
+    tone: 'rose',
+    route: 'RaiseConcern',
+  },
+  {
+    label: 'My concerns',
+    subtitle: 'Track concerns you have raised',
+    icon: 'alert-circle-outline',
+    tone: 'rose',
+    route: 'ConcernsList',
+  },
+  {
+    label: 'Settings',
+    subtitle: 'Theme and account',
+    icon: 'settings-outline',
+    tone: 'indigo',
+    route: 'Settings',
   },
 ];
 
 export const StudentMoreScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<Nav>();
   const { palette, spacing, typography, radius } = useTheme();
-  const go = (route: string) => (navigation as { navigate: (n: string) => void }).navigate(route);
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="More" onProfilePress={() => go('MyProfile')} />
+      <AcademicScreenHeader title="More" onProfilePress={() => navigation.navigate('MyProfile')} />
       {LINKS.map((item) => (
         <Pressable
           key={item.route}
-          onPress={() => go(item.route)}
+          onPress={() => navigation.navigate(item.route as never)}
           style={{
             flexDirection: 'row',
             alignItems: 'center',

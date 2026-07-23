@@ -1,14 +1,16 @@
-import { useInfiniteStudentList } from '@erp/core';
+import { useClassrooms, useInfiniteStudentList } from '@erp/core';
 import {
   AcademicScreenHeader,
   EmptyState,
+  FilterChip,
+  FilterChipRow,
   ScreenContainer,
   SkeletonListRows,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 
@@ -17,14 +19,17 @@ type Nav = StackNavigationProp<TeacherStackParamList>;
 export const TeacherClassesScreen: React.FC = () => {
   const { palette, spacing, typography, radius } = useTheme();
   const navigation = useNavigation<Nav>();
+  const [classroomId, setClassroomId] = useState<number | null>(null);
+  const classroomsQuery = useClassrooms();
   const listQuery = useInfiniteStudentList({
     search: '',
-    classroomId: null,
+    classroomId,
     streamId: null,
     status: 'active',
     perPage: 40,
   });
 
+  const classrooms = classroomsQuery.data ?? [];
   const students = useMemo(
     () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [listQuery.data],
@@ -33,7 +38,23 @@ export const TeacherClassesScreen: React.FC = () => {
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
-        <AcademicScreenHeader title="My classes" subtitle="Students in your assigned scope" />
+        <AcademicScreenHeader
+          title="My students"
+          subtitle="Students in your assigned classes (class-teacher & subject scope)"
+        />
+        {classrooms.length > 0 ? (
+          <FilterChipRow label="Class">
+            <FilterChip label="All" active={classroomId == null} onPress={() => setClassroomId(null)} />
+            {classrooms.map((c) => (
+              <FilterChip
+                key={c.id}
+                label={c.name}
+                active={classroomId === c.id}
+                onPress={() => setClassroomId(c.id)}
+              />
+            ))}
+          </FilterChipRow>
+        ) : null}
       </View>
       {listQuery.isLoading ? (
         <SkeletonListRows count={8} />

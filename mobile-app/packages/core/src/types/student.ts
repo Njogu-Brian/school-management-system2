@@ -79,6 +79,13 @@ export interface StreamRecord {
   class_id: number;
 }
 
+/** `GET /classes/{id}/subjects` — already scoped server-side to the teacher's own subjects. */
+export interface ClassroomSubjectRecord {
+  id: number;
+  name: string;
+  code: string | null;
+}
+
 /** List row model (registry). */
 export interface StudentSummary {
   id: number;

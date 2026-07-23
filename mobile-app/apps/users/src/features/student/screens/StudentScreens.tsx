@@ -1,67 +1,70 @@
-import { apiClient, useAuth, useCurrentUser, useStudentReportCards } from '@erp/core';
+import { apiClient, useCurrentUser, useStudentReportCards, useUnreadNotificationCount } from '@erp/core';
 import {
   AcademicScreenHeader,
-  Button,
+  DashboardHero,
+  DashboardSection,
   EmptyState,
+  QuickAction,
   ScreenContainer,
   SkeletonListRows,
-  Soft3DIcon,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
+
+type CrossTabNav = {
+  navigate: (name: string, params?: object) => void;
+  getParent: () => CrossTabNav | undefined;
+};
+
+/** Jumps to a sibling tab's own stack (Home lives in its own nested stack). */
+function navigateToTab(navigation: CrossTabNav, tab: string, screen?: string): void {
+  const parent = navigation.getParent?.() ?? navigation;
+  parent.navigate(tab, screen ? { screen } : undefined);
+}
+
+const ACADEMICS_ACTIONS = [
+  { label: 'Homework', icon: 'document-text-outline' as const, tab: 'StudentHomeworkTab' },
+  { label: 'Results', icon: 'ribbon-outline' as const, tab: 'StudentResultsTab' },
+];
 
 export const StudentHomeScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { logout } = useAuth();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { spacing } = useTheme();
   const navigation = useNavigation();
+  const tabClearance = useFloatingTabBarClearance();
   const studentId = user?.studentId ?? 0;
+  const unreadQuery = useUnreadNotificationCount();
+
+  const meta = (unreadQuery.data ?? 0) > 0 ? `${unreadQuery.data} unread notifications` : undefined;
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
-      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Student</Text>
-      <Text
-        style={{
-          color: palette.textPrimary,
-          fontSize: typography.headline.fontSize,
-          fontWeight: '700',
-          marginBottom: spacing.md,
-        }}
-      >
-        {user?.name ?? 'Student'}
-      </Text>
+    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+      <DashboardHero
+        variant="academics"
+        greeting="Welcome back"
+        userName={user?.name ?? 'Student'}
+        title="Student portal"
+        subtitle="Homework, results, and school updates"
+        meta={meta}
+      />
 
       {studentId > 0 ? (
-        <View style={{ gap: spacing.sm }}>
-          {(
-            [
-              { title: 'Homework', route: 'StudentHomeworkMain', icon: 'document-text-outline' as const },
-              { title: 'Results', route: 'StudentResultsMain', icon: 'ribbon-outline' as const },
-              { title: 'Announcements', route: 'Announcements', icon: 'megaphone-outline' as const },
-            ] as const
-          ).map((item) => (
-            <Pressable
-              key={item.route}
-              onPress={() => (navigation as { navigate: (n: string) => void }).navigate(item.route)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: spacing.md,
-                backgroundColor: palette.surface,
-                borderWidth: 1,
-                borderColor: palette.border,
-                borderRadius: radius.lg,
-                padding: spacing.md,
-              }}
-            >
-              <Soft3DIcon name={item.icon} tone="indigo" size={40} />
-              <Text style={{ color: palette.textPrimary, fontWeight: '600', flex: 1 }}>{item.title}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <DashboardSection title="Academics">
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            {ACADEMICS_ACTIONS.map((item) => (
+              <QuickAction
+                key={item.tab}
+                label={item.label}
+                icon={item.icon}
+                onPress={() => navigateToTab(navigation as unknown as CrossTabNav, item.tab)}
+              />
+            ))}
+          </View>
+        </DashboardSection>
       ) : (
         <EmptyState
           title="Student profile not linked"
@@ -69,7 +72,26 @@ export const StudentHomeScreen: React.FC = () => {
           icon="school-outline"
         />
       )}
-      <Button label="Sign out" variant="ghost" onPress={logout} style={{ marginTop: spacing.lg }} />
+
+      <DashboardSection title="School">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <QuickAction
+            label="Announcements"
+            icon="megaphone-outline"
+            onPress={() => navigation.navigate('Announcements' as never)}
+          />
+          <QuickAction
+            label="Notifications"
+            icon="notifications-outline"
+            onPress={() => navigation.navigate('Notifications' as never)}
+          />
+          <QuickAction
+            label="Raise concern"
+            icon="alert-circle-outline"
+            onPress={() => navigation.navigate('RaiseConcern' as never)}
+          />
+        </View>
+      </DashboardSection>
     </ScreenContainer>
   );
 };

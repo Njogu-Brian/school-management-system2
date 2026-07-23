@@ -1,127 +1,125 @@
-import { useAuth, useCurrentUser } from '@erp/core';
-import { Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
-import { Ionicons } from '@expo/vector-icons';
+import { useClassrooms, useCurrentUser, useUnreadNotificationCount } from '@erp/core';
+import {
+  DashboardHero,
+  DashboardSection,
+  QuickAction,
+  ScreenContainer,
+  useFloatingTabBarClearance,
+  useTheme,
+} from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { View } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
 
-const QUICK: Array<{
+type Action = {
   label: string;
-  icon:
-    | 'checkbox-outline'
-    | 'create-outline'
-    | 'chatbubbles-outline'
-    | 'time-outline'
-    | 'calendar-outline'
-    | 'megaphone-outline'
-    | 'notifications-outline'
-    | 'bus-outline';
-  route: keyof TeacherStackParamList;
-  tone: 'blue' | 'indigo' | 'emerald' | 'cyan' | 'amber' | 'rose';
-}> = [
-  { label: 'Mark attendance', icon: 'checkbox-outline', route: 'MarkAttendance', tone: 'emerald' },
-  { label: 'Enter marks', icon: 'create-outline', route: 'MarksHub', tone: 'indigo' },
-  { label: 'Student diary', icon: 'chatbubbles-outline', route: 'DiaryList', tone: 'blue' },
-  { label: 'Clock in/out', icon: 'time-outline', route: 'StaffClock', tone: 'cyan' },
-  { label: 'My leave', icon: 'calendar-outline', route: 'MyLeaveList', tone: 'amber' },
-  { label: 'Transport', icon: 'bus-outline', route: 'TeacherTransportHub', tone: 'cyan' },
-  { label: 'Announcements', icon: 'megaphone-outline', route: 'Announcements', tone: 'amber' },
-  { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications', tone: 'rose' },
+  icon: React.ComponentProps<typeof QuickAction>['icon'];
+  route: keyof TeacherStackParamList | 'Classes';
+};
+
+const CLASS_TEACHER: Action[] = [
+  { label: 'Mark attendance', icon: 'checkbox-outline', route: 'MarkAttendance' },
+  { label: 'My students', icon: 'people-outline', route: 'Classes' },
+  { label: 'Transport', icon: 'bus-outline', route: 'TeacherTransportHub' },
 ];
+
+const TEACHING: Action[] = [
+  { label: 'Enter marks', icon: 'create-outline', route: 'MarksHub' },
+  { label: 'Student diary', icon: 'chatbubbles-outline', route: 'DiaryList' },
+  { label: 'Homework', icon: 'book-outline', route: 'AssignmentsHub' },
+  { label: 'Lesson plans', icon: 'document-text-outline', route: 'LessonPlansHub' },
+];
+
+const SELF_SERVICE: Action[] = [
+  { label: 'Clock in/out', icon: 'time-outline', route: 'StaffClock' },
+  { label: 'My leave', icon: 'calendar-outline', route: 'MyLeaveList' },
+  { label: 'Advances', icon: 'cash-outline', route: 'MyAdvances' },
+  { label: 'Payslips', icon: 'wallet-outline', route: 'MyPayslips' },
+];
+
+const SCHOOL: Action[] = [
+  { label: 'Announcements', icon: 'megaphone-outline', route: 'Announcements' },
+  { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications' },
+  { label: 'Raise concern', icon: 'alert-circle-outline', route: 'RaiseConcern' },
+];
+
+function ActionGrid({
+  actions,
+  onPress,
+}: {
+  actions: Action[];
+  onPress: (route: Action['route']) => void;
+}) {
+  const { spacing } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+      {actions.map((action) => (
+        <QuickAction
+          key={action.route}
+          label={action.label}
+          icon={action.icon}
+          onPress={() => onPress(action.route)}
+        />
+      ))}
+    </View>
+  );
+}
 
 export const TeacherHomeScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { logout } = useAuth();
-  const { palette, spacing, typography, colors, radius } = useTheme();
+  const { spacing } = useTheme();
   const navigation = useNavigation<Nav>();
+  const tabClearance = useFloatingTabBarClearance();
+  const classroomsQuery = useClassrooms();
+  const unreadQuery = useUnreadNotificationCount();
+
+  const classTeacherCount = user?.classTeacherClassroomIds?.length ?? 0;
+  const teachingClassCount = classroomsQuery.data?.length ?? 0;
+
+  const meta = useMemo(() => {
+    const parts: string[] = [];
+    if (classTeacherCount > 0) parts.push(`Class teacher of ${classTeacherCount}`);
+    if (teachingClassCount > 0) parts.push(`${teachingClassCount} classes in scope`);
+    const unread = unreadQuery.data ?? 0;
+    if (unread > 0) parts.push(`${unread} unread`);
+    return parts.join(' · ') || undefined;
+  }, [classTeacherCount, teachingClassCount, unreadQuery.data]);
+
+  const goTo = (route: Action['route']) => navigation.navigate(route as never);
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <View style={{ flex: 1, paddingRight: spacing.md }}>
-          <Text style={[styles.greeting, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}>
-            Welcome back
-          </Text>
-          <Text
-            style={{
-              color: palette.textPrimary,
-              fontSize: typography.headline.fontSize,
-              fontWeight: typography.headline.fontWeight,
-              marginBottom: spacing.xs,
-            }}
-          >
-            {user?.name ?? 'Teacher'}
-          </Text>
-          <Text style={{ color: palette.textMuted, marginBottom: spacing.lg }}>
-            {user?.roleName ?? 'Teacher'} · Today’s capture & self-service
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => navigation.navigate('MyProfile')}
-          accessibilityRole="button"
-          accessibilityLabel="Open profile"
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: colors.primary,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Ionicons name="person" size={18} color="#fff" />
-        </Pressable>
-      </View>
-
-      <View style={styles.grid}>
-        {QUICK.map((item) => (
-          <Pressable
-            key={item.route}
-            onPress={() => navigation.navigate(item.route as never)}
-            style={[
-              styles.tile,
-              {
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
-                borderRadius: radius.lg,
-                padding: spacing.md,
-              },
-            ]}
-          >
-            <Soft3DIcon name={item.icon} tone={item.tone} size={44} />
-            <Text
-              style={{
-                color: palette.textPrimary,
-                fontWeight: '600',
-                marginTop: spacing.sm,
-                fontSize: typography.caption.fontSize,
-              }}
-            >
-              {item.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Button
-        label="Sign out"
-        variant="ghost"
-        onPress={logout}
-        style={{ marginTop: spacing.xl, alignSelf: 'stretch' }}
+    <ScreenContainer
+      scroll
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}
+    >
+      <DashboardHero
+        variant="academics"
+        greeting="Welcome back"
+        userName={user?.name ?? 'Teacher'}
+        title={user?.roleName ?? 'Teacher'}
+        subtitle="Today's capture, teaching, and self-service in one place"
+        meta={meta}
       />
-      <Text style={{ color: colors.primary, textAlign: 'center', marginTop: spacing.sm, opacity: 0.6 }}>
-        Users App
-      </Text>
+
+      <DashboardSection title="Class teacher" subtitle="Attendance, students, and transport for your homeroom">
+        <ActionGrid actions={CLASS_TEACHER} onPress={goTo} />
+      </DashboardSection>
+
+      <DashboardSection title="Teaching" subtitle="Subjects you teach">
+        <ActionGrid actions={TEACHING} onPress={goTo} />
+      </DashboardSection>
+
+      <DashboardSection title="Self-service" subtitle="HR and payroll shortcuts">
+        <ActionGrid actions={SELF_SERVICE} onPress={goTo} />
+      </DashboardSection>
+
+      <DashboardSection title="School">
+        <ActionGrid actions={SCHOOL} onPress={goTo} />
+      </DashboardSection>
     </ScreenContainer>
   );
 };
-
-const styles = StyleSheet.create({
-  greeting: { textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  tile: { width: '47%', borderWidth: StyleSheet.hairlineWidth, minHeight: 110 },
-});

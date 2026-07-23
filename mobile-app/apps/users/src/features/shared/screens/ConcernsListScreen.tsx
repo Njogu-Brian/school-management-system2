@@ -9,16 +9,13 @@ import {
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { Text, View } from 'react-native';
-import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { formatDateTime } from '../utils/format';
 
-type Nav = StackNavigationProp<ParentStackParamList>;
-
+/** Shared across every role (Teacher, Parent, Driver, Student) — reuses `/concerns` server scoping. */
 export const ConcernsListScreen: React.FC = () => {
-  const navigation = useNavigation<Nav>();
+  const navigation = useNavigation();
   const { palette, spacing, typography, radius } = useTheme();
   const list = useConcernsList();
 
@@ -31,7 +28,7 @@ export const ConcernsListScreen: React.FC = () => {
 
       <Button
         label="Raise new concern"
-        onPress={() => navigation.navigate('RaiseConcern', { studentId: undefined })}
+        onPress={() => (navigation as { navigate: (name: string, params?: object) => void }).navigate('RaiseConcern', { studentId: undefined })}
         style={{ marginBottom: spacing.md }}
       />
 
@@ -46,7 +43,7 @@ export const ConcernsListScreen: React.FC = () => {
       ) : (list.data ?? []).length === 0 ? (
         <EmptyState
           title="No concerns yet"
-          message="Submitted concerns for your children will appear here."
+          message="Submitted concerns will appear here."
           icon="alert-circle-outline"
         />
       ) : (

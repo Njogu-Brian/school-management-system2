@@ -6,6 +6,7 @@ import type {
 } from '../types/student360';
 import type {
   ClassroomRecord,
+  ClassroomSubjectRecord,
   StreamRecord,
   StudentListQueryParams,
   StudentRecord,
@@ -42,6 +43,11 @@ export const studentsApi = {
 
   listStreams(classId: number): Promise<ApiResponse<StreamRecord[]>> {
     return apiClient.get<StreamRecord[]>(`/classes/${classId}/streams`);
+  },
+
+  /** Subjects for a class — server already scopes to "subjects you teach" for teacher-like roles. */
+  listClassroomSubjects(classId: number): Promise<ApiResponse<ClassroomSubjectRecord[]>> {
+    return apiClient.get<ClassroomSubjectRecord[]>(`/classes/${classId}/subjects`);
   },
 
   getStats(studentId: number): Promise<ApiResponse<StudentStatsRecord>> {

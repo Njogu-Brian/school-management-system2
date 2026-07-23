@@ -36,4 +36,6 @@ export type TeacherStackParamList = {
   CreateAssignment: undefined;
   AssignmentDetail: { assignmentId: number };
   MyAdvances: undefined;
+  ConcernsList: undefined;
+  RaiseConcern: { studentId?: number } | undefined;
 };

@@ -1,4 +1,4 @@
-import { useCreateHomework, useSettingsClasses, useSettingsSubjects } from '@erp/core';
+import { useClassroomSubjects, useCreateHomework, useSettingsClasses } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
@@ -9,15 +9,14 @@ import {
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
-import React, { useState } from 'react';
-import { ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, Text } from 'react-native';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
 export const CreateAssignmentScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { spacing } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const classesQuery = useSettingsClasses();
-  const subjectsQuery = useSettingsSubjects();
   const createMutation = useCreateHomework();
 
   const [title, setTitle] = useState('');
@@ -25,6 +24,11 @@ export const CreateAssignmentScreen: React.FC = () => {
   const [dueDate, setDueDate] = useState('');
   const [classroomId, setClassroomId] = useState<number | null>(null);
   const [subjectId, setSubjectId] = useState<number | null>(null);
+  const subjectsQuery = useClassroomSubjects(classroomId);
+
+  useEffect(() => {
+    setSubjectId(null);
+  }, [classroomId]);
 
   const submit = async () => {
     if (!title.trim() || !dueDate || !classroomId || !subjectId) {
@@ -64,8 +68,8 @@ export const CreateAssignmentScreen: React.FC = () => {
             />
           ))}
         </FilterChipRow>
-        <FilterChipRow label="Subject">
-          {(subjectsQuery.data ?? []).slice(0, 40).map((s) => (
+        <FilterChipRow label="Subject you teach">
+          {!classroomId ? null : (subjectsQuery.data ?? []).slice(0, 40).map((s) => (
             <FilterChip
               key={s.id}
               label={s.name}
@@ -74,6 +78,11 @@ export const CreateAssignmentScreen: React.FC = () => {
             />
           ))}
         </FilterChipRow>
+        {!classroomId ? (
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+            Select a class to see the subjects you teach.
+          </Text>
+        ) : null}
         <Button
           label="Publish homework"
           onPress={() => void submit()}
