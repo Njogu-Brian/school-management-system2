@@ -5,8 +5,13 @@ ios/
 .expo/
 node_modules/
 
-# Sibling apps and unused monorepo noise (Users build)
-../admin/
+# Sibling Admin app artifacts (huge dist) — not needed for Users builds
+../admin/dist/
+../admin/.expo-tmp-export/
+../admin/.expo/
+../admin/android/
+../admin/ios/
+
 ../../android/
 ../../docs/
 **/*.log
