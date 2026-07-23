@@ -15,10 +15,12 @@ bootstrap/cache/
 
 # Admin local export/dist (huge) — never needed for Users app builds
 mobile-app/apps/admin/dist/
+mobile-app/apps/admin/_dist_excluded_from_eas/
 mobile-app/apps/admin/.expo-tmp-export/
 mobile-app/apps/admin/.expo/
 mobile-app/apps/admin/android/
 mobile-app/apps/admin/ios/
+mobile-app/apps/admin/eas-build-log.txt
 
 mobile-app/android/
 mobile-app/ios/
