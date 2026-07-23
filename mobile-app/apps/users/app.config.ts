@@ -6,8 +6,8 @@ import type { ExpoConfig } from 'expo/config';
  */
 const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://erp.royalkingsschools.sc.ke/api';
 const primaryColor = '#004A99';
-/** Placeholder until a dedicated EAS project is linked. */
-const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? '00000000-0000-0000-0000-000000000000';
+/** EAS project for Royal Kings Users (`@briannjogu/royal-kings-users`). */
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID ?? '9655dc56-ce2d-4a0b-b7e0-57460abbac8d';
 const APP_VERSION = '1.0.0';
 
 const config: ExpoConfig = {
@@ -60,7 +60,7 @@ const config: ExpoConfig = {
   extra: {
     API_BASE_URL: apiBase,
     eas: {
-      projectId: process.env.EAS_PROJECT_ID ?? EAS_PROJECT_ID,
+      projectId: EAS_PROJECT_ID,
     },
   },
 };
