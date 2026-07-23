@@ -6,4 +6,7 @@ ios/
 .expo-tmp-export/
 node_modules/
 dist/
+_dist_excluded_from_eas/
+_expo_tmp_excluded/
+.eas-inspect/
 build/
