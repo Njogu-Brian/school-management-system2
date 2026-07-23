@@ -7,6 +7,7 @@ import {
   ScreenContainer,
   WidgetGrid,
   WidgetShell,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -26,6 +27,7 @@ const KPI_CONFIG = [
 
 const SECTIONS = [
   { route: 'BillingList' as const, label: 'Billing', icon: 'receipt-outline' as const, subtitle: 'Invoices & fee structures' },
+  { route: 'FeeBalances' as const, label: 'Fee balances', icon: 'alert-circle-outline' as const, subtitle: 'Students in arrears' },
   { route: 'CollectionsList' as const, label: 'Collections', icon: 'cash-outline' as const, subtitle: 'Payments & transactions' },
   { route: 'Statements' as const, label: 'Statements', icon: 'document-text-outline' as const, subtitle: 'Student fee statements' },
 ];
@@ -35,6 +37,7 @@ export const FinanceDashboardScreen: React.FC = () => {
   const canReports = useCan('reports.view');
   const navigation = useNavigation<StackNavigationProp<FinanceStackParamList>>();
   const { colors, palette, spacing, typography } = useTheme();
+  const tabClearance = useFloatingTabBarClearance();
   const kpisQuery = useFinanceDashboardKpis({ enabled: canView });
 
   const openSection = useCallback(
@@ -47,11 +50,11 @@ export const FinanceDashboardScreen: React.FC = () => {
   const openKpi = useCallback(
     (key: (typeof KPI_CONFIG)[number]['key']) => {
       if (key === 'studentsInArrears') {
-        navigation.navigate('BillingList', { hasBalance: true });
+        navigation.navigate('FeeBalances');
         return;
       }
       if (key === 'outstandingFees') {
-        navigation.navigate('BillingList', { hasBalance: true });
+        navigation.navigate('FeeBalances');
         return;
       }
       if (key === 'collectedToday' || key === 'collectedThisMonth') {
@@ -76,7 +79,7 @@ export const FinanceDashboardScreen: React.FC = () => {
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}
         refreshControl={
           <RefreshControl
             refreshing={kpisQuery.isRefetching}

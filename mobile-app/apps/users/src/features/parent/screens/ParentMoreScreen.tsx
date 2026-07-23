@@ -15,10 +15,17 @@ type Nav = StackNavigationProp<ParentStackParamList>;
 const LINKS: Array<{
   label: string;
   subtitle: string;
-  icon: 'megaphone-outline' | 'notifications-outline' | 'settings-outline' | 'alert-circle-outline';
-  tone: 'amber' | 'blue' | 'indigo' | 'rose';
+  icon: 'person-outline' | 'megaphone-outline' | 'notifications-outline' | 'settings-outline' | 'alert-circle-outline';
+  tone: 'cyan' | 'amber' | 'blue' | 'indigo' | 'rose';
   route: keyof ParentStackParamList;
 }> = [
+  {
+    label: 'My profile',
+    subtitle: 'View and edit your account',
+    icon: 'person-outline',
+    tone: 'cyan',
+    route: 'MyProfile',
+  },
   {
     label: 'Announcements',
     subtitle: 'School notices and updates',
@@ -55,7 +62,7 @@ export const ParentMoreScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="More" />
+      <AcademicScreenHeader title="More" onProfilePress={() => navigation.navigate('MyProfile')} />
       {LINKS.map((item) => (
         <Pressable
           key={item.route}

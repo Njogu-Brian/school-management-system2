@@ -82,4 +82,10 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     icon: 'time-outline',
     permissions: ['people.view', 'staff.view'],
   },
+  {
+    id: 'qa_concerns',
+    label: 'Report concern',
+    icon: 'alert-circle-outline',
+    permissions: ['operations.view', 'dashboard.view'],
+  },
 ];

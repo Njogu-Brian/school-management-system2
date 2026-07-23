@@ -25,6 +25,7 @@ import { RaiseConcernScreen } from '../../features/parent/screens/RaiseConcernSc
 import { StudentStatementScreen } from '../../features/parent/screens/StudentStatementScreen';
 import { TransportScreen } from '../../features/parent/screens/TransportScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
+import { MyProfileScreen } from '../../features/me/screens/MyProfileScreen';
 import { StudentDetailScreen } from '../../features/shared/screens/StudentDetailScreen';
 import { getDefaultTabScreenOptions } from '../tabBarConfig';
 import type { ParentStackParamList } from './parentStackTypes';
@@ -53,6 +54,7 @@ const ParentHomeStack = () => (
     <Stack.Screen name="LiveBusTrack" component={LiveBusTrackScreen} />
     <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="MyProfile" component={MyProfileScreen} />
   </Stack.Navigator>
 );
 
@@ -99,6 +101,7 @@ const ParentMoreStack = () => (
     <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
     <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="MyProfile" component={MyProfileScreen} />
   </Stack.Navigator>
 );
 

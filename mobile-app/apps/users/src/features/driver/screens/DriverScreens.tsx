@@ -428,7 +428,11 @@ export const DriverMoreHubScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="Account" subtitle="HR, vehicle, and settings" />
+      <AcademicScreenHeader
+        title="Account"
+        subtitle="HR, vehicle, and settings"
+        onProfilePress={() => navigation.navigate('MyProfile')}
+      />
       <HubLinksList onNavigate={(route) => navigation.navigate(route as never)} />
     </ScreenContainer>
   );

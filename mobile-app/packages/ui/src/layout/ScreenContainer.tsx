@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +13,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../theme/ThemeContext';
 import { useFloatingTabBarClearance } from './PremiumTabBar';
 
+const DEFAULT_EDGES: Array<'top' | 'bottom' | 'left' | 'right'> = ['bottom'];
+
 export interface ScreenContainerProps {
   children: React.ReactNode;
   /** Wrap content in a ScrollView. Pass `false` for screens that own a FlatList. */
@@ -22,7 +24,7 @@ export interface ScreenContainerProps {
   scrollProps?: ScrollViewProps;
   edges?: Array<'top' | 'bottom' | 'left' | 'right'>;
   keyboardVerticalOffset?: number;
-  /** Extra bottom inset so floating tab bar does not cover actions (default true). */
+  /** Extra bottom inset so floating tab bar + system nav do not cover actions (default true). */
   clearFloatingTabBar?: boolean;
 }
 
@@ -38,6 +40,9 @@ function minPaddingBottom(
 /**
  * Consistent safe-area + keyboard-aware screen wrapper used by every Admin screen.
  * Background resolves from the active theme palette.
+ *
+ * Always keeps content above the Android/iOS system navigation bar and the
+ * floating workspace tab bar.
  */
 export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   children,
@@ -45,17 +50,30 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   style,
   contentContainerStyle,
   scrollProps,
-  edges = ['bottom'],
+  edges = DEFAULT_EDGES,
   keyboardVerticalOffset,
   clearFloatingTabBar = true,
 }) => {
   const { palette } = useTheme();
   const insets = useSafeAreaInsets();
   const hasBottomEdge = edges.includes('bottom');
-  const tabClearance = useFloatingTabBarClearance(!hasBottomEdge);
-  /** Nested FlatLists own their content padding; only pad ScrollView screens here. */
-  const bottomClearance = clearFloatingTabBar && scroll ? tabClearance : 0;
+  /**
+   * Always include system nav inset in tab clearance. SafeAreaView bottom edge
+   * alone is not enough because the floating tab bar overlays the content area.
+   */
+  const tabClearance = useFloatingTabBarClearance(true);
+  const systemNavPad = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 8);
+  const bottomClearance = clearFloatingTabBar
+    ? tabClearance
+    : hasBottomEdge
+      ? 0
+      : systemNavPad;
   const resolvedPaddingBottom = minPaddingBottom(contentContainerStyle, bottomClearance);
+
+  const resolvedEdges = useMemo(() => {
+    if (edges.includes('bottom')) return edges;
+    return [...edges, 'bottom' as const];
+  }, [edges]);
 
   const body = scroll ? (
     <ScrollView
@@ -64,7 +82,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
       contentContainerStyle={[
         styles.scrollContent,
         contentContainerStyle,
-        bottomClearance ? { paddingBottom: resolvedPaddingBottom } : null,
+        bottomClearance > 0 ? { paddingBottom: resolvedPaddingBottom } : null,
       ]}
       showsVerticalScrollIndicator={false}
       {...scrollProps}
@@ -72,15 +90,26 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.flex, contentContainerStyle]}>{children}</View>
+    <View
+      style={[
+        styles.flex,
+        contentContainerStyle,
+        clearFloatingTabBar && !hasBottomEdge ? { paddingBottom: systemNavPad } : null,
+      ]}
+    >
+      {children}
+    </View>
   );
 
   return (
-    <SafeAreaView edges={edges} style={[styles.flex, { backgroundColor: palette.background }, style]}>
+    <SafeAreaView
+      edges={resolvedEdges}
+      style={[styles.flex, { backgroundColor: palette.background }, style]}
+    >
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={keyboardVerticalOffset ?? insets.top}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={keyboardVerticalOffset ?? (Platform.OS === 'ios' ? insets.top : 0)}
       >
         {body}
       </KeyboardAvoidingView>

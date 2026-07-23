@@ -68,6 +68,13 @@ export const QuickActionFab: React.FC = () => {
       onPress: () => navigateToDrawer(navigation, 'Operations', 'VisitorCheckIn'),
     },
     {
+      id: 'concern',
+      label: 'Report concern',
+      icon: 'alert-circle-outline',
+      visible: canOps,
+      onPress: () => navigateToDrawer(navigation, 'Operations', 'ConcernCreate'),
+    },
+    {
       id: 'requisition',
       label: 'Requisitions',
       icon: 'clipboard-outline',

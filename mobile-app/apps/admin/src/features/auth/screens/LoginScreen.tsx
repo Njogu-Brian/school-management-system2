@@ -3,7 +3,7 @@ import { Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -16,6 +16,7 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollView as ScrollViewType,
   type TextInputProps,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,8 +48,16 @@ export const LoginScreen: React.FC = () => {
   } = useBiometricAuth();
   const { colors, spacing, typography, radius } = useTheme();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollViewType>(null);
   const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading, branding, colorOverrides } =
     useBranding();
+
+  const scrollFieldIntoView = () => {
+    // Android resize mode alone often leaves focused fields under the keyboard on this layout.
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+  };
 
   const [logoFailed, setLogoFailed] = useState(false);
   const [bgFailed, setBgFailed] = useState(false);
@@ -217,6 +226,7 @@ export const LoginScreen: React.FC = () => {
         autoCapitalize="none"
         keyboardType={mode === 'otp' ? 'phone-pad' : 'email-address'}
         editable={!busy}
+        onFocus={scrollFieldIntoView}
       />
       {mode === 'password' ? (
         <>
@@ -229,6 +239,7 @@ export const LoginScreen: React.FC = () => {
             secureTextEntry={!showPassword}
             autoCapitalize="none"
             editable={!busy}
+            onFocus={scrollFieldIntoView}
             right={
               <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
                 <Ionicons
@@ -281,6 +292,7 @@ export const LoginScreen: React.FC = () => {
               icon="keypad-outline"
               keyboardType="number-pad"
               editable={!busy}
+              onFocus={scrollFieldIntoView}
               onSubmitEditing={handleVerifyOtp}
             />
           ) : null}
@@ -410,7 +422,7 @@ export const LoginScreen: React.FC = () => {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Soft3DIcon name="shield-outline" size={36} />
+                <Ionicons name="finger-print" size={28} color="#fff" />
                 <Text
                   style={{
                     color: '#fff',
@@ -525,14 +537,20 @@ export const LoginScreen: React.FC = () => {
   );
 
   const content = (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+    >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        ref={scrollRef}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: spacing.xl }}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ minHeight: 280 }}>{hero}</View>
+        <View style={{ minHeight: 220 }}>{hero}</View>
         {sheet}
       </ScrollView>
     </KeyboardAvoidingView>

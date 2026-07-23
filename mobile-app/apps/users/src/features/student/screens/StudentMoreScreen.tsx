@@ -10,6 +10,13 @@ import { Pressable, Text, View } from 'react-native';
 
 const LINKS = [
   {
+    label: 'My profile',
+    subtitle: 'View and edit your account',
+    icon: 'person-outline' as const,
+    tone: 'cyan' as const,
+    route: 'MyProfile',
+  },
+  {
     label: 'Settings',
     subtitle: 'Theme and account',
     icon: 'settings-outline' as const,
@@ -28,14 +35,15 @@ const LINKS = [
 export const StudentMoreScreen: React.FC = () => {
   const navigation = useNavigation();
   const { palette, spacing, typography, radius } = useTheme();
+  const go = (route: string) => (navigation as { navigate: (n: string) => void }).navigate(route);
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="More" />
+      <AcademicScreenHeader title="More" onProfilePress={() => go('MyProfile')} />
       {LINKS.map((item) => (
         <Pressable
           key={item.route}
-          onPress={() => (navigation as { navigate: (n: string) => void }).navigate(item.route)}
+          onPress={() => go(item.route)}
           style={{
             flexDirection: 'row',
             alignItems: 'center',

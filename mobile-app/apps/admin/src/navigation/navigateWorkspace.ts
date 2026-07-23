@@ -7,6 +7,7 @@ import type { DashboardStackParamList } from './dashboardStackTypes';
 export type WorkspaceNavigation = {
   getParent: () => WorkspaceNavigation | undefined;
   dispatch: (action: ReturnType<typeof CommonActions.navigate>) => void;
+  navigate?: (name: string, params?: object) => void;
 };
 
 function getDrawerNavigation(navigation: WorkspaceNavigation): WorkspaceNavigation {
@@ -17,7 +18,11 @@ function getDrawerNavigation(navigation: WorkspaceNavigation): WorkspaceNavigati
   return current;
 }
 
-/** Switch bottom tab (and optional nested stack screen). */
+/**
+ * Switch bottom tab (and optional nested stack screen).
+ * Nested `screen` must be passed without `initial: false` quirks that drop the target
+ * and leave the tab on its home route (e.g. Notifications → DashboardHome).
+ */
 export function navigateToTab(
   navigation: WorkspaceNavigation,
   tab: keyof TabsParamList,
@@ -25,8 +30,6 @@ export function navigateToTab(
   params?: object,
 ): void {
   const root = getDrawerNavigation(navigation);
-  // Explicit nested navigate so StaffClock / LeaveManagement open instead of
-  // landing on the People (HR) registry hub.
   root.dispatch(
     CommonActions.navigate({
       name: 'Workspace',
@@ -36,11 +39,11 @@ export function navigateToTab(
           ? {
               screen,
               params: params ?? {},
-              initial: false,
             }
           : undefined,
       },
-    }),
+      merge: true,
+    } as Parameters<typeof CommonActions.navigate>[0]),
   );
 }
 
@@ -61,7 +64,8 @@ export function navigateToDrawer(
             params,
           }
         : undefined,
-    }),
+      merge: true,
+    } as Parameters<typeof CommonActions.navigate>[0]),
   );
 }
 

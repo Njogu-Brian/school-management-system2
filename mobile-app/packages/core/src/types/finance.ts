@@ -222,6 +222,7 @@ export interface FinanceDashboardKpis {
 export interface InvoiceSummary {
   id: number;
   invoiceNumber: string;
+  studentId: number;
   studentName: string | null;
   studentAdmissionNumber: string | null;
   totalAmount: number;

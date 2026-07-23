@@ -46,7 +46,17 @@ const config: ExpoConfig = {
     },
     permissions: ['USE_BIOMETRIC', 'USE_FINGERPRINT', 'ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
   },
-  plugins: ['expo-local-authentication', 'expo-updates', 'expo-location'],
+  plugins: [
+    'expo-local-authentication',
+    'expo-updates',
+    'expo-location',
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Allow Royal Kings Users to update your profile photo.',
+      },
+    ],
+  ],
   extra: {
     API_BASE_URL: apiBase,
     eas: {

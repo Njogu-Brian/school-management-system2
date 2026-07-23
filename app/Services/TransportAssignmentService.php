@@ -129,7 +129,7 @@ class TransportAssignmentService
 
         // Only get trips for school days
         if (!$this->isSchoolDay($date)) {
-            return collect([]);
+            return new \Illuminate\Database\Eloquent\Collection();
         }
 
         return Trip::where('direction', $direction)
@@ -166,7 +166,7 @@ class TransportAssignmentService
         $allStudentIds = $studentIds->merge($specialStudentIds)->unique();
 
         if ($allStudentIds->isEmpty()) {
-            return collect([]);
+            return new \Illuminate\Database\Eloquent\Collection();
         }
 
         return Student::whereIn('id', $allStudentIds)

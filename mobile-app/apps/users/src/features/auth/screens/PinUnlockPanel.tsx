@@ -5,12 +5,11 @@ import {
   PIN_MIN_LENGTH,
   useAuth,
 } from '@erp/core';
-import { Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
+import { Button, PinKeypad, ScreenContainer, useTheme } from '@erp/ui';
+import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { showError } from '../../shared/utils/feedback';
-
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'] as const;
 
 type Props = {
   onUsePassword: () => void;
@@ -18,7 +17,7 @@ type Props = {
 
 export const PinUnlockPanel: React.FC<Props> = ({ onUsePassword }) => {
   const { unlockWithPin, submitting } = useAuth();
-  const { palette, spacing, typography, colors, radius } = useTheme();
+  const { spacing, typography, colors, palette } = useTheme();
   const [pin, setPin] = useState('');
   const [username, setUsername] = useState<string | null>(null);
   const [available, setAvailable] = useState(false);
@@ -31,7 +30,6 @@ export const PinUnlockPanel: React.FC<Props> = ({ onUsePassword }) => {
   }, []);
 
   const onKey = (key: string) => {
-    if (!key) return;
     if (key === '⌫') {
       setPin((v) => v.slice(0, -1));
       return;
@@ -64,17 +62,23 @@ export const PinUnlockPanel: React.FC<Props> = ({ onUsePassword }) => {
   if (!available) return null;
 
   return (
-    <View style={{ width: '100%', marginBottom: spacing.lg }}>
-      <View style={{ alignItems: 'center', marginBottom: spacing.md }}>
-        <Soft3DIcon name="keypad-outline" tone="indigo" size={48} />
-        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.sm, fontSize: typography.body.fontSize }}>
-          Unlock with PIN
-        </Text>
-        {username ? (
-          <Text style={{ color: palette.textSecondary, marginTop: 4 }}>{username}</Text>
-        ) : null}
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: spacing.md }}>
+    <View style={{ width: '100%', marginBottom: spacing.lg, alignItems: 'center' }}>
+      <Ionicons name="keypad-outline" size={36} color={colors.primary} />
+      <Text
+        style={{
+          color: palette.textPrimary,
+          fontWeight: '700',
+          marginTop: spacing.sm,
+          fontSize: typography.body.fontSize,
+        }}
+      >
+        Unlock with PIN
+      </Text>
+      {username ? (
+        <Text style={{ color: palette.textSecondary, marginTop: 4 }}>{username}</Text>
+      ) : null}
+
+      <View style={{ flexDirection: 'row', gap: 8, marginVertical: spacing.md }}>
         {dots.map((filled, i) => (
           <View
             key={i}
@@ -87,33 +91,19 @@ export const PinUnlockPanel: React.FC<Props> = ({ onUsePassword }) => {
           />
         ))}
       </View>
-      <View style={styles.pad}>
-        {KEYS.map((key, idx) => (
-          <Pressable
-            key={`${key}-${idx}`}
-            onPress={() => onKey(key)}
-            disabled={!key || submitting}
-            style={[
-              styles.key,
-              {
-                backgroundColor: key ? palette.surface : 'transparent',
-                borderColor: key ? palette.border : 'transparent',
-                borderRadius: radius.md,
-              },
-            ]}
-          >
-            <Text style={{ color: palette.textPrimary, fontSize: 18, fontWeight: '600' }}>{key}</Text>
-          </Pressable>
-        ))}
-      </View>
+
+      <PinKeypad onKey={onKey} disabled={submitting} />
+
       <Button
         label="Unlock"
         onPress={() => void submit()}
         loading={submitting}
-        disabled={pin.length < PIN_MIN_LENGTH}
-        style={{ marginTop: spacing.md }}
+        disabled={pin.length < PIN_MIN_LENGTH || submitting}
+        style={{ marginTop: spacing.md, alignSelf: 'stretch' }}
       />
-      <Button label="Use password instead" variant="ghost" onPress={onUsePassword} style={{ marginTop: spacing.xs }} />
+      <Pressable onPress={onUsePassword} style={{ marginTop: spacing.sm, alignItems: 'center' }}>
+        <Text style={{ color: palette.textSecondary, fontWeight: '600' }}>Use password instead</Text>
+      </Pressable>
     </View>
   );
 };
@@ -124,14 +114,3 @@ export const PinUnlockScreen: React.FC<{ onUsePassword: () => void }> = ({ onUse
     <PinUnlockPanel onUsePassword={onUsePassword} />
   </ScreenContainer>
 );
-
-const styles = StyleSheet.create({
-  pad: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
-  key: {
-    width: '30%',
-    aspectRatio: 1.6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-});

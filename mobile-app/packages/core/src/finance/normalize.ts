@@ -14,6 +14,7 @@ export function normalizeInvoiceSummary(row: InvoiceListRecord): InvoiceSummary 
   return {
     id: row.id,
     invoiceNumber: row.invoice_number,
+    studentId: row.student_id,
     studentName: row.student_name,
     studentAdmissionNumber: row.student_admission_number,
     totalAmount: row.total_amount,

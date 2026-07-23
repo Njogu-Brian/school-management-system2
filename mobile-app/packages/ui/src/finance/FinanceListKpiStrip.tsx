@@ -1,17 +1,24 @@
 import { formatFinanceAmount, useFinanceDashboardKpis } from '@erp/core';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Soft3DIcon } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 
 export type FinanceListKpiStripVariant = 'billing' | 'collections';
 
+export type FinanceListKpiStripProps = {
+  variant: FinanceListKpiStripVariant;
+  /** Called when a KPI cell is pressed (e.g. open arrears list). */
+  onCellPress?: (key: string) => void;
+};
+
 /**
  * Compact summary strip for Billing / Collections list heroes.
  * Uses GET /finance/summary via useFinanceDashboardKpis (same source as Finance dashboard).
  */
-export const FinanceListKpiStrip: React.FC<{ variant: FinanceListKpiStripVariant }> = ({
+export const FinanceListKpiStrip: React.FC<FinanceListKpiStripProps> = ({
   variant,
+  onCellPress,
 }) => {
   const { palette, spacing, typography, radius } = useTheme();
   const kpisQuery = useFinanceDashboardKpis({ enabled: true });
@@ -50,43 +57,65 @@ export const FinanceListKpiStrip: React.FC<{ variant: FinanceListKpiStripVariant
 
   return (
     <View style={[styles.row, { gap: spacing.sm }]}>
-      {cells.map((cell) => (
-        <View
-          key={cell.key}
-          style={[
-            styles.cell,
-            {
-              backgroundColor: palette.surfaceRaised,
-              borderColor: palette.borderSubtle,
-              borderRadius: radius.card,
-              padding: spacing.mdSm,
-            },
-          ]}
-        >
-          <Soft3DIcon name={cell.icon} size={32} />
-          <Text
-            style={{
-              color: palette.textMuted,
-              fontSize: typography.caption.fontSize,
-              fontWeight: '600',
-              marginTop: spacing.xs,
-            }}
-          >
-            {cell.label}
-          </Text>
-          <Text
-            style={{
-              color: palette.textMain,
-              fontSize: typography.body.fontSize,
-              fontWeight: '800',
-              marginTop: 2,
-            }}
-            numberOfLines={1}
-          >
-            {kpisQuery.isLoading ? '…' : cell.value}
-          </Text>
-        </View>
-      ))}
+      {cells.map((cell) => {
+        const interactive = Boolean(onCellPress);
+        const Inner = (
+          <>
+            <Soft3DIcon name={cell.icon} size={32} />
+            <Text
+              style={{
+                color: palette.textMuted,
+                fontSize: typography.caption.fontSize,
+                fontWeight: '600',
+                marginTop: spacing.xs,
+              }}
+            >
+              {cell.label}
+            </Text>
+            <Text
+              style={{
+                color: palette.textMain,
+                fontSize: typography.body.fontSize,
+                fontWeight: '800',
+                marginTop: 2,
+              }}
+              numberOfLines={1}
+            >
+              {kpisQuery.isLoading ? '…' : cell.value}
+            </Text>
+          </>
+        );
+
+        const cellStyle = [
+          styles.cell,
+          {
+            backgroundColor: palette.surfaceRaised,
+            borderColor: palette.borderSubtle,
+            borderRadius: radius.card,
+            padding: spacing.mdSm,
+          },
+        ];
+
+        if (interactive) {
+          return (
+            <Pressable
+              key={cell.key}
+              accessibilityRole="button"
+              accessibilityLabel={cell.label}
+              onPress={() => onCellPress?.(cell.key)}
+              style={cellStyle}
+            >
+              {Inner}
+            </Pressable>
+          );
+        }
+
+        return (
+          <View key={cell.key} style={cellStyle}>
+            {Inner}
+          </View>
+        );
+      })}
     </View>
   );
 };

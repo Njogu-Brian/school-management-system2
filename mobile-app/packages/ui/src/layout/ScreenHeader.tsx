@@ -7,6 +7,8 @@ export interface ScreenHeaderProps {
   title: string;
   subtitle?: string;
   onBack?: () => void;
+  /** Opens profile when the top-right avatar is pressed. */
+  onProfilePress?: () => void;
   rightSlot?: React.ReactNode;
   style?: ViewStyle;
 }
@@ -19,10 +21,30 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   title,
   subtitle,
   onBack,
+  onProfilePress,
   rightSlot,
   style,
 }) => {
-  const { palette, spacing, typography } = useTheme();
+  const { palette, spacing, typography, colors } = useTheme();
+
+  const profileSlot = onProfilePress ? (
+    <Pressable
+      onPress={onProfilePress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Open profile"
+      style={styles.profileBtn}
+    >
+      <View
+        style={[
+          styles.profileAvatar,
+          { backgroundColor: palette.primary },
+        ]}
+      >
+        <Ionicons name="person" size={16} color={palette.textOnPrimary ?? colors.primaryOnDark ?? '#fff'} />
+      </View>
+    </Pressable>
+  ) : null;
 
   return (
     <View style={[styles.row, { marginBottom: spacing.md }, style]}>
@@ -64,6 +86,7 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
         ) : null}
       </View>
       {rightSlot ? <View style={styles.right}>{rightSlot}</View> : null}
+      {profileSlot}
     </View>
   );
 };
@@ -77,4 +100,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   right: { marginLeft: 8 },
+  profileBtn: {
+    marginLeft: 8,
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

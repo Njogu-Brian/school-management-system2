@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import {
   BORDER_RADIUS,
@@ -166,14 +166,17 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     ? forcedMode === 'dark'
     : themeMode === 'dark' || (themeMode === 'auto' && scheme === 'dark');
 
-  const setThemeMode = (mode: ThemeMode) => {
-    onThemeModeChange?.(mode);
-  };
+  const setThemeMode = useCallback(
+    (mode: ThemeMode) => {
+      onThemeModeChange?.(mode);
+    },
+    [onThemeModeChange],
+  );
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     const next = isDark ? 'light' : 'dark';
     onThemeModeChange?.(next);
-  };
+  }, [isDark, onThemeModeChange]);
 
   const value = useMemo<ThemeValue>(() => {
     const colors = { ...COLORS, ...colorOverrides } as ColorTokens;
@@ -197,7 +200,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       setThemeMode,
       toggleTheme,
     };
-  }, [isDark, themeMode, surfaceMode, colorOverrides, onThemeModeChange]);
+  }, [isDark, themeMode, surfaceMode, colorOverrides, setThemeMode, toggleTheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };

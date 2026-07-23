@@ -15,6 +15,7 @@ export type ParentStackParamList = {
   Notifications: undefined;
   Settings: undefined;
   MoreMenu: undefined;
+  MyProfile: undefined;
   ConcernsList: undefined;
   Transport: { studentId: number };
   LiveBusTrack: { studentId: number };

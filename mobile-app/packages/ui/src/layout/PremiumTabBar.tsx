@@ -26,26 +26,27 @@ const DEFAULT_TONES: Soft3DTone[] = ['blue', 'indigo', 'emerald', 'cyan'];
 /**
  * Height of the floating tab chrome (Soft3D icons + labels + vertical padding),
  * excluding the device home-indicator / nav inset.
+ * Keep in sync with Soft3D icon sizes (up to ~40) + label + bar padding.
  */
-export const FLOATING_TAB_BAR_BODY_HEIGHT = 80;
+export const FLOATING_TAB_BAR_BODY_HEIGHT = 96;
 /** Extra gap so last content never sits flush against the bar. */
-export const FLOATING_TAB_BAR_CUSHION = 16;
+export const FLOATING_TAB_BAR_CUSHION = 32;
 
 /**
  * Static fallback for non-hook contexts (lists, tests). Prefer
  * `useFloatingTabBarClearance()` in components so safe-area is included.
  */
 export const FLOATING_TAB_BAR_CLEARANCE =
-  FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + 24;
+  FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + 48;
 
 /**
- * Bottom inset so scroll content / FABs / sticky footers clear the floating tab bar.
- * @param includeSafeArea When the host is already inside a bottom safe-area edge,
- *   pass false so the home-indicator is not double-counted.
+ * Bottom inset so scroll content / FABs / sticky footers clear the floating tab bar
+ * and the device system navigation / gesture bar.
+ * Always includes safe-area (home indicator / 3-button nav).
  */
-export function useFloatingTabBarClearance(includeSafeArea = true): number {
+export function useFloatingTabBarClearance(_includeSafeArea = true): number {
   const insets = useSafeAreaInsets();
-  const safe = includeSafeArea ? Math.max(insets.bottom, 8) : 0;
+  const safe = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 8);
   return FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + safe;
 }
 

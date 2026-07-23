@@ -66,6 +66,7 @@ export const linking: LinkingOptions<DrawerParamList> = {
             screens: {
               FinanceDashboard: '',
               BillingList: 'billing',
+              FeeBalances: 'fee-balances',
               InvoiceDetail: 'invoices/:invoiceId',
               CollectionsList: 'collections',
               PaymentDetail: 'payments/:paymentId',

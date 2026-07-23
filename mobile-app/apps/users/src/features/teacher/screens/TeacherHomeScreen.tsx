@@ -1,5 +1,6 @@
 import { useAuth, useCurrentUser } from '@erp/core';
 import { Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
@@ -40,22 +41,41 @@ export const TeacherHomeScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-      <Text style={[styles.greeting, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}>
-        Welcome back
-      </Text>
-      <Text
-        style={{
-          color: palette.textPrimary,
-          fontSize: typography.headline.fontSize,
-          fontWeight: typography.headline.fontWeight,
-          marginBottom: spacing.xs,
-        }}
-      >
-        {user?.name ?? 'Teacher'}
-      </Text>
-      <Text style={{ color: palette.textMuted, marginBottom: spacing.lg }}>
-        {user?.roleName ?? 'Teacher'} · Today’s capture & self-service
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <View style={{ flex: 1, paddingRight: spacing.md }}>
+          <Text style={[styles.greeting, { color: palette.textSecondary, fontSize: typography.caption.fontSize }]}>
+            Welcome back
+          </Text>
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontSize: typography.headline.fontSize,
+              fontWeight: typography.headline.fontWeight,
+              marginBottom: spacing.xs,
+            }}
+          >
+            {user?.name ?? 'Teacher'}
+          </Text>
+          <Text style={{ color: palette.textMuted, marginBottom: spacing.lg }}>
+            {user?.roleName ?? 'Teacher'} · Today’s capture & self-service
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => navigation.navigate('MyProfile')}
+          accessibilityRole="button"
+          accessibilityLabel="Open profile"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="person" size={18} color="#fff" />
+        </Pressable>
+      </View>
 
       <View style={styles.grid}>
         {QUICK.map((item) => (

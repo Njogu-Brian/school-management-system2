@@ -3,6 +3,7 @@ import type { InvoiceSummary, PaymentSummary, FinanceTransactionSummary } from '
 export type FinanceStackParamList = {
   FinanceDashboard: undefined;
   BillingList: { hasBalance?: boolean } | undefined;
+  FeeBalances: undefined;
   InvoiceDetail: { invoiceId: number; summary?: InvoiceSummary };
   CollectionsList: { initialTab?: 'payments' | 'transactions'; transactionView?: string } | undefined;
   PaymentDetail: { paymentId: number; summary?: PaymentSummary };

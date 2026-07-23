@@ -8,6 +8,7 @@ import {
   Soft3DIcon,
   useTheme,
 } from '@erp/ui';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
@@ -21,7 +22,7 @@ type Nav = StackNavigationProp<ParentStackParamList>;
 export const ParentHomeScreen: React.FC = () => {
   const user = useCurrentUser();
   const { logout } = useAuth();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography, radius, colors } = useTheme();
   const navigation = useNavigation<Nav>();
 
   const quickActions: Array<{
@@ -55,26 +56,45 @@ export const ParentHomeScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-      <Text
-        style={{
-          color: palette.textSecondary,
-          fontSize: typography.caption.fontSize,
-          textTransform: 'uppercase',
-          letterSpacing: 0.6,
-        }}
-      >
-        Parent portal
-      </Text>
-      <Text
-        style={{
-          color: palette.textPrimary,
-          fontSize: typography.headline.fontSize,
-          fontWeight: '700',
-          marginBottom: spacing.md,
-        }}
-      >
-        {user?.name ?? 'Parent'}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <View style={{ flex: 1, paddingRight: spacing.md }}>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontSize: typography.caption.fontSize,
+              textTransform: 'uppercase',
+              letterSpacing: 0.6,
+            }}
+          >
+            Parent portal
+          </Text>
+          <Text
+            style={{
+              color: palette.textPrimary,
+              fontSize: typography.headline.fontSize,
+              fontWeight: '700',
+              marginBottom: spacing.md,
+            }}
+          >
+            {user?.name ?? 'Parent'}
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => navigation.navigate('MyProfile')}
+          accessibilityRole="button"
+          accessibilityLabel="Open profile"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.primary,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="person" size={18} color="#fff" />
+        </Pressable>
+      </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
         {quickActions.map((item) => (

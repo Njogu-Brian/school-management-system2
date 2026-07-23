@@ -79,7 +79,14 @@ export const BillingListScreen: React.FC<Props> = ({ navigation, route }) => {
               subtitle="Invoices (read-only)"
               onBack={() => navigation.goBack()}
             />
-            <FinanceListKpiStrip variant="billing" />
+            <FinanceListKpiStrip
+              variant="billing"
+              onCellPress={(key) => {
+                if (key === 'arrears' || key === 'outstanding') {
+                  navigation.navigate('FeeBalances');
+                }
+              }}
+            />
           </View>
         }
         searchBar={

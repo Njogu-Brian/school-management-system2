@@ -5,10 +5,11 @@ import type { ExpoConfig } from 'expo/config';
  * Package name must match what you enter in Google Play Console (cannot change later).
  */
 const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://erp.royalkingsschools.sc.ke/api';
-const primaryColor = '#004A99';
 /** Linked EAS project: @briannjogu/royal-kings-admin */
 const EAS_PROJECT_ID = '0d0b7844-fe28-441d-ab98-bb27890a38f3';
-const APP_VERSION = '1.0.9';
+const APP_VERSION = '1.0.11';
+/** Matches Royal Kings logo purple used in launcher assets. */
+const iconBackground = '#390754';
 
 const config: ExpoConfig = {
   name: 'Royal Kings Admin',
@@ -17,11 +18,12 @@ const config: ExpoConfig = {
   version: APP_VERSION,
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
+  // Bridgeless/new-arch left on; NetInfo is guarded in JS if native link is missing.
   newArchEnabled: true,
   icon: './assets/icon.png',
   splash: {
     image: './assets/splash-icon.png',
-    backgroundColor: primaryColor,
+    backgroundColor: iconBackground,
     resizeMode: 'contain',
   },
   assetBundlePatterns: ['**/*'],
@@ -39,15 +41,19 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.admin',
-    versionCode: 10,
+    versionCode: 12,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: primaryColor,
+      backgroundColor: iconBackground,
     },
     permissions: ['USE_BIOMETRIC', 'USE_FINGERPRINT'],
   },
-  plugins: ['expo-local-authentication', 'expo-updates'],
+  plugins: ['expo-local-authentication', 'expo-image-picker', 'expo-updates'],
+  experiments: {
+    // Keep Metro resolution aligned with native autolinking in the monorepo.
+    autolinkingModuleResolution: true,
+  },
   extra: {
     API_BASE_URL: apiBase,
     eas: {

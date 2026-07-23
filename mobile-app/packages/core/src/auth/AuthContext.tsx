@@ -249,16 +249,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         const httpStatus = (err as ApiError)?.status;
         if (httpStatus === 401) {
-          await session.clearSession();
           setUser(null);
           setStatus('unauthenticated');
+          void session.clearSession();
           return;
         }
-        const cached = await getCachedUser();
-        if (cached) {
-          setUser(cached);
-          setStatus('authenticated');
-        } else {
+        try {
+          const cached = await withTimeout(getCachedUser(), 3_000);
+          if (cached) {
+            setUser(cached);
+            setStatus('authenticated');
+          } else {
+            setStatus('unauthenticated');
+          }
+        } catch {
           setStatus('unauthenticated');
         }
       }
@@ -269,6 +273,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.hydrated]);
+
+  /** Absolute escape hatch — never leave testers on the boot logo forever. */
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setStatus((s) => (s === 'initializing' ? 'unauthenticated' : s));
+    }, 15_000);
+    return () => clearTimeout(t);
+  }, []);
 
   const runAuth = useCallback(
     async (runner: () => Promise<AuthProviderResult>, offerEnrollment = true) => {

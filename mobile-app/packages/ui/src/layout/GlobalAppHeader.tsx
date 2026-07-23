@@ -17,9 +17,9 @@ export interface GlobalAppHeaderProps {
   searchPrompt?: string;
   onSearchPress?: () => void;
   onNotificationsPress?: () => void;
-  onApprovalsPress?: () => void;
+  /** Dark / light mode toggle (replaces the former approvals shortcut). */
+  onThemeTogglePress?: () => void;
   onProfilePress?: () => void;
-  showApprovalsBadge?: boolean;
   showNotificationsBadge?: boolean;
 }
 
@@ -34,9 +34,8 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   onSearchPress,
   searchPrompt = 'Search anything…',
   onNotificationsPress,
-  onApprovalsPress,
+  onThemeTogglePress,
   onProfilePress,
-  showApprovalsBadge = false,
   showNotificationsBadge = false,
 }) => {
   const { palette, colors, spacing, typography, radius, elevation, isDark } = useTheme();
@@ -127,18 +126,31 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
           </View>
 
           <View style={[styles.right, { alignSelf: 'center' }]}>
-            <HeaderAction
-              glyph="approvals"
-              onPress={onApprovalsPress}
-              label="Approvals"
-              badge={showApprovalsBadge ? colors.warning : undefined}
-            />
-            <HeaderAction
-              glyph="notifications"
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              hitSlop={8}
+              onPress={onThemeTogglePress}
+              style={styles.iconWell}
+            >
+              <Ionicons
+                name={isDark ? 'sunny-outline' : 'moon-outline'}
+                size={22}
+                color={palette.primary}
+              />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Notifications"
+              hitSlop={8}
               onPress={onNotificationsPress}
-              label="Notifications"
-              badge={showNotificationsBadge ? colors.error : undefined}
-            />
+              style={styles.iconWell}
+            >
+              <Soft3DIcon name="notifications-outline" size={28} />
+              {showNotificationsBadge ? (
+                <View style={[styles.dot, { backgroundColor: colors.error }]} />
+              ) : null}
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Profile"
@@ -201,31 +213,6 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
         ) : null}
       </View>
     </View>
-  );
-};
-
-interface HeaderActionProps {
-  glyph: 'approvals' | 'notifications';
-  label: string;
-  onPress?: () => void;
-  badge?: string;
-}
-
-const HeaderAction: React.FC<HeaderActionProps> = ({ glyph, label, onPress, badge }) => {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={8}
-      onPress={onPress}
-      style={styles.iconWell}
-    >
-      <Soft3DIcon
-        name={glyph === 'approvals' ? 'checkmark-done-outline' : 'notifications-outline'}
-        size={28}
-      />
-      {badge ? <View style={[styles.dot, { backgroundColor: badge }]} /> : null}
-    </Pressable>
   );
 };
 

@@ -16,4 +16,11 @@ export const documentsApi = {
   ): Promise<ApiResponse<PaginatedResponse<DocumentListRecord> & { staff_id: number }>> {
     return apiClient.get(`/staff/${staffId}/documents`, params);
   },
+
+  uploadStaffDocument(
+    staffId: number,
+    formData: FormData,
+  ): Promise<ApiResponse<DocumentListRecord>> {
+    return apiClient.postMultipart<DocumentListRecord>(`/staff/${staffId}/documents`, formData);
+  },
 };

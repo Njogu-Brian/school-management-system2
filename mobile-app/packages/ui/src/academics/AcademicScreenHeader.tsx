@@ -5,6 +5,8 @@ export interface AcademicScreenHeaderProps {
   title: string;
   subtitle?: string;
   onBack?: () => void;
+  onProfilePress?: () => void;
+  rightSlot?: React.ReactNode;
 }
 
 /** Thin domain wrapper — V3 shared ScreenHeader. */

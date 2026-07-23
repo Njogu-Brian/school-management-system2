@@ -3,6 +3,7 @@ import React from 'react';
 import {
   BillingListScreen,
   CollectionsScreen,
+  FeeBalancesScreen,
   FinanceDashboardScreen,
   InvoiceDetailScreen,
   PaymentDetailScreen,
@@ -18,6 +19,7 @@ export const FinanceStackNavigator: React.FC = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="FinanceDashboard">
     <Stack.Screen name="FinanceDashboard" component={FinanceDashboardScreen} />
     <Stack.Screen name="BillingList" component={BillingListScreen} />
+    <Stack.Screen name="FeeBalances" component={FeeBalancesScreen} />
     <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} />
     <Stack.Screen name="CollectionsList" component={CollectionsScreen} />
     <Stack.Screen name="PaymentDetail" component={PaymentDetailScreen} />

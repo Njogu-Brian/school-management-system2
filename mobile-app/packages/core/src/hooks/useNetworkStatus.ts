@@ -1,7 +1,21 @@
 import { useEffect, useState } from 'react';
+import { NativeModules, TurboModuleRegistry } from 'react-native';
 
 export type NetworkStatus = 'online' | 'offline' | 'reconnecting';
 
+function hasNetInfoNativeModule(): boolean {
+  try {
+    const turbo = TurboModuleRegistry.get?.('RNCNetInfo');
+    return Boolean(turbo || NativeModules.RNCNetInfo);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Network connectivity for offline UX. Never throws on missing native module
+ * (Play/EAS builds must still boot if NetInfo failed to autolink).
+ */
 export function useNetworkStatus(): NetworkStatus {
   const [status, setStatus] = useState<NetworkStatus>('online');
 
@@ -10,6 +24,9 @@ export function useNetworkStatus(): NetworkStatus {
     let unsubscribe: (() => void) | undefined;
 
     void (async () => {
+      if (!hasNetInfoNativeModule()) {
+        return;
+      }
       try {
         const NetInfo = await import('@react-native-community/netinfo');
         if (cancelled) return;

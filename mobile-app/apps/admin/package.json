@@ -44,6 +44,7 @@
     "expo-linear-gradient": "~15.0.8",
     "expo-local-authentication": "~17.0.8",
     "expo-location": "~19.0.8",
+    "expo-image-picker": "~17.0.10",
     "expo-notifications": "~0.32.16",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
@@ -67,5 +68,10 @@
     "babel-preset-expo": "~54.0.10",
     "sharp": "^0.35.3",
     "typescript": "^5.3.3"
+  },
+  "expo": {
+    "autolinking": {
+      "searchPaths": ["../../node_modules", "node_modules"]
+    }
   }
 }

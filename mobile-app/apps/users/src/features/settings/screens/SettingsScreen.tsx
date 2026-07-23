@@ -6,14 +6,12 @@ import {
   PIN_MIN_LENGTH,
   useAuth,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, ConfirmDialog, ScreenContainer, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, ConfirmDialog, PinKeypad, ScreenContainer, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 import { showError, showSuccess } from '../../shared/utils/feedback';
-
-const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'] as const;
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -43,7 +41,6 @@ export const SettingsScreen: React.FC = () => {
   const setActivePin = pinStep === 'create' ? setPinDraft : setPinConfirm;
 
   const onPinKey = (key: string) => {
-    if (!key) return;
     if (key === '⌫') {
       setActivePin((v) => v.slice(0, -1));
       return;
@@ -141,25 +138,7 @@ export const SettingsScreen: React.FC = () => {
                 />
               ))}
             </View>
-            <View style={styles.pinPad}>
-              {PIN_KEYS.map((key, idx) => (
-                <Pressable
-                  key={`${key}-${idx}`}
-                  onPress={() => onPinKey(key)}
-                  disabled={!key || pinLoading}
-                  style={[
-                    styles.pinKey,
-                    {
-                      backgroundColor: key ? palette.background : 'transparent',
-                      borderColor: key ? palette.border : 'transparent',
-                      borderRadius: radius.md,
-                    },
-                  ]}
-                >
-                  <Text style={{ color: palette.textPrimary, fontSize: 18, fontWeight: '600' }}>{key}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <PinKeypad onKey={onPinKey} disabled={pinLoading} />
             <Button
               label={pinStep === 'create' ? 'Continue' : 'Save PIN'}
               onPress={() => void savePin()}
@@ -249,12 +228,4 @@ export const SettingsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   section: { borderWidth: 1 },
-  pinPad: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
-  pinKey: {
-    width: '30%',
-    aspectRatio: 1.6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
 });

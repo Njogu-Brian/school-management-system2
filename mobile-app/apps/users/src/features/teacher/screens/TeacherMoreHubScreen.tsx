@@ -58,7 +58,11 @@ export const TeacherMoreHubScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="More" subtitle="Self-service and extras" />
+      <AcademicScreenHeader
+        title="More"
+        subtitle="Self-service and extras"
+        onProfilePress={() => navigation.navigate('MyProfile')}
+      />
       {items.map((item) => (
         <Pressable
           key={`${item.route}-${item.title}`}

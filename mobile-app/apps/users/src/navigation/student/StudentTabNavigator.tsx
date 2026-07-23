@@ -6,6 +6,7 @@ import React from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NotificationsListScreen } from '../../features/notifications/screens/NotificationsListScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
+import { MyProfileScreen } from '../../features/me/screens/MyProfileScreen';
 import { AnnouncementsListScreen } from '../../features/shared/screens/AnnouncementsListScreen';
 import {
   StudentHomeworkScreen,
@@ -22,6 +23,7 @@ const StudentHomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="StudentHome" component={StudentHomeScreen} />
     <Stack.Screen name="Announcements" component={AnnouncementsListScreen} />
+    <Stack.Screen name="MyProfile" component={MyProfileScreen} />
   </Stack.Navigator>
 );
 
@@ -40,6 +42,7 @@ const StudentResultsStack = () => (
 const StudentMoreStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="StudentMoreMenu" component={StudentMoreScreen} />
+    <Stack.Screen name="MyProfile" component={MyProfileScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
     <Stack.Screen name="Notifications" component={NotificationsListScreen} />
   </Stack.Navigator>

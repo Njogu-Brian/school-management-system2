@@ -64,8 +64,8 @@ export const Soft3DIcon: React.FC<Soft3DIconProps> = ({
           width: renderSize,
           height: renderSize,
           opacity: muted ? 0.5 : 1,
-          // Always pass an array — `undefined` crashes RN processTransform (forEach of null)
-          transform: active ? [{ translateY: -1 }, { scale: 1.06 }] : [{ translateY: 0 }, { scale: 1 }],
+          // Always pass a concrete array — `undefined` crashes RN processTransform on Android.
+          transform: active ? [{ translateY: -1 }, { scale: 1.06 }] : [{ scale: 1 }],
         },
         style,
       ]}

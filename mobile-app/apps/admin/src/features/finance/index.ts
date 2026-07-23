@@ -1,5 +1,6 @@
 export * from './screens/FinanceDashboardScreen';
 export * from './screens/BillingListScreen';
+export * from './screens/FeeBalancesScreen';
 export * from './screens/InvoiceDetailScreen';
 export * from './screens/CollectionsScreen';
 export * from './screens/PaymentDetailScreen';
