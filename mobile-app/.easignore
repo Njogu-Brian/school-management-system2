@@ -7,6 +7,12 @@ node_modules
 dist
 docs
 
+# Full native trees (EAS prebuilds on the server)
+android
+ios
+apps/*/android
+apps/*/ios
+
 # Android build outputs/caches (big + safe to exclude)
 android/.gradle
 android/build

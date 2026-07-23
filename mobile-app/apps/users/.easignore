@@ -1,0 +1,13 @@
+# Local prebuild / native — EAS generates these on the build server.
+android/
+ios/
+
+.expo/
+node_modules/
+
+# Sibling apps and unused monorepo noise (Users build)
+../admin/
+../../android/
+../../docs/
+**/*.log
+**/.DS_Store
