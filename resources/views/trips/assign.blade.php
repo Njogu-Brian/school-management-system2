@@ -38,6 +38,74 @@
             </div>
         @endif
 
+        @if(($morningOnThisTrip ?? 0) > 0 || ($eveningOnThisTrip ?? 0) > 0)
+            <div class="settings-card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Duplicate assignments to another trip</h5>
+                    <small class="text-muted">Copy morning students to an evening trip (same or different vehicle), or evening to morning.</small>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ route('transport.trips.assign.duplicate-leg', $trip) }}" class="row g-3 align-items-end">
+                        @csrf
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold" for="dupDirection">Copy</label>
+                            <select name="direction" id="dupDirection" class="form-select" required>
+                                @if(($morningOnThisTrip ?? 0) > 0)
+                                    <option value="morning_to_evening">Morning → evening ({{ $morningOnThisTrip }} student(s))</option>
+                                @endif
+                                @if(($eveningOnThisTrip ?? 0) > 0)
+                                    <option value="evening_to_morning">Evening → morning ({{ $eveningOnThisTrip }} student(s))</option>
+                                @endif
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold" for="dupTarget">Target trip</label>
+                            <select name="target_trip_id" id="dupTarget" class="form-select" required>
+                                <option value="">Select trip…</option>
+                                @if(($sameVehicleTargets ?? collect())->isNotEmpty())
+                                    <optgroup label="Same vehicle ({{ $trip->vehicle->vehicle_number ?? 'N/A' }})">
+                                        @foreach($sameVehicleTargets as $t)
+                                            <option value="{{ $t->id }}">
+                                                {{ $t->trip_name }}
+                                                @if($t->type || $t->direction)
+                                                    — {{ $t->type ?: ucfirst((string) $t->direction) }}
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                @if(($otherVehicleTargets ?? collect())->isNotEmpty())
+                                    <optgroup label="Other vehicles">
+                                        @foreach($otherVehicleTargets as $t)
+                                            <option value="{{ $t->id }}">
+                                                {{ $t->trip_name }}
+                                                ({{ $t->vehicle->vehicle_number ?? 'No vehicle' }})
+                                                @if($t->type || $t->direction)
+                                                    — {{ $t->type ?: ucfirst((string) $t->direction) }}
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="copy_stop_points" value="1" id="dupCopyStops" checked>
+                                <label class="form-check-label" for="dupCopyStops">Copy stop if missing</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-settings-primary w-100"
+                                    onclick="return confirm('Copy students to the selected trip?');">
+                                <i class="bi bi-copy"></i> Duplicate
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('transport.trips.assign.store', $trip) }}" id="tripAssignForm">
             @csrf
             <div id="draftHiddenInputs"></div>
@@ -348,23 +416,43 @@
     };
 
     const isLockedForLeg = (stu) => {
+        // Only lock if already on THIS trip for the selected leg.
+        const leg = currentLeg();
+        return leg === 'evening' ? Boolean(stu.on_trip_evening) : Boolean(stu.on_trip_morning);
+    };
+
+    const otherTripForLeg = (stu) => {
         const leg = currentLeg();
         if (leg === 'evening') {
-            return Boolean(stu.on_trip_evening || stu.evening_trip_id || stu.evening_trip_name);
+            if (stu.on_trip_evening) return null;
+            return stu.evening_trip_name || null;
         }
-        return Boolean(stu.on_trip_morning || stu.morning_trip_id || stu.morning_trip_name);
+        if (stu.on_trip_morning) return null;
+        return stu.morning_trip_name || null;
     };
 
     const tripBadgeForLeg = (stu) => {
         const leg = currentLeg();
-        const tripName = leg === 'evening'
-            ? (stu.evening_trip_name || (stu.on_trip_evening ? currentTripName : null))
-            : (stu.morning_trip_name || (stu.on_trip_morning ? currentTripName : null));
-        if (!tripName) return '';
         const onThis = leg === 'evening' ? stu.on_trip_evening : stu.on_trip_morning;
-        const cls = onThis ? 'bg-secondary' : 'bg-warning text-dark';
+        const otherName = otherTripForLeg(stu);
+        const tripName = onThis
+            ? (leg === 'evening' ? (stu.evening_trip_name || currentTripName) : (stu.morning_trip_name || currentTripName))
+            : otherName;
+        if (!tripName) return '';
         const prefix = leg === 'evening' ? 'Evening' : 'Morning';
-        return ` <span class="badge ${cls}">${prefix}: ${escapeHtml(tripName)}</span>`;
+        if (onThis) {
+            return ` <span class="badge bg-secondary">${prefix}: ${escapeHtml(tripName)}</span>`;
+        }
+        return ` <span class="badge bg-warning text-dark" title="Selecting will move them to this trip">${prefix}: ${escapeHtml(tripName)} — will move</span>`;
+    };
+
+    const confirmMoveIfNeeded = (stu) => {
+        const other = otherTripForLeg(stu);
+        if (!other) return true;
+        const legLabel = currentLeg() === 'evening' ? 'evening' : 'morning';
+        return confirm(
+            `${stu.full_name || 'This student'} is already on ${legLabel} trip “${other}”.\n\nAdd them here anyway? They will be moved to “${currentTripName}”.`
+        );
     };
 
     const escapeHtml = (s) => {
@@ -561,16 +649,17 @@
         saveBtn.disabled = draft.size === 0;
     };
 
-    const addToDraft = (stu, { suggest = true } = {}) => {
+    const addToDraft = (stu, { suggest = true, skipConfirm = false } = {}) => {
         const id = Number(stu.id);
-        if (!id || draft.has(id) || isLockedForLeg(stu) || alreadyAssigned.has(id)) return false;
+        if (!id || draft.has(id) || isLockedForLeg(stu)) return false;
+        if (!skipConfirm && !confirmMoveIfNeeded(stu)) return false;
         draft.set(id, {
             ...stu,
             morning_point_id: stu.morning_point_id || null,
             evening_point_id: stu.evening_point_id || null,
         });
         syncDraftForm();
-        if (suggest) loadSuggestions(stu);
+        if (suggest && !needsStopForLeg(stu)) loadSuggestions(stu);
         return true;
     };
 
@@ -680,9 +769,17 @@
     const loadSuggestions = async (stu) => {
         const id = Number(stu.id);
         if (!id || lastSuggestFor === id) return;
+        if (needsStopForLeg(stu)) {
+            suggestionsCard.style.display = 'none';
+            return;
+        }
         lastSuggestFor = id;
         const leg = currentLeg();
         const pointId = leg === 'evening' ? (stu.evening_point_id || '') : (stu.morning_point_id || '');
+        if (!pointId || Number(pointId) === Number(ownMeansPointId)) {
+            suggestionsCard.style.display = 'none';
+            return;
+        }
         try {
             let url = `${suggestUrl}?student_id=${id}&leg=${encodeURIComponent(leg)}`;
             if (pointId) url += `&point_id=${encodeURIComponent(pointId)}`;
@@ -692,7 +789,7 @@
             });
             const data = await res.json();
             lastSuggestItems = Array.isArray(data.students) ? data.students : [];
-            const list = lastSuggestItems.filter((s) => !draft.has(Number(s.id)) && !isLockedForLeg(s));
+            const list = lastSuggestItems.filter((s) => !draft.has(Number(s.id)) && !isLockedForLeg(s) && !needsStopForLeg(s));
             if (!list.length) {
                 suggestionsCard.style.display = 'none';
                 return;
@@ -730,20 +827,44 @@
     });
 
     document.getElementById('addAllResults').addEventListener('click', () => {
+        const movers = [];
+        resultsBody.querySelectorAll('tr').forEach((tr) => {
+            if (tr._studentData && !isLockedForLeg(tr._studentData) && otherTripForLeg(tr._studentData)) {
+                movers.push(tr._studentData);
+            }
+        });
+        if (movers.length) {
+            const ok = confirm(
+                `${movers.length} student(s) are on another ${currentLeg()} trip.\n\nAdd them anyway? They will be moved to “${currentTripName}”.`
+            );
+            if (!ok) return;
+        }
         resultsBody.querySelectorAll('tr').forEach((tr) => {
             if (tr._studentData && !isLockedForLeg(tr._studentData)) {
-                addToDraft(tr._studentData, { suggest: false });
+                addToDraft(tr._studentData, { suggest: false, skipConfirm: true });
             }
         });
         refreshChecks();
-        const first = [...draft.values()].slice(-1)[0];
+        const first = [...draft.values()].find((s) => !needsStopForLeg(s));
         if (first) loadSuggestions(first);
     });
 
     document.getElementById('addAllSuggestions').addEventListener('click', () => {
+        const movers = [];
+        suggestionsBody.querySelectorAll('tr').forEach((tr) => {
+            if (tr._studentData && !isLockedForLeg(tr._studentData) && otherTripForLeg(tr._studentData)) {
+                movers.push(tr._studentData);
+            }
+        });
+        if (movers.length) {
+            const ok = confirm(
+                `${movers.length} student(s) are on another ${currentLeg()} trip.\n\nAdd them anyway? They will be moved to “${currentTripName}”.`
+            );
+            if (!ok) return;
+        }
         suggestionsBody.querySelectorAll('tr').forEach((tr) => {
             if (tr._studentData && !isLockedForLeg(tr._studentData)) {
-                addToDraft(tr._studentData, { suggest: false });
+                addToDraft(tr._studentData, { suggest: false, skipConfirm: true });
             }
         });
         refreshChecks();
@@ -784,11 +905,27 @@
 
     document.getElementById('tripAssignForm')?.addEventListener('submit', (e) => {
         const missing = validateDraftStops();
-        if (!missing.length) return;
-        e.preventDefault();
-        const legLabel = currentLeg() === 'evening' ? 'evening drop-off' : 'morning pickup';
-        alert(`Select a real ${legLabel} (not Own means) for:\n\n` + missing.slice(0, 12).join('\n') + (missing.length > 12 ? '\n…' : ''));
-        renderDraft();
+        if (missing.length) {
+            e.preventDefault();
+            const legLabel = currentLeg() === 'evening' ? 'evening drop-off' : 'morning pickup';
+            alert(`Select a real ${legLabel} (not Own means) for:\n\n` + missing.slice(0, 12).join('\n') + (missing.length > 12 ? '\n…' : ''));
+            renderDraft();
+            return;
+        }
+        const movers = [];
+        draft.forEach((stu) => {
+            const other = otherTripForLeg(stu);
+            if (other) movers.push(`${stu.full_name || ('#' + stu.id)} (from ${other})`);
+        });
+        if (movers.length) {
+            const ok = confirm(
+                `Warning: ${movers.length} student(s) will be moved from another ${currentLeg()} trip onto “${currentTripName}”:\n\n`
+                + movers.slice(0, 10).join('\n')
+                + (movers.length > 10 ? '\n…' : '')
+                + '\n\nContinue?'
+            );
+            if (!ok) e.preventDefault();
+        }
     });
 
     syncLegHeaders();

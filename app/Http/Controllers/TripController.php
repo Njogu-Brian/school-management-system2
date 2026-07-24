@@ -207,6 +207,21 @@ class TripController extends Controller
         $dropOffPoints = DropOffPoint::orderBy('name')->get(['id', 'name']);
         $ownMeansPoint = DropOffPoint::ownMeans();
 
+        $morningOnThisTrip = $assigned->filter(fn ($a) => (int) $a->morning_trip_id === (int) $trip->id)->count();
+        $eveningOnThisTrip = $assigned->filter(fn ($a) => (int) $a->evening_trip_id === (int) $trip->id)->count();
+
+        $targetTrips = Trip::with('vehicle')
+            ->where('id', '!=', $trip->id)
+            ->orderBy('trip_name')
+            ->get();
+
+        $sameVehicleTargets = $targetTrips
+            ->filter(fn (Trip $t) => $trip->vehicle_id && (int) $t->vehicle_id === (int) $trip->vehicle_id)
+            ->values();
+        $otherVehicleTargets = $targetTrips
+            ->filter(fn (Trip $t) => !$trip->vehicle_id || (int) $t->vehicle_id !== (int) $trip->vehicle_id)
+            ->values();
+
         return view('trips.assign', [
             'trip' => $trip,
             'assigned' => $assigned,
@@ -215,6 +230,10 @@ class TripController extends Controller
             'ownMeansPointId' => $ownMeansPoint->id,
             'stopCounts' => $stopCounts,
             'stopLegLabel' => $leg === 'evening' ? 'Evening drop-off' : 'Morning pickup',
+            'morningOnThisTrip' => $morningOnThisTrip,
+            'eveningOnThisTrip' => $eveningOnThisTrip,
+            'sameVehicleTargets' => $sameVehicleTargets,
+            'otherVehicleTargets' => $otherVehicleTargets,
         ]);
     }
 
@@ -283,7 +302,16 @@ class TripController extends Controller
         $pointName = null;
 
         if ($pointId) {
-            $pointName = optional(DropOffPoint::find($pointId))->name;
+            $point = DropOffPoint::find($pointId);
+            $pointName = optional($point)->name;
+            if ($point && $point->isOwnMeans()) {
+                return response()->json([
+                    'seed_student_id' => $seed->id,
+                    'point_label' => null,
+                    'students' => [],
+                    'message' => 'Own means is not a drop-off point — suggestions are unavailable.',
+                ]);
+            }
         } elseif ($leg === 'evening') {
             $pointId = $seedAssignment?->evening_drop_off_point_id ?: $seed->drop_off_point_id;
             $pointName = optional($seedAssignment?->eveningDropOffPoint)->name
@@ -294,6 +322,24 @@ class TripController extends Controller
             $pointName = optional($seedAssignment?->morningDropOffPoint)->name
                 ?? optional($seed->dropOffPoint)->name
                 ?? $seed->drop_off_point_other;
+        }
+
+        $ownMeansId = DropOffPoint::ownMeans()->id;
+        if ($pointId && (int) $pointId === (int) $ownMeansId) {
+            return response()->json([
+                'seed_student_id' => $seed->id,
+                'point_label' => null,
+                'students' => [],
+                'message' => 'Own means is not a drop-off point — suggestions are unavailable.',
+            ]);
+        }
+        if ($pointName && DropOffPoint::nameIsOwnMeans($pointName)) {
+            return response()->json([
+                'seed_student_id' => $seed->id,
+                'point_label' => null,
+                'students' => [],
+                'message' => 'Own means is not a drop-off point — suggestions are unavailable.',
+            ]);
         }
 
         if (!$pointId && (!$pointName || trim((string) $pointName) === '')) {
@@ -601,6 +647,111 @@ class TripController extends Controller
         return redirect()
             ->route('transport.trips.assign', $trip)
             ->with('success', "Updated pickup/drop-off points for {$updated} student(s). Own means legs are removed from that trip direction. Run Post Pending Fees if transport list prices changed.");
+    }
+
+    /**
+     * Copy students from this trip's morning (or evening) leg onto another trip's opposite leg.
+     */
+    public function assignDuplicateLeg(Request $request, Trip $trip)
+    {
+        $validated = $request->validate([
+            'direction' => 'required|in:morning_to_evening,evening_to_morning',
+            'target_trip_id' => 'required|integer|exists:trips,id|different:'.$trip->id,
+            'copy_stop_points' => 'nullable|boolean',
+        ]);
+
+        $target = Trip::with('vehicle')->findOrFail((int) $validated['target_trip_id']);
+        $copyStops = $request->boolean('copy_stop_points', true);
+        $ownMeansId = DropOffPoint::ownMeans()->id;
+
+        $fromMorning = $validated['direction'] === 'morning_to_evening';
+        $sourceColumn = $fromMorning ? 'morning_trip_id' : 'evening_trip_id';
+        $targetColumn = $fromMorning ? 'evening_trip_id' : 'morning_trip_id';
+        $sourcePointColumn = $fromMorning ? 'morning_drop_off_point_id' : 'evening_drop_off_point_id';
+        $targetPointColumn = $fromMorning ? 'evening_drop_off_point_id' : 'morning_drop_off_point_id';
+
+        $assignments = StudentAssignment::query()
+            ->where($sourceColumn, $trip->id)
+            ->with('student')
+            ->get()
+            ->filter(fn ($a) => $a->student);
+
+        if ($assignments->isEmpty()) {
+            $legLabel = $fromMorning ? 'morning' : 'evening';
+
+            return redirect()
+                ->route('transport.trips.assign', $trip)
+                ->with('error', "No students on this trip for the {$legLabel} leg to copy.");
+        }
+        $skippedAlready = 0;
+        $skippedOwnMeans = 0;
+
+        DB::transaction(function () use (
+            $assignments,
+            $target,
+            $targetColumn,
+            $sourcePointColumn,
+            $targetPointColumn,
+            $copyStops,
+            $ownMeansId,
+            &$copied,
+            &$skippedAlready,
+            &$skippedOwnMeans
+        ) {
+            foreach ($assignments as $assignment) {
+                if ((int) $assignment->{$targetColumn} === (int) $target->id) {
+                    $skippedAlready++;
+                    continue;
+                }
+
+                $sourcePointId = $assignment->{$sourcePointColumn}
+                    ? (int) $assignment->{$sourcePointColumn}
+                    : null;
+                $targetPointId = $assignment->{$targetPointColumn}
+                    ? (int) $assignment->{$targetPointColumn}
+                    : null;
+
+                if ($copyStops) {
+                    if (!$targetPointId || $targetPointId === (int) $ownMeansId) {
+                        if ($sourcePointId && $sourcePointId !== (int) $ownMeansId) {
+                            $assignment->{$targetPointColumn} = $sourcePointId;
+                            $targetPointId = $sourcePointId;
+                        }
+                    }
+                }
+
+                if (!$targetPointId || $targetPointId === (int) $ownMeansId) {
+                    $skippedOwnMeans++;
+                    continue;
+                }
+
+                $assignment->{$targetColumn} = $target->id;
+                $assignment->save();
+                $copied++;
+
+                TransportFeeService::recalculateForStudent(
+                    (int) $assignment->student_id,
+                    null,
+                    null,
+                    true,
+                    'calculated',
+                    'Recalculated after duplicating trip leg assignment'
+                );
+            }
+        });
+
+        $parts = ["Copied {$copied} student(s) to {$target->trip_name}."];
+        if ($skippedAlready > 0) {
+            $parts[] = "{$skippedAlready} already on that trip.";
+        }
+        if ($skippedOwnMeans > 0) {
+            $parts[] = "{$skippedOwnMeans} skipped (need a real drop-off/pickup, not Own means).";
+        }
+        $parts[] = 'Run Post Pending Fees if transport list prices changed.';
+
+        return redirect()
+            ->route('transport.trips.assign', $target)
+            ->with('success', implode(' ', $parts));
     }
 
     /**
