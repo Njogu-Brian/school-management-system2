@@ -44,18 +44,20 @@
 
             <div class="settings-card mb-3">
                 <div class="card-body">
-                    <div class="row g-3 align-items-end">
+                    <div class="row g-3 align-items-start">
                         <div class="col-md-3">
-                            <label class="form-label fw-semibold">Assign as</label>
+                            <label class="form-label fw-semibold mb-1" for="assignLeg">Assign as</label>
                             <select name="leg" id="assignLeg" class="form-select" required>
                                 <option value="morning" @selected(old('leg', $defaultLeg) === 'morning')>Morning trip (pickup)</option>
                                 <option value="evening" @selected(old('leg', $defaultLeg) === 'evening')>Evening trip (drop-off)</option>
                             </select>
                         </div>
                         <div class="col-md-9">
-                            <label class="form-label fw-semibold">Search students (name or admission #)</label>
+                            <label class="form-label fw-semibold mb-1" for="tripStudentSearch">Search students (name or admission #)</label>
                             <input type="text" id="tripStudentSearch" class="form-control" placeholder="Type name or admission number…" autocomplete="off">
-                            <small class="text-muted">Check students to add them to the draft below. Keep searching — nothing saves until you click Save draft.</small>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted">Check students to add them to the draft below. Edit pickup/drop-off in the draft, then save once.</small>
                         </div>
                     </div>
                 </div>
@@ -122,7 +124,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
                         <h5 class="mb-0">Draft to assign</h5>
-                        <small class="text-muted">Students accumulate here as you check them. Save once when ready.</small>
+                        <small class="text-muted">Change morning pickup / evening drop-off from existing points before saving.</small>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
                         <span class="input-chip" id="draftCount">0 selected</span>
@@ -141,8 +143,8 @@
                                     <th>Admission</th>
                                     <th>Class</th>
                                     <th>Stream</th>
-                                    <th>Morning pickup</th>
-                                    <th>Evening drop-off</th>
+                                    <th style="min-width:180px;">Morning pickup</th>
+                                    <th style="min-width:180px;">Evening drop-off</th>
                                     <th class="text-end">Actions</th>
                                 </tr>
                             </thead>
@@ -157,75 +159,136 @@
             </div>
         </form>
 
-        <div class="settings-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Currently on this trip</h5>
-                <span class="input-chip">{{ $assigned->count() }} student(s)</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-modern mb-0 align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Name</th>
-                                <th>Admission</th>
-                                <th>Class</th>
-                                <th>Stream</th>
-                                <th>Morning pickup</th>
-                                <th>Evening drop-off</th>
-                                <th>Leg</th>
-                                <th class="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($assigned as $row)
-                                @php
-                                    $student = $row->student;
-                                    $morningPoint = optional($row->morningDropOffPoint)->name
-                                        ?? optional($student->dropOffPoint)->name
-                                        ?? $student->drop_off_point_other
-                                        ?? '—';
-                                    $eveningPoint = optional($row->eveningDropOffPoint)->name
-                                        ?? optional($student->dropOffPoint)->name
-                                        ?? $student->drop_off_point_other
-                                        ?? '—';
-                                @endphp
+        <form method="POST" action="{{ route('transport.trips.assign.points', $trip) }}" id="assignedPointsForm">
+            @csrf
+            <div class="settings-card">
+                <div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-1">Currently on this trip</h5>
+                        <small class="text-muted">Numbered by {{ strtolower($stopLegLabel) }}. Edit points, then save.</small>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <span class="input-chip">{{ $assigned->count() }} student(s)</span>
+                        @if($assigned->isNotEmpty())
+                            <button type="submit" class="btn btn-sm btn-settings-primary">
+                                <i class="bi bi-geo-alt"></i> Save point changes
+                            </button>
+                        @endif
+                    </div>
+                </div>
+                @if($stopCounts->isNotEmpty())
+                    <div class="px-3 pt-3 d-flex flex-wrap gap-2">
+                        @foreach($stopCounts as $stopName => $count)
+                            <span class="input-chip">
+                                <strong>{{ $stopName }}</strong>: {{ $count }}
+                            </span>
+                        @endforeach
+                    </div>
+                @endif
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-modern mb-0 align-middle">
+                            <thead class="table-light">
                                 <tr>
-                                    <td class="fw-semibold">{{ $student->full_name }}</td>
-                                    <td>{{ $student->admission_number }}</td>
-                                    <td>{{ optional($student->classroom)->name ?? '—' }}</td>
-                                    <td>{{ optional($student->stream)->name ?? '—' }}</td>
-                                    <td>{{ $morningPoint }}</td>
-                                    <td>{{ $eveningPoint }}</td>
-                                    <td>
-                                        @if($row->morning_trip_id == $trip->id)
-                                            <span class="badge bg-primary">Morning</span>
-                                        @endif
-                                        @if($row->evening_trip_id == $trip->id)
-                                            <span class="badge bg-info">Evening</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">
-                                        <form action="{{ route('transport.trips.unassign', [$trip, $student]) }}" method="POST" class="d-inline"
-                                              onsubmit="return confirm('Remove this student from the trip?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-ghost-strong text-danger">
+                                    <th style="width:52px;">#</th>
+                                    <th>Name</th>
+                                    <th>Admission</th>
+                                    <th>Class</th>
+                                    <th>Stream</th>
+                                    <th style="min-width:180px;">Morning pickup</th>
+                                    <th style="min-width:180px;">Evening drop-off</th>
+                                    <th>Leg</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @php
+                                    $prevStop = null;
+                                    $groupNum = 0;
+                                    $overallNum = 0;
+                                @endphp
+                                @forelse($assigned as $idx => $row)
+                                    @php
+                                        $student = $row->student;
+                                        $morningId = $row->morning_drop_off_point_id ?: $student->drop_off_point_id;
+                                        $eveningId = $row->evening_drop_off_point_id ?: $student->drop_off_point_id;
+                                        $stopName = $defaultLeg === 'evening'
+                                            ? (optional($row->eveningDropOffPoint)->name
+                                                ?? optional($student->dropOffPoint)->name
+                                                ?? $student->drop_off_point_other
+                                                ?? 'Unassigned')
+                                            : (optional($row->morningDropOffPoint)->name
+                                                ?? optional($student->dropOffPoint)->name
+                                                ?? $student->drop_off_point_other
+                                                ?? 'Unassigned');
+                                        $stopName = trim((string) $stopName) ?: 'Unassigned';
+                                        if ($prevStop !== $stopName) {
+                                            $prevStop = $stopName;
+                                            $groupNum = 0;
+                                        }
+                                        $groupNum++;
+                                        $overallNum++;
+                                    @endphp
+                                    @if($groupNum === 1)
+                                        <tr class="table-light">
+                                            <td colspan="9" class="fw-semibold py-2">
+                                                {{ $stopLegLabel }}: {{ $stopName }}
+                                                <span class="text-muted fw-normal">({{ $stopCounts[$stopName] ?? $groupNum }})</span>
+                                            </td>
+                                        </tr>
+                                    @endif
+                                    <tr>
+                                        <td class="text-muted">{{ $overallNum }}</td>
+                                        <td class="fw-semibold">
+                                            {{ $student->full_name }}
+                                            <input type="hidden" name="points[{{ $idx }}][student_id]" value="{{ $student->id }}">
+                                        </td>
+                                        <td>{{ $student->admission_number }}</td>
+                                        <td>{{ optional($student->classroom)->name ?? '—' }}</td>
+                                        <td>{{ optional($student->stream)->name ?? '—' }}</td>
+                                        <td>
+                                            <select name="points[{{ $idx }}][morning_drop_off_point_id]" class="form-select form-select-sm">
+                                                <option value="">— Select —</option>
+                                                @foreach($dropOffPoints as $point)
+                                                    <option value="{{ $point->id }}" @selected((int) $morningId === (int) $point->id)>{{ $point->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select name="points[{{ $idx }}][evening_drop_off_point_id]" class="form-select form-select-sm">
+                                                <option value="">— Select —</option>
+                                                @foreach($dropOffPoints as $point)
+                                                    <option value="{{ $point->id }}" @selected((int) $eveningId === (int) $point->id)>{{ $point->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td>
+                                            @if($row->morning_trip_id == $trip->id)
+                                                <span class="badge bg-primary">Morning</span>
+                                            @endif
+                                            @if($row->evening_trip_id == $trip->id)
+                                                <span class="badge bg-info">Evening</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-ghost-strong text-danger js-unassign-student"
+                                                    data-action="{{ route('transport.trips.unassign', [$trip, $student]) }}">
                                                 <i class="bi bi-x-circle"></i> Remove
                                             </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">No students assigned to this trip yet.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted py-4">No students assigned to this trip yet.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-        </div>
+        </form>
     </div>
 </div>
 @endsection
@@ -235,6 +298,7 @@
 (function () {
     const searchUrl = @json(route('transport.trips.assign.search', $trip));
     const suggestUrl = @json(route('transport.trips.assign.suggest', $trip));
+    const dropOffPoints = @json($dropOffPoints->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values());
     const searchInput = document.getElementById('tripStudentSearch');
     const resultsBody = document.getElementById('searchResultsBody');
     const suggestionsCard = document.getElementById('suggestionsCard');
@@ -257,14 +321,41 @@
         return d.innerHTML;
     };
 
+    const pointNameById = (id) => {
+        if (!id) return null;
+        const found = dropOffPoints.find((p) => Number(p.id) === Number(id));
+        return found ? found.name : null;
+    };
+
+    const pointSelectHtml = (name, selectedId) => {
+        const opts = ['<option value="">— Select —</option>']
+            .concat(dropOffPoints.map((p) => {
+                const sel = Number(selectedId) === Number(p.id) ? ' selected' : '';
+                return `<option value="${p.id}"${sel}>${escapeHtml(p.name)}</option>`;
+            }));
+        return `<select class="form-select form-select-sm" data-point-field="${name}">${opts.join('')}</select>`;
+    };
+
     const syncDraftForm = () => {
         draftHidden.innerHTML = '';
         draft.forEach((stu) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'student_ids[]';
-            input.value = String(stu.id);
-            draftHidden.appendChild(input);
+            const idInput = document.createElement('input');
+            idInput.type = 'hidden';
+            idInput.name = 'student_ids[]';
+            idInput.value = String(stu.id);
+            draftHidden.appendChild(idInput);
+
+            const morningInput = document.createElement('input');
+            morningInput.type = 'hidden';
+            morningInput.name = `morning_drop_off_point_ids[${stu.id}]`;
+            morningInput.value = stu.morning_point_id ? String(stu.morning_point_id) : '';
+            draftHidden.appendChild(morningInput);
+
+            const eveningInput = document.createElement('input');
+            eveningInput.type = 'hidden';
+            eveningInput.name = `evening_drop_off_point_ids[${stu.id}]`;
+            eveningInput.value = stu.evening_point_id ? String(stu.evening_point_id) : '';
+            draftHidden.appendChild(eveningInput);
         });
         draftCount.textContent = draft.size + (draft.size === 1 ? ' selected' : ' selected');
         saveBtn.disabled = draft.size === 0;
@@ -287,8 +378,8 @@
                 <td>${escapeHtml(stu.admission_number || '')}</td>
                 <td>${escapeHtml(stu.classroom_name || '—')}</td>
                 <td>${escapeHtml(stu.stream_name || '—')}</td>
-                <td>${escapeHtml(stu.morning_point || '—')}</td>
-                <td>${escapeHtml(stu.evening_point || '—')}</td>
+                <td>${pointSelectHtml('morning', stu.morning_point_id)}</td>
+                <td>${pointSelectHtml('evening', stu.evening_point_id)}</td>
                 <td class="text-end">
                     <button type="button" class="btn btn-sm btn-ghost-strong text-danger" data-remove="${stu.id}">
                         <i class="bi bi-x-circle"></i> Remove
@@ -296,6 +387,26 @@
                 </td>
             `;
             draftBody.appendChild(tr);
+
+            tr.querySelectorAll('[data-point-field]').forEach((sel) => {
+                sel.addEventListener('change', () => {
+                    const field = sel.getAttribute('data-point-field');
+                    const val = sel.value ? Number(sel.value) : null;
+                    const current = draft.get(Number(stu.id));
+                    if (!current) return;
+                    if (field === 'morning') {
+                        current.morning_point_id = val;
+                        current.morning_point = pointNameById(val);
+                    } else {
+                        current.evening_point_id = val;
+                        current.evening_point = pointNameById(val);
+                    }
+                    draft.set(Number(stu.id), current);
+                    syncDraftFormWithoutRerender();
+                    lastSuggestFor = null;
+                    loadSuggestions(current);
+                });
+            });
         });
         draftBody.querySelectorAll('[data-remove]').forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -306,10 +417,39 @@
         });
     };
 
+    const syncDraftFormWithoutRerender = () => {
+        draftHidden.innerHTML = '';
+        draft.forEach((stu) => {
+            const idInput = document.createElement('input');
+            idInput.type = 'hidden';
+            idInput.name = 'student_ids[]';
+            idInput.value = String(stu.id);
+            draftHidden.appendChild(idInput);
+
+            const morningInput = document.createElement('input');
+            morningInput.type = 'hidden';
+            morningInput.name = `morning_drop_off_point_ids[${stu.id}]`;
+            morningInput.value = stu.morning_point_id ? String(stu.morning_point_id) : '';
+            draftHidden.appendChild(morningInput);
+
+            const eveningInput = document.createElement('input');
+            eveningInput.type = 'hidden';
+            eveningInput.name = `evening_drop_off_point_ids[${stu.id}]`;
+            eveningInput.value = stu.evening_point_id ? String(stu.evening_point_id) : '';
+            draftHidden.appendChild(eveningInput);
+        });
+        draftCount.textContent = draft.size + (draft.size === 1 ? ' selected' : ' selected');
+        saveBtn.disabled = draft.size === 0;
+    };
+
     const addToDraft = (stu, { suggest = true } = {}) => {
         const id = Number(stu.id);
         if (!id || alreadyAssigned.has(id) || draft.has(id)) return false;
-        draft.set(id, stu);
+        draft.set(id, {
+            ...stu,
+            morning_point_id: stu.morning_point_id || null,
+            evening_point_id: stu.evening_point_id || null,
+        });
         syncDraftForm();
         if (suggest) loadSuggestions(stu);
         return true;
@@ -395,8 +535,11 @@
         if (!id || lastSuggestFor === id) return;
         lastSuggestFor = id;
         const leg = legSelect.value || 'morning';
+        const pointId = leg === 'evening' ? (stu.evening_point_id || '') : (stu.morning_point_id || '');
         try {
-            const res = await fetch(`${suggestUrl}?student_id=${id}&leg=${encodeURIComponent(leg)}`, {
+            let url = `${suggestUrl}?student_id=${id}&leg=${encodeURIComponent(leg)}`;
+            if (pointId) url += `&point_id=${encodeURIComponent(pointId)}`;
+            const res = await fetch(url, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
             });
@@ -444,6 +587,30 @@
         suggestionsCard.style.display = 'none';
         syncDraftForm();
         refreshChecks();
+    });
+
+    // Dedicated unassign forms (avoid clashing with points save form).
+    document.querySelectorAll('.js-unassign-student').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            if (!confirm('Remove this student from the trip?')) return;
+            const action = btn.getAttribute('data-action');
+            const f = document.createElement('form');
+            f.method = 'POST';
+            f.action = action;
+            f.style.display = 'none';
+            const csrf = document.createElement('input');
+            csrf.name = '_token';
+            csrf.value = document.querySelector('meta[name="csrf-token"]')?.content
+                || document.querySelector('#assignedPointsForm input[name="_token"]')?.value
+                || '';
+            const method = document.createElement('input');
+            method.name = '_method';
+            method.value = 'DELETE';
+            f.appendChild(csrf);
+            f.appendChild(method);
+            document.body.appendChild(f);
+            f.submit();
+        });
     });
 
     syncDraftForm();

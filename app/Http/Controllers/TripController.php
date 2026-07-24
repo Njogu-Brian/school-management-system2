@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DropOffPoint;
 use App\Models\Student;
 use App\Models\StudentAssignment;
 use App\Models\Trip;
@@ -167,10 +168,51 @@ class TripController extends Controller
             ->filter(fn ($a) => $a->student)
             ->values();
 
+        $stopLabel = function (StudentAssignment $row) use ($leg): string {
+            $student = $row->student;
+            if ($leg === 'evening') {
+                return trim((string) (
+                    optional($row->eveningDropOffPoint)->name
+                    ?? optional($student->dropOffPoint)->name
+                    ?? $student->drop_off_point_other
+                    ?? ''
+                )) ?: 'Unassigned';
+            }
+
+            return trim((string) (
+                optional($row->morningDropOffPoint)->name
+                ?? optional($student->dropOffPoint)->name
+                ?? $student->drop_off_point_other
+                ?? ''
+            )) ?: 'Unassigned';
+        };
+
+        $assigned = $assigned
+            ->sort(function (StudentAssignment $a, StudentAssignment $b) use ($stopLabel) {
+                $stopCmp = strcasecmp($stopLabel($a), $stopLabel($b));
+                if ($stopCmp !== 0) {
+                    return $stopCmp;
+                }
+
+                return strcasecmp((string) ($a->student->full_name ?? ''), (string) ($b->student->full_name ?? ''));
+            })
+            ->values();
+
+        $stopCounts = $assigned
+            ->groupBy(fn (StudentAssignment $row) => $stopLabel($row))
+            ->map(fn ($group) => $group->count())
+            ->sortKeys(SORT_NATURAL | SORT_FLAG_CASE);
+
+        DropOffPoint::ownMeans();
+        $dropOffPoints = DropOffPoint::orderBy('name')->get(['id', 'name']);
+
         return view('trips.assign', [
             'trip' => $trip,
             'assigned' => $assigned,
             'defaultLeg' => $leg,
+            'dropOffPoints' => $dropOffPoints,
+            'stopCounts' => $stopCounts,
+            'stopLegLabel' => $leg === 'evening' ? 'Evening drop-off' : 'Morning pickup',
         ]);
     }
 
@@ -224,6 +266,7 @@ class TripController extends Controller
         $request->validate([
             'student_id' => 'required|integer|exists:students,id',
             'leg' => 'nullable|in:morning,evening',
+            'point_id' => 'nullable|integer|exists:drop_off_points,id',
         ]);
 
         $leg = $request->input('leg', $trip->assignmentLeg() ?? 'morning');
@@ -232,10 +275,12 @@ class TripController extends Controller
             ->findOrFail((int) $request->student_id);
 
         $seedAssignment = $seed->assignments->first();
-        $pointId = null;
+        $pointId = $request->filled('point_id') ? (int) $request->point_id : null;
         $pointName = null;
 
-        if ($leg === 'evening') {
+        if ($pointId) {
+            $pointName = optional(DropOffPoint::find($pointId))->name;
+        } elseif ($leg === 'evening') {
             $pointId = $seedAssignment?->evening_drop_off_point_id ?: $seed->drop_off_point_id;
             $pointName = optional($seedAssignment?->eveningDropOffPoint)->name
                 ?? optional($seed->dropOffPoint)->name
@@ -350,14 +395,20 @@ class TripController extends Controller
             'student_ids' => 'required|array|min:1',
             'student_ids.*' => 'integer|exists:students,id',
             'leg' => 'required|in:morning,evening',
+            'morning_drop_off_point_ids' => 'nullable|array',
+            'morning_drop_off_point_ids.*' => 'nullable|integer|exists:drop_off_points,id',
+            'evening_drop_off_point_ids' => 'nullable|array',
+            'evening_drop_off_point_ids.*' => 'nullable|integer|exists:drop_off_points,id',
         ]);
 
         $leg = $validated['leg'];
         $column = $leg === 'morning' ? 'morning_trip_id' : 'evening_trip_id';
         $studentIds = array_map('intval', $validated['student_ids']);
+        $morningPoints = $validated['morning_drop_off_point_ids'] ?? [];
+        $eveningPoints = $validated['evening_drop_off_point_ids'] ?? [];
         $assigned = 0;
 
-        DB::transaction(function () use ($studentIds, $column, $trip, &$assigned) {
+        DB::transaction(function () use ($studentIds, $column, $trip, $morningPoints, $eveningPoints, &$assigned) {
             foreach ($studentIds as $studentId) {
                 $student = Student::withoutGlobalScope('active')->find($studentId);
                 if (!$student) {
@@ -367,10 +418,17 @@ class TripController extends Controller
                 $assignment = StudentAssignment::firstOrNew(['student_id' => $studentId]);
                 $assignment->{$column} = $trip->id;
 
-                if (!$assignment->morning_drop_off_point_id && $student->drop_off_point_id) {
+                if (array_key_exists($studentId, $morningPoints) || array_key_exists((string) $studentId, $morningPoints)) {
+                    $raw = $morningPoints[$studentId] ?? $morningPoints[(string) $studentId] ?? null;
+                    $assignment->morning_drop_off_point_id = $raw !== null && $raw !== '' ? (int) $raw : null;
+                } elseif (!$assignment->morning_drop_off_point_id && $student->drop_off_point_id) {
                     $assignment->morning_drop_off_point_id = $student->drop_off_point_id;
                 }
-                if (!$assignment->evening_drop_off_point_id && $student->drop_off_point_id) {
+
+                if (array_key_exists($studentId, $eveningPoints) || array_key_exists((string) $studentId, $eveningPoints)) {
+                    $raw = $eveningPoints[$studentId] ?? $eveningPoints[(string) $studentId] ?? null;
+                    $assignment->evening_drop_off_point_id = $raw !== null && $raw !== '' ? (int) $raw : null;
+                } elseif (!$assignment->evening_drop_off_point_id && $student->drop_off_point_id) {
                     $assignment->evening_drop_off_point_id = $student->drop_off_point_id;
                 }
 
@@ -391,6 +449,57 @@ class TripController extends Controller
         return redirect()
             ->route('transport.trips.assign', $trip)
             ->with('success', "Assigned {$assigned} student(s) to {$trip->trip_name}. Run Post Pending Fees if transport list prices changed.");
+    }
+
+    /**
+     * Update morning/evening drop-off points for students already on this trip.
+     */
+    public function assignUpdatePoints(Request $request, Trip $trip)
+    {
+        $validated = $request->validate([
+            'points' => 'required|array|min:1',
+            'points.*.student_id' => 'required|integer|exists:students,id',
+            'points.*.morning_drop_off_point_id' => 'nullable|integer|exists:drop_off_points,id',
+            'points.*.evening_drop_off_point_id' => 'nullable|integer|exists:drop_off_points,id',
+        ]);
+
+        $updated = 0;
+
+        DB::transaction(function () use ($validated, $trip, &$updated) {
+            foreach ($validated['points'] as $row) {
+                $studentId = (int) $row['student_id'];
+                $assignment = StudentAssignment::where('student_id', $studentId)
+                    ->where(function ($q) use ($trip) {
+                        $q->where('morning_trip_id', $trip->id)
+                            ->orWhere('evening_trip_id', $trip->id);
+                    })
+                    ->first();
+
+                if (!$assignment) {
+                    continue;
+                }
+
+                $morning = $row['morning_drop_off_point_id'] ?? null;
+                $evening = $row['evening_drop_off_point_id'] ?? null;
+                $assignment->morning_drop_off_point_id = $morning !== null && $morning !== '' ? (int) $morning : null;
+                $assignment->evening_drop_off_point_id = $evening !== null && $evening !== '' ? (int) $evening : null;
+                $assignment->save();
+                $updated++;
+
+                TransportFeeService::recalculateForStudent(
+                    $studentId,
+                    null,
+                    null,
+                    true,
+                    'calculated',
+                    'Recalculated after trip assign point update'
+                );
+            }
+        });
+
+        return redirect()
+            ->route('transport.trips.assign', $trip)
+            ->with('success', "Updated pickup/drop-off points for {$updated} student(s). Run Post Pending Fees if transport list prices changed.");
     }
 
     /**
