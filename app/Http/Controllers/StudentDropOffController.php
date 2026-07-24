@@ -54,15 +54,18 @@ class StudentDropOffController extends Controller
             'classroom_id' => 'nullable|integer|exists:classrooms,id',
             'points' => 'required|array|min:1',
             'points.*.student_id' => 'required|integer|exists:students,id',
-            'points.*.morning_drop_off_point_id' => 'nullable|integer|exists:drop_off_points,id',
-            'points.*.evening_drop_off_point_id' => 'nullable|integer|exists:drop_off_points,id',
+            'points.*.morning_drop_off_point_id' => 'nullable',
+            'points.*.evening_drop_off_point_id' => 'nullable',
+            'points.*.morning_drop_off_point_name' => 'nullable|string|max:255',
+            'points.*.evening_drop_off_point_name' => 'nullable|string|max:255',
         ]);
 
         $ownMeansId = DropOffPoint::ownMeans()->id;
         $updated = 0;
+        $createdPoints = 0;
         $errors = [];
 
-        DB::transaction(function () use ($validated, $ownMeansId, &$updated, &$errors) {
+        DB::transaction(function () use ($validated, $ownMeansId, &$updated, &$createdPoints, &$errors) {
             foreach ($validated['points'] as $row) {
                 $studentId = (int) $row['student_id'];
                 $student = Student::withoutGlobalScope('active')->find($studentId);
@@ -70,8 +73,18 @@ class StudentDropOffController extends Controller
                     continue;
                 }
 
-                $morning = $this->resolvePointId($row['morning_drop_off_point_id'] ?? null, $ownMeansId);
-                $evening = $this->resolvePointId($row['evening_drop_off_point_id'] ?? null, $ownMeansId);
+                $morning = $this->resolvePointSelection(
+                    $row['morning_drop_off_point_id'] ?? null,
+                    $row['morning_drop_off_point_name'] ?? null,
+                    $ownMeansId,
+                    $createdPoints
+                );
+                $evening = $this->resolvePointSelection(
+                    $row['evening_drop_off_point_id'] ?? null,
+                    $row['evening_drop_off_point_name'] ?? null,
+                    $ownMeansId,
+                    $createdPoints
+                );
 
                 $assignment = StudentAssignment::firstOrNew(['student_id' => $studentId]);
                 $assignment->morning_drop_off_point_id = $morning;
@@ -86,7 +99,6 @@ class StudentDropOffController extends Controller
 
                 $assignment->save();
 
-                // Keep legacy student field in sync with evening (or morning) non-own-means point.
                 $legacyId = ((int) $evening !== (int) $ownMeansId)
                     ? $evening
                     : (((int) $morning !== (int) $ownMeansId) ? $morning : null);
@@ -113,11 +125,17 @@ class StudentDropOffController extends Controller
             }
         });
 
+        $message = "Updated drop-off points for {$updated} student(s).";
+        if ($createdPoints > 0) {
+            $message .= " Created {$createdPoints} new drop-off point(s).";
+        }
+        $message .= ' Run Post Pending Fees if list prices changed.';
+
         $redirect = redirect()
             ->route('transport.student-dropoffs.index', array_filter([
                 'classroom_id' => $validated['classroom_id'] ?? null,
             ]))
-            ->with('success', "Updated drop-off points for {$updated} student(s). Run Post Pending Fees if list prices changed.");
+            ->with('success', $message);
 
         if ($errors) {
             $redirect->with('error', 'Some fees could not be calculated.')
@@ -127,12 +145,33 @@ class StudentDropOffController extends Controller
         return $redirect;
     }
 
-    private function resolvePointId(mixed $raw, int $ownMeansId): int
+    /**
+     * Accept existing id, or a new name (learns/creates the point).
+     */
+    private function resolvePointSelection(mixed $idOrBlank, mixed $name, int $ownMeansId, int &$createdPoints): int
     {
-        if ($raw === null || $raw === '') {
+        $name = is_string($name) ? trim($name) : '';
+        if ($name !== '') {
+            $existed = DropOffPoint::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->exists()
+                || DropOffPoint::nameIsOwnMeans($name);
+            $point = TransportFeeService::resolveDropOffPoint($name);
+            if ($point) {
+                if (!$existed) {
+                    $createdPoints++;
+                }
+
+                return (int) $point->id;
+            }
+        }
+
+        if ($idOrBlank === null || $idOrBlank === '' || $idOrBlank === '__new__') {
             return $ownMeansId;
         }
 
-        return (int) $raw;
+        if (!is_numeric($idOrBlank) || !DropOffPoint::whereKey((int) $idOrBlank)->exists()) {
+            return $ownMeansId;
+        }
+
+        return (int) $idOrBlank;
     }
 }

@@ -304,6 +304,10 @@
     const suggestUrl = @json(route('transport.trips.assign.suggest', $trip));
     const dropOffPoints = @json($dropOffPoints->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values());
     const ownMeansPointId = @json((int) $ownMeansPointId);
+    const resolvePointUrl = @json(route('transport.dropoffpoints.resolve'));
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
+        || document.querySelector('#tripAssignForm input[name="_token"]')?.value
+        || '';
     const searchInput = document.getElementById('tripStudentSearch');
     const resultsBody = document.getElementById('searchResultsBody');
     const suggestionsCard = document.getElementById('suggestionsCard');
@@ -332,6 +336,34 @@
         return found ? found.name : null;
     };
 
+    const rememberPoint = (point) => {
+        if (!dropOffPoints.some((p) => Number(p.id) === Number(point.id))) {
+            dropOffPoints.push({ id: point.id, name: point.name });
+            dropOffPoints.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        }
+    };
+
+    const resolveNewPoint = async (name) => {
+        const res = await fetch(resolvePointUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ name }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || 'Could not create drop-off point.');
+        }
+        const point = await res.json();
+        rememberPoint(point);
+        return point;
+    };
+
     const pointSelectHtml = (name, selectedId) => {
         const selected = selectedId ? Number(selectedId) : ownMeansPointId;
         const ownLabel = name === 'evening'
@@ -343,7 +375,8 @@
             const sel = selected === Number(p.id) ? ' selected' : '';
             return `<option value="${p.id}"${sel}>${escapeHtml(p.name)}</option>`;
         }));
-        return `<select class="form-select form-select-sm" data-point-field="${name}">${opts.join('')}</select>`;
+        opts.push('<option value="__new__">＋ Create new point…</option>');
+        return `<select class="form-select form-select-sm" data-point-field="${name}" data-prev="${selected}">${opts.join('')}</select>`;
     };
 
     const syncDraftForm = () => {
@@ -399,11 +432,39 @@
             draftBody.appendChild(tr);
 
             tr.querySelectorAll('[data-point-field]').forEach((sel) => {
-                sel.addEventListener('change', () => {
+                sel.addEventListener('change', async () => {
                     const field = sel.getAttribute('data-point-field');
-                    const val = sel.value ? Number(sel.value) : null;
                     const current = draft.get(Number(stu.id));
                     if (!current) return;
+
+                    if (sel.value === '__new__') {
+                        const name = prompt('New drop-off point name:');
+                        if (!name || !name.trim()) {
+                            sel.value = sel.dataset.prev || String(ownMeansPointId);
+                            return;
+                        }
+                        try {
+                            const point = await resolveNewPoint(name.trim());
+                            if (field === 'morning') {
+                                current.morning_point_id = point.id;
+                                current.morning_point = point.name;
+                            } else {
+                                current.evening_point_id = point.id;
+                                current.evening_point = point.name;
+                            }
+                            draft.set(Number(stu.id), current);
+                            syncDraftForm();
+                            lastSuggestFor = null;
+                            loadSuggestions(current);
+                        } catch (e) {
+                            alert(e.message || 'Failed to create point.');
+                            sel.value = sel.dataset.prev || String(ownMeansPointId);
+                        }
+                        return;
+                    }
+
+                    const val = sel.value ? Number(sel.value) : ownMeansPointId;
+                    sel.dataset.prev = String(val);
                     if (field === 'morning') {
                         current.morning_point_id = val || ownMeansPointId;
                         current.morning_point = pointNameById(current.morning_point_id) || 'Own means';

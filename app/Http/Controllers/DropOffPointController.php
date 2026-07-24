@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DropOffPoint;
 use App\Models\StudentAssignment;
+use App\Services\TransportFeeService;
 use Illuminate\Http\Request;
 use App\Imports\DropOffPointsImport;
 use Maatwebsite\Excel\Facades\Excel;
@@ -175,6 +176,32 @@ class DropOffPointController extends Controller
     public function importForm()
     {
         return view('dropoffpoints.import');
+    }
+
+    /**
+     * Find or create a drop-off point by name (used by trip assign / student drop-offs).
+     */
+    public function resolve(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $name = trim($validated['name']);
+        $existed = DropOffPoint::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->exists()
+            || DropOffPoint::nameIsOwnMeans($name);
+
+        $point = TransportFeeService::resolveDropOffPoint($name);
+        if (!$point) {
+            return response()->json(['message' => 'Could not resolve drop-off point.'], 422);
+        }
+
+        return response()->json([
+            'id' => $point->id,
+            'name' => $point->name,
+            'created' => !$existed,
+            'own_means' => $point->isOwnMeans(),
+        ]);
     }
 
     public function template(): StreamedResponse
