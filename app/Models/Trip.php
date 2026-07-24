@@ -11,6 +11,7 @@ class Trip extends Model
 
     protected $fillable = [
         'trip_name', // actual column
+        'type',
         'vehicle_id',
         'driver_id',
         'day_of_week',
@@ -87,16 +88,19 @@ class Trip extends Model
     }
 
     /**
-     * Which assignment leg this trip maps to based on direction.
-     * pickup → morning, dropoff → evening, otherwise null (caller chooses).
+     * Which assignment leg this trip maps to based on direction or type.
+     * pickup/Morning → morning, dropoff/Evening → evening.
      */
     public function assignmentLeg(): ?string
     {
-        return match ($this->direction) {
-            'pickup' => 'morning',
-            'dropoff' => 'evening',
-            default => null,
-        };
+        if ($this->direction === 'pickup' || $this->type === 'Morning') {
+            return 'morning';
+        }
+        if ($this->direction === 'dropoff' || $this->type === 'Evening') {
+            return 'evening';
+        }
+
+        return null;
     }
 
     // Relationship with Driver (Staff)

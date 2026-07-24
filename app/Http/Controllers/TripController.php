@@ -30,12 +30,18 @@ class TripController extends Controller
         $request->validate([
             'vehicle_id' => 'required|exists:vehicles,id',
             'name' => 'required|string|max:255',
+            'type' => 'nullable|in:Morning,Evening',
+            'direction' => 'nullable|in:pickup,dropoff',
             'day_of_week' => 'nullable|array',
             'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
         ]);
 
-        $data = $request->only(['vehicle_id', 'driver_id', 'direction']);
+        $data = $request->only(['vehicle_id', 'driver_id', 'direction', 'type']);
         $data['trip_name'] = $request->input('name');
+        [$data['type'], $data['direction']] = $this->normalizeTypeAndDirection(
+            $data['type'] ?? null,
+            $data['direction'] ?? null
+        );
 
         $dayOfWeek = $request->input('day_of_week');
         if (is_array($dayOfWeek) && !empty($dayOfWeek)) {
@@ -60,15 +66,23 @@ class TripController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'vehicle_id' => 'nullable|exists:vehicles,id',
+            'type' => 'nullable|in:Morning,Evening',
+            'direction' => 'nullable|in:pickup,dropoff',
             'day_of_week' => 'nullable|array',
             'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
         ]);
 
+        [$type, $direction] = $this->normalizeTypeAndDirection(
+            $request->input('type'),
+            $request->input('direction')
+        );
+
         $data = [
             'trip_name' => $request->input('name'),
+            'type' => $type,
             'vehicle_id' => $request->input('vehicle_id') ?: null,
             'driver_id' => $request->input('driver_id') ?: null,
-            'direction' => $request->input('direction') ?: null,
+            'direction' => $direction,
         ];
 
         $dayOfWeek = $request->input('day_of_week');
@@ -81,6 +95,25 @@ class TripController extends Controller
         $trip->update($data);
 
         return redirect()->route('transport.trips.index')->with('success', 'Trip updated successfully!');
+    }
+
+    /**
+     * Keep Morning/Evening type aligned with pickup/dropoff direction.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function normalizeTypeAndDirection(?string $type, ?string $direction): array
+    {
+        $type = $type ?: null;
+        $direction = $direction ?: null;
+
+        if ($type && !$direction) {
+            $direction = $type === 'Morning' ? 'pickup' : 'dropoff';
+        } elseif ($direction && !$type) {
+            $type = $direction === 'pickup' ? 'Morning' : 'Evening';
+        }
+
+        return [$type, $direction];
     }
 
     public function destroy(Trip $trip)

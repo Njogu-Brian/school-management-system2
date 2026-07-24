@@ -49,7 +49,17 @@
                             @forelse ($trips as $trip)
                                 <tr>
                                     <td class="fw-semibold">{{ $trip->name }}</td>
-                                    <td><span class="pill-badge">{{ $trip->type ?? 'N/A' }}</span></td>
+                                    <td>
+                                        @if($trip->type)
+                                            <span class="pill-badge">{{ $trip->type }}</span>
+                                        @elseif($trip->direction === 'pickup')
+                                            <span class="pill-badge">Morning</span>
+                                        @elseif($trip->direction === 'dropoff')
+                                            <span class="pill-badge">Evening</span>
+                                        @else
+                                            <span class="text-muted">N/A</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $trip->vehicle->vehicle_number ?? 'N/A' }}</td>
                                     <td>
                                         @if($trip->driver)
