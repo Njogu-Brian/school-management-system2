@@ -2,7 +2,6 @@
 
 namespace App\Imports;
 
-use App\Models\Route;
 use App\Models\Vehicle;
 use App\Models\DropOffPoint;
 use Illuminate\Support\Str;
@@ -25,88 +24,116 @@ class DropOffPointsImport implements ToModel, WithHeadingRow, SkipsEmptyRows, Wi
 
     /**
      * Expected headings:
-     * name | route_id? | route_name? | vehicle_ids? | vehicle_regs?
-     * - vehicle_ids: comma-separated ids   (e.g., "3,8,12")
-     * - vehicle_regs: comma-separated regs (e.g., "KDC123A,KDG456B")
-     * Provide either route_id or route_name.
+     * name | two_way_amount? | one_way_amount? | vehicle_ids? | vehicle_regs?
      */
     public function rules(): array
     {
         return [
-            '*.name'        => ['required', 'string', 'max:255'],
-            '*.route_id'    => ['nullable', 'integer'],
-            '*.route_name'  => ['nullable', 'string', 'max:255'],
+            '*.name' => ['required', 'string', 'max:255'],
+            '*.two_way_amount' => ['nullable', 'numeric', 'min:0'],
+            '*.one_way_amount' => ['nullable', 'numeric', 'min:0'],
             '*.vehicle_ids' => ['nullable', 'string'],
-            '*.vehicle_regs'=> ['nullable', 'string'],
+            '*.vehicle_regs' => ['nullable', 'string'],
         ];
     }
 
     public function model(array $row)
     {
-        $name       = trim((string)($row['name'] ?? ''));
-        $routeId    = $row['route_id'] ?? null;
-        $routeName  = isset($row['route_name']) ? trim((string)$row['route_name']) : null;
-        $vehIdsCsv  = $row['vehicle_ids']  ?? null;
-        $vehRegsCsv = $row['vehicle_regs'] ?? null;
-
-        // Resolve route
-        $route = null;
-        if ($routeId) {
-            $route = Route::find($routeId);
-        } elseif ($routeName) {
-            $route = Route::whereRaw('LOWER(name) = ?', [Str::lower($routeName)])->first();
-        }
-        if (!$route) {
-            $this->skippedMissingRoute++;
+        $name = trim((string) ($row['name'] ?? ''));
+        if ($name === '') {
             return null;
         }
 
-        // Upsert by unique (route_id, lower(name))
+        $twoWay = $this->parseAmount($row['two_way_amount'] ?? null);
+        $oneWay = $this->parseAmount($row['one_way_amount'] ?? null);
+        $vehIdsCsv = $row['vehicle_ids'] ?? null;
+        $vehRegsCsv = $row['vehicle_regs'] ?? null;
+
         $existing = DropOffPoint::withTrashed()
-            ->where('route_id', $route->id)
             ->whereRaw('LOWER(name) = ?', [Str::lower($name)])
             ->first();
 
         if ($existing) {
-            // If it was soft-deleted, restore; otherwise just treat as existing.
             if ($existing->trashed()) {
                 $existing->restore();
             }
+            $existing->fill(array_filter([
+                'two_way_amount' => $twoWay,
+                'one_way_amount' => $oneWay,
+            ], fn ($v) => $v !== null));
+            $existing->save();
             $this->updated++;
             $point = $existing;
         } else {
             $point = DropOffPoint::create([
-                'name'     => $name,
-                'route_id' => $route->id,
+                'name' => $name,
+                'two_way_amount' => $twoWay,
+                'one_way_amount' => $oneWay,
             ]);
             $this->created++;
         }
 
-        // Attach vehicles (optional)
-        $vehicleIds = [];
-        if ($vehIdsCsv) {
-            $ids = collect(explode(',', $vehIdsCsv))
-                ->map(fn($v) => (int)trim($v))
-                ->filter();
-            if ($ids->isNotEmpty()) {
-                $vehicleIds = array_merge($vehicleIds, Vehicle::whereIn('id', $ids)->pluck('id')->all());
-            }
-        }
-        if ($vehRegsCsv) {
-            $regs = collect(explode(',', $vehRegsCsv))
-                ->map(fn($v) => trim($v))
-                ->filter();
-            if ($regs->isNotEmpty()) {
-                $vehicleIds = array_merge($vehicleIds, Vehicle::whereIn('registration_number', $regs)->pluck('id')->all());
-            }
+        $vehicleIds = $this->parseIds($vehIdsCsv);
+        $vehicleIdsFromRegs = $this->resolveVehicleIdsByRegs($vehRegsCsv);
+        $allVehicleIds = collect($vehicleIds)->merge($vehicleIdsFromRegs)->unique()->filter()->values();
+
+        if ($allVehicleIds->isNotEmpty()) {
+            $point->vehicles()->syncWithoutDetaching($allVehicleIds->all());
+            $this->vehicleLinks += $allVehicleIds->count();
         }
 
-        if (!empty($vehicleIds)) {
-            // Avoid duplicates; keep existing links
-            $point->vehicles()->syncWithoutDetaching(array_unique($vehicleIds));
-            $this->vehicleLinks += count(array_unique($vehicleIds));
+        return null;
+    }
+
+    private function parseAmount($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $cleaned = preg_replace('/[^\d.-]/', '', (string) $value);
+        if ($cleaned === '' || !is_numeric($cleaned)) {
+            return null;
+        }
+        $amount = (float) $cleaned;
+
+        return $amount < 0 ? null : $amount;
+    }
+
+    private function parseIds($csv): array
+    {
+        if (!$csv) {
+            return [];
         }
 
-        return $point;
+        return collect(explode(',', (string) $csv))
+            ->map(fn ($v) => (int) trim($v))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function resolveVehicleIdsByRegs($csv): array
+    {
+        if (!$csv) {
+            return [];
+        }
+
+        $regs = collect(explode(',', (string) $csv))
+            ->map(fn ($v) => Str::upper(trim($v)))
+            ->filter()
+            ->values();
+
+        if ($regs->isEmpty()) {
+            return [];
+        }
+
+        return Vehicle::query()
+            ->where(function ($q) use ($regs) {
+                foreach ($regs as $reg) {
+                    $q->orWhereRaw('UPPER(COALESCE(registration_number, vehicle_number, "")) = ?', [$reg]);
+                }
+            })
+            ->pluck('id')
+            ->all();
     }
 }

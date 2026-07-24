@@ -6,9 +6,15 @@
     @include('finance.partials.header', [
         'title' => 'Transport Fees',
         'icon' => 'bi bi-bus-front',
-        'subtitle' => 'Manage transport charges per term and keep invoices in sync',
+        'subtitle' => 'List price is calculated from morning/evening drop-off rates. Discounts use Fee Concessions; mid-term changes use Credit/Debit Notes after Post Pending Fees.',
         'actions' => '<a href="' . route('finance.transport-fees.import') . '" class="btn btn-finance btn-finance-primary btn-finance-lg"><i class="bi bi-upload me-2"></i>Import</a>'
     ])
+
+    <div class="transport-info-pill mb-3">
+      <strong>Pricing:</strong> same point → two-way fare · different points → half of each two-way · Own Means on one leg → one-way of the other.
+      Parent discounts → <em>Fee Concessions (Transport)</em>. Late join / area move adjustments → <em>Credit/Debit Notes</em> after list price updates and Post Pending Fees.
+      <a href="{{ route('transport.dropoffpoints.index') }}">Manage rates</a>
+    </div>
 
     @if(session('success'))
       <div class="transport-alert transport-alert-success alert alert-dismissible fade show" role="alert">
@@ -122,7 +128,7 @@
                         <th>Morning Drop-off</th>
                         <th>Evening Drop-off</th>
                         <th>Drop-off point <small class="text-muted">(Legacy)</small></th>
-                        <th class="text-end">Amount (KES)</th>
+                        <th class="text-end">List price (KES)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -130,8 +136,8 @@
                         @php
                           $fee = $feeMap[$student->id] ?? null;
                           $assignment = $assignmentMap[$student->id] ?? null;
-                          $amount = old("fees.{$student->id}.amount", $fee?->amount);
-                          $amount = $amount !== null ? $amount : '';
+                          $amount = $fee?->amount;
+                          $breakdownLabel = $fee?->pricing_breakdown['label'] ?? null;
                         @endphp
                         <tr class="transport-table-row">
                           <td>
@@ -165,8 +171,14 @@
                             <input type="text" name="fees[{{ $student->id }}][drop_off_point_name]" class="finance-form-control mt-2" placeholder="Other / custom" value="{{ old("fees.{$student->id}.drop_off_point_name", $fee?->drop_off_point_name) }}">
                           </td>
                           <td class="text-end">
-                            <input type="number" step="0.01" name="fees[{{ $student->id }}][amount]" class="finance-form-control transport-amount-input" placeholder="0.00" value="{{ $amount }}">
-                            <small class="transport-amount-hint">Leave empty for drop-off only</small>
+                            <div class="transport-list-price fw-semibold">{{ $amount !== null ? number_format((float) $amount, 2) : '—' }}</div>
+                            @if($breakdownLabel)
+                              <small class="transport-amount-hint" title="{{ $breakdownLabel }}">{{ \Illuminate\Support\Str::limit($breakdownLabel, 48) }}</small>
+                            @elseif($fee?->pricing_mode === 'imported')
+                              <small class="transport-amount-hint">Imported (recalculate after rates set)</small>
+                            @else
+                              <small class="transport-amount-hint">Set morning &amp; evening to calculate</small>
+                            @endif
                           </td>
                         </tr>
                       @endforeach
@@ -187,8 +199,8 @@
                   @php
                     $fee = $feeMap[$student->id] ?? null;
                     $assignment = $assignmentMap[$student->id] ?? null;
-                    $amount = old("fees.{$student->id}.amount", $fee?->amount);
-                    $amount = $amount !== null ? $amount : '';
+                    $amount = $fee?->amount;
+                    $breakdownLabel = $fee?->pricing_breakdown['label'] ?? null;
                   @endphp
                   <div class="transport-mobile-card">
                     <div class="transport-mobile-card-header">
@@ -217,7 +229,7 @@
                         </select>
                       </div>
                       <div class="transport-mobile-field">
-                        <label>Drop-off</label>
+                        <label>Drop-off (legacy)</label>
                         <select name="fees[{{ $student->id }}][drop_off_point_id]" class="finance-form-select">
                           <option value="">—</option>
                           @foreach($dropOffPoints as $point)
@@ -227,8 +239,11 @@
                         <input type="text" name="fees[{{ $student->id }}][drop_off_point_name]" class="finance-form-control mt-1" placeholder="Other" value="{{ old("fees.{$student->id}.drop_off_point_name", $fee?->drop_off_point_name) }}">
                       </div>
                       <div class="transport-mobile-field transport-mobile-amount">
-                        <label>Amount (KES)</label>
-                        <input type="number" step="0.01" name="fees[{{ $student->id }}][amount]" class="finance-form-control" placeholder="0.00" value="{{ $amount }}">
+                        <label>List price (KES)</label>
+                        <div class="fw-semibold">{{ $amount !== null ? number_format((float) $amount, 2) : '—' }}</div>
+                        @if($breakdownLabel)
+                          <small class="text-muted">{{ $breakdownLabel }}</small>
+                        @endif
                       </div>
                     </div>
                   </div>
@@ -241,10 +256,13 @@
 
               <div class="transport-form-footer">
                 <button type="submit" class="btn btn-finance btn-finance-primary btn-finance-lg">
-                  <i class="bi bi-save me-2"></i>Update transport fees
+                  <i class="bi bi-save me-2"></i>Save points &amp; recalculate
+                </button>
+                <button type="submit" formaction="{{ route('finance.transport-fees.recalculate') }}" class="btn btn-finance btn-finance-outline btn-finance-lg" formnovalidate>
+                  <i class="bi bi-arrow-repeat me-2"></i>Recalculate from routes
                 </button>
                 <a href="{{ route('transport.dropoffpoints.index') }}" class="btn btn-finance btn-finance-outline">
-                  <i class="bi bi-geo-alt me-2"></i>Manage drop-off points
+                  <i class="bi bi-geo-alt me-2"></i>Manage rates
                 </a>
               </div>
             </form>

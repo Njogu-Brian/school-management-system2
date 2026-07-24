@@ -30,7 +30,8 @@ class TransportSpecialAssignment extends Model
 
     public function student()
     {
-        return $this->belongsTo(Student::class);
+        // Bypass Student "active" scope so archived/alumni students still resolve.
+        return $this->belongsTo(Student::class)->withoutGlobalScope('active');
     }
 
     public function vehicle()

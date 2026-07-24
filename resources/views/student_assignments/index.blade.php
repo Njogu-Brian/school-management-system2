@@ -47,14 +47,18 @@
                             @forelse ($assignments as $assignment)
                                 <tr>
                                     <td class="fw-semibold">
-                                        {{ $assignment->student->full_name }}
-                                        <br>
-                                        <small class="text-muted">{{ $assignment->student->admission_number ?? 'N/A' }} | {{ optional($assignment->student->classroom)->name ?? 'N/A' }}</small>
+                                        @if($assignment->student)
+                                            {{ $assignment->student->full_name }}
+                                            <br>
+                                            <small class="text-muted">{{ $assignment->student->admission_number ?? 'N/A' }} | {{ optional($assignment->student->classroom)->name ?? 'N/A' }}</small>
+                                        @else
+                                            <span class="text-muted">Student unavailable</span>
+                                        @endif
                                     </td>
                                     <td>
-                                        @if($assignment->student->dropOffPoint)
+                                        @if($assignment->student?->dropOffPoint)
                                             {{ $assignment->student->dropOffPoint->name }}
-                                        @elseif($assignment->student->drop_off_point_other)
+                                        @elseif($assignment->student?->drop_off_point_other)
                                             {{ $assignment->student->drop_off_point_other }}
                                         @else
                                             <span class="text-muted">Not set</span>

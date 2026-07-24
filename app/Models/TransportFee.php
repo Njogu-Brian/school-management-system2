@@ -17,6 +17,8 @@ class TransportFee extends Model
         'drop_off_point_id',
         'drop_off_point_name',
         'amount',
+        'pricing_mode',
+        'pricing_breakdown',
         'source',
         'note',
         'created_by',
@@ -25,6 +27,7 @@ class TransportFee extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'pricing_breakdown' => 'array',
     ];
 
     public function student()

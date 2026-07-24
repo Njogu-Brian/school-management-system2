@@ -1439,6 +1439,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Transport Fees
         Route::get('transport-fees', [TransportFeeController::class, 'index'])->name('transport-fees.index');
         Route::post('transport-fees/bulk-update', [TransportFeeController::class, 'bulkUpdate'])->name('transport-fees.bulk-update');
+        Route::post('transport-fees/recalculate', [TransportFeeController::class, 'recalculate'])->name('transport-fees.recalculate');
         Route::post('transport-fees/duplicate', [TransportFeeController::class, 'duplicate'])->name('transport-fees.duplicate');
         Route::post('transport-fees/duplicate/preview', [TransportFeeController::class, 'duplicatePreview'])->name('transport-fees.duplicate.preview');
         Route::post('transport-fees/duplicate/commit', [TransportFeeController::class, 'duplicateCommit'])->name('transport-fees.duplicate.commit');

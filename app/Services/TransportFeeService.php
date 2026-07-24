@@ -6,11 +6,11 @@ use App\Models\AcademicYear;
 use App\Models\DropOffPoint;
 use App\Models\InvoiceItem;
 use App\Models\Student;
+use App\Models\StudentAssignment;
 use App\Models\Term;
 use App\Models\TransportFee;
 use App\Models\TransportFeeRevision;
 use App\Models\Votehead;
-use App\Services\InvoiceService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -72,6 +72,8 @@ class TransportFeeService
         $userId = $data['user_id'] ?? auth()->id();
         $note = $data['note'] ?? null;
         $skipInvoice = $data['skip_invoice'] ?? false;
+        $pricingMode = $data['pricing_mode'] ?? null;
+        $pricingBreakdown = $data['pricing_breakdown'] ?? null;
 
         if (!$dropOffPointName && $dropOffPointId) {
             $dropOffPointName = optional(DropOffPoint::find($dropOffPointId))->name;
@@ -88,7 +90,10 @@ class TransportFeeService
             $year,
             $term,
             $academicYearId,
-            $skipInvoice
+            $skipInvoice,
+            $pricingMode,
+            $pricingBreakdown,
+            $data
         ) {
             $existing = TransportFee::where('student_id', $studentId)
                 ->where('year', $year)
@@ -107,6 +112,18 @@ class TransportFeeService
                 'note' => $note,
                 'updated_by' => $userId,
             ];
+
+            if (array_key_exists('pricing_mode', $data)) {
+                $payload['pricing_mode'] = $data['pricing_mode'];
+            } elseif ($pricingMode !== null) {
+                $payload['pricing_mode'] = $pricingMode;
+            }
+
+            if (array_key_exists('pricing_breakdown', $data)) {
+                $payload['pricing_breakdown'] = $data['pricing_breakdown'];
+            } elseif ($pricingBreakdown !== null) {
+                $payload['pricing_breakdown'] = $pricingBreakdown;
+            }
 
             if ($existing) {
                 $oldAmount = $existing->amount;
@@ -139,6 +156,7 @@ class TransportFeeService
             } else {
                 $fee = TransportFee::create(array_merge($payload, [
                     'created_by' => $userId,
+                    'pricing_mode' => $payload['pricing_mode'] ?? 'calculated',
                 ]));
 
                 TransportFeeRevision::create([
@@ -175,8 +193,8 @@ class TransportFeeService
                 // Delete payment allocations first so payments are freed for re-allocation.
                 $votehead = self::transportVotehead();
                 DB::transaction(function () use ($fee, $votehead) {
-                    $invoice = \App\Services\InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
-                    $items = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                    $invoice = InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
+                    $items = InvoiceItem::where('invoice_id', $invoice->id)
                         ->where('votehead_id', $votehead->id)
                         ->where('source', 'transport')
                         ->get();
@@ -193,17 +211,109 @@ class TransportFeeService
                         }
                     }
 
-                    \App\Services\InvoiceService::recalc($invoice);
-                    \App\Services\InvoiceService::allocateUnallocatedPaymentsForStudent($fee->student_id);
+                    InvoiceService::recalc($invoice);
+                    InvoiceService::allocateUnallocatedPaymentsForStudent($fee->student_id);
                 });
             }
 
-            return $fee;
+            return $fee->fresh();
         });
     }
 
     /**
+     * Recalculate list price from morning/evening assignment points and upsert the fee.
+     *
+     * @return array{fee: TransportFee|null, result: array, updated: bool}
+     */
+    public static function recalculateForStudent(
+        int $studentId,
+        ?int $year = null,
+        ?int $term = null,
+        bool $skipInvoice = true,
+        string $source = 'calculated',
+        ?string $note = null
+    ): array {
+        [$year, $term] = self::resolveYearAndTerm($year, $term);
+
+        $assignment = StudentAssignment::where('student_id', $studentId)->first();
+        $result = TransportFeeCalculator::calculateFromAssignment($assignment);
+
+        if (!$result['can_calculate']) {
+            return [
+                'fee' => TransportFee::where('student_id', $studentId)->where('year', $year)->where('term', $term)->first(),
+                'result' => $result,
+                'updated' => false,
+            ];
+        }
+
+        $legacyPointId = null;
+        $legacyPointName = null;
+        if ($assignment) {
+            if ($assignment->evening_drop_off_point_id && !DropOffPoint::nameIsOwnMeans(optional(DropOffPoint::find($assignment->evening_drop_off_point_id))->name)) {
+                $legacyPointId = $assignment->evening_drop_off_point_id;
+            } elseif ($assignment->morning_drop_off_point_id && !DropOffPoint::nameIsOwnMeans(optional(DropOffPoint::find($assignment->morning_drop_off_point_id))->name)) {
+                $legacyPointId = $assignment->morning_drop_off_point_id;
+            }
+            $legacyPointName = $legacyPointId
+                ? optional(DropOffPoint::find($legacyPointId))->name
+                : ($result['amount'] == 0 ? DropOffPoint::OWN_MEANS_NAME : null);
+        }
+
+        $fee = self::upsertFee([
+            'student_id' => $studentId,
+            'amount' => $result['amount'] ?? 0,
+            'year' => $year,
+            'term' => $term,
+            'drop_off_point_id' => $legacyPointId,
+            'drop_off_point_name' => $legacyPointName,
+            'source' => $source,
+            'note' => $note ?? ($result['breakdown']['label'] ?? 'Calculated from morning/evening drop-off points'),
+            'pricing_mode' => 'calculated',
+            'pricing_breakdown' => $result['breakdown'],
+            'skip_invoice' => $skipInvoice,
+        ]);
+
+        return [
+            'fee' => $fee,
+            'result' => $result,
+            'updated' => true,
+        ];
+    }
+
+    /**
+     * Recalculate fees for many students (e.g. classroom).
+     *
+     * @param  array<int, int>  $studentIds
+     * @return array{updated: int, skipped: int, errors: array<int, string>}
+     */
+    public static function recalculateForStudents(
+        array $studentIds,
+        ?int $year = null,
+        ?int $term = null,
+        bool $skipInvoice = true
+    ): array {
+        $updated = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($studentIds as $studentId) {
+            $outcome = self::recalculateForStudent((int) $studentId, $year, $term, $skipInvoice, 'calculated');
+            if ($outcome['updated']) {
+                $updated++;
+            } else {
+                $skipped++;
+                if (!empty($outcome['result']['errors'])) {
+                    $errors[(int) $studentId] = implode(' ', $outcome['result']['errors']);
+                }
+            }
+        }
+
+        return compact('updated', 'skipped', 'errors');
+    }
+
+    /**
      * Update or create the invoice item for the given transport fee.
+     * Existing items use updateItemAmount so amount deltas create CN/DN.
      */
     public static function syncInvoice(TransportFee $fee, ?Votehead $votehead = null): void
     {
@@ -211,44 +321,82 @@ class TransportFeeService
 
         DB::transaction(function () use ($fee, $votehead) {
             $invoice = InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
+            $newAmount = round((float) $fee->amount, 2);
 
-            // Check for existing transport invoice items (including soft-deleted ones)
-            // This prevents accidentally replacing non-transport items
             $existingItem = InvoiceItem::withTrashed()
                 ->where('invoice_id', $invoice->id)
                 ->where('votehead_id', $votehead->id)
                 ->where('source', 'transport')
                 ->first();
 
-            $payload = [
-                'amount' => $fee->amount,
+            if ($existingItem) {
+                if ($existingItem->trashed()) {
+                    $existingItem->restore();
+                }
+
+                if ($newAmount <= 0) {
+                    $paymentIds = $existingItem->allocations()->pluck('payment_id')->unique()->filter();
+                    $existingItem->allocations()->delete();
+                    $existingItem->delete();
+                    foreach ($paymentIds as $paymentId) {
+                        $payment = \App\Models\Payment::find($paymentId);
+                        if ($payment) {
+                            $payment->updateAllocationTotals();
+                        }
+                    }
+                    InvoiceService::recalc($invoice);
+                    InvoiceService::allocateUnallocatedPaymentsForStudent($fee->student_id);
+
+                    return;
+                }
+
+                $oldAmount = round((float) $existingItem->amount, 2);
+                if (abs($oldAmount - $newAmount) < 0.01) {
+                    $existingItem->update([
+                        'status' => 'active',
+                        'effective_date' => null,
+                        'source' => 'transport',
+                        'posted_at' => now(),
+                    ]);
+                    InvoiceService::recalc($invoice);
+
+                    return;
+                }
+
+                $reason = $fee->pricing_mode === 'calculated'
+                    ? 'Transport list price recalculated from drop-off points'
+                    : 'Transport fee amount updated';
+
+                $notes = $fee->pricing_breakdown['label']
+                    ?? $fee->note
+                    ?? "Transport fee changed from {$oldAmount} to {$newAmount}";
+
+                InvoiceService::updateItemAmount($existingItem, $newAmount, $reason, $notes);
+                $existingItem->refresh();
+                $existingItem->update([
+                    'status' => 'active',
+                    'effective_date' => null,
+                    'source' => 'transport',
+                    'posted_at' => now(),
+                ]);
+
+                return;
+            }
+
+            if ($newAmount <= 0) {
+                return;
+            }
+
+            InvoiceItem::create([
+                'invoice_id' => $invoice->id,
+                'votehead_id' => $votehead->id,
+                'amount' => $newAmount,
+                'original_amount' => $newAmount,
                 'status' => 'active',
                 'effective_date' => null,
                 'source' => 'transport',
                 'posted_at' => now(),
-            ];
-
-            if ($existingItem) {
-                // Restore if soft-deleted
-                if ($existingItem->trashed()) {
-                    $existingItem->restore();
-                }
-                $payload['original_amount'] = $existingItem->original_amount ?? $existingItem->amount;
-                // Update existing item
-                $existingItem->update($payload);
-                $item = $existingItem;
-            } else {
-                // Create new item
-                $payload['invoice_id'] = $invoice->id;
-                $payload['votehead_id'] = $votehead->id;
-                $payload['original_amount'] = $fee->amount;
-                $item = InvoiceItem::create($payload);
-            }
-
-            // Preserve original amount if it existed previously
-            if ($item->wasRecentlyCreated === false && $item->original_amount === null) {
-                $item->update(['original_amount' => $item->amount]);
-            }
+            ]);
 
             InvoiceService::recalc($invoice);
         });
@@ -266,6 +414,10 @@ class TransportFeeService
         $clean = trim($name);
         if ($clean === '') {
             return null;
+        }
+
+        if (DropOffPoint::nameIsOwnMeans($clean)) {
+            return DropOffPoint::ownMeans();
         }
 
         $existing = DropOffPoint::whereRaw('LOWER(name) = ?', [Str::lower($clean)])
@@ -287,7 +439,6 @@ class TransportFeeService
     public static function reverseImport(\App\Models\TransportFeeImport $import): array
     {
         return DB::transaction(function () use ($import) {
-            // Find all transport fees created by this import
             $transportFees = TransportFee::where('year', $import->year)
                 ->where('term', $import->term)
                 ->where('source', 'import')
@@ -301,21 +452,18 @@ class TransportFeeService
             $invoiceIds = collect();
 
             foreach ($transportFees as $fee) {
-                // Delete invoice items for this transport fee
-                $invoice = \App\Services\InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
+                $invoice = InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
                 $invoiceIds->push($invoice->id);
 
-                $deleted = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                $deleted = InvoiceItem::where('invoice_id', $invoice->id)
                     ->where('votehead_id', $votehead->id)
                     ->where('source', 'transport')
                     ->delete();
-                
+
                 $itemsDeleted += $deleted;
 
-                // Delete drop-off point assignments (student assignments)
-                $assignment = \App\Models\StudentAssignment::where('student_id', $fee->student_id)->first();
+                $assignment = StudentAssignment::where('student_id', $fee->student_id)->first();
                 if ($assignment) {
-                    // Only remove if it matches the import
                     if ($assignment->morning_drop_off_point_id == $fee->drop_off_point_id ||
                         $assignment->evening_drop_off_point_id == $fee->drop_off_point_id) {
                         $updated = false;
@@ -334,8 +482,7 @@ class TransportFeeService
                     }
                 }
 
-                // Clear student drop-off point info if it matches
-                $student = \App\Models\Student::find($fee->student_id);
+                $student = Student::find($fee->student_id);
                 if ($student && $student->drop_off_point_id == $fee->drop_off_point_id) {
                     $student->update([
                         'drop_off_point_id' => null,
@@ -343,19 +490,16 @@ class TransportFeeService
                     ]);
                 }
 
-                // Delete the transport fee record
                 $fee->delete();
             }
 
-            // Recalculate affected invoices
             foreach ($invoiceIds->unique() as $invoiceId) {
                 $invoice = \App\Models\Invoice::find($invoiceId);
                 if ($invoice) {
-                    \App\Services\InvoiceService::recalc($invoice);
+                    InvoiceService::recalc($invoice);
                 }
             }
 
-            // Mark import as reversed
             $import->update([
                 'is_reversed' => true,
                 'reversed_by' => auth()->id(),
@@ -369,4 +513,3 @@ class TransportFeeService
         });
     }
 }
-

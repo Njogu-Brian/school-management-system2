@@ -12,20 +12,24 @@
         @error('name') <div class="text-danger small">{{ $message }}</div> @enderror
     </div>
 
-    <div class="mb-3">
-        <label for="route_id" class="form-label">Assign to Route</label>
-        <select name="route_id" id="route_id" class="form-select" required>
-            <option value="">Select Route</option>
-            @foreach($routes as $route)
-                <option value="{{ $route->id }}" {{ old('route_id') == $route->id ? 'selected' : '' }}>
-                    {{ $route->name }}{{ $route->area ? ' ('.$route->area.')' : '' }}
-                </option>
-            @endforeach
-        </select>
-        @error('route_id') <div class="text-danger small">{{ $message }}</div> @enderror
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label for="two_way_amount" class="form-label">Two-way fare (KES / term)</label>
+            <input type="number" step="0.01" min="0" name="two_way_amount" id="two_way_amount"
+                   class="form-control" value="{{ old('two_way_amount') }}" placeholder="e.g. 8000">
+            <small class="text-muted">Charged when morning and evening use this same point.</small>
+            @error('two_way_amount') <div class="text-danger small">{{ $message }}</div> @enderror
+        </div>
+        <div class="col-md-6">
+            <label for="one_way_amount" class="form-label">One-way fare (KES / term)</label>
+            <input type="number" step="0.01" min="0" name="one_way_amount" id="one_way_amount"
+                   class="form-control" value="{{ old('one_way_amount') }}" placeholder="e.g. 5000">
+            <small class="text-muted">Used when the other leg is Own Means.</small>
+            @error('one_way_amount') <div class="text-danger small">{{ $message }}</div> @enderror
+        </div>
     </div>
 
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 mt-4">
         <button type="submit" class="btn btn-primary">Add Drop-Off Point</button>
         <a href="{{ route('transport.dropoffpoints.index') }}" class="btn btn-light">Cancel</a>
     </div>

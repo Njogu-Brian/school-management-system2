@@ -63,6 +63,15 @@ class StudentAssignmentController extends Controller
             'morning_drop_off_point_id' => $dropOffPointId,
             'evening_drop_off_point_id' => $dropOffPointId,
         ]);
+
+        \App\Services\TransportFeeService::recalculateForStudent(
+            (int) $request->student_id,
+            null,
+            null,
+            true,
+            'calculated',
+            'Recalculated after student assignment create'
+        );
         
         return redirect()->route('transport.student-assignments.index')->with('success', 'Student assigned successfully.');
     }
@@ -95,6 +104,15 @@ class StudentAssignmentController extends Controller
             'morning_drop_off_point_id' => $dropOffPointId,
             'evening_drop_off_point_id' => $dropOffPointId,
         ]);
+
+        \App\Services\TransportFeeService::recalculateForStudent(
+            (int) $request->student_id,
+            null,
+            null,
+            true,
+            'calculated',
+            'Recalculated after student assignment update'
+        );
 
         return redirect()->route('transport.student-assignments.index')->with('success', 'Assignment updated successfully.');
     }
@@ -226,6 +244,17 @@ class StudentAssignmentController extends Controller
             }
             
             DB::commit();
+
+            $studentIdsToRecalc = collect($request->input('assignments', []))
+                ->pluck('student_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+            if (!empty($studentIdsToRecalc)) {
+                \App\Services\TransportFeeService::recalculateForStudents($studentIdsToRecalc, null, null, true);
+            }
             
             $message = "Successfully assigned trips.";
             if ($created > 0) {
@@ -234,6 +263,7 @@ class StudentAssignmentController extends Controller
             if ($updated > 0) {
                 $message .= " {$updated} assignment(s) updated.";
             }
+            $message .= ' Transport list prices recalculated where rates exist. Run Post Pending Fees to update invoices.';
             
             return redirect()->route('transport.student-assignments.index')->with('success', $message);
         } catch (\Exception $e) {

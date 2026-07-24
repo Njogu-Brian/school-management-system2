@@ -274,26 +274,36 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
                 // Sync transport fee if enabled and drop-off point exists
                 if ($this->syncTransportFees && $dropOffPoint) {
                     [$currentYear, $currentTerm] = TransportFeeService::resolveYearAndTerm($this->year, $this->term);
-                    
-                    // Only update drop-off point, preserve existing fee amount
-                    $existingFee = TransportFee::where('student_id', $student->id)
-                        ->where('year', $currentYear)
-                        ->where('term', $currentTerm)
-                        ->first();
 
-                    if ($existingFee) {
-                        // Update existing fee with new drop-off point (preserve amount)
-                        TransportFeeService::upsertFee([
-                            'student_id' => $student->id,
-                            'amount' => $existingFee->amount, // Preserve existing amount
-                            'year' => $currentYear,
-                            'term' => $currentTerm,
-                            'drop_off_point_id' => $dropOffPoint->id,
-                            'drop_off_point_name' => $dropOffPoint->name,
-                            'source' => 'import_sync',
-                            'note' => 'Drop-off point updated from transport assignment import',
-                            'skip_invoice' => $existingFee->amount == 0, // Skip invoice if amount is 0
-                        ]);
+                    // Recalculate list price from morning/evening points when rates exist
+                    $outcome = TransportFeeService::recalculateForStudent(
+                        $student->id,
+                        $currentYear,
+                        $currentTerm,
+                        true,
+                        'import_sync',
+                        'Recalculated from transport assignment import'
+                    );
+
+                    if (!$outcome['updated']) {
+                        $existingFee = TransportFee::where('student_id', $student->id)
+                            ->where('year', $currentYear)
+                            ->where('term', $currentTerm)
+                            ->first();
+
+                        if ($existingFee) {
+                            TransportFeeService::upsertFee([
+                                'student_id' => $student->id,
+                                'amount' => $existingFee->amount,
+                                'year' => $currentYear,
+                                'term' => $currentTerm,
+                                'drop_off_point_id' => $dropOffPoint->id,
+                                'drop_off_point_name' => $dropOffPoint->name,
+                                'source' => 'import_sync',
+                                'note' => 'Drop-off point updated from transport assignment import',
+                                'skip_invoice' => true,
+                            ]);
+                        }
                     }
                 }
             }
