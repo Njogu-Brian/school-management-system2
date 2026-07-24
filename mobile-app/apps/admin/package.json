@@ -5,7 +5,7 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "start": "expo start",
+    "start": "node ./scripts/start.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",

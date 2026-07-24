@@ -1,149 +1,60 @@
-# School ERP Mobile App
+# School ERP Mobile (monorepo)
 
-A comprehensive React Native mobile application for school management system covering students, academics, attendance, finance, HR, transport, inventory, POS, library, hostel, communication, and document management.
+Supported apps only:
 
-## Features
+| App | Package | Audience |
+|-----|---------|----------|
+| **Admin** | `@erp/admin` (`apps/admin`) | School management / RBAC admin |
+| **Users** | `@erp/users` (`apps/users`) | Teachers, parents, students, drivers |
 
-- **Role-Based Access Control** - Different interfaces for Admin, Teacher, Parent, Student, Finance, and Driver
-- **Authentication** - Login with email/password, password reset via email or OTP
-- **Dark Mode** - Full light/dark theme support
-- **Offline Support** - Works offline with data sync
-- **Real-time Notifications** - Push notifications for important updates
+Shared code lives in `packages/core` and `packages/ui`.
 
-## Technology Stack
+The legacy single-app monolith (`com.schoolerp` / root `src/`) has been removed.
 
-- React Native 0.73+
-- TypeScript
-- React Navigation (Stack, Tab, Drawer)
-- React Native Paper (Material Design 3)
-- Axios for API calls
-- AsyncStorage for local data
-- React Hook Form for form handling
+## Getting started
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- React Native development environment set up
-- Android Studio (for Android development)
-- Physical Android device or emulator
-
-### Installation
-
-1. Navigate to the mobile-app directory:
 ```bash
 cd mobile-app
-```
-
-2. Install dependencies:
-```bash
 npm install
 ```
 
-3. Configure environment variables:
-- Copy `.env.example` to `.env`
-- Update `API_BASE_URL` to point to your Laravel backend
+Copy each app's `.env.example` to `.env` and set `API_BASE_URL` / Expo public API URL as needed.
 
-### Running the App
-
-#### Android
+### Run Admin
 
 ```bash
-npm run android
+npm run start:admin
+# or
+npm run android:admin
 ```
 
-Or using React Native CLI:
-```bash
-npx react-native run-android
-```
-
-#### Development
-
-Start the Metro bundler:
-```bash
-npm start
-```
-
-### Project Structure
-
-```
-src/
-├── api/                 # API service layer
-├── components/          # Reusable components
-│   ├── common/          # Common UI components
-│   └── layout/          # Layout components
-├── screens/             # Screen components
-│   ├── Auth/            # Authentication screens
-│   ├── Dashboard/       # Dashboard screens
-│   ├── Students/        # Student management
-│   ├── Attendance/      # Attendance tracking
-│   ├── Finance/         # Finance & payments
-│   └── ...              # Other modules
-├── navigation/          # Navigation configuration
-├── contexts/            # React contexts
-├── hooks/               # Custom hooks
-├── utils/               # Utility functions
-├── types/               # TypeScript types
-├── constants/           # Constants & config
-└── theme/               # Theme configuration
-```
-
-## Development Phases
-
-### Phase 1: Core & Authentication ✅
-- Project setup
-- Authentication (Login, Password Reset, OTP)
-- Theme system (Light/Dark mode)
-- Role-based navigation
-- Basic dashboard
-
-### Phase 2: Students & Attendance (In Progress)
-- Students list and management
-- Family management
-- Attendance marking
-- Attendance analytics
-
-### Phase 3: Finance & Payments (Planned)
-- Fee structures
-- Invoice generation
-- Payment recording
-- Online payments (M-Pesa, Stripe, PayPal)
-- Student statements
-
-### Phase 4-5: Remaining Modules (Planned)
-- HR & Payroll
-- Transport
-- Inventory & Requisitions
-- POS (School Shop)
-- Library
-- Hostel
-- Communication
-- Documents
-
-## API Integration
-
-The app connects to a Laravel backend. Ensure your Laravel API is running and accessible. Default URL: `http://localhost:8000/api`
-
-Update the `.env` file with your backend URL:
-```
-API_BASE_URL=http://your-backend-url/api
-```
-
-## Building for Production
+### Run Users
 
 ```bash
-# Android
-cd android
-./gradlew assembleRelease
+npm run start:users
+# or
+npm run android:users
 ```
 
-The APK will be available at: `android/app/build/outputs/apk/release/app-release.apk`
+### EAS builds
 
-## License
+Use each app's own `eas.json` from its directory:
 
-Proprietary - School ERP System
+```bash
+cd apps/admin && eas build --platform android --profile preview
+cd apps/users && eas build --platform android --profile preview
+```
 
-## Support
+## Structure
 
-For support, contact the development team.
+```
+mobile-app/
+├── apps/
+│   ├── admin/       # Admin Expo app
+│   └── users/       # Users Expo app
+├── packages/
+│   ├── core/        # API client, auth, shared logic
+│   └── ui/          # Design system components
+├── package.json     # Workspaces root (not a runnable app)
+└── README.md
+```

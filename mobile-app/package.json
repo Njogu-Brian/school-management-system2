@@ -1,25 +1,23 @@
 {
   "name": "school-erp-mobile",
   "version": "1.0.0",
-  "description": "School ERP Management System - Mobile App (monorepo root)",
+  "description": "School ERP mobile monorepo — Admin and Users apps only",
   "private": true,
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
-  "main": "expo/AppEntry.js",
   "scripts": {
-    "start": "expo start",
+    "start": "npm run start:users",
     "start:admin": "npm start --workspace=@erp/admin",
     "start:users": "npm start --workspace=@erp/users",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
+    "android:admin": "npm run android --workspace=@erp/admin",
+    "android:users": "npm run android --workspace=@erp/users",
+    "ios:admin": "npm run ios --workspace=@erp/admin",
+    "ios:users": "npm run ios --workspace=@erp/users",
     "test": "jest --config jest.config.js",
     "test:design-system": "jest --config jest.config.js packages/ui/src/__tests__",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "eas:update:preview": "eas update --channel preview --message \"Update\"",
-    "eas:update:production": "eas update --channel production --message \"Update\""
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

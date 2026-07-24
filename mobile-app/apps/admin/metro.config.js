@@ -3,26 +3,32 @@ const path = require('path');
 
 /**
  * Monorepo-aware Metro for the Admin App.
- *
- * Watches the workspace root so shared packages (@erp/core, @erp/ui) hot-reload, and
- * resolves modules from both the app and the hoisted workspace node_modules.
- * @type {import('expo/metro-config').MetroConfig}
+ * Watch shared packages only; block the Users app to avoid haste-map collisions.
  */
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [workspaceRoot];
+config.watchFolders = [
+  path.resolve(workspaceRoot, 'packages/core'),
+  path.resolve(workspaceRoot, 'packages/ui'),
+  path.resolve(workspaceRoot, 'node_modules'),
+];
+
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// Hoist common transitive deps that break when hierarchical lookup is disabled.
 config.resolver.extraNodeModules = {
   semver: path.resolve(workspaceRoot, 'node_modules/semver'),
   'webidl-conversions': path.resolve(workspaceRoot, 'node_modules/webidl-conversions'),
 };
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+config.resolver.blockList = [
+  new RegExp(`^${escapeRegExp(path.resolve(workspaceRoot, 'apps/users'))}[/\\\\].*`),
+];
 
 module.exports = config;
