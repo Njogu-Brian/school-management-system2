@@ -70,7 +70,7 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-modern mb-0 align-middle">
+                        <table class="table table-modern mb-0 align-middle" id="searchResultsTable">
                             <thead class="table-light">
                                 <tr>
                                     <th style="width:40px;"></th>
@@ -78,13 +78,12 @@
                                     <th>Admission</th>
                                     <th>Class</th>
                                     <th>Stream</th>
-                                    <th>Morning pickup</th>
-                                    <th>Evening drop-off</th>
+                                    <th class="js-leg-point-col">Morning pickup</th>
                                 </tr>
                             </thead>
                             <tbody id="searchResultsBody">
                                 <tr class="text-muted">
-                                    <td colspan="7" class="text-center py-4">Start typing to search students.</td>
+                                    <td colspan="6" class="text-center py-4">Start typing to search students.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -102,7 +101,7 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-modern mb-0 align-middle">
+                        <table class="table table-modern mb-0 align-middle" id="suggestionsTable">
                             <thead class="table-light">
                                 <tr>
                                     <th style="width:40px;"></th>
@@ -110,8 +109,7 @@
                                     <th>Admission</th>
                                     <th>Class</th>
                                     <th>Stream</th>
-                                    <th>Morning pickup</th>
-                                    <th>Evening drop-off</th>
+                                    <th class="js-leg-point-col">Morning pickup</th>
                                 </tr>
                             </thead>
                             <tbody id="suggestionsBody"></tbody>
@@ -124,7 +122,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
                         <h5 class="mb-0">Draft to assign</h5>
-                        <small class="text-muted">Change morning pickup / evening drop-off from existing points before saving.</small>
+                        <small class="text-muted">Own-means students can be drafted — choose a real stop for this trip leg before saving.</small>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
                         <span class="input-chip" id="draftCount">0 selected</span>
@@ -318,10 +316,56 @@
     const draftCount = document.getElementById('draftCount');
     const saveBtn = document.getElementById('saveAssignBtn');
     const legSelect = document.getElementById('assignLeg');
+    const currentTripName = @json($trip->trip_name);
     const alreadyAssigned = new Set((@json($assigned->pluck('student_id')->values())).map(Number));
     const draft = new Map();
     let debounceTimer = null;
     let lastSuggestFor = null;
+    let lastSearchItems = [];
+    let lastSuggestItems = [];
+
+    const currentLeg = () => (legSelect.value === 'evening' ? 'evening' : 'morning');
+
+    const syncLegHeaders = () => {
+        const label = currentLeg() === 'evening' ? 'Evening drop-off' : 'Morning pickup';
+        document.querySelectorAll('.js-leg-point-col').forEach((el) => { el.textContent = label; });
+    };
+
+    const needsStopForLeg = (stu) => {
+        const leg = currentLeg();
+        const pointId = leg === 'evening' ? stu.evening_point_id : stu.morning_point_id;
+        return !pointId || Number(pointId) === Number(ownMeansPointId);
+    };
+
+    const validateDraftStops = () => {
+        const missing = [];
+        draft.forEach((stu) => {
+            if (needsStopForLeg(stu)) {
+                missing.push(stu.full_name || ('Student #' + stu.id));
+            }
+        });
+        return missing;
+    };
+
+    const isLockedForLeg = (stu) => {
+        const leg = currentLeg();
+        if (leg === 'evening') {
+            return Boolean(stu.on_trip_evening || stu.evening_trip_id || stu.evening_trip_name);
+        }
+        return Boolean(stu.on_trip_morning || stu.morning_trip_id || stu.morning_trip_name);
+    };
+
+    const tripBadgeForLeg = (stu) => {
+        const leg = currentLeg();
+        const tripName = leg === 'evening'
+            ? (stu.evening_trip_name || (stu.on_trip_evening ? currentTripName : null))
+            : (stu.morning_trip_name || (stu.on_trip_morning ? currentTripName : null));
+        if (!tripName) return '';
+        const onThis = leg === 'evening' ? stu.on_trip_evening : stu.on_trip_morning;
+        const cls = onThis ? 'bg-secondary' : 'bg-warning text-dark';
+        const prefix = leg === 'evening' ? 'Evening' : 'Morning';
+        return ` <span class="badge ${cls}">${prefix}: ${escapeHtml(tripName)}</span>`;
+    };
 
     const escapeHtml = (s) => {
         if (s == null || s === '') return '';
@@ -416,8 +460,12 @@
         draft.forEach((stu) => {
             const tr = document.createElement('tr');
             tr.dataset.draftId = String(stu.id);
+            const needsStop = needsStopForLeg(stu);
+            if (needsStop) {
+                tr.classList.add('table-warning');
+            }
             tr.innerHTML = `
-                <td class="fw-semibold">${escapeHtml(stu.full_name)}</td>
+                <td class="fw-semibold">${escapeHtml(stu.full_name)}${needsStop ? ' <span class="badge bg-warning text-dark">Pick stop</span>' : ''}</td>
                 <td>${escapeHtml(stu.admission_number || '')}</td>
                 <td>${escapeHtml(stu.classroom_name || '—')}</td>
                 <td>${escapeHtml(stu.stream_name || '—')}</td>
@@ -515,7 +563,7 @@
 
     const addToDraft = (stu, { suggest = true } = {}) => {
         const id = Number(stu.id);
-        if (!id || alreadyAssigned.has(id) || draft.has(id)) return false;
+        if (!id || draft.has(id) || isLockedForLeg(stu) || alreadyAssigned.has(id)) return false;
         draft.set(id, {
             ...stu,
             morning_point_id: stu.morning_point_id || null,
@@ -527,41 +575,43 @@
     };
 
     const refreshChecks = () => {
-        document.querySelectorAll('input[data-student-check]').forEach((cb) => {
-            const id = Number(cb.value);
+        document.querySelectorAll('tr[data-search-row]').forEach((tr) => {
+            const stu = tr._studentData;
+            const cb = tr.querySelector('input[data-student-check]');
+            if (!stu || !cb) return;
+            const locked = isLockedForLeg(stu);
+            const id = Number(stu.id);
             cb.checked = draft.has(id);
-            cb.disabled = alreadyAssigned.has(id);
+            cb.disabled = locked;
+            tr.classList.toggle('table-secondary', locked);
+            tr.style.opacity = locked ? '0.65' : '';
         });
     };
 
     const studentRowHtml = (stu) => {
-        const onThisTrip = alreadyAssigned.has(Number(stu.id)) || stu.on_trip;
+        const locked = isLockedForLeg(stu);
         const inDraft = draft.has(Number(stu.id));
+        const leg = currentLeg();
+        const point = leg === 'evening' ? (stu.evening_point || '—') : (stu.morning_point || '—');
         const badges = [];
-        if (onThisTrip) {
-            badges.push('<span class="badge bg-secondary">On this trip</span>');
+        const tripBadge = tripBadgeForLeg(stu);
+        if (tripBadge) badges.push(tripBadge.trim());
+        const ownMeansOnLeg = needsStopForLeg(stu) && !locked;
+        if (ownMeansOnLeg) {
+            badges.push('<span class="badge bg-light text-dark border">Own means</span>');
         }
-        if (stu.other_morning_trip) {
-            badges.push(`<span class="badge bg-warning text-dark" title="Already on another morning trip">Morning: ${escapeHtml(stu.other_morning_trip)}</span>`);
-        }
-        if (stu.other_evening_trip) {
-            badges.push(`<span class="badge bg-info text-dark" title="Already on another evening trip">Evening: ${escapeHtml(stu.other_evening_trip)}</span>`);
-        }
-        if (inDraft && !onThisTrip) {
-            badges.push('<span class="badge bg-success">In draft</span>');
-        }
+        if (inDraft && !locked) badges.push('<span class="badge bg-success">In draft</span>');
         const badgeHtml = badges.length ? ' ' + badges.join(' ') : '';
         return `
             <td>
                 <input type="checkbox" class="form-check-input" data-student-check value="${stu.id}"
-                    ${onThisTrip ? 'disabled' : ''} ${inDraft ? 'checked' : ''}>
+                    ${locked ? 'disabled' : ''} ${inDraft && !locked ? 'checked' : ''}>
             </td>
             <td class="fw-semibold">${escapeHtml(stu.full_name)}${badgeHtml}</td>
             <td>${escapeHtml(stu.admission_number || '')}</td>
             <td>${escapeHtml(stu.classroom_name || '—')}</td>
             <td>${escapeHtml(stu.stream_name || '—')}</td>
-            <td>${escapeHtml(stu.morning_point || '—')}</td>
-            <td>${escapeHtml(stu.evening_point || '—')}</td>
+            <td>${escapeHtml(point)}</td>
         `;
     };
 
@@ -569,9 +619,14 @@
         container.querySelectorAll('input[data-student-check]').forEach((cb) => {
             cb.addEventListener('change', () => {
                 const id = Number(cb.value);
+                const row = cb.closest('tr');
+                const stu = row && row._studentData ? row._studentData : { id };
+                if (isLockedForLeg(stu)) {
+                    cb.checked = false;
+                    cb.disabled = true;
+                    return;
+                }
                 if (cb.checked) {
-                    const row = cb.closest('tr');
-                    const stu = row && row._studentData ? row._studentData : { id };
                     addToDraft(stu, { suggest: true });
                 } else {
                     draft.delete(id);
@@ -585,12 +640,17 @@
     const renderTable = (tbody, items, emptyMsg) => {
         tbody.innerHTML = '';
         if (!items.length) {
-            tbody.innerHTML = `<tr class="text-muted"><td colspan="7" class="text-center py-4">${escapeHtml(emptyMsg)}</td></tr>`;
+            tbody.innerHTML = `<tr class="text-muted"><td colspan="6" class="text-center py-4">${escapeHtml(emptyMsg)}</td></tr>`;
             return;
         }
         items.forEach((stu) => {
             const tr = document.createElement('tr');
+            tr.dataset.searchRow = '1';
             tr._studentData = stu;
+            if (isLockedForLeg(stu)) {
+                tr.classList.add('table-secondary');
+                tr.style.opacity = '0.65';
+            }
             tr.innerHTML = studentRowHtml(stu);
             tbody.appendChild(tr);
         });
@@ -599,19 +659,21 @@
 
     const search = async (q) => {
         if (!q || q.trim().length < 1) {
-            resultsBody.innerHTML = '<tr class="text-muted"><td colspan="7" class="text-center py-4">Start typing to search students.</td></tr>';
+            lastSearchItems = [];
+            resultsBody.innerHTML = '<tr class="text-muted"><td colspan="6" class="text-center py-4">Start typing to search students.</td></tr>';
             return;
         }
-        resultsBody.innerHTML = '<tr class="text-muted"><td colspan="7" class="text-center py-4">Searching…</td></tr>';
+        resultsBody.innerHTML = '<tr class="text-muted"><td colspan="6" class="text-center py-4">Searching…</td></tr>';
         try {
             const res = await fetch(`${searchUrl}?q=${encodeURIComponent(q.trim())}`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
             });
             const data = await res.json();
-            renderTable(resultsBody, Array.isArray(data) ? data : [], 'No students found.');
+            lastSearchItems = Array.isArray(data) ? data : [];
+            renderTable(resultsBody, lastSearchItems, 'No students found.');
         } catch (e) {
-            resultsBody.innerHTML = '<tr class="text-danger"><td colspan="7" class="text-center py-4">Search failed. Try again.</td></tr>';
+            resultsBody.innerHTML = '<tr class="text-danger"><td colspan="6" class="text-center py-4">Search failed. Try again.</td></tr>';
         }
     };
 
@@ -619,7 +681,7 @@
         const id = Number(stu.id);
         if (!id || lastSuggestFor === id) return;
         lastSuggestFor = id;
-        const leg = legSelect.value || 'morning';
+        const leg = currentLeg();
         const pointId = leg === 'evening' ? (stu.evening_point_id || '') : (stu.morning_point_id || '');
         try {
             let url = `${suggestUrl}?student_id=${id}&leg=${encodeURIComponent(leg)}`;
@@ -629,7 +691,8 @@
                 credentials: 'same-origin',
             });
             const data = await res.json();
-            const list = Array.isArray(data.students) ? data.students.filter((s) => !draft.has(Number(s.id)) && !alreadyAssigned.has(Number(s.id))) : [];
+            lastSuggestItems = Array.isArray(data.students) ? data.students : [];
+            const list = lastSuggestItems.filter((s) => !draft.has(Number(s.id)) && !isLockedForLeg(s));
             if (!list.length) {
                 suggestionsCard.style.display = 'none';
                 return;
@@ -649,9 +712,28 @@
         debounceTimer = setTimeout(() => search(searchInput.value), 350);
     });
 
+    legSelect.addEventListener('change', () => {
+        syncLegHeaders();
+        lastSuggestFor = null;
+        if (lastSearchItems.length) {
+            renderTable(resultsBody, lastSearchItems, 'No students found.');
+        }
+        if (suggestionsCard.style.display !== 'none' && lastSuggestItems.length) {
+            const list = lastSuggestItems.filter((s) => !draft.has(Number(s.id)) && !isLockedForLeg(s));
+            if (list.length) {
+                renderTable(suggestionsBody, list, 'No suggestions.');
+            } else {
+                suggestionsCard.style.display = 'none';
+            }
+        }
+        refreshChecks();
+    });
+
     document.getElementById('addAllResults').addEventListener('click', () => {
         resultsBody.querySelectorAll('tr').forEach((tr) => {
-            if (tr._studentData) addToDraft(tr._studentData, { suggest: false });
+            if (tr._studentData && !isLockedForLeg(tr._studentData)) {
+                addToDraft(tr._studentData, { suggest: false });
+            }
         });
         refreshChecks();
         const first = [...draft.values()].slice(-1)[0];
@@ -660,7 +742,9 @@
 
     document.getElementById('addAllSuggestions').addEventListener('click', () => {
         suggestionsBody.querySelectorAll('tr').forEach((tr) => {
-            if (tr._studentData) addToDraft(tr._studentData, { suggest: false });
+            if (tr._studentData && !isLockedForLeg(tr._studentData)) {
+                addToDraft(tr._studentData, { suggest: false });
+            }
         });
         refreshChecks();
         suggestionsCard.style.display = 'none';
@@ -698,6 +782,16 @@
         });
     });
 
+    document.getElementById('tripAssignForm')?.addEventListener('submit', (e) => {
+        const missing = validateDraftStops();
+        if (!missing.length) return;
+        e.preventDefault();
+        const legLabel = currentLeg() === 'evening' ? 'evening drop-off' : 'morning pickup';
+        alert(`Select a real ${legLabel} (not Own means) for:\n\n` + missing.slice(0, 12).join('\n') + (missing.length > 12 ? '\n…' : ''));
+        renderDraft();
+    });
+
+    syncLegHeaders();
     syncDraftForm();
 })();
 </script>

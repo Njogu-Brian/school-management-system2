@@ -380,20 +380,18 @@ class TripController extends Controller
         $onTripMorning = $morningTripId === $currentTripId;
         $onTripEvening = $eveningTripId === $currentTripId;
 
-        $morningTripName = null;
-        $eveningTripName = null;
-        if ($morningTripId && $morningTripId !== $currentTripId) {
-            $morningTripName = $assignment?->morningTrip?->trip_name
+        $morningTripName = $morningTripId
+            ? ($assignment?->morningTrip?->trip_name
                 ?? $assignment?->morningTrip?->name
-                ?? ('Trip #'.$morningTripId);
-        }
-        if ($eveningTripId && $eveningTripId !== $currentTripId) {
-            $eveningTripName = $assignment?->eveningTrip?->trip_name
+                ?? ($onTripMorning ? $trip->trip_name : null)
+                ?? ('Trip #'.$morningTripId))
+            : null;
+        $eveningTripName = $eveningTripId
+            ? ($assignment?->eveningTrip?->trip_name
                 ?? $assignment?->eveningTrip?->name
-                ?? ('Trip #'.$eveningTripId);
-        }
-
-        $onOtherTrip = (bool) ($morningTripName || $eveningTripName);
+                ?? ($onTripEvening ? $trip->trip_name : null)
+                ?? ('Trip #'.$eveningTripId))
+            : null;
 
         return [
             'id' => $st->id,
@@ -408,9 +406,11 @@ class TripController extends Controller
             'on_trip_morning' => $onTripMorning,
             'on_trip_evening' => $onTripEvening,
             'on_trip' => $onTripMorning || $onTripEvening,
-            'on_other_trip' => $onOtherTrip,
-            'other_morning_trip' => $morningTripName,
-            'other_evening_trip' => $eveningTripName,
+            'morning_trip_name' => $morningTripName,
+            'evening_trip_name' => $eveningTripName,
+            'other_morning_trip' => ($morningTripId && !$onTripMorning) ? $morningTripName : null,
+            'other_evening_trip' => ($eveningTripId && !$onTripEvening) ? $eveningTripName : null,
+            'on_other_trip' => (bool) (($morningTripId && !$onTripMorning) || ($eveningTripId && !$onTripEvening)),
             'morning_trip_id' => $morningTripId,
             'evening_trip_id' => $eveningTripId,
         ];
@@ -433,14 +433,53 @@ class TripController extends Controller
 
         $leg = $validated['leg'];
         $column = $leg === 'morning' ? 'morning_trip_id' : 'evening_trip_id';
+        $pointColumn = $leg === 'morning' ? 'morning_drop_off_point_id' : 'evening_drop_off_point_id';
         $studentIds = array_map('intval', $validated['student_ids']);
         $morningPoints = $validated['morning_drop_off_point_ids'] ?? [];
         $eveningPoints = $validated['evening_drop_off_point_ids'] ?? [];
+        $ownMeansId = DropOffPoint::ownMeans()->id;
+        $missingStops = [];
+
+        foreach ($studentIds as $studentId) {
+            $student = Student::withoutGlobalScope('active')->find($studentId);
+            if (!$student) {
+                continue;
+            }
+
+            $assignment = StudentAssignment::where('student_id', $studentId)->first();
+            $map = $leg === 'morning' ? $morningPoints : $eveningPoints;
+            $fromRequest = false;
+            $raw = null;
+            if (array_key_exists($studentId, $map) || array_key_exists((string) $studentId, $map)) {
+                $raw = $map[$studentId] ?? $map[(string) $studentId] ?? null;
+                $fromRequest = true;
+            }
+
+            $pointId = $fromRequest
+                ? ($raw !== null && $raw !== '' ? (int) $raw : null)
+                : ($assignment?->{$pointColumn} ?: $student->drop_off_point_id);
+
+            if (!$pointId || (int) $pointId === (int) $ownMeansId) {
+                $missingStops[] = trim(implode(' ', array_filter([
+                    $student->first_name,
+                    $student->middle_name,
+                    $student->last_name,
+                ]))) ?: ("Student #{$studentId}");
+            }
+        }
+
+        if ($missingStops) {
+            $legLabel = $leg === 'evening' ? 'evening drop-off' : 'morning pickup';
+
+            return redirect()
+                ->route('transport.trips.assign', $trip)
+                ->withInput()
+                ->with('error', 'Select a real '.$legLabel.' (not Own means) before saving for: '.implode(', ', array_slice($missingStops, 0, 8)).(count($missingStops) > 8 ? '…' : ''));
+        }
+
         $assigned = 0;
 
-        DB::transaction(function () use ($studentIds, $column, $trip, $morningPoints, $eveningPoints, &$assigned) {
-            $ownMeansId = DropOffPoint::ownMeans()->id;
-
+        DB::transaction(function () use ($studentIds, $column, $trip, $morningPoints, $eveningPoints, $ownMeansId, &$assigned) {
             foreach ($studentIds as $studentId) {
                 $student = Student::withoutGlobalScope('active')->find($studentId);
                 if (!$student) {
