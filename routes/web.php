@@ -691,6 +691,8 @@ Route::middleware('auth')->group(function () {
             Route::resource('vehicles',VehicleController::class)->except(['show']);
             Route::get('trips/{trip}/assign', [TripController::class, 'assign'])->name('trips.assign');
             Route::post('trips/{trip}/assign', [TripController::class, 'assignStore'])->name('trips.assign.store');
+            Route::get('trips/{trip}/assign/search', [TripController::class, 'assignSearch'])->name('trips.assign.search');
+            Route::get('trips/{trip}/assign/suggest', [TripController::class, 'assignSuggest'])->name('trips.assign.suggest');
             Route::delete('trips/{trip}/assign/{student}', [TripController::class, 'unassign'])->name('trips.unassign');
             Route::resource('trips', TripController::class)->except(['show']);
             Route::resource('dropoffpoints', DropOffPointController::class);

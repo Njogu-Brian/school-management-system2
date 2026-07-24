@@ -149,7 +149,13 @@ class TripController extends Controller
         $leg = $trip->assignmentLeg() ?? 'morning';
 
         $assigned = StudentAssignment::query()
-            ->with(['student.classroom', 'student.stream'])
+            ->with([
+                'student.classroom',
+                'student.stream',
+                'student.dropOffPoint',
+                'morningDropOffPoint',
+                'eveningDropOffPoint',
+            ])
             ->where(function ($q) use ($trip) {
                 $q->where('morning_trip_id', $trip->id)
                     ->orWhere('evening_trip_id', $trip->id);
@@ -166,6 +172,173 @@ class TripController extends Controller
             'assigned' => $assigned,
             'defaultLeg' => $leg,
         ]);
+    }
+
+    /**
+     * Search students for trip assignment (includes morning/evening points).
+     */
+    public function assignSearch(Request $request, Trip $trip)
+    {
+        $q = trim((string) $request->input('q', ''));
+        if ($q === '') {
+            return response()->json([]);
+        }
+
+        $searchTerm = '%' . addcslashes(mb_strtolower($q, 'UTF-8'), '%_\\') . '%';
+        $normalizedAdmission = mb_strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $q), 'UTF-8');
+
+        $students = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->where(function ($s) use ($searchTerm, $normalizedAdmission) {
+                $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])
+                    ->orWhereRaw('LOWER(middle_name) LIKE ?', [$searchTerm])
+                    ->orWhereRaw('LOWER(last_name) LIKE ?', [$searchTerm])
+                    ->orWhereRaw('LOWER(admission_number) LIKE ?', [$searchTerm]);
+                if ($normalizedAdmission !== '') {
+                    $s->orWhereRaw(
+                        'LOWER(REPLACE(REPLACE(REPLACE(admission_number, " ", ""), "-", ""), "/", "")) LIKE ?',
+                        ['%' . $normalizedAdmission . '%']
+                    );
+                }
+            })
+            ->with([
+                'classroom',
+                'stream',
+                'dropOffPoint',
+                'assignments.morningDropOffPoint',
+                'assignments.eveningDropOffPoint',
+            ])
+            ->orderBy('first_name')
+            ->limit(30)
+            ->get();
+
+        return response()->json($students->map(fn (Student $st) => $this->formatStudentForTripAssign($st, $trip)));
+    }
+
+    /**
+     * Suggest students with similar pickup/drop-off points to a selected student.
+     */
+    public function assignSuggest(Request $request, Trip $trip)
+    {
+        $request->validate([
+            'student_id' => 'required|integer|exists:students,id',
+            'leg' => 'nullable|in:morning,evening',
+        ]);
+
+        $leg = $request->input('leg', $trip->assignmentLeg() ?? 'morning');
+        $seed = Student::withoutGlobalScope('active')
+            ->with(['dropOffPoint', 'assignments.morningDropOffPoint', 'assignments.eveningDropOffPoint'])
+            ->findOrFail((int) $request->student_id);
+
+        $seedAssignment = $seed->assignments->first();
+        $pointId = null;
+        $pointName = null;
+
+        if ($leg === 'evening') {
+            $pointId = $seedAssignment?->evening_drop_off_point_id ?: $seed->drop_off_point_id;
+            $pointName = optional($seedAssignment?->eveningDropOffPoint)->name
+                ?? optional($seed->dropOffPoint)->name
+                ?? $seed->drop_off_point_other;
+        } else {
+            $pointId = $seedAssignment?->morning_drop_off_point_id ?: $seed->drop_off_point_id;
+            $pointName = optional($seedAssignment?->morningDropOffPoint)->name
+                ?? optional($seed->dropOffPoint)->name
+                ?? $seed->drop_off_point_other;
+        }
+
+        if (!$pointId && (!$pointName || trim((string) $pointName) === '')) {
+            return response()->json([
+                'seed_student_id' => $seed->id,
+                'point_label' => null,
+                'students' => [],
+            ]);
+        }
+
+        $alreadyOnTrip = StudentAssignment::query()
+            ->where(function ($q) use ($trip) {
+                $q->where('morning_trip_id', $trip->id)->orWhere('evening_trip_id', $trip->id);
+            })
+            ->pluck('student_id')
+            ->all();
+
+        $excludeIds = array_values(array_unique(array_merge($alreadyOnTrip, [$seed->id])));
+
+        $query = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNotIn('id', $excludeIds)
+            ->with([
+                'classroom',
+                'stream',
+                'dropOffPoint',
+                'assignments.morningDropOffPoint',
+                'assignments.eveningDropOffPoint',
+            ]);
+
+        if ($pointId) {
+            $query->where(function ($q) use ($pointId, $leg) {
+                $q->where('drop_off_point_id', $pointId)
+                    ->orWhereHas('assignments', function ($a) use ($pointId, $leg) {
+                        if ($leg === 'evening') {
+                            $a->where('evening_drop_off_point_id', $pointId);
+                        } else {
+                            $a->where('morning_drop_off_point_id', $pointId);
+                        }
+                    });
+            });
+        } elseif ($pointName) {
+            $name = trim((string) $pointName);
+            $query->where(function ($q) use ($name) {
+                $q->whereRaw('LOWER(drop_off_point_other) = ?', [mb_strtolower($name)])
+                    ->orWhereHas('dropOffPoint', function ($d) use ($name) {
+                        $d->whereRaw('LOWER(name) = ?', [mb_strtolower($name)]);
+                    });
+            });
+        }
+
+        $students = $query->orderBy('first_name')->limit(40)->get();
+
+        return response()->json([
+            'seed_student_id' => $seed->id,
+            'point_label' => $pointName,
+            'leg' => $leg,
+            'students' => $students->map(fn (Student $st) => $this->formatStudentForTripAssign($st, $trip))->values(),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatStudentForTripAssign(Student $st, Trip $trip): array
+    {
+        $full = trim(implode(' ', array_filter([$st->first_name, $st->middle_name, $st->last_name])));
+        $assignment = $st->relationLoaded('assignments') ? $st->assignments->first() : $st->assignments()->first();
+
+        $morningPoint = optional($assignment?->morningDropOffPoint)->name
+            ?? optional($st->dropOffPoint)->name
+            ?? $st->drop_off_point_other;
+        $eveningPoint = optional($assignment?->eveningDropOffPoint)->name
+            ?? optional($st->dropOffPoint)->name
+            ?? $st->drop_off_point_other;
+
+        $onTripMorning = (int) ($assignment?->morning_trip_id) === (int) $trip->id;
+        $onTripEvening = (int) ($assignment?->evening_trip_id) === (int) $trip->id;
+
+        return [
+            'id' => $st->id,
+            'full_name' => $full,
+            'admission_number' => $st->admission_number ?? '',
+            'classroom_name' => $st->classroom?->name,
+            'stream_name' => $st->stream?->name,
+            'morning_point' => $morningPoint,
+            'evening_point' => $eveningPoint,
+            'morning_point_id' => $assignment?->morning_drop_off_point_id ?: $st->drop_off_point_id,
+            'evening_point_id' => $assignment?->evening_drop_off_point_id ?: $st->drop_off_point_id,
+            'on_trip_morning' => $onTripMorning,
+            'on_trip_evening' => $onTripEvening,
+            'on_trip' => $onTripMorning || $onTripEvening,
+        ];
     }
 
     /**
