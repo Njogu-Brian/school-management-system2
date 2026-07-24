@@ -15,13 +15,66 @@ class DropOffPointController extends Controller
     {
         DropOffPoint::ownMeans();
 
-        $dropOffPoints = DropOffPoint::with(['vehicles'])
-            ->withCount([
-                'morningAssignments',
-                'eveningAssignments',
-            ])
-            ->orderBy('name')
+        $dropOffPoints = DropOffPoint::orderBy('name')->get();
+
+        // Students using + vehicles serving each point come from trip assignments
+        // (morning/evening legs), not the unused drop_off_point_vehicle pivot.
+        $usageByPoint = [];
+        $assignments = StudentAssignment::query()
+            ->with(['morningTrip.vehicle', 'eveningTrip.vehicle'])
+            ->where(function ($q) {
+                $q->whereNotNull('morning_drop_off_point_id')
+                    ->orWhereNotNull('evening_drop_off_point_id');
+            })
             ->get();
+
+        foreach ($assignments as $assignment) {
+            if ($assignment->morning_drop_off_point_id) {
+                $pid = (int) $assignment->morning_drop_off_point_id;
+                $usageByPoint[$pid] ??= [
+                    'student_ids' => [],
+                    'morning' => 0,
+                    'evening' => 0,
+                    'vehicles' => [],
+                ];
+                $usageByPoint[$pid]['student_ids'][$assignment->student_id] = true;
+                $usageByPoint[$pid]['morning']++;
+                $vehicle = $assignment->morningTrip?->vehicle;
+                if ($vehicle) {
+                    $label = $vehicle->vehicle_number
+                        ?? $vehicle->registration_number
+                        ?? ('Vehicle #'.$vehicle->id);
+                    $usageByPoint[$pid]['vehicles'][$vehicle->id] = $label;
+                }
+            }
+
+            if ($assignment->evening_drop_off_point_id) {
+                $pid = (int) $assignment->evening_drop_off_point_id;
+                $usageByPoint[$pid] ??= [
+                    'student_ids' => [],
+                    'morning' => 0,
+                    'evening' => 0,
+                    'vehicles' => [],
+                ];
+                $usageByPoint[$pid]['student_ids'][$assignment->student_id] = true;
+                $usageByPoint[$pid]['evening']++;
+                $vehicle = $assignment->eveningTrip?->vehicle;
+                if ($vehicle) {
+                    $label = $vehicle->vehicle_number
+                        ?? $vehicle->registration_number
+                        ?? ('Vehicle #'.$vehicle->id);
+                    $usageByPoint[$pid]['vehicles'][$vehicle->id] = $label;
+                }
+            }
+        }
+
+        foreach ($dropOffPoints as $point) {
+            $stats = $usageByPoint[(int) $point->id] ?? null;
+            $point->students_using_count = $stats ? count($stats['student_ids']) : 0;
+            $point->morning_users_count = $stats['morning'] ?? 0;
+            $point->evening_users_count = $stats['evening'] ?? 0;
+            $point->trip_vehicles = collect($stats['vehicles'] ?? [])->values();
+        }
 
         return view('dropoffpoints.index', compact('dropOffPoints'));
     }
@@ -71,10 +124,9 @@ class DropOffPointController extends Controller
 
         $inUse = StudentAssignment::where('morning_drop_off_point_id', $dropoffpoint->id)
             ->orWhere('evening_drop_off_point_id', $dropoffpoint->id)
-            ->orWhere('drop_off_point_id', $dropoffpoint->id)
             ->exists();
 
-        if ($inUse || $dropoffpoint->assignments()->exists()) {
+        if ($inUse) {
             return redirect()->route('transport.dropoffpoints.index')
                 ->with('error', 'Cannot delete drop-off point with assigned students.');
         }
@@ -94,8 +146,7 @@ class DropOffPointController extends Controller
         $import = new DropOffPointsImport();
         Excel::import($import, $request->file('file'));
 
-        $msg = "Import complete. Created: {$import->created}, Updated/Restored: {$import->updated}, "
-            . "Vehicle links added: {$import->vehicleLinks}.";
+        $msg = "Import complete. Created: {$import->created}, Updated/Restored: {$import->updated}.";
 
         return redirect()->route('transport.dropoffpoints.index')->with('success', $msg);
     }
@@ -107,9 +158,13 @@ class DropOffPointController extends Controller
 
     public function edit(DropOffPoint $dropoffpoint)
     {
-        $usageCount = StudentAssignment::where('morning_drop_off_point_id', $dropoffpoint->id)
-            ->orWhere('evening_drop_off_point_id', $dropoffpoint->id)
-            ->count();
+        $usageCount = StudentAssignment::query()
+            ->where(function ($q) use ($dropoffpoint) {
+                $q->where('morning_drop_off_point_id', $dropoffpoint->id)
+                    ->orWhere('evening_drop_off_point_id', $dropoffpoint->id);
+            })
+            ->distinct()
+            ->count('student_id');
 
         return view('dropoffpoints.edit', [
             'dropOffPoint' => $dropoffpoint,
@@ -124,12 +179,12 @@ class DropOffPointController extends Controller
 
     public function template(): StreamedResponse
     {
-        $headers = ['name', 'two_way_amount', 'one_way_amount', 'vehicle_ids', 'vehicle_regs'];
+        $headers = ['name', 'two_way_amount', 'one_way_amount'];
         $callback = function () use ($headers) {
             $fh = fopen('php://output', 'w');
             fputcsv($fh, $headers);
-            fputcsv($fh, ['Kabete', '8000', '5000', '', '']);
-            fputcsv($fh, ['Wangige', '6000', '3500', '', '']);
+            fputcsv($fh, ['Kabete', '8000', '5000']);
+            fputcsv($fh, ['Wangige', '6000', '3500']);
             fclose($fh);
         };
 

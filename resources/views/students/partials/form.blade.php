@@ -233,11 +233,12 @@
       </select>
       <input type="text" name="drop_off_point_other" id="drop_off_point_other" class="form-control mt-2"
              placeholder="Type drop-off point" value="{{ old('drop_off_point_other', $s->drop_off_point_other ?? '') }}">
+      <div class="form-text">Used for morning &amp; evening legs; fee is calculated from point rates.</div>
     </div>
     <div class="col-md-4 transport-field">
-      <label class="form-label">Transport Fee (this term)</label>
-      <input type="number" step="0.01" name="transport_fee_amount" class="form-control" value="{{ old('transport_fee_amount') }}" placeholder="0.00">
-      <div class="form-text">Added to this term's invoice alongside other charges.</div>
+      <label class="form-label">Transport Fee override (optional)</label>
+      <input type="number" step="0.01" name="transport_fee_amount" class="form-control" value="{{ old('transport_fee_amount') }}" placeholder="Auto from rates">
+      <div class="form-text">Leave blank to bill from drop-off rates. Only enter an amount if rates are missing.</div>
     </div>
   </div>
 

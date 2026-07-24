@@ -281,6 +281,58 @@ class TransportFeeService
     }
 
     /**
+     * Seed morning/evening assignment legs from the enrollment drop-off point
+     * and create/update the transport fee from route rates (fallback to manual amount).
+     */
+    public static function billFromEnrollmentDropOff(
+        Student $student,
+        ?float $fallbackAmount = null,
+        string $source = 'admission',
+        ?string $note = null,
+        bool $skipInvoice = true
+    ): ?TransportFee {
+        $pointId = $student->drop_off_point_id ? (int) $student->drop_off_point_id : null;
+
+        if ($pointId) {
+            $assignment = StudentAssignment::firstOrNew(['student_id' => $student->id]);
+            $assignment->morning_drop_off_point_id = $pointId;
+            $assignment->evening_drop_off_point_id = $pointId;
+            $assignment->save();
+
+            $outcome = self::recalculateForStudent(
+                (int) $student->id,
+                $student->enrollment_year ? (int) $student->enrollment_year : null,
+                $student->enrollment_term ? (int) $student->enrollment_term : null,
+                $skipInvoice,
+                $source,
+                $note ?? 'Calculated from enrollment drop-off point'
+            );
+
+            if ($outcome['updated']) {
+                return $outcome['fee'];
+            }
+        }
+
+        if ($fallbackAmount === null) {
+            return null;
+        }
+
+        return self::upsertFee([
+            'student_id' => $student->id,
+            'amount' => $fallbackAmount,
+            'drop_off_point_id' => $pointId,
+            'drop_off_point_name' => $student->drop_off_point
+                ?? optional(DropOffPoint::find($pointId))->name,
+            'source' => $source,
+            'note' => $note ?? 'Captured during enrollment (manual amount — route rates unavailable)',
+            'year' => $student->enrollment_year ? (int) $student->enrollment_year : null,
+            'term' => $student->enrollment_term ? (int) $student->enrollment_term : null,
+            'pricing_mode' => 'imported',
+            'skip_invoice' => $skipInvoice,
+        ]);
+    }
+
+    /**
      * Recalculate fees for many students (e.g. classroom).
      *
      * @param  array<int, int>  $studentIds

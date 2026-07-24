@@ -24,6 +24,7 @@ use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\TripController;
 use App\Http\Controllers\DropOffPointController;
 use App\Http\Controllers\StudentAssignmentController;
+use App\Http\Controllers\StudentDropOffController;
 
 // Staff / HR
 use App\Http\Controllers\Hr\StaffController;
@@ -697,6 +698,8 @@ Route::middleware('auth')->group(function () {
             Route::delete('trips/{trip}/assign/{student}', [TripController::class, 'unassign'])->name('trips.unassign');
             Route::resource('trips', TripController::class)->except(['show']);
             Route::resource('dropoffpoints', DropOffPointController::class);
+            Route::get('student-dropoffs', [StudentDropOffController::class, 'index'])->name('student-dropoffs.index');
+            Route::post('student-dropoffs', [StudentDropOffController::class, 'update'])->name('student-dropoffs.update');
             Route::resource('student-assignments', StudentAssignmentController::class)
                 ->parameters(['student-assignments' => 'student_assignment']);
             Route::get('student-assignments/bulk/assign', [StudentAssignmentController::class, 'bulkAssign'])->name('student-assignments.bulk-assign');

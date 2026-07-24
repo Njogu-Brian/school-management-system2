@@ -676,6 +676,14 @@ class="{{ $isTransportActive ? 'parent-active' : '' }}">
         class="sublink {{ Request::is('transport/trips*') ? 'active' : '' }}">
         <i class="bi bi-geo"></i> Trips
         </a>
+        <a href="{{ route('transport.student-dropoffs.index') }}"
+        class="sublink {{ Request::is('transport/student-dropoffs*') ? 'active' : '' }}">
+        <i class="bi bi-geo-alt"></i> Student Drop-offs
+        </a>
+        <a href="{{ route('transport.dropoffpoints.index') }}"
+        class="sublink {{ Request::is('transport/dropoffpoints*') ? 'active' : '' }}">
+        <i class="bi bi-pin-map"></i> Drop-off Rates
+        </a>
         <a href="{{ route('transport.student-assignments.index') }}" 
         class="sublink {{ Request::is('transport/student-assignments*') ? 'active' : '' }}">
         <i class="bi bi-people"></i> Assignments

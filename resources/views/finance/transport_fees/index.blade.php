@@ -11,9 +11,11 @@
     ])
 
     <div class="transport-info-pill mb-3">
-      <strong>Pricing:</strong> same point → two-way fare · different points → half of each two-way · Own Means on one leg → one-way of the other.
-      Parent discounts → <em>Fee Concessions (Transport)</em>. Late join / area move adjustments → <em>Credit/Debit Notes</em> after list price updates and Post Pending Fees.
-      <a href="{{ route('transport.dropoffpoints.index') }}">Manage rates</a>
+      <strong>Fees only:</strong> morning/evening points are managed in Transport.
+      Same point → two-way · different points → half of each two-way · Own Means on one leg → one-way of the other.
+      Parent discounts → <em>Fee Concessions (Transport)</em>. Mid-term moves → <em>Credit/Debit Notes</em> after Post Pending Fees.
+      <a href="{{ route('transport.student-dropoffs.index') }}">Manage student drop-offs</a>
+      · <a href="{{ route('transport.dropoffpoints.index') }}">Manage rates</a>
     </div>
 
     @if(session('success'))
@@ -109,7 +111,7 @@
           </div>
           <div class="finance-card-body transport-card-body p-0">
             @if($students->count())
-            <form method="POST" action="{{ route('finance.transport-fees.bulk-update') }}" id="transport-fees-form">
+            <form method="POST" action="{{ route('finance.transport-fees.recalculate') }}" id="transport-fees-form">
               @csrf
               <input type="hidden" name="year" value="{{ $year }}">
               <input type="hidden" name="term" value="{{ $term }}">
@@ -125,9 +127,8 @@
                       <tr>
                         <th>Student</th>
                         <th>Class</th>
-                        <th>Morning Drop-off</th>
-                        <th>Evening Drop-off</th>
-                        <th>Drop-off point <small class="text-muted">(Legacy)</small></th>
+                        <th>Morning pickup</th>
+                        <th>Evening drop-off</th>
                         <th class="text-end">List price (KES)</th>
                       </tr>
                     </thead>
@@ -138,6 +139,14 @@
                           $assignment = $assignmentMap[$student->id] ?? null;
                           $amount = $fee?->amount;
                           $breakdownLabel = $fee?->pricing_breakdown['label'] ?? null;
+                          $morningName = optional($assignment?->morningDropOffPoint)->name
+                              ?? optional($student->dropOffPoint)->name
+                              ?? $student->drop_off_point_other
+                              ?? '—';
+                          $eveningName = optional($assignment?->eveningDropOffPoint)->name
+                              ?? optional($student->dropOffPoint)->name
+                              ?? $student->drop_off_point_other
+                              ?? '—';
                         @endphp
                         <tr class="transport-table-row">
                           <td>
@@ -145,39 +154,16 @@
                             <div class="transport-student-adm">Adm: {{ $student->admission_number }}</div>
                           </td>
                           <td>{{ $student->classroom?->name ?? '—' }}</td>
-                          <td>
-                            <select name="fees[{{ $student->id }}][morning_drop_off_point_id]" class="finance-form-select">
-                              <option value="">—</option>
-                              @foreach($dropOffPoints as $point)
-                                <option value="{{ $point->id }}" @selected(old("fees.{$student->id}.morning_drop_off_point_id", $assignment?->morning_drop_off_point_id) == $point->id)>{{ $point->name }}</option>
-                              @endforeach
-                            </select>
-                          </td>
-                          <td>
-                            <select name="fees[{{ $student->id }}][evening_drop_off_point_id]" class="finance-form-select">
-                              <option value="">—</option>
-                              @foreach($dropOffPoints as $point)
-                                <option value="{{ $point->id }}" @selected(old("fees.{$student->id}.evening_drop_off_point_id", $assignment?->evening_drop_off_point_id) == $point->id)>{{ $point->name }}</option>
-                              @endforeach
-                            </select>
-                          </td>
-                          <td>
-                            <select name="fees[{{ $student->id }}][drop_off_point_id]" class="finance-form-select">
-                              <option value="">—</option>
-                              @foreach($dropOffPoints as $point)
-                                <option value="{{ $point->id }}" @selected(old("fees.{$student->id}.drop_off_point_id", $fee?->drop_off_point_id) == $point->id)>{{ $point->name }}</option>
-                              @endforeach
-                            </select>
-                            <input type="text" name="fees[{{ $student->id }}][drop_off_point_name]" class="finance-form-control mt-2" placeholder="Other / custom" value="{{ old("fees.{$student->id}.drop_off_point_name", $fee?->drop_off_point_name) }}">
-                          </td>
+                          <td>{{ $morningName }}</td>
+                          <td>{{ $eveningName }}</td>
                           <td class="text-end">
                             <div class="transport-list-price fw-semibold">{{ $amount !== null ? number_format((float) $amount, 2) : '—' }}</div>
                             @if($breakdownLabel)
                               <small class="transport-amount-hint" title="{{ $breakdownLabel }}">{{ \Illuminate\Support\Str::limit($breakdownLabel, 48) }}</small>
                             @elseif($fee?->pricing_mode === 'imported')
-                              <small class="transport-amount-hint">Imported (recalculate after rates set)</small>
+                              <small class="transport-amount-hint">Imported amount</small>
                             @else
-                              <small class="transport-amount-hint">Set morning &amp; evening to calculate</small>
+                              <small class="transport-amount-hint">Set drop-offs in Transport to calculate</small>
                             @endif
                           </td>
                         </tr>
@@ -185,7 +171,7 @@
                     </tbody>
                     <tfoot>
                       <tr>
-                        <th colspan="5" class="text-end">Current total</th>
+                        <th colspan="4" class="text-end">Current total</th>
                         <th class="text-end transport-total">{{ number_format($totalAmount, 2) }}</th>
                       </tr>
                     </tfoot>
@@ -201,6 +187,14 @@
                     $assignment = $assignmentMap[$student->id] ?? null;
                     $amount = $fee?->amount;
                     $breakdownLabel = $fee?->pricing_breakdown['label'] ?? null;
+                    $morningName = optional($assignment?->morningDropOffPoint)->name
+                        ?? optional($student->dropOffPoint)->name
+                        ?? $student->drop_off_point_other
+                        ?? '—';
+                    $eveningName = optional($assignment?->eveningDropOffPoint)->name
+                        ?? optional($student->dropOffPoint)->name
+                        ?? $student->drop_off_point_other
+                        ?? '—';
                   @endphp
                   <div class="transport-mobile-card">
                     <div class="transport-mobile-card-header">
@@ -211,32 +205,12 @@
                     </div>
                     <div class="transport-mobile-card-body">
                       <div class="transport-mobile-field">
-                        <label>Morning</label>
-                        <select name="fees[{{ $student->id }}][morning_drop_off_point_id]" class="finance-form-select">
-                          <option value="">—</option>
-                          @foreach($dropOffPoints as $point)
-                            <option value="{{ $point->id }}" @selected(old("fees.{$student->id}.morning_drop_off_point_id", $assignment?->morning_drop_off_point_id) == $point->id)>{{ $point->name }}</option>
-                          @endforeach
-                        </select>
+                        <label>Morning pickup</label>
+                        <div>{{ $morningName }}</div>
                       </div>
                       <div class="transport-mobile-field">
-                        <label>Evening</label>
-                        <select name="fees[{{ $student->id }}][evening_drop_off_point_id]" class="finance-form-select">
-                          <option value="">—</option>
-                          @foreach($dropOffPoints as $point)
-                            <option value="{{ $point->id }}" @selected(old("fees.{$student->id}.evening_drop_off_point_id", $assignment?->evening_drop_off_point_id) == $point->id)>{{ $point->name }}</option>
-                          @endforeach
-                        </select>
-                      </div>
-                      <div class="transport-mobile-field">
-                        <label>Drop-off (legacy)</label>
-                        <select name="fees[{{ $student->id }}][drop_off_point_id]" class="finance-form-select">
-                          <option value="">—</option>
-                          @foreach($dropOffPoints as $point)
-                            <option value="{{ $point->id }}" @selected(old("fees.{$student->id}.drop_off_point_id", $fee?->drop_off_point_id) == $point->id)>{{ $point->name }}</option>
-                          @endforeach
-                        </select>
-                        <input type="text" name="fees[{{ $student->id }}][drop_off_point_name]" class="finance-form-control mt-1" placeholder="Other" value="{{ old("fees.{$student->id}.drop_off_point_name", $fee?->drop_off_point_name) }}">
+                        <label>Evening drop-off</label>
+                        <div>{{ $eveningName }}</div>
                       </div>
                       <div class="transport-mobile-field transport-mobile-amount">
                         <label>List price (KES)</label>
@@ -256,13 +230,13 @@
 
               <div class="transport-form-footer">
                 <button type="submit" class="btn btn-finance btn-finance-primary btn-finance-lg">
-                  <i class="bi bi-save me-2"></i>Save points &amp; recalculate
-                </button>
-                <button type="submit" formaction="{{ route('finance.transport-fees.recalculate') }}" class="btn btn-finance btn-finance-outline btn-finance-lg" formnovalidate>
                   <i class="bi bi-arrow-repeat me-2"></i>Recalculate from routes
                 </button>
+                <a href="{{ route('transport.student-dropoffs.index', ['classroom_id' => $classroomId]) }}" class="btn btn-finance btn-finance-outline">
+                  <i class="bi bi-geo-alt me-2"></i>Edit drop-offs
+                </a>
                 <a href="{{ route('transport.dropoffpoints.index') }}" class="btn btn-finance btn-finance-outline">
-                  <i class="bi bi-geo-alt me-2"></i>Manage rates
+                  <i class="bi bi-pin-map me-2"></i>Manage rates
                 </a>
               </div>
             </form>

@@ -53,7 +53,8 @@ class TransportFeeController extends Controller
 
             $assignmentMap = $studentIds->isEmpty()
                 ? collect()
-                : \App\Models\StudentAssignment::whereIn('student_id', $studentIds)
+                : \App\Models\StudentAssignment::with(['morningDropOffPoint', 'eveningDropOffPoint'])
+                    ->whereIn('student_id', $studentIds)
                     ->get()
                     ->keyBy('student_id');
 
@@ -94,191 +95,8 @@ class TransportFeeController extends Controller
 
     public function bulkUpdate(Request $request)
     {
-        $request->validate([
-            'year' => 'nullable|integer',
-            'term' => 'nullable|integer|in:1,2,3',
-            'fees' => 'required|array',
-        ], [
-            'fees.required' => 'No student data received. Select a classroom first, then save.',
-        ]);
-
-        [$year, $term] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
-        $updated = 0;
-        $changes = [];
-        $errors = [];
-
-        $feesInput = $request->input('fees', []);
-        $studentIds = array_filter(array_map('intval', array_keys($feesInput)));
-        $existingFees = $studentIds
-            ? TransportFee::where('year', $year)->where('term', $term)->whereIn('student_id', $studentIds)->get()->keyBy('student_id')
-            : collect();
-        $existingAssignments = $studentIds
-            ? \App\Models\StudentAssignment::whereIn('student_id', $studentIds)->get()->keyBy('student_id')
-            : collect();
-        $students = $studentIds ? Student::whereIn('id', $studentIds)->get()->keyBy('id') : collect();
-        $dropOffPointNames = DropOffPoint::all()->keyBy('id');
-
-        foreach ($feesInput as $studentId => $row) {
-            $studentId = (int) $studentId;
-            if ($studentId <= 0) {
-                continue;
-            }
-
-            $dropOffPointId = !empty($row['drop_off_point_id']) ? (int) $row['drop_off_point_id'] : null;
-            $dropOffPointName = trim((string) ($row['drop_off_point_name'] ?? '')) ?: null;
-
-            $morningDropOffPointId = !empty($row['morning_drop_off_point_id']) ? (int) $row['morning_drop_off_point_id'] : null;
-            $eveningDropOffPointId = !empty($row['evening_drop_off_point_id']) ? (int) $row['evening_drop_off_point_id'] : null;
-
-            $studentName = $students->get($studentId)?->full_name ?? "Student #{$studentId}";
-
-            $hasAssignmentData = $morningDropOffPointId !== null || $eveningDropOffPointId !== null;
-            $hasLegacyDrop = $dropOffPointId !== null || $dropOffPointName !== null;
-            if (!$hasAssignmentData && !$hasLegacyDrop) {
-                continue;
-            }
-
-            try {
-                $changeParts = [];
-
-                // Update student assignment for morning/evening drop-off points first
-                $assignment = $existingAssignments[$studentId] ?? \App\Models\StudentAssignment::where('student_id', $studentId)->first();
-                $oldMorning = $assignment?->morning_drop_off_point_id ?? null;
-                $oldEvening = $assignment?->evening_drop_off_point_id ?? null;
-                $morningChanged = $oldMorning != $morningDropOffPointId;
-                $eveningChanged = $oldEvening != $eveningDropOffPointId;
-
-                if ($assignment) {
-                    if ($morningChanged || $eveningChanged) {
-                        $assignment->update([
-                            'morning_drop_off_point_id' => $morningDropOffPointId,
-                            'evening_drop_off_point_id' => $eveningDropOffPointId,
-                        ]);
-                        if ($morningChanged) {
-                            $changeParts[] = 'Morning: ' . ($oldMorning ? ($dropOffPointNames[$oldMorning]->name ?? '—') : '—') . ' → ' . ($morningDropOffPointId ? ($dropOffPointNames[$morningDropOffPointId]->name ?? '—') : '—');
-                        }
-                        if ($eveningChanged) {
-                            $changeParts[] = 'Evening: ' . ($oldEvening ? ($dropOffPointNames[$oldEvening]->name ?? '—') : '—') . ' → ' . ($eveningDropOffPointId ? ($dropOffPointNames[$eveningDropOffPointId]->name ?? '—') : '—');
-                        }
-                    }
-                } elseif ($morningDropOffPointId || $eveningDropOffPointId) {
-                    $assignment = \App\Models\StudentAssignment::create([
-                        'student_id' => $studentId,
-                        'morning_drop_off_point_id' => $morningDropOffPointId,
-                        'evening_drop_off_point_id' => $eveningDropOffPointId,
-                    ]);
-                    $changeParts[] = 'Assignment created';
-                }
-
-                // Calculate list price from morning/evening when both legs are set
-                $calc = \App\Services\TransportFeeCalculator::calculate($morningDropOffPointId, $eveningDropOffPointId);
-                $existing = $existingFees[$studentId] ?? null;
-                $oldAmount = $existing ? (float) $existing->amount : null;
-
-                if ($calc['can_calculate']) {
-                    $amount = (float) $calc['amount'];
-                    $legacyId = $eveningDropOffPointId && !optional($dropOffPointNames[$eveningDropOffPointId] ?? null)->isOwnMeans()
-                        ? $eveningDropOffPointId
-                        : ($morningDropOffPointId && !optional($dropOffPointNames[$morningDropOffPointId] ?? null)->isOwnMeans()
-                            ? $morningDropOffPointId
-                            : null);
-                    $legacyName = $legacyId
-                        ? ($dropOffPointNames[$legacyId]->name ?? null)
-                        : ($amount == 0 ? DropOffPoint::OWN_MEANS_NAME : $dropOffPointName);
-
-                    TransportFeeService::upsertFee([
-                        'student_id' => $studentId,
-                        'amount' => $amount,
-                        'year' => $year,
-                        'term' => $term,
-                        'drop_off_point_id' => $legacyId ?? $dropOffPointId,
-                        'drop_off_point_name' => $legacyName ?? $dropOffPointName,
-                        'source' => 'manual',
-                        'note' => $calc['breakdown']['label'] ?? 'Calculated from morning/evening drop-off points',
-                        'pricing_mode' => 'calculated',
-                        'pricing_breakdown' => $calc['breakdown'],
-                        'skip_invoice' => true,
-                    ]);
-
-                    if ($oldAmount != $amount) {
-                        $changeParts[] = number_format($oldAmount ?? 0, 0) . ' → ' . number_format($amount, 0) . ' (calculated)';
-                    }
-                    $updated++;
-                } elseif ($hasLegacyDrop) {
-                    // Fallback: legacy amount/drop-off only when calculation is not possible
-                    $amountRaw = trim((string) ($row['amount'] ?? ''));
-                    $amount = ($amountRaw === '' || $amountRaw === null) ? ($oldAmount ?? 0) : (is_numeric($amountRaw) ? (float) $amountRaw : ($oldAmount ?? 0));
-                    $oldDropId = $existing?->drop_off_point_id ?? null;
-                    $oldDropName = $existing?->drop_off_point_name ?? ($oldDropId ? ($dropOffPointNames[$oldDropId]->name ?? null) : null);
-                    $newDropName = $dropOffPointName ?? ($dropOffPointId ? ($dropOffPointNames[$dropOffPointId]->name ?? null) : null);
-
-                    TransportFeeService::upsertFee([
-                        'student_id' => $studentId,
-                        'amount' => $amount,
-                        'year' => $year,
-                        'term' => $term,
-                        'drop_off_point_id' => $dropOffPointId,
-                        'drop_off_point_name' => $dropOffPointName,
-                        'source' => 'manual',
-                        'note' => 'Updated from transport fee class view (calculation pending rates/points)',
-                        'pricing_mode' => 'imported',
-                        'pricing_breakdown' => null,
-                        'skip_invoice' => true,
-                    ]);
-
-                    if ($oldAmount != $amount) {
-                        $changeParts[] = number_format($oldAmount ?? 0, 0) . ' → ' . number_format($amount, 0);
-                    }
-                    if (($oldDropId != $dropOffPointId) || (Str::lower(trim($oldDropName ?? '')) !== Str::lower(trim($newDropName ?? '')))) {
-                        $changeParts[] = ($oldDropName ?: '—') . ' → ' . ($newDropName ?: '—');
-                    }
-                    if (!empty($calc['errors'])) {
-                        $changeParts[] = 'Note: ' . $calc['errors'][0];
-                    }
-                    $updated++;
-                } elseif (!empty($calc['errors']) && $hasAssignmentData) {
-                    $errors[] = $studentName . ': ' . implode(' ', $calc['errors']);
-                }
-
-                if (!empty($changeParts)) {
-                    $changes[] = $studentName . ': ' . implode(', ', $changeParts);
-                }
-            } catch (\Throwable $e) {
-                Log::error('Transport fee update failed', [
-                    'student_id' => $studentId,
-                    'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
-                $errors[] = $studentName . ': ' . $e->getMessage();
-            }
-        }
-
-        $redirect = redirect()->route('finance.transport-fees.index', [
-            'classroom_id' => $request->input('classroom_id'),
-            'year' => $year,
-            'term' => $term,
-        ]);
-
-        if (!empty($errors)) {
-            return $redirect
-                ->with('error', 'Some updates failed: ' . implode('; ', array_slice($errors, 0, 5)) . (count($errors) > 5 ? ' (and ' . (count($errors) - 5) . ' more)' : ''))
-                ->with('transport_fee_errors', $errors);
-        }
-
-        if ($updated === 0 && !empty($feesInput)) {
-            Log::info('Transport fee bulkUpdate: no rows updated', [
-                'row_count' => count($feesInput),
-                'sample_row' => array_slice($feesInput, 0, 1, true),
-            ]);
-        }
-
-        $message = $updated > 0
-            ? "{$updated} transport fee(s) and drop-off point(s) updated for Term {$term}, {$year}. Run Post Pending Fees to apply invoice changes."
-            : "No changes were saved. Please ensure you have selected a classroom and made edits before saving.";
-
-        return $redirect
-            ->with('success', $message)
-            ->with('transport_fee_changes', array_slice($changes, 0, 20));
+        // Drop-off points are managed in Transport; this endpoint only recalculates fees.
+        return $this->recalculate($request);
     }
 
     /**
@@ -673,31 +491,21 @@ class TransportFeeController extends Controller
             }
 
             $status = $row['status'] ?? '';
-            $dropName = $row['drop_off_point_name'] ?? null;
-            $dropId = $row['drop_off_point_id'] ?? null;
-            $isOwnMeans = $row['is_own_means'] ?? false;
-            
+
             // Get amount - handle numeric values properly (may come as string or number from JSON)
-            // JSON decode should preserve float values, but handle both cases
             $amount = null;
             if (isset($row['amount']) && $row['amount'] !== null && $row['amount'] !== '') {
                 $amountValue = $row['amount'];
-                
-                // If it's already a numeric type (int or float), use it directly
+
                 if (is_numeric($amountValue)) {
                     $amount = (float) $amountValue;
-                    // Ensure amount is not negative
                     if ($amount < 0) {
                         $amount = null;
                     }
-                } 
-                // If it's a string, try to parse it
-                elseif (is_string($amountValue)) {
-                    // Remove formatting (commas, currency symbols, etc.)
+                } elseif (is_string($amountValue)) {
                     $cleaned = preg_replace('/[^\d.-]/', '', $amountValue);
                     if ($cleaned !== '' && is_numeric($cleaned)) {
                         $amount = (float) $cleaned;
-                        // Ensure amount is not negative
                         if ($amount < 0) {
                             $amount = null;
                         }
@@ -705,58 +513,14 @@ class TransportFeeController extends Controller
                 }
             }
 
-            // Resolve drop-off point (unless it's own means)
-            if (!$dropId && $dropName && !$isOwnMeans) {
-                $key = Str::lower($dropName);
-                $selection = $map[$key] ?? null;
-
-                if ($selection === 'create') {
-                    $created = TransportFeeService::resolveDropOffPoint($dropName);
-                    $dropId = $created?->id;
-                    if ($created) {
-                        $dropCache[$key] = $created;
-                        $dropOffPointsCreated++;
-                    }
-                } elseif ($selection && is_numeric($selection)) {
-                    $dropId = (int) $selection;
-                } elseif ($dropCache->has($key)) {
-                    $dropId = $dropCache[$key]->id;
-                }
-            }
-
             try {
-                // Import path: always skip direct invoice sync so changes go through Post Pending Fees
-                $ownMeansPoint = $isOwnMeans ? DropOffPoint::ownMeans() : null;
-                $finalAmount = $isOwnMeans ? 0 : ($amount ?? 0);
-                if (($row['change_type'] ?? '') === 'new' && $amount !== null && $amount > 0) {
-                    $finalAmount = $amount;
-                }
-
-                // Align assignment legs with imported drop-off when present
-                if ($isOwnMeans && $ownMeansPoint) {
-                    $assignment = \App\Models\StudentAssignment::firstOrNew(['student_id' => $studentId]);
-                    $assignment->morning_drop_off_point_id = $ownMeansPoint->id;
-                    $assignment->evening_drop_off_point_id = $ownMeansPoint->id;
-                    $assignment->save();
-                    $dropId = $ownMeansPoint->id;
-                } elseif ($dropId) {
-                    $assignment = \App\Models\StudentAssignment::firstOrNew(['student_id' => $studentId]);
-                    // Import historically sets a single drop-off — apply to both legs when empty
-                    if (!$assignment->morning_drop_off_point_id) {
-                        $assignment->morning_drop_off_point_id = $dropId;
-                    }
-                    if (!$assignment->evening_drop_off_point_id) {
-                        $assignment->evening_drop_off_point_id = $dropId;
-                    } else {
-                        // Prefer evening as the imported drop-off (matches assignment import convention)
-                        $assignment->evening_drop_off_point_id = $dropId;
-                    }
-                    $assignment->save();
-                }
-
-                // Prefer calculated list price when morning/evening + rates are available
-                $assignment = \App\Models\StudentAssignment::where('student_id', $studentId)->first();
+                // Fees-only import: never create/update drop-off points or assignment legs.
+                // Prefer calculated list price from existing Transport student drop-offs; else use imported amount.
+                $assignment = \App\Models\StudentAssignment::with(['morningDropOffPoint', 'eveningDropOffPoint'])
+                    ->where('student_id', $studentId)
+                    ->first();
                 $calc = \App\Services\TransportFeeCalculator::calculateFromAssignment($assignment);
+                $finalAmount = $amount ?? 0;
 
                 if ($calc['can_calculate']) {
                     TransportFeeService::upsertFee([
@@ -764,37 +528,36 @@ class TransportFeeController extends Controller
                         'amount' => $calc['amount'] ?? 0,
                         'year' => $year,
                         'term' => $term,
-                        'drop_off_point_id' => $dropId,
-                        'drop_off_point_name' => $isOwnMeans ? DropOffPoint::OWN_MEANS_NAME : $dropName,
+                        'drop_off_point_id' => $assignment?->evening_drop_off_point_id ?: $assignment?->morning_drop_off_point_id,
+                        'drop_off_point_name' => optional($assignment?->eveningDropOffPoint)->name
+                            ?? optional($assignment?->morningDropOffPoint)->name,
                         'source' => 'import',
-                        'note' => $calc['breakdown']['label'] ?? 'Calculated from drop-off points after import',
+                        'note' => $calc['breakdown']['label'] ?? 'Calculated from existing drop-off points after fee import',
                         'pricing_mode' => 'calculated',
                         'pricing_breakdown' => $calc['breakdown'],
                         'skip_invoice' => true,
                     ]);
                     $finalAmount = (float) ($calc['amount'] ?? 0);
-                } else {
+                } elseif ($amount !== null) {
                     TransportFeeService::upsertFee([
                         'student_id' => $studentId,
                         'amount' => $finalAmount,
                         'year' => $year,
                         'term' => $term,
-                        'drop_off_point_id' => $dropId,
-                        'drop_off_point_name' => $isOwnMeans ? DropOffPoint::OWN_MEANS_NAME : $dropName,
+                        'drop_off_point_id' => null,
+                        'drop_off_point_name' => null,
                         'source' => 'import',
-                        'note' => $isOwnMeans
-                            ? 'Own means transport (no fee)'
-                            : ($amount === null || $status === 'missing_amount'
-                                ? 'Imported from transport fee upload - amount missing, drop-off point only'
-                                : 'Imported from transport fee upload'),
+                        'note' => 'Imported transport fee amount (drop-offs managed in Transport module)',
                         'pricing_mode' => 'imported',
                         'pricing_breakdown' => null,
                         'skip_invoice' => true,
                     ]);
+                } else {
+                    $skipped++;
+                    continue;
                 }
                 $createdOrUpdated++;
 
-                // Only count amount for valid fees
                 if ($finalAmount > 0) {
                     $totalAmount += $finalAmount;
                 }
@@ -808,35 +571,30 @@ class TransportFeeController extends Controller
                     'message' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
-                // Continue processing other rows even if one fails
             }
         }
 
         // Update import batch with final counts
         $importBatch->update([
             'fees_imported_count' => $createdOrUpdated,
-            'drop_off_points_created_count' => $dropOffPointsCreated,
+            'drop_off_points_created_count' => 0,
             'total_amount' => $totalAmount,
         ]);
 
         $message = "{$createdOrUpdated} transport fee(s) imported successfully.";
         if ($skipped > 0) {
-            $message .= " {$skipped} skipped (already billed or kept existing).";
-        }
-        if ($dropOffPointsCreated > 0) {
-            $message .= " {$dropOffPointsCreated} drop-off point(s) created.";
+            $message .= " {$skipped} skipped (already billed, kept existing, or missing amount/points).";
         }
         if ($failed > 0) {
             $message .= " {$failed} failed (check logs for details).";
         }
-        $message .= " Run Post Pending Fees to apply transport changes to invoices.";
+        $message .= " Drop-off points are managed in Transport → Student Drop-offs. Run Post Pending Fees to apply invoice changes.";
 
         $alertType = $failed > 0 ? 'warning' : 'success';
 
         Log::info('Transport fee import committed', [
             'import_batch_id' => $importBatch->id,
             'created_or_updated' => $createdOrUpdated,
-            'drop_off_points_created' => $dropOffPointsCreated,
             'failed' => $failed,
             'user_id' => auth()->id(),
         ]);
@@ -880,7 +638,7 @@ class TransportFeeController extends Controller
      */
     public function template()
     {
-        $headers = ['Admission Number', 'Student Name', 'Transport Fee', 'Drop-off Point'];
+        $headers = ['Admission Number', 'Student Name', 'Transport Fee'];
         $sample = [
             ['ADM001', 'Jane Doe', 3500, 'Gate A'],
             ['ADM002', 'John Doe', 4000, 'Town Pickup'],

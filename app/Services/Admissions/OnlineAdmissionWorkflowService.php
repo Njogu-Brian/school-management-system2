@@ -245,19 +245,16 @@ class OnlineAdmissionWorkflowService
 
             $linker->ensureFamilyForStudentFromParent($student, $parent);
 
-            if (! empty($validated['transport_fee_amount'])) {
-                $transportYear = $enrollmentYear ?? (get_current_academic_year() ?? (int) date('Y'));
-                $transportTerm = $enrollmentTerm ?? (get_current_term_number() ?? 1);
-                TransportFeeService::upsertFee([
-                    'student_id' => $student->id,
-                    'amount' => $validated['transport_fee_amount'],
-                    'drop_off_point_id' => $validated['drop_off_point_id'] ?? null,
-                    'drop_off_point_name' => $dropOffPointLabel,
-                    'source' => 'online_admission',
-                    'note' => 'Captured during online admission approval',
-                    'year' => $transportYear,
-                    'term' => $transportTerm,
-                ]);
+            if (! empty($validated['drop_off_point_id']) || ! empty($validated['transport_fee_amount'])) {
+                TransportFeeService::billFromEnrollmentDropOff(
+                    $student,
+                    isset($validated['transport_fee_amount']) && $validated['transport_fee_amount'] !== ''
+                        ? (float) $validated['transport_fee_amount']
+                        : null,
+                    'online_admission',
+                    'Captured during online admission approval',
+                    true
+                );
             }
 
             $admission->update([

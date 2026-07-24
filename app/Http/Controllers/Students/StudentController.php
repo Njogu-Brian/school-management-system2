@@ -734,32 +734,31 @@ class StudentController extends Controller
 
             $this->sendAdmissionCommunication($student, $parent);
             
-            // Charge fees for newly admitted student (this will create the invoice)
-            try {
-                \App\Services\FeePostingService::chargeFeesForNewStudent($student);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::warning('Failed to charge fees for new student: ' . $e->getMessage(), [
-                    'student_id' => $student->id,
-                ]);
-            }
-            
-            // Create transport fee AFTER invoice is created, so it can be synced properly
-            if ($request->boolean('needs_transport') && $request->filled('transport_fee_amount')) {
+            // Create transport fee from enrollment drop-off rates (fallback to manual amount)
+            if ($request->boolean('needs_transport') && ($student->drop_off_point_id || $request->filled('transport_fee_amount'))) {
                 try {
-                    TransportFeeService::upsertFee([
-                        'student_id' => $student->id,
-                        'amount' => $request->transport_fee_amount,
-                        'drop_off_point_id' => $student->drop_off_point_id,
-                        'drop_off_point_name' => $dropOffPointLabel,
-                        'source' => 'admission',
-                        'note' => 'Captured during student creation',
-                    ]);
+                    TransportFeeService::billFromEnrollmentDropOff(
+                        $student,
+                        $request->filled('transport_fee_amount') ? (float) $request->transport_fee_amount : null,
+                        'admission',
+                        'Captured during student creation',
+                        true
+                    );
                 } catch (\Throwable $e) {
                     Log::warning('Transport fee capture failed during student creation', [
                         'student_id' => $student->id,
                         'message' => $e->getMessage(),
                     ]);
                 }
+            }
+
+            // Charge fees for newly admitted student (this will create the invoice and sync existing transport fee)
+            try {
+                \App\Services\FeePostingService::chargeFeesForNewStudent($student);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to charge fees for new student: ' . $e->getMessage(), [
+                    'student_id' => $student->id,
+                ]);
             }
 
             if ($request->filled('save_add_another')) {
