@@ -37,11 +37,11 @@
 
         $logoUrl = $resolveImage($logoSetting);
         $faviconUrl = $resolveImage($faviconSetting) ?? $logoUrl;
-        $effectiveDate = '22 July 2026';
+        $effectiveDate = '24 July 2026';
     @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Terms of Use for {{ $schoolName }} school management systems and mobile apps.">
+    <meta name="description" content="Terms of Use for {{ $schoolName }} school management systems and mobile apps, including Royal Kings Admin and Royal Kings Users.">
     <title>Terms of Use — {{ $schoolName }}</title>
     @if($faviconUrl)
         <link rel="icon" href="{{ $faviconUrl }}">
@@ -160,7 +160,8 @@
             <h1>Terms of Use</h1>
             <p>
                 These terms govern authorized use of {{ $schoolName }} digital systems, including the ERP
-                and mobile apps such as Royal Kings Admin.
+                and mobile apps <strong style="color:#fff">Royal Kings Admin</strong> and
+                <strong style="color:#fff">Royal Kings Users</strong>.
             </p>
             <div class="meta">
                 <span class="chip">Effective {{ $effectiveDate }}</span>
@@ -179,9 +180,12 @@
             <section>
                 <h2>2. Authorized use</h2>
                 <p>
-                    Access is limited to staff and other users issued credentials by {{ $schoolName }}.
-                    You must keep login details confidential and use the systems only for legitimate
-                    school duties.
+                    Access is limited to staff, parents/guardians, students, and other users issued
+                    credentials by {{ $schoolName }}. Use the correct app for your role:
+                    <strong>Royal Kings Admin</strong> for school administration accounts, and
+                    <strong>Royal Kings Users</strong> for teachers, parents/guardians, students, drivers,
+                    and other non-admin roles. You must keep login details confidential and use the
+                    systems only for legitimate school purposes.
                 </p>
             </section>
             <section>
@@ -189,6 +193,7 @@
                 <ul>
                     <li>Do not share accounts or attempt to access data beyond your role</li>
                     <li>Do not disrupt services, reverse-engineer, or misuse school information</li>
+                    <li>Parents may only access information about learners linked to their account</li>
                     <li>Report suspected security issues promptly to school administration</li>
                 </ul>
             </section>

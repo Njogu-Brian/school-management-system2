@@ -37,11 +37,11 @@
 
         $logoUrl = $resolveImage($logoSetting);
         $faviconUrl = $resolveImage($faviconSetting) ?? $logoUrl;
-        $effectiveDate = '22 July 2026';
+        $effectiveDate = '24 July 2026';
     @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Privacy Policy for {{ $schoolName }} school management systems and mobile apps.">
+    <meta name="description" content="Privacy Policy for {{ $schoolName }} school management systems and mobile apps, including Royal Kings Admin and Royal Kings Users.">
     <title>Privacy Policy — {{ $schoolName }}</title>
     @if($faviconUrl)
         <link rel="icon" href="{{ $faviconUrl }}">
@@ -321,12 +321,14 @@
             <h1>Privacy Policy</h1>
             <p>
                 This policy explains how {{ $schoolName }} collects, uses, and protects information
-                in our school management platform and mobile apps — including <strong style="color:#fff">Royal Kings Admin</strong>.
+                in our school management platform and mobile apps — including
+                <strong style="color:#fff">Royal Kings Admin</strong> and
+                <strong style="color:#fff">Royal Kings Users</strong>.
             </p>
             <div class="meta">
                 <span class="chip">Effective {{ $effectiveDate }}</span>
                 <span class="chip">Public document</span>
-                <span class="chip">Staff &amp; school systems</span>
+                <span class="chip">Staff, parents &amp; school community</span>
             </div>
         </header>
 
@@ -351,8 +353,9 @@
                     <strong>{{ $schoolName }}</strong> (“we”, “us”, “our”) operates school administration,
                     academic, finance, and communication systems for our school community in Kenya.
                     Our digital services include the web ERP at
-                    <strong>erp.royalkingsschools.sc.ke</strong> and related mobile applications
-                    such as <strong>Royal Kings Admin</strong>.
+                    <strong>erp.royalkingsschools.sc.ke</strong> and related mobile applications:
+                    <strong>Royal Kings Admin</strong> (school administration) and
+                    <strong>Royal Kings Users</strong> (teachers, parents/guardians, students, drivers, and other authorized non-admin users).
                 </p>
                 <div class="callout">
                     We are committed to safeguarding personal data entrusted to us by staff, parents,
@@ -366,8 +369,8 @@
                 <p>This Privacy Policy applies to:</p>
                 <ul>
                     <li>Our school management / ERP website and APIs</li>
-                    <li>Official mobile apps published by {{ $schoolName }} (including Royal Kings Admin)</li>
-                    <li>Related school portals used by authorized staff and, where applicable, parents</li>
+                    <li>Official mobile apps published by {{ $schoolName }}, including <strong>Royal Kings Admin</strong> and <strong>Royal Kings Users</strong></li>
+                    <li>Related school portals used by authorized staff, parents/guardians, and (where issued) student accounts</li>
                 </ul>
                 <p>
                     It does not cover third-party websites linked from our systems (for example payment
@@ -380,14 +383,17 @@
                 <p>Depending on your role and how you use our systems, we may process:</p>
                 <ul>
                     <li><strong>Account &amp; identity data</strong> — name, email, phone number, staff or parent role, login credentials</li>
-                    <li><strong>Authentication data</strong> — session tokens, optional one-time passwords (OTP), and optional biometric unlock preferences stored on your device</li>
-                    <li><strong>School records</strong> — student enrolment, attendance, academics, fees, transport, and communication records needed to run the school</li>
+                    <li><strong>Authentication data</strong> — session tokens, optional one-time passwords (OTP) for parent account claim, optional app PIN, and optional biometric unlock preferences stored on your device</li>
+                    <li><strong>School records</strong> — student enrolment, attendance, academics, homework, fees (where your role permits), transport, pastoral notes, concerns/complaints, and school communications</li>
+                    <li><strong>Location data</strong> — approximate or precise location when staff use location-based features such as clock-in / attendance verification in Royal Kings Users (only while that feature is used and with device permission)</li>
+                    <li><strong>Photos &amp; media</strong> — profile photos and files you attach (for example homework or concern supporting images) when you choose to upload them</li>
                     <li><strong>Device &amp; technical data</strong> — app version, device type, approximate diagnostics needed to keep services secure and reliable</li>
                     <li><strong>Support communications</strong> — messages you send to school IT or administration</li>
                 </ul>
                 <p>
                     Biometric data (fingerprint / face unlock), where enabled, is processed by your device’s
                     operating system. We do not receive or store raw biometric templates on our servers.
+                    App PIN codes are stored securely on your device for local unlock and are not sent to our servers as passwords.
                 </p>
             </section>
 
@@ -396,7 +402,9 @@
                 <p>We use personal information to:</p>
                 <ul>
                     <li>Provide secure access to school systems for authorized users</li>
-                    <li>Manage academics, attendance, fees, transport, HR, and school communications</li>
+                    <li>Manage academics, attendance, homework, fees, transport, HR, pastoral care, and school communications</li>
+                    <li>Enable parents/guardians to view permitted information about their linked children and raise concerns with the school</li>
+                    <li>Verify staff presence or clock-in where location is required for school operations</li>
                     <li>Protect accounts against unauthorized access and abuse</li>
                     <li>Improve reliability, support, and service quality</li>
                     <li>Meet legal, regulatory, and safeguarding obligations</li>
@@ -452,21 +460,27 @@
             <section id="children">
                 <h2>8. Children &amp; student data</h2>
                 <p>
-                    Our systems process learner information for school administration. Mobile apps such as
-                    <strong>Royal Kings Admin</strong> are intended for authorized adult staff, not for
-                    children as end users. Student data is handled under the school’s legitimate educational
-                    purpose and parental / guardian relationship with the school.
+                    Our systems process learner information for school administration.
+                    <strong>Royal Kings Admin</strong> is intended for authorized adult staff.
+                    <strong>Royal Kings Users</strong> is intended for teachers, parents/guardians, drivers,
+                    and other authorized adults; student accounts are issued only where the school has
+                    authorized a learner to use the app. Student data is handled under the school’s
+                    legitimate educational purpose and parental / guardian relationship with the school.
                 </p>
             </section>
 
             <section id="apps">
-                <h2>9. Mobile apps (including Royal Kings Admin)</h2>
+                <h2>9. Mobile apps (Royal Kings Admin &amp; Royal Kings Users)</h2>
                 <p>When you use our mobile applications:</p>
                 <ul>
-                    <li>Sign-in requires school-issued credentials (and optional OTP or on-device biometrics)</li>
-                    <li>The app communicates with our ERP APIs to display information you are permitted to see</li>
-                    <li>Optional biometric unlock stays on your device and can be disabled in settings</li>
-                    <li>You may uninstall the app at any time; server-side school records remain governed by this policy</li>
+                    <li><strong>Royal Kings Admin</strong> — school administration features for authorized staff (operations, finance, academics administration, and related tools)</li>
+                    <li><strong>Royal Kings Users</strong> — day-to-day school features for teachers, parents/guardians, students (where issued), and drivers (attendance, academics views, homework, concerns, transport, payslips where permitted, and similar)</li>
+                    <li>Sign-in requires school-issued credentials (and optional OTP for parent claim, optional app PIN, or on-device biometrics)</li>
+                    <li>The apps communicate with our ERP APIs to display only information your role is permitted to see</li>
+                    <li>Location permission, where requested, is used for staff operational features such as clock-in and can be denied in device settings (some features may then be unavailable)</li>
+                    <li>Photo / media permission is used only when you choose to set a profile photo or attach images/files</li>
+                    <li>Optional biometric unlock and app PIN stay on your device and can be disabled in settings</li>
+                    <li>You may uninstall an app at any time; server-side school records remain governed by this policy</li>
                 </ul>
             </section>
 

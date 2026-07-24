@@ -8,7 +8,9 @@ use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 
 /**
- * Creates a dedicated Google Play Console reviewer account.
+ * Creates a dedicated Google Play Console reviewer account for Royal Kings Admin.
+ *
+ * For the Users app (Teacher / Parent), use GooglePlayUsersReviewerSeeder instead.
  *
  * Email uses the school domain so reviewers can sign in to Royal Kings Admin.
  * Run on production after deploy:

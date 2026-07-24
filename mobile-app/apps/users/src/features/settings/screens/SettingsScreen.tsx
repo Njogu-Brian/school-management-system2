@@ -8,10 +8,14 @@ import {
 } from '@erp/core';
 import { AcademicScreenHeader, Button, ConfirmDialog, PinKeypad, ScreenContainer, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
+import Constants from 'expo-constants';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 import { showError, showSuccess } from '../../shared/utils/feedback';
+
+/** Live on ERP (public, no login) — use for Play Store privacy URL */
+const LEGAL_BASE = 'https://erp.royalkingsschools.sc.ke';
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -208,6 +212,42 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => setSurfaceMode('amoled')}
           />
         </View>
+      </View>
+
+      <View
+        style={{
+          backgroundColor: palette.surface,
+          borderRadius: radius.lg,
+          borderWidth: 1,
+          borderColor: palette.border,
+          padding: spacing.md,
+          marginBottom: spacing.md,
+        }}
+      >
+        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
+          About & legal
+        </Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+          Royal Kings Users · v{Constants.expoConfig?.version ?? '1.0.0'}
+        </Text>
+        {(
+          [
+            { label: 'Privacy policy', url: `${LEGAL_BASE}/privacy` },
+            { label: 'Terms of use', url: `${LEGAL_BASE}/terms` },
+          ] as const
+        ).map((row) => (
+          <Pressable
+            key={row.url}
+            onPress={() => void Linking.openURL(row.url)}
+            accessibilityRole="link"
+            style={({ pressed }) => ({
+              paddingVertical: spacing.sm,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>{row.label}</Text>
+          </Pressable>
+        ))}
       </View>
 
       <Button label="Sign out" variant="ghost" onPress={logout} />
