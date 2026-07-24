@@ -102,18 +102,30 @@
 
             {{-- Access --}}
           <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Access</h6></div>
-          <div class="col-md-4">
-            <label class="form-label">System Role</label>
-            <select name="spatie_role_id" class="form-select">
-              <option value="">— Select system role —</option>
-              @foreach($spatieRoles as $r)
-                <option value="{{ $r->id }}"
-                  @selected(old('spatie_role_id', isset($staff) ? optional($staff->user?->roles?->first())->id : null) == $r->id)>
-                  {{ $r->name }}
-                </option>
-              @endforeach
-            </select>
-            <div class="form-text">Controls dashboard & module access.</div>
+          <div class="col-12">
+            <label class="form-label">System Roles</label>
+            @php
+              $selectedRoleIds = collect(old('spatie_role_ids', isset($staff) ? ($staff->user?->roles?->pluck('id')->all() ?? []) : []))
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            @endphp
+            <div class="border rounded p-3 bg-light">
+              <div class="row g-2">
+                @foreach($spatieRoles as $r)
+                  <div class="col-md-4 col-sm-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox"
+                             name="spatie_role_ids[]"
+                             id="spatie_role_{{ $r->id }}"
+                             value="{{ $r->id }}"
+                             @checked(in_array((int) $r->id, $selectedRoleIds, true))>
+                      <label class="form-check-label" for="spatie_role_{{ $r->id }}">{{ $r->name }}</label>
+                    </div>
+                  </div>
+                @endforeach
+              </div>
+            </div>
+            <div class="form-text">Select one or more roles (e.g. Teacher and Driver). Controls dashboard &amp; module access.</div>
           </div>
 
           <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">HR</h6></div>

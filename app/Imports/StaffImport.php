@@ -123,8 +123,20 @@ class StaffImport implements ToCollection
                     ]);
 
                     if ($data['spatie_role_name']) {
-                        if ($role = Role::where('name', $data['spatie_role_name'])->first()) {
-                            $createdUser->assignRole($role->name);
+                        $roleNames = collect(preg_split('/[,|;]+/', $data['spatie_role_name']))
+                            ->map(fn ($n) => trim($n))
+                            ->filter()
+                            ->unique()
+                            ->values();
+                        $resolved = [];
+                        foreach ($roleNames as $roleName) {
+                            $role = Role::where('name', $roleName)->where('guard_name', 'web')->first();
+                            if ($role) {
+                                $resolved[] = $role->name;
+                            }
+                        }
+                        if (!empty($resolved)) {
+                            $createdUser->syncRoles($resolved);
                         }
                     } else {
                         // Auto-role by category if none selected

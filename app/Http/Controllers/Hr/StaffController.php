@@ -123,7 +123,8 @@ class StaffController extends Controller
         'supervisor_id'     => 'nullable|exists:staff,id',
         'supervisor_ids'    => 'nullable|array',
         'supervisor_ids.*'  => 'exists:staff,id',
-        'spatie_role_id'    => 'nullable|exists:roles,id',
+        'spatie_role_ids'   => 'nullable|array',
+        'spatie_role_ids.*' => 'integer|exists:roles,id',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'residential_address' => 'nullable|string|max:255',
             'photo' => 'nullable|image|max:2048',
@@ -146,12 +147,10 @@ class StaffController extends Controller
             'must_change_password' => true,
         ]);
 
-        // 2) Assign Spatie role (guard 'web')
-        if ($request->filled('spatie_role_id')) {
-            $role = \Spatie\Permission\Models\Role::find($request->spatie_role_id);
-            if ($role && $role->guard_name === 'web') {
-                $user->assignRole($role->name);
-            }
+        // 2) Assign Spatie roles (guard 'web') — multiple allowed
+        $roleNames = $this->resolveSpatieRoleNames($request->input('spatie_role_ids', []));
+        if (!empty($roleNames)) {
+            $user->syncRoles($roleNames);
         } else {
             // Auto-role by category if none selected (optional defaults)
             if ((int)$request->staff_category_id === 1) {
@@ -408,7 +407,8 @@ class StaffController extends Controller
             'supervisor_id'     => 'nullable|exists:staff,id',
             'supervisor_ids'    => 'nullable|array',
             'supervisor_ids.*'  => 'exists:staff,id',
-            'spatie_role_id'    => 'nullable|exists:roles,id',
+            'spatie_role_ids'   => 'nullable|array',
+            'spatie_role_ids.*' => 'integer|exists:roles,id',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'residential_address' => 'nullable|string|max:255',
             'hire_date' => 'nullable|date',
@@ -444,13 +444,9 @@ class StaffController extends Controller
             // sync email on users
             $user->update(['email' => $request->work_email]);
 
-        // 2) sync role if provided
-        if ($request->filled('spatie_role_id')) {
-            $role = \Spatie\Permission\Models\Role::find($request->spatie_role_id);
-            if ($role && $role->guard_name === 'web') {
-                $user->syncRoles([$role->name]); // replace existing
-            }
-        }
+            // Sync system roles (multiple allowed). Always apply when editing so unchecked roles are removed.
+            $roleNames = $this->resolveSpatieRoleNames($request->input('spatie_role_ids', []));
+            $user->syncRoles($roleNames);
 
             // update staff profile
             $staffData = $request->only([
@@ -730,6 +726,7 @@ class StaffController extends Controller
         $catIds    = $request->input('staff_category_id', []);
         $supIds    = $request->input('supervisor_id', []);
         $roleNames = $request->input('spatie_role_name', []);
+        $roleNamesMulti = $request->input('spatie_role_names', []);
 
         $success = 0;
         $errors  = [];
@@ -741,8 +738,19 @@ class StaffController extends Controller
                 $deptId = $bulkDepartmentId ?: ($deptIds[$i] ?? null);
                 $jobId = $bulkJobTitleId ?: ($jobIds[$i] ?? null);
                 $catId = $bulkCategoryId ?: ($catIds[$i] ?? null);
-                $roleName = $bulkRoleName ?: ($roleNames[$i] ?? '');
                 $supId = $bulkSupervisorId ?: ($supIds[$i] ?? null);
+
+                $rowRoles = $roleNamesMulti[$i] ?? [];
+                if (!is_array($rowRoles)) {
+                    $rowRoles = $rowRoles ? [$rowRoles] : [];
+                }
+                if ($bulkRoleName) {
+                    $roleName = $bulkRoleName;
+                } elseif (!empty($rowRoles)) {
+                    $roleName = implode(', ', array_filter(array_map('trim', $rowRoles)));
+                } else {
+                    $roleName = $roleNames[$i] ?? '';
+                }
 
                 // Build a single "sheet row" compatible with your StaffImport
                 // Create array with all 26 indices (0-25) to match Excel columns
@@ -1240,5 +1248,31 @@ class StaffController extends Controller
         if ($ids !== [] || $request->has('supervisor_ids') || $request->filled('supervisor_id')) {
             $staff->syncSupervisorAssignments($ids);
         }
+    }
+
+    /**
+     * Resolve web-guard Spatie role names from selected role IDs.
+     *
+     * @param  array<int, mixed>  $roleIds
+     * @return array<int, string>
+     */
+    protected function resolveSpatieRoleNames(array $roleIds): array
+    {
+        $ids = collect($roleIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return Role::query()
+            ->whereIn('id', $ids)
+            ->where('guard_name', 'web')
+            ->pluck('name')
+            ->all();
     }
 }

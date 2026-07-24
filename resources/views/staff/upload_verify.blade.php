@@ -170,15 +170,21 @@
                                         </td>
 
                                         <td>
-                                            <select name="spatie_role_name[{{ $i }}]" class="form-select">
-                                                <option value="">—</option>
+                                            @php
+                                              $guessRoles = collect(preg_split('/[,|;]+/', (string) ($r['spatie_role_guess'] ?? '')))
+                                                ->map(fn ($n) => strtolower(trim($n)))
+                                                ->filter()
+                                                ->all();
+                                            @endphp
+                                            <select name="spatie_role_names[{{ $i }}][]" class="form-select" multiple size="4">
                                                 @foreach($roles as $role)
                                                     <option value="{{ $role->name }}"
-                                                        @selected(strcasecmp($r['spatie_role_guess'],$role->name)==0)>
+                                                        @selected(in_array(strtolower($role->name), $guessRoles, true))>
                                                         {{ $role->name }}
                                                     </option>
                                                 @endforeach
                                             </select>
+                                            <small class="text-muted">Ctrl/Cmd+click for multiple</small>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -217,7 +223,12 @@
       document.querySelectorAll('select[name^="department_id"]').forEach(sel => { if (deptVal) sel.value = deptVal; });
       document.querySelectorAll('select[name^="job_title_id"]').forEach(sel => { if (jobVal) sel.value = jobVal; });
       document.querySelectorAll('select[name^="staff_category_id"]').forEach(sel => { if (catVal) sel.value = catVal; });
-      document.querySelectorAll('select[name^="spatie_role_name"]').forEach(sel => { if (roleVal) sel.value = roleVal; });
+      document.querySelectorAll('select[name^="spatie_role_names"]').forEach(sel => {
+        if (!roleVal) return;
+        Array.from(sel.options).forEach(opt => {
+          opt.selected = opt.value === roleVal;
+        });
+      });
       document.querySelectorAll('select[name^="supervisor_id"]').forEach(sel => { if (supervisorVal) sel.value = supervisorVal; });
       alert('Bulk selections applied to all rows!');
     });

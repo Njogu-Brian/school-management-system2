@@ -36,7 +36,7 @@ class StaffTemplateExport implements FromArray, WithHeadings
             'job_title_id',           // FK (optional)
             'staff_category_id',      // FK (optional)
             'supervisor_id',          // FK (optional)
-            'spatie_role_id',         // FK to spatie roles (optional)
+            'spatie_role_name',       // Optional role name(s), comma-separated e.g. Teacher, Driver
         ];
     }
 

@@ -28,8 +28,10 @@
                     <div class="fw-semibold">{{ $staff->full_name }}</div>
                     <div class="text-muted small">{{ $staff->work_email }} · {{ $staff->staff_id ?? 'Ref #' . $staff->id }}</div>
                 </div>
-                @if($staff->user?->roles?->first())
-                    <span class="pill-badge pill-secondary">{{ $staff->user->roles->first()->name }}</span>
+                @if($staff->user?->roles?->isNotEmpty())
+                    @foreach($staff->user->roles as $role)
+                        <span class="pill-badge pill-secondary">{{ $role->name }}</span>
+                    @endforeach
                 @endif
             </div>
         </div>
