@@ -165,7 +165,7 @@
                 <div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
                     <div>
                         <h5 class="mb-1">Currently on this trip</h5>
-                        <small class="text-muted">Numbered by {{ strtolower($stopLegLabel) }}. Edit points, then save.</small>
+                        <small class="text-muted">Edit points, then save. Choose <strong>Own means</strong> for a leg they do not use school transport on (fees become one-way for the other leg).</small>
                     </div>
                     <div class="d-flex gap-2 align-items-center flex-wrap">
                         <span class="input-chip">{{ $assigned->count() }} student(s)</span>
@@ -210,8 +210,10 @@
                                 @forelse($assigned as $idx => $row)
                                     @php
                                         $student = $row->student;
-                                        $morningId = $row->morning_drop_off_point_id ?: $student->drop_off_point_id;
-                                        $eveningId = $row->evening_drop_off_point_id ?: $student->drop_off_point_id;
+                                        $morningId = $row->morning_drop_off_point_id
+                                            ?: ($student->drop_off_point_id ?: $ownMeansPointId);
+                                        $eveningId = $row->evening_drop_off_point_id
+                                            ?: ($student->drop_off_point_id ?: $ownMeansPointId);
                                         $stopName = $defaultLeg === 'evening'
                                             ? (optional($row->eveningDropOffPoint)->name
                                                 ?? optional($student->dropOffPoint)->name
@@ -248,16 +250,18 @@
                                         <td>{{ optional($student->stream)->name ?? '—' }}</td>
                                         <td>
                                             <select name="points[{{ $idx }}][morning_drop_off_point_id]" class="form-select form-select-sm">
-                                                <option value="">— Select —</option>
+                                                <option value="{{ $ownMeansPointId }}" @selected((int) $morningId === (int) $ownMeansPointId)>Own means (no morning transport)</option>
                                                 @foreach($dropOffPoints as $point)
+                                                    @continue((int) $point->id === (int) $ownMeansPointId)
                                                     <option value="{{ $point->id }}" @selected((int) $morningId === (int) $point->id)>{{ $point->name }}</option>
                                                 @endforeach
                                             </select>
                                         </td>
                                         <td>
                                             <select name="points[{{ $idx }}][evening_drop_off_point_id]" class="form-select form-select-sm">
-                                                <option value="">— Select —</option>
+                                                <option value="{{ $ownMeansPointId }}" @selected((int) $eveningId === (int) $ownMeansPointId)>Own means (no evening transport)</option>
                                                 @foreach($dropOffPoints as $point)
+                                                    @continue((int) $point->id === (int) $ownMeansPointId)
                                                     <option value="{{ $point->id }}" @selected((int) $eveningId === (int) $point->id)>{{ $point->name }}</option>
                                                 @endforeach
                                             </select>
@@ -299,6 +303,7 @@
     const searchUrl = @json(route('transport.trips.assign.search', $trip));
     const suggestUrl = @json(route('transport.trips.assign.suggest', $trip));
     const dropOffPoints = @json($dropOffPoints->map(fn ($p) => ['id' => $p->id, 'name' => $p->name])->values());
+    const ownMeansPointId = @json((int) $ownMeansPointId);
     const searchInput = document.getElementById('tripStudentSearch');
     const resultsBody = document.getElementById('searchResultsBody');
     const suggestionsCard = document.getElementById('suggestionsCard');
@@ -328,11 +333,16 @@
     };
 
     const pointSelectHtml = (name, selectedId) => {
-        const opts = ['<option value="">— Select —</option>']
-            .concat(dropOffPoints.map((p) => {
-                const sel = Number(selectedId) === Number(p.id) ? ' selected' : '';
-                return `<option value="${p.id}"${sel}>${escapeHtml(p.name)}</option>`;
-            }));
+        const selected = selectedId ? Number(selectedId) : ownMeansPointId;
+        const ownLabel = name === 'evening'
+            ? 'Own means (no evening transport)'
+            : 'Own means (no morning transport)';
+        const opts = [
+            `<option value="${ownMeansPointId}"${selected === Number(ownMeansPointId) ? ' selected' : ''}>${ownLabel}</option>`,
+        ].concat(dropOffPoints.filter((p) => Number(p.id) !== Number(ownMeansPointId)).map((p) => {
+            const sel = selected === Number(p.id) ? ' selected' : '';
+            return `<option value="${p.id}"${sel}>${escapeHtml(p.name)}</option>`;
+        }));
         return `<select class="form-select form-select-sm" data-point-field="${name}">${opts.join('')}</select>`;
     };
 
@@ -395,11 +405,11 @@
                     const current = draft.get(Number(stu.id));
                     if (!current) return;
                     if (field === 'morning') {
-                        current.morning_point_id = val;
-                        current.morning_point = pointNameById(val);
+                        current.morning_point_id = val || ownMeansPointId;
+                        current.morning_point = pointNameById(current.morning_point_id) || 'Own means';
                     } else {
-                        current.evening_point_id = val;
-                        current.evening_point = pointNameById(val);
+                        current.evening_point_id = val || ownMeansPointId;
+                        current.evening_point = pointNameById(current.evening_point_id) || 'Own means';
                     }
                     draft.set(Number(stu.id), current);
                     syncDraftFormWithoutRerender();

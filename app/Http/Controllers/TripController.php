@@ -205,12 +205,14 @@ class TripController extends Controller
 
         DropOffPoint::ownMeans();
         $dropOffPoints = DropOffPoint::orderBy('name')->get(['id', 'name']);
+        $ownMeansPoint = DropOffPoint::ownMeans();
 
         return view('trips.assign', [
             'trip' => $trip,
             'assigned' => $assigned,
             'defaultLeg' => $leg,
             'dropOffPoints' => $dropOffPoints,
+            'ownMeansPointId' => $ownMeansPoint->id,
             'stopCounts' => $stopCounts,
             'stopLegLabel' => $leg === 'evening' ? 'Evening drop-off' : 'Morning pickup',
         ]);
@@ -409,6 +411,8 @@ class TripController extends Controller
         $assigned = 0;
 
         DB::transaction(function () use ($studentIds, $column, $trip, $morningPoints, $eveningPoints, &$assigned) {
+            $ownMeansId = DropOffPoint::ownMeans()->id;
+
             foreach ($studentIds as $studentId) {
                 $student = Student::withoutGlobalScope('active')->find($studentId);
                 if (!$student) {
@@ -420,16 +424,32 @@ class TripController extends Controller
 
                 if (array_key_exists($studentId, $morningPoints) || array_key_exists((string) $studentId, $morningPoints)) {
                     $raw = $morningPoints[$studentId] ?? $morningPoints[(string) $studentId] ?? null;
-                    $assignment->morning_drop_off_point_id = $raw !== null && $raw !== '' ? (int) $raw : null;
+                    $assignment->morning_drop_off_point_id = $this->resolveTransportPointId($raw, $ownMeansId);
                 } elseif (!$assignment->morning_drop_off_point_id && $student->drop_off_point_id) {
                     $assignment->morning_drop_off_point_id = $student->drop_off_point_id;
                 }
 
                 if (array_key_exists($studentId, $eveningPoints) || array_key_exists((string) $studentId, $eveningPoints)) {
                     $raw = $eveningPoints[$studentId] ?? $eveningPoints[(string) $studentId] ?? null;
-                    $assignment->evening_drop_off_point_id = $raw !== null && $raw !== '' ? (int) $raw : null;
+                    $assignment->evening_drop_off_point_id = $this->resolveTransportPointId($raw, $ownMeansId);
                 } elseif (!$assignment->evening_drop_off_point_id && $student->drop_off_point_id) {
                     $assignment->evening_drop_off_point_id = $student->drop_off_point_id;
+                }
+
+                // Own-means legs are not on school transport for that direction.
+                if ((int) $assignment->morning_drop_off_point_id === (int) $ownMeansId) {
+                    $assignment->morning_trip_id = null;
+                }
+                if ((int) $assignment->evening_drop_off_point_id === (int) $ownMeansId) {
+                    $assignment->evening_trip_id = null;
+                }
+
+                // Re-apply this trip if the chosen leg is not own means.
+                if ($column === 'morning_trip_id' && (int) $assignment->morning_drop_off_point_id !== (int) $ownMeansId) {
+                    $assignment->morning_trip_id = $trip->id;
+                }
+                if ($column === 'evening_trip_id' && (int) $assignment->evening_drop_off_point_id !== (int) $ownMeansId) {
+                    $assignment->evening_trip_id = $trip->id;
                 }
 
                 $assignment->save();
@@ -464,8 +484,9 @@ class TripController extends Controller
         ]);
 
         $updated = 0;
+        $ownMeansId = DropOffPoint::ownMeans()->id;
 
-        DB::transaction(function () use ($validated, $trip, &$updated) {
+        DB::transaction(function () use ($validated, $trip, $ownMeansId, &$updated) {
             foreach ($validated['points'] as $row) {
                 $studentId = (int) $row['student_id'];
                 $assignment = StudentAssignment::where('student_id', $studentId)
@@ -479,10 +500,23 @@ class TripController extends Controller
                     continue;
                 }
 
-                $morning = $row['morning_drop_off_point_id'] ?? null;
-                $evening = $row['evening_drop_off_point_id'] ?? null;
-                $assignment->morning_drop_off_point_id = $morning !== null && $morning !== '' ? (int) $morning : null;
-                $assignment->evening_drop_off_point_id = $evening !== null && $evening !== '' ? (int) $evening : null;
+                $morning = array_key_exists('morning_drop_off_point_id', $row)
+                    ? $this->resolveTransportPointId($row['morning_drop_off_point_id'] ?? null, $ownMeansId)
+                    : $assignment->morning_drop_off_point_id;
+                $evening = array_key_exists('evening_drop_off_point_id', $row)
+                    ? $this->resolveTransportPointId($row['evening_drop_off_point_id'] ?? null, $ownMeansId)
+                    : $assignment->evening_drop_off_point_id;
+
+                $assignment->morning_drop_off_point_id = $morning;
+                $assignment->evening_drop_off_point_id = $evening;
+
+                if ((int) $morning === (int) $ownMeansId) {
+                    $assignment->morning_trip_id = null;
+                }
+                if ((int) $evening === (int) $ownMeansId) {
+                    $assignment->evening_trip_id = null;
+                }
+
                 $assignment->save();
                 $updated++;
 
@@ -499,7 +533,20 @@ class TripController extends Controller
 
         return redirect()
             ->route('transport.trips.assign', $trip)
-            ->with('success', "Updated pickup/drop-off points for {$updated} student(s). Run Post Pending Fees if transport list prices changed.");
+            ->with('success', "Updated pickup/drop-off points for {$updated} student(s). Own means legs are removed from that trip direction. Run Post Pending Fees if transport list prices changed.");
+    }
+
+    /**
+     * Blank / missing point = OWN MEANS (no school transport for that leg).
+     */
+    private function resolveTransportPointId(mixed $raw, ?int $ownMeansId = null): int
+    {
+        $ownMeansId = $ownMeansId ?? DropOffPoint::ownMeans()->id;
+        if ($raw === null || $raw === '') {
+            return (int) $ownMeansId;
+        }
+
+        return (int) $raw;
     }
 
     /**
