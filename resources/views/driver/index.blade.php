@@ -17,6 +17,9 @@
                 <form method="GET" action="{{ route('driver.index') }}" class="d-flex gap-2">
                     <input type="date" name="date" value="{{ $selected_date }}" class="form-control" onchange="this.form.submit()">
                 </form>
+                <a href="{{ route('driver.transport-sheet', ['date' => $selected_date]) }}" class="btn btn-settings-primary">
+                    <i class="bi bi-printer"></i> Transport Sheet
+                </a>
             </div>
         </div>
 

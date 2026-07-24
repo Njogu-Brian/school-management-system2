@@ -128,12 +128,12 @@ class DriverController extends Controller
             $trips = collect([$trip]);
         } else {
             // Get all trips assigned to this driver for the date
+            $dayOfWeekAdjusted = $carbonDate->dayOfWeek === 0 ? 7 : $carbonDate->dayOfWeek;
             $trips = Trip::where('driver_id', $staff->id)
-                ->where(function ($q) use ($carbonDate) {
-                    $dayOfWeek = $carbonDate->dayOfWeek;
-                    $dayOfWeekAdjusted = $dayOfWeek === 0 ? 7 : $dayOfWeek;
-                    
+                ->where(function ($q) use ($dayOfWeekAdjusted) {
                     $q->whereNull('day_of_week')
+                      ->orWhereJsonContains('day_of_week', $dayOfWeekAdjusted)
+                      ->orWhereJsonContains('day_of_week', (string) $dayOfWeekAdjusted)
                       ->orWhere('day_of_week', $dayOfWeekAdjusted);
                 })
                 ->with(['vehicle', 'stops.dropOffPoint', 'driver'])

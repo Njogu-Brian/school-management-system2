@@ -172,7 +172,14 @@ class TransportAssignmentService
         return Student::whereIn('id', $allStudentIds)
             ->where('archive', 0)
             ->where('is_alumni', false)
-            ->with(['classroom', 'category'])
+            ->with([
+                'classroom',
+                'stream',
+                'category',
+                'dropOffPoint',
+                'assignments.morningDropOffPoint',
+                'assignments.eveningDropOffPoint',
+            ])
             ->orderBy('first_name')
             ->get();
     }
