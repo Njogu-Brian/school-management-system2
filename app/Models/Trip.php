@@ -41,10 +41,62 @@ class Trip extends Model
         return $this->belongsTo(Vehicle::class);
     }
 
-    // Relationship with Students through StudentAssignment
+    /**
+     * Students assigned via legacy trip_id column.
+     */
     public function assignments()
     {
-        return $this->hasMany(StudentAssignment::class);
+        return $this->hasMany(StudentAssignment::class, 'trip_id');
+    }
+
+    public function morningAssignments()
+    {
+        return $this->hasMany(StudentAssignment::class, 'morning_trip_id');
+    }
+
+    public function eveningAssignments()
+    {
+        return $this->hasMany(StudentAssignment::class, 'evening_trip_id');
+    }
+
+    /**
+     * Whether any student assignment references this trip (legacy, morning, or evening).
+     */
+    public function hasStudentAssignments(): bool
+    {
+        return $this->assignments()->exists()
+            || $this->morningAssignments()->exists()
+            || $this->eveningAssignments()->exists();
+    }
+
+    /**
+     * Clear all student assignment references to this trip.
+     */
+    public function detachStudentAssignments(): int
+    {
+        $count = 0;
+
+        $count += StudentAssignment::where('morning_trip_id', $this->id)->update(['morning_trip_id' => null]);
+        $count += StudentAssignment::where('evening_trip_id', $this->id)->update(['evening_trip_id' => null]);
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('student_assignments', 'trip_id')) {
+            $count += StudentAssignment::where('trip_id', $this->id)->update(['trip_id' => null]);
+        }
+
+        return $count;
+    }
+
+    /**
+     * Which assignment leg this trip maps to based on direction.
+     * pickup → morning, dropoff → evening, otherwise null (caller chooses).
+     */
+    public function assignmentLeg(): ?string
+    {
+        return match ($this->direction) {
+            'pickup' => 'morning',
+            'dropoff' => 'evening',
+            default => null,
+        };
     }
 
     // Relationship with Driver (Staff)

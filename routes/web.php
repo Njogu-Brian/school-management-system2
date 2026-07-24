@@ -689,7 +689,10 @@ Route::middleware('auth')->group(function () {
 
             // Resources
             Route::resource('vehicles',VehicleController::class)->except(['show']);
-            Route::resource('trips',   TripController::class);
+            Route::get('trips/{trip}/assign', [TripController::class, 'assign'])->name('trips.assign');
+            Route::post('trips/{trip}/assign', [TripController::class, 'assignStore'])->name('trips.assign.store');
+            Route::delete('trips/{trip}/assign/{student}', [TripController::class, 'unassign'])->name('trips.unassign');
+            Route::resource('trips', TripController::class)->except(['show']);
             Route::resource('dropoffpoints', DropOffPointController::class);
             Route::resource('student-assignments', StudentAssignmentController::class)
                 ->parameters(['student-assignments' => 'student_assignment']);

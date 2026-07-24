@@ -15,7 +15,10 @@
             </div>
             <div class="d-flex gap-2">
                 <a href="{{ route('transport.student-assignments.bulk-assign') }}" class="btn btn-settings-primary">
-                    <i class="bi bi-people"></i> Bulk Assign
+                    <i class="bi bi-people"></i> Bulk Assign by Class
+                </a>
+                <a href="{{ route('transport.trips.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-bus-front"></i> Assign via Trip
                 </a>
                 <a href="{{ route('transport.student-assignments.create') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-plus-circle"></i> Assign Student

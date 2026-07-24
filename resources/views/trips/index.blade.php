@@ -65,15 +65,18 @@
                                             <span class="text-muted">All</span>
                                         @endif
                                     </td>
-                                    <td class="text-end d-flex justify-content-end gap-2">
-                                        <a href="{{ route('transport.trips.edit', $trip->id) }}" class="btn btn-sm btn-ghost-strong">
+                                    <td class="text-end d-flex justify-content-end gap-2 flex-wrap">
+                                        <a href="{{ route('transport.trips.assign', $trip->id) }}" class="btn btn-sm btn-settings-primary" title="Assign students">
+                                            <i class="bi bi-people"></i> Assign
+                                        </a>
+                                        <a href="{{ route('transport.trips.edit', $trip->id) }}" class="btn btn-sm btn-ghost-strong" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <form action="{{ route('transport.trips.destroy', $trip->id) }}" method="POST" class="d-inline"
-                                              onsubmit="return confirm('Delete this trip?');">
+                                              onsubmit="return confirm('Delete this trip? Students on it will be unassigned from the trip.');">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-ghost-strong text-danger">
+                                            <button type="submit" class="btn btn-sm btn-ghost-strong text-danger" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>

@@ -35,15 +35,18 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label for="vehicle_id" class="form-label fw-semibold">Select Vehicle <span class="text-danger">*</span></label>
-                        <select name="vehicle_id" id="vehicle_id" class="form-select" required>
-                            <option value="">Select Vehicle</option>
+                        <label for="vehicle_id" class="form-label fw-semibold">Select Vehicle</label>
+                        <select name="vehicle_id" id="vehicle_id" class="form-select">
+                            <option value="">No vehicle (orphaned / unassigned)</option>
                             @foreach ($vehicles as $vehicle)
                                 <option value="{{ $vehicle->id }}" {{ old('vehicle_id', $trip->vehicle_id) == $vehicle->id ? 'selected' : '' }}>
                                     {{ $vehicle->vehicle_number }} - {{ $vehicle->driver_name ?? 'No Driver' }}
                                 </option>
                             @endforeach
                         </select>
+                        @unless($trip->vehicle_id)
+                            <small class="text-warning">This trip has no vehicle (it was deleted). Reassign a vehicle or delete the trip.</small>
+                        @endunless
                     </div>
                     <div class="col-md-6">
                         <label for="driver_id" class="form-label fw-semibold">Driver</label>
