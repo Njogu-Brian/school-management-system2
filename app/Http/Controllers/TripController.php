@@ -252,6 +252,8 @@ class TripController extends Controller
                 'dropOffPoint',
                 'assignments.morningDropOffPoint',
                 'assignments.eveningDropOffPoint',
+                'assignments.morningTrip',
+                'assignments.eveningTrip',
             ])
             ->orderBy('first_name')
             ->limit(30)
@@ -321,6 +323,8 @@ class TripController extends Controller
                 'dropOffPoint',
                 'assignments.morningDropOffPoint',
                 'assignments.eveningDropOffPoint',
+                'assignments.morningTrip',
+                'assignments.eveningTrip',
             ]);
 
         if ($pointId) {
@@ -360,7 +364,7 @@ class TripController extends Controller
     private function formatStudentForTripAssign(Student $st, Trip $trip): array
     {
         $full = trim(implode(' ', array_filter([$st->first_name, $st->middle_name, $st->last_name])));
-        $assignment = $st->relationLoaded('assignments') ? $st->assignments->first() : $st->assignments()->first();
+        $assignment = $st->relationLoaded('assignments') ? $st->assignments->first() : $st->assignments()->with(['morningTrip', 'eveningTrip', 'morningDropOffPoint', 'eveningDropOffPoint'])->first();
 
         $morningPoint = optional($assignment?->morningDropOffPoint)->name
             ?? optional($st->dropOffPoint)->name
@@ -369,8 +373,27 @@ class TripController extends Controller
             ?? optional($st->dropOffPoint)->name
             ?? $st->drop_off_point_other;
 
-        $onTripMorning = (int) ($assignment?->morning_trip_id) === (int) $trip->id;
-        $onTripEvening = (int) ($assignment?->evening_trip_id) === (int) $trip->id;
+        $morningTripId = $assignment?->morning_trip_id ? (int) $assignment->morning_trip_id : null;
+        $eveningTripId = $assignment?->evening_trip_id ? (int) $assignment->evening_trip_id : null;
+        $currentTripId = (int) $trip->id;
+
+        $onTripMorning = $morningTripId === $currentTripId;
+        $onTripEvening = $eveningTripId === $currentTripId;
+
+        $morningTripName = null;
+        $eveningTripName = null;
+        if ($morningTripId && $morningTripId !== $currentTripId) {
+            $morningTripName = $assignment?->morningTrip?->trip_name
+                ?? $assignment?->morningTrip?->name
+                ?? ('Trip #'.$morningTripId);
+        }
+        if ($eveningTripId && $eveningTripId !== $currentTripId) {
+            $eveningTripName = $assignment?->eveningTrip?->trip_name
+                ?? $assignment?->eveningTrip?->name
+                ?? ('Trip #'.$eveningTripId);
+        }
+
+        $onOtherTrip = (bool) ($morningTripName || $eveningTripName);
 
         return [
             'id' => $st->id,
@@ -385,6 +408,11 @@ class TripController extends Controller
             'on_trip_morning' => $onTripMorning,
             'on_trip_evening' => $onTripEvening,
             'on_trip' => $onTripMorning || $onTripEvening,
+            'on_other_trip' => $onOtherTrip,
+            'other_morning_trip' => $morningTripName,
+            'other_evening_trip' => $eveningTripName,
+            'morning_trip_id' => $morningTripId,
+            'evening_trip_id' => $eveningTripId,
         ];
     }
 

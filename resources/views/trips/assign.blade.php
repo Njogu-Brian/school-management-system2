@@ -474,14 +474,28 @@
     };
 
     const studentRowHtml = (stu) => {
-        const onTrip = alreadyAssigned.has(Number(stu.id)) || stu.on_trip;
+        const onThisTrip = alreadyAssigned.has(Number(stu.id)) || stu.on_trip;
         const inDraft = draft.has(Number(stu.id));
+        const badges = [];
+        if (onThisTrip) {
+            badges.push('<span class="badge bg-secondary">On this trip</span>');
+        }
+        if (stu.other_morning_trip) {
+            badges.push(`<span class="badge bg-warning text-dark" title="Already on another morning trip">Morning: ${escapeHtml(stu.other_morning_trip)}</span>`);
+        }
+        if (stu.other_evening_trip) {
+            badges.push(`<span class="badge bg-info text-dark" title="Already on another evening trip">Evening: ${escapeHtml(stu.other_evening_trip)}</span>`);
+        }
+        if (inDraft && !onThisTrip) {
+            badges.push('<span class="badge bg-success">In draft</span>');
+        }
+        const badgeHtml = badges.length ? ' ' + badges.join(' ') : '';
         return `
             <td>
                 <input type="checkbox" class="form-check-input" data-student-check value="${stu.id}"
-                    ${onTrip ? 'disabled' : ''} ${inDraft ? 'checked' : ''}>
+                    ${onThisTrip ? 'disabled' : ''} ${inDraft ? 'checked' : ''}>
             </td>
-            <td class="fw-semibold">${escapeHtml(stu.full_name)}${onTrip ? ' <span class="badge bg-secondary">On trip</span>' : ''}${inDraft && !onTrip ? ' <span class="badge bg-success">In draft</span>' : ''}</td>
+            <td class="fw-semibold">${escapeHtml(stu.full_name)}${badgeHtml}</td>
             <td>${escapeHtml(stu.admission_number || '')}</td>
             <td>${escapeHtml(stu.classroom_name || '—')}</td>
             <td>${escapeHtml(stu.stream_name || '—')}</td>
