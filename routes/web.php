@@ -618,9 +618,10 @@ Route::middleware('auth')->group(function () {
         Route::resource('homework', HomeworkController::class);
         Route::prefix('diaries')->name('diaries.')->group(function () {
             Route::get('/', [StudentDiaryController::class, 'index'])->name('index');
+            Route::post('/purge-orphans', [StudentDiaryController::class, 'purgeOrphans'])->name('purge-orphans');
+            Route::post('/entries/bulk', [StudentDiaryController::class, 'bulkStore'])->name('entries.bulk-store');
             Route::get('/{diary}', [StudentDiaryController::class, 'show'])->name('show');
             Route::post('/{diary}/entries', [StudentDiaryController::class, 'storeEntry'])->name('entries.store');
-            Route::post('/entries/bulk', [StudentDiaryController::class, 'bulkStore'])->name('entries.bulk-store');
         });
 
         Route::middleware('role:Parent|parent')->prefix('parent/diaries')->name('parent.diaries.')->group(function () {

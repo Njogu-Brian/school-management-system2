@@ -32,14 +32,21 @@ class StudentDiaryController extends Controller
                 }
             }
             return $next($request);
-        })->only(['index', 'show', 'storeEntry', 'bulkStore']);
+        })->only(['index', 'show', 'storeEntry', 'bulkStore', 'purgeOrphans']);
     }
 
     public function index(Request $request)
     {
         $user = Auth::user();
+        $isAdmin = $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
 
-        $query = StudentDiary::with(['student.classroom', 'latestEntry.author']);
+        // Diaries whose student row was deleted (FK cascade missing / bypassed) — hide by default
+        $orphanedCount = $isAdmin
+            ? StudentDiary::query()->whereDoesntHave('student')->count()
+            : 0;
+
+        $query = StudentDiary::with(['student.classroom', 'latestEntry.author'])
+            ->whereHas('student');
 
         $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
         if ($isTeacher) {
@@ -108,14 +115,44 @@ class StudentDiaryController extends Controller
         if ($request->filled('search')) {
             $search = trim($request->search);
             $query->whereHas('student', function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('admission_number', 'like', "%{$search}%");
+                $q->where(function ($nameQ) use ($search) {
+                    $nameQ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('middle_name', 'like', "%{$search}%")
+                        ->orWhere('admission_number', 'like', "%{$search}%")
+                        ->orWhereRaw("CONCAT_WS(' ', first_name, middle_name, last_name) like ?", ["%{$search}%"]);
+                });
             });
         }
 
-        $diaries = $query->orderByDesc('updated_at')->paginate(30)->withQueryString();
-        $classrooms = Classroom::orderBy('name')->get();
+        $stats = [
+            'total' => (clone $query)->count(),
+            'active' => (clone $query)->whereHas('entries')->count(),
+            'empty' => (clone $query)->whereDoesntHave('entries')->count(),
+        ];
+
+        $activity = $request->input('activity', 'all');
+        if ($activity === 'active') {
+            $query->whereHas('entries');
+        } elseif ($activity === 'empty') {
+            $query->whereDoesntHave('entries');
+        }
+
+        $diaries = $query->orderByDesc('updated_at')->paginate(24)->withQueryString();
+
+        $classroomQuery = Classroom::orderBy('name');
+        if ($isTeacher && ! $isAdmin) {
+            $assignedClassrooms = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
+            if (! empty($assignedClassrooms)) {
+                $classroomQuery->whereIn('id', $assignedClassrooms);
+            } else {
+                $classroomQuery->whereRaw('1 = 0');
+            }
+        }
+        $classrooms = $classroomQuery->get();
 
         $studentsQuery = Student::with('classroom')->orderBy('first_name');
         if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
@@ -128,7 +165,40 @@ class StudentDiaryController extends Controller
         }
         $students = $studentsQuery->get();
 
-        return view('academics.diaries.index', compact('diaries', 'classrooms', 'students'));
+        return view('academics.diaries.index', compact(
+            'diaries',
+            'classrooms',
+            'students',
+            'stats',
+            'orphanedCount'
+        ));
+    }
+
+    /**
+     * Remove diary shells left behind after student records were deleted.
+     */
+    public function purgeOrphans(Request $request)
+    {
+        $user = Auth::user();
+        if (! $user->hasAnyRole(['Super Admin', 'Admin'])) {
+            abort(403, 'Only administrators can clean up orphaned diaries.');
+        }
+
+        $orphans = StudentDiary::query()->whereDoesntHave('student')->get();
+        $count = $orphans->count();
+
+        DB::transaction(function () use ($orphans) {
+            foreach ($orphans as $diary) {
+                $diary->entries()->delete();
+                $diary->delete();
+            }
+        });
+
+        return redirect()
+            ->route('academics.diaries.index')
+            ->with('success', $count === 0
+                ? 'No orphaned diaries found.'
+                : "Removed {$count} orphaned ".($count === 1 ? 'diary' : 'diaries').'.');
     }
 
     public function show(StudentDiary $diary)
@@ -251,13 +321,17 @@ class StudentDiaryController extends Controller
             return;
         }
 
+        if (! $diary->student) {
+            abort(404, 'This diary is no longer linked to a student.');
+        }
+
         $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
         if ($isTeacher) {
             $assigned = array_unique(array_merge(
                 $user->getAssignedClassroomIds(),
                 $user->getSupervisedClassroomIds()
             ));
-            if (in_array($diary->student->classroom_id, $assigned)) {
+            if (in_array($diary->student->classroom_id, $assigned, true)) {
                 return;
             }
         }
