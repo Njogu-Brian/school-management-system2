@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @push('styles')
-    @include('settings.partials.styles')
+    @include('transport.partials.styles')
 @endpush
 
 @section('content')

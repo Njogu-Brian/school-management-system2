@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @push('styles')
-    @include('settings.partials.styles')
+    @include('transport.partials.styles')
 @endpush
 
 @section('content')
@@ -85,7 +85,8 @@
                                             <span class="text-muted">—</span>
                                         @endif
                                     </td>
-                                    <td class="text-end d-flex justify-content-end gap-2">
+                                    <td class="text-end">
+                                        <div class="table-actions">
                                         <a href="{{ route('transport.vehicles.edit', $vehicle) }}" class="btn btn-sm btn-ghost-strong">
                                             <i class="bi bi-pencil"></i>
                                         </a>
@@ -96,6 +97,7 @@
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty

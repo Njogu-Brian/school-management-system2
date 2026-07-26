@@ -1,162 +1,91 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('transport.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h2 class="mb-0">Transport Details - {{ $student->full_name }}</h2>
-      <small class="text-muted">Complete transport information</small>
-    </div>
-    <a href="{{ route('teacher.transport.index') }}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i> Back
-    </a>
-  </div>
-
-  <div class="row g-3">
-    {{-- Student Information --}}
-    <div class="col-md-12">
-      <div class="card shadow-sm">
-        <div class="card-header">
-          <h5 class="mb-0"><i class="bi bi-person"></i> Student Information</h5>
+@php $assignment = $student->assignments->first(); @endphp
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header">
+            <div>
+                <p class="eyebrow mb-1">Transport</p>
+                <h1 class="mb-1">{{ $student->full_name }}</h1>
+                <p class="mb-0">Transport details · {{ $student->admission_number }}</p>
+            </div>
+            <div class="header-actions">
+                <a href="{{ route('teacher.transport.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+            </div>
         </div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-3">
-              <strong>Name:</strong> {{ $student->full_name }}
-            </div>
-            <div class="col-md-3">
-              <strong>Admission #:</strong> <span class="badge bg-primary">{{ $student->admission_number }}</span>
-            </div>
-            <div class="col-md-3">
-              <strong>Class:</strong> {{ $student->classroom->name ?? '—' }}
-            </div>
-            <div class="col-md-3">
-              <strong>Stream:</strong> {{ $student->stream->name ?? '—' }}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    {{-- Morning Trip --}}
-    @if($student->assignments->first() && $student->assignments->first()->morningTrip)
-      @php $assignment = $student->assignments->first(); @endphp
-      <div class="col-md-6">
-        <div class="card shadow-sm">
-          <div class="card-header bg-info text-white">
-            <h5 class="mb-0"><i class="bi bi-sunrise"></i> Morning Trip</h5>
-          </div>
-          <div class="card-body">
-            <table class="table table-borderless mb-0">
-              <tr>
-                <th width="150">Trip:</th>
-                <td><span class="badge bg-info">{{ $assignment->morningTrip->name ?? '—' }}</span></td>
-              </tr>
-              <tr>
-                <th>Drop-off Point:</th>
-                <td>{{ $assignment->morningDropOffPoint->name ?? '—' }}</td>
-              </tr>
-              @if($assignment->morningTrip->vehicle)
-                <tr>
-                  <th>Vehicle:</th>
-                  <td>
-                    <span class="badge bg-success">{{ $assignment->morningTrip->vehicle->registration_number ?? '—' }}</span>
-                    @if($assignment->morningTrip->vehicle->driver_name)
-                      <small class="text-muted d-block">Driver: {{ $assignment->morningTrip->vehicle->driver_name }}</small>
+        <div class="transport-stats">
+            <div class="transport-stat">
+                <div class="label">Class</div>
+                <div class="value" style="font-size:1rem;">{{ $student->classroom->name ?? '—' }}</div>
+            </div>
+            <div class="transport-stat">
+                <div class="label">Stream</div>
+                <div class="value" style="font-size:1rem;">{{ $student->stream->name ?? '—' }}</div>
+            </div>
+            <div class="transport-stat">
+                <div class="label">Admission</div>
+                <div class="value" style="font-size:1rem;">{{ $student->admission_number }}</div>
+            </div>
+            <div class="transport-stat">
+                <div class="label">Route</div>
+                <div class="value" style="font-size:1rem;">{{ $student->route->name ?? '—' }}</div>
+            </div>
+        </div>
+
+        <div class="transport-card mb-3">
+            <div class="transport-split">
+                <section class="transport-split-pane">
+                    <div class="transport-pane-label"><strong>Morning pickup</strong></div>
+                    @if($assignment?->morningTrip || $assignment?->morningDropOffPoint)
+                        <div class="transport-tile transport-tile-morning">
+                            <div>
+                                <p class="transport-tile-name">{{ $assignment->morningTrip->name ?? 'No trip' }}</p>
+                                <div class="text-muted small mt-1">{{ $assignment->morningDropOffPoint->name ?? 'No stop' }}</div>
+                                @if($assignment->morningTrip?->vehicle)
+                                    <span class="input-chip mt-2">
+                                        {{ $assignment->morningTrip->vehicle->vehicle_number ?? $assignment->morningTrip->vehicle->registration_number }}
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+                    @else
+                        <div class="transport-empty">No morning assignment.</div>
                     @endif
-                  </td>
-                </tr>
-              @endif
-              @if($assignment->morningDropOffPoint && $assignment->morningDropOffPoint->route)
-                <tr>
-                  <th>Route:</th>
-                  <td>{{ $assignment->morningDropOffPoint->route->name ?? '—' }}</td>
-                </tr>
-              @endif
-            </table>
-          </div>
-        </div>
-      </div>
-    @endif
-
-    {{-- Evening Trip --}}
-    @if($student->assignments->first() && $student->assignments->first()->eveningTrip)
-      @php $assignment = $student->assignments->first(); @endphp
-      <div class="col-md-6">
-        <div class="card shadow-sm">
-          <div class="card-header bg-warning text-dark">
-            <h5 class="mb-0"><i class="bi bi-sunset"></i> Evening Trip</h5>
-          </div>
-          <div class="card-body">
-            <table class="table table-borderless mb-0">
-              <tr>
-                <th width="150">Trip:</th>
-                <td><span class="badge bg-warning text-dark">{{ $assignment->eveningTrip->name ?? '—' }}</span></td>
-              </tr>
-              <tr>
-                <th>Drop-off Point:</th>
-                <td>{{ $assignment->eveningDropOffPoint->name ?? '—' }}</td>
-              </tr>
-              @if($assignment->eveningTrip->vehicle)
-                <tr>
-                  <th>Vehicle:</th>
-                  <td>
-                    <span class="badge bg-success">{{ $assignment->eveningTrip->vehicle->registration_number ?? '—' }}</span>
-                    @if($assignment->eveningTrip->vehicle->driver_name)
-                      <small class="text-muted d-block">Driver: {{ $assignment->eveningTrip->vehicle->driver_name }}</small>
+                </section>
+                <section class="transport-split-pane">
+                    <div class="transport-pane-label"><strong>Evening drop-off</strong></div>
+                    @if($assignment?->eveningTrip || $assignment?->eveningDropOffPoint)
+                        <div class="transport-tile transport-tile-evening">
+                            <div>
+                                <p class="transport-tile-name">{{ $assignment->eveningTrip->name ?? 'No trip' }}</p>
+                                <div class="text-muted small mt-1">{{ $assignment->eveningDropOffPoint->name ?? 'No stop' }}</div>
+                                @if($assignment->eveningTrip?->vehicle)
+                                    <span class="input-chip mt-2">
+                                        {{ $assignment->eveningTrip->vehicle->vehicle_number ?? $assignment->eveningTrip->vehicle->registration_number }}
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+                    @else
+                        <div class="transport-empty">No evening assignment.</div>
                     @endif
-                  </td>
-                </tr>
-              @endif
-              @if($assignment->eveningDropOffPoint && $assignment->eveningDropOffPoint->route)
-                <tr>
-                  <th>Route:</th>
-                  <td>{{ $assignment->eveningDropOffPoint->route->name ?? '—' }}</td>
-                </tr>
-              @endif
-            </table>
-          </div>
-        </div>
-      </div>
-    @endif
-
-    {{-- Route Information --}}
-    @if($student->route)
-      <div class="col-md-12">
-        <div class="card shadow-sm">
-          <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-signpost"></i> Route Information</h5>
-          </div>
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-4">
-                <strong>Route Name:</strong> {{ $student->route->name ?? '—' }}
-              </div>
-              <div class="col-md-4">
-                <strong>Area:</strong> {{ $student->route->area ?? '—' }}
-              </div>
-              @if($student->route->vehicles->count() > 0)
-                <div class="col-md-4">
-                  <strong>Vehicles on Route:</strong>
-                  @foreach($student->route->vehicles as $vehicle)
-                    <span class="badge bg-success">{{ $vehicle->registration_number }}</span>
-                  @endforeach
-                </div>
-              @endif
+                </section>
             </div>
-          </div>
         </div>
-      </div>
-    @endif
 
-    @if(!$student->assignments->first() && !$student->route)
-      <div class="col-12">
-        <div class="alert alert-info mb-0">
-          <i class="bi bi-info-circle"></i> No transport assignment found for this student.
-        </div>
-      </div>
-    @endif
-  </div>
+        @if(!$assignment && !$student->route)
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i> No transport assignment found for this student.
+            </div>
+        @endif
+    </div>
 </div>
 @endsection
-

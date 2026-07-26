@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @push('styles')
-    @include('settings.partials.styles')
+    @include('transport.partials.styles')
 @endpush
 
 @section('content')
@@ -31,34 +31,22 @@
             </div>
         </div>
 
-        <div class="row g-3 mb-3">
-            <div class="col-md-4">
-                <div class="settings-card h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">Two-way / term</div>
-                        <div class="fs-4 fw-semibold">
-                            {{ $dropOffPoint->two_way_amount !== null ? number_format((float) $dropOffPoint->two_way_amount, 2) : '—' }}
-                        </div>
-                    </div>
+        <div class="transport-stats">
+            <div class="transport-stat">
+                <div class="label">Two-way / term</div>
+                <div class="value">
+                    {{ $dropOffPoint->two_way_amount !== null ? number_format((float) $dropOffPoint->two_way_amount, 2) : '—' }}
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="settings-card h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">One-way / term</div>
-                        <div class="fs-4 fw-semibold">
-                            {{ $dropOffPoint->one_way_amount !== null ? number_format((float) $dropOffPoint->one_way_amount, 2) : '—' }}
-                        </div>
-                    </div>
+            <div class="transport-stat">
+                <div class="label">One-way / term</div>
+                <div class="value">
+                    {{ $dropOffPoint->one_way_amount !== null ? number_format((float) $dropOffPoint->one_way_amount, 2) : '—' }}
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="settings-card h-100">
-                    <div class="card-body">
-                        <div class="text-muted small">Students at this stop</div>
-                        <div class="fs-4 fw-semibold">{{ $assignments->count() }}</div>
-                    </div>
-                </div>
+            <div class="transport-stat">
+                <div class="label">Students at this stop</div>
+                <div class="value">{{ $assignments->count() }}</div>
             </div>
         </div>
 

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @push('styles')
-    @include('settings.partials.styles')
+    @include('transport.partials.styles')
     <style>
         .conflict-row {
             background-color: #fff3cd;

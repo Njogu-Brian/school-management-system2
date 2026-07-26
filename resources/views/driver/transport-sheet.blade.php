@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @push('styles')
-    @include('settings.partials.styles')
+    @include('transport.partials.styles')
 <style>
   @media print {
     .no-print, .sidebar, .topbar, .page-header .btn, nav, .crumb { display: none !important; }
