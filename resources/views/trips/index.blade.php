@@ -41,14 +41,13 @@
                                 <th>Driver</th>
                                 <th>Morning pickup</th>
                                 <th>Evening drop-off</th>
-                                <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($groups as $group)
                                 @php
-                                    $morning = $group['morning'];
-                                    $evening = $group['evening'];
+                                    $morningTrips = $group['morning'];
+                                    $eveningTrips = $group['evening'];
                                     $driver = $group['driver'];
                                 @endphp
                                 <tr>
@@ -61,58 +60,57 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if($morning)
-                                            <div class="fw-semibold">{{ $morning->name }}</div>
-                                            <a href="{{ route('transport.trips.assign', $morning) }}" class="btn btn-sm btn-settings-primary mt-1">
-                                                <i class="bi bi-people"></i> Assign
-                                            </a>
-                                            <a href="{{ route('transport.trips.edit', $morning) }}" class="btn btn-sm btn-ghost-strong mt-1">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                        @else
+                                        @forelse ($morningTrips as $trip)
+                                            <div class="mb-2 {{ !$loop->last ? 'pb-2 border-bottom' : '' }}">
+                                                <div class="fw-semibold">{{ $trip->name }}</div>
+                                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                                    <a href="{{ route('transport.trips.assign', $trip) }}" class="btn btn-sm btn-settings-primary">
+                                                        <i class="bi bi-people"></i> Assign
+                                                    </a>
+                                                    <a href="{{ route('transport.trips.edit', $trip) }}" class="btn btn-sm btn-ghost-strong">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </a>
+                                                    <form action="{{ route('transport.trips.destroy', $trip) }}" method="POST" class="d-inline"
+                                                          onsubmit="return confirm('Delete this morning trip? Students on it will be unassigned from that leg.');">
+                                                        @csrf @method('DELETE')
+                                                        <button type="submit" class="btn btn-sm btn-ghost-strong text-danger" title="Delete">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        @empty
                                             <span class="text-muted">No morning trip</span>
-                                        @endif
+                                        @endforelse
                                     </td>
                                     <td>
-                                        @if($evening)
-                                            <div class="fw-semibold">{{ $evening->name }}</div>
-                                            <a href="{{ route('transport.trips.assign', $evening) }}" class="btn btn-sm btn-settings-primary mt-1">
-                                                <i class="bi bi-people"></i> Assign
-                                            </a>
-                                            <a href="{{ route('transport.trips.edit', $evening) }}" class="btn btn-sm btn-ghost-strong mt-1">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                        @else
-                                            <span class="text-muted">No evening trip</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">
-                                        @foreach ($group['other'] as $extra)
-                                            <div class="mb-2 text-start">
-                                                <small class="text-muted d-block">{{ $extra->name }} ({{ $extra->type ?: $extra->direction ?: 'other' }})</small>
-                                                <a href="{{ route('transport.trips.assign', $extra) }}" class="btn btn-sm btn-ghost-strong">Assign</a>
-                                                <a href="{{ route('transport.trips.edit', $extra) }}" class="btn btn-sm btn-ghost-strong"><i class="bi bi-pencil"></i></a>
+                                        @forelse ($eveningTrips as $trip)
+                                            <div class="mb-2 {{ !$loop->last ? 'pb-2 border-bottom' : '' }}">
+                                                <div class="fw-semibold">{{ $trip->name }}</div>
+                                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                                    <a href="{{ route('transport.trips.assign', $trip) }}" class="btn btn-sm btn-settings-primary">
+                                                        <i class="bi bi-people"></i> Assign
+                                                    </a>
+                                                    <a href="{{ route('transport.trips.edit', $trip) }}" class="btn btn-sm btn-ghost-strong">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </a>
+                                                    <form action="{{ route('transport.trips.destroy', $trip) }}" method="POST" class="d-inline"
+                                                          onsubmit="return confirm('Delete this evening trip? Students on it will be unassigned from that leg.');">
+                                                        @csrf @method('DELETE')
+                                                        <button type="submit" class="btn btn-sm btn-ghost-strong text-danger" title="Delete">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
                                             </div>
-                                        @endforeach
-                                        @if($morning)
-                                            <form action="{{ route('transport.trips.destroy', $morning) }}" method="POST" class="d-inline"
-                                                  onsubmit="return confirm('Delete morning trip? Students on it will be unassigned from that leg.');">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-ghost-strong text-danger" title="Delete morning">M <i class="bi bi-trash"></i></button>
-                                            </form>
-                                        @endif
-                                        @if($evening)
-                                            <form action="{{ route('transport.trips.destroy', $evening) }}" method="POST" class="d-inline"
-                                                  onsubmit="return confirm('Delete evening trip? Students on it will be unassigned from that leg.');">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-ghost-strong text-danger" title="Delete evening">E <i class="bi bi-trash"></i></button>
-                                            </form>
-                                        @endif
+                                        @empty
+                                            <span class="text-muted">No evening trip</span>
+                                        @endforelse
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">No trips found.</td>
+                                    <td colspan="4" class="text-center text-muted py-4">No trips found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

@@ -23,25 +23,28 @@ class TripController extends Controller
                 ? 'v:' . $trip->vehicle_id
                 : 't:' . $trip->id;
         })->map(function ($vehicleTrips) {
-            $morning = $vehicleTrips->first(fn (Trip $t) =>
-                $t->type === 'Morning' || $t->direction === 'pickup'
-            );
-            $evening = $vehicleTrips->first(fn (Trip $t) =>
-                $t->type === 'Evening' || $t->direction === 'dropoff'
-            );
-            $other = $vehicleTrips->reject(fn (Trip $t) =>
-                ($morning && (int) $t->id === (int) $morning->id)
-                || ($evening && (int) $t->id === (int) $evening->id)
-            )->values();
+            $isMorning = fn (Trip $t) => $t->type === 'Morning' || $t->direction === 'pickup';
+            $isEvening = fn (Trip $t) => $t->type === 'Evening' || $t->direction === 'dropoff';
 
-            $anchor = $morning ?: ($evening ?: $vehicleTrips->first());
+            $morning = $vehicleTrips->filter($isMorning)->sortBy('trip_name', SORT_NATURAL | SORT_FLAG_CASE)->values();
+            $evening = $vehicleTrips->filter($isEvening)->sortBy('trip_name', SORT_NATURAL | SORT_FLAG_CASE)->values();
+
+            // Trips with neither type nor direction: treat as morning so they stay visible.
+            $unclassified = $vehicleTrips
+                ->reject(fn (Trip $t) => $isMorning($t) || $isEvening($t))
+                ->sortBy('trip_name', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values();
+            if ($unclassified->isNotEmpty()) {
+                $morning = $morning->concat($unclassified)->values();
+            }
+
+            $anchor = $morning->first() ?: ($evening->first() ?: $vehicleTrips->first());
 
             return [
                 'vehicle' => $anchor?->vehicle,
                 'driver' => $anchor?->driver,
                 'morning' => $morning,
                 'evening' => $evening,
-                'other' => $other,
                 'label' => optional($anchor?->vehicle)->vehicle_number
                     ?? ($anchor?->name ?? 'Unassigned vehicle'),
             ];
