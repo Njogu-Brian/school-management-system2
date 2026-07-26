@@ -82,6 +82,7 @@ class ApiConcernController extends Controller
 
         $search = '%'.addcslashes($validated['search'], '%_\\').'%';
         $rows = Staff::query()
+            ->with('jobTitle:id,name')
             ->where('status', 'active')
             ->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', $search)
@@ -93,13 +94,13 @@ class ApiConcernController extends Controller
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->limit(20)
-            ->get(['id', 'first_name', 'last_name', 'middle_name', 'staff_id', 'job_title', 'designation']);
+            ->get(['id', 'first_name', 'last_name', 'middle_name', 'staff_id', 'job_title_id']);
 
         $data = $rows->map(fn (Staff $s) => [
             'id' => $s->id,
             'full_name' => $s->full_name,
             'employee_number' => $s->staff_id,
-            'job_title' => $s->job_title ?? $s->designation,
+            'job_title' => $s->jobTitle?->name,
         ])->values();
 
         return response()->json(['success' => true, 'data' => $data]);
