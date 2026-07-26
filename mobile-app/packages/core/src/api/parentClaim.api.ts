@@ -18,6 +18,9 @@ export interface ClaimChild {
 export interface ClaimAdmissionData {
   children: ClaimChild[];
   parent_info_id: number;
+  matched_role?: 'father' | 'mother' | 'guardian' | string | null;
+  suggested_name?: string | null;
+  suggested_email?: string | null;
 }
 
 /**

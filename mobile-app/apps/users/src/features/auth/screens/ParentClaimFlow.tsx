@@ -11,6 +11,9 @@ interface ClaimState {
   identifier: string;
   claimToken: string;
   children: ClaimChild[];
+  suggestedName: string;
+  suggestedEmail: string;
+  matchedRole: string | null;
 }
 
 /**
@@ -25,6 +28,9 @@ export const ParentClaimFlow: React.FC<{ onExit: () => void }> = ({ onExit }) =>
     identifier: '',
     claimToken: '',
     children: [],
+    suggestedName: '',
+    suggestedEmail: '',
+    matchedRole: null,
   });
 
   if (step === 'admission') {
@@ -32,8 +38,14 @@ export const ParentClaimFlow: React.FC<{ onExit: () => void }> = ({ onExit }) =>
       <ParentClaimAdmissionScreen
         claimToken={state.claimToken}
         onBack={() => setStep('otp')}
-        onConfirmed={(children) => {
-          setState((s) => ({ ...s, children }));
+        onConfirmed={({ children, suggestedName, suggestedEmail, matchedRole }) => {
+          setState((s) => ({
+            ...s,
+            children,
+            suggestedName: suggestedName ?? '',
+            suggestedEmail: suggestedEmail ?? '',
+            matchedRole: matchedRole ?? null,
+          }));
           setStep('password');
         }}
       />
@@ -46,6 +58,9 @@ export const ParentClaimFlow: React.FC<{ onExit: () => void }> = ({ onExit }) =>
         claimToken={state.claimToken}
         channel={state.channel}
         identifier={state.identifier}
+        suggestedName={state.suggestedName}
+        suggestedEmail={state.suggestedEmail}
+        matchedRole={state.matchedRole}
         onBack={() => setStep('admission')}
       />
     );

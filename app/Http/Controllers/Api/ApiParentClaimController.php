@@ -176,7 +176,8 @@ class ApiParentClaimController extends Controller
         }
 
         $parent = $student->parent;
-        if (!$this->contactMatchesParent($session['channel'], $session['normalized'], $parent)) {
+        $matched = $this->resolveMatchedContact($session['channel'], $session['normalized'], $parent);
+        if (!$matched) {
             Log::info('Parent claim: contact did not match parent_info', [
                 'admission' => $admission,
                 'channel' => $session['channel'],
@@ -191,6 +192,9 @@ class ApiParentClaimController extends Controller
         Cache::put(self::CACHE_PREFIX . $validated['claim_token'], array_merge($session, [
             'admission_verified' => true,
             'parent_info_id' => $parent->id,
+            'matched_role' => $matched['role'],
+            'suggested_name' => $matched['name'],
+            'suggested_email' => $matched['email'],
         ]), now()->addMinutes(self::CLAIM_TTL_MINUTES));
 
         return response()->json([
@@ -198,6 +202,9 @@ class ApiParentClaimController extends Controller
             'data' => [
                 'children' => $children,
                 'parent_info_id' => $parent->id,
+                'matched_role' => $matched['role'],
+                'suggested_name' => $matched['name'],
+                'suggested_email' => $matched['email'],
             ],
         ]);
     }
@@ -211,7 +218,7 @@ class ApiParentClaimController extends Controller
     {
         $validated = $request->validate([
             'claim_token' => 'required|string',
-            'name' => 'required|string|max:190',
+            'name' => 'nullable|string|max:190',
             'password' => 'required|string|min:8|confirmed',
             'email' => 'nullable|email|max:190',
         ]);
@@ -232,11 +239,27 @@ class ApiParentClaimController extends Controller
             ], 422);
         }
 
+        $displayName = trim((string) ($validated['name'] ?? ''));
+        if ($displayName === '') {
+            $displayName = trim((string) ($session['suggested_name'] ?? ''));
+        }
+        if ($displayName === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please enter your name.',
+                'errors' => ['name' => ['Please enter your name.']],
+            ], 422);
+        }
+
         $channel = $session['channel'];
         $identifier = $session['identifier'];
         $email = $channel === 'email'
             ? strtolower(trim($identifier))
-            : (isset($validated['email']) ? strtolower(trim($validated['email'])) : null);
+            : (isset($validated['email']) && trim((string) $validated['email']) !== ''
+                ? strtolower(trim($validated['email']))
+                : (isset($session['suggested_email']) && $session['suggested_email']
+                    ? strtolower(trim((string) $session['suggested_email']))
+                    : null));
         $phone = $channel === 'phone' ? $this->normalizePhone($identifier) : null;
 
         // Detect an existing user by the verified contact.
@@ -250,7 +273,7 @@ class ApiParentClaimController extends Controller
         }
 
         try {
-            $user = DB::transaction(function () use ($existingUser, $parent, $validated, $email, $phone) {
+            $user = DB::transaction(function () use ($existingUser, $parent, $displayName, $email, $phone, $validated) {
                 if ($existingUser) {
                     // Staff (or other) user claiming a parent identity: link parent_id, keep existing roles.
                     $existingUser->parent_id = $parent->id;
@@ -258,13 +281,16 @@ class ApiParentClaimController extends Controller
                     if ($phone && empty($existingUser->phone_number)) {
                         $existingUser->phone_number = $phone;
                     }
+                    if ($displayName !== '' && (empty($existingUser->name) || $existingUser->name === $existingUser->email)) {
+                        $existingUser->name = $displayName;
+                    }
                     $existingUser->save();
                     $this->assignParentRole($existingUser);
                     return $existingUser;
                 }
 
                 $user = new User();
-                $user->name = $validated['name'];
+                $user->name = $displayName;
                 $user->email = $email;
                 $user->phone_number = $phone;
                 $user->password = Hash::make($validated['password']);
@@ -309,25 +335,58 @@ class ApiParentClaimController extends Controller
         return is_array($session) ? $session : null;
     }
 
-    /** Whether the verified contact matches any parent_info father/mother/guardian slot. */
-    private function contactMatchesParent(string $channel, string $normalizedNeedle, ParentInfo $parent): bool
+    /**
+     * Resolve which parent_info slot matched the verified contact.
+     *
+     * @return array{role:string, name:?string, email:?string}|null
+     */
+    private function resolveMatchedContact(string $channel, string $normalizedNeedle, ParentInfo $parent): ?array
     {
         if ($normalizedNeedle === '') {
-            return false;
+            return null;
         }
 
-        $fields = $channel === 'email'
-            ? ['father_email', 'mother_email', 'guardian_email']
-            : ['father_phone', 'mother_phone', 'guardian_phone', 'father_whatsapp', 'mother_whatsapp', 'guardian_whatsapp'];
+        $slots = [
+            'father' => [
+                'name' => $parent->father_name,
+                'email' => $parent->father_email,
+                'contacts' => $channel === 'email'
+                    ? [$parent->father_email]
+                    : [$parent->father_phone, $parent->father_whatsapp],
+            ],
+            'mother' => [
+                'name' => $parent->mother_name,
+                'email' => $parent->mother_email,
+                'contacts' => $channel === 'email'
+                    ? [$parent->mother_email]
+                    : [$parent->mother_phone, $parent->mother_whatsapp],
+            ],
+            'guardian' => [
+                'name' => $parent->guardian_name,
+                'email' => $parent->guardian_email,
+                'contacts' => $channel === 'email'
+                    ? [$parent->guardian_email]
+                    : [$parent->guardian_phone, $parent->guardian_whatsapp],
+            ],
+        ];
 
-        foreach ($fields as $field) {
-            $candidate = normalize_contact_for_parent_match($parent->{$field} ?? '');
-            if ($candidate !== '' && $candidate === $normalizedNeedle) {
-                return true;
+        foreach ($slots as $role => $slot) {
+            foreach ($slot['contacts'] as $candidateRaw) {
+                $candidate = normalize_contact_for_parent_match($candidateRaw ?? '');
+                if ($candidate !== '' && $candidate === $normalizedNeedle) {
+                    $name = trim((string) ($slot['name'] ?? ''));
+                    $email = trim((string) ($slot['email'] ?? ''));
+
+                    return [
+                        'role' => $role,
+                        'name' => $name !== '' ? $name : null,
+                        'email' => $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : null,
+                    ];
+                }
             }
         }
 
-        return false;
+        return null;
     }
 
     /**

@@ -5,33 +5,47 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { ClaimField, ClaimScreenShell } from './claimUi';
 
+export interface ClaimAdmissionConfirm {
+  children: ClaimChild[];
+  suggestedName?: string | null;
+  suggestedEmail?: string | null;
+  matchedRole?: string | null;
+}
+
 interface Props {
   claimToken: string;
   onBack: () => void;
-  onConfirmed: (children: ClaimChild[]) => void;
+  onConfirmed: (payload: ClaimAdmissionConfirm) => void;
 }
 
 /**
  * Parent claim — step 3: enter a child's admission number. The backend confirms the
- * verified contact matches that student's parent_info and returns masked children.
+ * verified contact matches that student's parent_info and returns masked children
+ * plus suggested name/email from the matched parent slot.
  */
 export const ParentClaimAdmissionScreen: React.FC<Props> = ({ claimToken, onBack, onConfirmed }) => {
   const { spacing, typography, radius } = useTheme();
   const [admission, setAdmission] = useState('');
-  const [children, setChildren] = useState<ClaimChild[] | null>(null);
+  const [result, setResult] = useState<ClaimAdmissionConfirm | null>(null);
 
   const verify = useVerifyClaimAdmission();
   const busy = verify.isPending;
   const error = (verify.error as Error | null)?.message ?? null;
   const canSubmit = admission.trim().length > 0 && !busy;
+  const children = result?.children ?? null;
 
   const handleLookup = async () => {
     if (!canSubmit) return;
     try {
       const data = await verify.mutateAsync({ claimToken, admissionNumber: admission });
-      setChildren(data.children);
+      setResult({
+        children: data.children,
+        suggestedName: data.suggested_name ?? null,
+        suggestedEmail: data.suggested_email ?? null,
+        matchedRole: data.matched_role ?? null,
+      });
     } catch {
-      setChildren(null);
+      setResult(null);
     }
   };
 
@@ -49,7 +63,7 @@ export const ParentClaimAdmissionScreen: React.FC<Props> = ({ claimToken, onBack
         value={admission}
         onChangeText={(t) => {
           setAdmission(t);
-          if (children) setChildren(null);
+          if (result) setResult(null);
         }}
         placeholder="e.g. ADM/2024/001"
         icon="id-card-outline"
@@ -89,8 +103,8 @@ export const ParentClaimAdmissionScreen: React.FC<Props> = ({ claimToken, onBack
         </View>
       ) : null}
 
-      {children && children.length > 0 ? (
-        <Button label="This is correct — continue" onPress={() => onConfirmed(children)} disabled={busy} />
+      {result && children && children.length > 0 ? (
+        <Button label="This is correct — continue" onPress={() => onConfirmed(result)} disabled={busy} />
       ) : (
         <Button label="Find my child" onPress={handleLookup} loading={busy} disabled={!canSubmit} />
       )}
