@@ -120,12 +120,22 @@
                                 <option value="evening" @selected(old('leg', $defaultLeg) === 'evening')>Evening trip (drop-off)</option>
                             </select>
                         </div>
-                        <div class="col-md-9">
-                            <label class="form-label fw-semibold mb-1" for="tripStudentSearch">Search students (name or admission #)</label>
-                            <input type="text" id="tripStudentSearch" class="form-control" placeholder="Type name or admission number…" autocomplete="off">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold mb-1" for="tripStudentSearch">Search students</label>
+                            <input type="text" id="tripStudentSearch" class="form-control" placeholder="Name or admission #…" autocomplete="off">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold mb-1" for="tripDropOffFilter">Filter by drop-off</label>
+                            <select id="tripDropOffFilter" class="form-select">
+                                <option value="">Any drop-off</option>
+                                @foreach($dropOffPoints as $point)
+                                    @continue($point->id === $ownMeansPointId)
+                                    <option value="{{ $point->id }}">{{ $point->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-12">
-                            <small class="text-muted">Check students to add them to the draft below. Edit pickup/drop-off in the draft, then save once.</small>
+                            <small class="text-muted">Search by name/admission and/or filter by morning/evening stop. Edit pickup/drop-off in the draft, then save once.</small>
                         </div>
                     </div>
                 </div>
@@ -375,6 +385,7 @@
         || document.querySelector('#tripAssignForm input[name="_token"]')?.value
         || '';
     const searchInput = document.getElementById('tripStudentSearch');
+    const dropOffFilter = document.getElementById('tripDropOffFilter');
     const resultsBody = document.getElementById('searchResultsBody');
     const suggestionsCard = document.getElementById('suggestionsCard');
     const suggestionsBody = document.getElementById('suggestionsBody');
@@ -747,14 +758,18 @@
     };
 
     const search = async (q) => {
-        if (!q || q.trim().length < 1) {
+        const pointId = dropOffFilter ? String(dropOffFilter.value || '') : '';
+        if ((!q || q.trim().length < 1) && !pointId) {
             lastSearchItems = [];
-            resultsBody.innerHTML = '<tr class="text-muted"><td colspan="6" class="text-center py-4">Start typing to search students.</td></tr>';
+            resultsBody.innerHTML = '<tr class="text-muted"><td colspan="6" class="text-center py-4">Start typing to search students, or pick a drop-off.</td></tr>';
             return;
         }
         resultsBody.innerHTML = '<tr class="text-muted"><td colspan="6" class="text-center py-4">Searching…</td></tr>';
         try {
-            const res = await fetch(`${searchUrl}?q=${encodeURIComponent(q.trim())}`, {
+            const params = new URLSearchParams();
+            if (q && q.trim()) params.set('q', q.trim());
+            if (pointId) params.set('drop_off_point_id', pointId);
+            const res = await fetch(`${searchUrl}?${params.toString()}`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
             });
@@ -765,6 +780,8 @@
             resultsBody.innerHTML = '<tr class="text-danger"><td colspan="6" class="text-center py-4">Search failed. Try again.</td></tr>';
         }
     };
+
+    const runSearch = () => search(searchInput.value);
 
     const loadSuggestions = async (stu) => {
         const id = Number(stu.id);
@@ -806,8 +823,9 @@
 
     searchInput.addEventListener('input', () => {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => search(searchInput.value), 350);
+        debounceTimer = setTimeout(runSearch, 350);
     });
+    dropOffFilter?.addEventListener('change', runSearch);
 
     legSelect.addEventListener('change', () => {
         syncLegHeaders();

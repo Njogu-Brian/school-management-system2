@@ -10,22 +10,33 @@ use App\Models\StudentAssignment;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Models\TransportFee;
+use App\Services\TransportFeeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class StudentAssignmentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $classroomId = $request->integer('classroom_id') ?: null;
+        $classrooms = Classroom::orderBy('name')->get(['id', 'name']);
+
         $assignments = StudentAssignment::with([
             'student.classroom',
             'student.dropOffPoint',
             'morningTrip.vehicle',
             'eveningTrip.vehicle',
             'morningDropOffPoint',
-            'eveningDropOffPoint'
-        ])->get();
-        return view('student_assignments.index', compact('assignments'));
+            'eveningDropOffPoint',
+        ])
+            ->when($classroomId, function ($q) use ($classroomId) {
+                $q->whereHas('student', fn ($s) => $s->where('classroom_id', $classroomId));
+            })
+            ->get()
+            ->sortBy(fn ($a) => mb_strtolower((string) ($a->student->full_name ?? '')))
+            ->values();
+
+        return view('student_assignments.index', compact('assignments', 'classrooms', 'classroomId'));
     }
 
     public function create()
@@ -51,20 +62,19 @@ class StudentAssignmentController extends Controller
             return redirect()->back()->with('error', 'Student already has a transport assignment. Please edit the existing assignment instead.');
         }
         
-        // Get student's drop-off point from transport fee or student record
+        // Seed both legs from enrollment preference only when creating a new assignment.
         $student = Student::find($request->student_id);
-        $dropOffPointId = $student->drop_off_point_id;
-        
+        $seedPointId = $student?->drop_off_point_id;
+
         StudentAssignment::create([
             'student_id' => $request->student_id,
             'morning_trip_id' => $request->morning_trip_id,
             'evening_trip_id' => $request->evening_trip_id,
-            // Set drop-off points from student's transport fee record (for backward compatibility)
-            'morning_drop_off_point_id' => $dropOffPointId,
-            'evening_drop_off_point_id' => $dropOffPointId,
+            'morning_drop_off_point_id' => $seedPointId,
+            'evening_drop_off_point_id' => $seedPointId,
         ]);
 
-        \App\Services\TransportFeeService::recalculateForStudent(
+        TransportFeeService::recalculateForStudent(
             (int) $request->student_id,
             null,
             null,
@@ -92,20 +102,14 @@ class StudentAssignmentController extends Controller
             'evening_trip_id' => 'nullable|exists:trips,id',
         ]);
 
-        // Get student's drop-off point from transport fee or student record
-        $student = Student::find($request->student_id);
-        $dropOffPointId = $student->drop_off_point_id;
-
+        // Preserve morning/evening points — do not overwrite with enrollment seed.
         $student_assignment->update([
             'student_id' => $request->student_id,
             'morning_trip_id' => $request->morning_trip_id,
             'evening_trip_id' => $request->evening_trip_id,
-            // Update drop-off points from student's transport fee record (for backward compatibility)
-            'morning_drop_off_point_id' => $dropOffPointId,
-            'evening_drop_off_point_id' => $dropOffPointId,
         ]);
 
-        \App\Services\TransportFeeService::recalculateForStudent(
+        TransportFeeService::recalculateForStudent(
             (int) $request->student_id,
             null,
             null,

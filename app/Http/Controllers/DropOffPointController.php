@@ -113,7 +113,7 @@ class DropOffPointController extends Controller
         ]);
 
         return redirect()->route('transport.dropoffpoints.index')
-            ->with('success', 'Drop-Off Point updated successfully. Recalculate transport fees for affected classes, then run Post Pending Fees.');
+            ->with('success', 'Drop-Off Point updated successfully.');
     }
 
     public function destroy(DropOffPoint $dropoffpoint)
@@ -155,6 +155,32 @@ class DropOffPointController extends Controller
     public function create()
     {
         return view('dropoffpoints.create');
+    }
+
+    public function show(DropOffPoint $dropoffpoint)
+    {
+        $assignments = StudentAssignment::query()
+            ->with([
+                'student.classroom',
+                'student.stream',
+                'morningTrip.vehicle',
+                'eveningTrip.vehicle',
+                'morningDropOffPoint',
+                'eveningDropOffPoint',
+            ])
+            ->where(function ($q) use ($dropoffpoint) {
+                $q->where('morning_drop_off_point_id', $dropoffpoint->id)
+                    ->orWhere('evening_drop_off_point_id', $dropoffpoint->id);
+            })
+            ->get()
+            ->filter(fn ($a) => $a->student)
+            ->sortBy(fn ($a) => mb_strtolower((string) ($a->student->full_name ?? '')))
+            ->values();
+
+        return view('dropoffpoints.show', [
+            'dropOffPoint' => $dropoffpoint,
+            'assignments' => $assignments,
+        ]);
     }
 
     public function edit(DropOffPoint $dropoffpoint)

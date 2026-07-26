@@ -405,10 +405,8 @@ class DemoDataSeeder extends Seeder
                 StudentAssignment::firstOrCreate(
                     ['student_id' => $student->id],
                     [
-                        'trip_id' => $trip->id,
                         'morning_trip_id' => $trip->id,
                         'evening_trip_id' => $trip->id,
-                        'drop_off_point_id' => $dropPoints[$index % $dropPoints->count()]->id,
                         'morning_drop_off_point_id' => $dropPoints[$index % $dropPoints->count()]->id,
                         'evening_drop_off_point_id' => $dropPoints[$index % $dropPoints->count()]->id,
                     ]

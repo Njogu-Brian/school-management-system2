@@ -63,9 +63,8 @@ class StudentDropOffController extends Controller
         $ownMeansId = DropOffPoint::ownMeans()->id;
         $updated = 0;
         $createdPoints = 0;
-        $errors = [];
 
-        DB::transaction(function () use ($validated, $ownMeansId, &$updated, &$createdPoints, &$errors) {
+        DB::transaction(function () use ($validated, $ownMeansId, &$updated, &$createdPoints) {
             foreach ($validated['points'] as $row) {
                 $studentId = (int) $row['student_id'];
                 $student = Student::withoutGlobalScope('active')->find($studentId);
@@ -99,16 +98,18 @@ class StudentDropOffController extends Controller
 
                 $assignment->save();
 
-                $legacyId = ((int) $evening !== (int) $ownMeansId)
+                // Keep enrollment preference in sync (seed only — not a third transport stop).
+                $seedId = ((int) $evening !== (int) $ownMeansId)
                     ? $evening
                     : (((int) $morning !== (int) $ownMeansId) ? $morning : null);
-                $student->drop_off_point_id = $legacyId;
-                $student->drop_off_point = $legacyId
-                    ? optional(DropOffPoint::find($legacyId))->name
+                $student->drop_off_point_id = $seedId;
+                $student->drop_off_point = $seedId
+                    ? optional(DropOffPoint::find($seedId))->name
                     : DropOffPoint::OWN_MEANS_NAME;
                 $student->save();
 
-                $result = TransportFeeService::recalculateForStudent(
+                // Soft fee sync — never block transport saves with finance errors.
+                TransportFeeService::recalculateForStudent(
                     $studentId,
                     null,
                     null,
@@ -117,32 +118,20 @@ class StudentDropOffController extends Controller
                     'Recalculated after student drop-off update'
                 );
 
-                if (!$result['updated'] && !empty($result['result']['errors'])) {
-                    $errors[] = ($student->full_name ?? "Student #{$studentId}") . ': ' . implode(' ', $result['result']['errors']);
-                }
-
                 $updated++;
             }
         });
 
-        $message = "Updated drop-off points for {$updated} student(s).";
+        $message = "Updated morning pickup / evening drop-off for {$updated} student(s).";
         if ($createdPoints > 0) {
             $message .= " Created {$createdPoints} new drop-off point(s).";
         }
-        $message .= ' Run Post Pending Fees if list prices changed.';
 
-        $redirect = redirect()
+        return redirect()
             ->route('transport.student-dropoffs.index', array_filter([
                 'classroom_id' => $validated['classroom_id'] ?? null,
             ]))
             ->with('success', $message);
-
-        if ($errors) {
-            $redirect->with('error', 'Some fees could not be calculated.')
-                ->with('transport_fee_errors', $errors);
-        }
-
-        return $redirect;
     }
 
     /**

@@ -11,7 +11,7 @@
             <div>
                 <p class="eyebrow text-muted mb-1">Transport</p>
                 <h1 class="mb-1">Student Assignments</h1>
-                <p class="text-muted mb-0">Manage which students are assigned to trips. Drop-off points are set during transport fee import.</p>
+                <p class="text-muted mb-0">Morning pickup and evening drop-off trips per student.</p>
             </div>
             <div class="d-flex gap-2">
                 <a href="{{ route('transport.student-assignments.bulk-assign') }}" class="btn btn-settings-primary">
@@ -29,6 +29,28 @@
         @if(session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
         @if(session('error'))   <div class="alert alert-danger">{{ session('error') }}</div>   @endif
 
+        <div class="settings-card mb-3">
+            <div class="card-body">
+                <form method="GET" action="{{ route('transport.student-assignments.index') }}" class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label for="classroom_id" class="form-label fw-semibold">Class</label>
+                        <select name="classroom_id" id="classroom_id" class="form-select">
+                            <option value="">All classes</option>
+                            @foreach($classrooms as $classroom)
+                                <option value="{{ $classroom->id }}" @selected((int) $classroomId === (int) $classroom->id)>
+                                    {{ $classroom->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-settings-primary">Filter</button>
+                        <a href="{{ route('transport.student-assignments.index') }}" class="btn btn-ghost-strong">Clear</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div class="settings-card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Assignments</h5>
@@ -40,7 +62,8 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Student</th>
-                                <th>Drop-Off Point</th>
+                                <th>Morning pickup</th>
+                                <th>Evening drop-off</th>
                                 <th>Morning Trip</th>
                                 <th>Evening Trip</th>
                                 <th class="text-end">Actions</th>
@@ -58,15 +81,8 @@
                                             <span class="text-muted">Student unavailable</span>
                                         @endif
                                     </td>
-                                    <td>
-                                        @if($assignment->student?->dropOffPoint)
-                                            {{ $assignment->student->dropOffPoint->name }}
-                                        @elseif($assignment->student?->drop_off_point_other)
-                                            {{ $assignment->student->drop_off_point_other }}
-                                        @else
-                                            <span class="text-muted">Not set</span>
-                                        @endif
-                                    </td>
+                                    <td>{{ optional($assignment->morningDropOffPoint)->name ?? '—' }}</td>
+                                    <td>{{ optional($assignment->eveningDropOffPoint)->name ?? '—' }}</td>
                                     <td>
                                         @if($assignment->morningTrip)
                                             <span class="badge bg-primary">{{ optional($assignment->morningTrip->vehicle)->vehicle_number ?? 'N/A' }} - {{ $assignment->morningTrip->name }}</span>
@@ -95,7 +111,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="5" class="text-center text-muted py-4">No assignments found.</td></tr>
+                                <tr><td colspan="6" class="text-center text-muted py-4">No assignments found.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

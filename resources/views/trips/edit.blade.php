@@ -30,9 +30,11 @@
                         <label for="type" class="form-label fw-semibold">Trip Type</label>
                         <select name="type" id="type" class="form-select">
                             <option value="">Select Type</option>
-                            <option value="Morning" {{ old('type', $trip->type) == 'Morning' ? 'selected' : '' }}>Morning</option>
-                            <option value="Evening" {{ old('type', $trip->type) == 'Evening' ? 'selected' : '' }}>Evening</option>
+                            <option value="Morning" {{ old('type', $trip->type) == 'Morning' ? 'selected' : '' }}>Morning (pickup)</option>
+                            <option value="Evening" {{ old('type', $trip->type) == 'Evening' ? 'selected' : '' }}>Evening (drop-off)</option>
                         </select>
+                        <input type="hidden" name="direction" id="direction" value="{{ old('direction', $trip->direction) }}">
+                        <small class="form-text text-muted">Morning = pickup · Evening = drop-off</small>
                     </div>
                     <div class="col-md-6">
                         <label for="vehicle_id" class="form-label fw-semibold">Select Vehicle</label>
@@ -57,14 +59,6 @@
                                     {{ $staff->user->name ?? $staff->first_name . ' ' . $staff->last_name }}
                                 </option>
                             @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="direction" class="form-label fw-semibold">Direction</label>
-                        <select name="direction" id="direction" class="form-select">
-                            <option value="">All Directions</option>
-                            <option value="pickup" {{ old('direction', $trip->direction) == 'pickup' ? 'selected' : '' }}>Pickup</option>
-                            <option value="dropoff" {{ old('direction', $trip->direction) == 'dropoff' ? 'selected' : '' }}>Drop-off</option>
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -97,3 +91,13 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.getElementById('type')?.addEventListener('change', function () {
+    const dir = document.getElementById('direction');
+    if (!dir) return;
+    dir.value = this.value === 'Morning' ? 'pickup' : (this.value === 'Evening' ? 'dropoff' : '');
+});
+</script>
+@endpush

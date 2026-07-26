@@ -25,12 +25,14 @@
                         <input type="text" name="name" id="name" class="form-control" value="{{ old('name') }}" required>
                     </div>
                     <div class="col-md-6">
-                        <label for="type" class="form-label fw-semibold">Trip Type</label>
-                        <select name="type" id="type" class="form-select">
+                        <label for="type" class="form-label fw-semibold">Trip Type <span class="text-danger">*</span></label>
+                        <select name="type" id="type" class="form-select" required>
                             <option value="">Select Type</option>
-                            <option value="Morning" {{ old('type') == 'Morning' ? 'selected' : '' }}>Morning</option>
-                            <option value="Evening" {{ old('type') == 'Evening' ? 'selected' : '' }}>Evening</option>
+                            <option value="Morning" {{ old('type') == 'Morning' ? 'selected' : '' }}>Morning (pickup)</option>
+                            <option value="Evening" {{ old('type') == 'Evening' ? 'selected' : '' }}>Evening (drop-off)</option>
                         </select>
+                        <input type="hidden" name="direction" id="direction" value="{{ old('direction') }}">
+                        <small class="form-text text-muted">Morning = pickup · Evening = drop-off</small>
                     </div>
                     <div class="col-md-6">
                         <label for="vehicle_id" class="form-label fw-semibold">Select Vehicle <span class="text-danger">*</span></label>
@@ -52,14 +54,6 @@
                                     {{ $staff->user->name ?? $staff->first_name . ' ' . $staff->last_name }}
                                 </option>
                             @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="direction" class="form-label fw-semibold">Direction</label>
-                        <select name="direction" id="direction" class="form-select">
-                            <option value="">All Directions</option>
-                            <option value="pickup" {{ old('direction') == 'pickup' ? 'selected' : '' }}>Pickup</option>
-                            <option value="dropoff" {{ old('direction') == 'dropoff' ? 'selected' : '' }}>Drop-off</option>
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -85,3 +79,14 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.getElementById('type')?.addEventListener('change', function () {
+    const dir = document.getElementById('direction');
+    if (!dir) return;
+    dir.value = this.value === 'Morning' ? 'pickup' : (this.value === 'Evening' ? 'dropoff' : '');
+});
+document.getElementById('type')?.dispatchEvent(new Event('change'));
+</script>
+@endpush

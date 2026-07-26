@@ -30,9 +30,12 @@ class DropOffPoint extends Model
         return $this->belongsTo(Route::class);
     }
 
+    /**
+     * @deprecated Use morningAssignments() / eveningAssignments(). Legacy single drop_off_point_id removed.
+     */
     public function assignments()
     {
-        return $this->hasMany(StudentAssignment::class, 'drop_off_point_id');
+        return $this->morningAssignments();
     }
 
     public function morningAssignments()

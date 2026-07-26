@@ -10,9 +10,9 @@
         <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
                 <p class="eyebrow text-muted mb-1">Transport</p>
-                <h1 class="mb-1">Drop-off Points &amp; Rates</h1>
+                <h1 class="mb-1">Drop-offs</h1>
                 <p class="text-muted mb-0">
-                    Set two-way and one-way term fares. Student list prices use morning pickup + evening drop-off only.
+                    Morning pickup and evening drop-off rates. Open a point to see assigned children.
                 </p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
@@ -26,7 +26,7 @@
                     <i class="bi bi-download"></i> Template
                 </a>
                 <a href="{{ route('transport.student-dropoffs.index') }}" class="btn btn-ghost-strong">
-                    <i class="bi bi-geo-alt"></i> Student drop-offs
+                    <i class="bi bi-geo-alt"></i> Assign student points
                 </a>
                 <a href="{{ route('finance.transport-fees.index') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-cash-coin"></i> Transport fees
@@ -71,7 +71,9 @@
                             @forelse ($dropOffPoints as $point)
                                 <tr>
                                     <td class="fw-semibold">
-                                        {{ $point->name }}
+                                        <a href="{{ route('transport.dropoffpoints.show', $point) }}" class="text-decoration-none">
+                                            {{ $point->name }}
+                                        </a>
                                         @if($point->isOwnMeans())
                                             <span class="badge bg-secondary">System</span>
                                         @endif
@@ -100,6 +102,9 @@
                                         @endif
                                     </td>
                                     <td class="text-end">
+                                        <a href="{{ route('transport.dropoffpoints.show', $point->id) }}" class="btn btn-sm btn-ghost-strong">
+                                            <i class="bi bi-people"></i> Roster
+                                        </a>
                                         <a href="{{ route('transport.dropoffpoints.edit', $point->id) }}" class="btn btn-sm btn-ghost-strong">
                                             <i class="bi bi-pencil"></i> Edit
                                         </a>

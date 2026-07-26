@@ -660,13 +660,9 @@ class="{{ $isTransportActive ? 'parent-active' : '' }}">
         class="sublink {{ Request::is('transport/home*') || (Request::is('transport') && !Request::is('transport/*')) ? 'active' : '' }}">
         <i class="bi bi-speedometer2"></i> Dashboard
         </a>
-        <a href="{{ route('transport.import.form') }}" 
-        class="sublink {{ Request::is('transport/import*') ? 'active' : '' }}">
-        <i class="bi bi-upload"></i> Import Assignments
-        </a>
         <a href="{{ route('transport.daily-list.index') }}" 
         class="sublink {{ Request::is('transport/daily-list*') ? 'active' : '' }}">
-        <i class="bi bi-list-check"></i> Daily Transport List
+        <i class="bi bi-list-check"></i> Daily List
         </a>
         <a href="{{ route('transport.vehicles.index') }}" 
         class="sublink {{ Request::is('transport/vehicles*') ? 'active' : '' }}">
@@ -676,17 +672,17 @@ class="{{ $isTransportActive ? 'parent-active' : '' }}">
         class="sublink {{ Request::is('transport/trips*') ? 'active' : '' }}">
         <i class="bi bi-geo"></i> Trips
         </a>
-        <a href="{{ route('transport.student-dropoffs.index') }}"
-        class="sublink {{ Request::is('transport/student-dropoffs*') ? 'active' : '' }}">
-        <i class="bi bi-geo-alt"></i> Student Drop-offs
-        </a>
         <a href="{{ route('transport.dropoffpoints.index') }}"
-        class="sublink {{ Request::is('transport/dropoffpoints*') ? 'active' : '' }}">
-        <i class="bi bi-pin-map"></i> Drop-off Rates
+        class="sublink {{ Request::is('transport/dropoffpoints*') || Request::is('transport/student-dropoffs*') ? 'active' : '' }}">
+        <i class="bi bi-pin-map"></i> Drop-offs
         </a>
         <a href="{{ route('transport.student-assignments.index') }}" 
         class="sublink {{ Request::is('transport/student-assignments*') ? 'active' : '' }}">
         <i class="bi bi-people"></i> Assignments
+        </a>
+        <a href="{{ route('transport.import.form') }}" 
+        class="sublink {{ Request::is('transport/import*') ? 'active' : '' }}">
+        <i class="bi bi-upload"></i> Import
         </a>
         <a href="{{ route('transport.special-assignments.index') }}" 
         class="sublink {{ Request::is('transport/special-assignments*') ? 'active' : '' }}">
@@ -694,7 +690,7 @@ class="{{ $isTransportActive ? 'parent-active' : '' }}">
         </a>
         <a href="{{ route('transport.driver-change-requests.index') }}" 
         class="sublink {{ Request::is('transport/driver-change-requests*') ? 'active' : '' }}">
-        <i class="bi bi-arrow-repeat"></i> Driver Change Requests
+        <i class="bi bi-arrow-repeat"></i> Driver Changes
         </a>
     @endif
 </div>

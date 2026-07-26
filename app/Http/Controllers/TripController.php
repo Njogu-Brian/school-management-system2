@@ -17,7 +17,37 @@ class TripController extends Controller
     public function index()
     {
         $trips = Trip::with(['vehicle', 'driver.user'])->orderBy('trip_name')->get();
-        return view('trips.index', compact('trips'));
+
+        $groups = $trips->groupBy(function (Trip $trip) {
+            return $trip->vehicle_id
+                ? 'v:' . $trip->vehicle_id
+                : 't:' . $trip->id;
+        })->map(function ($vehicleTrips) {
+            $morning = $vehicleTrips->first(fn (Trip $t) =>
+                $t->type === 'Morning' || $t->direction === 'pickup'
+            );
+            $evening = $vehicleTrips->first(fn (Trip $t) =>
+                $t->type === 'Evening' || $t->direction === 'dropoff'
+            );
+            $other = $vehicleTrips->reject(fn (Trip $t) =>
+                ($morning && (int) $t->id === (int) $morning->id)
+                || ($evening && (int) $t->id === (int) $evening->id)
+            )->values();
+
+            $anchor = $morning ?: ($evening ?: $vehicleTrips->first());
+
+            return [
+                'vehicle' => $anchor?->vehicle,
+                'driver' => $anchor?->driver,
+                'morning' => $morning,
+                'evening' => $evening,
+                'other' => $other,
+                'label' => optional($anchor?->vehicle)->vehicle_number
+                    ?? ($anchor?->name ?? 'Unassigned vehicle'),
+            ];
+        })->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)->values();
+
+        return view('trips.index', compact('trips', 'groups'));
     }
 
     public function create()
@@ -31,7 +61,7 @@ class TripController extends Controller
         $request->validate([
             'vehicle_id' => 'required|exists:vehicles,id',
             'name' => 'required|string|max:255',
-            'type' => 'nullable|in:Morning,Evening',
+            'type' => 'required|in:Morning,Evening',
             'direction' => 'nullable|in:pickup,dropoff',
             'day_of_week' => 'nullable|array',
             'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
@@ -243,27 +273,41 @@ class TripController extends Controller
     public function assignSearch(Request $request, Trip $trip)
     {
         $q = trim((string) $request->input('q', ''));
-        if ($q === '') {
+        $dropOffPointId = $request->integer('drop_off_point_id') ?: null;
+
+        if ($q === '' && !$dropOffPointId) {
             return response()->json([]);
         }
 
-        $searchTerm = '%' . addcslashes(mb_strtolower($q, 'UTF-8'), '%_\\') . '%';
-        $normalizedAdmission = mb_strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $q), 'UTF-8');
+        $searchTerm = $q !== '' ? '%' . addcslashes(mb_strtolower($q, 'UTF-8'), '%_\\') . '%' : null;
+        $normalizedAdmission = $q !== ''
+            ? mb_strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $q), 'UTF-8')
+            : '';
 
         $students = Student::query()
             ->where('archive', 0)
             ->where('is_alumni', false)
-            ->where(function ($s) use ($searchTerm, $normalizedAdmission) {
-                $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])
-                    ->orWhereRaw('LOWER(middle_name) LIKE ?', [$searchTerm])
-                    ->orWhereRaw('LOWER(last_name) LIKE ?', [$searchTerm])
-                    ->orWhereRaw('LOWER(admission_number) LIKE ?', [$searchTerm]);
-                if ($normalizedAdmission !== '') {
-                    $s->orWhereRaw(
-                        'LOWER(REPLACE(REPLACE(REPLACE(admission_number, " ", ""), "-", ""), "/", "")) LIKE ?',
-                        ['%' . $normalizedAdmission . '%']
-                    );
-                }
+            ->when($searchTerm, function ($query) use ($searchTerm, $normalizedAdmission) {
+                $query->where(function ($s) use ($searchTerm, $normalizedAdmission) {
+                    $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])
+                        ->orWhereRaw('LOWER(middle_name) LIKE ?', [$searchTerm])
+                        ->orWhereRaw('LOWER(last_name) LIKE ?', [$searchTerm])
+                        ->orWhereRaw('LOWER(admission_number) LIKE ?', [$searchTerm]);
+                    if ($normalizedAdmission !== '') {
+                        $s->orWhereRaw(
+                            'LOWER(REPLACE(REPLACE(REPLACE(admission_number, " ", ""), "-", ""), "/", "")) LIKE ?',
+                            ['%' . $normalizedAdmission . '%']
+                        );
+                    }
+                });
+            })
+            ->when($dropOffPointId, function ($query) use ($dropOffPointId) {
+                $query->where(function ($s) use ($dropOffPointId) {
+                    $s->whereHas('assignments', function ($a) use ($dropOffPointId) {
+                        $a->where('morning_drop_off_point_id', $dropOffPointId)
+                            ->orWhere('evening_drop_off_point_id', $dropOffPointId);
+                    })->orWhere('drop_off_point_id', $dropOffPointId);
+                });
             })
             ->with([
                 'classroom',
@@ -275,7 +319,7 @@ class TripController extends Controller
                 'assignments.eveningTrip',
             ])
             ->orderBy('first_name')
-            ->limit(30)
+            ->limit(50)
             ->get();
 
         return response()->json($students->map(fn (Student $st) => $this->formatStudentForTripAssign($st, $trip)));

@@ -129,9 +129,6 @@ class ApiStudentAssignmentController extends Controller
             'evening_trip_id' => 'nullable|exists:trips,id',
         ]);
 
-        $student = $assignment->student ?? Student::find($assignment->student_id);
-        $dropOffPointId = $student?->drop_off_point_id;
-
         $assignment->update([
             'morning_trip_id' => array_key_exists('morning_trip_id', $validated)
                 ? $validated['morning_trip_id']
@@ -139,8 +136,6 @@ class ApiStudentAssignmentController extends Controller
             'evening_trip_id' => array_key_exists('evening_trip_id', $validated)
                 ? $validated['evening_trip_id']
                 : $assignment->evening_trip_id,
-            'morning_drop_off_point_id' => $dropOffPointId,
-            'evening_drop_off_point_id' => $dropOffPointId,
         ]);
 
         return response()->json([
