@@ -16,7 +16,14 @@ class TripController extends Controller
 {
     public function index()
     {
-        $trips = Trip::with(['vehicle', 'driver.user'])->orderBy('trip_name')->get();
+        $trips = Trip::with(['vehicle', 'driver.user'])
+            ->withCount(['morningAssignments', 'eveningAssignments'])
+            ->orderBy('trip_name')
+            ->get()
+            ->each(function (Trip $trip) {
+                $trip->assigned_students_count = (int) $trip->morning_assignments_count
+                    + (int) $trip->evening_assignments_count;
+            });
 
         $groups = $trips->groupBy(function (Trip $trip) {
             return $trip->vehicle_id
@@ -39,12 +46,16 @@ class TripController extends Controller
             }
 
             $anchor = $morning->first() ?: ($evening->first() ?: $vehicleTrips->first());
+            $morningStudents = $morning->sum(fn (Trip $t) => (int) $t->assigned_students_count);
+            $eveningStudents = $evening->sum(fn (Trip $t) => (int) $t->assigned_students_count);
 
             return [
                 'vehicle' => $anchor?->vehicle,
                 'driver' => $anchor?->driver,
                 'morning' => $morning,
                 'evening' => $evening,
+                'morning_students' => $morningStudents,
+                'evening_students' => $eveningStudents,
                 'label' => optional($anchor?->vehicle)->vehicle_number
                     ?? ($anchor?->name ?? 'Unassigned vehicle'),
             ];
