@@ -21,7 +21,24 @@ class ReportCardBatchService
      */
     public function generateForClass($academicYearId, $termId, $classroomId, $streamId = null): void
     {
-        $students = \App\Models\Student::where('classroom_id', $classroomId)
+        // Build report cards for students who actually have marks in this academic year + term
+        // for the selected classroom/stream (important when students moved classrooms/streams).
+        $studentIds = ExamMark::query()
+            ->select('student_id')
+            ->whereHas('exam', function ($q) use ($academicYearId, $termId, $classroomId, $streamId) {
+                $q->where('academic_year_id', $academicYearId)
+                    ->where('term_id', $termId)
+                    ->where('classroom_id', $classroomId);
+
+                if ($streamId) {
+                    $q->where('stream_id', $streamId);
+                }
+            })
+            ->distinct()
+            ->pluck('student_id');
+
+        $students = \App\Models\Student::query()
+            ->whereIn('id', $studentIds)
             ->where('archive', 0)
             ->where('is_alumni', false)
             ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
@@ -32,31 +49,40 @@ class ReportCardBatchService
                 ->where('student_id', $student->id)
                 ->whereHas('exam', fn ($q) => $q
                     ->where('academic_year_id', $academicYearId)
-                    ->where('term_id', $termId))
+                    ->where('term_id', $termId)
+                    ->where('classroom_id', $classroomId)
+                    ->when($streamId, fn ($sq) => $sq->where('stream_id', $streamId)))
                 ->get();
 
             if ($marks->isEmpty()) {
                 continue;
             }
 
-            $total   = $marks->sum('score_raw');
-            $average = $marks->avg('score_raw') ?? 0;
+            // Prefer moderated scores when available; fallback to raw scores.
+            $scores = $marks
+                ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
+                ->filter(fn ($v) => $v !== null);
 
-            $gradeData = ExamGrade::where('exam_type','TERM')
-                ->where('percent_from','<=',$average)
-                ->where('percent_upto','>=',$average)
-                ->first();
+            $total = (float) $scores->sum();
+            $average = $scores->count() ? (float) $scores->avg() : null;
+
+            $gradeData = $average === null
+                ? null
+                : ExamGrade::where('exam_type','TERM')
+                    ->where('percent_from','<=',$average)
+                    ->where('percent_upto','>=',$average)
+                    ->first();
 
             $summary = [
                 'subjects' => $marks->map(fn ($m) => [
                     'subject' => $m->subject?->name,
-                    'score'   => $m->score_raw,
+                    'score'   => $m->score_moderated ?? $m->score_raw,
                     'grade'   => $m->grade_label,
                     'remark'  => $m->remark,
                 ]),
                 'total'   => $total,
                 'average' => $average,
-                'grade'   => $gradeData?->grade_name ?? 'N/A',
+                'grade'   => $gradeData?->grade_name ?? null,
             ];
 
             // Generate CBC assessment data
@@ -111,7 +137,9 @@ class ReportCardBatchService
             ->where('student_id', $student->id)
             ->whereHas('exam', fn ($q) => $q
                 ->where('academic_year_id', $yearId)
-                ->where('term_id', $termId))
+                ->where('term_id', $termId)
+                ->where('classroom_id', $report->classroom_id)
+                ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
             ->get()
             ->groupBy(fn ($m) => $m->subject?->name ?? 'Unknown');
 
@@ -120,7 +148,9 @@ class ReportCardBatchService
             ->where('student_id', $student->id)
             ->whereHas('exam', fn ($q) => $q
                 ->where('academic_year_id', $yearId)
-                ->where('term_id', $termId))
+                ->where('term_id', $termId)
+                ->where('classroom_id', $report->classroom_id)
+                ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
             ->get()
             ->pluck('exam.name')
             ->unique()
@@ -133,7 +163,7 @@ class ReportCardBatchService
             $byExam = [];
             foreach ($examNames as $examName) {
                 $m = $rows->first(fn ($r) => $r->exam?->name === $examName);
-                $byExam[$examName] = $m?->score_raw;
+                $byExam[$examName] = $m ? ($m->score_moderated ?? $m->score_raw) : null;
             }
 
             // average across the available exams for this subject
