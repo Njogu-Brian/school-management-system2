@@ -6,16 +6,17 @@
     @include('finance.partials.header', [
         'title' => 'Transport Fees',
         'icon' => 'bi bi-bus-front',
-        'subtitle' => 'List price is calculated from morning/evening drop-off rates. Discounts use Fee Concessions; mid-term changes use Credit/Debit Notes after Post Pending Fees.',
+        'subtitle' => 'Transport fees use the imported/manual amount as the charge. Morning pickup / evening drop-off is shown from Transport assignments. Discounts use Fee Concessions; mid-term moves use Credit/Debit Notes after Post Pending Fees.',
         'actions' => '<a href="' . route('finance.transport-fees.import') . '" class="btn btn-finance btn-finance-primary btn-finance-lg"><i class="bi bi-upload me-2"></i>Import</a>'
     ])
 
     <div class="transport-info-pill mb-3">
-      <strong>Fees only:</strong> morning/evening points are managed in Transport.
-      Same point → two-way · different points → half of each two-way · Own Means on one leg → one-way of the other.
-      Parent discounts → <em>Fee Concessions (Transport)</em>. Mid-term moves → <em>Credit/Debit Notes</em> after Post Pending Fees.
+      <strong>Amount source:</strong> set via Import/manual (pricing_mode = imported).
+      <br>
+      <strong>Pickup/drop-off display:</strong> set in Transport -> Student Drop-offs (morning pickup, evening drop-off).
+      Parent discounts -> <em>Fee Concessions (Transport)</em>. Mid-term moves -> <em>Credit/Debit Notes</em> after Post Pending Fees.
       <a href="{{ route('transport.student-dropoffs.index') }}">Manage student drop-offs</a>
-      · <a href="{{ route('transport.dropoffpoints.index') }}">Manage rates</a>
+      · <a href="{{ route('transport.dropoffpoints.index') }}">Manage rates (for calculated fees)</a>
     </div>
 
     @if(session('success'))
@@ -268,6 +269,7 @@
       {{-- Sidebar: Duplicate only (Import & History in submenu) --}}
       <div class="col-12 col-xl-4">
         <div class="transport-sidebar">
+          @include('finance.transport_fees.partials.flat_rate_form', ['termsByYear' => $termsByYear ?? collect(), 'year' => $year, 'term' => $term])
           @include('finance.transport_fees.partials.duplicate_form', ['classrooms' => $classrooms, 'year' => $year, 'term' => $term, 'termsByYear' => $termsByYear ?? collect(), 'futureTerms' => $futureTerms ?? collect()])
         </div>
       </div>

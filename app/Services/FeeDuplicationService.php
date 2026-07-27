@@ -59,6 +59,8 @@ class FeeDuplicationService
                 'amount' => $sourceFee->amount,
                 'drop_off_point_id' => $sourceFee->drop_off_point_id,
                 'drop_off_point_name' => $sourceFee->drop_off_point_name,
+                'pricing_mode' => $sourceFee->pricing_mode,
+                'pricing_breakdown' => $sourceFee->pricing_breakdown,
                 'source' => 'duplicate',
                 'note' => "Duplicated from {$sourceYear} Term {$sourceTerm}",
                 'skip_invoice' => false,
@@ -278,7 +280,7 @@ class FeeDuplicationService
     /**
      * Build preview list of transport fees to duplicate (no DB writes).
      *
-     * @return array<int, array{student_id: int, amount: float, drop_off_point_id: ?int, drop_off_point_name: ?string, student_name: string}>
+     * @return array<int, array{student_id: int, amount: float, drop_off_point_id: ?int, drop_off_point_name: ?string, pricing_mode: ?string, pricing_breakdown: ?array, student_name: string}>
      */
     public static function previewTransport(
         int $sourceYear,
@@ -306,6 +308,8 @@ class FeeDuplicationService
                 'amount' => (float) $sourceFee->amount,
                 'drop_off_point_id' => $sourceFee->drop_off_point_id,
                 'drop_off_point_name' => $sourceFee->drop_off_point_name,
+                'pricing_mode' => $sourceFee->pricing_mode,
+                'pricing_breakdown' => $sourceFee->pricing_breakdown,
                 'student_name' => $student->full_name ?? ($student->first_name . ' ' . $student->last_name),
             ];
         }
@@ -315,7 +319,7 @@ class FeeDuplicationService
     /**
      * Duplicate only the approved transport fee items.
      *
-     * @param array<int, array{student_id: int, amount: float, drop_off_point_id: ?int, drop_off_point_name: ?string}> $items
+     * @param array<int, array{student_id: int, amount: float, drop_off_point_id: ?int, drop_off_point_name: ?string, pricing_mode?: ?string, pricing_breakdown?: ?array}> $items
      * @return array{duplicated: int, updated: int, created: int}
      */
     public static function duplicateTransportSelected(
@@ -346,6 +350,8 @@ class FeeDuplicationService
                 'amount' => $amount,
                 'drop_off_point_id' => $item['drop_off_point_id'] ?? null,
                 'drop_off_point_name' => $item['drop_off_point_name'] ?? null,
+                'pricing_mode' => $item['pricing_mode'] ?? 'calculated',
+                'pricing_breakdown' => $item['pricing_breakdown'] ?? null,
                 'source' => 'duplicate',
                 'note' => "Duplicated from source term",
                 'skip_invoice' => false,

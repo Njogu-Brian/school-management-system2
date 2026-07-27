@@ -31,7 +31,7 @@
           <span>Upload Transport Fee File</span>
         </div>
         <div class="finance-card-body p-4">
-          <p class="text-muted mb-4">Upload an Excel file with columns: <strong>Admission Number</strong>, <strong>Student Name</strong>, <strong>Transport Fee</strong>. Drop-off points are managed in Transport → Student Drop-offs (morning &amp; evening only).</p>
+          <p class="text-muted mb-4">Upload an Excel file with columns: <strong>Admission Number</strong>, <strong>Student Name</strong>, <strong>Transport Fee</strong>. Pickup/drop-off is managed in Transport -> Student Drop-offs (morning pickup, evening drop-off); this import sets the fee amount.</p>
           
           <form method="POST" action="{{ route('finance.transport-fees.import.preview') }}" enctype="multipart/form-data">
             @csrf

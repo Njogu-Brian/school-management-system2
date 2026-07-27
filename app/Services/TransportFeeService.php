@@ -235,7 +235,72 @@ class TransportFeeService
     ): array {
         [$year, $term] = self::resolveYearAndTerm($year, $term);
 
+        $existingFee = TransportFee::where('student_id', $studentId)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->first();
+
         $assignment = StudentAssignment::where('student_id', $studentId)->first();
+
+        // If this student/term fee was imported (flat/agreed amount), do not overwrite amount.
+        // We may still update legacy drop-off metadata, but charging amount stays the same.
+        if ($existingFee && (string) $existingFee->pricing_mode === 'imported') {
+            $legacyPointId = $existingFee->drop_off_point_id;
+            $legacyPointName = $existingFee->drop_off_point_name;
+
+            if ($assignment) {
+                $candidatePointId = null;
+                if ($assignment->evening_drop_off_point_id && !DropOffPoint::nameIsOwnMeans(optional(DropOffPoint::find($assignment->evening_drop_off_point_id))->name)) {
+                    $candidatePointId = $assignment->evening_drop_off_point_id;
+                } elseif ($assignment->morning_drop_off_point_id && !DropOffPoint::nameIsOwnMeans(optional(DropOffPoint::find($assignment->morning_drop_off_point_id))->name)) {
+                    $candidatePointId = $assignment->morning_drop_off_point_id;
+                }
+
+                if ($candidatePointId) {
+                    $legacyPointId = $candidatePointId;
+                    $legacyPointName = optional(DropOffPoint::find($legacyPointId))->name;
+                } else {
+                    // If both legs are own-means, keep the legacy label for informational/history purposes.
+                    $morningOwn = $assignment->morning_drop_off_point_id
+                        ? DropOffPoint::nameIsOwnMeans(optional(DropOffPoint::find($assignment->morning_drop_off_point_id))->name)
+                        : false;
+                    $eveningOwn = $assignment->evening_drop_off_point_id
+                        ? DropOffPoint::nameIsOwnMeans(optional(DropOffPoint::find($assignment->evening_drop_off_point_id))->name)
+                        : false;
+
+                    if ($morningOwn && $eveningOwn) {
+                        $legacyPointId = null;
+                        $legacyPointName = DropOffPoint::OWN_MEANS_NAME;
+                    }
+                }
+            }
+
+            $fee = self::upsertFee([
+                'student_id' => $studentId,
+                'amount' => (float) $existingFee->amount,
+                'year' => $year,
+                'term' => $term,
+                'drop_off_point_id' => $legacyPointId,
+                'drop_off_point_name' => $legacyPointName,
+                'source' => $source,
+                'note' => $note ?? 'Pickup/drop-off updated; imported fee amount preserved',
+                'pricing_mode' => 'imported',
+                'pricing_breakdown' => $existingFee->pricing_breakdown,
+                'skip_invoice' => $skipInvoice,
+            ]);
+
+            return [
+                'fee' => $fee,
+                'result' => [
+                    'amount' => (float) $existingFee->amount,
+                    'breakdown' => $fee?->pricing_breakdown,
+                    'errors' => [],
+                    'can_calculate' => false,
+                ],
+                'updated' => true,
+            ];
+        }
+
         $result = TransportFeeCalculator::calculateFromAssignment($assignment);
 
         if (!$result['can_calculate']) {

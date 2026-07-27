@@ -207,9 +207,19 @@
                                 <span class="fw-semibold">
                                   {{ $row['drop_off_point_name'] ?? ($row['drop_off_point_id'] ? $dropOffPoints->firstWhere('id', $row['drop_off_point_id'])->name ?? '—' : '—') }}
                                 </span>
+                                <span class="text-muted small mt-1">
+                                  Morning: {{ $row['morning_pickup_name'] ?? '—' }} · Evening: {{ $row['evening_dropoff_name'] ?? '—' }}
+                                </span>
                               </div>
                             @else
-                              <span>{{ $row['drop_off_point_name'] ?? ($row['drop_off_point_id'] ? $dropOffPoints->firstWhere('id', $row['drop_off_point_id'])->name ?? '—' : '—') }}</span>
+                              <div class="d-flex flex-column">
+                                <span>
+                                  {{ $row['drop_off_point_name'] ?? ($row['drop_off_point_id'] ? $dropOffPoints->firstWhere('id', $row['drop_off_point_id'])->name ?? '—' : '—') }}
+                                </span>
+                                <span class="text-muted small mt-1">
+                                  Morning: {{ $row['morning_pickup_name'] ?? '—' }} · Evening: {{ $row['evening_dropoff_name'] ?? '—' }}
+                                </span>
+                              </div>
                             @endif
                           </td>
                           <td>

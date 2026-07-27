@@ -7,6 +7,7 @@ use App\Models\Academics\Classroom;
 use App\Models\AcademicYear;
 use App\Models\DropOffPoint;
 use App\Models\Student;
+use App\Models\StudentAssignment;
 use App\Models\Term;
 use App\Models\TransportFee;
 use App\Services\TransportFeeService;
@@ -176,6 +177,7 @@ class TransportFeeController extends Controller
         $preview = [];
         $missingDropOffs = [];
         $studentsToMatch = [];
+        $assignmentCache = [];
         $total = 0;
 
         foreach ($sheet as $rowIndex => $row) {
@@ -226,6 +228,22 @@ class TransportFeeController extends Controller
                         }
                     }
                 }
+            }
+
+            // Pickup/drop-off for display comes from the Transport module (StudentAssignment).
+            $morningPickupName = null;
+            $eveningDropOffName = null;
+            if ($student) {
+                $sid = (int) $student->id;
+                if (!array_key_exists($sid, $assignmentCache)) {
+                    $assignmentCache[$sid] = StudentAssignment::with([
+                        'morningDropOffPoint',
+                        'eveningDropOffPoint',
+                    ])->where('student_id', $sid)->first();
+                }
+                $assignment = $assignmentCache[$sid];
+                $morningPickupName = optional($assignment?->morningDropOffPoint)->name;
+                $eveningDropOffName = optional($assignment?->eveningDropOffPoint)->name;
             }
 
             // Try multiple column name variations for amount
@@ -341,6 +359,8 @@ class TransportFeeController extends Controller
                 'student_id' => $student?->id,
                 'student_name' => $student?->full_name ?? ($assoc['student_name'] ?? $assoc['name'] ?? null),
                 'admission_number' => $admission ?: ($student?->admission_number ?? null),
+                'morning_pickup_name' => $morningPickupName,
+                'evening_dropoff_name' => $eveningDropOffName,
                 'amount' => $amount,
                 'existing_amount' => $existingAmount,
                 'drop_off_point_id' => $matchedDrop?->id,
@@ -514,52 +534,68 @@ class TransportFeeController extends Controller
             }
 
             try {
-                // Fees-only import: never create/update drop-off points or assignment legs.
-                // Prefer calculated list price from existing Transport student drop-offs; else use imported amount.
-                $assignment = \App\Models\StudentAssignment::with(['morningDropOffPoint', 'eveningDropOffPoint'])
-                    ->where('student_id', $studentId)
-                    ->first();
-                $calc = \App\Services\TransportFeeCalculator::calculateFromAssignment($assignment);
-                $finalAmount = $amount ?? 0;
+                // Fees-only import: amount in Excel is the source of truth.
+                // We do not overwrite/import amounts based on pickup/drop-off location rates.
+                $finalAmount = null;
 
-                if ($calc['can_calculate']) {
-                    TransportFeeService::upsertFee([
-                        'student_id' => $studentId,
-                        'amount' => $calc['amount'] ?? 0,
-                        'year' => $year,
-                        'term' => $term,
-                        'drop_off_point_id' => $assignment?->evening_drop_off_point_id ?: $assignment?->morning_drop_off_point_id,
-                        'drop_off_point_name' => optional($assignment?->eveningDropOffPoint)->name
-                            ?? optional($assignment?->morningDropOffPoint)->name,
-                        'source' => 'import',
-                        'note' => $calc['breakdown']['label'] ?? 'Calculated from existing drop-off points after fee import',
-                        'pricing_mode' => 'calculated',
-                        'pricing_breakdown' => $calc['breakdown'],
-                        'skip_invoice' => true,
-                    ]);
-                    $finalAmount = (float) ($calc['amount'] ?? 0);
-                } elseif ($amount !== null) {
+                if (($row['status'] ?? '') === 'own_means') {
+                    // Own-means rows should remove transport charging (set amount to 0) if previously billed.
+                    $existingFee = \App\Models\TransportFee::where('student_id', $studentId)
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->first();
+
+                    if (!$existingFee || (float) $existingFee->amount <= 0) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $finalAmount = 0.0;
+
                     TransportFeeService::upsertFee([
                         'student_id' => $studentId,
                         'amount' => $finalAmount,
                         'year' => $year,
                         'term' => $term,
-                        'drop_off_point_id' => null,
-                        'drop_off_point_name' => null,
+                        // Preserve legacy metadata; own-means is informational here.
+                        'drop_off_point_id' => $existingFee->drop_off_point_id,
+                        'drop_off_point_name' => $existingFee->drop_off_point_name,
                         'source' => 'import',
-                        'note' => 'Imported transport fee amount (drop-offs managed in Transport module)',
+                        'note' => 'Own-means transport import (amount set to 0; pickup/drop-off shown from Transport module)',
                         'pricing_mode' => 'imported',
                         'pricing_breakdown' => null,
                         'skip_invoice' => true,
                     ]);
-                } else {
-                    $skipped++;
-                    continue;
-                }
-                $createdOrUpdated++;
 
-                if ($finalAmount > 0) {
-                    $totalAmount += $finalAmount;
+                    $createdOrUpdated++;
+                } else {
+                    if ($amount === null) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $finalAmount = (float) $amount;
+
+                    TransportFeeService::upsertFee([
+                        'student_id' => $studentId,
+                        'amount' => $finalAmount,
+                        'year' => $year,
+                        'term' => $term,
+                        // Keep any drop-off mapping only as metadata (do not use it to calculate amount).
+                        'drop_off_point_id' => $row['drop_off_point_id'] ?? null,
+                        'drop_off_point_name' => $row['drop_off_point_name'] ?? null,
+                        'source' => 'import',
+                        'note' => 'Imported transport fee amount (amount is source of truth; pickup/drop-off shown from Transport module)',
+                        'pricing_mode' => 'imported',
+                        'pricing_breakdown' => null,
+                        'skip_invoice' => true,
+                    ]);
+
+                    $createdOrUpdated++;
+                }
+
+                if (($finalAmount ?? 0) > 0) {
+                    $totalAmount += (float) $finalAmount;
                 }
             } catch (\Throwable $e) {
                 $failed++;
@@ -773,6 +809,8 @@ class TransportFeeController extends Controller
                     'amount' => (float) $row['amount'],
                     'drop_off_point_id' => $row['drop_off_point_id'] ?? null,
                     'drop_off_point_name' => $row['drop_off_point_name'] ?? null,
+                    'pricing_mode' => $row['pricing_mode'] ?? null,
+                    'pricing_breakdown' => $row['pricing_breakdown'] ?? null,
                 ];
             }
         }
@@ -788,6 +826,56 @@ class TransportFeeController extends Controller
             ->with('success', "Duplicated {$result['duplicated']} transport fee(s) to {$targetYear} Term {$targetTerm}. " .
                 ($result['updated'] ? "{$result['updated']} updated." : '') .
                 ($result['created'] ? "{$result['created']} created." : ''));
+    }
+
+    /**
+     * Apply a flat/imported amount to all existing transport fee rows for a term.
+     * Invoices are updated via Post Pending Fees (skip_invoice=true).
+     */
+    public function flatRate(Request $request)
+    {
+        $request->validate([
+            'year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
+            'flat_amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        [$year, $term] = array_map('intval', explode('|', $request->year_term));
+        $flatAmount = round((float) $request->flat_amount, 2);
+
+        $query = TransportFee::where('year', $year)
+            ->where('term', $term);
+
+        $count = (int) (clone $query)->count();
+        if ($count === 0) {
+            return redirect()->route('finance.transport-fees.index', ['year' => $year, 'term' => $term])
+                ->with('error', "No transport fee rows found for Term {$term}, {$year}.");
+        }
+
+        $updated = 0;
+
+        $query->orderBy('id')->chunkById(200, function ($fees) use ($flatAmount, $year, $term, &$updated) {
+            foreach ($fees as $fee) {
+                TransportFeeService::upsertFee([
+                    'student_id' => $fee->student_id,
+                    'year' => $year,
+                    'term' => $term,
+                    'amount' => $flatAmount,
+                    // Keep existing mapping metadata stable.
+                    'drop_off_point_id' => $fee->drop_off_point_id,
+                    'drop_off_point_name' => $fee->drop_off_point_name,
+                    'source' => 'flat_rate_bulk',
+                    'note' => "Flat-rate transport fee applied (KES {$flatAmount}). Run Post Pending Fees to update invoices.",
+                    'pricing_mode' => 'imported',
+                    'pricing_breakdown' => null,
+                    'skip_invoice' => true,
+                ]);
+
+                $updated++;
+            }
+        });
+
+        return redirect()->route('finance.transport-fees.index', ['year' => $year, 'term' => $term])
+            ->with('success', "Applied flat transport fee of KES " . number_format($flatAmount, 2) . " to {$updated} transport fee(s) for Term {$term}, {$year}. Run Post Pending Fees to update invoices.");
     }
 
     /**

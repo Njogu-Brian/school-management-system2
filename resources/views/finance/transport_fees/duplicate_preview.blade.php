@@ -65,6 +65,8 @@
                       'amount' => $item['amount'],
                       'drop_off_point_id' => $item['drop_off_point_id'] ?? null,
                       'drop_off_point_name' => $item['drop_off_point_name'] ?? null,
+                      'pricing_mode' => $item['pricing_mode'] ?? null,
+                      'pricing_breakdown' => $item['pricing_breakdown'] ?? null,
                     ]));
                   @endphp
                   <tr>
