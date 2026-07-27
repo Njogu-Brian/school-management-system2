@@ -1,5 +1,7 @@
-@php($D = $dto ?? [])
-@php($examHeaders = collect($D['subjects'])->first()['exams'] ?? [])
+@php
+  $D = $dto ?? [];
+  $examHeaders = data_get(collect($D['subjects'] ?? [])->first(), 'exams', []);
+@endphp
 
 {{-- Header --}}
 <table style="width:100%; border-collapse:collapse; margin-bottom:8px; {{ $isPdf ? '' : 'border:0' }}">

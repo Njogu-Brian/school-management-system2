@@ -31,8 +31,7 @@
 
     <div class="settings-card">
       <div class="card-body">
-        @php($isPdf = false)
-        @include('academics.report_cards.partials.core', ['dto' => $dto, 'isPdf' => $isPdf])
+        @include('academics.report_cards.partials.core', ['dto' => $dto, 'isPdf' => false])
       </div>
     </div>
   </div>

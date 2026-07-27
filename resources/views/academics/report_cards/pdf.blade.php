@@ -15,7 +15,6 @@
   </style>
 </head>
 <body>
-  @php($isPdf = true)
-  @include('academics.report_cards.partials.core', ['dto' => $dto, 'isPdf' => $isPdf])
+  @include('academics.report_cards.partials.core', ['dto' => $dto, 'isPdf' => true])
 </body>
 </html>
