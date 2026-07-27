@@ -257,6 +257,9 @@ class ReportCardBatchService
             'address'     => setting('school_address') ?? '',
             'phone'       => setting('school_phone') ?? '',
             'email'       => setting('school_email') ?? '',
+            'website'     => setting('school_website') ?? '',
+            'header_html' => setting('pdf_header_html') ?? '',
+            'footer_html' => setting('pdf_footer_html') ?? '',
         ];
 
         // CBC Data from report card
@@ -341,7 +344,7 @@ class ReportCardBatchService
             'branding'   => $branding,
             'generated'  => [
                 'by'   => auth()->user()?->name ?? 'System',
-                'at'   => now()->format('d M Y H:i'),
+                'at'   => now()->format('d M Y, H:i'),
             ],
         ];
     }

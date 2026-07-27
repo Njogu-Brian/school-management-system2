@@ -3,19 +3,14 @@
   $examHeaders = data_get(collect($D['subjects'] ?? [])->first(), 'exams', []);
 @endphp
 
-{{-- Header --}}
-<table style="width:100%; border-collapse:collapse; margin-bottom:8px; {{ $isPdf ? '' : 'border:0' }}">
-  <tr>
-    <td style="border:0;">
-      <div style="font-weight:700; font-size:18px;">{{ $D['branding']['school_name'] ?? ($D['context']['school']['name'] ?? config('app.name')) }}</div>
-      <div style="font-size:11px; color:#666;">{{ $D['branding']['address'] ?? '' }} @if(!empty($D['branding']['phone'])) | {{ $D['branding']['phone'] }} @endif</div>
-    </td>
-    <td style="border:0; text-align:right;">
-      <div style="font-weight:700;">Academic Report</div>
-      <div style="font-size:11px; color:#666;">Printed: {{ $D['generated']['at'] ?? now()->format('d M Y H:i') }}</div>
-    </td>
-  </tr>
-</table>
+{{-- School letterhead (logo, contact details, print timestamp) --}}
+@include('academics.exam_reports.partials.report_letterhead', [
+  'reportTitle' => 'Report Card',
+  'reportSubtitle' => trim(($D['context']['term'] ?? '').' / '.($D['context']['year'] ?? '')),
+  'generatedAt' => $D['generated']['at'] ?? now(),
+  'generatedBy' => $D['generated']['by'] ?? (auth()->user()?->name ?? 'System'),
+  'variant' => !empty($isPdf) ? 'pdf' : 'web-print',
+])
 
 {{-- Student & term --}}
 <table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-bottom:10px;">
@@ -238,3 +233,34 @@
     </td>
   </tr>
 </table>
+
+{{-- Footer: branding + generation timestamp --}}
+@php
+  $footerSchool = $D['branding']['school_name'] ?? setting('school_name', config('app.name'));
+  $footerPhone = $D['branding']['phone'] ?? setting('school_phone', '');
+  $footerEmail = $D['branding']['email'] ?? setting('school_email', '');
+  $footerWebsite = $D['branding']['website'] ?? setting('school_website', '');
+  $footerGeneratedAt = $D['generated']['at'] ?? now()->format('d M Y, H:i');
+  $footerGeneratedBy = $D['generated']['by'] ?? (auth()->user()?->name ?? 'System');
+@endphp
+<div style="margin-top:14px; padding-top:8px; border-top:1px solid #999; font-size:{{ !empty($isPdf) ? '8px' : '0.75rem' }}; color:#555;">
+  <table style="width:100%; border-collapse:collapse;">
+    <tr>
+      <td style="vertical-align:top;">
+        <div>This report card is system-generated.</div>
+        <div>Generated: {{ $footerGeneratedAt }} &middot; By: {{ $footerGeneratedBy }}</div>
+      </td>
+      <td style="vertical-align:top; text-align:right;">
+        <div style="font-weight:600; color:#333;">{{ $footerSchool }}</div>
+        @if($footerPhone !== '')<div>Tel: {{ $footerPhone }}</div>@endif
+        @if($footerEmail !== '')<div>{{ $footerEmail }}</div>@endif
+        @if($footerWebsite !== '')<div>{{ $footerWebsite }}</div>@endif
+      </td>
+    </tr>
+  </table>
+  @if(!empty($D['branding']['footer_html']))
+    <div style="margin-top:6px;">{!! $D['branding']['footer_html'] !!}</div>
+  @elseif(setting('pdf_footer_html'))
+    <div style="margin-top:6px;">{!! setting('pdf_footer_html') !!}</div>
+  @endif
+</div>
