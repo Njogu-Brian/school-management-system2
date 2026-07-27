@@ -21,7 +21,9 @@ class ReportCard extends Model
     protected $casts = [
         'published_at'      => 'datetime',
         'locked_at'         => 'datetime',
-        'summary'           => 'string',
+        // Stored as JSON in `report_cards.summary` (longtext with json_valid constraint).
+        // We save it as a PHP array from ReportCardBatchService, so cast as array here.
+        'summary'           => 'array',
         'career_interest'   => 'string',
         'talent_noticed'    => 'string',
         'teacher_remark'    => 'string',
