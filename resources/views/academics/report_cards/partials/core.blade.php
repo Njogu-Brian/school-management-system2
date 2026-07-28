@@ -10,17 +10,15 @@
   $brandPrimary = setting('finance_primary_color', '#3a1a59');
   $brandSecondary = setting('finance_secondary_color', '#14b8a6');
   $chartPlotHeight = !empty($isPdf) ? 110 : 130;
-  $chartPlotWidth = !empty($isPdf) ? 180 : 240;
   $chartAxisFont = !empty($isPdf) ? '9px' : '10px';
   $chartValueFont = !empty($isPdf) ? '9px' : '10px';
   $chartLabelFont = !empty($isPdf) ? '8px' : '9px';
   $chartBarWidth = !empty($isPdf) ? 20 : 24;
   $chartCount = max(1, collect($D['year_trend']['points'] ?? [])->count());
-  $chartSlotWidth = $chartPlotWidth / $chartCount;
-  $chartItems = collect($D['year_trend']['points'] ?? [])->values()->map(function ($point, $index) use ($brandPrimary, $brandSecondary, $chartPlotHeight, $chartSlotWidth, $chartBarWidth) {
+  $chartItems = collect($D['year_trend']['points'] ?? [])->values()->map(function ($point, $index) use ($brandPrimary, $brandSecondary, $chartPlotHeight, $chartCount) {
     $value = max(0, min(100, (float) ($point['value'] ?? 0)));
     $height = max(8, (int) round(($value / 100) * $chartPlotHeight));
-    $centerX = (int) round(($index * $chartSlotWidth) + ($chartSlotWidth / 2));
+    $centerX = (int) round((($index + 0.5) / $chartCount) * 100);
 
     return [
       'label' => $point['label'] ?? '',
@@ -167,8 +165,8 @@
       @if($chartItems->count() > 0)
         <table style="width:100%; border-collapse:collapse;">
           <tr>
-            <td style="width:24px; vertical-align:top; padding:0 2px 0 0;">
-              <div style="position:relative; width:24px; height:{{ $chartPlotHeight }}px;">
+            <td style="width:22px; vertical-align:top; padding:0 1px 0 0;">
+              <div style="position:relative; width:22px; height:{{ $chartPlotHeight }}px;">
                 @foreach([100, 80, 60, 40, 20, 0] as $tick)
                   @php $tickTop = (int) round($chartPlotHeight - (($tick / 100) * $chartPlotHeight)); @endphp
                   <div style="position:absolute; top:{{ max(0, $tickTop - 4) }}px; right:0; font-size:{{ $chartAxisFont }}; color:#374151; line-height:1;">{{ $tick }}</div>
@@ -176,11 +174,11 @@
               </div>
             </td>
             <td style="vertical-align:top; padding:0;">
-              <div style="position:relative; width:{{ $chartPlotWidth }}px; max-width:100%; height:{{ $chartPlotHeight }}px; margin:0 auto; border-left:1px solid #9ca3af; border-bottom:1px solid #9ca3af; overflow:hidden;">
+              <div style="position:relative; width:100%; height:{{ $chartPlotHeight }}px; border-left:1px solid #9ca3af; border-bottom:1px solid #9ca3af; overflow:hidden;">
                 @foreach([20, 40, 60, 80] as $grid)
                   <div style="position:absolute; left:0; right:0; top:{{ $chartPlotHeight - (($grid / 100) * $chartPlotHeight) }}px; border-top:1px solid #edf2f7;"></div>
                 @endforeach
-                <table style="width:100%; height:{{ $chartPlotHeight }}px; border-collapse:collapse; position:relative; z-index:1;">
+                <table style="width:100%; height:{{ $chartPlotHeight }}px; border-collapse:collapse; position:relative; z-index:1; table-layout:fixed;">
                   <tr style="vertical-align:bottom;">
                     @foreach($chartItems as $item)
                       <td style="vertical-align:bottom; text-align:center; padding:0 1px;">
@@ -196,13 +194,13 @@
                   </tr>
                 </table>
                 @foreach($chartLinePixels as $pixel)
-                  <div style="position:absolute; left:{{ $pixel['x'] }}px; top:{{ $pixel['y'] }}px; width:2px; height:2px; background:{{ $brandSecondary }}; z-index:4;"></div>
+                  <div style="position:absolute; left:{{ $pixel['x'] }}%; top:{{ $pixel['y'] }}px; width:2px; height:2px; margin-left:-1px; background:{{ $brandSecondary }}; z-index:4;"></div>
                 @endforeach
                 @foreach($chartItems as $item)
-                  <div style="position:absolute; left:{{ $item['centerX'] - 3 }}px; top:{{ $item['topY'] - 3 }}px; width:6px; height:6px; background:{{ $brandSecondary }}; border:1px solid #fff; z-index:5;"></div>
+                  <div style="position:absolute; left:{{ $item['centerX'] }}%; top:{{ $item['topY'] - 3 }}px; width:6px; height:6px; margin-left:-3px; background:{{ $brandSecondary }}; border:1px solid #fff; z-index:5;"></div>
                 @endforeach
               </div>
-              <table style="width:{{ $chartPlotWidth }}px; max-width:100%; margin:4px auto 0 auto; border-collapse:collapse; table-layout:fixed;">
+              <table style="width:100%; border-collapse:collapse; margin-top:4px; table-layout:fixed;">
                 <tr>
                   @foreach($chartItems as $item)
                     <td style="text-align:center; font-size:{{ $chartLabelFont }}; color:#374151; line-height:1.2; padding:0 1px; vertical-align:top; word-wrap:break-word;">{{ $item['label'] }}</td>
