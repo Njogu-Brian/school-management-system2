@@ -41,7 +41,6 @@
                 @endforeach
                 <th>Term Avg</th>
                 <th>Grade</th>
-                <th>Teacher Remark</th>
             </tr>
         </thead>
         <tbody>
@@ -53,10 +52,9 @@
                 @endforeach
                 <td class="center"><strong>{{ $row['term_avg'] !== null ? number_format($row['term_avg'],2) : '—' }}</strong></td>
                 <td class="center">{{ $row['grade_label'] ?? '' }}</td>
-                <td>{{ $row['teacher_remark'] ?? '' }}</td>
             </tr>
         @empty
-            <tr><td colspan="{{ 3 + count($examHeaders) }}" class="center">No subject marks.</td></tr>
+            <tr><td colspan="{{ 2 + count($examHeaders) }}" class="center">No subject marks.</td></tr>
         @endforelse
         </tbody>
     </table>
@@ -107,26 +105,11 @@
         </div>
     </div>
 
-    <div class="grid mt-2">
-        <div class="box">
-            <strong>Class Teacher’s Remark</strong>
-            <div class="pt-2">{{ $dto['comments']['teacher_remark'] ?? '' }}</div>
-        </div>
-        <div class="box">
-            <strong>Head Teacher’s Remark</strong>
-            <div class="pt-2">{{ $dto['comments']['headteacher_remark'] ?? '' }}</div>
-        </div>
-    </div>
-
-    <div class="grid mt-2">
-        <div class="box">
-            <strong>Career Interest</strong>
-            <div class="pt-2">{{ $dto['comments']['career_interest'] ?? '' }}</div>
-        </div>
-        <div class="box">
-            <strong>Talent Noticed</strong>
-            <div class="pt-2">{{ $dto['comments']['talent_noticed'] ?? '' }}</div>
-        </div>
+    <div style="text-align:right; margin-top: 12px;">
+        @include('academics.report_cards.partials.school_stamp', [
+            'stampDate' => now(),
+            'isPdf' => true,
+        ])
     </div>
 
     @include('pdf.partials.footer', ['dto' => $dto])

@@ -533,6 +533,67 @@ if (!function_exists('family_report_portal_link_for_student')) {
 }
 
 /**
+ * Public URL for term report cards when published reports exist for the student/family.
+ */
+if (! function_exists('family_report_portal_url_for_student')) {
+    function family_report_portal_url_for_student(
+        ?\App\Models\Student $student,
+        ?int $academicYearId = null,
+        ?int $termId = null
+    ): ?string {
+        if (! $student || ! class_exists(\App\Models\Academics\ReportCard::class)) {
+            return null;
+        }
+
+        $reportQuery = \App\Models\Academics\ReportCard::query()
+            ->whereNotNull('published_at')
+            ->when($termId, fn ($q) => $q->where('term_id', $termId))
+            ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId));
+
+        $hasPublished = (clone $reportQuery)->where('student_id', $student->id)->exists();
+
+        if (! $hasPublished && $student->family_id) {
+            $hasPublished = (clone $reportQuery)
+                ->whereHas('student', fn ($q) => $q->where('family_id', $student->family_id))
+                ->exists();
+        }
+
+        if (! $hasPublished) {
+            return null;
+        }
+
+        $portal = family_report_portal_link_for_student($student, $academicYearId, $termId);
+
+        return $portal?->getUrl();
+    }
+}
+
+/**
+ * Term report portal URL for a payment link (family or single student).
+ */
+if (! function_exists('family_report_portal_url_for_payment_link')) {
+    function family_report_portal_url_for_payment_link(\App\Models\PaymentLink $paymentLink): ?string
+    {
+        if ($paymentLink->family_id) {
+            $student = \App\Models\Student::query()
+                ->where('family_id', $paymentLink->family_id)
+                ->orderBy('id')
+                ->first();
+
+            return family_report_portal_url_for_student($student);
+        }
+
+        if ($paymentLink->student_id) {
+            return family_report_portal_url_for_student(
+                \App\Models\Student::find($paymentLink->student_id)
+            );
+        }
+
+        return null;
+    }
+}
+
+/**
  * Academic year to use when generating a public statement link for a student.
  */
 if (!function_exists('resolve_statement_year_for_student')) {

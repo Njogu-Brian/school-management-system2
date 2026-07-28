@@ -918,8 +918,28 @@ class InvoiceController extends Controller
         
         // Get school settings
         $schoolSettings = \App\Services\ReceiptService::getSchoolSettings();
-        
-        return view('finance.invoices.public', compact('invoice', 'schoolSettings'));
+
+        $reportPortalUrl = family_report_portal_url_for_student(
+            $invoice->student,
+            $invoice->academic_year_id ? (int) $invoice->academic_year_id : null,
+            $invoice->term_id ? (int) $invoice->term_id : null
+        );
+
+        $paymentUrl = null;
+        if (($invoice->balance ?? 0) > 0 && $invoice->student) {
+            try {
+                if ($invoice->student->family_id) {
+                    $familyLink = ensure_family_payment_link($invoice->student->family_id);
+                    if ($familyLink) {
+                        $paymentUrl = url('/pay/'.($familyLink->hashed_id ?? $familyLink->token));
+                    }
+                }
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
+
+        return view('finance.invoices.public', compact('invoice', 'schoolSettings', 'reportPortalUrl', 'paymentUrl'));
     }
 
 }

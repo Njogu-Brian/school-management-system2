@@ -285,6 +285,15 @@
             @endif
 
             <div id="statusMessage"></div>
+
+            @if(!empty($reportPortalUrl))
+                <div class="mt-3 pt-3 border-top">
+                    <a href="{{ $reportPortalUrl }}" class="btn btn-outline-primary w-100 btn-portal" style="min-height:44px;border-radius:.75rem;font-weight:600;">
+                        <i class="bi bi-journal-text me-1"></i> View Term Report Cards
+                    </a>
+                </div>
+            @endif
+
             <p class="text-center small text-muted mt-3 mb-0">
                 <i class="bi bi-shield-check"></i> Secure M-PESA · Safaricom
             </p>

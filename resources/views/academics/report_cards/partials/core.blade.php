@@ -71,7 +71,6 @@
       @endforeach
       <th style="{{ $cellStyle }} text-align:center;">Term Avg</th>
       <th style="{{ $cellStyle }} text-align:center;">Grade</th>
-      <th style="{{ $cellStyle }} text-align:left;">Teacher Remark</th>
     </tr>
   </thead>
   <tbody>
@@ -100,10 +99,9 @@
         @endforeach
         <td style="{{ $cellStyle }} text-align:center;"><strong>{{ $row['term_avg'] !== null ? number_format($row['term_avg'],2) : '—' }}</strong></td>
         <td style="{{ $cellStyle }} text-align:center;"><strong>{{ $row['grade_label'] ?? '—' }}</strong></td>
-        <td style="{{ $cellStyle }}">{{ $row['teacher_remark'] ?? '' }}</td>
       </tr>
     @empty
-      <tr><td colspan="{{ ($referenceTermName ? 5 : 3) + count($examHeaders) }}" style="padding:8px; text-align:center;">No subject marks.</td></tr>
+      <tr><td colspan="{{ ($referenceTermName ? 4 : 2) + count($examHeaders) }}" style="padding:8px; text-align:center;">No subject marks.</td></tr>
     @endforelse
   </tbody>
 </table>
@@ -269,53 +267,14 @@
 </table>
 @endif
 
-{{-- Comments --}}
-@php $commentPad = !empty($isPdf) ? '6px' : '8px'; @endphp
-<table style="width:100%; border-collapse:separate; border-spacing:{{ !empty($isPdf) ? '6px' : '10px' }} 0; margin-top:{{ !empty($isPdf) ? '6px' : '10px' }};">
+{{-- Official school stamp (digital reports) --}}
+<table style="width:100%; border-collapse:collapse; margin-top:{{ !empty($isPdf) ? '8px' : '12px' }}; margin-bottom:{{ !empty($isPdf) ? '4px' : '8px' }};">
   <tr>
-    <td style="width:50%; vertical-align:top;">
-      <div style="border:1px solid #d1d5db; padding:{{ $commentPad }}; background:#fff; font-size:{{ $smallFont }};">
-        <strong>Class Teacher’s Remark</strong>
-        <div style="padding-top:4px;">{{ $D['comments']['teacher_remark'] ?? '' }}</div>
-      </div>
-    </td>
-    <td style="width:50%; vertical-align:top;">
-      <div style="border:1px solid #d1d5db; padding:{{ $commentPad }}; background:#fff; font-size:{{ $smallFont }};">
-        <strong>Head Teacher’s Remark</strong>
-        <div style="padding-top:4px;">{{ $D['comments']['headteacher_remark'] ?? '' }}</div>
-      </div>
-    </td>
-  </tr>
-  <tr>
-    <td style="width:50%; vertical-align:top;">
-      <div style="border:1px solid #d1d5db; padding:{{ $commentPad }}; background:#fff; font-size:{{ $smallFont }};">
-        <strong>Career Interest</strong>
-        <div style="padding-top:4px;">{{ $D['comments']['career_interest'] ?? '' }}</div>
-      </div>
-    </td>
-    <td style="width:50%; vertical-align:top;">
-      <div style="border:1px solid #d1d5db; padding:{{ $commentPad }}; background:#fff; font-size:{{ $smallFont }};">
-        <strong>Talent Noticed</strong>
-        <div style="padding-top:4px;">{{ $D['comments']['talent_noticed'] ?? '' }}</div>
-      </div>
-    </td>
-  </tr>
-</table>
-
-{{-- Signatures --}}
-<table style="width:100%; border-collapse:separate; border-spacing:{{ !empty($isPdf) ? '10px' : '16px' }} 0; margin-top:{{ !empty($isPdf) ? '8px' : '12px' }}; margin-bottom:{{ !empty($isPdf) ? '6px' : '10px' }};">
-  <tr>
-    <td style="width:50%; vertical-align:top;">
-      <div style="padding-top:24px; border-bottom:1px solid #374151; margin-bottom:6px;"></div>
-      <div style="font-size:{{ !empty($isPdf) ? '9px' : '0.8rem' }}; color:#374151;">
-        <strong>Class Teacher Signature</strong>
-      </div>
-    </td>
-    <td style="width:50%; vertical-align:top;">
-      <div style="padding-top:24px; border-bottom:1px solid #374151; margin-bottom:6px;"></div>
-      <div style="font-size:{{ !empty($isPdf) ? '9px' : '0.8rem' }}; color:#374151;">
-        <strong>Head Teacher Signature</strong>
-      </div>
+    <td style="text-align:right; vertical-align:bottom; padding-right:{{ !empty($isPdf) ? '4px' : '8px' }};">
+      @include('academics.report_cards.partials.school_stamp', [
+        'stampDate' => now(),
+        'isPdf' => !empty($isPdf),
+      ])
     </td>
   </tr>
 </table>

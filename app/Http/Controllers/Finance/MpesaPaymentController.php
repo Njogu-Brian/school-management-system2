@@ -545,6 +545,8 @@ class MpesaPaymentController extends Controller
             $displayStudentForPay = $payStudent;
         }
 
+        $reportPortalUrl = family_report_portal_url_for_payment_link($paymentLink);
+
         return view('finance.mpesa.payment-page', compact(
             'paymentLink',
             'familyStudents',
@@ -553,7 +555,8 @@ class MpesaPaymentController extends Controller
             'payStudent',
             'displayStudentForPay',
             'singleStudentInvoices',
-            'feeBalance'
+            'feeBalance',
+            'reportPortalUrl'
         ));
     }
 
