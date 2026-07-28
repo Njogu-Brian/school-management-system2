@@ -643,6 +643,7 @@ Route::middleware('auth')->group(function () {
         // Generate batch reports
         Route::get('report_cards/generate',  [ReportCardController::class,'generateForm'])->name('report_cards.generate.form');
         Route::post('report_cards/generate', [ReportCardController::class,'generate'])->name('report_cards.generate');
+        Route::get('report_cards/bulk-print', [ReportCardController::class, 'bulkPrint'])->name('report_cards.bulk_print');
 
         // Report Cards
         Route::resource('report_cards', ReportCardController::class)

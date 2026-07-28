@@ -32,60 +32,16 @@ class ReportCardController extends Controller
         $this->middleware('permission:report_cards.delete')->only(['destroy']);
         $this->middleware('permission:report_cards.publish')->only(['publish', 'bulkPublish', 'bulkPublishClass']);
         $this->middleware('permission:report_cards.generate')->only(['generateForm', 'generate']);
-        $this->middleware('permission:report_cards.export_pdf')->only(['exportPdf']);
+        $this->middleware('permission:report_cards.export_pdf')->only(['exportPdf', 'bulkPrint']);
     }
 
     public function index(Request $request)
     {
-        $query = ReportCard::with(['student', 'publisher', 'academicYear', 'term', 'classroom', 'stream']);
-
-        $assignedClassroomIds = $this->assignedClassroomIdsForCurrentUser();
-        $filterIds = AcademicContext::listFilterIds(
-            $request->has('academic_year_id'),
-            $request->filled('academic_year_id'),
-            $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
-            $request->has('term_id'),
-            $request->filled('term_id'),
-            $request->filled('term_id') ? (int) $request->term_id : null,
-        );
-        $selectedYearId = $filterIds['yearId'];
-        $selectedTermId = $filterIds['termId'];
-
-        // Teachers can only see report cards for their assigned classes
-        if ($assignedClassroomIds !== null) {
-            if ($assignedClassroomIds === []) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->whereIn('classroom_id', $assignedClassroomIds);
-            }
-        }
-
-        // Filters
-        if ($filterIds['applyYearFilter'] && $selectedYearId) {
-            $query->where('academic_year_id', $selectedYearId);
-        }
-        if ($filterIds['applyTermFilter'] && $selectedTermId) {
-            $query->where('term_id', $selectedTermId);
-        }
-        if ($request->filled('classroom_id')) {
-            $query->where('classroom_id', $request->classroom_id);
-        }
-        if ($request->filled('stream_id')) {
-            $query->where('stream_id', $request->stream_id);
-        }
-        if ($request->filled('search')) {
-            $search = trim((string) $request->search);
-            $query->whereHas('student', function ($q) use ($search) {
-                $q->where('archive', 0)->where('is_alumni', false)
-                    ->where(function ($studentQuery) use ($search) {
-                        $studentQuery->where('first_name', 'like', "%{$search}%")
-                            ->orWhere('middle_name', 'like', "%{$search}%")
-                            ->orWhere('last_name', 'like', "%{$search}%")
-                            ->orWhere('admission_number', 'like', "%{$search}%")
-                            ->orWhereRaw("CONCAT_WS(' ', first_name, middle_name, last_name) LIKE ?", ["%{$search}%"]);
-                    });
-            });
-        }
+        $filterResult = $this->buildFilteredReportCardsQuery($request);
+        $query = $filterResult['query'];
+        $selectedYearId = $filterResult['selectedYearId'];
+        $selectedTermId = $filterResult['selectedTermId'];
+        $assignedClassroomIds = $filterResult['assignedClassroomIds'];
 
         $perPage = (int) $request->input('per_page', 10);
         if (! in_array($perPage, [10, 50, 100, 200], true)) {
@@ -124,6 +80,67 @@ class ReportCardController extends Controller
             'selectedTermId',
             'perPage'
         ));
+    }
+
+    /**
+     * @return array{query: \Illuminate\Database\Eloquent\Builder, selectedYearId: int|null, selectedTermId: int|null, assignedClassroomIds: array<int>|null}
+     */
+    protected function buildFilteredReportCardsQuery(Request $request): array
+    {
+        $query = ReportCard::with(['student', 'publisher', 'academicYear', 'term', 'classroom', 'stream']);
+
+        $assignedClassroomIds = $this->assignedClassroomIdsForCurrentUser();
+        $filterIds = AcademicContext::listFilterIds(
+            $request->has('academic_year_id'),
+            $request->filled('academic_year_id'),
+            $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+            $request->has('term_id'),
+            $request->filled('term_id'),
+            $request->filled('term_id') ? (int) $request->term_id : null,
+        );
+        $selectedYearId = $filterIds['yearId'];
+        $selectedTermId = $filterIds['termId'];
+
+        if ($assignedClassroomIds !== null) {
+            if ($assignedClassroomIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('classroom_id', $assignedClassroomIds);
+            }
+        }
+
+        if ($filterIds['applyYearFilter'] && $selectedYearId) {
+            $query->where('academic_year_id', $selectedYearId);
+        }
+        if ($filterIds['applyTermFilter'] && $selectedTermId) {
+            $query->where('term_id', $selectedTermId);
+        }
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
+        }
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+            $query->whereHas('student', function ($q) use ($search) {
+                $q->where('archive', 0)->where('is_alumni', false)
+                    ->where(function ($studentQuery) use ($search) {
+                        $studentQuery->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('middle_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('admission_number', 'like', "%{$search}%")
+                            ->orWhereRaw("CONCAT_WS(' ', first_name, middle_name, last_name) LIKE ?", ["%{$search}%"]);
+                    });
+            });
+        }
+
+        return [
+            'query' => $query,
+            'selectedYearId' => $selectedYearId,
+            'selectedTermId' => $selectedTermId,
+            'assignedClassroomIds' => $assignedClassroomIds,
+        ];
     }
 
     /**
@@ -424,6 +441,48 @@ class ReportCardController extends Controller
         $report->update(['pdf_path' => $path]);
 
         return $pdf->download($filename);
+    }
+
+    public function bulkPrint(Request $request)
+    {
+        $query = $this->buildFilteredReportCardsQuery($request)['query'];
+
+        if ($request->filled('ids')) {
+            $ids = is_array($request->ids) ? $request->ids : explode(',', (string) $request->ids);
+            $ids = array_values(array_filter(array_map('intval', $ids)));
+            if ($ids !== []) {
+                $query->whereIn('id', $ids);
+            }
+        }
+
+        $reports = $query
+            ->orderBy('classroom_id')
+            ->orderBy('student_id')
+            ->get();
+
+        if ($reports->isEmpty()) {
+            return back()->with('error', 'No report cards found matching the selected criteria.');
+        }
+
+        if ($reports->count() > 200) {
+            return back()->with('error', 'Too many report cards to print at once (max 200). Narrow your filters or select fewer rows.');
+        }
+
+        $cards = [];
+        foreach ($reports as $report) {
+            $cards[] = [
+                'report_card' => $report,
+                'dto' => ReportCardBatchService::build($report->id),
+            ];
+        }
+
+        $pdf = Pdf::loadView('academics.report_cards.bulk-print-pdf', [
+            'cards' => $cards,
+        ])->setPaper('A4', 'portrait');
+
+        $filename = 'report-cards-bulk-'.now()->format('Ymd-His').'.pdf';
+
+        return $pdf->stream($filename);
     }
 
     public function generateForm()

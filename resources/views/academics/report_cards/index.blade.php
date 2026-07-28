@@ -115,6 +115,14 @@
           onclick="openSendDocument('report_card', collectCheckedIds('.rc-checkbox'))">
           <i class="bi bi-send"></i> Send Selected
         </button>
+        @can('report_cards.export_pdf')
+          <button type="button" class="btn btn-ghost-strong" id="bulkPrintSelectedBtn" title="Print selected report cards">
+            <i class="bi bi-printer"></i> Print Selected
+          </button>
+          <button type="button" class="btn btn-ghost-strong" id="bulkPrintFilteredBtn" title="Print all report cards matching current filters">
+            <i class="bi bi-printer-fill"></i> Print Matching
+          </button>
+        @endcan
       </div>
     </div>
 
@@ -177,6 +185,11 @@
                         onclick="openSendDocument('report_card', [{{ $rc->id }}])">
                         <i class="bi bi-send"></i>
                       </button>
+                      @can('report_cards.export_pdf')
+                        <a href="{{ route('academics.report_cards.pdf', $rc) }}" class="btn btn-sm btn-ghost-strong text-secondary" title="Download PDF" target="_blank">
+                          <i class="bi bi-file-earmark-pdf"></i>
+                        </a>
+                      @endcan
                     </div>
                   </td>
                 </tr>
@@ -247,6 +260,40 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   boxes.forEach(b => b.addEventListener('change', refresh));
   refresh();
+
+  function collectFilterParams() {
+    const form = document.getElementById('reportCardFiltersForm');
+    const params = new URLSearchParams();
+    if (!form) return params;
+    new FormData(form).forEach((value, key) => {
+      if (value !== '') params.append(key, value);
+    });
+    return params;
+  }
+
+  function openBulkPrint(extraParams = {}) {
+    const params = collectFilterParams();
+    Object.entries(extraParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.set(key, value);
+      }
+    });
+    const url = '{{ route('academics.report_cards.bulk_print') }}?' + params.toString();
+    window.open(url, '_blank');
+  }
+
+  document.getElementById('bulkPrintSelectedBtn')?.addEventListener('click', function() {
+    const ids = Array.from(document.querySelectorAll('.rc-checkbox:checked')).map(cb => cb.value);
+    if (!ids.length) {
+      alert('Select at least one report card to print.');
+      return;
+    }
+    openBulkPrint({ ids: ids.join(',') });
+  });
+
+  document.getElementById('bulkPrintFilteredBtn')?.addEventListener('click', function() {
+    openBulkPrint();
+  });
 });
 </script>
 @endpush
