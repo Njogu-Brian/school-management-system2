@@ -197,6 +197,8 @@ class ReportCardBatchService
             ->sort(fn ($a, $b) => strcasecmp((string) $a, (string) $b))
             ->values();
 
+        $currentTermName = $term?->name ?? ('Term '.$termId);
+
         $subjectsRows = [];
         foreach ($subjectNames as $subjectName) {
             $rows = $currentSubjectGroups->get($subjectName, collect());
@@ -211,7 +213,7 @@ class ReportCardBatchService
                     $grade = $grading->gradeForRawScore((float) $score, $max, $classroomId)['label'] ?? null;
                 }
                 $bySitting[$sitting] = [
-                    'exam_name' => $sitting,
+                    'exam_name' => trim($currentTermName.' '.$sitting),
                     'score' => $score !== null ? (float) $score : null,
                     'grade_label' => self::normalizeGradeLabel($grade),
                     'pl_level' => $m?->pl_level,
