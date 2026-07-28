@@ -40,6 +40,16 @@ class ReportCardController extends Controller
         $query = ReportCard::with(['student', 'publisher', 'academicYear', 'term', 'classroom', 'stream']);
 
         $assignedClassroomIds = $this->assignedClassroomIdsForCurrentUser();
+        $filterIds = AcademicContext::listFilterIds(
+            $request->has('academic_year_id'),
+            $request->filled('academic_year_id'),
+            $request->filled('academic_year_id') ? (int) $request->academic_year_id : null,
+            $request->has('term_id'),
+            $request->filled('term_id'),
+            $request->filled('term_id') ? (int) $request->term_id : null,
+        );
+        $selectedYearId = $filterIds['yearId'];
+        $selectedTermId = $filterIds['termId'];
 
         // Teachers can only see report cards for their assigned classes
         if ($assignedClassroomIds !== null) {
@@ -51,11 +61,11 @@ class ReportCardController extends Controller
         }
 
         // Filters
-        if ($request->filled('academic_year_id')) {
-            $query->where('academic_year_id', $request->academic_year_id);
+        if ($filterIds['applyYearFilter'] && $selectedYearId) {
+            $query->where('academic_year_id', $selectedYearId);
         }
-        if ($request->filled('term_id')) {
-            $query->where('term_id', $request->term_id);
+        if ($filterIds['applyTermFilter'] && $selectedTermId) {
+            $query->where('term_id', $selectedTermId);
         }
         if ($request->filled('classroom_id')) {
             $query->where('classroom_id', $request->classroom_id);
@@ -103,9 +113,6 @@ class ReportCardController extends Controller
             });
         }
         $streams = $streamsQuery->get();
-
-        $selectedYearId = $request->input('academic_year_id');
-        $selectedTermId = $request->input('term_id');
 
         return view('academics.report_cards.index', compact(
             'report_cards',
