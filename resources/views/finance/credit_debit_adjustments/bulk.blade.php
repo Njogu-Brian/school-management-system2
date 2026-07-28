@@ -10,6 +10,11 @@
         <div class="card-body">
             <p class="mb-2">Upload an Excel/CSV using this exact header order:</p>
             <code>admission_number, votehead_name, effective_date, type, year, term, reason, amount</code>
+            <p class="text-muted small mt-2 mb-0">
+                Dates accept <strong>DD/MM/YYYY</strong> or <strong>YYYY-MM-DD</strong>.
+                Use positive amounts only; negative values are converted to absolute values.
+                Type is <strong>Cr</strong> or <strong>Dr</strong>.
+            </p>
             <div class="mt-2">
                 <a href="{{ route('finance.journals.bulk.template') }}" class="btn btn-sm btn-outline-secondary">
                     Download Template

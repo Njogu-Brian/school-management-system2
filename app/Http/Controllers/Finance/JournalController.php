@@ -211,7 +211,7 @@ class JournalController extends Controller
         $columns = [
             'admission_number',
             'votehead_name',
-            'effective_date', // YYYY-MM-DD (optional)
+            'effective_date', // YYYY-MM-DD or DD/MM/YYYY (optional)
             'type',           // Cr or Dr
             'year',
             'term',           // 1,2,3
@@ -272,7 +272,21 @@ class JournalController extends Controller
             $reason= $rowArr['reason'] ?? null;
             $amt   = $rowArr['amount'] ?? null;
 
+            if (is_numeric($amt)) {
+                $amt = abs((float) $amt);
+            } else {
+                $amt = null;
+            }
+
             $err = [];
+            if ($eff) {
+                try {
+                    $eff = $this->parseFlexibleDate($eff);
+                } catch (\InvalidArgumentException $e) {
+                    $err[] = $e->getMessage();
+                    $eff = null;
+                }
+            }
 
             if (!$adm)   $err[] = 'admission_number missing';
             if (!$vh)    $err[] = 'votehead_name missing';
@@ -280,13 +294,13 @@ class JournalController extends Controller
             if (!$year)  $err[] = 'year missing';
             if (!in_array($term, [1,2,3], true)) $err[] = 'term must be 1,2 or 3';
             if (!$reason)$err[] = 'reason missing';
-            if (!is_numeric($amt) || $amt <= 0) $err[] = 'amount must be > 0';
+            if ($amt === null || $amt <= 0) $err[] = 'amount must be > 0';
 
             // Resolve references
-            $student = $adm ? Student::where('admission_number', $adm)->first() : null;
+            $student = $adm ? $this->findStudentByAdmission($adm) : null;
             if (!$student) $err[] = "student not found for admission_number '{$adm}'";
 
-            $votehead = $vh ? Votehead::whereRaw('LOWER(name) = ?', [mb_strtolower($vh)])->first() : null;
+            $votehead = $vh ? $this->findVoteheadByName($vh) : null;
             if (!$votehead) $err[] = "votehead not found for '{$vh}'";
 
             // Normalize type
@@ -332,5 +346,60 @@ class JournalController extends Controller
                 'rows'    => $rowsOut,
             ],
         ]);
+    }
+
+    private function parseFlexibleDate(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            throw new \InvalidArgumentException('effective_date is empty');
+        }
+
+        if (is_numeric($value)) {
+            try {
+                return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $value)->format('Y-m-d');
+            } catch (\Throwable) {
+                // fall through to string formats
+            }
+        }
+
+        $value = trim((string) $value);
+        $formats = ['Y-m-d', 'd/m/Y', 'd-m-Y', 'd.m.Y', 'm/d/Y', 'Y/m/d'];
+
+        foreach ($formats as $format) {
+            $parsed = \DateTime::createFromFormat($format, $value);
+            if ($parsed && $parsed->format($format) === $value) {
+                return $parsed->format('Y-m-d');
+            }
+        }
+
+        // Lenient parse for common day/month/year shapes
+        foreach (['d/m/Y', 'd-m-Y', 'd.m.Y'] as $format) {
+            $parsed = \DateTime::createFromFormat($format, $value);
+            if ($parsed !== false) {
+                return $parsed->format('Y-m-d');
+            }
+        }
+
+        throw new \InvalidArgumentException("Could not parse date '{$value}'. Use YYYY-MM-DD or DD/MM/YYYY.");
+    }
+
+    private function findStudentByAdmission(string $admission): ?Student
+    {
+        $admission = trim($admission);
+
+        $student = Student::where('admission_number', $admission)->first();
+        if ($student) {
+            return $student;
+        }
+
+        return Student::whereRaw('UPPER(TRIM(admission_number)) = ?', [mb_strtoupper($admission)])->first();
+    }
+
+    private function findVoteheadByName(string $name): ?Votehead
+    {
+        $normalized = mb_strtolower(trim($name));
+
+        return Votehead::whereRaw('LOWER(name) = ?', [$normalized])->first()
+            ?? Votehead::whereRaw('LOWER(name) LIKE ?', ['%' . $normalized . '%'])->first();
     }
 }
