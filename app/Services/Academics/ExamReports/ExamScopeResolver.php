@@ -80,6 +80,87 @@ final class ExamScopeResolver
     }
 
     /**
+     * Sort order for in-term exam sittings (Opener → Mid Term → End Term).
+     */
+    public static function examTypeSortOrder(?string $name, ?string $code = null): int
+    {
+        $hay = strtolower(trim(($name ?? '').' '.($code ?? '')));
+
+        if ($hay === '' || $hay === '0') {
+            return 0;
+        }
+        if (str_contains($hay, 'open') || preg_match('/\bopn\b/', $hay)) {
+            return 1;
+        }
+        if (str_contains($hay, 'mid') || preg_match('/\bmid\b/', $hay)) {
+            return 2;
+        }
+        if (str_contains($hay, 'end') || preg_match('/\bend\b/', $hay)) {
+            return 3;
+        }
+
+        return 50;
+    }
+
+    /**
+     * Previous exam sitting in the same term/class (e.g. Mid Term before End Term).
+     */
+    public function findPreviousExamSession(ExamSession $session, ?int $streamId = null): ?ExamSession
+    {
+        $session->loadMissing('examType');
+        $currentOrder = self::examTypeSortOrder($session->examType?->name, $session->examType?->code);
+
+        if ($currentOrder <= 1) {
+            return null;
+        }
+
+        $effectiveStreamId = $session->stream_id ?? $streamId;
+        $candidates = $this->examSessionsInTermScope($session, $effectiveStreamId);
+
+        if ($candidates->isEmpty() && $effectiveStreamId) {
+            $candidates = $this->examSessionsInTermScope($session, null);
+        }
+
+        return $candidates
+            ->filter(function (ExamSession $candidate) use ($session, $currentOrder) {
+                if ((int) $candidate->id === (int) $session->id) {
+                    return false;
+                }
+                $candidate->loadMissing('examType');
+                $order = self::examTypeSortOrder($candidate->examType?->name, $candidate->examType?->code);
+
+                return $order > 0 && $order < $currentOrder;
+            })
+            ->sortByDesc(fn (ExamSession $candidate) => self::examTypeSortOrder(
+                $candidate->examType?->name,
+                $candidate->examType?->code
+            ))
+            ->first();
+    }
+
+    /**
+     * @return Collection<int, ExamSession>
+     */
+    private function examSessionsInTermScope(ExamSession $session, ?int $streamId): Collection
+    {
+        $termIds = $this->terms->termIdsForScope(
+            (int) $session->term_id,
+            (int) $session->academic_year_id,
+            null,
+            (int) $session->classroom_id,
+            $streamId
+        );
+
+        return ExamSession::query()
+            ->with('examType')
+            ->where('academic_year_id', $session->academic_year_id)
+            ->where('classroom_id', $session->classroom_id)
+            ->whereIn('term_id', $termIds)
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
+            ->get();
+    }
+
+    /**
      * Subject papers under a sitting.
      *
      * @return Collection<int, Exam>

@@ -133,7 +133,13 @@
 
         <div class="col-lg-6">
           <div class="settings-card h-100">
-            <div class="card-header d-flex align-items-center gap-2 d-print-none"><i class="bi bi-graph-up-arrow"></i><h5 class="mb-0">Most Improved</h5></div>
+            <div class="card-header d-flex align-items-center gap-2 flex-wrap d-print-none">
+              <i class="bi bi-graph-up-arrow"></i>
+              <h5 class="mb-0">Most Improved</h5>
+              @if(!empty($payload['meta']['comparison_label']))
+                <span class="badge text-bg-light border">{{ $payload['meta']['comparison_label'] }}</span>
+              @endif
+            </div>
             <div class="card-body p-0">
               <div class="table-responsive">
                 <table class="table table-modern align-middle mb-0 exam-report-marks-table">

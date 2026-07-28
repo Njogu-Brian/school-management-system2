@@ -361,8 +361,117 @@ class AnalyticsService
         ];
     }
 
+    /**
+     * Most improved learners by overall total marks vs the previous exam sitting in the same term.
+     *
+     * @return array{
+     *     comparison_label: ?string,
+     *     previous: ?array{id: int, name: string, exam_type: string},
+     *     current: array{id: int, name: string, exam_type: string},
+     *     rows: Collection<int, array<string, mixed>>
+     * }
+     */
+    public function mostImprovedForExamSession(
+        ExamSession $session,
+        Classroom $classroom,
+        ?int $streamId = null,
+        ?array $currentSheet = null,
+        int $limit = 10
+    ): array {
+        $builder = new ClassSheetBuilder();
+        $current = $currentSheet ?? $builder->buildForExamSession($session, $classroom, $streamId);
+        $prevSession = $this->examScope->findPreviousExamSession($session, $streamId);
+
+        $session->loadMissing('examType');
+        $currentLabel = trim($session->examType?->name ?? $session->name ?? 'Current');
+
+        if (! $prevSession) {
+            return [
+                'comparison_label' => null,
+                'previous' => null,
+                'current' => [
+                    'id' => (int) $session->id,
+                    'name' => (string) $session->name,
+                    'exam_type' => $currentLabel,
+                ],
+                'rows' => collect(),
+            ];
+        }
+
+        $prevSession->loadMissing('examType');
+        $prevSheet = $builder->buildForExamSession($prevSession, $classroom, $streamId);
+        $prevTotals = collect($prevSheet['rows'])->keyBy('student_id')->map(fn ($r) => $r['total']);
+        $prevLabel = trim($prevSession->examType?->name ?? $prevSession->name ?? 'Previous');
+
+        $rows = collect($current['rows'] ?? [])
+            ->map(function ($r) use ($prevTotals) {
+                $prev = $prevTotals->get($r['student_id']);
+                $curr = $r['total'];
+                $delta = ($curr !== null && $prev !== null)
+                    ? round(((float) $curr) - ((float) $prev), 2)
+                    : null;
+
+                return [
+                    'student_id' => $r['student_id'],
+                    'admission_number' => $r['admission_number'],
+                    'name' => $r['name'],
+                    'stream_name' => $r['stream_name'] ?? null,
+                    'prev_total' => $prev,
+                    'curr_total' => $curr,
+                    'improvement' => $delta,
+                ];
+            })
+            ->whereNotNull('improvement')
+            ->sortByDesc('improvement')
+            ->take($limit)
+            ->values();
+
+        return [
+            'comparison_label' => $prevLabel.' → '.$currentLabel,
+            'previous' => [
+                'id' => (int) $prevSession->id,
+                'name' => (string) $prevSession->name,
+                'exam_type' => $prevLabel,
+            ],
+            'current' => [
+                'id' => (int) $session->id,
+                'name' => (string) $session->name,
+                'exam_type' => $currentLabel,
+            ],
+            'rows' => $rows,
+        ];
+    }
+
+    public function studentInsightsForExamSession(ExamSession $session, Classroom $classroom, ?int $streamId = null): array
+    {
+        $sheet = (new ClassSheetBuilder())->buildForExamSession($session, $classroom, $streamId);
+        $rows = collect($sheet['rows']);
+        $top = $rows->whereNotNull('total')->sortByDesc('total')->take(10)->values();
+        $improvedBlock = $this->mostImprovedForExamSession($session, $classroom, $streamId, $sheet);
+
+        return [
+            'meta' => [
+                'mode' => 'exam_session',
+                'exam_session_id' => $session->id,
+                'prev_exam_session_id' => $improvedBlock['previous']['id'] ?? null,
+                'classroom_id' => $classroom->id,
+                'stream_id' => $streamId,
+                'comparison_label' => $improvedBlock['comparison_label'],
+            ],
+            'top_students' => $top,
+            'most_improved' => $improvedBlock['rows'],
+        ];
+    }
+
     public function studentInsightsForExam(Exam $exam, Classroom $classroom, ?int $streamId = null): array
     {
+        if ($exam->exam_session_id) {
+            $session = ExamSession::query()->with('examType')->find($exam->exam_session_id);
+            if ($session && (int) $session->classroom_id === (int) $classroom->id) {
+                return $this->studentInsightsForExamSession($session, $classroom, $streamId);
+            }
+        }
+
         $sheet = (new ClassSheetBuilder())->buildForExam($exam, $classroom, $streamId);
         $rows = collect($sheet['rows']);
 

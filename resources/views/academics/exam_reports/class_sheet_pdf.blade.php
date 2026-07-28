@@ -136,6 +136,45 @@
           </tfoot>
           @endif
         </table>
+
+        @if(($meta['mode'] ?? '') === 'exam_session' && ! empty($payload['most_improved']))
+          @php $mi = $payload['most_improved']; $miRows = collect($mi['rows'] ?? []); @endphp
+          @if($miRows->isNotEmpty() || ! empty($mi['comparison_label']))
+            <p style="margin:10px 0 4px;font-weight:bold;font-size:8px;">
+              Most Improved
+              @if(! empty($mi['comparison_label']))
+                — {{ $mi['comparison_label'] }}
+              @endif
+              <span style="font-weight:normal;">(overall total marks)</span>
+            </p>
+            <table class="exam-report-marks-table" style="max-width:85%;">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Adm No</th>
+                  <th class="left">Student</th>
+                  <th>{{ $mi['previous']['exam_type'] ?? 'Previous' }}</th>
+                  <th>{{ $mi['current']['exam_type'] ?? 'Current' }}</th>
+                  <th>Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse($miRows as $i => $row)
+                  <tr>
+                    <td class="num">{{ $i + 1 }}</td>
+                    <td class="num">{{ $row['admission_number'] ?? '' }}</td>
+                    <td class="left">{{ $row['name'] ?? '' }}</td>
+                    <td class="num">{{ $row['prev_total'] ?? '' }}</td>
+                    <td class="num">{{ $row['curr_total'] ?? '' }}</td>
+                    <td class="num">{{ ($row['improvement'] ?? 0) > 0 ? '+' : '' }}{{ $row['improvement'] ?? '' }}</td>
+                  </tr>
+                @empty
+                  <tr><td colspan="6" class="left">No comparison data for this sitting.</td></tr>
+                @endforelse
+              </tbody>
+            </table>
+          @endif
+        @endif
       </div>
     @endif
   @endforeach

@@ -234,6 +234,14 @@ class ExamReportsController extends Controller
                 fn () => $builder->buildForExamSession($session, $classroom, $streamId)
             );
 
+            $session->loadMissing('examType');
+            $payload['most_improved'] = (new AnalyticsService())->mostImprovedForExamSession(
+                $session,
+                $classroom,
+                $streamId,
+                $payload
+            );
+
             return [['classroom' => $classroom, 'payload' => $payload, 'notice' => null]];
         }
 

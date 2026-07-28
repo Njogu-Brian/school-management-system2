@@ -240,10 +240,19 @@
                   'generatedAt' => now(),
                   'generatedBy' => auth()->user()?->name,
                 ])
+                @php
+                  $showStreamCol = ! empty($streamsByClassroom[$bundle['classroom']->id ?? ''] ?? $streamsByClassroom[(string) ($bundle['classroom']->id ?? '')] ?? []);
+                @endphp
                 @include('academics.exam_reports.partials.class_sheet_table', [
                   'payload' => $bundle['payload'],
-                  'showStreamColumn' => ! empty($streamsByClassroom[$bundle['classroom']->id ?? ''] ?? $streamsByClassroom[(string) ($bundle['classroom']->id ?? '')] ?? []),
+                  'showStreamColumn' => $showStreamCol,
                 ])
+                @if(($bundle['payload']['meta']['mode'] ?? '') === 'exam_session')
+                  @include('academics.exam_reports.partials.most_improved_panel', [
+                    'payload' => $bundle['payload'],
+                    'showStreamColumn' => $showStreamCol,
+                  ])
+                @endif
               @endif
             </div>
           </div>
