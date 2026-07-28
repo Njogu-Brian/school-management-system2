@@ -28,10 +28,10 @@
     <tr style="background:#f3f4f6;">
       <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Subject</th>
       @foreach($examHeaders as $eh)
-        <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">{{ $eh['exam_name'] }}</th>
+        <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $eh['exam_name'] }}</th>
       @endforeach
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Term Avg</th>
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Grade</th>
+      <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Term Avg</th>
+      <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Grade</th>
       <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Teacher Remark</th>
     </tr>
   </thead>
@@ -40,10 +40,19 @@
       <tr style="background:#fff;">
         <td style="padding:6px; border:1px solid #d1d5db;">{{ $row['subject_name'] }}</td>
         @foreach($row['exams'] as $ex)
-          <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $ex['score'] !== null ? number_format($ex['score'],2) : '—' }}</td>
+          <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">
+            @if($ex['score'] !== null)
+              <div>{{ number_format($ex['score'], 2) }}</div>
+              @if(!empty($ex['grade_label']))
+                <div style="font-size:{{ !empty($isPdf) ? '8px' : '0.75rem' }}; color:#555;">{{ $ex['grade_label'] }}</div>
+              @endif
+            @else
+              —
+            @endif
+          </td>
         @endforeach
         <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ $row['term_avg'] !== null ? number_format($row['term_avg'],2) : '—' }}</strong></td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $row['grade_label'] ?? '' }}</td>
+        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ $row['grade_label'] ?? '—' }}</strong></td>
         <td style="padding:6px; border:1px solid #d1d5db;">{{ $row['teacher_remark'] ?? '' }}</td>
       </tr>
     @empty

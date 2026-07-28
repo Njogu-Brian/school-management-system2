@@ -10,6 +10,7 @@ use App\Models\Attendance;
 use App\Models\Academics\StudentBehaviour;
 use App\Models\Setting; // if you store branding here; otherwise adjust.
 use App\Services\CBCAssessmentService;
+use App\Services\Academics\ClassroomGradingService;
 use Illuminate\Support\Facades\Log;
 use App\Services\AttendanceReportService;
 
@@ -132,58 +133,72 @@ class ReportCardBatchService
         $termId  = $report->term_id;
         $term    = $report->term;
 
-        // All marks for this student within term/year grouped by subject
-        $marks = ExamMark::with(['exam','subject'])
+        // Marks for this student within term/year for the report classroom.
+        // Exams are often created per subject (e.g. "TERM 1 MIDTERM — GRADE 9 — English"),
+        // so we collapse them into sitting columns: Opener / Midterm / Endterm.
+        $allMarks = ExamMark::with(['exam.examType', 'subject', 'performanceLevel'])
             ->where('student_id', $student->id)
             ->whereHas('exam', fn ($q) => $q
                 ->where('academic_year_id', $yearId)
                 ->where('term_id', $termId)
                 ->where('classroom_id', $report->classroom_id)
                 ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
-            ->get()
-            ->groupBy(fn ($m) => $m->subject?->name ?? 'Unknown');
+            ->get();
 
-        // Build list of distinct exams (order by exam start if you like)
-        $examNames = ExamMark::with('exam')
-            ->where('student_id', $student->id)
-            ->whereHas('exam', fn ($q) => $q
-                ->where('academic_year_id', $yearId)
-                ->where('term_id', $termId)
-                ->where('classroom_id', $report->classroom_id)
-                ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
-            ->get()
-            ->pluck('exam.name')
+        $sittingOrder = ['Opener' => 1, 'Midterm' => 2, 'Endterm' => 3, 'Other' => 4];
+        $sittingHeaders = $allMarks
+            ->map(fn ($m) => self::sittingLabel($m->exam?->name))
             ->unique()
+            ->sortBy(fn ($label) => $sittingOrder[$label] ?? 99)
             ->values()
             ->all();
 
+        $grading = app(ClassroomGradingService::class);
+        $classroomId = (int) ($report->classroom_id ?? $student->classroom_id ?? 0);
+
         $subjectsRows = [];
-        foreach ($marks as $subjectName => $rows) {
-            // map exam name => score
-            $byExam = [];
-            foreach ($examNames as $examName) {
-                $m = $rows->first(fn ($r) => $r->exam?->name === $examName);
-                $byExam[$examName] = $m ? ($m->score_moderated ?? $m->score_raw) : null;
+        foreach ($allMarks->groupBy(fn ($m) => $m->subject?->name ?? self::subjectFromExamName($m->exam?->name) ?? 'Unknown') as $subjectName => $rows) {
+            $bySitting = [];
+            foreach ($sittingHeaders as $sitting) {
+                $m = $rows->first(fn ($r) => self::sittingLabel($r->exam?->name) === $sitting);
+                $score = $m ? ($m->score_moderated ?? $m->score_raw) : null;
+                $grade = $m?->grade_label;
+                if ($m && ($grade === null || $grade === '') && $score !== null && $classroomId > 0) {
+                    $max = (float) ($m->exam?->examType?->default_max_mark ?? $m->exam?->max_marks ?? 100);
+                    $grade = $grading->gradeForRawScore((float) $score, $max, $classroomId)['label'] ?? null;
+                }
+                $bySitting[$sitting] = [
+                    'exam_name' => $sitting,
+                    'score' => $score !== null ? (float) $score : null,
+                    'grade_label' => $grade,
+                    'pl_level' => $m?->pl_level,
+                    'performance_level' => $m?->performanceLevel?->code ?? $m?->pl_level,
+                    'rubrics' => $m?->rubrics,
+                ];
             }
 
-            // average across the available exams for this subject
-            $scoresOnly = collect($byExam)->filter(fn ($v) => $v !== null)->values();
-            $avg = $scoresOnly->count() ? round($scoresOnly->avg(), 2) : null;
+            $scoresOnly = collect($bySitting)->pluck('score')->filter(fn ($v) => $v !== null)->values();
+            $avg = $scoresOnly->count() ? round((float) $scoresOnly->avg(), 2) : null;
 
-            // grade from any band that matches the average (fallback to any subject row's labels)
-            $gradeLabel = $rows->first()?->grade_label ?? null;
+            $gradeLabel = collect($bySitting)->pluck('grade_label')->filter()->last();
+            if (($gradeLabel === null || $gradeLabel === '') && $avg !== null && $classroomId > 0) {
+                $gradeLabel = $grading->gradeForPercentage($avg, $classroomId)['label'] ?? null;
+            }
+
+            $remark = $rows->sortByDesc(fn ($r) => $r->updated_at)->first(fn ($r) => filled($r->subject_remark))?->subject_remark
+                ?? $rows->first()?->subject_remark;
 
             $subjectsRows[] = [
-                'subject_name'  => $subjectName,
-                'exams'         => collect($byExam)->map(fn ($score, $examName) => [
-                    'exam_name' => $examName,
-                    'score'     => $score,
-                ])->values()->all(),
-                'term_avg'      => $avg,
-                'grade_label'   => $gradeLabel,
-                'teacher_remark'=> $rows->first()?->subject_remark,
+                'subject_name' => $subjectName,
+                'exams' => array_values($bySitting),
+                'term_avg' => $avg,
+                'grade_label' => $gradeLabel,
+                'teacher_remark' => $remark,
             ];
         }
+
+        usort($subjectsRows, fn ($a, $b) => strcasecmp($a['subject_name'], $b['subject_name']));
+        $examNames = $sittingHeaders;
 
         // Skills (per-report skills)
         $skills = $report->skills->map(fn ($s) => [
@@ -347,5 +362,45 @@ class ReportCardBatchService
                 'at'   => now()->format('d M Y, H:i'),
             ],
         ];
+    }
+
+    /**
+     * Collapse per-subject exam titles into a sitting label for report-card columns.
+     * e.g. "TERM 1 MIDTERM — GRADE 9 — English" => "Midterm"
+     */
+    protected static function sittingLabel(?string $examName): string
+    {
+        $name = strtolower((string) $examName);
+
+        if (str_contains($name, 'opener')) {
+            return 'Opener';
+        }
+        if (str_contains($name, 'mid')) {
+            return 'Midterm';
+        }
+        if (str_contains($name, 'end')) {
+            return 'Endterm';
+        }
+
+        return 'Other';
+    }
+
+    /**
+     * Best-effort subject name from exam title when subject relation is missing.
+     */
+    protected static function subjectFromExamName(?string $examName): ?string
+    {
+        if (! $examName) {
+            return null;
+        }
+
+        // Common pattern: "TERM 1 MIDTERM — GRADE 9 — English"
+        if (preg_match('/(?:—|-)\s*([^—\-]+)$/u', $examName, $m)) {
+            $subject = trim($m[1]);
+
+            return $subject !== '' ? $subject : null;
+        }
+
+        return null;
     }
 }
