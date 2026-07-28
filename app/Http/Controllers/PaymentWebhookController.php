@@ -189,6 +189,33 @@ class PaymentWebhookController extends Controller
                             return response()->json(['success' => true], 200);
                         }
 
+                        // Parent family wallet top-up / saving STK
+                        if (in_array($transaction->purpose, ['wallet_topup', 'wallet_saving'], true) && $transaction->parent_wallet_id) {
+                            $wallet = \App\Models\ParentWallet::find($transaction->parent_wallet_id);
+                            if ($wallet) {
+                                $walletResult = app(\App\Services\ParentWalletService::class)->creditDeposit(
+                                    (int) $wallet->parent_info_id,
+                                    (float) $transaction->amount,
+                                    \App\Models\PaymentTransaction::class,
+                                    (int) $transaction->id,
+                                    [
+                                        'mpesa_receipt' => $result['mpesa_receipt_number'] ?? null,
+                                        'purpose' => $transaction->purpose,
+                                    ],
+                                    $transaction->initiated_by
+                                );
+                                $transaction->update([
+                                    'status' => 'completed',
+                                    'mpesa_receipt_number' => $result['mpesa_receipt_number'] ?? $transaction->mpesa_receipt_number,
+                                    'paid_at' => now(),
+                                ]);
+                                $webhook->markAsProcessed(
+                                    'Parent wallet credited; applied_to_fees='.($walletResult['applied_to_fees'] ?? 0)
+                                );
+                                return response()->json(['success' => true], 200);
+                            }
+                        }
+
                         // Shared payment: create one payment per sibling allocation, allocate, receipt, notify each
                         if ($transaction->is_shared && !empty($transaction->shared_allocations)) {
                             $firstPaymentId = null;

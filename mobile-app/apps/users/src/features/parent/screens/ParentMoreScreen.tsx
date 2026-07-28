@@ -15,8 +15,9 @@ type Nav = StackNavigationProp<ParentStackParamList>;
 const LINKS: Array<{
   label: string;
   subtitle: string;
-  icon: 'person-outline' | 'megaphone-outline' | 'notifications-outline' | 'settings-outline' | 'alert-circle-outline';
-  tone: 'cyan' | 'amber' | 'blue' | 'indigo' | 'rose';
+  icon: 'person-outline' | 'wallet-outline' | 'megaphone-outline' | 'notifications-outline' | 'settings-outline' | 'alert-circle-outline';
+  glyph?: 'wallet' | 'person' | 'megaphone' | 'notifications' | 'settings' | 'generic';
+  tone: 'cyan' | 'amber' | 'blue' | 'indigo' | 'rose' | 'emerald';
   route: keyof ParentStackParamList;
 }> = [
   {
@@ -25,6 +26,14 @@ const LINKS: Array<{
     icon: 'person-outline',
     tone: 'cyan',
     route: 'MyProfile',
+  },
+  {
+    label: 'Wallets',
+    subtitle: 'Balance, top up & saving plans',
+    icon: 'wallet-outline',
+    glyph: 'wallet',
+    tone: 'emerald',
+    route: 'WalletHome',
   },
   {
     label: 'Announcements',
@@ -79,7 +88,7 @@ export const ParentMoreScreen: React.FC = () => {
             marginBottom: spacing.sm,
           }}
         >
-          <Soft3DIcon name={item.icon} tone={item.tone} size={44} />
+          <Soft3DIcon name={item.icon} glyph={item.glyph} tone={item.tone} size={44} />
           <View style={{ flex: 1 }}>
             <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{item.label}</Text>
             <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>

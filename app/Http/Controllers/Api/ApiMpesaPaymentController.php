@@ -20,20 +20,27 @@ class ApiMpesaPaymentController extends Controller
         protected MpesaGateway $mpesaGateway
     ) {}
 
-    protected function assertFinanceStaff(Request $request): void
+    protected function assertCanPromptMpesa(Request $request, int $studentId): void
     {
         $user = $request->user();
-        if (! $user || ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
-            abort(403, 'You do not have permission to initiate M-PESA payments.');
+        if (! $user) {
+            abort(401);
         }
+        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+            return;
+        }
+        if ($user->hasAnyRole(['Parent', 'Guardian']) && $user->canAccessStudent($studentId)) {
+            return;
+        }
+        abort(403, 'You do not have permission to initiate M-PESA payments.');
     }
 
     /**
-     * Initiate admin STK push (same rules as web finance.mpesa.prompt-payment).
+     * Initiate STK push for finance staff or the child's parent.
      */
     public function prompt(Request $request, int $id)
     {
-        $this->assertFinanceStaff($request);
+        $this->assertCanPromptMpesa($request, $id);
 
         $request->merge(['student_id' => $id]);
 
@@ -48,6 +55,13 @@ class ApiMpesaPaymentController extends Controller
             'sibling_allocations.*.student_id' => 'required_with:sibling_allocations|exists:students,id',
             'sibling_allocations.*.amount' => 'required_with:sibling_allocations|numeric|min:0',
         ]);
+
+        if ($request->user()->hasAnyRole(['Parent', 'Guardian'])) {
+            $request->merge([
+                'share_with_siblings' => false,
+                'sibling_allocations' => null,
+            ]);
+        }
 
         $phoneNumber = trim($request->phone_number);
 

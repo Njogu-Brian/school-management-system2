@@ -20,4 +20,5 @@ Schedule::job(new \App\Jobs\SendFeeRemindersJob)->everyMinute();
 Schedule::command('sms:check-balance-alert')->everyFifteenMinutes();
 Schedule::command('system-alerts:escalate')->everyFifteenMinutes();
 Schedule::command('payment-plans:update-statuses')->dailyAt('00:15');
+Schedule::command('parent-wallet:send-saving-reminders')->everyFiveMinutes();
 Schedule::call([\App\Http\Controllers\BackupRestoreController::class, 'runScheduledIfDue'])->hourly();

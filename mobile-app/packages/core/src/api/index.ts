@@ -5,6 +5,7 @@ export * from './account.api';
 export * from './auth.api';
 export * from './parentClaim.api';
 export * from './parentProfileReview.api';
+export * from './parentWallet.api';
 export * from './dashboard.api';
 export * from './admissions.api';
 export * from './approvals.api';

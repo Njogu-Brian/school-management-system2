@@ -8,6 +8,7 @@ import {
   QuickAction,
   ScreenContainer,
   SkeletonListRows,
+  Soft3DIcon,
   useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
@@ -23,12 +24,14 @@ type Nav = StackNavigationProp<ParentStackParamList>;
 
 const QUICK_ACTIONS: Array<{
   label: string;
-  icon: 'people-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
+  icon: 'people-outline' | 'cash-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'school-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
   route: keyof ParentStackParamList;
 }> = [
   { label: 'Children', icon: 'people-outline', route: 'ChildrenList' },
-  { label: 'Fees', icon: 'wallet-outline', route: 'FeesHome' },
+  { label: 'Fees', icon: 'cash-outline', route: 'FeesHome' },
+  { label: 'Wallets', icon: 'wallet-outline', route: 'WalletHome' },
   { label: 'Diary', icon: 'chatbubbles-outline', route: 'DiaryList' },
+  { label: 'Academic', icon: 'school-outline', route: 'AcademicHome' },
 ];
 
 const SCHOOL_ACTIONS: Array<{
@@ -272,8 +275,14 @@ function ChildFeeCard({
           <Text style={{ color: palette.textMuted, marginTop: spacing.sm }}>No invoices found.</Text>
         ) : (
           invoices.map((inv) => (
-            <View
+            <Pressable
               key={inv.id}
+              onPress={() =>
+                navigation.navigate('InvoiceDetail', {
+                  studentId,
+                  invoiceId: inv.id,
+                })
+              }
               style={{
                 marginTop: spacing.sm,
                 paddingTop: spacing.sm,
@@ -286,7 +295,10 @@ function ChildFeeCard({
                 {formatKes(inv.balance)} · {inv.status}
                 {inv.due_date ? ` · Due ${formatShortDate(inv.due_date)}` : ''}
               </Text>
-            </View>
+              <Text style={{ color: palette.textMuted, marginTop: 2, fontSize: typography.caption.fontSize }}>
+                Tap to open invoice
+              </Text>
+            </Pressable>
           ))
         )
       ) : null}
@@ -295,7 +307,8 @@ function ChildFeeCard({
 }
 
 export const ParentFeesScreen: React.FC = () => {
-  const { spacing } = useTheme();
+  const { palette, spacing, typography } = useTheme();
+  const navigation = useNavigation<Nav>();
   const listQuery = useInfiniteStudentList({
     search: '',
     classroomId: null,
@@ -310,11 +323,33 @@ export const ParentFeesScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-      <AcademicScreenHeader title="Fees" subtitle="Balances, statements, Pay link & M-Pesa" />
+      <AcademicScreenHeader title="Fees" subtitle="Balances, wallet, statements & M-Pesa" />
+      <Pressable
+        onPress={() => navigation.navigate('WalletHome')}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.md,
+          marginBottom: spacing.md,
+          padding: spacing.md,
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: palette.border,
+          backgroundColor: palette.surface,
+        }}
+      >
+        <Soft3DIcon name="wallet-outline" glyph="wallet" tone="emerald" size={48} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>Wallets</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+            Family balance, top up & saving plans
+          </Text>
+        </View>
+      </Pressable>
       {listQuery.isLoading ? (
         <SkeletonListRows count={3} />
       ) : students.length === 0 ? (
-        <EmptyState title="No children" message="Link children to manage fees." icon="wallet-outline" />
+        <EmptyState title="No children" message="Link children to manage fees." icon="cash-outline" />
       ) : (
         students.map((item) => (
           <ChildFeeCard

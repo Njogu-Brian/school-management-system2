@@ -7,6 +7,12 @@ import { ChildAttendanceScreen } from '../../features/parent/screens/ChildAttend
 import { ChildHomeworkScreen } from '../../features/parent/screens/ChildHomeworkScreen';
 import { ChildHubScreen } from '../../features/parent/screens/ChildHubScreen';
 import { ChildResultsScreen } from '../../features/parent/screens/ChildResultsScreen';
+import { ParentInvoiceDetailScreen } from '../../features/parent/screens/ParentInvoiceDetailScreen';
+import { ParentReportCardDetailScreen } from '../../features/parent/screens/ParentReportCardDetailScreen';
+import { ParentWalletHomeScreen } from '../../features/parent/screens/wallet/ParentWalletHomeScreen';
+import { ParentWalletSavingPlanFormScreen } from '../../features/parent/screens/wallet/ParentWalletSavingPlanFormScreen';
+import { ParentWalletSavingPlansScreen } from '../../features/parent/screens/wallet/ParentWalletSavingPlansScreen';
+import { ParentWalletTopUpScreen } from '../../features/parent/screens/wallet/ParentWalletTopUpScreen';
 import { ConcernsListScreen, RaiseConcernScreen, StudentDetailScreen } from '../../features/shared/screens';
 import { DiaryChatScreen } from '../../features/shared/diary';
 import { DiaryListScreen } from '../../features/parent/screens/DiaryListScreen';
@@ -17,6 +23,7 @@ import {
   ParentFeesScreen,
   ParentHomeScreen,
 } from '../../features/parent/screens/ParentScreens';
+import { ParentAcademicScreen } from '../../features/parent/screens/ParentAcademicScreen';
 import { ParentMoreScreen } from '../../features/parent/screens/ParentMoreScreen';
 import { StudentStatementScreen } from '../../features/parent/screens/StudentStatementScreen';
 import { TransportScreen } from '../../features/parent/screens/TransportScreen';
@@ -29,9 +36,7 @@ import type { ParentStackParamList } from './parentStackTypes';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator<ParentStackParamList>();
 
-/** Screens duplicated into every tab's local stack so the tab-root header can
- * reach Notifications/Profile/Settings/Concerns without depending on a parent
- * navigator (Parent has no wrapping Stack above the tabs). */
+/** Screens available from every tab stack (notifications deep links, settings, wallet). */
 const parentSharedScreens = () => (
   <>
     <Stack.Screen name="Notifications" component={NotificationsListScreen} />
@@ -39,6 +44,13 @@ const parentSharedScreens = () => (
     <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
     <Stack.Screen name="MyProfile" component={MyProfileScreen} />
+    <Stack.Screen name="ReportCardDetail" component={ParentReportCardDetailScreen} />
+    <Stack.Screen name="InvoiceDetail" component={ParentInvoiceDetailScreen} />
+    <Stack.Screen name="WalletHome" component={ParentWalletHomeScreen} />
+    <Stack.Screen name="WalletTopUp" component={ParentWalletTopUpScreen} />
+    <Stack.Screen name="WalletSavingPlans" component={ParentWalletSavingPlansScreen} />
+    <Stack.Screen name="WalletSavingPlanForm" component={ParentWalletSavingPlanFormScreen} />
+    <Stack.Screen name="MpesaPrompt" component={MpesaPromptScreen} />
   </>
 );
 
@@ -63,9 +75,9 @@ const ParentHomeStack = () => (
     <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
     <Stack.Screen name="FeesHome" component={ParentFeesScreen} />
+    <Stack.Screen name="AcademicHome" component={ParentAcademicScreen} />
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
-    <Stack.Screen name="MpesaPrompt" component={MpesaPromptScreen} />
     <Stack.Screen name="DiaryList" component={DiaryListScreen} />
     <Stack.Screen name="DiaryChat" component={DiaryChatScreen} />
     <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
@@ -96,7 +108,6 @@ const ParentChildrenStack = () => (
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
-    <Stack.Screen name="MpesaPrompt" component={MpesaPromptScreen} />
     <Stack.Screen name="DiaryChat" component={DiaryChatScreen} />
     <Stack.Screen name="Transport" component={TransportScreen} />
     <Stack.Screen name="LiveBusTrack" component={LiveBusTrackScreen} />
@@ -120,7 +131,6 @@ const ParentFeesStack = () => (
       }}
     />
     <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
-    <Stack.Screen name="MpesaPrompt" component={MpesaPromptScreen} />
     <Stack.Screen name="ChildHub" component={ChildHubScreen} />
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     {parentSharedScreens()}
@@ -148,6 +158,29 @@ const ParentDiaryStack = () => (
   </Stack.Navigator>
 );
 
+const ParentAcademicStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen
+      name="AcademicHome"
+      component={ParentAcademicScreen}
+      options={{
+        headerShown: true,
+        header: ({ navigation }) => (
+          <UsersAppHeaderChrome
+            title="Academic"
+            onMenuPress={() => navigation.getParent()?.navigate('ParentMoreTab' as never)}
+          />
+        ),
+      }}
+    />
+    <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
+    <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
+    <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
+    <Stack.Screen name="ChildHub" component={ChildHubScreen} />
+    {parentSharedScreens()}
+  </Stack.Navigator>
+);
+
 const ParentMoreStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen
@@ -163,8 +196,9 @@ const ParentMoreStack = () => (
 const parentTabBar = createUsersTabBar({
   ParentHomeTab: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
   ParentChildrenTab: { label: 'Children', icon: 'people-outline', iconFocused: 'people', tone: 'indigo' },
-  ParentFeesTab: { label: 'Fees', icon: 'wallet-outline', iconFocused: 'wallet', tone: 'emerald' },
+  ParentFeesTab: { label: 'Fees', icon: 'cash-outline', iconFocused: 'cash', tone: 'emerald' },
   ParentDiaryTab: { label: 'Diary', icon: 'chatbubbles-outline', iconFocused: 'chatbubbles', tone: 'cyan' },
+  ParentAcademicTab: { label: 'Academic', icon: 'school-outline', iconFocused: 'school', tone: 'violet' },
   ParentMoreTab: { label: 'More', icon: 'menu-outline', iconFocused: 'menu', tone: 'amber' },
 });
 
@@ -179,6 +213,11 @@ export const ParentTabNavigator: React.FC = () => {
       />
       <Tab.Screen name="ParentFeesTab" component={ParentFeesStack} options={{ tabBarLabel: 'Fees' }} />
       <Tab.Screen name="ParentDiaryTab" component={ParentDiaryStack} options={{ tabBarLabel: 'Diary' }} />
+      <Tab.Screen
+        name="ParentAcademicTab"
+        component={ParentAcademicStack}
+        options={{ tabBarLabel: 'Academic' }}
+      />
       <Tab.Screen name="ParentMoreTab" component={ParentMoreStack} options={{ tabBarLabel: 'More' }} />
     </Tab.Navigator>
   );

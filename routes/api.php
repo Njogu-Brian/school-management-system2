@@ -161,6 +161,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'show']);
     Route::put('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'update']);
     Route::post('/parent/profile-review/complete', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'complete']);
+
+    // Parent family wallet (Users app)
+    Route::get('/parent-wallet', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'show']);
+    Route::post('/parent-wallet/top-up', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'topUp']);
+    Route::post('/parent-wallet/pay', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'pay']);
+    Route::get('/parent-wallet/saving-plans', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'listSavingPlans']);
+    Route::post('/parent-wallet/saving-plans', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'storeSavingPlan']);
+    Route::patch('/parent-wallet/saving-plans/{id}', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'updateSavingPlan']);
+    Route::delete('/parent-wallet/saving-plans/{id}', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'destroySavingPlan']);
+    Route::post('/parent-wallet/saving-plans/{id}/pay-now', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'paySavingPlanNow']);
+
     Route::post('/password/change', [ApiAccountController::class, 'changePassword']);
     Route::post('/device-tokens', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'store']);
     Route::post('/device-tokens/revoke', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'destroy']);

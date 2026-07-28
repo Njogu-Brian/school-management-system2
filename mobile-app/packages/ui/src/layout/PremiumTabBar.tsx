@@ -53,9 +53,13 @@ export function useFloatingTabBarClearance(_includeSafeArea = true): number {
 export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, onTabPress }) => {
   const { palette, spacing, typography, radius, elevation, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const compact = items.length >= 6;
+  const focusedSize = compact ? 34 : 40;
+  const idleSize = compact ? 28 : 34;
+  const labelSize = compact ? Math.max(9, typography.tiny.fontSize - 1) : typography.tiny.fontSize;
 
   const barBody = (
-    <View style={[styles.barInner, { paddingVertical: spacing.sm, paddingHorizontal: 4 }]}>
+    <View style={[styles.barInner, { paddingVertical: spacing.sm, paddingHorizontal: compact ? 2 : 4 }]}>
       {items.map((item, index) => {
         const focused = item.key === activeKey;
         const iconName = (focused
@@ -77,16 +81,19 @@ export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, 
                 tone={focused ? tone : 'muted'}
                 muted={!focused}
                 active={focused}
-                size={focused ? 40 : 34}
+                size={focused ? focusedSize : idleSize}
               />
             </View>
             <Text
               style={{
                 marginTop: 4,
                 color: focused ? palette.primary : palette.textMuted,
-                fontSize: typography.tiny.fontSize,
+                fontSize: labelSize,
                 fontWeight: focused ? '700' : '500',
               }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
             >
               {item.label}
             </Text>

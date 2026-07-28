@@ -10,6 +10,8 @@ class PaymentTransaction extends Model
     protected $fillable = [
         'student_id',
         'invoice_id',
+        'parent_wallet_id',
+        'purpose',
         'payment_link_id',
         'initiated_by',
         'gateway',

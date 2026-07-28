@@ -3,9 +3,16 @@ export type ParentStackParamList = {
   ChildrenList: undefined;
   ChildHub: { studentId: number };
   ChildResults: { studentId: number };
+  ReportCardDetail: { studentId: number; reportCardId: number };
   ChildAttendance: { studentId: number };
   ChildHomework: { studentId: number };
   FeesHome: undefined;
+  AcademicHome: undefined;
+  InvoiceDetail: { studentId: number; invoiceId: number };
+  WalletHome: { payInvoiceId?: number; studentId?: number } | undefined;
+  WalletTopUp: undefined;
+  WalletSavingPlans: undefined;
+  WalletSavingPlanForm: { planId?: number } | undefined;
   StudentDetail: { studentId: number };
   StudentStatement: { studentId: number };
   MpesaPrompt: { studentId: number; amount?: number };
