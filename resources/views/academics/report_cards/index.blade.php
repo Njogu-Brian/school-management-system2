@@ -80,15 +80,37 @@
       </div>
     </div>
 
+    @can('report_cards.publish')
+      @php
+        $publishYearId = request('academic_year_id');
+        $publishTermId = request('term_id');
+        $publishHasCriteria = !empty($publishYearId) && !empty($publishTermId);
+      @endphp
+      @if($publishHasCriteria)
+        <div class="d-flex justify-content-end mb-3">
+          <form method="POST" action="{{ route('academics.report_cards.bulk_publish_from_filters_no_notify') }}" onsubmit="return confirm('Publish report cards only (no SMS/Email/WhatsApp)?');" class="d-flex gap-2">
+            @csrf
+            <input type="hidden" name="academic_year_id" value="{{ $publishYearId }}">
+            <input type="hidden" name="term_id" value="{{ $publishTermId }}">
+            @if(!empty(request('classroom_id')))
+              <input type="hidden" name="classroom_id" value="{{ request('classroom_id') }}">
+            @endif
+            @if(!empty(request('stream_id')))
+              <input type="hidden" name="stream_id" value="{{ request('stream_id') }}">
+            @endif
+            <button type="submit" class="btn btn-settings-primary">
+              <i class="bi bi-upload"></i> Publish (No notifications)
+            </button>
+          </form>
+        </div>
+      @else
+        <div class="text-muted small mb-3">Select Academic Year and Term to publish.</div>
+      @endif
+    @endcan
+
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-      <div class="text-muted small">Select report cards to publish or send via SMS / Email / WhatsApp.</div>
+      <div class="text-muted small">Select report cards to send via SMS / Email / WhatsApp.</div>
       <div class="d-flex gap-2 flex-wrap">
-        @can('report_cards.publish')
-        <button type="button" class="btn btn-settings-primary"
-          onclick="openPublishReportCards(collectCheckedIds('.rc-checkbox'))">
-          <i class="bi bi-upload"></i> Publish Selected
-        </button>
-        @endcan
         <button type="button" class="btn btn-ghost-strong"
           onclick="openSendDocument('report_card', collectCheckedIds('.rc-checkbox'))">
           <i class="bi bi-send"></i> Send Selected
@@ -171,7 +193,6 @@
 </div>
 
 @include('communication.partials.document-send-modal')
-@include('academics.report_cards.partials.publish-modal')
 
 @push('scripts')
 <script>

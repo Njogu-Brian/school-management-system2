@@ -652,6 +652,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('report_cards/{report_card}', [ReportCardController::class,'destroy'])->name('report_cards.destroy');
         Route::post('report_cards/bulk-publish', [ReportCardController::class, 'bulkPublish'])->name('report_cards.bulk_publish');
         Route::post('report_cards/bulk-publish-class', [ReportCardController::class, 'bulkPublishClass'])->name('report_cards.bulk_publish_class');
+        Route::post('report_cards/bulk-publish-from-filters-no-notify', [ReportCardController::class, 'bulkPublishFromFiltersNoNotify'])->name('report_cards.bulk_publish_from_filters_no_notify');
         Route::post('report_cards/{report_card}/publish', [ReportCardController::class,'publish'])->name('report_cards.publish');
         Route::get('report_cards/{report}/pdf',      [ReportCardController::class,'exportPdf'])->name('report_cards.pdf');
 

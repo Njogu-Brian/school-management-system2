@@ -322,6 +322,55 @@ class ReportCardController extends Controller
         ));
     }
 
+    /**
+     * Publish report cards only (no SMS/Email/WhatsApp) using the current filter criteria.
+     *
+     * - If classroom_id is not provided, publishes for all classes matching year+term.
+     * - If stream_id is provided, further narrows the set.
+     */
+    public function bulkPublishFromFiltersNoNotify(Request $request, ReportCardPublishService $publishService)
+    {
+        $data = $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+        ]);
+
+        $assignedClassroomIds = $this->assignedClassroomIdsForCurrentUser();
+
+        $query = ReportCard::query()
+            ->where('academic_year_id', $data['academic_year_id'])
+            ->where('term_id', $data['term_id']);
+
+        if (array_key_exists('classroom_id', $data) && ! empty($data['classroom_id'])) {
+            if ($assignedClassroomIds !== null && $assignedClassroomIds !== [] && ! in_array((int) $data['classroom_id'], $assignedClassroomIds, true)) {
+                abort(403, 'You do not have access to publish this classroom.');
+            }
+            if ($assignedClassroomIds !== null) {
+                $query->whereIn('classroom_id', $assignedClassroomIds);
+            }
+            $query->where('classroom_id', (int) $data['classroom_id']);
+        } elseif ($assignedClassroomIds !== null) {
+            // Teacher: no class selected => publish only their assigned classes.
+            $query->whereIn('classroom_id', $assignedClassroomIds);
+        }
+
+        if (! empty($data['stream_id'])) {
+            $query->where('stream_id', (int) $data['stream_id']);
+        }
+
+        $ids = $query->pluck('id')->all();
+
+        if ($ids === []) {
+            return back()->with('warning', 'No report cards found for the selected criteria.');
+        }
+
+        $result = $publishService->publishMany($ids, [], false);
+
+        return back()->with('success', sprintf('Published %d report card(s).', $result['published']));
+    }
+
     /** NEW: Term assessment rollup (per class, optional subject) */
     public function termAssessment(Request $request)
     {
