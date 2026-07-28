@@ -50,6 +50,29 @@
             </select>
           </div>
         </div>
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="publish_and_notify" value="1" id="publishAndNotify">
+            <label class="form-check-label fw-semibold" for="publishAndNotify">Publish and notify parents after generation</label>
+          </div>
+          <div id="publishChannelsWrap" class="mt-2 ps-4" style="display:none;">
+            <label class="form-label small text-muted mb-1">Notification channels</label>
+            <div class="d-flex flex-wrap gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="channels[]" value="sms" id="genChannelSms" checked>
+                <label class="form-check-label" for="genChannelSms">SMS</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="channels[]" value="whatsapp" id="genChannelWa" checked>
+                <label class="form-check-label" for="genChannelWa">WhatsApp</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="channels[]" value="email" id="genChannelEmail" checked>
+                <label class="form-check-label" for="genChannelEmail">Email</label>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="card-footer d-flex justify-content-between flex-wrap gap-2">
         <a href="{{ route('academics.assessments.term') }}" class="btn btn-ghost-strong">View Term Assessment</a>
@@ -59,3 +82,15 @@
   </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const cb = document.getElementById('publishAndNotify');
+  const wrap = document.getElementById('publishChannelsWrap');
+  cb?.addEventListener('change', () => {
+    if (wrap) wrap.style.display = cb.checked ? 'block' : 'none';
+  });
+});
+</script>
+@endpush

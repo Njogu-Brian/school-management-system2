@@ -87,9 +87,11 @@ class CommunicationDocumentController extends Controller
                     }
                 } elseif ($type === 'report_card') {
                     if ($channel === 'sms') {
-                        $template = CommunicationTemplate::where('code', 'academics_report_sms')->first();
+                        $template = CommunicationTemplate::where('code', 'academics_family_report_portal_sms')->first()
+                            ?? CommunicationTemplate::where('code', 'academics_report_sms')->first();
                     } elseif ($channel === 'email') {
-                        $template = CommunicationTemplate::where('code', 'academics_report_email')->first();
+                        $template = CommunicationTemplate::where('code', 'academics_family_report_portal_email')->first()
+                            ?? CommunicationTemplate::where('code', 'academics_report_email')->first();
                     }
                 }
                 
@@ -126,10 +128,17 @@ class CommunicationDocumentController extends Controller
                 foreach (CommunicationHelperService::expandRecipientsToPairs($recipients) as $pair) {
                     [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
                     if ($useTemplate) {
+                        $rc = $type === 'report_card' ? ReportCard::with(['term', 'academicYear'])->find($id) : null;
                         $baseVars = [
                             'student_name' => $studentName,
                             'finance_portal_link' => $viewLink,
+                            'report_card_link' => $viewLink,
+                            'family_portal_link' => $viewLink,
                             'school_name' => $schoolName,
+                            'term_name' => $rc?->term?->name ?? '',
+                            'academic_year' => (string) ($rc?->academicYear?->year ?? ''),
+                            'children_names' => $studentName,
+                            'parent_name' => $parentMeta['name'] ?? 'Parent',
                         ];
                         $templateContent = $template->content;
                         $templateSubject = $template->subject ?? $subject;
@@ -271,10 +280,15 @@ class CommunicationDocumentController extends Controller
                 $title = 'Family Statement';
             }
         } elseif ($type === 'report_card') {
-            $rc = ReportCard::with('student')->find($id);
+            $rc = ReportCard::with(['student', 'term', 'academicYear'])->find($id);
             if ($rc && $rc->student) {
                 $student = $rc->student;
-                $viewLink = URL::route('academics.report_cards.pdf', $rc);
+                $portalLink = family_report_portal_link_for_student(
+                    $student,
+                    (int) $rc->academic_year_id,
+                    (int) $rc->term_id
+                );
+                $viewLink = $portalLink?->getUrl() ?? URL::route('report_cards.public', $rc->public_token);
                 $attachmentLink = $viewLink;
                 $title = 'Report Card';
             }

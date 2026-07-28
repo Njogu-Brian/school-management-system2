@@ -434,6 +434,105 @@ if (!function_exists('ensure_family_payment_link')) {
 }
 
 /**
+ * Ensure a shared family report portal link exists for published report cards.
+ *
+ * @param int|null $familyId
+ * @param int|null $studentId  Used when student has no family_id
+ * @param int|null $academicYearId
+ * @param int|null $termId
+ */
+if (!function_exists('ensure_family_report_portal_link')) {
+    function ensure_family_report_portal_link(
+        ?int $familyId,
+        ?int $studentId = null,
+        ?int $academicYearId = null,
+        ?int $termId = null
+    ): ?\App\Models\FamilyReportPortalLink {
+        if (! class_exists(\App\Models\FamilyReportPortalLink::class)) {
+            return null;
+        }
+
+        if ($familyId) {
+            $link = \App\Models\FamilyReportPortalLink::query()
+                ->where('family_id', $familyId)
+                ->where('is_active', true)
+                ->first();
+
+            if (! $link) {
+                $link = \App\Models\FamilyReportPortalLink::create([
+                    'family_id' => $familyId,
+                    'student_id' => null,
+                    'academic_year_id' => $academicYearId,
+                    'term_id' => $termId,
+                ]);
+            } else {
+                $link->fill(array_filter([
+                    'academic_year_id' => $academicYearId,
+                    'term_id' => $termId,
+                ], fn ($v) => $v !== null));
+                $link->save();
+            }
+
+            return $link;
+        }
+
+        if ($studentId) {
+            $link = \App\Models\FamilyReportPortalLink::query()
+                ->where('student_id', $studentId)
+                ->whereNull('family_id')
+                ->where('is_active', true)
+                ->first();
+
+            if (! $link) {
+                $link = \App\Models\FamilyReportPortalLink::create([
+                    'family_id' => null,
+                    'student_id' => $studentId,
+                    'academic_year_id' => $academicYearId,
+                    'term_id' => $termId,
+                ]);
+            } else {
+                $link->fill(array_filter([
+                    'academic_year_id' => $academicYearId,
+                    'term_id' => $termId,
+                ], fn ($v) => $v !== null));
+                $link->save();
+            }
+
+            return $link;
+        }
+
+        return null;
+    }
+}
+
+/**
+ * Resolve the family report portal link for a student (family or single-student).
+ */
+if (!function_exists('family_report_portal_link_for_student')) {
+    function family_report_portal_link_for_student(
+        \App\Models\Student $student,
+        ?int $academicYearId = null,
+        ?int $termId = null
+    ): ?\App\Models\FamilyReportPortalLink {
+        if ($student->family_id) {
+            return ensure_family_report_portal_link(
+                (int) $student->family_id,
+                null,
+                $academicYearId,
+                $termId
+            );
+        }
+
+        return ensure_family_report_portal_link(
+            null,
+            (int) $student->id,
+            $academicYearId,
+            $termId
+        );
+    }
+}
+
+/**
  * Academic year to use when generating a public statement link for a student.
  */
 if (!function_exists('resolve_statement_year_for_student')) {

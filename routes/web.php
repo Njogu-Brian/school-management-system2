@@ -238,6 +238,12 @@ Route::get('/family-update/{token}/files/{model}/{id}/{field}', [FamilyUpdateCon
 Route::get('/family-update/{token}/files/{model}/{id}/{field}/download', [FamilyUpdateController::class, 'publicFileDownload'])
     ->name('family-update.files.download');
 
+// Public family report card portal (no auth)
+Route::get('/family/reports/{token}', [\App\Http\Controllers\FamilyReportPortalController::class, 'portal'])->name('family.reports.portal');
+Route::get('/family/reports/{token}/report/{publicToken}', [\App\Http\Controllers\FamilyReportPortalController::class, 'show'])->name('family.reports.show');
+Route::get('/family/reports/{token}/report/{publicToken}/pdf', [\App\Http\Controllers\FamilyReportPortalController::class, 'pdf'])->name('family.reports.pdf');
+Route::get('/r/{token}', [\App\Http\Controllers\FamilyReportPortalController::class, 'legacyPublic'])->name('report_cards.public');
+
 // Short, app-domain URL for signed storage redirects (S3 signed URLs are extremely long).
 Route::get('/media/{disk}/{encodedPath}', [MediaController::class, 'signedRedirect'])
     ->name('media.signed')
@@ -644,9 +650,10 @@ Route::middleware('auth')->group(function () {
             ->parameters(['report_cards' => 'report_card']);
 
         Route::delete('report_cards/{report_card}', [ReportCardController::class,'destroy'])->name('report_cards.destroy');
-        Route::post('report_cards/{report}/publish', [ReportCardController::class,'publish'])->name('report_cards.publish');
+        Route::post('report_cards/bulk-publish', [ReportCardController::class, 'bulkPublish'])->name('report_cards.bulk_publish');
+        Route::post('report_cards/bulk-publish-class', [ReportCardController::class, 'bulkPublishClass'])->name('report_cards.bulk_publish_class');
+        Route::post('report_cards/{report_card}/publish', [ReportCardController::class,'publish'])->name('report_cards.publish');
         Route::get('report_cards/{report}/pdf',      [ReportCardController::class,'exportPdf'])->name('report_cards.pdf');
-        Route::get('r/{token}',                      [ReportCardController::class,'publicView'])->name('report_cards.public');
 
         // Report Card Skills (per report)
         Route::prefix('report_cards/{report_card}')->name('report_cards.skills.')->group(function () {

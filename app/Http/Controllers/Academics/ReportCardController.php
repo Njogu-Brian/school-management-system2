@@ -18,19 +18,19 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\TermAssessmentService;
 use App\Services\ReportCardBatchService;
 use App\Models\Academics\Stream;
-use App\Services\ReportCardAccessService;
-use App\Services\CommunicationService;
+use App\Services\ReportCardPublishService;
 use App\Support\AcademicContext;
+use Illuminate\Validation\Rule;
 
 class ReportCardController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:report_cards.view')->only(['index', 'show', 'publicView']);
+        $this->middleware('permission:report_cards.view')->only(['index', 'show']);
         $this->middleware('permission:report_cards.create')->only(['create', 'store']);
         $this->middleware('permission:report_cards.edit')->only(['edit', 'update']);
         $this->middleware('permission:report_cards.delete')->only(['destroy']);
-        $this->middleware('permission:report_cards.publish')->only(['publish']);
+        $this->middleware('permission:report_cards.publish')->only(['publish', 'bulkPublish', 'bulkPublishClass']);
         $this->middleware('permission:report_cards.generate')->only(['generateForm', 'generate']);
         $this->middleware('permission:report_cards.export_pdf')->only(['exportPdf']);
     }
@@ -214,39 +214,70 @@ class ReportCardController extends Controller
             ->with('success','Report card deleted.');
     }
 
-    public function publish(ReportCard $report_card)
+    public function publish(Request $request, ReportCard $report_card, ReportCardPublishService $publishService)
     {
-        $report_card->update([
-            'published_at'=>now(),
-            'published_by'=>optional(Auth::user()->staff)->id
+        $notify = $request->boolean('notify_parents');
+        $channels = $notify ? $request->input('channels', ['sms', 'email', 'whatsapp']) : [];
+
+        $publishService->publishMany([$report_card->id], (array) $channels, $notify);
+
+        return back()->with('success', $notify
+            ? 'Report published and family link sent.'
+            : 'Report published.');
+    }
+
+    public function bulkPublish(Request $request, ReportCardPublishService $publishService)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:report_cards,id'],
+            'channels' => ['required', 'array', 'min:1'],
+            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
         ]);
 
-        // Notify guardians (optional)
-        $notify = (bool) setting('notify_parents_on_report_publish', false);
-        if ($notify && !empty($report_card->public_token)) {
-            try {
-                $report_card->loadMissing(['student.parent']);
-                $student = $report_card->student;
-                $parent = $student?->parent;
-                if ($parent && $student) {
-                    $url = route('academics.report_cards.public', $report_card->public_token);
-                    $studentName = $student->name ?? 'your child';
-                    $term = $report_card->term?->name ?? '';
-                    $year = $report_card->academicYear?->year ?? '';
-                    $template = "Dear {{parent_name}},\n\n{$studentName}'s report card is now available (Term {$term} {$year}).\nView: {$url}\n\nThank you.";
-                    app(\App\Services\ParentSchoolNotificationService::class)->sendSmsTemplateToStudentParents(
-                        $student,
-                        $template,
-                        'Report Card Published'
-                    );
-                }
-            } catch (\Throwable $e) {
-                // best-effort; do not block publishing
-                \Log::warning('Report card publish notification failed: ' . $e->getMessage());
-            }
+        $result = $publishService->publishMany(
+            $data['ids'],
+            $data['channels'],
+            true
+        );
+
+        return back()->with('success', sprintf(
+            'Published %d report card(s). Notified %d familie(s).',
+            $result['published'],
+            $result['families_notified']
+        ));
+    }
+
+    public function bulkPublishClass(Request $request, ReportCardPublishService $publishService)
+    {
+        $data = $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'channels' => ['required', 'array', 'min:1'],
+            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
+        ]);
+
+        $ids = ReportCard::query()
+            ->where('academic_year_id', $data['academic_year_id'])
+            ->where('term_id', $data['term_id'])
+            ->where('classroom_id', $data['classroom_id'])
+            ->when(! empty($data['stream_id']), fn ($q) => $q->where('stream_id', $data['stream_id']))
+            ->pluck('id')
+            ->all();
+
+        if ($ids === []) {
+            return back()->with('warning', 'No report cards found for the selected class.');
         }
 
-        return redirect()->route('academics.report_cards.index')->with('success','Report published.');
+        $result = $publishService->publishMany($ids, $data['channels'], true);
+
+        return back()->with('success', sprintf(
+            'Published %d report card(s). Notified %d familie(s).',
+            $result['published'],
+            $result['families_notified']
+        ));
     }
 
     /** NEW: Term assessment rollup (per class, optional subject) */
@@ -297,25 +328,6 @@ class ReportCardController extends Controller
         return $pdf->download($filename);
     }
 
-    /** Public view by token (unchanged, but can load via service if you want) */
-    public function publicView($token)
-    {
-        $report_card = ReportCard::where('public_token',$token)->firstOrFail();
-        [$allowed, $balance] = ReportCardAccessService::canViewPublicReportCard($report_card);
-
-        if (! $allowed) {
-            return view('academics.report_cards.public_locked', [
-                'report_card' => $report_card,
-                'balance' => $balance,
-            ]);
-        }
-
-        $dto = ReportCardBatchService::build($report_card->id);
-        $isPdf = false;
-
-        return view('academics.report_cards.public', compact('report_card', 'dto', 'isPdf'));
-    }
-
     public function generateForm()
     {
         return view('academics.report_cards.generate', array_merge(
@@ -327,13 +339,16 @@ class ReportCardController extends Controller
         ));
     }
 
-    public function generate(Request $request, ReportCardBatchService $service)
+    public function generate(Request $request, ReportCardBatchService $service, ReportCardPublishService $publishService)
     {
         $v = $request->validate([
             'academic_year_id' => 'required|exists:academic_years,id',
             'term_id'          => 'required|exists:terms,id',
             'classroom_id'     => 'required|exists:classrooms,id',
             'stream_id'        => 'nullable|exists:streams,id',
+            'publish_and_notify' => 'nullable|boolean',
+            'channels' => ['nullable', 'array'],
+            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
         ]);
 
         // Check if teacher has access to classroom
@@ -360,9 +375,29 @@ class ReportCardController extends Controller
             $v['stream_id'] ?? null
         );
 
+        $message = 'Report cards generated/updated for the selected class.';
+
+        if ($request->boolean('publish_and_notify')) {
+            $ids = ReportCard::query()
+                ->where('academic_year_id', $v['academic_year_id'])
+                ->where('term_id', $v['term_id'])
+                ->where('classroom_id', $v['classroom_id'])
+                ->when(! empty($v['stream_id']), fn ($q) => $q->where('stream_id', $v['stream_id']))
+                ->pluck('id')
+                ->all();
+
+            $channels = $request->input('channels', ['sms', 'email', 'whatsapp']);
+            $result = $publishService->publishMany($ids, $channels, true);
+            $message = sprintf(
+                'Generated and published %d report card(s). Notified %d familie(s).',
+                $result['published'],
+                $result['families_notified']
+            );
+        }
+
         return redirect()
             ->route('academics.report_cards.index')
-            ->with('success', 'Report cards generated/updated for the selected class.');
+            ->with('success', $message);
     }
 
 }

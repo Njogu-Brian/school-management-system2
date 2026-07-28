@@ -20,9 +20,15 @@
     @endif
 
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-      <div class="text-muted small">Select report cards to send via SMS / Email / WhatsApp.</div>
-      <div class="d-flex gap-2">
+      <div class="text-muted small">Select report cards to publish or send via SMS / Email / WhatsApp.</div>
+      <div class="d-flex gap-2 flex-wrap">
+        @can('report_cards.publish')
         <button type="button" class="btn btn-settings-primary"
+          onclick="openPublishReportCards(collectCheckedIds('.rc-checkbox'))">
+          <i class="bi bi-upload"></i> Publish Selected
+        </button>
+        @endcan
+        <button type="button" class="btn btn-ghost-strong"
           onclick="openSendDocument('report_card', collectCheckedIds('.rc-checkbox'))">
           <i class="bi bi-send"></i> Send Selected
         </button>
@@ -68,6 +74,14 @@
                       <a href="{{ route('academics.report_cards.show',$rc) }}" class="btn btn-sm btn-ghost-strong text-info" title="View"><i class="bi bi-eye"></i></a>
                       @if(!$rc->locked_at)
                         <a href="{{ route('academics.report_cards.edit',$rc) }}" class="btn btn-sm btn-ghost-strong" title="Edit"><i class="bi bi-pencil"></i></a>
+                        @if(!$rc->published_at)
+                        <form action="{{ route('academics.report_cards.publish', $rc) }}" method="POST" class="d-inline">
+                          @csrf
+                          <button type="submit" class="btn btn-sm btn-ghost-strong text-primary" title="Publish only">
+                            <i class="bi bi-upload"></i>
+                          </button>
+                        </form>
+                        @endif
                         <form action="{{ route('academics.report_cards.destroy',$rc) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this report card?')">
                           @csrf @method('DELETE')
                           <button class="btn btn-sm btn-ghost-strong text-danger" title="Delete"><i class="bi bi-trash"></i></button>
@@ -93,6 +107,7 @@
 </div>
 
 @include('communication.partials.document-send-modal')
+@include('academics.report_cards.partials.publish-modal')
 
 @push('scripts')
 <script>

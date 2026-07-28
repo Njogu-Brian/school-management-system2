@@ -1,10 +1,38 @@
 @php
   $D = $dto ?? [];
   $examHeaders = data_get(collect($D['subjects'] ?? [])->first(), 'exams', []);
+  $referenceTermName = $D['context']['reference_term'] ?? null;
   $cbcLegend = collect(\App\Support\CbcGradePresentation::standardBands())
     ->map(fn ($band) => $band['short'].' = '.$band['label'])
     ->implode(' | ');
   $cellStyle = 'padding:6px; border:1px solid #d1d5db;';
+  $trendPoints = collect($D['year_trend']['points'] ?? []);
+  $chartWidth = 680;
+  $chartHeight = 220;
+  $chartPaddingLeft = 42;
+  $chartPaddingRight = 18;
+  $chartPaddingTop = 18;
+  $chartPaddingBottom = 42;
+  $plotWidth = $chartWidth - $chartPaddingLeft - $chartPaddingRight;
+  $plotHeight = $chartHeight - $chartPaddingTop - $chartPaddingBottom;
+  $trendMin = (float) ($D['year_trend']['min'] ?? 0);
+  $trendMax = (float) ($D['year_trend']['max'] ?? 100);
+  $trendRange = max(1, $trendMax - $trendMin);
+  $svgPoints = $trendPoints->values()->map(function ($point, $index) use ($trendPoints, $chartPaddingLeft, $chartPaddingTop, $plotWidth, $plotHeight, $trendMin, $trendRange) {
+    $count = max(1, $trendPoints->count() - 1);
+    $x = $chartPaddingLeft + ($count === 0 ? 0 : ($index / $count) * $plotWidth);
+    $value = (float) ($point['value'] ?? 0);
+    $y = $chartPaddingTop + $plotHeight - ((($value - $trendMin) / $trendRange) * $plotHeight);
+
+    return [
+      'label' => $point['label'] ?? '',
+      'value' => $value,
+      'x' => round($x, 2),
+      'y' => round($y, 2),
+    ];
+  });
+  $polylinePoints = $svgPoints->map(fn ($p) => $p['x'].','.$p['y'])->implode(' ');
+  $gridValues = [0, 20, 40, 60, 80, 100];
 @endphp
 
 {{-- School letterhead (logo, contact details, print timestamp) --}}
@@ -31,6 +59,10 @@
   <thead>
     <tr style="background:#f3f4f6;">
       <th style="{{ $cellStyle }} text-align:left;">Subject</th>
+      @if($referenceTermName)
+        <th style="{{ $cellStyle }} text-align:center;">{{ $referenceTermName }} Avg</th>
+        <th style="{{ $cellStyle }} text-align:center;">{{ $referenceTermName }} Grade</th>
+      @endif
       @foreach($examHeaders as $eh)
         <th style="{{ $cellStyle }} text-align:center;">{{ $eh['exam_name'] }}</th>
       @endforeach
@@ -43,6 +75,14 @@
     @forelse($D['subjects'] as $row)
       <tr style="background:#fff;">
         <td style="{{ $cellStyle }}">{{ $row['subject_name'] }}</td>
+        @if($referenceTermName)
+          <td style="{{ $cellStyle }} text-align:center;">
+            <strong>{{ $row['reference_term_avg'] !== null ? number_format($row['reference_term_avg'], 2) : '—' }}</strong>
+          </td>
+          <td style="{{ $cellStyle }} text-align:center;">
+            <strong>{{ $row['reference_grade_label'] ?? '—' }}</strong>
+          </td>
+        @endif
         @foreach($row['exams'] as $ex)
           <td style="{{ $cellStyle }} text-align:center;">
             @if($ex['score'] !== null)
@@ -60,10 +100,74 @@
         <td style="{{ $cellStyle }}">{{ $row['teacher_remark'] ?? '' }}</td>
       </tr>
     @empty
-      <tr><td colspan="{{ 3 + count($examHeaders) }}" style="padding:8px; text-align:center;">No subject marks.</td></tr>
+      <tr><td colspan="{{ ($referenceTermName ? 5 : 3) + count($examHeaders) }}" style="padding:8px; text-align:center;">No subject marks.</td></tr>
     @endforelse
   </tbody>
 </table>
+
+{{-- Term overview --}}
+<table style="width:100%; border-collapse:separate; border-spacing:10px 0; margin-bottom:12px;">
+  <tr>
+    @if($referenceTermName)
+      <td style="width:50%; vertical-align:top;">
+        <div style="border:1px solid #d1d5db; padding:8px; background:#fff;">
+          <strong>{{ $D['overview']['reference_term']['name'] ?? $referenceTermName }} Reference</strong>
+          <div style="margin-top:6px;">Average: <strong>{{ data_get($D, 'overview.reference_term.average') !== null ? number_format((float) data_get($D, 'overview.reference_term.average'), 2) : '—' }}</strong></div>
+          <div>Grade: <strong>{{ data_get($D, 'overview.reference_term.grade') ?? '—' }}</strong></div>
+        </div>
+      </td>
+      <td style="width:50%; vertical-align:top;">
+        <div style="border:1px solid #d1d5db; padding:8px; background:#fff;">
+          <strong>{{ $D['overview']['current_term']['name'] ?? ($D['context']['term'] ?? 'Current Term') }} Snapshot</strong>
+          <div style="margin-top:6px;">Average: <strong>{{ data_get($D, 'overview.current_term.average') !== null ? number_format((float) data_get($D, 'overview.current_term.average'), 2) : '—' }}</strong></div>
+          <div>Grade: <strong>{{ data_get($D, 'overview.current_term.grade') ?? '—' }}</strong></div>
+        </div>
+      </td>
+    @else
+      <td style="width:100%; vertical-align:top;">
+        <div style="border:1px solid #d1d5db; padding:8px; background:#fff;">
+          <strong>{{ $D['overview']['current_term']['name'] ?? ($D['context']['term'] ?? 'Current Term') }} Snapshot</strong>
+          <div style="margin-top:6px;">Average: <strong>{{ data_get($D, 'overview.current_term.average') !== null ? number_format((float) data_get($D, 'overview.current_term.average'), 2) : '—' }}</strong></div>
+          <div>Grade: <strong>{{ data_get($D, 'overview.current_term.grade') ?? '—' }}</strong></div>
+        </div>
+      </td>
+    @endif
+  </tr>
+</table>
+
+{{-- Academic year trend graph --}}
+<div style="border:1px solid #d1d5db; background:#fff; padding:10px; margin-bottom:12px;">
+  <div style="font-weight:700; margin-bottom:6px;">Academic Year Performance Trend</div>
+  <div style="font-size:{{ !empty($isPdf) ? '9px' : '0.82rem' }}; color:#555; margin-bottom:8px;">
+    Overall exam averages across the academic year, ordered by term and sitting.
+  </div>
+  @if($svgPoints->count() > 1)
+    <svg viewBox="0 0 {{ $chartWidth }} {{ $chartHeight }}" width="100%" height="{{ $chartHeight }}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="{{ $chartWidth }}" height="{{ $chartHeight }}" fill="#ffffff"/>
+      @foreach($gridValues as $gridValue)
+        @php
+          $gridY = $chartPaddingTop + $plotHeight - ((($gridValue - $trendMin) / $trendRange) * $plotHeight);
+        @endphp
+        <line x1="{{ $chartPaddingLeft }}" y1="{{ $gridY }}" x2="{{ $chartPaddingLeft + $plotWidth }}" y2="{{ $gridY }}" stroke="#e5e7eb" stroke-width="1" />
+        <text x="{{ $chartPaddingLeft - 8 }}" y="{{ $gridY + 4 }}" font-size="10" text-anchor="end" fill="#6b7280">{{ $gridValue }}</text>
+      @endforeach
+      <line x1="{{ $chartPaddingLeft }}" y1="{{ $chartPaddingTop }}" x2="{{ $chartPaddingLeft }}" y2="{{ $chartPaddingTop + $plotHeight }}" stroke="#9ca3af" stroke-width="1" />
+      <line x1="{{ $chartPaddingLeft }}" y1="{{ $chartPaddingTop + $plotHeight }}" x2="{{ $chartPaddingLeft + $plotWidth }}" y2="{{ $chartPaddingTop + $plotHeight }}" stroke="#9ca3af" stroke-width="1" />
+      <polyline fill="none" stroke="#2563eb" stroke-width="3" points="{{ $polylinePoints }}" />
+      @foreach($svgPoints as $point)
+        <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="4" fill="#2563eb" />
+        <text x="{{ $point['x'] }}" y="{{ $point['y'] - 8 }}" font-size="10" text-anchor="middle" fill="#111827">{{ number_format($point['value'], 1) }}</text>
+        <text x="{{ $point['x'] }}" y="{{ $chartPaddingTop + $plotHeight + 16 }}" font-size="9" text-anchor="middle" fill="#374151">{{ $point['label'] }}</text>
+      @endforeach
+    </svg>
+  @elseif($svgPoints->count() === 1)
+    <div style="padding:8px 0;">
+      <strong>{{ $svgPoints->first()['label'] }}</strong>: {{ number_format($svgPoints->first()['value'], 2) }}
+    </div>
+  @else
+    <div class="text-muted">No academic-year exam trend data available yet.</div>
+  @endif
+</div>
 
 {{-- Two-column: Skills / Attendance+Behaviour --}}
 <table style="width:100%; border-collapse:separate; border-spacing:10px 0;">
@@ -168,33 +272,6 @@
         <td style="padding:6px; border:1px solid #d1d5db;">{{ $competency['name'] ?? $code }}</td>
         <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $code }}</td>
         <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $competency['average'] !== null ? number_format($competency['average'], 2) : 'N/A' }}</td>
-      </tr>
-    @endforeach
-  </tbody>
-</table>
-@endif
-
-{{-- CBC Learning Areas Performance --}}
-@if(!empty($D['cbc']['learning_areas_performance']) && is_array($D['cbc']['learning_areas_performance']) && count($D['cbc']['learning_areas_performance']) > 0)
-<table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-bottom:10px;">
-  <thead>
-    <tr style="background:#f3f4f6;">
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:left;" colspan="4">Learning Areas Performance</th>
-    </tr>
-    <tr style="background:#f9fafb;">
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Learning Area</th>
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Average (%)</th>
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Performance Level</th>
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Subjects</th>
-    </tr>
-  </thead>
-  <tbody>
-    @foreach($D['cbc']['learning_areas_performance'] as $area => $performance)
-      <tr>
-        <td style="padding:6px; border:1px solid #d1d5db;">{{ $area }}</td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $performance['average'] !== null ? number_format($performance['average'], 2) : 'N/A' }}%</td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ \App\Support\CbcGradePresentation::normalizeShortCode($performance['performance_level'] ?? '') ?? 'N/A' }}</strong></td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $performance['subjects_count'] ?? 0 }}</td>
       </tr>
     @endforeach
   </tbody>

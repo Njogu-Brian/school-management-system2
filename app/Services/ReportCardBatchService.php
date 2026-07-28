@@ -8,10 +8,12 @@ use App\Models\Academics\ExamGrade;
 use App\Models\Academics\CBCPerformanceLevel;
 use App\Models\Attendance;
 use App\Models\Academics\StudentBehaviour;
+use App\Models\Term;
 use App\Models\Setting; // if you store branding here; otherwise adjust.
 use App\Services\CBCAssessmentService;
 use App\Services\Academics\ClassroomGradingService;
 use App\Support\CbcGradePresentation;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use App\Services\AttendanceReportService;
 
@@ -112,6 +114,16 @@ class ReportCardBatchService
                     'portfolio_summary' => $cbcData['portfolio_summary'],
                 ]
             );
+
+            $reportCard = ReportCard::query()
+                ->where('student_id', $student->id)
+                ->where('academic_year_id', $academicYearId)
+                ->where('term_id', $termId)
+                ->first();
+
+            if ($reportCard && empty($reportCard->public_token)) {
+                $reportCard->update(['public_token' => \Illuminate\Support\Str::random(40)]);
+            }
         }
     }
 
@@ -133,6 +145,14 @@ class ReportCardBatchService
         $yearId  = $report->academic_year_id;
         $termId  = $report->term_id;
         $term    = $report->term;
+        $previousTerm = self::previousTermInAcademicYear($term);
+        $previousReport = $previousTerm
+            ? ReportCard::query()
+                ->where('student_id', $student->id)
+                ->where('academic_year_id', $yearId)
+                ->where('term_id', $previousTerm->id)
+                ->first()
+            : null;
 
         // Marks for this student within term/year for the report classroom.
         // Exams are often created per subject (e.g. "TERM 1 MIDTERM — GRADE 9 — English"),
@@ -146,6 +166,18 @@ class ReportCardBatchService
                 ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
             ->get();
 
+        $referenceTermMarks = collect();
+        if ($previousTerm) {
+            $referenceTermMarks = ExamMark::with(['exam.examType', 'subject', 'performanceLevel'])
+                ->where('student_id', $student->id)
+                ->whereHas('exam', fn ($q) => $q
+                    ->where('academic_year_id', $yearId)
+                    ->where('term_id', $previousTerm->id)
+                    ->where('classroom_id', $report->classroom_id)
+                    ->when($report->stream_id, fn ($sq) => $sq->where('stream_id', $report->stream_id)))
+                ->get();
+        }
+
         $sittingOrder = ['Opener' => 1, 'Midterm' => 2, 'Endterm' => 3, 'Other' => 4];
         $sittingHeaders = $allMarks
             ->map(fn ($m) => self::sittingLabel($m->exam?->name))
@@ -157,8 +189,18 @@ class ReportCardBatchService
         $grading = app(ClassroomGradingService::class);
         $classroomId = (int) ($report->classroom_id ?? $student->classroom_id ?? 0);
 
+        $currentSubjectGroups = $allMarks->groupBy(fn ($m) => $m->subject?->name ?? self::subjectFromExamName($m->exam?->name) ?? 'Unknown');
+        $referenceSubjectGroups = $referenceTermMarks->groupBy(fn ($m) => $m->subject?->name ?? self::subjectFromExamName($m->exam?->name) ?? 'Unknown');
+        $subjectNames = $currentSubjectGroups->keys()
+            ->merge($referenceSubjectGroups->keys())
+            ->unique()
+            ->sort(fn ($a, $b) => strcasecmp((string) $a, (string) $b))
+            ->values();
+
         $subjectsRows = [];
-        foreach ($allMarks->groupBy(fn ($m) => $m->subject?->name ?? self::subjectFromExamName($m->exam?->name) ?? 'Unknown') as $subjectName => $rows) {
+        foreach ($subjectNames as $subjectName) {
+            $rows = $currentSubjectGroups->get($subjectName, collect());
+            $referenceRows = $referenceSubjectGroups->get($subjectName, collect());
             $bySitting = [];
             foreach ($sittingHeaders as $sitting) {
                 $m = $rows->first(fn ($r) => self::sittingLabel($r->exam?->name) === $sitting);
@@ -189,17 +231,37 @@ class ReportCardBatchService
             $remark = $rows->sortByDesc(fn ($r) => $r->updated_at)->first(fn ($r) => filled($r->subject_remark))?->subject_remark
                 ?? $rows->first()?->subject_remark;
 
+            $referenceScores = $referenceRows
+                ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
+                ->filter(fn ($v) => $v !== null)
+                ->values();
+            $referenceAverage = $referenceScores->count() ? round((float) $referenceScores->avg(), 2) : null;
+            $referenceGrade = $referenceRows
+                ->pluck('grade_label')
+                ->filter()
+                ->last();
+            if (($referenceGrade === null || $referenceGrade === '') && $referenceAverage !== null && $classroomId > 0) {
+                $referenceGrade = $grading->gradeForPercentage($referenceAverage, $classroomId)['label'] ?? null;
+            }
+
             $subjectsRows[] = [
                 'subject_name' => $subjectName,
                 'exams' => array_values($bySitting),
+                'reference_term_avg' => $referenceAverage,
+                'reference_grade_label' => self::normalizeGradeLabel($referenceGrade),
                 'term_avg' => $avg,
                 'grade_label' => self::normalizeGradeLabel($gradeLabel),
                 'teacher_remark' => $remark,
             ];
         }
 
-        usort($subjectsRows, fn ($a, $b) => strcasecmp($a['subject_name'], $b['subject_name']));
         $examNames = $sittingHeaders;
+        $termTrend = self::academicYearTrend(
+            $student->id,
+            $yearId,
+            (int) ($report->classroom_id ?? 0),
+            $report->stream_id ? (int) $report->stream_id : null
+        );
 
         // Skills (per-report skills)
         $skills = $report->skills->map(fn ($s) => [
@@ -353,6 +415,19 @@ class ReportCardBatchService
                 'year'  => $report->academicYear?->year ?? '',
                 'term'  => $report->term?->name ?? '',
                 'exams' => $examNames,
+                'reference_term' => $previousTerm?->name,
+            ],
+            'overview' => [
+                'current_term' => [
+                    'name' => $report->term?->name ?? '',
+                    'average' => data_get($report->summary, 'average'),
+                    'grade' => self::normalizeGradeLabel(data_get($report->summary, 'grade')),
+                ],
+                'reference_term' => [
+                    'name' => $previousTerm?->name,
+                    'average' => data_get($previousReport?->summary ?? [], 'average'),
+                    'grade' => self::normalizeGradeLabel(data_get($previousReport?->summary ?? [], 'grade')),
+                ],
             ],
             'subjects'   => $subjectsRows,
             'skills'     => $skills,
@@ -373,6 +448,7 @@ class ReportCardBatchService
                 'talent_noticed'   => (string) $report->talent_noticed,
             ],
             'cbc'        => $cbcData,
+            'year_trend' => $termTrend,
             'branding'   => $branding,
             'generated'  => [
                 'by'   => auth()->user()?->name ?? 'System',
@@ -428,6 +504,105 @@ class ReportCardBatchService
         }
 
         return CbcGradePresentation::normalizeShortCode((string) $label);
+    }
+
+    protected static function previousTermInAcademicYear(?Term $term): ?Term
+    {
+        if (! $term) {
+            return null;
+        }
+
+        $terms = Term::query()
+            ->where('academic_year_id', $term->academic_year_id)
+            ->orderByRaw('CASE WHEN opening_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('opening_date')
+            ->orderBy('id')
+            ->get();
+
+        $index = $terms->search(fn (Term $item) => (int) $item->id === (int) $term->id);
+        if ($index === false || $index === 0) {
+            return null;
+        }
+
+        return $terms->get($index - 1);
+    }
+
+    protected static function academicYearTrend(int $studentId, int $yearId, int $classroomId, ?int $streamId = null): array
+    {
+        $marks = ExamMark::with(['exam.term', 'exam.examType'])
+            ->where('student_id', $studentId)
+            ->whereHas('exam', fn ($q) => $q
+                ->where('academic_year_id', $yearId)
+                ->where('classroom_id', $classroomId)
+                ->when($streamId, fn ($sq) => $sq->where('stream_id', $streamId)))
+            ->get();
+
+        if ($marks->isEmpty()) {
+            return [
+                'labels' => [],
+                'values' => [],
+                'points' => [],
+                'min' => 0,
+                'max' => 100,
+            ];
+        }
+
+        $terms = Term::query()
+            ->where('academic_year_id', $yearId)
+            ->orderByRaw('CASE WHEN opening_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('opening_date')
+            ->orderBy('id')
+            ->get()
+            ->values();
+
+        $termOrder = $terms->pluck('id')->flip();
+        $sittingOrder = ['Opener' => 1, 'Midterm' => 2, 'Endterm' => 3, 'Other' => 4];
+
+        $points = $marks
+            ->groupBy(function ($mark) {
+                $termId = $mark->exam?->term_id ?? 0;
+                $sitting = self::sittingLabel($mark->exam?->name);
+
+                return $termId.'|'.$sitting;
+            })
+            ->map(function (Collection $group, string $key) use ($termOrder, $sittingOrder) {
+                [$termId, $sitting] = explode('|', $key, 2);
+                $first = $group->first();
+                $term = $first?->exam?->term;
+                $scores = $group
+                    ->map(fn ($m) => $m->score_moderated ?? $m->score_raw)
+                    ->filter(fn ($v) => $v !== null)
+                    ->values();
+
+                return [
+                    'term_id' => (int) $termId,
+                    'term_name' => $term?->name ?? ('Term '.$termId),
+                    'sitting' => $sitting,
+                    'label' => trim(($term?->name ?? ('Term '.$termId)).' '.$sitting),
+                    'value' => $scores->count() ? round((float) $scores->avg(), 2) : null,
+                    'sort_term' => $termOrder->get((int) $termId, 999),
+                    'sort_sitting' => $sittingOrder[$sitting] ?? 99,
+                ];
+            })
+            ->filter(fn ($row) => $row['value'] !== null)
+            ->sortBy([
+                ['sort_term', 'asc'],
+                ['sort_sitting', 'asc'],
+            ])
+            ->values();
+
+        $values = $points->pluck('value')->values()->all();
+
+        return [
+            'labels' => $points->pluck('label')->all(),
+            'values' => $values,
+            'points' => $points->map(fn ($point) => [
+                'label' => $point['label'],
+                'value' => $point['value'],
+            ])->all(),
+            'min' => 0,
+            'max' => 100,
+        ];
     }
 
     public static function pdfFilename(array $dto): string

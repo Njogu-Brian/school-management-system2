@@ -219,6 +219,20 @@ class CommunicationTemplateSeeder extends Seeder
                 'subject' => 'Academic Report – {{student_name}}',
                 'content' => "Dear {{parent_name}},\n\nWe are pleased to share {{student_name}}’s academic report for {{term_name}}, {{academic_year}}.\nPlease find the report card attached and available online here:\n{{report_card_link}}\n\nWe appreciate your support.\n\nWarm regards,\n{{school_name}} Academic Office",
             ],
+            [
+                'code'    => 'academics_family_report_portal_sms',
+                'title'   => 'Family Report Portal (SMS)',
+                'type'    => 'sms',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\nReport cards for {{children_names}} ({{term_name}} {{academic_year}}) are now available.\nView all reports, invoices, and pay fees here:\n{{family_portal_link}}\n\n{{school_name}}",
+            ],
+            [
+                'code'    => 'academics_family_report_portal_email',
+                'title'   => 'Family Report Portal (Email)',
+                'type'    => 'email',
+                'subject' => 'Report Cards – {{term_name}} {{academic_year}}',
+                'content' => "Dear {{parent_name}},\n\nReport cards for {{children_names}} for {{term_name}}, {{academic_year}} are now available on the family portal.\n\nYou can view each child's report, check fee balances, and pay via M-Pesa using this link:\n{{family_portal_link}}\n\nWarm regards,\n{{school_name}} Academic Office",
+            ],
 
             // Attendance
             [
