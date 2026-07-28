@@ -31,14 +31,14 @@
             'yearRequired' => true,
             'termRequired' => true,
           ])
-          <div class="col-md-3">
-            <label class="form-label">Classroom</label>
-            <select name="classroom_id" class="form-select" required>
-              <option value="">-- choose --</option>
+          <div class="col-md-5">
+            <label class="form-label">Classes</label>
+            <select name="classroom_ids[]" class="form-select" id="classroomIds" multiple size="10" required>
               @foreach($classrooms as $c)
                 <option value="{{ $c->id }}">{{ $c->name }}</option>
               @endforeach
             </select>
+            <div class="form-text">Hold `Ctrl` or `Cmd` to select multiple classes for bulk generation.</div>
           </div>
           <div class="col-md-3">
             <label class="form-label">Stream (optional)</label>
@@ -76,7 +76,7 @@
       </div>
       <div class="card-footer d-flex justify-content-between flex-wrap gap-2">
         <a href="{{ route('academics.assessments.term') }}" class="btn btn-ghost-strong">View Term Assessment</a>
-        <button class="btn btn-settings-primary"><i class="bi bi-gear"></i> Generate Now</button>
+        <button class="btn btn-settings-primary"><i class="bi bi-gear"></i> Generate Selected Classes</button>
       </div>
     </form>
   </div>
@@ -88,8 +88,16 @@
 document.addEventListener('DOMContentLoaded', function() {
   const cb = document.getElementById('publishAndNotify');
   const wrap = document.getElementById('publishChannelsWrap');
+  const classSelect = document.getElementById('classroomIds');
   cb?.addEventListener('change', () => {
     if (wrap) wrap.style.display = cb.checked ? 'block' : 'none';
+  });
+  classSelect?.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    const option = e.target.closest('option');
+    if (!option) return;
+    option.selected = !option.selected;
+    this.dispatchEvent(new Event('change'));
   });
 });
 </script>

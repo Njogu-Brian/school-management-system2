@@ -344,44 +344,60 @@ class ReportCardController extends Controller
         $v = $request->validate([
             'academic_year_id' => 'required|exists:academic_years,id',
             'term_id'          => 'required|exists:terms,id',
-            'classroom_id'     => 'required|exists:classrooms,id',
+            'classroom_ids'    => 'required|array|min:1',
+            'classroom_ids.*'  => 'integer|exists:classrooms,id',
             'stream_id'        => 'nullable|exists:streams,id',
             'publish_and_notify' => 'nullable|boolean',
             'channels' => ['nullable', 'array'],
             'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
         ]);
 
-        // Check if teacher has access to classroom
+        $classroomIds = collect($v['classroom_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        // Check if teacher has access to all selected classrooms
         if (Auth::user()->hasRole('Teacher')) {
             $staff = Auth::user()->staff;
             if ($staff) {
-                $hasAccess = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                $allowedClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
                     ->where('staff_id', $staff->id)
-                    ->where('classroom_id', $v['classroom_id'])
-                    ->exists();
-                
-                if (!$hasAccess) {
+                    ->whereIn('classroom_id', $classroomIds)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
+
+                $blocked = array_values(array_diff($classroomIds, $allowedClassroomIds));
+
+                if ($blocked !== []) {
                     return back()
                         ->withInput()
-                        ->with('error', 'You do not have access to generate report cards for this classroom.');
+                        ->with('error', 'You do not have access to generate report cards for one or more selected classes.');
                 }
             }
         }
 
-        $service->generateForClass(
-            $v['academic_year_id'],
-            $v['term_id'],
-            $v['classroom_id'],
-            $v['stream_id'] ?? null
-        );
+        foreach ($classroomIds as $classroomId) {
+            $service->generateForClass(
+                $v['academic_year_id'],
+                $v['term_id'],
+                $classroomId,
+                $v['stream_id'] ?? null
+            );
+        }
 
-        $message = 'Report cards generated/updated for the selected class.';
+        $message = count($classroomIds) === 1
+            ? 'Report cards generated/updated for the selected class.'
+            : sprintf('Report cards generated/updated for %d selected classes.', count($classroomIds));
 
         if ($request->boolean('publish_and_notify')) {
             $ids = ReportCard::query()
                 ->where('academic_year_id', $v['academic_year_id'])
                 ->where('term_id', $v['term_id'])
-                ->where('classroom_id', $v['classroom_id'])
+                ->whereIn('classroom_id', $classroomIds)
                 ->when(! empty($v['stream_id']), fn ($q) => $q->where('stream_id', $v['stream_id']))
                 ->pluck('id')
                 ->all();
