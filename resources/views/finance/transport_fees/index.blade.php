@@ -6,17 +6,15 @@
     @include('finance.partials.header', [
         'title' => 'Transport Fees',
         'icon' => 'bi bi-bus-front',
-        'subtitle' => 'Transport fees use the imported/manual amount as the charge. Morning pickup / evening drop-off is shown from Transport assignments. Discounts use Fee Concessions; mid-term moves use Credit/Debit Notes after Post Pending Fees.',
+        'subtitle' => 'Enter or import transport fee amounts per student. Changes are saved here and applied to invoices when you run Post Pending Fees.',
         'actions' => '<a href="' . route('finance.transport-fees.import') . '" class="btn btn-finance btn-finance-primary btn-finance-lg"><i class="bi bi-upload me-2"></i>Import</a>'
     ])
 
     <div class="transport-info-pill mb-3">
-      <strong>Amount source:</strong> set via Import/manual (pricing_mode = imported).
-      <br>
-      <strong>Pickup/drop-off display:</strong> set in Transport -> Student Drop-offs (morning pickup, evening drop-off).
-      Parent discounts -> <em>Fee Concessions (Transport)</em>. Mid-term moves -> <em>Credit/Debit Notes</em> after Post Pending Fees.
-      <a href="{{ route('transport.student-dropoffs.index') }}">Manage student drop-offs</a>
-      · <a href="{{ route('transport.dropoffpoints.index') }}">Manage rates (for calculated fees)</a>
+      <strong>Edit amounts</strong> in the table below, or use <a href="{{ route('finance.transport-fees.import') }}">Import Transport Fees</a>.
+      Morning pickup / evening drop-off are shown for reference only.
+      After saving, run <a href="{{ route('finance.posting.index') }}">Post Pending Fees</a> to update invoices.
+      Parent discounts → <em>Fee Concessions (Transport)</em>. Mid-term moves → <em>Credit/Debit Notes</em>.
     </div>
 
     @if(session('success'))
@@ -112,7 +110,7 @@
           </div>
           <div class="finance-card-body transport-card-body p-0">
             @if($students->count())
-            <form method="POST" action="{{ route('finance.transport-fees.recalculate') }}" id="transport-fees-form">
+            <form method="POST" action="{{ route('finance.transport-fees.bulk-update') }}" id="transport-fees-form">
               @csrf
               <input type="hidden" name="year" value="{{ $year }}">
               <input type="hidden" name="term" value="{{ $term }}">
@@ -130,7 +128,7 @@
                         <th>Class</th>
                         <th>Morning pickup</th>
                         <th>Evening drop-off</th>
-                        <th class="text-end">List price (KES)</th>
+                        <th class="text-end" style="min-width: 140px;">Amount (KES)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -158,13 +156,19 @@
                           <td>{{ $morningName }}</td>
                           <td>{{ $eveningName }}</td>
                           <td class="text-end">
-                            <div class="transport-list-price fw-semibold">{{ $amount !== null ? number_format((float) $amount, 2) : '—' }}</div>
-                            @if($breakdownLabel)
-                              <small class="transport-amount-hint" title="{{ $breakdownLabel }}">{{ \Illuminate\Support\Str::limit($breakdownLabel, 48) }}</small>
-                            @elseif($fee?->pricing_mode === 'imported')
-                              <small class="transport-amount-hint">Imported amount</small>
-                            @else
-                              <small class="transport-amount-hint">Set drop-offs in Transport to calculate</small>
+                            <input
+                              type="number"
+                              name="amounts[{{ $student->id }}]"
+                              class="form-control form-control-sm transport-amount-input text-end ms-auto"
+                              min="0"
+                              step="0.01"
+                              value="{{ $amount !== null ? number_format((float) $amount, 2, '.', '') : '' }}"
+                              placeholder="0.00"
+                            >
+                            @if($fee?->pricing_mode === 'imported')
+                              <small class="transport-amount-hint d-block mt-1">Saved — pending Post Pending Fees</small>
+                            @elseif($amount !== null)
+                              <small class="transport-amount-hint d-block mt-1">Edit and save below</small>
                             @endif
                           </td>
                         </tr>
@@ -214,11 +218,16 @@
                         <div>{{ $eveningName }}</div>
                       </div>
                       <div class="transport-mobile-field transport-mobile-amount">
-                        <label>List price (KES)</label>
-                        <div class="fw-semibold">{{ $amount !== null ? number_format((float) $amount, 2) : '—' }}</div>
-                        @if($breakdownLabel)
-                          <small class="text-muted">{{ $breakdownLabel }}</small>
-                        @endif
+                        <label>Amount (KES)</label>
+                        <input
+                          type="number"
+                          name="amounts[{{ $student->id }}]"
+                          class="form-control transport-amount-input"
+                          min="0"
+                          step="0.01"
+                          value="{{ $amount !== null ? number_format((float) $amount, 2, '.', '') : '' }}"
+                          placeholder="0.00"
+                        >
                       </div>
                     </div>
                   </div>
@@ -231,13 +240,13 @@
 
               <div class="transport-form-footer">
                 <button type="submit" class="btn btn-finance btn-finance-primary btn-finance-lg">
-                  <i class="bi bi-arrow-repeat me-2"></i>Recalculate from routes
+                  <i class="bi bi-check2-circle me-2"></i>Save amounts
                 </button>
-                <a href="{{ route('transport.student-dropoffs.index', ['classroom_id' => $classroomId]) }}" class="btn btn-finance btn-finance-outline">
-                  <i class="bi bi-geo-alt me-2"></i>Edit drop-offs
+                <a href="{{ route('finance.transport-fees.import') }}" class="btn btn-finance btn-finance-outline">
+                  <i class="bi bi-upload me-2"></i>Import from Excel
                 </a>
-                <a href="{{ route('transport.dropoffpoints.index') }}" class="btn btn-finance btn-finance-outline">
-                  <i class="bi bi-pin-map me-2"></i>Manage rates
+                <a href="{{ route('finance.posting.index') }}" class="btn btn-finance btn-finance-outline">
+                  <i class="bi bi-send me-2"></i>Post Pending Fees
                 </a>
               </div>
             </form>

@@ -94,10 +94,76 @@ class TransportFeeController extends Controller
         ]);
     }
 
+    /**
+     * Save manually entered transport fee amounts for a classroom.
+     * Invoices are updated via Post Pending Fees (skip_invoice=true).
+     */
     public function bulkUpdate(Request $request)
     {
-        // Drop-off points are managed in Transport; this endpoint only recalculates fees.
-        return $this->recalculate($request);
+        $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+            'year' => 'nullable|integer',
+            'term' => 'nullable|integer|in:1,2,3',
+            'amounts' => 'nullable|array',
+            'amounts.*' => 'nullable|numeric|min:0',
+        ]);
+
+        [$year, $term] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
+
+        $updated = 0;
+        $created = 0;
+        $skipped = 0;
+
+        foreach ($request->input('amounts', []) as $studentId => $amountValue) {
+            if ($amountValue === null || $amountValue === '') {
+                $skipped++;
+                continue;
+            }
+
+            $studentId = (int) $studentId;
+            $amount = round((float) $amountValue, 2);
+
+            $existing = TransportFee::where('student_id', $studentId)
+                ->where('year', $year)
+                ->where('term', $term)
+                ->first();
+
+            TransportFeeService::upsertFee([
+                'student_id' => $studentId,
+                'amount' => $amount,
+                'year' => $year,
+                'term' => $term,
+                'drop_off_point_id' => $existing?->drop_off_point_id,
+                'drop_off_point_name' => $existing?->drop_off_point_name,
+                'source' => 'manual',
+                'note' => 'Manual transport fee amount. Run Post Pending Fees to update invoices.',
+                'pricing_mode' => 'imported',
+                'pricing_breakdown' => null,
+                'skip_invoice' => true,
+            ]);
+
+            if ($existing) {
+                $updated++;
+            } else {
+                $created++;
+            }
+        }
+
+        $saved = $updated + $created;
+        $message = "{$saved} transport fee(s) saved for Term {$term}, {$year}.";
+        if ($created > 0) {
+            $message .= " {$created} created.";
+        }
+        if ($updated > 0) {
+            $message .= " {$updated} updated.";
+        }
+        $message .= ' Run Post Pending Fees to apply invoice changes.';
+
+        return redirect()->route('finance.transport-fees.index', [
+            'classroom_id' => $request->classroom_id,
+            'year' => $year,
+            'term' => $term,
+        ])->with('success', $message);
     }
 
     /**
