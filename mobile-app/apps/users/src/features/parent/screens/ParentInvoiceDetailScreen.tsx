@@ -41,10 +41,17 @@ export const ParentInvoiceDetailScreen: React.FC = () => {
 
   const itemRows = useMemo(
     () =>
-      (invoice?.items ?? []).map((item) => ({
-        label: item.votehead_name,
-        value: formatKes(item.total ?? item.amount),
-      })),
+      (invoice?.items ?? []).map((item) => {
+        const discount = Number(item.discount_amount ?? 0);
+        const gross = formatKes(item.amount);
+        const net = formatKes(item.total ?? item.amount);
+        const value =
+          discount > 0 ? `${gross} − discount ${formatKes(discount)} = ${net}` : net;
+        return {
+          label: item.votehead_name,
+          value,
+        };
+      }),
     [invoice],
   );
 

@@ -8,6 +8,7 @@ import { ChildHomeworkScreen } from '../../features/parent/screens/ChildHomework
 import { ChildHubScreen } from '../../features/parent/screens/ChildHubScreen';
 import { ChildResultsScreen } from '../../features/parent/screens/ChildResultsScreen';
 import { ParentInvoiceDetailScreen } from '../../features/parent/screens/ParentInvoiceDetailScreen';
+import { ParentPaymentDetailScreen } from '../../features/parent/screens/ParentPaymentDetailScreen';
 import { ParentReportCardDetailScreen } from '../../features/parent/screens/ParentReportCardDetailScreen';
 import { ParentWalletHomeScreen } from '../../features/parent/screens/wallet/ParentWalletHomeScreen';
 import { ParentWalletSavingPlanFormScreen } from '../../features/parent/screens/wallet/ParentWalletSavingPlanFormScreen';
@@ -46,6 +47,7 @@ const parentSharedScreens = () => (
     <Stack.Screen name="MyProfile" component={MyProfileScreen} />
     <Stack.Screen name="ReportCardDetail" component={ParentReportCardDetailScreen} />
     <Stack.Screen name="InvoiceDetail" component={ParentInvoiceDetailScreen} />
+    <Stack.Screen name="PaymentDetail" component={ParentPaymentDetailScreen} />
     <Stack.Screen name="WalletHome" component={ParentWalletHomeScreen} />
     <Stack.Screen name="WalletTopUp" component={ParentWalletTopUpScreen} />
     <Stack.Screen name="WalletSavingPlans" component={ParentWalletSavingPlansScreen} />

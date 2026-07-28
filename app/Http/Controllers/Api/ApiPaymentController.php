@@ -289,7 +289,16 @@ class ApiPaymentController extends Controller
 
     protected function assertFinanceOrViewStudent($user, int $studentId): void
     {
-        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+        if (! $user) {
+            abort(401);
+        }
+        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant', 'Director'])) {
+            return;
+        }
+        if ($user->parent_id && method_exists($user, 'canAccessStudent') && $user->canAccessStudent($studentId)) {
+            return;
+        }
+        if ($user->hasAnyRole(['Parent', 'Guardian']) && method_exists($user, 'canAccessStudent') && $user->canAccessStudent($studentId)) {
             return;
         }
         $student = Student::findOrFail($studentId);

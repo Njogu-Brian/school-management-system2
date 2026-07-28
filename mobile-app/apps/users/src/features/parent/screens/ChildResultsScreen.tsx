@@ -68,19 +68,21 @@ export const ChildResultsScreen: React.FC = () => {
                 {card.class_name ?? 'Report card'} · Term {card.term_id}
               </Text>
               <StatusBadge
-                label={card.status}
-                tone={card.status === 'published' ? 'success' : 'info'}
+                label={card.access_locked ? 'Fees due' : card.status}
+                tone={card.access_locked ? 'warning' : card.status === 'published' ? 'success' : 'info'}
               />
             </View>
-            <Text style={{ color: palette.textSecondary, marginTop: spacing.xs, fontSize: typography.caption.fontSize }}>
-              Overall {card.overall_percentage?.toFixed?.(1) ?? card.overall_percentage}%
-              {card.overall_grade ? ` · Grade ${card.overall_grade}` : ''}
-            </Text>
+            {card.access_locked ? (
+              <Text style={{ color: palette.textSecondary, marginTop: spacing.xs, fontSize: typography.caption.fontSize }}>
+                Clear fees to view or download this report form
+              </Text>
+            ) : (
+              <Text style={{ color: palette.textSecondary, marginTop: spacing.xs, fontSize: typography.caption.fontSize }}>
+                Tap to download PDF or view report form
+              </Text>
+            )}
             <Text style={{ color: palette.textMuted, marginTop: 4, fontSize: typography.caption.fontSize }}>
               {formatShortDate(card.generated_at ?? card.created_at)}
-            </Text>
-            <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
-              Tap to open report form
             </Text>
           </Pressable>
         ))

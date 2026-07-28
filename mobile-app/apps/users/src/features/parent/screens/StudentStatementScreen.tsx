@@ -5,11 +5,13 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
+  StatementLedger,
   useTheme,
+  type StatementLedgerRow,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { formatKes } from '../utils/format';
@@ -24,32 +26,43 @@ export const StudentStatementScreen: React.FC = () => {
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
   const statement = useStudentStatement(studentId);
 
-  const data = statement.data as
-    | {
-        balance?: number | string;
-        outstanding?: number | string;
-        closing_balance?: number | string;
-        transactions?: Array<{
-          id: number;
-          date: string;
-          type: string;
-          reference?: string;
-          description?: string;
-          debit?: number;
-          credit?: number;
-          balance?: number;
-        }>;
-      }
-    | undefined;
+  const data = statement.data;
+  const balance = data?.closing_balance ?? 0;
 
-  const balance =
-    data?.balance ?? data?.outstanding ?? data?.closing_balance;
+  const ledgerRows: StatementLedgerRow[] = useMemo(
+    () =>
+      (data?.transactions ?? []).map((t) => ({
+        id: t.id,
+        date: t.date,
+        type: t.type,
+        reference: t.reference,
+        description: t.description,
+        votehead: t.votehead,
+        debit: t.debit,
+        credit: t.credit,
+        balance: t.balance,
+        invoice_id: t.invoice_id ?? (t.entity_type === 'invoice' ? t.entity_id : null),
+        payment_id: t.payment_id ?? (t.entity_type === 'payment' ? t.entity_id : null),
+        entity_type: t.entity_type,
+      })),
+    [data?.transactions],
+  );
+
+  const openBreakdown = (row: StatementLedgerRow) => {
+    if (row.payment_id) {
+      navigation.navigate('PaymentDetail', { studentId, paymentId: row.payment_id });
+      return;
+    }
+    if (row.invoice_id) {
+      navigation.navigate('InvoiceDetail', { studentId, invoiceId: row.invoice_id });
+    }
+  };
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader
         title="Fee statement"
-        subtitle={detail.data?.fullName ?? undefined}
+        subtitle={detail.data?.fullName ?? data?.student?.full_name ?? undefined}
         onBack={() => navigation.goBack()}
       />
       {statement.isLoading ? (
@@ -59,8 +72,10 @@ export const StudentStatementScreen: React.FC = () => {
           title="Could not load statement"
           message={statement.error instanceof Error ? statement.error.message : 'Try again later.'}
           icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void statement.refetch()}
         />
-      ) : (
+      ) : data ? (
         <>
           <View
             style={{
@@ -76,56 +91,53 @@ export const StudentStatementScreen: React.FC = () => {
               Balance
             </Text>
             <Text style={{ color: colors.primary, fontSize: 28, fontWeight: '700', marginTop: spacing.sm }}>
-              {formatKes(typeof balance === 'string' ? Number(balance) : balance)}
+              {formatKes(balance)}
             </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
+              <SummaryChip label="Invoiced" value={formatKes(data.total_invoiced)} />
+              <SummaryChip label="Paid" value={formatKes(data.total_paid)} />
+            </View>
             <Button
               label="Pay with M-Pesa"
               style={{ marginTop: spacing.md }}
               onPress={() =>
                 navigation.navigate('MpesaPrompt', {
                   studentId,
-                  amount: typeof balance === 'number' && balance > 0 ? balance : undefined,
+                  amount: balance > 0 ? balance : undefined,
                 })
               }
             />
           </View>
 
-          {(data?.transactions ?? []).length > 0 ? (
-            <>
-              <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
-                Transactions
-              </Text>
-              {(data?.transactions ?? []).map((tx, index) => (
-                <View
-                  key={`${tx.id}-${tx.date}-${tx.type}-${index}`}
-                  style={{
-                    backgroundColor: palette.surface,
-                    borderColor: palette.border,
-                    borderWidth: 1,
-                    borderRadius: radius.md,
-                    padding: spacing.md,
-                    marginBottom: spacing.sm,
-                  }}
-                >
-                  <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>
-                    {tx.description || tx.reference || tx.type}
-                  </Text>
-                  <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
-                    {tx.date} · {tx.type}
-                  </Text>
-                  <Text style={{ color: palette.textPrimary, marginTop: spacing.xs }}>
-                    {tx.debit ? `Dr ${formatKes(tx.debit)}` : null}
-                    {tx.credit ? `Cr ${formatKes(tx.credit)}` : null}
-                    {tx.balance != null ? ` · Bal ${formatKes(tx.balance)}` : null}
-                  </Text>
-                </View>
-              ))}
-            </>
-          ) : (
-            <Text style={{ color: palette.textMuted }}>No detailed transactions in this statement.</Text>
-          )}
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
+            Transactions
+          </Text>
+          <Text style={{ color: palette.textMuted, marginBottom: spacing.sm, fontSize: typography.caption.fontSize }}>
+            Tap a line to open the invoice or payment breakdown.
+          </Text>
+          <StatementLedger rows={ledgerRows} formatAmount={formatKes} onRowPress={openBreakdown} />
         </>
-      )}
+      ) : null}
     </ScreenContainer>
   );
 };
+
+function SummaryChip({ label, value }: { label: string; value: string }) {
+  const { palette, spacing, typography, radius } = useTheme();
+  return (
+    <View
+      style={{
+        backgroundColor: palette.surfaceRaised ?? palette.surface,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: palette.border,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        minWidth: 120,
+      }}
+    >
+      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>{label}</Text>
+      <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: 2 }}>{value}</Text>
+    </View>
+  );
+}

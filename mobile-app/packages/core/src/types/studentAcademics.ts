@@ -67,6 +67,9 @@ export interface ReportCardListRecord {
   created_at: string;
   updated_at: string;
   subjects: unknown[];
+  can_view_report?: boolean;
+  fee_balance?: number;
+  access_locked?: boolean;
 }
 
 export interface ReportCardSubjectRecord {
@@ -115,6 +118,13 @@ export interface ReportCardDetailRecord {
   view_url?: string | null;
   pdf_url?: string | null;
   portal_url?: string | null;
+  /** Fee gate — false when report-term balance blocks parents */
+  can_view_report?: boolean;
+  access_locked?: boolean;
+  fee_balance?: number;
+  fee_lock_message?: string | null;
+  display_term_label?: string | null;
+  invoice_total_balance?: number;
 }
 
 export interface AssessmentHistoryFilters {

@@ -9,6 +9,7 @@ export type ParentStackParamList = {
   FeesHome: undefined;
   AcademicHome: undefined;
   InvoiceDetail: { studentId: number; invoiceId: number };
+  PaymentDetail: { studentId: number; paymentId: number };
   WalletHome: { payInvoiceId?: number; studentId?: number } | undefined;
   WalletTopUp: undefined;
   WalletSavingPlans: undefined;

@@ -75,7 +75,10 @@ class ApiInvoiceController extends Controller
         if (! $user) {
             abort(401);
         }
-        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant', 'Director'])) {
+            return;
+        }
+        if ($user->parent_id && $user->canAccessStudent($studentId)) {
             return;
         }
         if ($user->hasAnyRole(['Parent', 'Guardian']) && $user->canAccessStudent($studentId)) {
@@ -120,6 +123,7 @@ class ApiInvoiceController extends Controller
                     'votehead_id' => $item->votehead_id,
                     'votehead_name' => $item->votehead->name ?? 'Item',
                     'amount' => (float) $item->amount,
+                    'discount_amount' => (float) ($item->discount_amount ?? 0),
                     'quantity' => 1,
                     'total' => round($net, 2),
                 ];

@@ -33,6 +33,7 @@ export interface InvoiceItemRecord {
   amount: number;
   quantity: number;
   total: number;
+  discount_amount?: number;
 }
 
 export interface InvoiceDetailRecord extends InvoiceListRecord {
