@@ -4,7 +4,7 @@
     <span>Duplicate Transport Fees</span>
   </div>
   <div class="finance-card-body p-4">
-    <p class="transport-desc text-muted small mb-3">Copy transport fees from one term to another. Select a class or specific students; leave empty for entire school. Target must be a future term.</p>
+    <p class="transport-desc text-muted small mb-3">Copy transport fees from one term to another. Select a class or specific students; leave empty for entire school. Target must be a future term. Invoices are updated when you run <strong>Post Pending Fees</strong>.</p>
     <form method="POST" action="{{ route('finance.transport-fees.duplicate') }}">
       @csrf
       <div class="row g-3">

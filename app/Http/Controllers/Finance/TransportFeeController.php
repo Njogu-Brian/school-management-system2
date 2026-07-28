@@ -825,22 +825,25 @@ class TransportFeeController extends Controller
         return redirect()->route('finance.transport-fees.index')
             ->with('success', "Duplicated {$result['duplicated']} transport fee(s) to {$targetYear} Term {$targetTerm}. " .
                 ($result['updated'] ? "{$result['updated']} updated." : '') .
-                ($result['created'] ? "{$result['created']} created." : ''));
+                ($result['created'] ? "{$result['created']} created." : '') .
+                ' Run Post Pending Fees to update invoices.');
     }
 
     /**
-     * Apply a flat/imported amount to all existing transport fee rows for a term.
+     * Apply a flat adjustment (+/-) to all existing transport fee rows for a term.
      * Invoices are updated via Post Pending Fees (skip_invoice=true).
      */
     public function flatRate(Request $request)
     {
         $request->validate([
             'year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
+            'adjustment_type' => ['required', 'in:increase,decrease'],
             'flat_amount' => ['required', 'numeric', 'min:0'],
         ]);
 
         [$year, $term] = array_map('intval', explode('|', $request->year_term));
         $flatAmount = round((float) $request->flat_amount, 2);
+        $isDecrease = $request->adjustment_type === 'decrease';
 
         $query = TransportFee::where('year', $year)
             ->where('term', $term);
@@ -852,19 +855,24 @@ class TransportFeeController extends Controller
         }
 
         $updated = 0;
+        $directionLabel = $isDecrease ? 'reduced by' : 'increased by';
 
-        $query->orderBy('id')->chunkById(200, function ($fees) use ($flatAmount, $year, $term, &$updated) {
+        $query->orderBy('id')->chunkById(200, function ($fees) use ($flatAmount, $isDecrease, $year, $term, $directionLabel, &$updated) {
             foreach ($fees as $fee) {
+                $currentAmount = (float) $fee->amount;
+                $newAmount = $isDecrease
+                    ? max(0, round($currentAmount - $flatAmount, 2))
+                    : round($currentAmount + $flatAmount, 2);
+
                 TransportFeeService::upsertFee([
                     'student_id' => $fee->student_id,
                     'year' => $year,
                     'term' => $term,
-                    'amount' => $flatAmount,
-                    // Keep existing mapping metadata stable.
+                    'amount' => $newAmount,
                     'drop_off_point_id' => $fee->drop_off_point_id,
                     'drop_off_point_name' => $fee->drop_off_point_name,
                     'source' => 'flat_rate_bulk',
-                    'note' => "Flat-rate transport fee applied (KES {$flatAmount}). Run Post Pending Fees to update invoices.",
+                    'note' => "Transport fee {$directionLabel} KES {$flatAmount} (from {$currentAmount} to {$newAmount}). Run Post Pending Fees to update invoices.",
                     'pricing_mode' => 'imported',
                     'pricing_breakdown' => null,
                     'skip_invoice' => true,
@@ -875,7 +883,7 @@ class TransportFeeController extends Controller
         });
 
         return redirect()->route('finance.transport-fees.index', ['year' => $year, 'term' => $term])
-            ->with('success', "Applied flat transport fee of KES " . number_format($flatAmount, 2) . " to {$updated} transport fee(s) for Term {$term}, {$year}. Run Post Pending Fees to update invoices.");
+            ->with('success', "Transport fees {$directionLabel} KES " . number_format($flatAmount, 2) . " for {$updated} student(s) in Term {$term}, {$year}. Run Post Pending Fees to update invoices.");
     }
 
     /**

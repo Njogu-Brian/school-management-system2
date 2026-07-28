@@ -63,7 +63,7 @@ class FeeDuplicationService
                 'pricing_breakdown' => $sourceFee->pricing_breakdown,
                 'source' => 'duplicate',
                 'note' => "Duplicated from {$sourceYear} Term {$sourceTerm}",
-                'skip_invoice' => false,
+                'skip_invoice' => true,
             ]);
 
             $duplicated++;
@@ -354,7 +354,7 @@ class FeeDuplicationService
                 'pricing_breakdown' => $item['pricing_breakdown'] ?? null,
                 'source' => 'duplicate',
                 'note' => "Duplicated from source term",
-                'skip_invoice' => false,
+                'skip_invoice' => true,
             ]);
 
             $duplicated++;

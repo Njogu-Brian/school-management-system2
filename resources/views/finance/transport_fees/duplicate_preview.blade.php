@@ -24,7 +24,8 @@
           </div>
           <div class="col-12">
             <p class="text-muted small mb-0">
-              <i class="bi bi-check2-square"></i> Check items to approve. Uncheck to reject – rejected items will not be duplicated and will not appear in invoices. You can add them later from the transport fee view.
+              <i class="bi bi-check2-square"></i> Check items to approve. Uncheck to reject – rejected items will not be duplicated.
+              Approved fees are saved as pending; run <strong>Post Pending Fees</strong> to add them to invoices.
             </p>
           </div>
         </div>
