@@ -13,6 +13,7 @@ import {
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -23,10 +24,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { confirmAction, showSuccess } from '../../shared/utils/feedback';
 
 export const NotificationsListScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<ParentStackParamList>>();
   const { colors, palette, spacing, typography, radius } = useTheme();
   const listQuery = useInfiniteNotifications();
   const markRead = useMarkNotificationRead();
@@ -36,6 +38,34 @@ export const NotificationsListScreen: React.FC = () => {
 
   const items = useMemo(() => listQuery.data?.pages.flatMap((p) => p.items) ?? [], [listQuery.data]);
 
+  const openFromNotification = (item: (typeof items)[number]) => {
+    if (!item.is_read) void markRead.mutateAsync(item.id);
+    const data = item.data ?? {};
+    const type = item.type ?? (typeof data.type === 'string' ? data.type : undefined);
+    const studentId = Number(data.student_id);
+    const reportCardId = Number(data.report_card_id);
+    const invoiceId = Number(data.invoice_id);
+
+    if (type === 'report_card' && reportCardId > 0 && studentId > 0) {
+      navigation.navigate('ReportCardDetail', { studentId, reportCardId });
+      return;
+    }
+    if (type === 'invoice' && invoiceId > 0 && studentId > 0) {
+      navigation.navigate('InvoiceDetail', { studentId, invoiceId });
+      return;
+    }
+    if (type === 'wallet_saving' || item.deep_link?.includes('wallet/save')) {
+      navigation.navigate('WalletSavingPlans');
+      return;
+    }
+    if (item.deep_link?.includes('report-cards') && studentId > 0 && reportCardId > 0) {
+      navigation.navigate('ReportCardDetail', { studentId, reportCardId });
+      return;
+    }
+    if (item.deep_link?.includes('invoices') && studentId > 0 && invoiceId > 0) {
+      navigation.navigate('InvoiceDetail', { studentId, invoiceId });
+    }
+  };
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <FlatList
@@ -66,9 +96,7 @@ export const NotificationsListScreen: React.FC = () => {
         }
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => {
-              if (!item.is_read) void markRead.mutateAsync(item.id);
-            }}
+            onPress={() => openFromNotification(item)}
             onLongPress={() =>
               confirmAction('Delete', 'Delete this notification?', 'Delete', () => void remove.mutateAsync(item.id), true)
             }

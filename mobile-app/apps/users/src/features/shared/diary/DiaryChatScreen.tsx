@@ -5,6 +5,7 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +24,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showError, showSuccess } from '../utils/feedback';
 
 type AttachmentDraft = { uri: string; name: string; type: string };
@@ -58,7 +58,7 @@ export const DiaryChatScreen: React.FC = () => {
   const route = useRoute<RouteProp<DiaryChatParams, 'DiaryChat'>>();
   const { studentId, studentName } = route.params;
   const { colors, palette, spacing, typography, radius } = useTheme();
-  const insets = useSafeAreaInsets();
+  const tabClearance = useFloatingTabBarClearance();
   const threadQuery = useDiaryThread(studentId);
   const sendMutation = useSendDiaryMessage(studentId);
   const [draft, setDraft] = useState('');
@@ -271,7 +271,7 @@ export const DiaryChatScreen: React.FC = () => {
               gap: spacing.sm,
               paddingHorizontal: spacing.md,
               paddingTop: spacing.sm,
-              paddingBottom: Math.max(insets.bottom, spacing.sm),
+              paddingBottom: tabClearance,
               borderTopWidth: StyleSheet.hairlineWidth,
               borderTopColor: palette.border,
               backgroundColor: palette.surface,

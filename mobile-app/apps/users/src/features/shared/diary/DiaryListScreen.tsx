@@ -6,6 +6,7 @@ import {
   SkeletonListRows,
   Soft3DIcon,
   TextField,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +22,7 @@ type DiaryNav = StackNavigationProp<{
 export const DiaryListScreen: React.FC = () => {
   const navigation = useNavigation<DiaryNav>();
   const { colors, palette, spacing, typography, radius } = useTheme();
+  const tabClearance = useFloatingTabBarClearance();
   const [search, setSearch] = useState('');
   const threadsQuery = useDiaryThreads({ search: search.trim() || undefined });
 
@@ -31,7 +33,7 @@ export const DiaryListScreen: React.FC = () => {
       <FlatList
         data={threads}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl, flexGrow: 1 }}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance, flexGrow: 1 }}
         ListHeaderComponent={
           <View style={{ marginBottom: spacing.sm }}>
             <AcademicScreenHeader

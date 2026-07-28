@@ -115,11 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const lastCredentialsRef = useRef<{ identifier: string; password: string } | null>(null);
 
   const maybeOfferPinEnrollment = useCallback(async () => {
-    const pinOn = await isPinEnabled();
-    if (!pinOn) {
-      setPinEnrollmentPending(true);
-      return true;
-    }
+    // PIN is opt-in via Settings only — do not gate post-login enrollment.
     return false;
   }, []);
 
@@ -390,8 +386,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const dismissBiometricEnrollment = useCallback(() => {
     setBiometricEnrollmentPending(false);
-    void maybeOfferPinEnrollment();
-  }, [maybeOfferPinEnrollment]);
+    setPinEnrollmentPending(false);
+  }, []);
 
   const enableBiometrics = useCallback(async () => {
     const token = session.token;
@@ -416,13 +412,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password: creds?.password,
     });
     setBiometricEnrollmentPending(false);
-    void maybeOfferPinEnrollment();
+    setPinEnrollmentPending(false);
   }, [maybeOfferPinEnrollment, session.token, user?.id]);
 
   const skipBiometricEnrollment = useCallback(() => {
     setBiometricEnrollmentPending(false);
-    void maybeOfferPinEnrollment();
-  }, [maybeOfferPinEnrollment]);
+    setPinEnrollmentPending(false);
+  }, []);
 
   const enablePin = useCallback(
     async (pin: string) => {

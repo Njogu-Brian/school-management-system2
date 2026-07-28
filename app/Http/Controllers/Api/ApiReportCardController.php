@@ -125,6 +125,28 @@ class ApiReportCardController extends Controller
 
         $cbc = is_array($dto['cbc'] ?? null) ? $dto['cbc'] : [];
 
+        if (empty($rc->public_token)) {
+            $rc->public_token = \Illuminate\Support\Str::random(40);
+            $rc->save();
+        }
+
+        $viewUrl = null;
+        $pdfUrl = null;
+        $portalUrl = null;
+        $student = $rc->student;
+        if ($student && $rc->public_token) {
+            $portalLink = family_report_portal_link_for_student(
+                $student,
+                (int) $rc->academic_year_id,
+                (int) $rc->term_id
+            );
+            if ($portalLink) {
+                $portalUrl = $portalLink->getUrl();
+                $viewUrl = route('family.reports.show', [$portalLink->token, $rc->public_token]);
+                $pdfUrl = route('family.reports.pdf', [$portalLink->token, $rc->public_token]);
+            }
+        }
+
         $payload = [
             'id' => $rc->id,
             'student_id' => $rc->student_id,
@@ -152,6 +174,10 @@ class ApiReportCardController extends Controller
             'generated_at' => $rc->published_at?->toIso8601String(),
             'created_at' => $rc->created_at?->toIso8601String() ?? '',
             'updated_at' => $rc->updated_at?->toIso8601String() ?? '',
+            'public_token' => $rc->public_token,
+            'view_url' => $viewUrl,
+            'pdf_url' => $pdfUrl,
+            'portal_url' => $portalUrl,
         ];
 
         return response()->json([

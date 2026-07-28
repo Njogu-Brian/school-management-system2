@@ -109,6 +109,12 @@ export interface ReportCardDetailRecord {
   generated_at?: string;
   created_at: string;
   updated_at: string;
+  /** Public portal token for the published form */
+  public_token?: string | null;
+  /** Absolute URL to the school report form HTML (family portal) */
+  view_url?: string | null;
+  pdf_url?: string | null;
+  portal_url?: string | null;
 }
 
 export interface AssessmentHistoryFilters {

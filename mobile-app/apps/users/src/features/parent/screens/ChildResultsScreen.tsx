@@ -8,13 +8,14 @@ import {
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Text, Pressable, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { formatShortDate } from '../utils/format';
 
 export const ChildResultsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<ParentStackParamList>>();
   const route = useRoute<RouteProp<ParentStackParamList, 'ChildResults'>>();
   const { palette, spacing, typography, radius } = useTheme();
   const studentId = route.params.studentId;
@@ -45,8 +46,14 @@ export const ChildResultsScreen: React.FC = () => {
         />
       ) : (
         (reportCards.data ?? []).map((card) => (
-          <View
+          <Pressable
             key={card.id}
+            onPress={() =>
+              navigation.navigate('ReportCardDetail', {
+                studentId,
+                reportCardId: card.id,
+              })
+            }
             style={{
               backgroundColor: palette.surface,
               borderColor: palette.border,
@@ -72,7 +79,10 @@ export const ChildResultsScreen: React.FC = () => {
             <Text style={{ color: palette.textMuted, marginTop: 4, fontSize: typography.caption.fontSize }}>
               {formatShortDate(card.generated_at ?? card.created_at)}
             </Text>
-          </View>
+            <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
+              Tap to open report form
+            </Text>
+          </Pressable>
         ))
       )}
     </ScreenContainer>

@@ -637,6 +637,25 @@ class FeePostingService
                     ['fee_posting', 'commit']
                 );
             }
+
+            // Notify parents (Users app) for invoices touched in this posting run.
+            try {
+                $notify = app(\App\Services\ParentAppNotifyService::class);
+                $invoiceIds = \App\Models\InvoiceItem::where('posting_run_id', $run->id)
+                    ->pluck('invoice_id')
+                    ->unique()
+                    ->filter();
+                foreach ($invoiceIds as $invoiceId) {
+                    $invoice = \App\Models\Invoice::with('student')->find($invoiceId);
+                    if ($invoice) {
+                        $notify->notifyInvoiceGenerated($invoice);
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Fee posting parent invoice notify failed: '.$e->getMessage(), [
+                    'run_id' => $run->id,
+                ]);
+            }
             
             return $run;
         });

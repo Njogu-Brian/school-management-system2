@@ -78,6 +78,9 @@ class ApiInvoiceController extends Controller
         if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
             return;
         }
+        if ($user->hasAnyRole(['Parent', 'Guardian']) && $user->canAccessStudent($studentId)) {
+            return;
+        }
         Student::findOrFail($studentId);
         if ($user->hasTeacherLikeRole()) {
             $query = Student::where('id', $studentId)->where('archive', 0)->where('is_alumni', false);

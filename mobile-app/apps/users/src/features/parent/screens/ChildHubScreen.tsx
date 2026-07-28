@@ -32,7 +32,7 @@ const TILES: Array<{
   { label: 'Results', icon: 'school-outline', tone: 'indigo', route: 'ChildResults' },
   { label: 'Attendance', icon: 'calendar-outline', tone: 'emerald', route: 'ChildAttendance' },
   { label: 'Homework', icon: 'book-outline', tone: 'amber', route: 'ChildHomework' },
-  { label: 'Fees', icon: 'wallet-outline', tone: 'blue', route: 'StudentStatement' },
+  { label: 'Fees', icon: 'cash-outline', tone: 'blue', route: 'StudentStatement' },
   { label: 'Transport', icon: 'bus-outline', tone: 'cyan', route: 'Transport' },
   { label: 'Track bus', icon: 'navigate-outline', tone: 'blue', route: 'LiveBusTrack' },
   { label: 'Diary', icon: 'chatbubbles-outline', tone: 'violet', route: 'DiaryChat' },

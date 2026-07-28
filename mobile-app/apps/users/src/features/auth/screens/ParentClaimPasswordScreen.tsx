@@ -50,8 +50,8 @@ export const ParentClaimPasswordScreen: React.FC<Props> = ({
   const busy = complete.isPending;
   const error = localError ?? (complete.error as Error | null)?.message ?? null;
   const canSubmit = existingAccount
-    ? name.trim().length > 1 && !busy
-    : name.trim().length > 1 && password.length >= 8 && !busy;
+    ? (name.trim().length > 1 || suggestedName.trim().length > 1) && !busy
+    : (name.trim().length > 1 || suggestedName.trim().length > 1) && password.length >= 8 && !busy;
   const roleLabel =
     matchedRole === 'father' ? 'Father' : matchedRole === 'mother' ? 'Mother' : matchedRole === 'guardian' ? 'Guardian' : null;
 
@@ -85,11 +85,13 @@ export const ParentClaimPasswordScreen: React.FC<Props> = ({
     <ClaimScreenShell
       step={3}
       totalSteps={4}
-      title="Review your details"
+      title={suggestedName.trim() ? 'Confirm & finish' : 'Review your details'}
       subtitle={
         existingAccount
-          ? 'Confirm your details. Your existing school login will also unlock parent access — no new password needed.'
-          : 'Confirm or update your name and contact, then set a password.'
+          ? 'Your school profile is linked. Confirm your name if needed — no new password required.'
+          : suggestedName.trim()
+            ? 'Details from school records are prefilled. Set a password to finish — you do not need to re-enter parent data.'
+            : 'Confirm or update your name and contact, then set a password.'
       }
       onBack={onBack}
       error={error}

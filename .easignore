@@ -7,10 +7,9 @@ vendor/
 node_modules/
 **/node_modules/
 
-storage/logs/
-storage/framework/cache/
-storage/framework/sessions/
-storage/framework/views/
+storage/
+public/storage
+public/hot
 bootstrap/cache/
 
 # Admin local export/dist (huge) — never needed for Users app builds

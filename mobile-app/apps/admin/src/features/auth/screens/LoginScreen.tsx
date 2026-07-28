@@ -338,7 +338,7 @@ export const LoginScreen: React.FC = () => {
           marginBottom: spacing.xs,
         }}
       >
-        {bioFirst ? 'Welcome back' : 'Sign in'}
+        {bioFirst ? 'Welcome back' : 'Sign in to Admin'}
       </Text>
       <Text
         style={{
@@ -349,7 +349,7 @@ export const LoginScreen: React.FC = () => {
       >
         {bioFirst
           ? `Unlock with ${typeLabel} — no password needed`
-          : 'Password or one-time code to manage your school'}
+          : 'Password or one-time code for school management'}
       </Text>
 
       {announcements.length > 0 ? (
@@ -547,8 +547,24 @@ export const LoginScreen: React.FC = () => {
       >
         {schoolName}
       </Text>
+      <View
+        style={{
+          alignSelf: 'flex-start',
+          marginTop: spacing.md,
+          paddingHorizontal: spacing.mdSm,
+          paddingVertical: spacing.xs,
+          borderRadius: radius.full,
+          backgroundColor: 'rgba(251,191,36,0.22)',
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: 'rgba(251,191,36,0.5)',
+        }}
+      >
+        <Text style={{ color: '#fcd34d', fontWeight: '800', fontSize: typography.caption.fontSize, letterSpacing: 0.6 }}>
+          ADMIN
+        </Text>
+      </View>
       <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.bodyLarge.fontSize, marginTop: spacing.sm }}>
-        School management, built for leaders
+        School management
       </Text>
     </View>
   );

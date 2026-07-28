@@ -5,6 +5,7 @@ import {
   ScreenContainer,
   SkeletonListRows,
   Soft3DIcon,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -19,6 +20,7 @@ type Nav = StackNavigationProp<ParentStackParamList>;
 export const DiaryListScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const { palette, spacing, typography, radius, colors } = useTheme();
+  const tabClearance = useFloatingTabBarClearance();
   const threads = useDiaryThreads();
 
   return (
@@ -49,7 +51,7 @@ export const DiaryListScreen: React.FC = () => {
         <FlatList
           data={threads.data ?? []}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+          contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}
           renderItem={({ item }) => (
             <Pressable
               onPress={() => navigation.navigate('DiaryChat', { studentId: item.student_id })}

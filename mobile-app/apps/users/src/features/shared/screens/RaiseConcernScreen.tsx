@@ -108,10 +108,6 @@ export const RaiseConcernScreen: React.FC = () => {
       showError('Select students', 'Search and select at least one student.');
       return;
     }
-    if (selectedStaff.length === 0) {
-      showError('Tag staff', 'Search and select at least one staff member to notify.');
-      return;
-    }
     if (!description.trim()) {
       showError('Description required', 'Please describe the concern.');
       return;
@@ -126,7 +122,7 @@ export const RaiseConcernScreen: React.FC = () => {
       const n = selectedStudents.length;
       showSuccess(
         n === 1 ? 'Concern submitted' : `${n} concerns submitted`,
-        'Tagged staff will be notified.',
+        selectedStaff.length > 0 ? 'Tagged staff will be notified.' : 'Your concern has been submitted.',
       );
       navigation.goBack();
     } catch (err) {
@@ -142,7 +138,7 @@ export const RaiseConcernScreen: React.FC = () => {
     >
       <AcademicScreenHeader
         title="Raise concern"
-        subtitle="Search students, tag staff, then submit"
+        subtitle="Search students, optionally tag staff, then submit"
         onBack={() => navigation.goBack()}
       />
 
@@ -243,7 +239,7 @@ export const RaiseConcernScreen: React.FC = () => {
 
       <View style={{ marginTop: spacing.md, marginBottom: spacing.sm }}>
         <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.xs }}>
-          Tag staff
+          Tag staff (optional)
         </Text>
         <TextField
           label="Search staff"

@@ -288,13 +288,18 @@ class ApiParentClaimController extends Controller
         }
 
         try {
-            $user = DB::transaction(function () use ($existingUser, $parent, $displayName, $email, $phone, $validated) {
+            $reviewRequired = ! $this->parentInfoLooksComplete($parent);
+
+            $user = DB::transaction(function () use ($existingUser, $parent, $displayName, $email, $phone, $validated, $reviewRequired) {
                 if ($existingUser) {
                     // Staff/Director claiming a parent identity: link parent_id, keep roles + password.
                     $existingUser->parent_id = $parent->id;
-                    $existingUser->parent_profile_review_required = true;
+                    $existingUser->parent_profile_review_required = $reviewRequired;
                     if ($phone && empty($existingUser->phone_number)) {
                         $existingUser->phone_number = $phone;
+                    }
+                    if ($email && empty($existingUser->email)) {
+                        $existingUser->email = $email;
                     }
                     if ($displayName !== '' && (empty($existingUser->name) || $existingUser->name === $existingUser->email)) {
                         $existingUser->name = $displayName;
@@ -310,7 +315,7 @@ class ApiParentClaimController extends Controller
                 $user->phone_number = $phone;
                 $user->password = Hash::make($validated['password']);
                 $user->parent_id = $parent->id;
-                $user->parent_profile_review_required = true;
+                $user->parent_profile_review_required = $reviewRequired;
                 $user->save();
                 $this->assignParentRole($user);
                 return $user;
@@ -507,5 +512,17 @@ class ApiParentClaimController extends Controller
             return '+' . $phone;
         }
         return $phone;
+    }
+
+    /**
+     * Skip forced profile review when school already holds usable parent contact + name.
+     */
+    private function parentInfoLooksComplete(ParentInfo $parent): bool
+    {
+        $hasName = filled($parent->father_name) || filled($parent->mother_name) || filled($parent->guardian_name);
+        $hasPhone = filled($parent->father_phone) || filled($parent->mother_phone) || filled($parent->guardian_phone);
+        $hasEmail = filled($parent->father_email) || filled($parent->mother_email) || filled($parent->guardian_email);
+
+        return $hasName && ($hasPhone || $hasEmail);
     }
 }

@@ -12,7 +12,6 @@ import {
   AuthLoadingScreen,
   BiometricEnableScreen,
   LoginScreen,
-  PinEnableScreen,
 } from '../features/auth';
 import { AdminParentHomeScreen } from '../features/parent/screens/AdminParentHomeScreen';
 import { DrawerNavigator } from './DrawerNavigator';
@@ -23,7 +22,7 @@ import { OfflineShell } from '../providers/OfflineShell';
  * Route guard (build plan §5.1). Resolves authentication + enrollment states.
  */
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending, pinEnrollmentPending } = useAuth();
+  const { status, user, biometricEnrollmentPending } = useAuth();
   const { mode } = useAppMode();
 
   if (status === 'initializing') {
@@ -37,9 +36,6 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
-  }
-  if (pinEnrollmentPending) {
-    return <PinEnableScreen />;
   }
   // Admins who also hold a parent record can flip to a thin "Home" parent shell.
   if (user?.parentId && mode === 'home') {

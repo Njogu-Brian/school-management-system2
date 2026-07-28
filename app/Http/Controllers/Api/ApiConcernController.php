@@ -114,7 +114,7 @@ class ApiConcernController extends Controller
             'student_ids.*' => 'integer|exists:students,id',
             'category' => 'required|in:'.implode(',', StudentConcern::CATEGORIES),
             'description' => 'required|string|max:5000',
-            'staff_ids' => 'required|array|min:1',
+            'staff_ids' => 'nullable|array',
             'staff_ids.*' => 'integer|exists:staff,id',
         ]);
 
@@ -131,7 +131,9 @@ class ApiConcernController extends Controller
             ]);
         }
 
-        $concerns = DB::transaction(function () use ($validated, $request, $studentIds) {
+        $staffIds = array_values(array_unique(array_map('intval', $validated['staff_ids'] ?? [])));
+
+        $concerns = DB::transaction(function () use ($validated, $request, $studentIds, $staffIds) {
             $created = [];
             foreach ($studentIds as $studentId) {
                 $concern = StudentConcern::create([
@@ -142,7 +144,9 @@ class ApiConcernController extends Controller
                     'raised_by_user_id' => $request->user()->id,
                     'created_by' => $request->user()->id,
                 ]);
-                $concern->concernedStaff()->sync($validated['staff_ids']);
+                if ($staffIds !== []) {
+                    $concern->concernedStaff()->sync($staffIds);
+                }
                 $created[] = $concern->load(['student.classroom', 'concernedStaff', 'createdBy']);
             }
 
@@ -150,7 +154,9 @@ class ApiConcernController extends Controller
         });
 
         foreach ($concerns as $concern) {
-            $this->notifyConcernedStaff($concern);
+            if ($concern->concernedStaff->isNotEmpty()) {
+                $this->notifyConcernedStaff($concern);
+            }
         }
 
         $formatted = array_map(fn ($c) => $this->format($c), $concerns);

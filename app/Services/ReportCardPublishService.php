@@ -74,6 +74,14 @@ class ReportCardPublishService
         $reportCard->published_by = optional(Auth::user()?->staff)->id;
         $reportCard->save();
 
+        try {
+            app(ParentAppNotifyService::class)->notifyReportCardPublished($reportCard->fresh(['student']) ?? $reportCard);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Report card parent app notify failed: '.$e->getMessage(), [
+                'report_card_id' => $reportCard->id,
+            ]);
+        }
+
         return $reportCard->fresh();
     }
 
