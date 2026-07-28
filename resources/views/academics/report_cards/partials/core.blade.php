@@ -9,7 +9,10 @@
   $smallFont = !empty($isPdf) ? '8px' : '0.78rem';
   $brandPrimary = setting('finance_primary_color', '#3a1a59');
   $brandSecondary = setting('finance_secondary_color', '#14b8a6');
-  $chartMaxHeight = !empty($isPdf) ? 90 : 110;
+  $chartMaxHeight = !empty($isPdf) ? 110 : 130;
+  $chartPlotWidth = !empty($isPdf) ? 250 : 320;
+  $chartGap = !empty($isPdf) ? 8 : 12;
+  $chartBarWidth = !empty($isPdf) ? 30 : 38;
   $chartBars = collect($D['year_trend']['points'] ?? [])->values()->map(function ($point, $index) use ($brandPrimary, $brandSecondary, $chartMaxHeight) {
     $value = max(0, min(100, (float) ($point['value'] ?? 0)));
     $height = max(6, (int) round(($value / 100) * $chartMaxHeight));
@@ -21,6 +24,31 @@
       'color' => $index % 2 === 0 ? $brandPrimary : $brandSecondary,
     ];
   });
+  $chartCount = max(1, $chartBars->count());
+  $chartInnerWidth = ($chartCount * $chartBarWidth) + (max(0, $chartCount - 1) * $chartGap);
+  $linePoints = $chartBars->values()->map(function ($bar, $index) use ($chartBarWidth, $chartGap, $chartMaxHeight) {
+    $x = ($index * ($chartBarWidth + $chartGap)) + ($chartBarWidth / 2);
+    $y = $chartMaxHeight - $bar['height'];
+
+    return [
+      'x' => $x,
+      'y' => $y,
+      'value' => $bar['value'],
+    ];
+  });
+  $lineSegments = [];
+  for ($i = 0; $i < $linePoints->count() - 1; $i++) {
+    $from = $linePoints[$i];
+    $to = $linePoints[$i + 1];
+    $dx = $to['x'] - $from['x'];
+    $dy = $to['y'] - $from['y'];
+    $lineSegments[] = [
+      'left' => $from['x'],
+      'top' => $from['y'],
+      'width' => sqrt(($dx * $dx) + ($dy * $dy)),
+      'angle' => rad2deg(atan2($dy, $dx)),
+    ];
+  }
 @endphp
 
 {{-- School letterhead (logo, contact details, print timestamp) --}}
@@ -110,27 +138,43 @@
       @if($chartBars->count() > 0)
         <table style="width:100%; border-collapse:collapse;">
           <tr>
-            <td style="width:24px; vertical-align:bottom; font-size:7px; color:#6b7280; line-height:1.35; padding-right:4px;">
+            <td style="width:22px; vertical-align:bottom; font-size:7px; color:#6b7280; line-height:1.35; padding-right:4px;">
               100<br>80<br>60<br>40<br>20<br>0
             </td>
             <td>
-              <table style="width:100%; border-collapse:collapse; border-bottom:1px solid #9ca3af;">
-                <tr style="height:{{ $chartMaxHeight + 16 }}px;">
+              <div style="width:{{ $chartPlotWidth }}px; max-width:100%; margin:0 auto;">
+                <div style="position:relative; width:{{ $chartInnerWidth }}px; height:{{ $chartMaxHeight + 18 }}px; margin:0 auto; border-bottom:1px solid #9ca3af;">
+                  @foreach([20, 40, 60, 80, 100] as $grid)
+                    <div style="position:absolute; left:0; right:0; top:{{ $chartMaxHeight - (($grid / 100) * $chartMaxHeight) }}px; border-top:1px solid #edf2f7;"></div>
+                  @endforeach
+                  @foreach($lineSegments as $segment)
+                    <div style="position:absolute; left:{{ $segment['left'] }}px; top:{{ $segment['top'] }}px; width:{{ $segment['width'] }}px; border-top:2px solid {{ $brandSecondary }}; transform:rotate({{ $segment['angle'] }}deg); transform-origin:0 0;"></div>
+                  @endforeach
+                  @foreach($linePoints as $point)
+                    <div style="position:absolute; left:{{ $point['x'] - 3 }}px; top:{{ $point['y'] - 3 }}px; width:6px; height:6px; background:{{ $brandSecondary }}; border:1px solid #fff; border-radius:50%;"></div>
+                  @endforeach
                   @foreach($chartBars as $bar)
-                    <td style="vertical-align:bottom; text-align:center; border-left:1px solid #e5e7eb; padding:0 2px;">
-                      @if($bar['height'] >= 16)
-                        <div style="width:22px; height:{{ $bar['height'] }}px; background:{{ $bar['color'] }}; margin:0 auto; text-align:center;">
-                          <div style="font-size:7px; font-weight:700; color:#fff; line-height:{{ $bar['height'] }}px;">{{ number_format($bar['value'], 0) }}</div>
+                    @php $left = $loop->index * ($chartBarWidth + $chartGap); @endphp
+                    <div style="position:absolute; left:{{ $left }}px; bottom:0; width:{{ $chartBarWidth }}px; text-align:center;">
+                      @if($bar['height'] >= 18)
+                        <div style="width:{{ $chartBarWidth }}px; height:{{ $bar['height'] }}px; background:{{ $bar['color'] }}; margin:0 auto; position:relative;">
+                          <div style="position:absolute; top:6px; left:0; right:0; font-size:7px; font-weight:700; color:#fff;">{{ number_format($bar['value'], 0) }}%</div>
                         </div>
                       @else
-                        <div style="font-size:7px; font-weight:700; color:#111; margin-bottom:2px;">{{ number_format($bar['value'], 0) }}</div>
-                        <div style="width:22px; height:{{ $bar['height'] }}px; background:{{ $bar['color'] }}; margin:0 auto;"></div>
+                        <div style="font-size:7px; font-weight:700; color:#111; margin-bottom:2px;">{{ number_format($bar['value'], 0) }}%</div>
+                        <div style="width:{{ $chartBarWidth }}px; height:{{ $bar['height'] }}px; background:{{ $bar['color'] }}; margin:0 auto;"></div>
                       @endif
-                      <div style="font-size:6px; color:#374151; margin-top:3px; line-height:1.15; max-width:52px; word-wrap:break-word;">{{ $bar['label'] }}</div>
-                    </td>
+                    </div>
                   @endforeach
-                </tr>
-              </table>
+                </div>
+                <div style="width:{{ $chartInnerWidth }}px; margin:4px auto 0 auto; white-space:nowrap;">
+                  @foreach($chartBars as $bar)
+                    <div style="display:inline-block; width:{{ $chartBarWidth }}px; margin-right:{{ $loop->last ? 0 : $chartGap }}px; vertical-align:top; text-align:center; font-size:6px; color:#374151; line-height:1.15; white-space:normal;">
+                      {{ $bar['label'] }}
+                    </div>
+                  @endforeach
+                </div>
+              </div>
             </td>
           </tr>
         </table>
