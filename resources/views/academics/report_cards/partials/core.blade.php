@@ -1,10 +1,13 @@
 @php
   $D = $dto ?? [];
   $examHeaders = data_get(collect($D['subjects'] ?? [])->first(), 'exams', []);
-  use App\Support\CbcGradePresentation;
-  $cbcLegend = collect(CbcGradePresentation::standardBands())
+  $cbcLegend = collect(\App\Support\CbcGradePresentation::standardBands())
     ->map(fn ($band) => $band['short'].' = '.$band['label'])
     ->implode(' | ');
+  $cellStyle = 'padding:6px; border:1px solid #d1d5db;';
+  if (!empty($isPdf)) {
+      $cellStyle .= ' color:#111111; font-family:DejaVu Sans,sans-serif;';
+  }
 @endphp
 
 {{-- School letterhead (logo, contact details, print timestamp) --}}
@@ -19,10 +22,10 @@
 {{-- Student & term --}}
 <table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-bottom:10px;">
   <tr style="background:#f9fafb;">
-    <td style="padding:6px; border:1px solid #d1d5db;"><strong>Student:</strong> {{ $D['student']['name'] ?? '' }}</td>
-    <td style="padding:6px; border:1px solid #d1d5db;"><strong>Adm No:</strong> {{ $D['student']['admission_number'] ?? '' }}</td>
-    <td style="padding:6px; border:1px solid #d1d5db;"><strong>Class:</strong> {{ $D['student']['class'] ?? '' }} {{ !empty($D['student']['stream']) ? '— '.$D['student']['stream'] : '' }}</td>
-    <td style="padding:6px; border:1px solid #d1d5db;"><strong>Term/Year:</strong> {{ $D['context']['term'] ?? '' }} / {{ $D['context']['year'] ?? '' }}</td>
+    <td style="{{ $cellStyle }}"><strong>Student:</strong> {{ $D['student']['name'] ?? '' }}</td>
+    <td style="{{ $cellStyle }}"><strong>Adm No:</strong> {{ $D['student']['admission_number'] ?? '' }}</td>
+    <td style="{{ $cellStyle }}"><strong>Class:</strong> {{ $D['student']['class'] ?? '' }} {{ !empty($D['student']['stream']) ? '— '.$D['student']['stream'] : '' }}</td>
+    <td style="{{ $cellStyle }}"><strong>Term/Year:</strong> {{ $D['context']['term'] ?? '' }} / {{ $D['context']['year'] ?? '' }}</td>
   </tr>
 </table>
 
@@ -30,21 +33,21 @@
 <table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-bottom:12px;">
   <thead>
     <tr style="background:#f3f4f6;">
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Subject</th>
+      <th style="{{ $cellStyle }} text-align:left;">Subject</th>
       @foreach($examHeaders as $eh)
-        <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $eh['exam_name'] }}</th>
+        <th style="{{ $cellStyle }} text-align:center;">{{ $eh['exam_name'] }}</th>
       @endforeach
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Term Avg</th>
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Grade</th>
-      <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Teacher Remark</th>
+      <th style="{{ $cellStyle }} text-align:center;">Term Avg</th>
+      <th style="{{ $cellStyle }} text-align:center;">Grade</th>
+      <th style="{{ $cellStyle }} text-align:left;">Teacher Remark</th>
     </tr>
   </thead>
   <tbody>
     @forelse($D['subjects'] as $row)
       <tr style="background:#fff;">
-        <td style="padding:6px; border:1px solid #d1d5db;">{{ $row['subject_name'] }}</td>
+        <td style="{{ $cellStyle }}">{{ $row['subject_name'] }}</td>
         @foreach($row['exams'] as $ex)
-          <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">
+          <td style="{{ $cellStyle }} text-align:center;">
             @if($ex['score'] !== null)
               <div>{{ number_format($ex['score'], 2) }}</div>
               @if(!empty($ex['grade_label']))
@@ -55,9 +58,9 @@
             @endif
           </td>
         @endforeach
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ $row['term_avg'] !== null ? number_format($row['term_avg'],2) : '—' }}</strong></td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ $row['grade_label'] ?? '—' }}</strong></td>
-        <td style="padding:6px; border:1px solid #d1d5db;">{{ $row['teacher_remark'] ?? '' }}</td>
+        <td style="{{ $cellStyle }} text-align:center;"><strong>{{ $row['term_avg'] !== null ? number_format($row['term_avg'],2) : '—' }}</strong></td>
+        <td style="{{ $cellStyle }} text-align:center;"><strong>{{ $row['grade_label'] ?? '—' }}</strong></td>
+        <td style="{{ $cellStyle }}">{{ $row['teacher_remark'] ?? '' }}</td>
       </tr>
     @empty
       <tr><td colspan="{{ 3 + count($examHeaders) }}" style="padding:8px; text-align:center;">No subject marks.</td></tr>
@@ -135,7 +138,7 @@
   <tr style="background:#f3f4f6;">
     <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Overall Performance Level</th>
     <td style="padding:6px; border:1px solid #d1d5db;">
-      <strong>{{ CbcGradePresentation::normalizeShortCode($D['cbc']['overall_performance_level'] ?? '') ?? 'N/A' }}</strong>
+      <strong>{{ \App\Support\CbcGradePresentation::normalizeShortCode($D['cbc']['overall_performance_level'] ?? '') ?? 'N/A' }}</strong>
       @if(!empty($D['cbc']['overall_performance_level_name']))
         — {{ $D['cbc']['overall_performance_level_name'] }}
       @endif
@@ -193,7 +196,7 @@
       <tr>
         <td style="padding:6px; border:1px solid #d1d5db;">{{ $area }}</td>
         <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $performance['average'] !== null ? number_format($performance['average'], 2) : 'N/A' }}%</td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ CbcGradePresentation::normalizeShortCode($performance['performance_level'] ?? '') ?? 'N/A' }}</strong></td>
+        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ \App\Support\CbcGradePresentation::normalizeShortCode($performance['performance_level'] ?? '') ?? 'N/A' }}</strong></td>
         <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $performance['subjects_count'] ?? 0 }}</td>
       </tr>
     @endforeach

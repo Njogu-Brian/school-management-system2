@@ -275,22 +275,26 @@ class ReportCardController extends Controller
     /** UPDATED: Export PDF via service that aggregates subjects/skills/behavior/attendance + branding */
     public function exportPdf(\App\Models\Academics\ReportCard $report)
     {
-        // Build the DTO (marks across all exams in the term, skills, attendance, branding, etc.)
         $dto = ReportCardBatchService::build($report->id);
 
-        // Pass BOTH 'dto' and 'report_card' so old blades don't break
         $pdf = Pdf::loadView('academics.report_cards.pdf', [
             'dto'         => $dto,
             'report_card' => $report,
-        ])->setPaper('A4');
+        ])
+            ->setPaper('A4', 'portrait')
+            ->setOption('defaultFont', 'DejaVu Sans')
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('isRemoteEnabled', true);
 
-        $filename = 'report_card_'.$dto['student']['admission_number'].'.pdf';
+        $filename = ReportCardBatchService::pdfFilename($dto);
 
         $dir = storage_path('app/public/reports');
-        if (! is_dir($dir)) { @mkdir($dir, 0775, true); }
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
 
-        $path = "reports/$filename";
-        $pdf->save(storage_path("app/public/$path"));
+        $path = 'reports/'.$filename;
+        $pdf->save(storage_path('app/public/'.$path));
 
         $report->update(['pdf_path' => $path]);
 

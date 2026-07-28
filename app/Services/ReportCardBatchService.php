@@ -429,4 +429,13 @@ class ReportCardBatchService
 
         return CbcGradePresentation::normalizeShortCode((string) $label);
     }
+
+    public static function pdfFilename(array $dto): string
+    {
+        $termSlug = strtoupper(preg_replace('/\s+/', '', (string) ($dto['context']['term'] ?? 'Term')));
+        $year = preg_replace('/\D/', '', (string) ($dto['context']['year'] ?? '')) ?: date('Y');
+        $adm = strtoupper(preg_replace('/\s+/', '', (string) ($dto['student']['admission_number'] ?? 'STUDENT')));
+
+        return "{$termSlug}-{$year}-{$adm} Report Card.pdf";
+    }
 }
