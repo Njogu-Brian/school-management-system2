@@ -77,9 +77,9 @@ class ReportCardController extends Controller
             });
         }
 
-        $perPage = (int) $request->input('per_page', 20);
-        if (! in_array($perPage, [20, 50, 100, 200], true)) {
-            $perPage = 20;
+        $perPage = (int) $request->input('per_page', 10);
+        if (! in_array($perPage, [10, 50, 100, 200], true)) {
+            $perPage = 10;
         }
 
         $report_cards = $query->latest()->paginate($perPage)->withQueryString();

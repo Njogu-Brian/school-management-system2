@@ -24,7 +24,7 @@
 
     <div class="settings-card mb-3">
       <div class="card-body">
-        <form method="GET" action="{{ route('academics.report_cards.index') }}">
+        <form method="GET" action="{{ route('academics.report_cards.index') }}" id="reportCardFiltersForm">
           <div class="row g-3 align-items-end">
             <div class="col-md-3">
               <label class="form-label">Search</label>
@@ -63,7 +63,7 @@
             <div class="col-md-1">
               <label class="form-label">Per page</label>
               <select name="per_page" class="form-select">
-                @foreach([20, 50, 100, 200] as $size)
+                @foreach([10, 50, 100, 200] as $size)
                   <option value="{{ $size }}" @selected((int) ($perPage ?? 20) === $size)>{{ $size }}</option>
                 @endforeach
               </select>
@@ -82,35 +82,35 @@
 
     @can('report_cards.publish')
       @php
-        $publishYearId = request('academic_year_id');
-        $publishTermId = request('term_id');
+        $publishYearId = $selectedYearId ?? request('academic_year_id');
+        $publishTermId = $selectedTermId ?? request('term_id');
         $publishHasCriteria = !empty($publishYearId) && !empty($publishTermId);
       @endphp
-      @if($publishHasCriteria)
-        <div class="d-flex justify-content-end mb-3">
-          <form method="POST" action="{{ route('academics.report_cards.bulk_publish_from_filters_no_notify') }}" onsubmit="return confirm('Publish report cards only (no SMS/Email/WhatsApp)?');" class="d-flex gap-2">
-            @csrf
-            <input type="hidden" name="academic_year_id" value="{{ $publishYearId }}">
-            <input type="hidden" name="term_id" value="{{ $publishTermId }}">
-            @if(!empty(request('classroom_id')))
-              <input type="hidden" name="classroom_id" value="{{ request('classroom_id') }}">
-            @endif
-            @if(!empty(request('stream_id')))
-              <input type="hidden" name="stream_id" value="{{ request('stream_id') }}">
-            @endif
-            <button type="submit" class="btn btn-settings-primary">
-              <i class="bi bi-upload"></i> Publish (No notifications)
-            </button>
-          </form>
-        </div>
-      @else
-        <div class="text-muted small mb-3">Select Academic Year and Term to publish.</div>
-      @endif
     @endcan
 
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
       <div class="text-muted small">Select report cards to send via SMS / Email / WhatsApp.</div>
       <div class="d-flex gap-2 flex-wrap">
+        @can('report_cards.publish')
+          @if($publishHasCriteria)
+            <form method="POST" action="{{ route('academics.report_cards.bulk_publish_from_filters_no_notify') }}" onsubmit="return confirm('Publish report cards only (no SMS/Email/WhatsApp)?');" class="d-inline">
+              @csrf
+              <input type="hidden" name="academic_year_id" value="{{ $publishYearId }}">
+              <input type="hidden" name="term_id" value="{{ $publishTermId }}">
+              @if(!empty(request('classroom_id')))
+                <input type="hidden" name="classroom_id" value="{{ request('classroom_id') }}">
+              @endif
+              @if(!empty(request('stream_id')))
+                <input type="hidden" name="stream_id" value="{{ request('stream_id') }}">
+              @endif
+              <button type="submit" class="btn btn-settings-primary">
+                <i class="bi bi-upload"></i> Publish Matching Reports
+              </button>
+            </form>
+          @else
+            <span class="text-muted small">Choose Academic Year and Term, then filter to publish.</span>
+          @endif
+        @endcan
         <button type="button" class="btn btn-ghost-strong"
           onclick="openSendDocument('report_card', collectCheckedIds('.rc-checkbox'))">
           <i class="bi bi-send"></i> Send Selected
@@ -187,7 +187,23 @@
           </table>
         </div>
       </div>
-      <div class="card-footer d-flex justify-content-end">{{ $report_cards->links() }}</div>
+      <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <form method="GET" action="{{ route('academics.report_cards.index') }}" class="d-flex align-items-center gap-2">
+          <input type="hidden" name="search" value="{{ request('search') }}">
+          <input type="hidden" name="academic_year_id" value="{{ request('academic_year_id') }}">
+          <input type="hidden" name="term_id" value="{{ request('term_id') }}">
+          <input type="hidden" name="classroom_id" value="{{ request('classroom_id') }}">
+          <input type="hidden" name="stream_id" value="{{ request('stream_id') }}">
+          <label class="small text-muted mb-0">Show</label>
+          <select name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+            @foreach([10, 50, 100, 200] as $size)
+              <option value="{{ $size }}" @selected((int) ($perPage ?? 20) === $size)>{{ $size }}</option>
+            @endforeach
+          </select>
+          <span class="small text-muted">per page</span>
+        </form>
+        {{ $report_cards->links() }}
+      </div>
     </div>
   </div>
 </div>
