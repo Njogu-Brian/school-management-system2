@@ -110,6 +110,23 @@
           </div>
         </div>
       </div>
+
+      @if(($analysisFlow ?? '') === 'term' && ! empty($payload['most_improved']))
+        @php
+          $cid = request('classroom_id');
+          $showStreamCol = ! empty($streamsByClassroom[$cid] ?? $streamsByClassroom[(string) $cid] ?? []);
+        @endphp
+        <div class="col-12">
+          <div class="settings-card">
+            <div class="card-body p-0">
+              @include('academics.exam_reports.partials.most_improved_panel', [
+                'payload' => $payload,
+                'showStreamColumn' => $showStreamCol,
+              ])
+            </div>
+          </div>
+        </div>
+      @endif
       </div>
     @endif
   </div>

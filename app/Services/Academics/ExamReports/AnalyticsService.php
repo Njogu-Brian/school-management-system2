@@ -442,6 +442,42 @@ class AnalyticsService
         ];
     }
 
+    /**
+     * Most improved for whole-term analysis: latest sitting vs previous sitting in the same term.
+     *
+     * @return array{
+     *     comparison_label: ?string,
+     *     previous: ?array{id: int, name: string, exam_type: string},
+     *     current: ?array{id: int, name: string, exam_type: string},
+     *     rows: Collection<int, array<string, mixed>>
+     * }
+     */
+    public function mostImprovedForTermScope(
+        int $academicYearId,
+        int $termId,
+        Classroom $classroom,
+        ?int $streamId = null,
+        int $limit = 10
+    ): array {
+        $latest = $this->examScope->findLatestExamSessionInTerm(
+            $academicYearId,
+            $termId,
+            $classroom->id,
+            $streamId
+        );
+
+        if (! $latest) {
+            return [
+                'comparison_label' => null,
+                'previous' => null,
+                'current' => null,
+                'rows' => collect(),
+            ];
+        }
+
+        return $this->mostImprovedForExamSession($latest, $classroom, $streamId, null, $limit);
+    }
+
     public function studentInsightsForExamSession(ExamSession $session, Classroom $classroom, ?int $streamId = null): array
     {
         $sheet = (new ClassSheetBuilder())->buildForExamSession($session, $classroom, $streamId);
@@ -524,44 +560,21 @@ class AnalyticsService
         $rows = collect($sheet['rows']);
 
         $top = $rows->whereNotNull('total')->sortByDesc('total')->take(10)->values();
-
-        $prevTerm = \App\Models\Term::query()
-            ->where('academic_year_id', $academicYearId)
-            ->where('id', '!=', $termId)
-            ->orderByDesc('id')
-            ->firstWhere('id', '<', $termId);
-
-        $improved = collect();
-        if ($prevTerm) {
-            $prevSheet = (new ClassSheetBuilder())->buildForTerm($academicYearId, $prevTerm->id, $classroom, $streamId);
-            $prevTotals = collect($prevSheet['rows'])->keyBy('student_id')->map(fn ($r) => $r['total']);
-
-            $improved = $rows->map(function ($r) use ($prevTotals) {
-                $prev = $prevTotals->get($r['student_id']);
-                $curr = $r['total'];
-                $delta = ($curr !== null && $prev !== null) ? round(((float) $curr) - ((float) $prev), 2) : null;
-                return [
-                    'student_id' => $r['student_id'],
-                    'admission_number' => $r['admission_number'],
-                    'name' => $r['name'],
-                    'prev_total' => $prev,
-                    'curr_total' => $curr,
-                    'improvement' => $delta,
-                ];
-            })->whereNotNull('improvement')->sortByDesc('improvement')->take(10)->values();
-        }
+        $improvedBlock = $this->mostImprovedForTermScope($academicYearId, $termId, $classroom, $streamId);
 
         return [
             'meta' => [
                 'mode' => 'term',
                 'academic_year_id' => $academicYearId,
                 'term_id' => $termId,
-                'prev_term_id' => $prevTerm?->id,
+                'prev_exam_session_id' => $improvedBlock['previous']['id'] ?? null,
+                'curr_exam_session_id' => $improvedBlock['current']['id'] ?? null,
                 'classroom_id' => $classroom->id,
                 'stream_id' => $streamId,
+                'comparison_label' => $improvedBlock['comparison_label'],
             ],
             'top_students' => $top,
-            'most_improved' => $improved,
+            'most_improved' => $improvedBlock['rows'],
         ];
     }
 

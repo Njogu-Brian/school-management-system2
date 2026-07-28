@@ -12,7 +12,7 @@
       <div>
         <div class="crumb">Academics · Exam Reports &amp; Analysis</div>
         <h1 class="mb-1">Student Insights</h1>
-        <p class="text-muted mb-0">Top students and most improved (exam-to-exam or term-to-term).</p>
+        <p class="text-muted mb-0">Top students and most improved by overall marks between exam sittings in the term.</p>
       </div>
       <div class="d-flex gap-2">
         <a class="btn btn-outline-secondary" href="{{ route('academics.exam-reports.class-sheet') }}">Class Sheet</a>
@@ -139,6 +139,7 @@
               @if(!empty($payload['meta']['comparison_label']))
                 <span class="badge text-bg-light border">{{ $payload['meta']['comparison_label'] }}</span>
               @endif
+              <span class="text-muted small ms-1">Overall total marks between exam sittings</span>
             </div>
             <div class="card-body p-0">
               <div class="table-responsive">

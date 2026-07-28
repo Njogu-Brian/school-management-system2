@@ -115,10 +115,20 @@ final class ExamScopeResolver
         }
 
         $effectiveStreamId = $session->stream_id ?? $streamId;
-        $candidates = $this->examSessionsInTermScope($session, $effectiveStreamId);
+        $candidates = $this->examSessionsForTermScope(
+            (int) $session->academic_year_id,
+            (int) $session->term_id,
+            (int) $session->classroom_id,
+            $effectiveStreamId
+        );
 
         if ($candidates->isEmpty() && $effectiveStreamId) {
-            $candidates = $this->examSessionsInTermScope($session, null);
+            $candidates = $this->examSessionsForTermScope(
+                (int) $session->academic_year_id,
+                (int) $session->term_id,
+                (int) $session->classroom_id,
+                null
+            );
         }
 
         return $candidates
@@ -139,22 +149,43 @@ final class ExamScopeResolver
     }
 
     /**
+     * Latest exam sitting in a term for a class (e.g. End Term after Mid Term).
+     */
+    public function findLatestExamSessionInTerm(
+        int $academicYearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId = null
+    ): ?ExamSession {
+        $candidates = $this->examSessionsForTermScope($academicYearId, $termId, $classroomId, $streamId);
+
+        if ($candidates->isEmpty() && $streamId) {
+            $candidates = $this->examSessionsForTermScope($academicYearId, $termId, $classroomId, null);
+        }
+
+        return $candidates
+            ->sortByDesc(fn (ExamSession $session) => self::examTypeSortOrder(
+                $session->examType?->name,
+                $session->examType?->code
+            ))
+            ->first();
+    }
+
+    /**
      * @return Collection<int, ExamSession>
      */
-    private function examSessionsInTermScope(ExamSession $session, ?int $streamId): Collection
-    {
-        $termIds = $this->terms->termIdsForScope(
-            (int) $session->term_id,
-            (int) $session->academic_year_id,
-            null,
-            (int) $session->classroom_id,
-            $streamId
-        );
+    private function examSessionsForTermScope(
+        int $academicYearId,
+        int $termId,
+        int $classroomId,
+        ?int $streamId
+    ): Collection {
+        $termIds = $this->terms->termIdsForScope($termId, $academicYearId, null, $classroomId, $streamId);
 
         return ExamSession::query()
             ->with('examType')
-            ->where('academic_year_id', $session->academic_year_id)
-            ->where('classroom_id', $session->classroom_id)
+            ->where('academic_year_id', $academicYearId)
+            ->where('classroom_id', $classroomId)
             ->whereIn('term_id', $termIds)
             ->when($streamId, fn ($q) => $q->where('stream_id', $streamId), fn ($q) => $q->whereNull('stream_id'))
             ->get();

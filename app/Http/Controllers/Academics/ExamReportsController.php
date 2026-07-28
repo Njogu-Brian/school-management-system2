@@ -294,6 +294,13 @@ class ExamReportsController extends Controller
             fn () => $builder->buildForTerm($ay, $termId, $classroom, $streamId)
         );
 
+        $payload['most_improved'] = (new AnalyticsService())->mostImprovedForTermScope(
+            $ay,
+            $termId,
+            $classroom,
+            $streamId
+        );
+
         return [['classroom' => $classroom, 'payload' => $payload, 'notice' => null]];
     }
 
@@ -637,6 +644,7 @@ class ExamReportsController extends Controller
             $ay = (int) $request->academic_year_id;
             $termId = (int) $request->term_id;
             $payload = $cache->rememberTermSubjectPerformance($ay, $termId, $classroom, $streamId, fn () => $analytics->subjectPerformanceForTerm($ay, $termId, $classroom, $streamId, $subjectLimit));
+            $payload['most_improved'] = $analytics->mostImprovedForTermScope($ay, $termId, $classroom, $streamId);
             if (empty($payload['subjects'])) {
                 return [$payload, 'No mark data found for this class and term. Check that exams exist and marks have been entered.'];
             }
@@ -694,6 +702,7 @@ class ExamReportsController extends Controller
             $ay = (int) $request->academic_year_id;
             $termId = (int) $request->term_id;
             $payload = $cache->rememberTermTeacherPerformance($ay, $termId, $classroom, $streamId, fn () => $analytics->teacherPerformanceForTerm($ay, $termId, $classroom, $streamId, $subjectLimit));
+            $payload['most_improved'] = $analytics->mostImprovedForTermScope($ay, $termId, $classroom, $streamId);
             if (empty($payload['per_teacher']) && empty($payload['per_subject'])) {
                 return [$payload, 'No teacher performance data for this class and term. Check subject assignments and marks.'];
             }

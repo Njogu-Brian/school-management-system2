@@ -137,7 +137,7 @@
           @endif
         </table>
 
-        @if(($meta['mode'] ?? '') === 'exam_session' && ! empty($payload['most_improved']))
+        @if(in_array($meta['mode'] ?? '', ['exam_session', 'term'], true) && ! empty($payload['most_improved']))
           @php $mi = $payload['most_improved']; $miRows = collect($mi['rows'] ?? []); @endphp
           @if($miRows->isNotEmpty() || ! empty($mi['comparison_label']))
             <p style="margin:10px 0 4px;font-weight:bold;font-size:8px;">

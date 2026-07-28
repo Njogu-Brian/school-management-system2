@@ -247,7 +247,7 @@
                   'payload' => $bundle['payload'],
                   'showStreamColumn' => $showStreamCol,
                 ])
-                @if(($bundle['payload']['meta']['mode'] ?? '') === 'exam_session')
+                @if(in_array($bundle['payload']['meta']['mode'] ?? '', ['exam_session', 'term'], true))
                   @include('academics.exam_reports.partials.most_improved_panel', [
                     'payload' => $bundle['payload'],
                     'showStreamColumn' => $showStreamCol,
