@@ -9,13 +9,13 @@
   $smallFont = !empty($isPdf) ? '8px' : '0.78rem';
   $brandPrimary = setting('finance_primary_color', '#3a1a59');
   $brandSecondary = setting('finance_secondary_color', '#14b8a6');
-  $chartMaxHeight = !empty($isPdf) ? 110 : 130;
-  $chartPlotWidth = !empty($isPdf) ? 250 : 320;
-  $chartGap = !empty($isPdf) ? 8 : 12;
-  $chartBarWidth = !empty($isPdf) ? 30 : 38;
+  $chartMaxHeight = !empty($isPdf) ? 125 : 145;
+  $chartAxisFont = !empty($isPdf) ? '9px' : '10px';
+  $chartValueFont = !empty($isPdf) ? '9px' : '10px';
+  $chartLabelFont = !empty($isPdf) ? '8px' : '9px';
   $chartBars = collect($D['year_trend']['points'] ?? [])->values()->map(function ($point, $index) use ($brandPrimary, $brandSecondary, $chartMaxHeight) {
     $value = max(0, min(100, (float) ($point['value'] ?? 0)));
-    $height = max(6, (int) round(($value / 100) * $chartMaxHeight));
+    $height = max(8, (int) round(($value / 100) * $chartMaxHeight));
 
     return [
       'label' => $point['label'] ?? '',
@@ -25,30 +25,34 @@
     ];
   });
   $chartCount = max(1, $chartBars->count());
-  $chartInnerWidth = ($chartCount * $chartBarWidth) + (max(0, $chartCount - 1) * $chartGap);
-  $linePoints = $chartBars->values()->map(function ($bar, $index) use ($chartBarWidth, $chartGap, $chartMaxHeight) {
-    $x = ($index * ($chartBarWidth + $chartGap)) + ($chartBarWidth / 2);
-    $y = $chartMaxHeight - $bar['height'];
+  $linePoints = $chartBars->values()->map(function ($bar, $index) use ($chartCount, $chartMaxHeight) {
+    $slot = 100 / $chartCount;
+    $xPercent = ($index * $slot) + ($slot / 2);
 
     return [
-      'x' => $x,
-      'y' => $y,
+      'xPercent' => $xPercent,
+      'y' => $chartMaxHeight - $bar['height'],
       'value' => $bar['value'],
     ];
   });
   $lineSegments = [];
+  $plotReferenceWidth = !empty($isPdf) ? 220 : 280;
   for ($i = 0; $i < $linePoints->count() - 1; $i++) {
     $from = $linePoints[$i];
     $to = $linePoints[$i + 1];
-    $dx = $to['x'] - $from['x'];
+    $fromX = ($from['xPercent'] / 100) * $plotReferenceWidth;
+    $toX = ($to['xPercent'] / 100) * $plotReferenceWidth;
+    $dx = $toX - $fromX;
     $dy = $to['y'] - $from['y'];
     $lineSegments[] = [
-      'left' => $from['x'],
+      'leftPercent' => $from['xPercent'],
       'top' => $from['y'],
-      'width' => sqrt(($dx * $dx) + ($dy * $dy)),
+      'widthPx' => max(1, (int) round(sqrt(($dx * $dx) + ($dy * $dy)))),
       'angle' => rad2deg(atan2($dy, $dx)),
     ];
   }
+  $overallPerformance = \App\Support\CbcGradePresentation::normalizeShortCode($D['cbc']['overall_performance_level'] ?? '') ?? null;
+  $overallPerformanceName = $D['cbc']['overall_performance_level_name'] ?? null;
 @endphp
 
 {{-- School letterhead (logo, contact details, print timestamp) --}}
@@ -121,10 +125,10 @@
   </tbody>
 </table>
 
-{{-- Performance overview: graph (left) + attendance/behaviour (right) --}}
+{{-- Performance overview: trend | attendance | overall level --}}
 <table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-bottom:8px;">
   <tr style="background:#f9fafb;">
-    <td colspan="2" style="padding:6px 8px; border-bottom:1px solid #d1d5db; font-size:{{ $smallFont }};">
+    <td colspan="3" style="padding:6px 8px; border-bottom:1px solid #d1d5db; font-size:{{ $smallFont }};">
       <strong>Performance Overview</strong>
       @if($referenceTermName)
         &nbsp;|&nbsp; {{ $referenceTermName }}: <strong>{{ data_get($D, 'overview.reference_term.average') !== null ? number_format((float) data_get($D, 'overview.reference_term.average'), 1) : '—' }}</strong> ({{ data_get($D, 'overview.reference_term.grade') ?? '—' }})
@@ -133,48 +137,43 @@
     </td>
   </tr>
   <tr>
-    <td style="width:58%; vertical-align:top; padding:8px; border-right:1px solid #d1d5db;">
-      <div style="font-weight:700; font-size:{{ $smallFont }}; margin-bottom:4px; color:{{ $brandPrimary }};">Academic Year Trend</div>
+    <td style="width:42%; vertical-align:top; padding:8px; border-right:1px solid #d1d5db;">
+      <div style="font-weight:700; font-size:{{ $smallFont }}; margin-bottom:6px; color:{{ $brandPrimary }};">Academic Year Trend</div>
       @if($chartBars->count() > 0)
         <table style="width:100%; border-collapse:collapse;">
           <tr>
-            <td style="width:22px; vertical-align:bottom; font-size:7px; color:#6b7280; line-height:1.35; padding-right:4px;">
+            <td style="width:26px; vertical-align:bottom; font-size:{{ $chartAxisFont }}; color:#374151; line-height:1.15; padding:0 3px 0 0;">
               100<br>80<br>60<br>40<br>20<br>0
             </td>
-            <td>
-              <div style="width:{{ $chartPlotWidth }}px; max-width:100%; margin:0 auto;">
-                <div style="position:relative; width:{{ $chartInnerWidth }}px; height:{{ $chartMaxHeight + 18 }}px; margin:0 auto; border-bottom:1px solid #9ca3af;">
-                  @foreach([20, 40, 60, 80, 100] as $grid)
-                    <div style="position:absolute; left:0; right:0; top:{{ $chartMaxHeight - (($grid / 100) * $chartMaxHeight) }}px; border-top:1px solid #edf2f7;"></div>
-                  @endforeach
-                  @foreach($lineSegments as $segment)
-                    <div style="position:absolute; left:{{ $segment['left'] }}px; top:{{ $segment['top'] }}px; width:{{ $segment['width'] }}px; border-top:2px solid {{ $brandSecondary }}; transform:rotate({{ $segment['angle'] }}deg); transform-origin:0 0;"></div>
-                  @endforeach
-                  @foreach($linePoints as $point)
-                    <div style="position:absolute; left:{{ $point['x'] - 3 }}px; top:{{ $point['y'] - 3 }}px; width:6px; height:6px; background:{{ $brandSecondary }}; border:1px solid #fff; border-radius:50%;"></div>
-                  @endforeach
-                  @foreach($chartBars as $bar)
-                    @php $left = $loop->index * ($chartBarWidth + $chartGap); @endphp
-                    <div style="position:absolute; left:{{ $left }}px; bottom:0; width:{{ $chartBarWidth }}px; text-align:center;">
-                      @if($bar['height'] >= 18)
-                        <div style="width:{{ $chartBarWidth }}px; height:{{ $bar['height'] }}px; background:{{ $bar['color'] }}; margin:0 auto; position:relative;">
-                          <div style="position:absolute; top:6px; left:0; right:0; font-size:7px; font-weight:700; color:#fff;">{{ number_format($bar['value'], 0) }}%</div>
-                        </div>
-                      @else
-                        <div style="font-size:7px; font-weight:700; color:#111; margin-bottom:2px;">{{ number_format($bar['value'], 0) }}%</div>
-                        <div style="width:{{ $chartBarWidth }}px; height:{{ $bar['height'] }}px; background:{{ $bar['color'] }}; margin:0 auto;"></div>
-                      @endif
-                    </div>
-                  @endforeach
-                </div>
-                <div style="width:{{ $chartInnerWidth }}px; margin:4px auto 0 auto; white-space:nowrap;">
-                  @foreach($chartBars as $bar)
-                    <div style="display:inline-block; width:{{ $chartBarWidth }}px; margin-right:{{ $loop->last ? 0 : $chartGap }}px; vertical-align:top; text-align:center; font-size:6px; color:#374151; line-height:1.15; white-space:normal;">
-                      {{ $bar['label'] }}
-                    </div>
-                  @endforeach
-                </div>
+            <td style="vertical-align:bottom; padding:0;">
+              <div style="position:relative; height:{{ $chartMaxHeight }}px; border-left:1px solid #9ca3af; border-bottom:1px solid #9ca3af;">
+                @foreach([20, 40, 60, 80] as $grid)
+                  <div style="position:absolute; left:0; right:0; top:{{ $chartMaxHeight - (($grid / 100) * $chartMaxHeight) }}px; border-top:1px solid #edf2f7;"></div>
+                @endforeach
+                <table style="width:100%; height:{{ $chartMaxHeight }}px; border-collapse:collapse; position:relative; z-index:1;">
+                  <tr style="vertical-align:bottom;">
+                    @foreach($chartBars as $bar)
+                      <td style="vertical-align:bottom; text-align:center; padding:0 2px;">
+                        <div style="font-size:{{ $chartValueFont }}; font-weight:700; color:#111; margin-bottom:3px;">{{ number_format($bar['value'], 0) }}</div>
+                        <div style="height:{{ $bar['height'] }}px; background:{{ $bar['color'] }}; width:72%; min-width:16px; max-width:42px; margin:0 auto;"></div>
+                      </td>
+                    @endforeach
+                  </tr>
+                </table>
+                @foreach($lineSegments as $segment)
+                  <div style="position:absolute; left:{{ $segment['leftPercent'] }}%; top:{{ $segment['top'] }}px; width:{{ $segment['widthPx'] }}px; border-top:2px solid {{ $brandSecondary }}; transform:rotate({{ $segment['angle'] }}deg); transform-origin:0 0; z-index:2;"></div>
+                @endforeach
+                @foreach($linePoints as $point)
+                  <div style="position:absolute; left:{{ $point['xPercent'] }}%; top:{{ $point['y'] - 4 }}px; width:8px; height:8px; margin-left:-4px; background:{{ $brandSecondary }}; border:1px solid #fff; border-radius:50%; z-index:3;"></div>
+                @endforeach
               </div>
+              <table style="width:100%; border-collapse:collapse; margin-top:4px;">
+                <tr>
+                  @foreach($chartBars as $bar)
+                    <td style="text-align:center; font-size:{{ $chartLabelFont }}; color:#374151; line-height:1.2; padding:0 1px; vertical-align:top;">{{ $bar['label'] }}</td>
+                  @endforeach
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
@@ -182,8 +181,8 @@
         <div style="font-size:{{ $smallFont }}; color:#6b7280;">No trend data yet.</div>
       @endif
     </td>
-    <td style="width:42%; vertical-align:top; padding:8px;">
-      <div style="font-weight:700; font-size:{{ $smallFont }}; margin-bottom:4px; color:{{ $brandPrimary }};">Attendance &amp; Behaviour</div>
+    <td style="width:29%; vertical-align:top; padding:8px; border-right:1px solid #d1d5db;">
+      <div style="font-weight:700; font-size:{{ $smallFont }}; margin-bottom:6px; color:{{ $brandPrimary }};">Attendance &amp; Behaviour</div>
       <table style="width:100%; border-collapse:collapse; font-size:{{ $smallFont }};">
         <tr>
           <td style="padding:4px; border:1px solid #d1d5db;"><strong>Present</strong></td>
@@ -209,35 +208,29 @@
         </tr>
       </table>
       @if(!empty($D['behavior']['latest']))
-        <div style="font-size:7px; margin-top:4px; color:#374151;">
+        <div style="font-size:{{ $chartLabelFont }}; margin-top:4px; color:#374151;">
           @foreach(array_slice($D['behavior']['latest'], 0, 2) as $b)
             <div>{{ $b['date'] }}: {{ $b['name'] }}</div>
           @endforeach
         </div>
       @endif
     </td>
-  </tr>
-</table>
-
-{{-- CBC Performance Level --}}
-@if(!empty($D['cbc']['overall_performance_level']))
-<table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-top:10px; margin-bottom:10px;">
-  <tr style="background:#f3f4f6;">
-    <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Overall Performance Level</th>
-    <td style="padding:6px; border:1px solid #d1d5db;">
-      <strong>{{ \App\Support\CbcGradePresentation::normalizeShortCode($D['cbc']['overall_performance_level'] ?? '') ?? 'N/A' }}</strong>
-      @if(!empty($D['cbc']['overall_performance_level_name']))
-        — {{ $D['cbc']['overall_performance_level_name'] }}
+    <td style="width:29%; vertical-align:top; padding:8px;">
+      <div style="font-weight:700; font-size:{{ $smallFont }}; margin-bottom:6px; color:{{ $brandPrimary }};">Overall Performance Level</div>
+      @if($overallPerformance)
+        <div style="border:1px solid #d1d5db; background:#f9fafb; padding:10px; text-align:center; margin-bottom:6px;">
+          <div style="font-size:{{ !empty($isPdf) ? '18px' : '1.4rem' }}; font-weight:700; color:{{ $brandPrimary }};">{{ $overallPerformance }}</div>
+          @if($overallPerformanceName)
+            <div style="font-size:{{ $smallFont }}; color:#374151; margin-top:4px;">{{ $overallPerformanceName }}</div>
+          @endif
+        </div>
+        <div style="font-size:{{ $chartLabelFont }}; color:#555; line-height:1.35;">{{ $cbcLegend }}</div>
+      @else
+        <div style="font-size:{{ $smallFont }}; color:#6b7280;">No overall performance level recorded.</div>
       @endif
     </td>
   </tr>
-  <tr>
-    <td colspan="2" style="padding:6px; border:1px solid #d1d5db; font-size:{{ !empty($isPdf) ? '8px' : '0.8rem' }}; color:#555;">
-      {{ $cbcLegend }}
-    </td>
-  </tr>
 </table>
-@endif
 
 {{-- CBC Core Competencies --}}
 @if(!empty($D['cbc']['core_competencies']) && is_array($D['cbc']['core_competencies']) && count($D['cbc']['core_competencies']) > 0)
