@@ -141,64 +141,47 @@
   <div style="font-size:{{ !empty($isPdf) ? '9px' : '0.82rem' }}; color:#555; margin-bottom:8px;">
     Overall exam averages across the academic year, ordered by term and sitting.
   </div>
-  @if($svgPoints->count() > 1)
-    <svg viewBox="0 0 {{ $chartWidth }} {{ $chartHeight }}" width="100%" height="{{ $chartHeight }}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="{{ $chartWidth }}" height="{{ $chartHeight }}" fill="#ffffff"/>
-      @foreach($gridValues as $gridValue)
-        @php
-          $gridY = $chartPaddingTop + $plotHeight - ((($gridValue - $trendMin) / $trendRange) * $plotHeight);
-        @endphp
-        <line x1="{{ $chartPaddingLeft }}" y1="{{ $gridY }}" x2="{{ $chartPaddingLeft + $plotWidth }}" y2="{{ $gridY }}" stroke="#e5e7eb" stroke-width="1" />
-        <text x="{{ $chartPaddingLeft - 8 }}" y="{{ $gridY + 4 }}" font-size="10" text-anchor="end" fill="#6b7280">{{ $gridValue }}</text>
-      @endforeach
-      <line x1="{{ $chartPaddingLeft }}" y1="{{ $chartPaddingTop }}" x2="{{ $chartPaddingLeft }}" y2="{{ $chartPaddingTop + $plotHeight }}" stroke="#9ca3af" stroke-width="1" />
-      <line x1="{{ $chartPaddingLeft }}" y1="{{ $chartPaddingTop + $plotHeight }}" x2="{{ $chartPaddingLeft + $plotWidth }}" y2="{{ $chartPaddingTop + $plotHeight }}" stroke="#9ca3af" stroke-width="1" />
-      <polyline fill="none" stroke="#2563eb" stroke-width="3" points="{{ $polylinePoints }}" />
-      @foreach($svgPoints as $point)
-        <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="4" fill="#2563eb" />
-        <text x="{{ $point['x'] }}" y="{{ $point['y'] - 8 }}" font-size="10" text-anchor="middle" fill="#111827">{{ number_format($point['value'], 1) }}</text>
-        <text x="{{ $point['x'] }}" y="{{ $chartPaddingTop + $plotHeight + 16 }}" font-size="9" text-anchor="middle" fill="#374151">{{ $point['label'] }}</text>
-      @endforeach
-    </svg>
-  @elseif($svgPoints->count() === 1)
-    <div style="padding:8px 0;">
-      <strong>{{ $svgPoints->first()['label'] }}</strong>: {{ number_format($svgPoints->first()['value'], 2) }}
-    </div>
+  @if($svgPoints->count() > 0)
+    <table style="width:100%; border-collapse:collapse; margin-top:6px;">
+      <thead>
+        <tr>
+          <th style="padding:6px; border:1px solid #e5e7eb; text-align:left; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }};">Exam Point</th>
+          <th style="padding:6px; border:1px solid #e5e7eb; text-align:center; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }}; width:90px;">Avg</th>
+          <th style="padding:6px; border:1px solid #e5e7eb; text-align:left; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }};">Trend</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($svgPoints as $point)
+          @php
+            $val = (float) ($point['value'] ?? 0);
+            $pct = ($val - (float) $trendMin) / max(1e-9, (float) $trendRange) * 100;
+            $pct = max(0, min(100, $pct));
+          @endphp
+          <tr>
+            <td style="padding:6px; border:1px solid #e5e7eb; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }};">
+              {{ $point['label'] }}
+            </td>
+            <td style="padding:6px; border:1px solid #e5e7eb; text-align:center; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }};">
+              {{ number_format($val, 2) }}
+            </td>
+            <td style="padding:6px; border:1px solid #e5e7eb;">
+              <div style="height:10px; width:160px; background:#e5e7eb; border-radius:999px; overflow:hidden;">
+                <div style="height:10px; background:#2563eb; width:{{ $pct }}%; border-radius:999px;"></div>
+              </div>
+            </td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table>
   @else
     <div class="text-muted">No academic-year exam trend data available yet.</div>
   @endif
 </div>
 
-{{-- Two-column: Skills / Attendance+Behaviour --}}
+{{-- Attendance + Behaviour (Skills removed for now) --}}
 <table style="width:100%; border-collapse:separate; border-spacing:10px 0;">
   <tr>
-    <td style="width:50%; vertical-align:top;">
-      <div style="border:1px solid #d1d5db; padding:8px; background:#fff;">
-        <strong>Skills</strong>
-        <table style="width:100%; margin-top:6px; border-collapse:collapse; border:1px solid #d1d5db;">
-          <thead>
-            <tr style="background:#f3f4f6;">
-              <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Skill</th>
-              <th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Grade</th>
-              <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Comment</th>
-            </tr>
-          </thead>
-          <tbody>
-            @forelse($D['skills'] as $s)
-              <tr>
-                <td style="padding:6px; border:1px solid #d1d5db;">{{ $s['skill'] }}</td>
-                <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $s['grade'] }}</td>
-                <td style="padding:6px; border:1px solid #d1d5db;">{{ $s['comment'] }}</td>
-              </tr>
-            @empty
-              <tr><td colspan="3" style="padding:8px; text-align:center;">No skills graded.</td></tr>
-            @endforelse
-          </tbody>
-        </table>
-      </div>
-    </td>
-
-    <td style="width:50%; vertical-align:top;">
+    <td style="width:100%; vertical-align:top;">
       <div style="border:1px solid #d1d5db; padding:8px; background:#fff;">
         <strong>Attendance & Behaviour</strong>
         <table style="width:100%; margin-top:6px; border-collapse:collapse; border:1px solid #d1d5db;">
