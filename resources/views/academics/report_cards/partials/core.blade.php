@@ -9,71 +9,31 @@
   $smallFont = !empty($isPdf) ? '8px' : '0.78rem';
   $brandPrimary = setting('finance_primary_color', '#3a1a59');
   $brandSecondary = setting('finance_secondary_color', '#14b8a6');
-  $chartPlotHeight = !empty($isPdf) ? 110 : 130;
-  $chartAxisFont = !empty($isPdf) ? '9px' : '10px';
-  $chartValueFont = !empty($isPdf) ? '9px' : '10px';
-  $chartLabelFont = !empty($isPdf) ? '8px' : '9px';
-  $chartBarWidth = !empty($isPdf) ? 20 : 24;
+  $chartPlotHeight = 120;
+  $chartPlotWidth = 220;
+  $chartAxisFont = '9px';
+  $chartValueFont = '9px';
+  $chartLabelFont = '8px';
+  $chartBarWidthPct = 88;
   $chartCount = max(1, collect($D['year_trend']['points'] ?? [])->count());
   $chartItems = collect($D['year_trend']['points'] ?? [])->values()->map(function ($point, $index) use ($brandPrimary, $brandSecondary, $chartPlotHeight, $chartCount) {
     $value = max(0, min(100, (float) ($point['value'] ?? 0)));
     $height = max(8, (int) round(($value / 100) * $chartPlotHeight));
-    $centerX = (int) round((($index + 0.5) / $chartCount) * 100);
+    $centerX = round((($index + 0.5) / $chartCount) * 100, 2);
+    $topY = round($chartPlotHeight - $height, 1);
 
     return [
       'label' => $point['label'] ?? '',
       'value' => $value,
       'height' => $height,
-      'spacer' => max(0, $chartPlotHeight - $height),
-      'topY' => $chartPlotHeight - $height,
+      'topY' => $topY,
       'centerX' => $centerX,
       'color' => $index % 2 === 0 ? $brandPrimary : $brandSecondary,
     ];
   });
-  $bresenhamLine = function (int $x0, int $y0, int $x1, int $y1): array {
-    $points = [];
-    $dx = abs($x1 - $x0);
-    $dy = abs($y1 - $y0);
-    $sx = $x0 < $x1 ? 1 : -1;
-    $sy = $y0 < $y1 ? 1 : -1;
-    $err = $dx - $dy;
-    $x = $x0;
-    $y = $y0;
-
-    while (true) {
-      $points[] = ['x' => $x, 'y' => $y];
-      if ($x === $x1 && $y === $y1) {
-        break;
-      }
-      $e2 = 2 * $err;
-      if ($e2 > -$dy) {
-        $err -= $dy;
-        $x += $sx;
-      }
-      if ($e2 < $dx) {
-        $err += $dx;
-        $y += $sy;
-      }
-    }
-
-    return $points;
-  };
-  $chartLinePixels = [];
-  if ($chartItems->count() > 1) {
-    $lineNodes = $chartItems->map(fn ($item) => ['x' => $item['centerX'], 'y' => $item['topY']])->all();
-    for ($i = 0; $i < count($lineNodes) - 1; $i++) {
-      $segmentPoints = $bresenhamLine(
-        (int) $lineNodes[$i]['x'],
-        (int) $lineNodes[$i]['y'],
-        (int) $lineNodes[$i + 1]['x'],
-        (int) $lineNodes[$i + 1]['y']
-      );
-      foreach ($segmentPoints as $point) {
-        $chartLinePixels[$point['x'].':'.$point['y']] = $point;
-      }
-    }
-    $chartLinePixels = array_values($chartLinePixels);
-  }
+  $polylinePoints = $chartItems
+    ->map(fn ($item) => $item['centerX'].','.$item['topY'])
+    ->implode(' ');
   $overallPerformance = \App\Support\CbcGradePresentation::normalizeShortCode($D['cbc']['overall_performance_level'] ?? '') ?? null;
   $overallPerformanceName = $D['cbc']['overall_performance_level_name'] ?? null;
 @endphp
@@ -163,7 +123,7 @@
     <td style="width:42%; vertical-align:top; padding:8px; border-right:1px solid #d1d5db;">
       <div style="font-weight:700; font-size:{{ $smallFont }}; margin-bottom:6px; color:{{ $brandPrimary }};">Academic Year Trend</div>
       @if($chartItems->count() > 0)
-        <table style="width:100%; border-collapse:collapse;">
+        <table style="width:{{ $chartPlotWidth + 24 }}px; max-width:100%; border-collapse:collapse;">
           <tr>
             <td style="width:22px; vertical-align:top; padding:0 1px 0 0;">
               <div style="position:relative; width:22px; height:{{ $chartPlotHeight }}px;">
@@ -173,34 +133,29 @@
                 @endforeach
               </div>
             </td>
-            <td style="vertical-align:top; padding:0;">
-              <div style="position:relative; width:100%; height:{{ $chartPlotHeight }}px; border-left:1px solid #9ca3af; border-bottom:1px solid #9ca3af; overflow:hidden;">
+            <td style="vertical-align:top; padding:0; width:{{ $chartPlotWidth }}px;">
+              <div style="position:relative; width:{{ $chartPlotWidth }}px; height:{{ $chartPlotHeight }}px; border-left:1px solid #9ca3af; border-bottom:1px solid #9ca3af;">
                 @foreach([20, 40, 60, 80] as $grid)
                   <div style="position:absolute; left:0; right:0; top:{{ $chartPlotHeight - (($grid / 100) * $chartPlotHeight) }}px; border-top:1px solid #edf2f7;"></div>
                 @endforeach
-                <table style="width:100%; height:{{ $chartPlotHeight }}px; border-collapse:collapse; position:relative; z-index:1; table-layout:fixed;">
-                  <tr style="vertical-align:bottom;">
+                <table style="width:{{ $chartPlotWidth }}px; height:{{ $chartPlotHeight }}px; border-collapse:collapse; table-layout:fixed; position:relative; z-index:1;">
+                  <tr style="vertical-align:bottom; height:{{ $chartPlotHeight }}px;">
                     @foreach($chartItems as $item)
-                      <td style="vertical-align:bottom; text-align:center; padding:0 1px;">
+                      <td style="vertical-align:bottom; text-align:center; padding:0; height:{{ $chartPlotHeight }}px;">
                         <div style="font-size:{{ $chartValueFont }}; font-weight:700; color:#111; line-height:1; margin-bottom:2px;">{{ number_format($item['value'], 0) }}</div>
-                        <table align="center" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-                          @if($item['spacer'] > 0)
-                            <tr><td style="width:{{ $chartBarWidth }}px; height:{{ $item['spacer'] }}px; padding:0; line-height:0; font-size:0;">&nbsp;</td></tr>
-                          @endif
-                          <tr><td style="width:{{ $chartBarWidth }}px; height:{{ $item['height'] }}px; background:{{ $item['color'] }}; padding:0;"></td></tr>
-                        </table>
+                        <div style="width:{{ $chartBarWidthPct }}%; height:{{ $item['height'] }}px; background:{{ $item['color'] }}; margin:0 auto;"></div>
                       </td>
                     @endforeach
                   </tr>
                 </table>
-                @foreach($chartLinePixels as $pixel)
-                  <div style="position:absolute; left:{{ $pixel['x'] }}%; top:{{ $pixel['y'] }}px; width:2px; height:2px; margin-left:-1px; background:{{ $brandSecondary }}; z-index:4;"></div>
-                @endforeach
-                @foreach($chartItems as $item)
-                  <div style="position:absolute; left:{{ $item['centerX'] }}%; top:{{ $item['topY'] - 3 }}px; width:6px; height:6px; margin-left:-3px; background:{{ $brandSecondary }}; border:1px solid #fff; z-index:5;"></div>
-                @endforeach
+                <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute; left:0; top:0; width:{{ $chartPlotWidth }}px; height:{{ $chartPlotHeight }}px; z-index:2;" viewBox="0 0 100 {{ $chartPlotHeight }}" preserveAspectRatio="none">
+                  <polyline fill="none" stroke="{{ $brandSecondary }}" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" points="{{ $polylinePoints }}"></polyline>
+                  @foreach($chartItems as $item)
+                    <circle cx="{{ $item['centerX'] }}" cy="{{ $item['topY'] }}" r="1.8" fill="{{ $brandSecondary }}" stroke="#ffffff" stroke-width="0.4"></circle>
+                  @endforeach
+                </svg>
               </div>
-              <table style="width:100%; border-collapse:collapse; margin-top:4px; table-layout:fixed;">
+              <table style="width:{{ $chartPlotWidth }}px; border-collapse:collapse; margin-top:4px; table-layout:fixed;">
                 <tr>
                   @foreach($chartItems as $item)
                     <td style="text-align:center; font-size:{{ $chartLabelFont }}; color:#374151; line-height:1.2; padding:0 1px; vertical-align:top; word-wrap:break-word;">{{ $item['label'] }}</td>
