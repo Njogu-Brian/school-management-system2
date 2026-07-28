@@ -1,6 +1,10 @@
 @php
   $D = $dto ?? [];
   $examHeaders = data_get(collect($D['subjects'] ?? [])->first(), 'exams', []);
+  use App\Support\CbcGradePresentation;
+  $cbcLegend = collect(CbcGradePresentation::standardBands())
+    ->map(fn ($band) => $band['short'].' = '.$band['label'])
+    ->implode(' | ');
 @endphp
 
 {{-- School letterhead (logo, contact details, print timestamp) --}}
@@ -130,7 +134,17 @@
 <table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-top:10px; margin-bottom:10px;">
   <tr style="background:#f3f4f6;">
     <th style="padding:6px; border:1px solid #d1d5db; text-align:left;">Overall Performance Level</th>
-    <td style="padding:6px; border:1px solid #d1d5db;"><strong>{{ $D['cbc']['overall_performance_level'] ?? 'N/A' }}</strong> - {{ $D['cbc']['overall_performance_level_name'] ?? 'N/A' }}</td>
+    <td style="padding:6px; border:1px solid #d1d5db;">
+      <strong>{{ CbcGradePresentation::normalizeShortCode($D['cbc']['overall_performance_level'] ?? '') ?? 'N/A' }}</strong>
+      @if(!empty($D['cbc']['overall_performance_level_name']))
+        — {{ $D['cbc']['overall_performance_level_name'] }}
+      @endif
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" style="padding:6px; border:1px solid #d1d5db; font-size:{{ !empty($isPdf) ? '8px' : '0.8rem' }}; color:#555;">
+      {{ $cbcLegend }}
+    </td>
   </tr>
 </table>
 @endif
@@ -179,7 +193,7 @@
       <tr>
         <td style="padding:6px; border:1px solid #d1d5db;">{{ $area }}</td>
         <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $performance['average'] !== null ? number_format($performance['average'], 2) : 'N/A' }}%</td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ $performance['performance_level'] ?? 'N/A' }}</strong></td>
+        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;"><strong>{{ CbcGradePresentation::normalizeShortCode($performance['performance_level'] ?? '') ?? 'N/A' }}</strong></td>
         <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $performance['subjects_count'] ?? 0 }}</td>
       </tr>
     @endforeach

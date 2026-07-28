@@ -11,6 +11,7 @@ use App\Models\Academics\StudentBehaviour;
 use App\Models\Setting; // if you store branding here; otherwise adjust.
 use App\Services\CBCAssessmentService;
 use App\Services\Academics\ClassroomGradingService;
+use App\Support\CbcGradePresentation;
 use Illuminate\Support\Facades\Log;
 use App\Services\AttendanceReportService;
 
@@ -170,9 +171,9 @@ class ReportCardBatchService
                 $bySitting[$sitting] = [
                     'exam_name' => $sitting,
                     'score' => $score !== null ? (float) $score : null,
-                    'grade_label' => $grade,
+                    'grade_label' => self::normalizeGradeLabel($grade),
                     'pl_level' => $m?->pl_level,
-                    'performance_level' => $m?->performanceLevel?->code ?? $m?->pl_level,
+                    'performance_level' => self::normalizeGradeLabel($m?->performanceLevel?->code ?? $m?->pl_level),
                     'rubrics' => $m?->rubrics,
                 ];
             }
@@ -192,7 +193,7 @@ class ReportCardBatchService
                 'subject_name' => $subjectName,
                 'exams' => array_values($bySitting),
                 'term_avg' => $avg,
-                'grade_label' => $gradeLabel,
+                'grade_label' => self::normalizeGradeLabel($gradeLabel),
                 'teacher_remark' => $remark,
             ];
         }
@@ -279,11 +280,26 @@ class ReportCardBatchService
 
         // CBC Data from report card
         $cbcData = [
-            'overall_performance_level' => $report->overallPerformanceLevel?->code ?? null,
-            'overall_performance_level_name' => $report->overallPerformanceLevel?->name ?? null,
+            'overall_performance_level' => self::normalizeGradeLabel($report->overallPerformanceLevel?->code ?? null),
+            'overall_performance_level_name' => CbcGradePresentation::nameFromShortCode($report->overallPerformanceLevel?->code)
+                ?? $report->overallPerformanceLevel?->name
+                ?? null,
             'performance_summary' => $report->performance_summary ?? [],
             'core_competencies' => $report->core_competencies ?? [],
-            'learning_areas_performance' => $report->learning_areas_performance ?? [],
+            'learning_areas_performance' => collect($report->learning_areas_performance ?? [])
+                ->map(function ($performance) {
+                    if (! is_array($performance)) {
+                        return $performance;
+                    }
+                    $code = self::normalizeGradeLabel($performance['performance_level'] ?? null);
+
+                    return array_merge($performance, [
+                        'performance_level' => $code,
+                        'performance_level_name' => CbcGradePresentation::nameFromShortCode($code)
+                            ?? ($performance['performance_level_name'] ?? null),
+                    ]);
+                })
+                ->all(),
             'cat_breakdown' => $report->cat_breakdown ?? [],
             'portfolio_summary' => $report->portfolio_summary ?? [],
             'co_curricular' => $report->co_curricular ?? [],
@@ -315,8 +331,9 @@ class ReportCardBatchService
                 if (!$report->overall_performance_level_id && !empty($generatedCBC['overall_performance_level_id'])) {
                     $performanceLevel = CBCPerformanceLevel::find($generatedCBC['overall_performance_level_id']);
                     if ($performanceLevel) {
-                        $cbcData['overall_performance_level'] = $performanceLevel->code;
-                        $cbcData['overall_performance_level_name'] = $performanceLevel->name;
+                        $cbcData['overall_performance_level'] = self::normalizeGradeLabel($performanceLevel->code);
+                        $cbcData['overall_performance_level_name'] = CbcGradePresentation::nameFromShortCode($performanceLevel->code)
+                            ?? $performanceLevel->name;
                     }
                 }
             } catch (\Exception $e) {
@@ -402,5 +419,14 @@ class ReportCardBatchService
         }
 
         return null;
+    }
+
+    protected static function normalizeGradeLabel(mixed $label): ?string
+    {
+        if ($label === null || $label === '') {
+            return null;
+        }
+
+        return CbcGradePresentation::normalizeShortCode((string) $label);
     }
 }

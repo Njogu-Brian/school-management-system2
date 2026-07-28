@@ -11,52 +11,68 @@ class CBCPerformanceLevelSeeder extends Seeder
     {
         $levels = [
             [
-                'code' => 'E',
-                'name' => 'Exceeding',
+                'code' => 'EE',
+                'name' => 'Exceeding Expectation',
                 'min_percentage' => 80.00,
                 'max_percentage' => 100.00,
-                'description' => 'Learner demonstrates competencies beyond the expected level. Shows exceptional understanding and application of knowledge and skills.',
+                'description' => 'Learner demonstrates competencies beyond the expected level.',
                 'color_code' => '#28a745',
                 'display_order' => 1,
                 'is_active' => true,
             ],
             [
-                'code' => 'M',
-                'name' => 'Meeting',
+                'code' => 'ME',
+                'name' => 'Meeting Expectation',
                 'min_percentage' => 60.00,
                 'max_percentage' => 79.99,
-                'description' => 'Learner demonstrates competencies at the expected level. Shows good understanding and application of knowledge and skills.',
+                'description' => 'Learner demonstrates competencies at the expected level.',
                 'color_code' => '#17a2b8',
                 'display_order' => 2,
                 'is_active' => true,
             ],
             [
-                'code' => 'A',
-                'name' => 'Approaching',
-                'min_percentage' => 40.00,
+                'code' => 'AE',
+                'name' => 'Above Expectation',
+                'min_percentage' => 30.00,
                 'max_percentage' => 59.99,
-                'description' => 'Learner demonstrates competencies approaching the expected level. Shows basic understanding but needs more practice.',
+                'description' => 'Learner demonstrates competencies above basic but below meeting level.',
                 'color_code' => '#ffc107',
                 'display_order' => 3,
                 'is_active' => true,
             ],
             [
-                'code' => 'B',
-                'name' => 'Below',
+                'code' => 'BE',
+                'name' => 'Below Expectation',
                 'min_percentage' => 0.00,
-                'max_percentage' => 39.99,
-                'description' => 'Learner demonstrates competencies below the expected level. Requires additional support and intervention.',
+                'max_percentage' => 29.99,
+                'description' => 'Learner demonstrates competencies below the expected level.',
                 'color_code' => '#dc3545',
                 'display_order' => 4,
                 'is_active' => true,
             ],
         ];
 
+        $legacyCodes = ['E' => 'EE', 'M' => 'ME', 'A' => 'AE', 'B' => 'BE'];
+
         foreach ($levels as $level) {
+            $legacyCode = array_search($level['code'], $legacyCodes, true);
+            if ($legacyCode !== false) {
+                $existing = DB::table('cbc_performance_levels')->where('code', $legacyCode)->first();
+                if ($existing) {
+                    DB::table('cbc_performance_levels')->where('id', $existing->id)->update($level);
+
+                    continue;
+                }
+            }
+
             DB::table('cbc_performance_levels')->updateOrInsert(
                 ['code' => $level['code']],
                 $level
             );
         }
+
+        DB::table('cbc_performance_levels')
+            ->whereIn('code', array_keys($legacyCodes))
+            ->update(['is_active' => false]);
     }
 }

@@ -15,8 +15,8 @@ class CbcGradePresentation
     {
         return [
             ['min' => 0, 'max' => 29, 'label' => 'Below Expectation', 'short' => 'BE', 'tier' => 'below'],
-            ['min' => 30, 'max' => 49, 'label' => 'Approaching Expectation', 'short' => 'AE', 'tier' => 'approaching'],
-            ['min' => 50, 'max' => 79, 'label' => 'Meeting Expectation', 'short' => 'ME', 'tier' => 'meeting'],
+            ['min' => 30, 'max' => 59, 'label' => 'Above Expectation', 'short' => 'AE', 'tier' => 'approaching'],
+            ['min' => 60, 'max' => 79, 'label' => 'Meeting Expectation', 'short' => 'ME', 'tier' => 'meeting'],
             ['min' => 80, 'max' => 100, 'label' => 'Exceeding Expectation', 'short' => 'EE', 'tier' => 'exceeding'],
         ];
     }
@@ -82,7 +82,7 @@ class CbcGradePresentation
         if ($percent < 30) {
             return 'below';
         }
-        if ($percent < 50) {
+        if ($percent < 60) {
             return 'approaching';
         }
         if ($percent < 80) {
@@ -92,11 +92,48 @@ class CbcGradePresentation
         return 'exceeding';
     }
 
+    /**
+     * Normalize legacy CBC codes (PL1–PL4, E/M/A/B) to EE/ME/AE/BE.
+     */
+    public static function normalizeShortCode(?string $code): ?string
+    {
+        if ($code === null || trim($code) === '') {
+            return null;
+        }
+
+        $key = strtoupper(trim($code));
+
+        return match ($key) {
+            'PL4', 'E', 'EE' => 'EE',
+            'PL3', 'M', 'ME' => 'ME',
+            'PL2', 'A', 'AE' => 'AE',
+            'PL1', 'B', 'BE' => 'BE',
+            default => $key,
+        };
+    }
+
+    public static function nameFromShortCode(?string $code): ?string
+    {
+        $short = self::normalizeShortCode($code);
+        if ($short === null) {
+            return null;
+        }
+
+        foreach (self::standardBands() as $band) {
+            if ($band['short'] === $short) {
+                return $band['label'];
+            }
+        }
+
+        return null;
+    }
+
     public static function normalizeLabel(string $label): string
     {
         $map = [
             'below expectation' => 'Below Expectation',
-            'approaching expectation' => 'Approaching Expectation',
+            'approaching expectation' => 'Above Expectation',
+            'above expectation' => 'Above Expectation',
             'meeting expectation' => 'Meeting Expectation',
             'meets expectation' => 'Meeting Expectation',
             'exceeding expectation' => 'Exceeding Expectation',
@@ -110,6 +147,11 @@ class CbcGradePresentation
 
     public static function shortFromLabel(string $label): string
     {
+        $fromCode = self::normalizeShortCode($label);
+        if ($fromCode !== null && in_array($fromCode, ['EE', 'ME', 'AE', 'BE'], true)) {
+            return $fromCode;
+        }
+
         $normalized = self::normalizeLabel($label);
         foreach (self::standardBands() as $band) {
             if (strcasecmp($band['label'], $normalized) === 0) {

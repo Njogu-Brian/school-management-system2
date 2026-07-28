@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('cbc_performance_levels', function (Blueprint $table) {
             $table->id();
-            $table->string('code', 1)->unique(); // E, M, A, B
+            $table->string('code', 5)->unique(); // EE, ME, AE, BE
             $table->string('name'); // Exceeding, Meeting, Approaching, Below
             $table->decimal('min_percentage', 5, 2)->default(0);
             $table->decimal('max_percentage', 5, 2)->default(100);
