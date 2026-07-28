@@ -35,22 +35,9 @@
       'value' => $bar['value'],
     ];
   });
-  $lineSegments = [];
-  $plotReferenceWidth = !empty($isPdf) ? 220 : 280;
-  for ($i = 0; $i < $linePoints->count() - 1; $i++) {
-    $from = $linePoints[$i];
-    $to = $linePoints[$i + 1];
-    $fromX = ($from['xPercent'] / 100) * $plotReferenceWidth;
-    $toX = ($to['xPercent'] / 100) * $plotReferenceWidth;
-    $dx = $toX - $fromX;
-    $dy = $to['y'] - $from['y'];
-    $lineSegments[] = [
-      'leftPercent' => $from['xPercent'],
-      'top' => $from['y'],
-      'widthPx' => max(1, (int) round(sqrt(($dx * $dx) + ($dy * $dy)))),
-      'angle' => rad2deg(atan2($dy, $dx)),
-    ];
-  }
+  $polylinePoints = $linePoints
+    ->map(fn ($point) => round($point['xPercent'], 2).','.round($point['y'], 1))
+    ->implode(' ');
   $overallPerformance = \App\Support\CbcGradePresentation::normalizeShortCode($D['cbc']['overall_performance_level'] ?? '') ?? null;
   $overallPerformanceName = $D['cbc']['overall_performance_level_name'] ?? null;
 @endphp
@@ -160,12 +147,12 @@
                     @endforeach
                   </tr>
                 </table>
-                @foreach($lineSegments as $segment)
-                  <div style="position:absolute; left:{{ $segment['leftPercent'] }}%; top:{{ $segment['top'] }}px; width:{{ $segment['widthPx'] }}px; border-top:2px solid {{ $brandSecondary }}; transform:rotate({{ $segment['angle'] }}deg); transform-origin:0 0; z-index:2;"></div>
-                @endforeach
-                @foreach($linePoints as $point)
-                  <div style="position:absolute; left:{{ $point['xPercent'] }}%; top:{{ $point['y'] - 4 }}px; width:8px; height:8px; margin-left:-4px; background:{{ $brandSecondary }}; border:1px solid #fff; border-radius:50%; z-index:3;"></div>
-                @endforeach
+                <svg style="position:absolute; left:0; top:0; width:100%; height:{{ $chartMaxHeight }}px; z-index:2; overflow:visible;" viewBox="0 0 100 {{ $chartMaxHeight }}" preserveAspectRatio="none">
+                  <polyline fill="none" stroke="{{ $brandSecondary }}" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" points="{{ $polylinePoints }}"></polyline>
+                  @foreach($linePoints as $point)
+                    <circle cx="{{ round($point['xPercent'], 2) }}" cy="{{ round($point['y'], 1) }}" r="1.6" fill="{{ $brandSecondary }}" stroke="#ffffff" stroke-width="0.4"></circle>
+                  @endforeach
+                </svg>
               </div>
               <table style="width:100%; border-collapse:collapse; margin-top:4px;">
                 <tr>
