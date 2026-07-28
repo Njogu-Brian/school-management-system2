@@ -184,7 +184,7 @@ class ExamMarkController extends Controller
             ->with(['examType'])
             ->where('exam_type_id', $examTypeId)
             ->where('classroom_id', $classroomId)
-            ->whereIn('status', ['open', 'marking', 'moderation'])
+            ->whereIn('status', app(ExamMarkEntryService::class)->entryVisibleStatuses($authUser))
             ->whereNotNull('subject_id')
             ->when($streamId, function ($q) use ($streamId) {
                 $q->where(function ($subQ) use ($streamId) {
@@ -280,11 +280,12 @@ class ExamMarkController extends Controller
         }
         $students = $studentsQuery->orderBy('last_name')->orderBy('first_name')->get();
 
+        $entryService = app(ExamMarkEntryService::class);
         $examCandidates = Exam::query()
             ->with(['subject', 'examType'])
             ->where('exam_type_id', $examTypeId)
             ->where('classroom_id', $classroomId)
-            ->whereIn('status', ['open', 'marking', 'moderation'])
+            ->whereIn('status', $entryService->entryVisibleStatuses($authUser))
             ->whereNotNull('subject_id')
             ->when($streamId, function ($q) use ($streamId) {
                 $q->where(function ($subQ) use ($streamId) {
@@ -308,7 +309,6 @@ class ExamMarkController extends Controller
                 ->keyBy(fn ($m) => $m->student_id.'-'.$m->exam_id);
         }
 
-        $entryService = app(ExamMarkEntryService::class);
         $examMeta = $exams->mapWithKeys(fn (Exam $exam) => [
             $exam->id => [
                 'status' => $exam->status,
@@ -431,11 +431,10 @@ class ExamMarkController extends Controller
             }
         }
 
-        // Check if exam allows mark entry
-        if (!in_array($exam->status, ['open', 'marking'])) {
+        if (! app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($exam, $authUser)) {
             return back()
                 ->withInput()
-                ->with('error', 'Cannot enter marks for this exam. Exam status must be "Open" or "Marking".');
+                ->with('error', 'Cannot enter marks for this exam. It may be published — only Senior Teachers and Admins can edit published marks.');
         }
 
         return $this->renderBulkEditor($v['exam_id'], $v['classroom_id'], $v['subject_id']);
@@ -626,7 +625,7 @@ class ExamMarkController extends Controller
         if (! app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($exam, $authUser)) {
             return back()
                 ->withInput()
-                ->with('error', 'Cannot enter marks for this exam. It may be under review — only Senior Teachers and Admins can edit now.');
+                ->with('error', 'Cannot enter marks for this exam. It may be published — only Senior Teachers and Admins can edit published marks.');
         }
 
         $finalize = $request->boolean('submit_for_review');
@@ -728,7 +727,7 @@ class ExamMarkController extends Controller
                 : back()->with('error', $e->getMessage());
         }
 
-        $message = 'Marks submitted for review. Only Senior Teachers and Admins can edit this exam now.';
+        $message = 'Marks submitted for review. You can still edit until results are published.';
 
         return $request->expectsJson()
             ? response()->json(['success' => true, 'message' => $message, 'exam_status' => $exam->fresh()->status])
@@ -757,11 +756,10 @@ class ExamMarkController extends Controller
             }
         }
 
-        // Check if exam allows mark entry
         $exam = $exam_mark->exam;
-        if ($exam && !in_array($exam->status, ['open', 'marking'])) {
+        if ($exam && ! app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($exam, Auth::user())) {
             return back()
-                ->with('error', 'Cannot edit marks for this exam. Exam status must be "Open" or "Marking".');
+                ->with('error', 'Cannot edit marks for this exam. Published marks can only be revised by Senior Teachers and Admins.');
         }
 
         return view('academics.exam_marks.edit', compact('exam_mark'));
@@ -788,12 +786,11 @@ class ExamMarkController extends Controller
             }
         }
 
-        // Check if exam allows mark entry
         $exam = $exam_mark->exam;
-        if ($exam && !in_array($exam->status, ['open', 'marking'])) {
+        if ($exam && ! app(ExamMarkEntryService::class)->examAcceptsTeacherEntry($exam, Auth::user())) {
             return back()
                 ->withInput()
-                ->with('error', 'Cannot update marks for this exam. Exam status must be "Open" or "Marking".');
+                ->with('error', 'Cannot update marks for this exam. Published marks can only be revised by Senior Teachers and Admins.');
         }
 
         $examType = $exam->examType;

@@ -451,11 +451,12 @@ class ApiAcademicsController extends Controller
         }
         $students = $studentsQuery->orderBy('last_name')->orderBy('first_name')->get(['id', 'first_name', 'last_name', 'admission_number', 'classroom_id', 'stream_id']);
 
+        $entryService = app(ExamMarkEntryService::class);
         $examCandidates = Exam::query()
             ->with(['subject', 'examType'])
             ->where('exam_type_id', $examTypeId)
             ->where('classroom_id', $classroomId)
-            ->whereIn('status', ['open', 'marking', 'moderation'])
+            ->whereIn('status', $entryService->entryVisibleStatuses($user))
             ->whereNotNull('subject_id')
             ->when($streamId, function ($q) use ($streamId) {
                 $q->where(function ($subQ) use ($streamId) {
@@ -557,11 +558,12 @@ class ApiAcademicsController extends Controller
         $allowedStudents = $studentsQuery->pluck('id')->map(fn ($id) => (int) $id)->all();
         $allowedStudentSet = array_flip($allowedStudents);
 
+        $entryService = app(ExamMarkEntryService::class);
         $examCandidates = Exam::query()
             ->with(['examType'])
             ->where('exam_type_id', $examTypeId)
             ->where('classroom_id', $classroomId)
-            ->whereIn('status', ['open', 'marking', 'moderation'])
+            ->whereIn('status', $entryService->entryVisibleStatuses($user))
             ->whereNotNull('subject_id')
             ->when($streamId, function ($q) use ($streamId) {
                 $q->where(function ($subQ) use ($streamId) {

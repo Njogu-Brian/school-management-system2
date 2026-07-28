@@ -20,9 +20,9 @@
           @endif
         </p>
         @if(!$canEdit)
-          <span class="badge bg-warning text-dark mt-2">Under review — read only</span>
-        @elseif($exam->status === 'moderation')
-          <span class="badge bg-info mt-2">Under review — you can edit as Senior Teacher / Admin</span>
+          <span class="badge bg-warning text-dark mt-2">Read only — published marks can only be revised by Senior Teachers and Admins</span>
+        @elseif(in_array($exam->status, ['moderation', 'approved'], true))
+          <span class="badge bg-info mt-2">Under review — you can still edit until results are published</span>
         @else
           <span class="badge bg-secondary mt-2">Draft autosave enabled</span>
         @endif
@@ -130,8 +130,8 @@
             <button type="submit" name="submit_for_review" value="0" class="btn btn-outline-secondary" @disabled($students->isEmpty())>
               <i class="bi bi-save2 me-1"></i>Save draft
             </button>
-            @if(!in_array($exam->status, ['moderation'], true))
-              <button type="submit" name="submit_for_review" value="1" class="btn btn-settings-primary" @disabled($students->isEmpty()) onclick="return confirm('Submit all marks for review? Teachers will not be able to edit this exam after submission.');">
+            @if(!in_array($exam->status, ['moderation', 'approved', 'published', 'locked'], true))
+              <button type="submit" name="submit_for_review" value="1" class="btn btn-settings-primary" @disabled($students->isEmpty()) onclick="return confirm('Submit all marks for review? You can still edit until results are published.');">
                 <i class="bi bi-send-check me-1"></i>Submit for review
               </button>
             @endif

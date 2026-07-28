@@ -10,13 +10,32 @@ use Illuminate\Support\Facades\DB;
 
 class ExamMarkEntryService
 {
+    /** Exam statuses where regular teachers may enter or revise marks (before publication). */
+    public function teacherEditableStatuses(): array
+    {
+        return ['open', 'marking', 'moderation', 'approved'];
+    }
+
+    /** Exam statuses shown in mark-entry pickers (includes published/locked for senior teachers). */
+    public function entryVisibleStatuses(?User $user = null): array
+    {
+        $statuses = $this->teacherEditableStatuses();
+
+        if ($user && $this->userCanOverrideLockedEntry($user)) {
+            $statuses = array_merge($statuses, ['published', 'locked']);
+        }
+
+        return $statuses;
+    }
+
     public function examAcceptsTeacherEntry(Exam $exam, ?User $user = null): bool
     {
-        if (in_array($exam->status, ['open', 'marking'], true)) {
+        if (in_array($exam->status, $this->teacherEditableStatuses(), true)) {
             return true;
         }
 
-        if ($exam->status === 'moderation' && $user && $this->userCanOverrideLockedEntry($user)) {
+        if ($user && $this->userCanOverrideLockedEntry($user)
+            && in_array($exam->status, ['published', 'locked'], true)) {
             return true;
         }
 
@@ -29,6 +48,7 @@ class ExamMarkEntryService
             'Super Admin', 'super admin', 'Super admin',
             'Admin', 'System Admin',
             'Senior Teacher', 'senior teacher', 'Senior teacher',
+            'Deputy Senior Teacher', 'deputy senior teacher', 'Deputy senior teacher',
         ]);
     }
 

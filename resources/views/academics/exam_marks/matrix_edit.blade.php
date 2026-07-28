@@ -43,7 +43,7 @@
     @endif
 
     @if($exams->isEmpty())
-      <div class="alert alert-warning">No open, marking, or under-review exams found for this exam type and class context.</div>
+      <div class="alert alert-warning">No editable exams found for this exam type and class context.</div>
     @elseif($students->isEmpty())
       <div class="alert alert-warning">No active learners found for the selected class/stream context.</div>
     @endif
@@ -68,8 +68,10 @@
                     <div class="fw-semibold">{{ $exam->name }}</div>
                     <div class="small text-muted">{{ $exam->subject?->name ?? 'Subject' }}</div>
                     <div class="small text-muted">Max {{ (float)($exam->examType?->default_max_mark ?? $exam->max_marks ?? 100) }}</div>
-                    @if($meta['status'] === 'moderation')
+                    @if(in_array($meta['status'], ['moderation', 'approved'], true))
                       <span class="badge bg-warning text-dark">Under review</span>
+                    @elseif(in_array($meta['status'], ['published', 'locked'], true))
+                      <span class="badge bg-success">Published</span>
                     @endif
                   </th>
                 @endforeach
@@ -148,9 +150,9 @@
           </button>
           @foreach($exams as $exam)
             @php $meta = $examMeta[$exam->id] ?? ['can_edit' => false, 'status' => $exam->status]; @endphp
-            @if($meta['can_edit'] && $meta['status'] !== 'moderation')
+            @if($meta['can_edit'] && !in_array($meta['status'], ['moderation', 'approved', 'published', 'locked'], true))
               <button type="submit" name="submit_for_review" value="1" class="btn btn-sm btn-settings-primary"
-                onclick="document.getElementById('submit-exam-ids').value='{{ $exam->id }}'; return confirm('Submit {{ $exam->name }} for review? Teachers cannot edit after submission.');">
+                onclick="document.getElementById('submit-exam-ids').value='{{ $exam->id }}'; return confirm('Submit {{ $exam->name }} for review? You can still edit until results are published.');">
                 Submit {{ Str::limit($exam->name, 20) }}
               </button>
             @endif
