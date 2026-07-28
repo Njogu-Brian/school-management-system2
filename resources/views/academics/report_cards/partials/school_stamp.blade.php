@@ -22,65 +22,46 @@
   }
   $nameLine1 = strtoupper(trim((string) $nameLine1));
   $nameLine2 = strtoupper(trim((string) $nameLine2));
-  $addressRaw = setting('report_stamp_address', setting('school_address', 'P. O. Box 10804 - 00100 NAIROBI'));
-  $poBox = strtoupper(trim((string) $addressRaw));
-  if ($poBox !== '' && ! str_contains($poBox, 'BOX') && ! str_contains($poBox, 'P.O')) {
-      $poBox = 'P. O. BOX '.$poBox;
-  }
+  $poBox = strtoupper(trim((string) setting('report_stamp_address', 'P.O BOX 10804-00100 NRB')));
   $phoneRaw = trim((string) setting('report_stamp_phone', setting('school_phone', '0719 396 233')));
   $phoneLine = strtoupper(str_starts_with($phoneRaw, 'TEL') ? $phoneRaw : 'TEL: '.$phoneRaw);
-  $stampW = ! empty($isPdf) ? 178 : 210;
-  $stampH = ! empty($isPdf) ? 122 : 142;
-  $nameSize = ! empty($isPdf) ? 8.6 : 10.2;
-  $metaSize = ! empty($isPdf) ? 7.2 : 8.4;
-  $dateSize = ! empty($isPdf) ? 9.8 : 11.2;
-  $rotate = -1.8;
-  $centerX = $stampW / 2;
-  $centerY = $stampH / 2;
+  $isPdfMode = ! empty($isPdf);
+  $fontFamily = $isPdfMode ? 'DejaVu Sans, sans-serif' : 'Arial, Helvetica, sans-serif';
+  $padX = $isPdfMode ? '10px' : '14px';
+  $padY = $isPdfMode ? '5px' : '6px';
+  $nameSize = $isPdfMode ? '8.5px' : '10px';
+  $dateSize = $isPdfMode ? '10px' : '11.5px';
+  $metaSize = $isPdfMode ? '7px' : '8.5px';
+  $stampWidth = $isPdfMode ? '188px' : '210px';
 @endphp
 
-<div class="school-official-stamp" style="display:inline-block; line-height:0; margin:0; padding:0;">
-  <svg xmlns="http://www.w3.org/2000/svg"
-       width="{{ $stampW }}px"
-       height="{{ $stampH }}px"
-       viewBox="0 0 {{ $stampW }} {{ $stampH }}"
-       role="img"
-       aria-label="Official school stamp">
-    <defs>
-      <filter id="stampInk-{{ md5($stampDateText.$stampW) }}" x="-8%" y="-8%" width="116%" height="116%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="2" seed="3" result="noise"/>
-        <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.65" xChannelSelector="R" yChannelSelector="G"/>
-      </filter>
-      <pattern id="stampSpeck-{{ md5($stampDateText.$stampW) }}" width="6" height="6" patternUnits="userSpaceOnUse">
-        <circle cx="1.2" cy="2.4" r="0.35" fill="{{ $stampBlue }}" opacity="0.08"/>
-        <circle cx="4.5" cy="1.1" r="0.28" fill="{{ $stampBlue }}" opacity="0.06"/>
-        <circle cx="3.3" cy="4.8" r="0.22" fill="{{ $stampRed }}" opacity="0.05"/>
-      </pattern>
-    </defs>
-    <g transform="rotate({{ $rotate }} {{ $centerX }} {{ $centerY }})" filter="url(#stampInk-{{ md5($stampDateText.$stampW) }})" opacity="0.9">
-      <rect x="3.5" y="3.5" width="{{ $stampW - 7 }}" height="{{ $stampH - 7 }}" fill="url(#stampSpeck-{{ md5($stampDateText.$stampW) }})" opacity="0.35"/>
-      <rect x="3.5" y="3.5" width="{{ $stampW - 7 }}" height="{{ $stampH - 7 }}" fill="none" stroke="{{ $stampBlue }}" stroke-width="2.1" opacity="0.88"/>
-      <rect x="5.5" y="5.5" width="{{ $stampW - 11 }}" height="{{ $stampH - 11 }}" fill="none" stroke="{{ $stampBlue }}" stroke-width="0.6" opacity="0.35"/>
-
-      <text x="{{ $centerX }}" y="22" text-anchor="middle"
-            fill="{{ $stampBlue }}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
-            font-size="{{ $nameSize }}" font-weight="700" letter-spacing="0.6">{{ $nameLine1 }}</text>
-      @if($nameLine2 !== '')
-        <text x="{{ $centerX }}" y="{{ ! empty($isPdf) ? 33 : 36 }}" text-anchor="middle"
-              fill="{{ $stampBlue }}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
-              font-size="{{ $nameSize }}" font-weight="700" letter-spacing="0.6">{{ $nameLine2 }}</text>
-      @endif
-
-      <text x="{{ $centerX }}" y="{{ ! empty($isPdf) ? 52 : 58 }}" text-anchor="middle"
-            fill="{{ $stampRed }}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
-            font-size="{{ $dateSize }}" font-weight="700" letter-spacing="1.1">{{ $stampDateText }}</text>
-
-      <text x="{{ $centerX }}" y="{{ ! empty($isPdf) ? 72 : 82 }}" text-anchor="middle"
-            fill="{{ $stampBlue }}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
-            font-size="{{ $metaSize }}" font-weight="600" letter-spacing="0.35">{{ $poBox }}</text>
-      <text x="{{ $centerX }}" y="{{ ! empty($isPdf) ? 86 : 98 }}" text-anchor="middle"
-            fill="{{ $stampBlue }}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
-            font-size="{{ $metaSize }}" font-weight="600" letter-spacing="0.35">{{ $phoneLine }}</text>
-    </g>
-  </svg>
-</div>
+{{-- HTML table stamp: DomPDF does not render SVG stamps reliably --}}
+<table cellpadding="0" cellspacing="0" role="presentation" aria-label="Official school stamp"
+       style="width:{{ $stampWidth }}; border-collapse:collapse; margin:0; opacity:0.92; font-family:{{ $fontFamily }};">
+  <tr>
+    <td style="border:2.5px solid {{ $stampBlue }}; padding:{{ $padY }} {{ $padX }}; text-align:center; background:rgba(26,79,156,0.04);">
+      <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%; border-collapse:collapse;">
+        <tr>
+          <td style="text-align:center; color:{{ $stampBlue }}; font-weight:700; font-size:{{ $nameSize }}; letter-spacing:0.6px; line-height:1.35; padding-bottom:3px;">
+            {{ $nameLine1 }}@if($nameLine2 !== '')<br>{{ $nameLine2 }}@endif
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align:center; color:{{ $stampRed }}; font-weight:700; font-size:{{ $dateSize }}; letter-spacing:1px; line-height:1.3; padding:4px 0;">
+            {{ $stampDateText }}
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align:center; color:{{ $stampBlue }}; font-weight:600; font-size:{{ $metaSize }}; letter-spacing:0.35px; line-height:1.35; padding-top:2px;">
+            {{ $poBox }}
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align:center; color:{{ $stampBlue }}; font-weight:600; font-size:{{ $metaSize }}; letter-spacing:0.35px; line-height:1.35; padding-top:2px;">
+            {{ $phoneLine }}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
