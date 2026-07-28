@@ -199,7 +199,7 @@ class RepairTransportFlatRateMismatch extends Command
             ->where('year', $year)
             ->where('term', $term)
             ->orderBy('id')
-            ->chunkById(200, function ($fees) use ($adjust, $isDecrease, $year, $term, $dryRun, &$count) {
+            ->chunkById(200, function ($fees) use ($adjust, $direction, $isDecrease, $year, $term, $dryRun, &$count) {
                 foreach ($fees as $fee) {
                     $current = (float) $fee->amount;
                     $newAmount = $isDecrease
