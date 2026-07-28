@@ -33,6 +33,7 @@
   });
   $polylinePoints = $svgPoints->map(fn ($p) => $p['x'].','.$p['y'])->implode(' ');
   $gridValues = [0, 20, 40, 60, 80, 100];
+  $verticalBarMaxHeight = 150;
 @endphp
 
 {{-- School letterhead (logo, contact details, print timestamp) --}}
@@ -142,38 +143,32 @@
     Overall exam averages across the academic year, ordered by term and sitting.
   </div>
   @if($svgPoints->count() > 0)
-    <table style="width:100%; border-collapse:collapse; margin-top:6px;">
-      <thead>
-        <tr>
-          <th style="padding:6px; border:1px solid #e5e7eb; text-align:left; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }};">Exam Point</th>
-          <th style="padding:6px; border:1px solid #e5e7eb; text-align:center; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }}; width:90px;">Avg</th>
-          <th style="padding:6px; border:1px solid #e5e7eb; text-align:left; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }};">Trend</th>
-        </tr>
-      </thead>
+    <table style="width:100%; border-collapse:collapse; margin-top:6px; table-layout:fixed;">
       <tbody>
-        @foreach($svgPoints as $point)
-          @php
-            $val = (float) ($point['value'] ?? 0);
-            $pct = ($val - (float) $trendMin) / max(1e-9, (float) $trendRange) * 100;
-            $pct = max(0, min(100, $pct));
-          @endphp
-          <tr>
-            <td style="padding:6px; border:1px solid #e5e7eb; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }};">
-              {{ $point['label'] }}
-            </td>
-            <td style="padding:6px; border:1px solid #e5e7eb; text-align:center; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }};">
-              {{ number_format($val, 2) }}
-            </td>
-            <td style="padding:6px; border:1px solid #e5e7eb;">
-              <div style="height:14px; width:170px; background:#e5e7eb; border-radius:12px; overflow:hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,.85);">
-                <div style="height:14px; width:{{ $pct }}%; background:linear-gradient(90deg, #22c55e 0%, #06b6d4 35%, #3b82f6 70%, #8b5cf6 100%); border-radius:12px; position:relative;">
-                  <div style="height:4px; width:100%; background:rgba(255,255,255,.35);"></div>
-                  <div style="height:10px; width:100%; background:linear-gradient(180deg, rgba(255,255,255,.12) 0%, rgba(0,0,0,.10) 100%);"></div>
+        <tr>
+          @foreach($svgPoints as $point)
+            @php
+              $val = (float) ($point['value'] ?? 0);
+              $pct = ($val - (float) $trendMin) / max(1e-9, (float) $trendRange) * 100;
+              $pct = max(0, min(100, $pct));
+              $barHeight = max(12, (int) round(($pct / 100) * $verticalBarMaxHeight));
+            @endphp
+            <td style="padding:8px 6px; border:1px solid #e5e7eb; vertical-align:bottom; text-align:center;">
+              <div style="height:18px; font-size:{{ !empty($isPdf) ? '9px' : '0.78rem' }}; font-weight:700; color:#111827; margin-bottom:6px;">
+                {{ number_format($val, 1) }}
+              </div>
+              <div style="height:{{ $verticalBarMaxHeight }}px; position:relative; margin:0 auto 8px auto; width:40px; background:linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%); border:1px solid #dbeafe; border-radius:14px; box-shadow: inset 0 2px 4px rgba(255,255,255,.85);">
+                <div style="position:absolute; left:5px; right:5px; bottom:5px; height:{{ $barHeight }}px; background:linear-gradient(180deg, #8b5cf6 0%, #3b82f6 35%, #06b6d4 70%, #22c55e 100%); border-radius:10px; box-shadow: 0 4px 8px rgba(59,130,246,.25); overflow:hidden;">
+                  <div style="height:6px; background:rgba(255,255,255,.38);"></div>
+                  <div style="height:100%; background:linear-gradient(180deg, rgba(255,255,255,.10) 0%, rgba(0,0,0,.12) 100%);"></div>
                 </div>
               </div>
+              <div style="font-size:{{ !empty($isPdf) ? '8px' : '0.72rem' }}; color:#374151; line-height:1.25;">
+                {{ $point['label'] }}
+              </div>
             </td>
-          </tr>
-        @endforeach
+          @endforeach
+        </tr>
       </tbody>
     </table>
   @else
@@ -315,6 +310,24 @@
       <div style="border:1px solid #d1d5db; padding:8px; background:#fff;">
         <strong>Talent Noticed</strong>
         <div style="padding-top:6px;">{{ $D['comments']['talent_noticed'] ?? '' }}</div>
+      </div>
+    </td>
+  </tr>
+</table>
+
+{{-- Signatures --}}
+<table style="width:100%; border-collapse:separate; border-spacing:16px 0; margin-top:12px; margin-bottom:10px;">
+  <tr>
+    <td style="width:50%; vertical-align:top;">
+      <div style="padding-top:24px; border-bottom:1px solid #374151; margin-bottom:6px;"></div>
+      <div style="font-size:{{ !empty($isPdf) ? '9px' : '0.8rem' }}; color:#374151;">
+        <strong>Class Teacher Signature</strong>
+      </div>
+    </td>
+    <td style="width:50%; vertical-align:top;">
+      <div style="padding-top:24px; border-bottom:1px solid #374151; margin-bottom:6px;"></div>
+      <div style="font-size:{{ !empty($isPdf) ? '9px' : '0.8rem' }}; color:#374151;">
+        <strong>Head Teacher Signature</strong>
       </div>
     </td>
   </tr>

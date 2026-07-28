@@ -262,6 +262,14 @@ class ReportCardBatchService
             (int) ($report->classroom_id ?? 0),
             $report->stream_id ? (int) $report->stream_id : null
         );
+        $currentOverviewAverage = data_get($report->summary, 'average');
+        if ($currentOverviewAverage === null) {
+            $currentOverviewAverage = collect($subjectsRows)->pluck('term_avg')->filter(fn ($v) => $v !== null)->avg();
+        }
+        $referenceOverviewAverage = data_get($previousReport?->summary ?? [], 'average');
+        if ($referenceOverviewAverage === null) {
+            $referenceOverviewAverage = collect($subjectsRows)->pluck('reference_term_avg')->filter(fn ($v) => $v !== null)->avg();
+        }
 
         // Skills (per-report skills)
         $skills = $report->skills->map(fn ($s) => [
@@ -420,13 +428,21 @@ class ReportCardBatchService
             'overview' => [
                 'current_term' => [
                     'name' => $report->term?->name ?? '',
-                    'average' => data_get($report->summary, 'average'),
-                    'grade' => self::normalizeGradeLabel(data_get($report->summary, 'grade')),
+                    'average' => $currentOverviewAverage !== null ? round((float) $currentOverviewAverage, 2) : null,
+                    'grade' => self::resolveOverviewGrade(
+                        $currentOverviewAverage,
+                        data_get($report->summary, 'grade'),
+                        $classroomId
+                    ),
                 ],
                 'reference_term' => [
                     'name' => $previousTerm?->name,
-                    'average' => data_get($previousReport?->summary ?? [], 'average'),
-                    'grade' => self::normalizeGradeLabel(data_get($previousReport?->summary ?? [], 'grade')),
+                    'average' => $referenceOverviewAverage !== null ? round((float) $referenceOverviewAverage, 2) : null,
+                    'grade' => self::resolveOverviewGrade(
+                        $referenceOverviewAverage,
+                        data_get($previousReport?->summary ?? [], 'grade'),
+                        $classroomId
+                    ),
                 ],
             ],
             'subjects'   => $subjectsRows,
@@ -504,6 +520,22 @@ class ReportCardBatchService
         }
 
         return CbcGradePresentation::normalizeShortCode((string) $label);
+    }
+
+    protected static function resolveOverviewGrade(mixed $average, mixed $storedGrade, int $classroomId): ?string
+    {
+        $normalizedStored = self::normalizeGradeLabel($storedGrade);
+        if ($normalizedStored !== null && $normalizedStored !== '') {
+            return $normalizedStored;
+        }
+
+        if ($average === null || $classroomId <= 0) {
+            return null;
+        }
+
+        $graded = app(ClassroomGradingService::class)->gradeForPercentage((float) $average, $classroomId);
+
+        return self::normalizeGradeLabel($graded['label'] ?? null);
     }
 
     protected static function previousTermInAcademicYear(?Term $term): ?Term
