@@ -165,8 +165,11 @@
               {{ number_format($val, 2) }}
             </td>
             <td style="padding:6px; border:1px solid #e5e7eb;">
-              <div style="height:10px; width:160px; background:#e5e7eb; border-radius:999px; overflow:hidden;">
-                <div style="height:10px; background:#2563eb; width:{{ $pct }}%; border-radius:999px;"></div>
+              <div style="height:14px; width:170px; background:#e5e7eb; border-radius:12px; overflow:hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,.85);">
+                <div style="height:14px; width:{{ $pct }}%; background:linear-gradient(90deg, #22c55e 0%, #06b6d4 35%, #3b82f6 70%, #8b5cf6 100%); border-radius:12px; position:relative;">
+                  <div style="height:4px; width:100%; background:rgba(255,255,255,.35);"></div>
+                  <div style="height:10px; width:100%; background:linear-gradient(180deg, rgba(255,255,255,.12) 0%, rgba(0,0,0,.10) 100%);"></div>
+                </div>
               </div>
             </td>
           </tr>
