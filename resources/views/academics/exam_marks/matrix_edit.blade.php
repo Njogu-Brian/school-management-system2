@@ -2,6 +2,43 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    <style>
+      .matrix-scroll {
+        max-height: calc(100vh - 260px);
+        overflow: auto;
+        position: relative;
+        -webkit-overflow-scrolling: touch;
+      }
+      .matrix-table {
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      .matrix-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: #f8f9fa;
+        box-shadow: inset 0 -1px 0 #dee2e6;
+        vertical-align: top;
+      }
+      .matrix-table th.matrix-sticky-col,
+      .matrix-table td.matrix-sticky-col {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fff;
+        box-shadow: 2px 0 0 #dee2e6;
+        min-width: 220px;
+        max-width: 260px;
+      }
+      .matrix-table thead th.matrix-sticky-col {
+        z-index: 4;
+        background: #f8f9fa;
+      }
+      .matrix-table tbody tr:hover td.matrix-sticky-col {
+        background: #f1f3f5;
+      }
+    </style>
 @endpush
 
 @section('content')
@@ -57,11 +94,11 @@
       @endif
 
       <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-modern table-hover align-middle mb-0">
+        <div class="table-responsive matrix-scroll">
+          <table class="table table-modern table-hover align-middle mb-0 matrix-table">
             <thead class="table-light">
               <tr>
-                <th style="min-width:220px;">Learner</th>
+                <th class="matrix-sticky-col">Learner</th>
                 @foreach($exams as $exam)
                   @php $meta = $examMeta[$exam->id] ?? ['can_edit' => false, 'status' => $exam->status]; @endphp
                   <th style="min-width:220px;" data-exam-id="{{ $exam->id }}">
@@ -80,7 +117,7 @@
             <tbody>
               @forelse($students as $s)
                 <tr>
-                  <td>
+                  <td class="matrix-sticky-col">
                     <div class="fw-semibold">{{ $s->full_name }}</div>
                     <div class="small text-muted">Adm: {{ $s->admission_number ?? '—' }}</div>
                   </td>
