@@ -280,12 +280,7 @@ class ReportCardController extends Controller
         $pdf = Pdf::loadView('academics.report_cards.pdf', [
             'dto'         => $dto,
             'report_card' => $report,
-        ])
-            ->setPaper('A4', 'portrait')
-            ->setOption('defaultFont', 'DejaVu Sans')
-            ->setOption('isHtml5ParserEnabled', true)
-            ->setOption('isRemoteEnabled', true)
-            ->setOption('isFontSubsettingEnabled', false);
+        ])->setPaper('A4', 'portrait');
 
         $filename = ReportCardBatchService::pdfFilename($dto);
 

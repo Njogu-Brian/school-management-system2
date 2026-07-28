@@ -5,9 +5,6 @@
     ->map(fn ($band) => $band['short'].' = '.$band['label'])
     ->implode(' | ');
   $cellStyle = 'padding:6px; border:1px solid #d1d5db;';
-  if (!empty($isPdf)) {
-      $cellStyle .= ' color:#000000; font-family:DejaVu Sans;';
-  }
 @endphp
 
 {{-- School letterhead (logo, contact details, print timestamp) --}}
