@@ -284,7 +284,8 @@ class ReportCardController extends Controller
             ->setPaper('A4', 'portrait')
             ->setOption('defaultFont', 'DejaVu Sans')
             ->setOption('isHtml5ParserEnabled', true)
-            ->setOption('isRemoteEnabled', true);
+            ->setOption('isRemoteEnabled', true)
+            ->setOption('isFontSubsettingEnabled', false);
 
         $filename = ReportCardBatchService::pdfFilename($dto);
 

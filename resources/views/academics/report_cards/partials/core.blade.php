@@ -6,7 +6,7 @@
     ->implode(' | ');
   $cellStyle = 'padding:6px; border:1px solid #d1d5db;';
   if (!empty($isPdf)) {
-      $cellStyle .= ' color:#111111; font-family:DejaVu Sans,sans-serif;';
+      $cellStyle .= ' color:#000000; font-family:DejaVu Sans;';
   }
 @endphp
 
