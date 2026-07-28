@@ -7,7 +7,7 @@
         'title' => 'Credit / Debit Adjustments',
         'icon' => 'bi bi-arrow-left-right',
         'subtitle' => 'Manage credit and debit note adjustments',
-        'actions' => '<a href="' . route('finance.journals.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> New Adjustment</a> <a href="' . route('finance.journals.bulk.form') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-upload"></i> Bulk Import</a>'
+        'actions' => '<a href="' . route('finance.student-credit-debit-notes.index') . '" class="btn btn-finance btn-finance-outline me-2"><i class="bi bi-journal-text"></i> By Student</a> <a href="' . route('finance.journals.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> New Adjustment</a> <a href="' . route('finance.journals.bulk.form') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-upload"></i> Bulk Import</a>'
     ])
 
     @includeIf('finance.invoices.partials.alerts')

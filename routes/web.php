@@ -1657,6 +1657,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('student-statements/{student}/print', [StudentStatementController::class, 'print'])->name('student-statements.print');
         Route::get('student-statements/{student}/export', [StudentStatementController::class, 'export'])->name('student-statements.export');
 
+        Route::get('student-credit-debit-notes', [\App\Http\Controllers\Finance\StudentCreditDebitNoteController::class, 'index'])->name('student-credit-debit-notes.index');
+        Route::get('student-credit-debit-notes/{student}', [\App\Http\Controllers\Finance\StudentCreditDebitNoteController::class, 'show'])->name('student-credit-debit-notes.show');
+
         // Sibling balance transfer (when an archived student leaves with arrears)
         Route::post('sibling-balance-transfer', [\App\Http\Controllers\Finance\SiblingBalanceTransferController::class, 'store'])
             ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')

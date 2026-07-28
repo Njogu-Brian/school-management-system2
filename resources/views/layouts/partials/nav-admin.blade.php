@@ -447,7 +447,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     
     {{-- Invoicing --}}
     <a href="{{ route('finance.invoices.index') }}" class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
-    <a href="{{ route('finance.journals.index') }}" class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
+    <a href="{{ route('finance.journals.index') }}" class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') || Request::is('finance/student-credit-debit-notes*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
     
     {{-- Billing Configuration --}}
     @php
