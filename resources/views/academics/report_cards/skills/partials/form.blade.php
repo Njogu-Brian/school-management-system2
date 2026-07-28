@@ -7,7 +7,7 @@
     <label class="form-label">Rating <span class="text-danger">*</span></label>
     <select name="rating" class="form-select" required>
       <option value="">-- Select Rating --</option>
-      @foreach(['EE'=>'Exceeding Expectation','ME'=>'Meeting Expectation','AE'=>'Above Expectation','BE'=>'Below Expectation'] as $code=>$label)
+      @foreach(['EE'=>'Exceeding Expectation','ME'=>'Meeting Expectation','AE'=>'Approaching Expectation','BE'=>'Below Expectation'] as $code=>$label)
         <option value="{{ $code }}" @selected(old('rating',$skill->rating ?? '')==$code)>{{ $label }}</option>
       @endforeach
     </select>

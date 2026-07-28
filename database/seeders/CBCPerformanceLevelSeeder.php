@@ -32,10 +32,10 @@ class CBCPerformanceLevelSeeder extends Seeder
             ],
             [
                 'code' => 'AE',
-                'name' => 'Above Expectation',
+                'name' => 'Approaching Expectation',
                 'min_percentage' => 30.00,
                 'max_percentage' => 59.99,
-                'description' => 'Learner demonstrates competencies above basic but below meeting level.',
+                'description' => 'Learner demonstrates competencies approaching the expected level.',
                 'color_code' => '#ffc107',
                 'display_order' => 3,
                 'is_active' => true,

@@ -15,7 +15,7 @@ class CbcGradePresentation
     {
         return [
             ['min' => 0, 'max' => 29, 'label' => 'Below Expectation', 'short' => 'BE', 'tier' => 'below'],
-            ['min' => 30, 'max' => 59, 'label' => 'Above Expectation', 'short' => 'AE', 'tier' => 'approaching'],
+            ['min' => 30, 'max' => 59, 'label' => 'Approaching Expectation', 'short' => 'AE', 'tier' => 'approaching'],
             ['min' => 60, 'max' => 79, 'label' => 'Meeting Expectation', 'short' => 'ME', 'tier' => 'meeting'],
             ['min' => 80, 'max' => 100, 'label' => 'Exceeding Expectation', 'short' => 'EE', 'tier' => 'exceeding'],
         ];
@@ -132,8 +132,8 @@ class CbcGradePresentation
     {
         $map = [
             'below expectation' => 'Below Expectation',
-            'approaching expectation' => 'Above Expectation',
-            'above expectation' => 'Above Expectation',
+            'approaching expectation' => 'Approaching Expectation',
+            'above expectation' => 'Approaching Expectation',
             'meeting expectation' => 'Meeting Expectation',
             'meets expectation' => 'Meeting Expectation',
             'exceeding expectation' => 'Exceeding Expectation',

@@ -17,7 +17,7 @@ class GradingSchemeSeeder extends Seeder
 
         $cbcBands = [
             ['min' => 0, 'max' => 29, 'label' => 'BE', 'descriptor' => 'Below Expectation', 'rank' => 1],
-            ['min' => 30, 'max' => 59, 'label' => 'AE', 'descriptor' => 'Above Expectation', 'rank' => 2],
+            ['min' => 30, 'max' => 59, 'label' => 'AE', 'descriptor' => 'Approaching Expectation', 'rank' => 2],
             ['min' => 60, 'max' => 79, 'label' => 'ME', 'descriptor' => 'Meeting Expectation', 'rank' => 3],
             ['min' => 80, 'max' => 100, 'label' => 'EE', 'descriptor' => 'Exceeding Expectation', 'rank' => 4],
         ];
