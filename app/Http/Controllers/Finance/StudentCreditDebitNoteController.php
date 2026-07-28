@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Finance;
 
+use App\Exports\SchoolCreditDebitNotesExport;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
 use App\Models\CreditNote;
@@ -11,13 +12,26 @@ use App\Models\LegacyStatementTerm;
 use App\Models\Student;
 use App\Models\Term;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class StudentCreditDebitNoteController extends Controller
 {
     public function index()
     {
-        return view('finance.student_credit_debit_notes.index');
+        $years = AcademicYear::orderByDesc('year')->pluck('year');
+        if ($years->isEmpty()) {
+            $years = collect([now()->year]);
+        }
+
+        $defaultYear = (int) $years->first();
+        $terms = $this->termsForYear(null, $defaultYear);
+        $currentTerm = Term::where('is_current', true)->first();
+        $defaultTerm = $currentTerm?->id ?? $terms->first()?->id;
+
+        return view('finance.student_credit_debit_notes.index', compact('years', 'terms', 'defaultYear', 'defaultTerm'));
     }
 
     public function show(Request $request, Student $student)
@@ -27,8 +41,8 @@ class StudentCreditDebitNoteController extends Controller
         $year = (int) ($request->get('year') ?: $this->defaultYear($student));
         $term = $request->get('term');
 
-        $creditNotes = $this->creditNotesForStudent($student, $year, $term);
-        $debitNotes = $this->debitNotesForStudent($student, $year, $term);
+        $creditNotes = $this->fetchCreditNotes($year, $term, $student);
+        $debitNotes = $this->fetchDebitNotes($year, $term, $student);
 
         $voteheadGroups = $this->groupNotesByVotehead($creditNotes, $debitNotes);
 
@@ -63,32 +77,173 @@ class StudentCreditDebitNoteController extends Controller
         ));
     }
 
-    private function creditNotesForStudent(Student $student, int $year, $term)
+    public function terms(Request $request)
+    {
+        $year = (int) $request->get('year', now()->year);
+        $terms = $this->termsForYear(null, $year);
+
+        return response()->json([
+            'terms' => $terms->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])->values(),
+        ]);
+    }
+
+    public function exportSchool(Request $request): BinaryFileResponse|RedirectResponse
+    {
+        $request->validate([
+            'year' => 'required|integer',
+            'term' => 'required',
+        ]);
+
+        $year = (int) $request->year;
+        $term = $request->term;
+
+        $creditNotes = $this->fetchCreditNotes($year, $term);
+        $debitNotes = $this->fetchDebitNotes($year, $term);
+
+        if ($creditNotes->isEmpty() && $debitNotes->isEmpty()) {
+            return redirect()
+                ->route('finance.student-credit-debit-notes.index')
+                ->withInput()
+                ->with('error', 'No credit or debit notes found for the selected year and term.');
+        }
+
+        [$detailRows, $summaryRows] = $this->buildExportRows($creditNotes, $debitNotes);
+
+        $termSlug = preg_replace('/[^a-z0-9]+/i', '-', $this->resolveTermLabel($term, $this->termsForYear(null, $year)));
+        $filename = "credit-debit-notes-{$year}-{$termSlug}-school.xlsx";
+
+        return Excel::download(
+            new SchoolCreditDebitNotesExport($detailRows, $summaryRows),
+            $filename
+        );
+    }
+
+    private function fetchCreditNotes(int $year, $term, ?Student $student = null)
     {
         return CreditNote::query()
-            ->whereHas('invoiceItem', function (Builder $q) use ($student) {
-                $this->applyInvoiceScope($q, $student);
+            ->whereHas('invoiceItem', function (Builder $q) use ($student, $year, $term) {
                 $this->excludeSwimmingAttendance($q);
+                if ($student) {
+                    $this->applyInvoiceScope($q, $student);
+                }
+                $q->whereHas('invoice', fn (Builder $q2) => $this->applyYearTermScope($q2, $year, $term));
             })
-            ->whereHas('invoiceItem.invoice', fn (Builder $q) => $this->applyYearTermScope($q, $year, $term))
-            ->with(['invoiceItem.votehead', 'invoice.term', 'invoice.academicYear', 'issuedBy'])
+            ->with([
+                'invoiceItem.votehead',
+                'invoice.student.classroom',
+                'invoice.student.stream',
+                'invoice.term',
+                'invoice.academicYear',
+                'issuedBy',
+            ])
             ->orderBy('issued_at')
             ->orderBy('id')
             ->get();
     }
 
-    private function debitNotesForStudent(Student $student, int $year, $term)
+    private function fetchDebitNotes(int $year, $term, ?Student $student = null)
     {
         return DebitNote::query()
-            ->whereHas('invoiceItem', function (Builder $q) use ($student) {
-                $this->applyInvoiceScope($q, $student);
+            ->whereHas('invoiceItem', function (Builder $q) use ($student, $year, $term) {
                 $this->excludeSwimmingAttendance($q);
+                if ($student) {
+                    $this->applyInvoiceScope($q, $student);
+                }
+                $q->whereHas('invoice', fn (Builder $q2) => $this->applyYearTermScope($q2, $year, $term));
             })
-            ->whereHas('invoiceItem.invoice', fn (Builder $q) => $this->applyYearTermScope($q, $year, $term))
-            ->with(['invoiceItem.votehead', 'invoice.term', 'invoice.academicYear', 'issuedBy'])
+            ->with([
+                'invoiceItem.votehead',
+                'invoice.student.classroom',
+                'invoice.student.stream',
+                'invoice.term',
+                'invoice.academicYear',
+                'issuedBy',
+            ])
             ->orderBy('issued_at')
             ->orderBy('id')
             ->get();
+    }
+
+    private function buildExportRows($creditNotes, $debitNotes): array
+    {
+        $detailRows = [];
+        $summaryMap = [];
+
+        foreach ($creditNotes as $note) {
+            $detailRows[] = $this->detailRow('Credit', $note->credit_note_number, $note);
+            $this->accumulateSummary($summaryMap, $note, 'credit', (float) $note->amount);
+        }
+
+        foreach ($debitNotes as $note) {
+            $detailRows[] = $this->detailRow('Debit', $note->debit_note_number, $note);
+            $this->accumulateSummary($summaryMap, $note, 'debit', (float) $note->amount);
+        }
+
+        usort($detailRows, function ($a, $b) {
+            return [$a[2], $a[6], $a[1]] <=> [$b[2], $b[6], $b[1]];
+        });
+
+        $summaryRows = collect($summaryMap)
+            ->sortBy(fn ($row) => $row['student'] . '|' . $row['votehead'])
+            ->map(fn ($row) => [
+                $row['student'],
+                $row['admission'],
+                $row['class'],
+                $row['stream'],
+                $row['votehead'],
+                number_format($row['credit_total'], 2, '.', ''),
+                number_format($row['debit_total'], 2, '.', ''),
+                number_format($row['debit_total'] - $row['credit_total'], 2, '.', ''),
+            ])
+            ->values()
+            ->all();
+
+        return [$detailRows, $summaryRows];
+    }
+
+    private function detailRow(string $type, ?string $number, $note): array
+    {
+        $student = $note->invoice?->student;
+
+        return [
+            $type,
+            $number ?? '',
+            $student?->full_name ?? '',
+            $student?->admission_number ?? '',
+            optional($student?->classroom)->name ?? '',
+            optional($student?->stream)->name ?? '',
+            $note->invoiceItem?->votehead?->name ?? 'Unknown votehead',
+            $note->invoice?->invoice_number ?? '',
+            number_format((float) $note->amount, 2, '.', ''),
+            $note->reason ?? '',
+            $note->issued_at ? $note->issued_at->format('Y-m-d') : '',
+            $note->issuedBy?->name ?? '',
+        ];
+    }
+
+    private function accumulateSummary(array &$summaryMap, $note, string $type, float $amount): void
+    {
+        $student = $note->invoice?->student;
+        $voteheadId = $note->invoiceItem?->votehead_id ?? 0;
+        $key = ($student?->id ?? 0) . '|' . $voteheadId;
+
+        if (! isset($summaryMap[$key])) {
+            $summaryMap[$key] = [
+                'student' => $student?->full_name ?? 'Unknown',
+                'admission' => $student?->admission_number ?? '',
+                'class' => optional($student?->classroom)->name ?? '',
+                'stream' => optional($student?->stream)->name ?? '',
+                'votehead' => $note->invoiceItem?->votehead?->name ?? 'Unknown votehead',
+                'credit_total' => 0.0,
+                'debit_total' => 0.0,
+            ];
+        }
+
+        if ($type === 'credit') {
+            $summaryMap[$key]['credit_total'] += $amount;
+        } else {
+            $summaryMap[$key]['debit_total'] += $amount;
+        }
     }
 
     private function applyInvoiceScope(Builder $q, Student $student): void
@@ -203,12 +358,15 @@ class StudentCreditDebitNoteController extends Controller
         return $invoiceYears->merge($legacyYears)->merge($academicYears)->unique()->sort()->reverse()->values();
     }
 
-    private function termsForYear(Student $student, int $year)
+    private function termsForYear(?Student $student, int $year)
     {
         if ($year < 2026) {
-            return LegacyStatementTerm::where('student_id', $student->id)
-                ->where('academic_year', $year)
-                ->orderBy('term_number')
+            $query = LegacyStatementTerm::query()->where('academic_year', $year);
+            if ($student) {
+                $query->where('student_id', $student->id);
+            }
+
+            return $query->orderBy('term_number')
                 ->get()
                 ->unique('term_number')
                 ->map(fn ($t) => (object) [

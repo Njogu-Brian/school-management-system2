@@ -1658,6 +1658,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('student-statements/{student}/export', [StudentStatementController::class, 'export'])->name('student-statements.export');
 
         Route::get('student-credit-debit-notes', [\App\Http\Controllers\Finance\StudentCreditDebitNoteController::class, 'index'])->name('student-credit-debit-notes.index');
+        Route::get('student-credit-debit-notes/terms', [\App\Http\Controllers\Finance\StudentCreditDebitNoteController::class, 'terms'])->name('student-credit-debit-notes.terms');
+        Route::get('student-credit-debit-notes/export', [\App\Http\Controllers\Finance\StudentCreditDebitNoteController::class, 'exportSchool'])->name('student-credit-debit-notes.export');
         Route::get('student-credit-debit-notes/{student}', [\App\Http\Controllers\Finance\StudentCreditDebitNoteController::class, 'show'])->name('student-credit-debit-notes.show');
 
         // Sibling balance transfer (when an archived student leaves with arrears)
