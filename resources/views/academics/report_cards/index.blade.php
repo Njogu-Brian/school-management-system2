@@ -18,6 +18,67 @@
     @if(session('success'))
       <div class="alert alert-success alert-dismissible fade show">{{ session('success') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     @endif
+    @if(session('error'))
+      <div class="alert alert-danger alert-dismissible fade show">{{ session('error') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    @endif
+
+    <div class="settings-card mb-3">
+      <div class="card-body">
+        <form method="GET" action="{{ route('academics.report_cards.index') }}">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label">Search</label>
+              <input type="text" name="search" value="{{ request('search') }}" class="form-control" placeholder="Student name or admission no.">
+            </div>
+            @include('partials.academic_year_term_selects', [
+              'years' => $years,
+              'terms' => $terms,
+              'selectedYearId' => $selectedYearId ?? null,
+              'selectedTermId' => $selectedTermId ?? null,
+              'allowEmptyYear' => true,
+              'allowEmptyTerm' => true,
+              'yearCol' => 'col-md-2',
+              'termCol' => 'col-md-2',
+            ])
+            <div class="col-md-2">
+              <label class="form-label">Class</label>
+              <select name="classroom_id" class="form-select" id="filterClassroomId">
+                <option value="">All classes</option>
+                @foreach($classrooms as $c)
+                  <option value="{{ $c->id }}" @selected((string) request('classroom_id') === (string) $c->id)>{{ $c->name }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Stream</label>
+              <select name="stream_id" class="form-select" id="filterStreamId">
+                <option value="">All streams</option>
+                @foreach($streams as $s)
+                  <option value="{{ $s->id }}"
+                    data-classroom-id="{{ $s->classroom_id }}"
+                    @selected((string) request('stream_id') === (string) $s->id)>{{ $s->name }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-md-1">
+              <label class="form-label">Per page</label>
+              <select name="per_page" class="form-select">
+                @foreach([20, 50, 100, 200] as $size)
+                  <option value="{{ $size }}" @selected((int) ($perPage ?? 20) === $size)>{{ $size }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label d-block">&nbsp;</label>
+              <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-settings-primary w-100"><i class="bi bi-funnel"></i> Filter</button>
+                <a href="{{ route('academics.report_cards.index') }}" class="btn btn-ghost-strong">Reset</a>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
       <div class="text-muted small">Select report cards to publish or send via SMS / Email / WhatsApp.</div>
@@ -36,6 +97,9 @@
     </div>
 
     <div class="settings-card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="text-muted small mb-0">Showing {{ $report_cards->total() }} report card(s)</div>
+      </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-modern table-hover align-middle mb-0">
@@ -95,7 +159,7 @@
                   </td>
                 </tr>
               @empty
-                <tr><td colspan="7" class="text-center text-muted py-4">No report cards found.</td></tr>
+                <tr><td colspan="8" class="text-center text-muted py-4">No report cards found.</td></tr>
               @endforelse
             </tbody>
           </table>
@@ -112,6 +176,27 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  const classSelect = document.getElementById('filterClassroomId');
+  const streamSelect = document.getElementById('filterStreamId');
+  if (classSelect && streamSelect) {
+    const allStreamOptions = Array.from(streamSelect.options).slice(1);
+    const syncStreams = function() {
+      const classId = this.value;
+      const current = streamSelect.value;
+      streamSelect.innerHTML = '<option value="">All streams</option>';
+      allStreamOptions.forEach(option => {
+        if (!classId || option.dataset.classroomId === classId) {
+          streamSelect.appendChild(option.cloneNode(true));
+        }
+      });
+      if (current && Array.from(streamSelect.options).some(o => o.value === current)) {
+        streamSelect.value = current;
+      }
+    };
+    classSelect.addEventListener('change', syncStreams);
+    syncStreams.call(classSelect);
+  }
+
   const checkAll = document.getElementById('rcCheckAll');
   const boxes = document.querySelectorAll('.rc-checkbox');
   function refresh() {

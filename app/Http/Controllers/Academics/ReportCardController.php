@@ -37,20 +37,16 @@ class ReportCardController extends Controller
 
     public function index(Request $request)
     {
-        $query = ReportCard::with(['student','publisher','academicYear','term','classroom']);
+        $query = ReportCard::with(['student', 'publisher', 'academicYear', 'term', 'classroom', 'stream']);
+
+        $assignedClassroomIds = $this->assignedClassroomIdsForCurrentUser();
 
         // Teachers can only see report cards for their assigned classes
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
-                $query->whereIn('classroom_id', $assignedClassroomIds);
+        if ($assignedClassroomIds !== null) {
+            if ($assignedClassroomIds === []) {
+                $query->whereRaw('1 = 0');
             } else {
-                $query->whereRaw('1 = 0'); // No access
+                $query->whereIn('classroom_id', $assignedClassroomIds);
             }
         }
 
@@ -64,39 +60,85 @@ class ReportCardController extends Controller
         if ($request->filled('classroom_id')) {
             $query->where('classroom_id', $request->classroom_id);
         }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
+        }
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('student', function($q) use ($search) {
-                $q->where('archive', 0)->where('is_alumni', false);
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('admission_number', 'like', "%{$search}%");
+            $search = trim((string) $request->search);
+            $query->whereHas('student', function ($q) use ($search) {
+                $q->where('archive', 0)->where('is_alumni', false)
+                    ->where(function ($studentQuery) use ($search) {
+                        $studentQuery->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('middle_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('admission_number', 'like', "%{$search}%")
+                            ->orWhereRaw("CONCAT_WS(' ', first_name, middle_name, last_name) LIKE ?", ["%{$search}%"]);
+                    });
             });
         }
 
-        $report_cards = $query->latest()->paginate(20)->withQueryString();
-
-        $years = \App\Support\AcademicContext::years();
-        $terms = \App\Support\AcademicContext::allTermsForSelect();
-        
-        // Filter classrooms based on user role
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
-                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
-            } else {
-                $classrooms = collect();
-            }
-        } else {
-            $classrooms = Classroom::orderBy('name')->get();
+        $perPage = (int) $request->input('per_page', 20);
+        if (! in_array($perPage, [20, 50, 100, 200], true)) {
+            $perPage = 20;
         }
 
-        return view('academics.report_cards.index', compact('report_cards', 'years', 'terms', 'classrooms'));
+        $report_cards = $query->latest()->paginate($perPage)->withQueryString();
+
+        $years = AcademicContext::years();
+        $terms = AcademicContext::allTermsForSelect();
+        $classrooms = $assignedClassroomIds === null
+            ? Classroom::orderBy('name')->get()
+            : Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+        $streamsQuery = Stream::query()->orderBy('name');
+        if ($request->filled('classroom_id')) {
+            $classroomId = (int) $request->classroom_id;
+            $streamsQuery->where(function ($q) use ($classroomId) {
+                $q->where('classroom_id', $classroomId)
+                    ->orWhereHas('classrooms', fn ($cq) => $cq->where('classrooms.id', $classroomId));
+            });
+        } elseif ($assignedClassroomIds !== null) {
+            $streamsQuery->where(function ($q) use ($assignedClassroomIds) {
+                $q->whereIn('classroom_id', $assignedClassroomIds)
+                    ->orWhereHas('classrooms', fn ($cq) => $cq->whereIn('classrooms.id', $assignedClassroomIds));
+            });
+        }
+        $streams = $streamsQuery->get();
+
+        $selectedYearId = $request->input('academic_year_id');
+        $selectedTermId = $request->input('term_id');
+
+        return view('academics.report_cards.index', compact(
+            'report_cards',
+            'years',
+            'terms',
+            'classrooms',
+            'streams',
+            'selectedYearId',
+            'selectedTermId',
+            'perPage'
+        ));
+    }
+
+    /**
+     * @return array<int>|null Null means unrestricted access.
+     */
+    protected function assignedClassroomIdsForCurrentUser(): ?array
+    {
+        if (! Auth::user()->hasRole('Teacher')) {
+            return null;
+        }
+
+        $staff = Auth::user()->staff;
+        if (! $staff) {
+            return [];
+        }
+
+        return \Illuminate\Support\Facades\DB::table('classroom_subjects')
+            ->where('staff_id', $staff->id)
+            ->distinct()
+            ->pluck('classroom_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     public function show(ReportCard $report_card)
