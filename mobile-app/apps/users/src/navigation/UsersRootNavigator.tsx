@@ -1,4 +1,11 @@
-import { AppModeProvider, canAccessApp, useAuth } from '@erp/core';
+import {
+  AppModeProvider,
+  canAccessApp,
+  effectiveRole,
+  isAdminAppRole,
+  useAuth,
+  UserRole,
+} from '@erp/core';
 import { useTheme } from '@erp/ui';
 import {
   DarkTheme,
@@ -13,13 +20,12 @@ import {
   BiometricEnableScreen,
   LoginScreen,
   ParentProfileReviewScreen,
-  PinEnableScreen,
 } from '../features/auth';
 import { OfflineShell } from '../providers/OfflineShell';
 import { RoleBasedNavigator } from './RoleBasedNavigator';
 
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending, pinEnrollmentPending } = useAuth();
+  const { status, user, biometricEnrollmentPending } = useAuth();
 
   if (status === 'initializing') {
     return <AuthLoadingScreen />;
@@ -30,11 +36,17 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   if (!canAccessApp(user, 'users')) {
     return <AccessDeniedScreen />;
   }
+  // Director signed in but no child linked yet → link-child CTA (same credentials).
+  const role = effectiveRole(user);
+  if (
+    (role === UserRole.DIRECTOR || isAdminAppRole(role)) &&
+    !user?.parentId &&
+    !user?.canHomeMode
+  ) {
+    return <AccessDeniedScreen />;
+  }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
-  }
-  if (pinEnrollmentPending) {
-    return <PinEnableScreen />;
   }
   // Freshly claimed parent accounts must review their family details first (data only).
   if (user?.parentProfileReviewRequired) {

@@ -57,22 +57,34 @@ function hasLinkedParentProfile(user: User): boolean {
   return Boolean(user.parentId || user.canHomeMode);
 }
 
+/** Prefer normalized `role`; fall back to parsing `roleName` for older payloads. */
+export function effectiveRole(user: User | null | undefined): UserRole | null {
+  if (!user) {
+    return null;
+  }
+  return user.role ?? normalizeRole(user.roleName);
+}
+
 /**
  * Whether a user may enter the given app. Returns false for unauthenticated users
  * and for recognized-but-wrong-app roles (→ Access Denied). The Admin App passes
  * `'admin'`; the Users App passes `'users'` using the same helper.
  *
- * Admin/Director accounts may also enter the Users app with the same credentials
- * when linked to a parent profile (child on file).
+ * Directors may always enter the Users app (parent shell, or link-child screen).
+ * Other admin roles may enter Users when linked to a parent profile.
  */
 export function canAccessApp(user: User | null, target: AppTarget): boolean {
-  if (!user || user.role == null) {
+  const role = effectiveRole(user);
+  if (!user || role == null) {
     return false;
   }
-  if (rolesForApp(target).includes(user.role)) {
+  if (rolesForApp(target).includes(role)) {
     return true;
   }
-  if (target === 'users' && isAdminAppRole(user.role) && hasLinkedParentProfile(user)) {
+  if (target === 'users' && role === UserRole.DIRECTOR) {
+    return true;
+  }
+  if (target === 'users' && isAdminAppRole(role) && hasLinkedParentProfile(user)) {
     return true;
   }
   return false;

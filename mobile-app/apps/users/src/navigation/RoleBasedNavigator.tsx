@@ -1,4 +1,10 @@
-import { isAdminAppRole, useAppMode, useCurrentUser, UserRole } from '@erp/core';
+import {
+  effectiveRole,
+  isAdminAppRole,
+  useAppMode,
+  useCurrentUser,
+  UserRole,
+} from '@erp/core';
 import { EmptyState, ScreenContainer } from '@erp/ui';
 import React from 'react';
 import { DriverTabNavigator } from './driver/DriverTabNavigator';
@@ -15,7 +21,7 @@ import { TeacherNavigator } from './teacher/TeacherNavigator';
  */
 export const RoleBasedNavigator: React.FC = () => {
   const user = useCurrentUser();
-  const role = user?.role;
+  const role = effectiveRole(user);
   const { mode, canSwitch } = useAppMode();
 
   // Home mode (or a pure-parent whose staff role is absent) → parent shell.
@@ -24,7 +30,10 @@ export const RoleBasedNavigator: React.FC = () => {
   }
 
   // Directors/admins with a linked child use the Users app as the full parent experience.
-  if (isAdminAppRole(role) && (user?.parentId || user?.canHomeMode)) {
+  if (
+    (role === UserRole.DIRECTOR || isAdminAppRole(role)) &&
+    (user?.parentId || user?.canHomeMode)
+  ) {
     return <ParentTabNavigator />;
   }
 
