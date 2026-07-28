@@ -441,7 +441,9 @@ class BulkSendPaymentNotifications implements ShouldQueue
                     'scope'          => 'whatsapp',
                     'sent_at'        => now(),
                     'payment_id'     => $payment->id,
-                    'provider_id'    => data_get($response, 'body.data.id')
+                    'provider_id'    => data_get($response, 'message_id')
+                        ?? data_get($response, 'body.messages.0.id')
+                        ?? data_get($response, 'body.data.id')
                                         ?? data_get($response, 'body.data.message.id')
                                         ?? data_get($response, 'body.messageId')
                                         ?? data_get($response, 'body.id'),

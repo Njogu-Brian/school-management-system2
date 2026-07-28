@@ -208,6 +208,7 @@ Route::get('payment-plan/{hash}', [\App\Http\Controllers\Finance\FeePaymentPlanC
 
 // SMS Delivery Report Webhook
 Route::post('/webhooks/sms/dlr', [CommunicationController::class, 'smsDeliveryReport'])->name('webhooks.sms.dlr');
+Route::match(['GET', 'POST'], '/webhooks/whatsapp/meta', [WhatsAppWebhookController::class, 'handleMeta'])->name('webhooks.whatsapp.meta');
 Route::post('/webhooks/whatsapp/wasender', [WhatsAppWebhookController::class, 'handle'])->name('webhooks.whatsapp.wasender');
 
 // Payment Webhooks (public, no auth required)

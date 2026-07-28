@@ -83,16 +83,16 @@ return [
         'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
     ],
 
-    'wasender' => [
-        'base_url' => env('WASENDER_API_BASE', 'https://www.wasenderapi.com/api'),
-        'api_key' => env('WASENDER_API_KEY'),
-        // PAT is required for account-level calls such as creating sessions
-        'personal_access_token' => env('WASENDER_PERSONAL_ACCESS_TOKEN'),
-        'webhook_token' => env('WASENDER_WEBHOOK_TOKEN'),
-    ],
-
     'whatsapp' => [
-        'bulk_delay_seconds' => (int) env('WHATSAPP_BULK_DELAY_SECONDS', 10),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID'),
+        'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
+        'api_version' => env('WHATSAPP_API_VERSION', 'v21.0'),
+        'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN'),
+        // Approved template for outbound bulk messages (body must include {{1}} for message text)
+        'default_template' => env('WHATSAPP_DEFAULT_TEMPLATE'),
+        'default_template_language' => env('WHATSAPP_DEFAULT_TEMPLATE_LANGUAGE', 'en_US'),
+        'bulk_delay_seconds' => (int) env('WHATSAPP_BULK_DELAY_SECONDS', 2),
     ],
 
     /*

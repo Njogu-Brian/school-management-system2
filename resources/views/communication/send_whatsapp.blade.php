@@ -10,7 +10,7 @@
         @include('communication.partials.header', [
             'title' => 'Send WhatsApp',
             'icon' => 'bi bi-whatsapp',
-            'subtitle' => 'Send or schedule WhatsApp messages via WasenderAPI',
+            'subtitle' => 'Send or schedule WhatsApp messages via Meta Cloud API',
             'actions' => '<a href="' . route('communication.logs') . '" class="btn btn-ghost-strong"><i class="bi bi-clock-history"></i> Logs</a>'
         ])
 

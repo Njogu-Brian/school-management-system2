@@ -334,7 +334,9 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     'classroom_id'   => $entity->classroom_id ?? null,
                     'scope'          => 'whatsapp',
                     'sent_at'        => now(),
-                    'provider_id'    => data_get($response, 'body.data.id') 
+                    'provider_id'    => data_get($response, 'message_id')
+                                        ?? data_get($response, 'body.messages.0.id')
+                                        ?? data_get($response, 'body.data.id') 
                                         ?? data_get($response, 'body.data.message.id')
                                         ?? data_get($response, 'body.messageId')
                                         ?? data_get($response, 'body.id'),

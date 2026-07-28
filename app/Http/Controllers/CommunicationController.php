@@ -621,9 +621,13 @@ class CommunicationController extends Controller
             $recipientsData = [];
             foreach ($recipients as $recipientRow) {
                 [$phone, $entity, $parentMeta] = array_pad($recipientRow, 3, null);
-                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
-                if ($personalized === null) {
-                    continue;
+                if ($entity === null) {
+                    $personalized = $message;
+                } else {
+                    $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                    if ($personalized === null) {
+                        continue;
+                    }
                 }
                 $recipientsData[] = [
                     'phone' => $phone,
@@ -701,9 +705,13 @@ class CommunicationController extends Controller
                     \App\Services\WhatsAppBulkRateLimiter::waitBeforeSend('global');
                 }
                 
-                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
-                if ($personalized === null) {
-                    continue;
+                if ($entity === null) {
+                    $personalized = $message;
+                } else {
+                    $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
+                    if ($personalized === null) {
+                        continue;
+                    }
                 }
                 $finalMessage = $mediaUrl ? ($personalized . "\n\nMedia: " . $mediaUrl) : $personalized;
                 $response = $whatsAppService->sendMessage($phone, $finalMessage);
@@ -768,7 +776,9 @@ class CommunicationController extends Controller
                     'classroom_id'   => $entity->classroom_id ?? null,
                     'scope'          => 'whatsapp',
                     'sent_at'        => now(),
-                    'provider_id'    => data_get($response, 'body.data.id') 
+                    'provider_id'    => data_get($response, 'message_id')
+                                        ?? data_get($response, 'body.messages.0.id')
+                                        ?? data_get($response, 'body.data.id') 
                                         ?? data_get($response, 'body.data.message.id')
                                         ?? data_get($response, 'body.messageId')
                                         ?? data_get($response, 'body.id'),
@@ -2103,7 +2113,9 @@ class CommunicationController extends Controller
                             'classroom_id'   => $entity->classroom_id ?? null,
                             'scope'          => 'whatsapp',
                             'sent_at'        => now(),
-                            'provider_id'    => data_get($response, 'body.data.id') 
+                            'provider_id'    => data_get($response, 'message_id')
+                                                ?? data_get($response, 'body.messages.0.id')
+                                                ?? data_get($response, 'body.data.id') 
                                                 ?? data_get($response, 'body.data.message.id')
                                                 ?? data_get($response, 'body.messageId')
                                                 ?? data_get($response, 'body.id'),

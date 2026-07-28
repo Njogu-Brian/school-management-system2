@@ -8,9 +8,9 @@
 <div class="settings-page">
     <div class="settings-shell">
         @include('communication.partials.header', [
-            'title' => 'WhatsApp Sessions',
+            'title' => 'WhatsApp Setup',
             'icon' => 'bi bi-whatsapp',
-            'subtitle' => 'Create, connect, restart, and delete Wasender sessions',
+            'subtitle' => 'Meta WhatsApp Cloud API connection status',
             'actions' => '<a href="' . route('communication.send.whatsapp') . '" class="btn btn-ghost-strong"><i class="bi bi-send"></i> Send WhatsApp</a>'
         ])
 
@@ -21,123 +21,72 @@
             <div class="alert alert-danger">{{ session('error') }}</div>
         @endif
         @if(!empty($error))
-            <div class="alert alert-warning">Fetch error: {{ is_string($error) ? $error : json_encode($error) }}</div>
+            <div class="alert alert-warning"><strong>Connection issue:</strong> {{ is_string($error) ? $error : json_encode($error) }}</div>
+        @elseif(!empty($connection) && ($connection['status'] ?? '') === 'success')
+            <div class="alert alert-success">Connected to Meta WhatsApp Cloud API.</div>
         @endif
 
         <div class="settings-card mb-3">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                    <div>
-                        <h5 class="mb-1">Create Session</h5>
-                        <p class="text-muted mb-0">Set up a Wasender session and auto-register our webhook.</p>
+                <h5 class="mb-3">Configuration</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="text-muted small">Phone Number ID</div>
+                        <div class="fw-semibold">{{ $config['phone_number_id'] ?: '— not set —' }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">Business Account ID</div>
+                        <div class="fw-semibold">{{ $config['business_account_id'] ?: '— not set —' }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">API Version</div>
+                        <div class="fw-semibold">{{ $config['api_version'] ?? 'v21.0' }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted small">Default outbound template</div>
+                        <div class="fw-semibold">{{ $config['default_template'] ?: '— none (free text, 24h window only) —' }}</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="text-muted small">Webhook URL (register in Meta → WhatsApp → Configuration)</div>
+                        <div class="fw-semibold font-monospace">{{ $config['webhook_url'] }}</div>
                     </div>
                 </div>
-                <form method="POST" action="{{ route('communication.wasender.sessions.store') }}" class="row g-3">
-                    @csrf
-                    <div class="col-md-4 col-lg-3">
-                        <label class="form-label fw-semibold">Name</label>
-                        <input type="text" name="name" class="form-control" placeholder="e.g. Parent Line" required>
-                    </div>
-                    <div class="col-md-4 col-lg-3">
-                        <label class="form-label fw-semibold">Phone (E.164)</label>
-                        <input type="text" name="phone_number" class="form-control" placeholder="+2547..." required>
-                    </div>
-                    <div class="col-12 col-lg-6 d-flex flex-wrap align-items-center gap-3">
-                        <label class="form-check-label fw-semibold me-2 text-muted">Options:</label>
-                        <div class="form-check mb-0">
-                            <input class="form-check-input" type="checkbox" name="account_protection" value="1" checked id="opt-account-protection">
-                            <label class="form-check-label" for="opt-account-protection">Account protection</label>
-                        </div>
-                        <div class="form-check mb-0">
-                            <input class="form-check-input" type="checkbox" name="log_messages" value="1" checked id="opt-log">
-                            <label class="form-check-label" for="opt-log">Log messages</label>
-                        </div>
-                        <div class="form-check mb-0">
-                            <input class="form-check-input" type="checkbox" name="webhook_enabled" value="1" checked id="opt-webhook">
-                            <label class="form-check-label" for="opt-webhook">Enable webhook</label>
-                        </div>
-                    </div>
-                    <div class="col-12 d-flex justify-content-end gap-2">
-                        <button class="btn btn-settings-primary px-4"><i class="bi bi-plus-circle"></i> Create Session</button>
-                    </div>
-                </form>
             </div>
         </div>
+
+        @if(!empty($connection) && ($connection['status'] ?? '') === 'success' && is_array($connection['body'] ?? null))
+            <div class="settings-card mb-3">
+                <div class="card-body">
+                    <h5 class="mb-3">Registered number</h5>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="text-muted small">Display number</div>
+                            <div class="fw-semibold">{{ data_get($connection, 'body.display_phone_number', '—') }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small">Verified name</div>
+                            <div class="fw-semibold">{{ data_get($connection, 'body.verified_name', '—') }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted small">Quality rating</div>
+                            <div class="fw-semibold">{{ data_get($connection, 'body.quality_rating', '—') }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <div class="settings-card">
             <div class="card-body">
-                <h5 class="mb-3">Existing Sessions</h5>
-                @if(empty($sessions))
-                    <p class="text-muted mb-0">No sessions found.</p>
-                @else
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Phone</th>
-                                    <th>Status</th>
-                                    <th>Account Protection</th>
-                                    <th>Webhook</th>
-                                    <th>Updated</th>
-                                    <th class="text-end">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($sessions as $s)
-                                    <tr>
-                                        <td>{{ $s['name'] ?? '—' }}</td>
-                                        <td>{{ $s['phone_number'] ?? '—' }}</td>
-                                        <td><span class="badge bg-secondary text-uppercase">{{ $s['status'] ?? 'unknown' }}</span></td>
-                                        <td>
-                                            @if(!empty($s['account_protection']))
-                                                <span class="badge bg-warning" title="Rate limited: 1 message per 5 seconds">Enabled</span>
-                                            @else
-                                                <span class="badge bg-success">Disabled</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if(!empty($s['webhook_enabled']))
-                                                <span class="badge bg-success">On</span>
-                                            @else
-                                                <span class="badge bg-secondary">Off</span>
-                                            @endif
-                                        </td>
-                                        <td>{{ $s['updated_at'] ?? '—' }}</td>
-                                        <td class="text-end">
-                                            <form method="POST" action="{{ route('communication.wasender.sessions.connect', $s['id']) }}" class="d-inline">
-                                                @csrf
-                                                <button class="btn btn-sm btn-outline-primary">Connect / QR</button>
-                                            </form>
-                                            <form method="POST" action="{{ route('communication.wasender.sessions.restart', $s['id']) }}" class="d-inline ms-1">
-                                                @csrf
-                                                <button class="btn btn-sm btn-outline-secondary">Restart</button>
-                                            </form>
-                                            @if(!empty($s['account_protection']))
-                                            <form method="POST" action="{{ route('communication.wasender.sessions.update-settings', $s['id']) }}" class="d-inline ms-1">
-                                                @csrf
-                                                @method('PUT')
-                                                <input type="hidden" name="account_protection" value="0">
-                                                <button class="btn btn-sm btn-outline-warning" title="Disable account protection to send faster (1 msg per 5 sec limit will be removed)">Disable Protection</button>
-                                            </form>
-                                            @endif
-                                            <form method="POST" action="{{ route('communication.wasender.sessions.destroy', $s['id']) }}" class="d-inline ms-1" onsubmit="return confirm('Delete this session?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button class="btn btn-sm btn-outline-danger">Delete</button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
+                <h5 class="mb-2">Setup notes</h5>
+                <ul class="mb-0 text-muted">
+                    <li>Bulk fee reminders and announcements require an <strong>approved Meta message template</strong> with a <code>{{1}}</code> body variable. Set <code>WHATSAPP_DEFAULT_TEMPLATE</code> in <code>.env</code> after approval.</li>
+                    <li>Free-text messages only work when a parent has messaged you within the last 24 hours.</li>
+                    <li>Wasender QR sessions are no longer used — manage your number in <a href="https://business.facebook.com" target="_blank" rel="noopener">Meta Business Manager</a>.</li>
+                    <li>Use the same verify token in Meta webhook settings as <code>WHATSAPP_WEBHOOK_VERIFY_TOKEN</code> in <code>.env</code>.</li>
+                </ul>
             </div>
         </div>
-
     </div>
 </div>
 @endsection
-
-

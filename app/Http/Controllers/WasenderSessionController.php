@@ -11,135 +11,65 @@ class WasenderSessionController extends Controller
     {
         abort_unless(can_access("communication", "sms", "add"), 403);
 
+        $connection = null;
+        $error = null;
+
         try {
-            $list = $wa->listSessions();
-            $sessions = data_get($list, 'body.data', []);
-            $error = $list['status'] === 'error' ? ($list['body'] ?? 'Unable to fetch sessions') : null;
+            $connection = $wa->status();
+            if ($connection['status'] === 'error') {
+                $error = is_array($connection['body'])
+                    ? (data_get($connection['body'], 'error.message') ?? json_encode($connection['body']))
+                    : ($connection['body'] ?? 'Unable to verify WhatsApp connection');
+            }
         } catch (\Throwable $e) {
-            $sessions = [];
             $error = $e->getMessage();
         }
 
-        return view('communication.wasender_sessions', compact('sessions', 'error'));
+        $config = [
+            'phone_number_id' => $wa->phoneNumberId(),
+            'business_account_id' => $wa->businessAccountId(),
+            'webhook_url' => $wa->webhookUrl(),
+            'default_template' => config('services.whatsapp.default_template'),
+            'api_version' => config('services.whatsapp.api_version'),
+        ];
+
+        return view('communication.wasender_sessions', compact('connection', 'error', 'config'));
     }
 
     public function store(Request $request, WhatsAppService $wa)
     {
         abort_unless(can_access("communication", "sms", "add"), 403);
 
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'phone_number' => 'required|string|max:50',
-            'account_protection' => 'sometimes|boolean',
-            'log_messages' => 'sometimes|boolean',
-            'webhook_enabled' => 'sometimes|boolean',
-            'read_incoming_messages' => 'sometimes|boolean',
-            'auto_reject_calls' => 'sometimes|boolean',
-            'ignore_groups' => 'sometimes|boolean',
-            'ignore_channels' => 'sometimes|boolean',
-            'ignore_broadcasts' => 'sometimes|boolean',
-        ]);
-
-        // Default webhook URL to our webhook endpoint if not provided in UI
-        $data['webhook_url'] = route('webhooks.whatsapp.wasender');
-
-        $data['webhook_events'] = [
-            'messages.received',
-            'session.status',
-            'messages.update',
-        ];
-
-        $payload = array_merge([
-            'account_protection' => true,
-            'log_messages' => true,
-            'webhook_enabled' => true,
-            'read_incoming_messages' => false,
-            'auto_reject_calls' => false,
-            'ignore_groups' => false,
-            'ignore_channels' => false,
-            'ignore_broadcasts' => false,
-        ], $data);
-
-        try {
-            $resp = $wa->createSession($payload);
-            if ($resp['status'] === 'success') {
-                return redirect()->route('communication.wasender.sessions')->with('success', 'Session created. If status is NEED_SCAN, open connect to get QR.');
-            }
-            return back()->with('error', 'Create failed: ' . json_encode($resp['body']));
-        } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage());
-        }
+        return redirect()
+            ->route('communication.wasender.sessions')
+            ->with('error', 'Session creation is not used with Meta WhatsApp Cloud API. Manage your number in Meta Business Manager.');
     }
 
     public function connect($id, WhatsAppService $wa)
     {
         abort_unless(can_access("communication", "sms", "add"), 403);
-        try {
-            $resp = $wa->connectSession($id);
-            if ($resp['status'] === 'success') {
-                $qr = data_get($resp, 'body.data.qrCode');
-                $status = data_get($resp, 'body.data.status');
-                return back()->with('success', "Connect requested. Status: {$status}. QR: {$qr}");
-            }
-            return back()->with('error', 'Connect failed: ' . json_encode($resp['body']));
-        } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage());
-        }
+
+        return back()->with('error', 'QR session connect is not used with Meta WhatsApp Cloud API.');
     }
 
     public function restart($id, WhatsAppService $wa)
     {
         abort_unless(can_access("communication", "sms", "add"), 403);
-        try {
-            $resp = $wa->restartSession($id);
-            if ($resp['status'] === 'success') {
-                return back()->with('success', 'Session restart requested.');
-            }
-            return back()->with('error', 'Restart failed: ' . json_encode($resp['body']));
-        } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage());
-        }
+
+        return back()->with('error', 'Session restart is not used with Meta WhatsApp Cloud API.');
     }
 
     public function destroy($id, WhatsAppService $wa)
     {
         abort_unless(can_access("communication", "sms", "add"), 403);
-        try {
-            $resp = $wa->deleteSession($id);
-            if ($resp['status'] === 'success') {
-                return back()->with('success', 'Session deleted.');
-            }
-            return back()->with('error', 'Delete failed: ' . json_encode($resp['body']));
-        } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage());
-        }
+
+        return back()->with('error', 'Session delete is not used with Meta WhatsApp Cloud API.');
     }
 
     public function updateSettings(Request $request, $id, WhatsAppService $wa)
     {
         abort_unless(can_access("communication", "sms", "add"), 403);
-        
-        $data = $request->validate([
-            'account_protection' => 'sometimes|boolean',
-            'log_messages' => 'sometimes|boolean',
-            'webhook_enabled' => 'sometimes|boolean',
-            'read_incoming_messages' => 'sometimes|boolean',
-            'auto_reject_calls' => 'sometimes|boolean',
-            'ignore_groups' => 'sometimes|boolean',
-            'ignore_channels' => 'sometimes|boolean',
-            'ignore_broadcasts' => 'sometimes|boolean',
-        ]);
 
-        try {
-            $resp = $wa->updateSession($id, $data);
-            if ($resp['status'] === 'success') {
-                return back()->with('success', 'Session settings updated successfully.');
-            }
-            return back()->with('error', 'Update failed: ' . json_encode($resp['body']));
-        } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage());
-        }
+        return back()->with('error', 'Session settings are not used with Meta WhatsApp Cloud API.');
     }
 }
-
-

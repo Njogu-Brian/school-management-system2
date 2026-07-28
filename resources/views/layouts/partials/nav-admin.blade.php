@@ -727,7 +727,7 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     </a>
     <a href="{{ route('communication.wasender.sessions') }}" 
     class="sublink {{ Request::is('communication/whatsapp-sessions*') ? 'active' : '' }}">
-    <i class="bi bi-hdd-network"></i> WhatsApp Sessions
+    <i class="bi bi-hdd-network"></i> WhatsApp Setup
     </a>
     <a href="{{ route('communication-templates.index') }}" 
     class="sublink {{ Request::is('communication/communication-templates*') ? 'active' : '' }}">
