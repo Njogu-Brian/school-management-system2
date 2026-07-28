@@ -7,6 +7,7 @@
  */
 export enum UserRole {
   SUPER_ADMIN = 'super_admin',
+  DIRECTOR = 'director',
   ADMIN = 'admin',
   SECRETARY = 'secretary',
   ACADEMIC_ADMIN = 'academic_admin',
@@ -28,6 +29,7 @@ export enum UserRole {
  */
 export const ADMIN_APP_ROLES: readonly UserRole[] = [
   UserRole.SUPER_ADMIN,
+  UserRole.DIRECTOR,
   UserRole.ADMIN,
   UserRole.SECRETARY,
   UserRole.ACADEMIC_ADMIN,

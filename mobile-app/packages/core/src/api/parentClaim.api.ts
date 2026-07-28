@@ -21,6 +21,8 @@ export interface ClaimAdmissionData {
   matched_role?: 'father' | 'mother' | 'guardian' | string | null;
   suggested_name?: string | null;
   suggested_email?: string | null;
+  /** True when a staff/director account will be linked (same credentials, no new password). */
+  existing_account?: boolean;
 }
 
 /**
@@ -64,15 +66,15 @@ export const parentClaimApi = {
   complete(payload: {
     claimToken: string;
     name: string;
-    password: string;
-    passwordConfirmation: string;
+    password?: string;
+    passwordConfirmation?: string;
     email?: string;
   }): Promise<ApiResponse<ApiLoginData>> {
     return apiClient.post<ApiLoginData>('/parent-claim/complete', {
       claim_token: payload.claimToken,
       name: payload.name.trim(),
-      password: payload.password,
-      password_confirmation: payload.passwordConfirmation,
+      password: payload.password || undefined,
+      password_confirmation: payload.passwordConfirmation || undefined,
       email: payload.email?.trim() || undefined,
     });
   },

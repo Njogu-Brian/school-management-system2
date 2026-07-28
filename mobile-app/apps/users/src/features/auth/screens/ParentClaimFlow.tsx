@@ -14,6 +14,7 @@ interface ClaimState {
   suggestedName: string;
   suggestedEmail: string;
   matchedRole: string | null;
+  existingAccount: boolean;
 }
 
 /**
@@ -31,6 +32,7 @@ export const ParentClaimFlow: React.FC<{ onExit: () => void }> = ({ onExit }) =>
     suggestedName: '',
     suggestedEmail: '',
     matchedRole: null,
+    existingAccount: false,
   });
 
   if (step === 'admission') {
@@ -38,13 +40,14 @@ export const ParentClaimFlow: React.FC<{ onExit: () => void }> = ({ onExit }) =>
       <ParentClaimAdmissionScreen
         claimToken={state.claimToken}
         onBack={() => setStep('otp')}
-        onConfirmed={({ children, suggestedName, suggestedEmail, matchedRole }) => {
+        onConfirmed={({ children, suggestedName, suggestedEmail, matchedRole, existingAccount }) => {
           setState((s) => ({
             ...s,
             children,
             suggestedName: suggestedName ?? '',
             suggestedEmail: suggestedEmail ?? '',
             matchedRole: matchedRole ?? null,
+            existingAccount: Boolean(existingAccount),
           }));
           setStep('password');
         }}
@@ -61,6 +64,7 @@ export const ParentClaimFlow: React.FC<{ onExit: () => void }> = ({ onExit }) =>
         suggestedName={state.suggestedName}
         suggestedEmail={state.suggestedEmail}
         matchedRole={state.matchedRole}
+        existingAccount={state.existingAccount}
         onBack={() => setStep('admission')}
       />
     );

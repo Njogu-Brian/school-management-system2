@@ -188,6 +188,10 @@ class ApiParentClaimController extends Controller
         // Build the list of children under this parent (direct + siblings via family).
         $children = $this->childrenForParent($parent, $student);
 
+        // Staff/Director accounts can link the same credentials — no new password later.
+        $existingUser = $this->findExistingUser($session['channel'], $session['identifier']);
+        $existingAccount = $existingUser !== null && empty($existingUser->parent_id);
+
         // Persist the verified admission match into the claim session.
         Cache::put(self::CACHE_PREFIX . $validated['claim_token'], array_merge($session, [
             'admission_verified' => true,
@@ -195,6 +199,7 @@ class ApiParentClaimController extends Controller
             'matched_role' => $matched['role'],
             'suggested_name' => $matched['name'],
             'suggested_email' => $matched['email'],
+            'existing_account' => $existingAccount,
         ]), now()->addMinutes(self::CLAIM_TTL_MINUTES));
 
         return response()->json([
@@ -205,6 +210,7 @@ class ApiParentClaimController extends Controller
                 'matched_role' => $matched['role'],
                 'suggested_name' => $matched['name'],
                 'suggested_email' => $matched['email'],
+                'existing_account' => $existingAccount,
             ],
         ]);
     }
@@ -219,7 +225,7 @@ class ApiParentClaimController extends Controller
         $validated = $request->validate([
             'claim_token' => 'required|string',
             'name' => 'nullable|string|max:190',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => 'nullable|string|min:8|confirmed',
             'email' => 'nullable|email|max:190',
         ]);
 
@@ -272,10 +278,19 @@ class ApiParentClaimController extends Controller
             ], 409);
         }
 
+        // New parent accounts need a password; existing staff/director keep theirs.
+        if (! $existingUser && empty($validated['password'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please choose a password.',
+                'errors' => ['password' => ['Please choose a password.']],
+            ], 422);
+        }
+
         try {
             $user = DB::transaction(function () use ($existingUser, $parent, $displayName, $email, $phone, $validated) {
                 if ($existingUser) {
-                    // Staff (or other) user claiming a parent identity: link parent_id, keep existing roles.
+                    // Staff/Director claiming a parent identity: link parent_id, keep roles + password.
                     $existingUser->parent_id = $parent->id;
                     $existingUser->parent_profile_review_required = true;
                     if ($phone && empty($existingUser->phone_number)) {

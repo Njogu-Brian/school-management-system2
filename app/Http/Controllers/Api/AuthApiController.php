@@ -456,7 +456,7 @@ class AuthApiController extends Controller
         $data['can_home_mode'] = $hasParent;
         $data['can_work_mode'] = $hasStaff
             || $user->hasAnyRole([
-                'Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance Officer',
+                'Director', 'Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance Officer',
                 'Academic Administrator',
             ]);
 
@@ -472,7 +472,7 @@ class AuthApiController extends Controller
 
     /**
      * Pick the role string the apps use for shell selection.
-     * Staff + Parent dual accounts must surface the staff role so Work mode works.
+     * Staff/admin + Parent dual accounts must surface the work role so Admin/Work mode works.
      */
     protected function resolvePrimaryRoleName(User $user): string
     {
@@ -483,22 +483,22 @@ class AuthApiController extends Controller
 
         $parentLike = ['parent', 'guardian'];
         $staffPreferred = [
-            'Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance Officer',
+            'Director', 'Super Admin', 'Admin', 'Secretary', 'Accountant', 'Finance Officer',
             'Academic Administrator', 'Senior Teacher', 'Deputy Senior Teacher',
             'Supervisor', 'Teacher', 'Driver', 'Transport',
         ];
 
-        if ($user->staff || $user->hasTeacherLikeRole()) {
-            foreach ($staffPreferred as $preferred) {
-                $match = $roles->first(fn ($r) => strcasecmp($r, $preferred) === 0);
-                if ($match) {
-                    return $match;
-                }
+        // Always prefer work/admin roles over Parent when the account is dual-linked.
+        foreach ($staffPreferred as $preferred) {
+            $match = $roles->first(fn ($r) => strcasecmp($r, $preferred) === 0);
+            if ($match) {
+                return $match;
             }
-            $nonParent = $roles->first(fn ($r) => ! in_array(strtolower($r), $parentLike, true));
-            if ($nonParent) {
-                return $nonParent;
-            }
+        }
+
+        $nonParent = $roles->first(fn ($r) => ! in_array(strtolower($r), $parentLike, true));
+        if ($nonParent) {
+            return $nonParent;
         }
 
         return $roles->first() ?? 'Teacher';

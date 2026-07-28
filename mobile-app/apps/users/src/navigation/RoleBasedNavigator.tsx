@@ -1,4 +1,4 @@
-import { useAppMode, useCurrentUser, UserRole } from '@erp/core';
+import { isAdminAppRole, useAppMode, useCurrentUser, UserRole } from '@erp/core';
 import { EmptyState, ScreenContainer } from '@erp/ui';
 import React from 'react';
 import { DriverTabNavigator } from './driver/DriverTabNavigator';
@@ -11,6 +11,7 @@ import { TeacherNavigator } from './teacher/TeacherNavigator';
  *
  * Dual-identity users (staff who are also parents) can switch between a Work shell
  * (their staff role) and a Home shell (ParentTabNavigator) via the app-mode switcher.
+ * Admin/Director accounts enter this app only as parents (work stays in the Admin app).
  */
 export const RoleBasedNavigator: React.FC = () => {
   const user = useCurrentUser();
@@ -19,6 +20,11 @@ export const RoleBasedNavigator: React.FC = () => {
 
   // Home mode (or a pure-parent whose staff role is absent) → parent shell.
   if (canSwitch && mode === 'home') {
+    return <ParentTabNavigator />;
+  }
+
+  // Directors/admins with a linked child use the Users app as the full parent experience.
+  if (isAdminAppRole(role) && (user?.parentId || user?.canHomeMode)) {
     return <ParentTabNavigator />;
   }
 

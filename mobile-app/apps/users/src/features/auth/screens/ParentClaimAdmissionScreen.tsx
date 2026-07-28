@@ -10,6 +10,7 @@ export interface ClaimAdmissionConfirm {
   suggestedName?: string | null;
   suggestedEmail?: string | null;
   matchedRole?: string | null;
+  existingAccount?: boolean;
 }
 
 interface Props {
@@ -43,6 +44,7 @@ export const ParentClaimAdmissionScreen: React.FC<Props> = ({ claimToken, onBack
         suggestedName: data.suggested_name ?? null,
         suggestedEmail: data.suggested_email ?? null,
         matchedRole: data.matched_role ?? null,
+        existingAccount: Boolean(data.existing_account),
       });
     } catch {
       setResult(null);

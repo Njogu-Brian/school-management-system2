@@ -12,13 +12,14 @@ interface Props {
   suggestedName?: string;
   suggestedEmail?: string;
   matchedRole?: string | null;
+  /** Staff/Director account will be linked — keep existing password. */
+  existingAccount?: boolean;
   onBack: () => void;
 }
 
 /**
- * Parent claim — step 4: review prefilled profile details + set a password.
- * Name/email come from the matched parent_info slot when available; parents can
- * keep or edit them before finishing.
+ * Parent claim — step 4: review prefilled profile details + set a password
+ * (skipped when linking an existing staff/director account).
  */
 export const ParentClaimPasswordScreen: React.FC<Props> = ({
   claimToken,
@@ -27,6 +28,7 @@ export const ParentClaimPasswordScreen: React.FC<Props> = ({
   suggestedName = '',
   suggestedEmail = '',
   matchedRole = null,
+  existingAccount = false,
   onBack,
 }) => {
   const { spacing, typography, radius } = useTheme();
@@ -47,26 +49,30 @@ export const ParentClaimPasswordScreen: React.FC<Props> = ({
 
   const busy = complete.isPending;
   const error = localError ?? (complete.error as Error | null)?.message ?? null;
-  const canSubmit = name.trim().length > 1 && password.length >= 8 && !busy;
+  const canSubmit = existingAccount
+    ? name.trim().length > 1 && !busy
+    : name.trim().length > 1 && password.length >= 8 && !busy;
   const roleLabel =
     matchedRole === 'father' ? 'Father' : matchedRole === 'mother' ? 'Mother' : matchedRole === 'guardian' ? 'Guardian' : null;
 
   const handleSubmit = async () => {
     setLocalError(null);
-    if (password !== confirm) {
-      setLocalError('Passwords do not match.');
-      return;
-    }
-    if (password.length < 8) {
-      setLocalError('Password must be at least 8 characters.');
-      return;
+    if (!existingAccount) {
+      if (password !== confirm) {
+        setLocalError('Passwords do not match.');
+        return;
+      }
+      if (password.length < 8) {
+        setLocalError('Password must be at least 8 characters.');
+        return;
+      }
     }
     try {
       const data = await complete.mutateAsync({
         claimToken,
         name: name.trim(),
-        password,
-        passwordConfirmation: confirm,
+        password: existingAccount ? undefined : password,
+        passwordConfirmation: existingAccount ? undefined : confirm,
         email: channel === 'phone' ? email.trim() || undefined : undefined,
       });
       await completeParentClaim({ token: data.token, user: data.user, expires_at: data.expires_at });
@@ -80,11 +86,15 @@ export const ParentClaimPasswordScreen: React.FC<Props> = ({
       step={3}
       totalSteps={4}
       title="Review your details"
-      subtitle="Confirm or update your name and contact, then set a password."
+      subtitle={
+        existingAccount
+          ? 'Confirm your details. Your existing school login will also unlock parent access — no new password needed.'
+          : 'Confirm or update your name and contact, then set a password.'
+      }
       onBack={onBack}
       error={error}
     >
-      {roleLabel || channel === 'phone' ? (
+      {roleLabel || channel === 'phone' || existingAccount ? (
         <View
           style={{
             backgroundColor: 'rgba(255,255,255,0.06)',
@@ -96,6 +106,11 @@ export const ParentClaimPasswordScreen: React.FC<Props> = ({
             gap: spacing.xs,
           }}
         >
+          {existingAccount ? (
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: typography.caption.fontSize }}>
+              We found your existing school account. After linking, use the same credentials in both the Admin and Users apps.
+            </Text>
+          ) : null}
           {roleLabel ? (
             <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: typography.caption.fontSize }}>
               Matched as {roleLabel} on school records
@@ -131,36 +146,40 @@ export const ParentClaimPasswordScreen: React.FC<Props> = ({
         />
       ) : null}
 
-      <ClaimField
-        label="Password"
-        value={password}
-        onChangeText={setPassword}
-        placeholder="At least 8 characters"
-        icon="lock-closed-outline"
-        secureTextEntry={!showPassword}
-        autoCapitalize="none"
-        editable={!busy}
-        right={
-          <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
-            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="rgba(255,255,255,0.45)" />
-          </Pressable>
-        }
-      />
+      {!existingAccount ? (
+        <>
+          <ClaimField
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="At least 8 characters"
+            icon="lock-closed-outline"
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            editable={!busy}
+            right={
+              <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="rgba(255,255,255,0.45)" />
+              </Pressable>
+            }
+          />
 
-      <ClaimField
-        label="Confirm password"
-        value={confirm}
-        onChangeText={setConfirm}
-        placeholder="Re-enter password"
-        icon="lock-closed-outline"
-        secureTextEntry={!showPassword}
-        autoCapitalize="none"
-        editable={!busy}
-        onSubmitEditing={handleSubmit}
-      />
+          <ClaimField
+            label="Confirm password"
+            value={confirm}
+            onChangeText={setConfirm}
+            placeholder="Re-enter password"
+            icon="lock-closed-outline"
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            editable={!busy}
+            onSubmitEditing={handleSubmit}
+          />
+        </>
+      ) : null}
 
       <Button
-        label="Create account & sign in"
+        label={existingAccount ? 'Link child & continue' : 'Create account & sign in'}
         onPress={handleSubmit}
         loading={busy}
         disabled={!canSubmit}

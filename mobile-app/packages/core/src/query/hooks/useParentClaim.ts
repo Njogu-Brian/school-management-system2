@@ -43,7 +43,13 @@ export function useCompleteParentClaim() {
   return useMutation<
     ApiLoginData,
     Error,
-    { claimToken: string; name: string; password: string; passwordConfirmation: string; email?: string }
+    {
+      claimToken: string;
+      name: string;
+      password?: string;
+      passwordConfirmation?: string;
+      email?: string;
+    }
   >({
     mutationFn: async (args) => {
       const res = await parentClaimApi.complete(args);
