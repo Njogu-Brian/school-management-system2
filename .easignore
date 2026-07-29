@@ -7,10 +7,12 @@ vendor/
 node_modules/
 **/node_modules/
 
-storage/
-public/storage
-public/hot
-bootstrap/cache/
+# Laravel runtime dirs only (do NOT use bare "storage/" — that also drops
+# mobile-app/packages/core/src/storage and breaks Metro on EAS).
+/storage/
+/public/storage
+/public/hot
+/bootstrap/cache/
 
 # Admin local export/dist (huge) — never needed for Users app builds
 mobile-app/apps/admin/dist/
