@@ -135,11 +135,11 @@
           <div class="settings-card h-100">
             <div class="card-header d-flex align-items-center gap-2 flex-wrap d-print-none">
               <i class="bi bi-graph-up-arrow"></i>
-              <h5 class="mb-0">Most Improved</h5>
+              <h5 class="mb-0">Improvement Scale</h5>
               @if(!empty($payload['meta']['comparison_label']))
                 <span class="badge text-bg-light border">{{ $payload['meta']['comparison_label'] }}</span>
               @endif
-              <span class="text-muted small ms-1">Overall total marks between exam sittings</span>
+              <span class="text-muted small ms-1">All students by overall total marks between exam sittings</span>
             </div>
             <div class="card-body p-0">
               <div class="table-responsive">

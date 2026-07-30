@@ -10,12 +10,12 @@
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <h6 class="mb-0 d-flex align-items-center gap-2">
         <i class="bi bi-graph-up-arrow text-success"></i>
-        Most Improved
+        Improvement Scale
       </h6>
       @if($comparisonLabel)
         <span class="badge text-bg-light border">{{ $comparisonLabel }}</span>
       @endif
-      <span class="text-muted small">By overall total marks vs previous exam in this term</span>
+      <span class="text-muted small">All students ranked by change in overall total marks vs previous exam in this term</span>
     </div>
     <div class="table-responsive">
       <table class="table table-modern table-sm align-middle mb-0 exam-report-marks-table">

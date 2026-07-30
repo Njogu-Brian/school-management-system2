@@ -376,7 +376,7 @@ class AnalyticsService
         Classroom $classroom,
         ?int $streamId = null,
         ?array $currentSheet = null,
-        int $limit = 10
+        ?int $limit = null
     ): array {
         $builder = new ClassSheetBuilder();
         $current = $currentSheet ?? $builder->buildForExamSession($session, $classroom, $streamId);
@@ -423,7 +423,7 @@ class AnalyticsService
             })
             ->whereNotNull('improvement')
             ->sortByDesc('improvement')
-            ->take($limit)
+            ->when($limit !== null && $limit > 0, fn ($c) => $c->take($limit))
             ->values();
 
         return [
@@ -457,7 +457,7 @@ class AnalyticsService
         int $termId,
         Classroom $classroom,
         ?int $streamId = null,
-        int $limit = 10
+        ?int $limit = null
     ): array {
         $latest = $this->examScope->findLatestExamSessionInTerm(
             $academicYearId,
@@ -538,7 +538,7 @@ class AnalyticsService
                     'curr_total' => $curr,
                     'improvement' => $delta,
                 ];
-            })->whereNotNull('improvement')->sortByDesc('improvement')->take(10)->values();
+            })->whereNotNull('improvement')->sortByDesc('improvement')->values();
         }
 
         return [

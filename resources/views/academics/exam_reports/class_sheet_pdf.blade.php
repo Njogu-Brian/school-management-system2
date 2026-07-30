@@ -141,11 +141,11 @@
           @php $mi = $payload['most_improved']; $miRows = collect($mi['rows'] ?? []); @endphp
           @if($miRows->isNotEmpty() || ! empty($mi['comparison_label']))
             <p style="margin:10px 0 4px;font-weight:bold;font-size:8px;">
-              Most Improved
+              Improvement Scale
               @if(! empty($mi['comparison_label']))
                 — {{ $mi['comparison_label'] }}
               @endif
-              <span style="font-weight:normal;">(overall total marks)</span>
+              <span style="font-weight:normal;">(all students by overall total marks)</span>
             </p>
             <table class="exam-report-marks-table" style="max-width:85%;">
               <thead>
