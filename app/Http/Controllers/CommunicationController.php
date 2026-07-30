@@ -1873,14 +1873,14 @@ class CommunicationController extends Controller
         $job = \App\Models\CommunicationJob::find($id);
         if (!$job) {
             // Legacy: cancel raw Laravel queue row
-            try {
-                $deleted = \DB::table('jobs')->where('id', $id)->delete();
+        try {
+            $deleted = \DB::table('jobs')->where('id', $id)->delete();
                 return $deleted
                     ? back()->with('success', 'Queue job cancelled.')
                     : back()->with('error', 'Job not found.');
-            } catch (\Exception $e) {
-                return back()->with('error', 'Failed to cancel job: ' . $e->getMessage());
-            }
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to cancel job: ' . $e->getMessage());
+        }
         }
 
         if (!$job->isCancellable()) {
