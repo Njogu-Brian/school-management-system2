@@ -16,16 +16,10 @@ class ScheduledFeeCommunicationController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ScheduledFeeCommunication::with(['student', 'template', 'createdBy'])
-            ->latest();
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        $scheduled = $query->paginate(20)->withQueryString();
-
-        return view('finance.fee_reminders.schedule.index', compact('scheduled'));
+        return redirect()->route('finance.fee-reminders.index', array_filter([
+            'tab' => 'scheduled',
+            'status' => $request->query('status'),
+        ]));
     }
 
     public function create()
@@ -62,7 +56,8 @@ class ScheduledFeeCommunicationController extends Controller
             ['key' => 'class_name', 'value' => 'Class name'],
             ['key' => 'parent_name', 'value' => "Parent's full name"],
             ['key' => 'father_name', 'value' => "Parent's full name"],
-            ['key' => 'outstanding_amount', 'value' => 'Total outstanding (all fee invoices, due or not yet due)'],
+            ['key' => 'outstanding_amount', 'value' => 'Due / overdue fee balance only (excludes not-yet-due invoices such as Term 3 before opening)'],
+            ['key' => 'total_fee_balance', 'value' => 'Total unpaid fee balance (includes invoices not yet due)'],
             ['key' => 'prior_term_balance', 'value' => 'Balance from prior term(s) (carried forward only)'],
             ['key' => 'invoice_number', 'value' => 'Invoice number'],
             ['key' => 'total_amount', 'value' => 'Total invoice amount'],
@@ -213,6 +208,15 @@ class ScheduledFeeCommunicationController extends Controller
         try {
             $item = ScheduledFeeCommunication::create($validated);
 
+            try {
+                $this->registerScheduledFeeJobs($item);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to register scheduled fee jobs in hub', [
+                    'item_id' => $item->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             $sendJobError = null;
             if ($sendNow) {
                 try {
@@ -288,13 +292,142 @@ class ScheduledFeeCommunicationController extends Controller
 
     public function destroy(ScheduledFeeCommunication $scheduledFeeCommunication)
     {
-        if (!in_array($scheduledFeeCommunication->status, ['pending', 'active'])) {
+        if (!in_array($scheduledFeeCommunication->status, ['pending', 'active', 'paused'])) {
             return back()->with('error', 'Only pending or active scheduled communications can be cancelled.');
         }
 
         $scheduledFeeCommunication->update(['status' => 'cancelled']);
 
+        try {
+            $jobs = \App\Models\CommunicationJob::query()
+                ->where('source_ref_type', $scheduledFeeCommunication->getMorphClass())
+                ->where('source_ref_id', $scheduledFeeCommunication->id)
+                ->whereIn('status', ['pending', 'scheduled', 'running', 'paused'])
+                ->get();
+            $service = app(\App\Services\CommunicationJobService::class);
+            foreach ($jobs as $job) {
+                $service->cancel($job);
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
         return back()->with('success', 'Scheduled communication cancelled.');
+    }
+
+    protected function registerScheduledFeeJobs(ScheduledFeeCommunication $item): void
+    {
+        if (($item->send_at && $item->send_at->lte(now())) || request()->boolean('send_now')) {
+            // Send-now executions are registered by ProcessScheduledFeeCommunicationsJob.
+            return;
+        }
+
+        $channels = is_array($item->channels) ? $item->channels : (array) $item->channels;
+        $message = $item->custom_message;
+        if (!$message && $item->template_id) {
+            $message = optional($item->template)->content;
+        }
+        $title = optional($item->template)->title ?: 'Scheduled fee communication';
+        $scheduledAt = $item->recurrence_next_at ?? $item->send_at;
+
+        $recipientData = [];
+        try {
+            // Lightweight placeholder recipients — full list rebuilt at send time
+            $preview = $this->previewRecipientsInternal($item);
+            $recipientData = $preview;
+        } catch (\Throwable $e) {
+            $recipientData = [];
+        }
+
+        $service = app(\App\Services\CommunicationJobService::class);
+        foreach ($channels as $channel) {
+            $channel = strtolower((string) $channel);
+            if (!in_array($channel, ['sms', 'email', 'whatsapp'], true)) {
+                continue;
+            }
+            $list = $recipientData[$channel] ?? [];
+            $rows = [];
+            foreach ($list as $row) {
+                $contact = $row['contact'] ?? $row['phone'] ?? $row['email'] ?? null;
+                if (!$contact) {
+                    continue;
+                }
+                $rows[] = [
+                    'contact' => $contact,
+                    'phone' => $channel !== 'email' ? $contact : null,
+                    'email' => $channel === 'email' ? $contact : null,
+                    'name' => $row['name'] ?? null,
+                    'recipient_id' => $row['recipient_id'] ?? $row['student_id'] ?? null,
+                    'recipient_type' => $item->target,
+                ];
+            }
+
+            $service->createFromRecipients(
+                $channel,
+                'scheduled_fee',
+                $rows,
+                $title . ' (' . strtoupper($channel) . ')',
+                $message,
+                'scheduled_fee_plan_' . $item->id . '_' . $channel,
+                'scheduled',
+                $scheduledAt,
+                $item->created_by,
+                $item,
+                ['target' => $item->target, 'plan' => true]
+            );
+        }
+    }
+
+    protected function previewRecipientsInternal(ScheduledFeeCommunication $item): array
+    {
+        $data = [
+            'target' => $item->target,
+            'student_id' => $item->student_id,
+            'selected_student_ids' => $item->selected_student_ids,
+            'classroom_ids' => $item->classroom_ids,
+            'exclude_staff' => (bool) ($item->exclude_staff ?? true),
+            'exclude_student_ids' => $item->exclude_student_ids,
+        ];
+        switch ($item->filter_type) {
+            case 'outstanding_fees':
+                $data['fee_balance_only'] = true;
+                break;
+            case 'upcoming_invoices':
+                $data['upcoming_invoices_only'] = true;
+                break;
+            case 'swimming_balance':
+                $data['swimming_balance_only'] = true;
+                break;
+            case 'prior_term_balance':
+                $data['prior_term_balance_only'] = true;
+                break;
+        }
+        if ($item->balance_min !== null) {
+            $data['balance_min'] = $item->balance_min;
+        }
+        if ($item->balance_max !== null) {
+            $data['balance_max'] = $item->balance_max;
+        }
+
+        $byChannel = ['sms' => [], 'email' => [], 'whatsapp' => []];
+        foreach (array_keys($byChannel) as $channel) {
+            if (!in_array($channel, (array) $item->channels, true)) {
+                continue;
+            }
+            $raw = CommunicationHelperService::collectRecipients($data, $channel);
+            $pairs = CommunicationHelperService::expandRecipientsToPairs($raw);
+            foreach ($pairs as $pair) {
+                [$contact, $entity] = array_pad($pair, 2, null);
+                $byChannel[$channel][] = [
+                    'contact' => $contact,
+                    'name' => trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? '')),
+                    'recipient_id' => $entity->id ?? null,
+                    'student_id' => $entity->id ?? null,
+                ];
+            }
+        }
+
+        return $byChannel;
     }
 
     public function previewCount(Request $request)
@@ -466,7 +599,11 @@ class ScheduledFeeCommunicationController extends Controller
             $filterType = $request->input('filter_type') ?? 'all';
             $balance = $filterType === 'prior_term_balance'
                 ? StudentBalanceService::getOutstandingPriorTermArrears($entity)
-                : StudentBalanceService::getTotalOutstandingBalance($entity, false);
+                : StudentBalanceService::getTotalOutstandingBalance(
+                    $entity,
+                    // Outstanding / default: due-overdue only. Upcoming filter still shows not-yet-due totals.
+                    $filterType !== 'upcoming_invoices'
+                );
             $recipients[] = [
                 'student_name' => $entity->full_name ?? ($entity->first_name . ' ' . $entity->last_name),
                 'admission_number' => $entity->admission_number ?? $entity->admission_no ?? '-',

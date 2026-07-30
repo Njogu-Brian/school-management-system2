@@ -220,7 +220,7 @@ class CommunicationHelperService
                         if (! ($e instanceof Student)) {
                             return true;
                         }
-                        $balance = StudentBalanceService::getTotalOutstandingBalance($e, false);
+                        $balance = StudentBalanceService::getTotalOutstandingBalance($e, true);
 
                         return $balance >= $min;
                     });
@@ -241,7 +241,7 @@ class CommunicationHelperService
                         if (! ($e instanceof Student)) {
                             return true;
                         }
-                        $outstanding = StudentBalanceService::getTotalOutstandingBalance($e, false);
+                        $outstanding = StudentBalanceService::getTotalOutstandingBalance($e, true);
                         if ($outstanding <= 0) {
                             return false;
                         }

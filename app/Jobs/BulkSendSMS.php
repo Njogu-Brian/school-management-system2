@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CommunicationLog;
+use App\Services\CommunicationJobService;
 use App\Services\CommunicationPauseService;
 use App\Services\SMSService;
 use Illuminate\Bus\Queueable;
@@ -66,7 +67,28 @@ class BulkSendSMS implements ShouldQueue
 
     public function handle(SMSService $smsService): void
     {
-        if (CommunicationPauseService::isPaused()) {
+        $jobService = app(CommunicationJobService::class);
+        $commJob = $jobService->ensureJob(
+            $this->trackingId,
+            'sms',
+            str_starts_with($this->trackingId, 'scheduled_fee_') ? 'scheduled_fee'
+                : (str_starts_with($this->trackingId, 'scheduled_') ? 'scheduled_comm' : 'manual_bulk'),
+            $this->recipients,
+            $this->title,
+            $this->message,
+            'pending',
+            $this->userId,
+            null,
+            ['target' => $this->target, 'sender_id' => $this->senderId]
+        );
+
+        if ($commJob->status === 'cancelled') {
+            Log::info('Bulk SMS job aborted: communication job cancelled', ['tracking_id' => $this->trackingId]);
+
+            return;
+        }
+
+        if (CommunicationPauseService::isPaused() || $commJob->status === 'paused') {
             CommunicationPauseService::registerPausedBulkSmsJob(
                 $this->trackingId,
                 $this->recipients,
@@ -78,12 +100,15 @@ class BulkSendSMS implements ShouldQueue
             );
             CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
                 'total' => count($this->recipients),
-                'message' => 'Paused: insufficient SMS credits. Resume from Communication → Queues.',
+                'message' => 'Paused: insufficient SMS credits. Resume from Communication → Bulk jobs.',
             ]);
+            $jobService->markPaused($commJob);
             Log::info('Bulk SMS job deferred: communications paused', ['tracking_id' => $this->trackingId]);
 
             return;
         }
+
+        $jobService->markRunning($commJob);
 
         $totalRecipients = count($this->recipients);
         $sentCount = 0;
@@ -127,6 +152,33 @@ class BulkSendSMS implements ShouldQueue
         ]);
 
         foreach ($this->recipients as $item) {
+            $freshJob = $jobService->findByTrackingId($this->trackingId);
+            if ($freshJob && in_array($freshJob->status, ['cancelled', 'paused'], true)) {
+                if ($freshJob->status === 'paused') {
+                    CommunicationPauseService::registerPausedBulkSmsJob(
+                        $this->trackingId,
+                        $this->recipients,
+                        $this->message,
+                        $this->title,
+                        $this->target,
+                        $this->senderId,
+                        $this->userId
+                    );
+                    CommunicationPauseService::pauseBulkProgress($this->trackingId, 'sms', [
+                        'processed' => $processed,
+                        'sent' => $sentCount,
+                        'failed' => $failedCount,
+                        'total' => $totalRecipients,
+                    ]);
+                }
+                Log::info('Bulk SMS job stopped mid-run', [
+                    'tracking_id' => $this->trackingId,
+                    'status' => $freshJob->status,
+                ]);
+
+                return;
+            }
+
             if (CommunicationPauseService::isPaused()) {
                 CommunicationPauseService::registerPausedBulkSmsJob(
                     $this->trackingId,
@@ -143,6 +195,7 @@ class BulkSendSMS implements ShouldQueue
                     'failed' => $failedCount,
                     'total' => $totalRecipients,
                 ]);
+                $jobService->markPaused($this->trackingId);
                 Log::info('Bulk SMS job stopped mid-run: communications paused', ['tracking_id' => $this->trackingId]);
 
                 return;
@@ -237,6 +290,7 @@ class BulkSendSMS implements ShouldQueue
                         'tracking_id' => $this->trackingId,
                         'error_code' => 'INSUFFICIENT_CREDITS',
                     ]);
+                    $jobService->markPaused($this->trackingId);
                     Log::warning('Bulk SMS halted: insufficient credits', ['tracking_id' => $this->trackingId]);
 
                     return;
@@ -255,7 +309,7 @@ class BulkSendSMS implements ShouldQueue
                 $reportRows[] = $this->buildReportRow($phone, $entityData, $status,
                     $status !== 'sent' ? (is_array($response) ? json_encode($response) : (string) $response) : null);
 
-                CommunicationLog::create([
+                $log = CommunicationLog::create([
                     'recipient_type' => $this->target,
                     'recipient_id' => $recipientId,
                     'contact' => $phone,
@@ -275,6 +329,15 @@ class BulkSendSMS implements ShouldQueue
                         ?? data_get($response, 'MessageID'),
                     'provider_status' => strtolower(data_get($response, 'status', 'sent')),
                 ]);
+                $jobService->markRecipientByContact(
+                    $this->trackingId,
+                    $phone,
+                    $status,
+                    $recipientId,
+                    null,
+                    null,
+                    $log->id ?? null
+                );
 
                 if ($status === 'sent') {
                     $existingSentKeys[$idempotencyKey] = true;
@@ -291,7 +354,7 @@ class BulkSendSMS implements ShouldQueue
                     'error' => $e->getMessage(),
                 ]);
                 $reportRows[] = $this->buildReportRow($phone, $entityData ?? [], 'failed', $e->getMessage());
-                CommunicationLog::create([
+                $log = CommunicationLog::create([
                     'recipient_type' => $this->target,
                     'recipient_id' => $entity->id ?? null,
                     'contact' => $phone,
@@ -306,6 +369,15 @@ class BulkSendSMS implements ShouldQueue
                     'sent_at' => now(),
                     'tracking_id' => $this->trackingId,
                 ]);
+                $jobService->markRecipientByContact(
+                    $this->trackingId,
+                    $phone,
+                    'failed',
+                    $entity->id ?? null,
+                    null,
+                    $e->getMessage(),
+                    $log->id ?? null
+                );
             }
 
             if ($processed % 10 === 0 || $processed === $totalRecipients) {
@@ -344,6 +416,8 @@ class BulkSendSMS implements ShouldQueue
             'processed' => $processed,
             'report_id' => $reportId,
         ]);
+
+        $jobService->markCompleted($this->trackingId);
 
         Log::info('Bulk SMS send job completed', [
             'tracking_id' => $this->trackingId,
@@ -395,5 +469,10 @@ class BulkSendSMS implements ShouldQueue
             'error' => $exception->getMessage(),
         ]);
         $this->updateProgress(['status' => 'failed', 'error' => $exception->getMessage()]);
+        try {
+            app(CommunicationJobService::class)->markFailed($this->trackingId, $exception->getMessage());
+        } catch (\Throwable $e) {
+            // ignore
+        }
     }
 }

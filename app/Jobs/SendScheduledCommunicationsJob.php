@@ -126,6 +126,27 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                     }
                     \App\Jobs\BulkSendSMS::dispatch($trackingId, $recipientsData, $template->content, $title, $item->target, null, null);
                 }
+                try {
+                    app(\App\Services\CommunicationJobService::class)->ensureJob(
+                        $trackingId,
+                        $item->type === 'whatsapp' ? 'whatsapp' : $item->type,
+                        'scheduled_comm',
+                        $recipientsData,
+                        $title,
+                        $template->content,
+                        'running',
+                        null,
+                        $item,
+                        ['target' => $item->target]
+                    );
+                    // Complete the pre-registered scheduled hub row if present
+                    $planJob = app(\App\Services\CommunicationJobService::class)->findByTrackingId('scheduled_comm_' . $item->id);
+                    if ($planJob && in_array($planJob->status, ['scheduled', 'pending', 'paused'], true)) {
+                        $planJob->update(['status' => 'completed', 'finished_at' => now()]);
+                    }
+                } catch (\Throwable $e) {
+                    // ignore registry errors
+                }
                 $item->update(['status' => 'sent']);
                 continue;
             }

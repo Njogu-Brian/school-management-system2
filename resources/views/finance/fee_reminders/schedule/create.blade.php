@@ -142,7 +142,7 @@
                 </label>
                 <label class="schedule-radio">
                   <input type="radio" name="filter_type" value="outstanding_fees" {{ old('filter_type') == 'outstanding_fees' ? 'checked' : '' }}>
-                  <span>Outstanding fees only</span>
+                  <span>Outstanding fees only (due / overdue — not future Term invoices)</span>
                 </label>
                 <label class="schedule-radio">
                   <input type="radio" name="filter_type" value="prior_term_balance" {{ old('filter_type') == 'prior_term_balance' ? 'checked' : '' }}>

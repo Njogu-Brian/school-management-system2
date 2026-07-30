@@ -112,6 +112,11 @@ class AttendanceNotificationController extends Controller
         foreach ($recipients as $r) {
             if (!$r->staff || !$r->staff->phone_number) continue;
 
+            if (class_exists(\App\Services\CommunicationPauseService::class)
+                && \App\Services\CommunicationPauseService::isPaused()) {
+                continue;
+            }
+
             // Build message with placeholders
             $message = str_replace(
                 ['{date}', '{label}'],
@@ -122,17 +127,19 @@ class AttendanceNotificationController extends Controller
             try {
                 $response = $this->smsService->sendSMS($r->staff->phone_number, $message);
 
+                $insufficient = is_array($response) && (($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS');
                 CommunicationLog::create([
                     'recipient_type' => 'staff',
                     'recipient_id'   => $r->staff_id,
                     'contact'        => $r->staff->phone_number,
                     'channel'        => 'sms',
                     'message'        => $message,
-                    'status'         => 'sent',
+                    'status'         => $insufficient ? 'failed' : 'sent',
                     'response'       => json_encode($response),
                     'title'          => $tpl->title ?? 'attendance_daily_summary',
-                    'target'         => 'attendance',
                     'type'           => 'sms',
+                    'scope'          => 'attendance',
+                    'error_code'     => $insufficient ? 'ATTENDANCE_SKIPPED_NO_CREDITS' : null,
                     'sent_at'        => now(),
                 ]);
             } catch (\Exception $e) {
@@ -145,8 +152,8 @@ class AttendanceNotificationController extends Controller
                     'status'         => 'failed',
                     'response'       => $e->getMessage(),
                     'title'          => $tpl->title ?? 'attendance_daily_summary',
-                    'target'         => 'attendance',
                     'type'           => 'sms',
+                    'scope'          => 'attendance',
                     'sent_at'        => now(),
                 ]);
             }

@@ -511,7 +511,7 @@
                         <div class="sms-balance-value" id="headerSmsBalanceValue">—</div>
                         <div class="sms-balance-meta mt-1" id="headerSmsBalanceMeta">Checking balance…</div>
                         <div class="d-flex gap-2 mt-3 flex-wrap">
-                            <a class="btn btn-sm btn-outline-primary" href="{{ url('/communication/queues') }}">Queues</a>
+                            <a class="btn btn-sm btn-outline-primary" href="{{ url('/communication/pending-jobs') }}">Bulk jobs</a>
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="headerSmsBalanceRefresh">Refresh</button>
                         </div>
                     </div>

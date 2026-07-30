@@ -27,8 +27,8 @@ const config: ExpoConfig = {
   assetBundlePatterns: ['**/*'],
   updates: {
     url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
-    enabled: false,
-    checkAutomatically: 'NEVER',
+    enabled: true,
+    checkAutomatically: 'ON_LOAD',
     fallbackToCacheTimeout: 0,
   },
   runtimeVersion: APP_VERSION,

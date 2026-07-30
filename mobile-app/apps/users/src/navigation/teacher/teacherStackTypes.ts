@@ -45,4 +45,7 @@ export type TeacherStackParamList = {
   MyAdvances: undefined;
   ConcernsList: undefined;
   RaiseConcern: { studentId?: number } | undefined;
+  ReportCardsHub: undefined;
+  StudentReportCards: { studentId: number; studentName?: string };
+  TeacherReportCardDetail: { studentId: number; reportCardId: number };
 };

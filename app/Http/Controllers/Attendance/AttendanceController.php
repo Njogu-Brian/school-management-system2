@@ -362,6 +362,12 @@ public function mark(Request $request)
 // -------------------- TEMPLATE NOTIFY --------------------
 private function notifyWithTemplate(string $code, Student $student, string $humanDate, ?string $status = null, ?string $reason = null)
 {
+    if (class_exists(\App\Services\CommunicationPauseService::class)
+        && \App\Services\CommunicationPauseService::isPaused()) {
+        // Attendance must not queue for resume when credits are paused
+        return;
+    }
+
     // Map old codes to new seeder template codes
     $templateCodeMap = [
         'attendance_absent' => 'attendance_absent_sms',
@@ -404,6 +410,26 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
         try {
             $response = $this->smsService->sendSMS($phone, $message);
 
+            $insufficient = is_array($response) && (($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS');
+            if ($insufficient) {
+                // Fail-and-forget: never pause global communications or retry on resume
+                CommunicationLog::create([
+                    'recipient_type' => 'parent',
+                    'recipient_id'   => $student->parent->id ?? null,
+                    'contact'        => $phone,
+                    'channel'        => 'sms',
+                    'message'        => $message,
+                    'status'         => 'failed',
+                    'response'       => json_encode($response),
+                    'title'          => $tpl->title ?? $code,
+                    'type'           => 'sms',
+                    'scope'          => 'attendance',
+                    'error_code'     => 'ATTENDANCE_SKIPPED_NO_CREDITS',
+                    'sent_at'        => now(),
+                ]);
+                continue;
+            }
+
             CommunicationLog::create([
                 'recipient_type' => 'parent',
                 'recipient_id'   => $student->parent->id ?? null,
@@ -413,8 +439,8 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
                 'status'         => 'sent',
                 'response'       => json_encode($response),
                 'title'          => $tpl->title ?? $code,
-                'target'         => 'attendance',
                 'type'           => 'sms',
+                'scope'          => 'attendance',
                 'sent_at'        => now(),
             ]);
         } catch (\Exception $e) {
@@ -427,8 +453,8 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
                 'status'         => 'failed',
                 'response'       => $e->getMessage(),
                 'title'          => $tpl->title ?? $code,
-                'target'         => 'attendance',
                 'type'           => 'sms',
+                'scope'          => 'attendance',
                 'sent_at'        => now(),
             ]);
         }
@@ -862,7 +888,14 @@ private function applyPlaceholders(string $content, Student $student, string $hu
                         continue;
                     }
                     try {
-                        $this->smsService->sendSMS($phone, $message);
+                        if (class_exists(\App\Services\CommunicationPauseService::class)
+                            && \App\Services\CommunicationPauseService::isPaused()) {
+                            continue;
+                        }
+                        $response = $this->smsService->sendSMS($phone, $message);
+                        if (is_array($response) && (($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS')) {
+                            continue; // attendance: never pause/resume
+                        }
                         $notified++;
                     } catch (\Exception $e) {
                         report($e);

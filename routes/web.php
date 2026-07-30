@@ -1359,6 +1359,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
         // Pending Jobs
         Route::get('pending-jobs', [CommunicationController::class, 'pendingJobs'])->name('communication.pending-jobs');
+        Route::get('pending-jobs/{communicationJob}', [CommunicationController::class, 'showCommunicationJob'])->name('communication.pending-jobs.show');
+        Route::post('pending-jobs/{communicationJob}/pause', [CommunicationController::class, 'pauseCommunicationJob'])->name('communication.pending-jobs.pause');
+        Route::post('pending-jobs/{communicationJob}/resume', [CommunicationController::class, 'resumeCommunicationJob'])->name('communication.pending-jobs.resume-job');
         Route::post('pending-jobs/{id}/cancel', [CommunicationController::class, 'cancelJob'])->name('communication.pending-jobs.cancel');
         Route::post('pending-jobs/{id}/send-immediately', [CommunicationController::class, 'sendJobImmediately'])->name('communication.pending-jobs.send-immediately');
 

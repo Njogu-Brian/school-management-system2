@@ -70,6 +70,12 @@ class CommunicationPauseService
             ]);
 
             try {
+                app(CommunicationJobService::class)->pauseAllActiveForCredits();
+            } catch (\Throwable $e) {
+                Log::warning('Failed to pause communication jobs', ['error' => $e->getMessage()]);
+            }
+
+            try {
                 app(SystemAlertService::class)->raiseSmsCreditsAlert($balance, $trigger);
             } catch (\Throwable $e) {
                 Log::warning('Failed to raise SMS credits system alert', ['error' => $e->getMessage()]);
@@ -189,6 +195,12 @@ class CommunicationPauseService
         $smsResent = self::resendPausedSmsLogs();
         $bulkRedispatched = self::redispatchPausedBulkSmsJobs($meta['paused_bulk_sms'] ?? []);
 
+        try {
+            app(CommunicationJobService::class)->resumeAllPausedForCredits();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to resume communication jobs', ['error' => $e->getMessage()]);
+        }
+
         self::saveMeta([]);
 
         Log::info('Communications resumed after pause', [
@@ -222,6 +234,19 @@ class CommunicationPauseService
             ->where('channel', 'sms')
             ->where('error_code', 'INSUFFICIENT_CREDITS')
             ->whereIn('status', ['failed', 'paused'])
+            ->where(function ($q) {
+                $q->whereNull('title')
+                    ->orWhere(function ($q2) {
+                        $q2->where('title', 'not like', 'Attendance%')
+                            ->where('title', 'not like', '%attendance%')
+                            ->where('title', 'not like', 'Consecutive Absence%');
+                    });
+            })
+            ->where(function ($q) {
+                // Prefer scope when present; attendance uses target/title heuristics above
+                $q->whereNull('scope')
+                    ->orWhere('scope', '!=', 'attendance');
+            })
             ->orderBy('id')
             ->chunkById(50, function ($logs) use ($sms, &$resent) {
                 foreach ($logs as $log) {
@@ -316,6 +341,14 @@ class CommunicationPauseService
             ->where('channel', 'sms')
             ->where('error_code', 'INSUFFICIENT_CREDITS')
             ->whereIn('status', ['failed', 'paused'])
+            ->where(function ($q) {
+                $q->whereNull('title')
+                    ->orWhere(function ($q2) {
+                        $q2->where('title', 'not like', 'Attendance%')
+                            ->where('title', 'not like', '%attendance%')
+                            ->where('title', 'not like', 'Consecutive Absence%');
+                    });
+            })
             ->count();
     }
 
@@ -349,6 +382,10 @@ class CommunicationPauseService
             return true;
         }
 
+        if (\App\Models\CommunicationJob::query()->where('status', 'paused')->exists()) {
+            return true;
+        }
+
         return false;
     }
 
@@ -356,7 +393,7 @@ class CommunicationPauseService
     {
         if (self::isPaused()) {
             throw new \RuntimeException(
-                'Outbound communications are paused due to insufficient SMS credits. Top up credits and resume from Communication → Queues.'
+                'Outbound communications are paused due to insufficient SMS credits. Top up credits and resume from Communication → Bulk jobs.'
             );
         }
     }

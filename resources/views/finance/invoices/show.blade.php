@@ -13,7 +13,7 @@
                     $familyLink = ensure_family_payment_link($invoice->student->family_id);
                     if ($familyLink) {
                         $shareUrl = url('/pay/' . ($familyLink->hashed_id ?? $familyLink->token));
-                        $payNowBtn .= '<button type="button" class="btn btn-finance btn-finance-outline" onclick="navigator.clipboard.writeText(' . json_encode($shareUrl) . '); this.innerText=\'Copied!\'; setTimeout(() => this.innerHTML=\'<i class=\\\'bi bi-share\\\'></i> Copy payment link\', 1500);"><i class="bi bi-share"></i> Copy payment link</button>';
+                        $payNowBtn .= '<button type="button" class="btn btn-finance btn-finance-outline" data-url="' . e($shareUrl) . '" onclick="var u=this.getAttribute(\'data-url\'); if(u){ navigator.clipboard.writeText(u); var orig=this.innerHTML; this.innerHTML=\'<i class=&quot;bi bi-check&quot;></i> Copied!\'; setTimeout(function(){ this.innerHTML=orig; }.bind(this), 1500); }"><i class="bi bi-share"></i> Copy payment link</button>';
                     }
                 }
             } catch (\Throwable $e) {

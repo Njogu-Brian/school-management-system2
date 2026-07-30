@@ -189,9 +189,29 @@ const AttendanceTab: React.FC<{ studentId: number; statsPct?: number | null }> =
   return <StudentSummaryWidgets widgets={widgets} />;
 };
 
-const AcademicsTab: React.FC<{ studentId: number }> = ({ studentId }) => {
+const AcademicsTab: React.FC<{ studentId: number; studentName?: string; isStaff?: boolean }> = ({
+  studentId,
+  studentName,
+  isStaff,
+}) => {
   const { colors, spacing } = useTheme();
+  const navigation = useNavigation<LooseNav>();
   const summaryQuery = useStudentAcademicSummary(studentId);
+
+  const reportFormsButton =
+    isStaff ? (
+      <Button
+        label="View report forms"
+        variant="secondary"
+        style={{ marginTop: spacing.md }}
+        onPress={() =>
+          navigation.navigate('StudentReportCards', {
+            studentId,
+            studentName,
+          })
+        }
+      />
+    ) : null;
 
   if (summaryQuery.isLoading) {
     return (
@@ -202,11 +222,14 @@ const AcademicsTab: React.FC<{ studentId: number }> = ({ studentId }) => {
   }
   if (summaryQuery.isError || !summaryQuery.data) {
     return (
-      <EmptyState
-        title="No academic summary"
-        message="Assessment results will appear here once marks are recorded."
-        icon="school-outline"
-      />
+      <View>
+        <EmptyState
+          title="No academic summary"
+          message="Assessment results will appear here once marks are recorded."
+          icon="school-outline"
+        />
+        {reportFormsButton}
+      </View>
     );
   }
 
@@ -221,7 +244,12 @@ const AcademicsTab: React.FC<{ studentId: number }> = ({ studentId }) => {
       icon: 'document-text-outline',
     },
   ];
-  return <StudentSummaryWidgets widgets={widgets} />;
+  return (
+    <View>
+      <StudentSummaryWidgets widgets={widgets} />
+      {reportFormsButton}
+    </View>
+  );
 };
 
 const HealthTab: React.FC<{ student: StudentDetail }> = ({ student }) => {
@@ -441,7 +469,9 @@ export const StudentDetailScreen: React.FC = () => {
       case 'attendance':
         return <AttendanceTab studentId={studentId} statsPct={stats.data?.attendance_percentage} />;
       case 'academics':
-        return <AcademicsTab studentId={studentId} />;
+        return (
+          <AcademicsTab studentId={studentId} studentName={student.fullName} isStaff={isStaff} />
+        );
       case 'health':
         return <HealthTab student={student} />;
       case 'transport':

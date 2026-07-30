@@ -11,8 +11,8 @@
             <h6 class="mb-0">Communications</h6>
             <p class="text-muted small mb-0">Full message text for items sent and waiting to send.</p>
         </div>
-        <a href="{{ route('communication.queues') }}" class="btn btn-sm btn-ghost-strong">
-            <i class="bi bi-hourglass-split"></i> All queues
+        <a href="{{ route('communication.pending-jobs') }}" class="btn btn-sm btn-ghost-strong">
+            <i class="bi bi-list-task"></i> Bulk jobs
         </a>
     </div>
 
@@ -21,7 +21,7 @@
             <i class="bi bi-pause-circle"></i>
             <strong>Communications paused</strong> (insufficient SMS credits).
             Scheduled items for this student are on hold until an admin resumes sending.
-            <a href="{{ route('communication.queues') }}" class="alert-link">Open queues</a>
+            <a href="{{ route('communication.pending-jobs') }}" class="alert-link">Open Bulk jobs</a>
         </div>
     @endif
 

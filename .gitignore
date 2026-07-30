@@ -41,3 +41,6 @@ _stitch_edunexus_export_v2/
 _stitch_inventory/
 
 .git-commit-msg.tmp
+
+# Local award certificate generation (templates, PDFs, dumps, scripts)
+/storage/certificates/

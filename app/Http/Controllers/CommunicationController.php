@@ -123,7 +123,7 @@ class CommunicationController extends Controller
         // === HANDLE SCHEDULED EMAIL ===
         if ($request->schedule === 'later' && $request->send_at) {
             $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
-            ScheduledCommunication::create([
+            $scheduled = ScheduledCommunication::create([
                 'type'          => 'email',
                 'template_id'   => $data['template_id'] ?? null,
                 'target'        => $data['target'],
@@ -132,6 +132,7 @@ class CommunicationController extends Controller
                 'send_at'       => $data['send_at'],
                 'status'        => 'pending',
             ]);
+            $this->registerScheduledCommunicationJob($scheduled, $subject, $messageBody);
             return redirect()->route('communication.send.email')->with('success', 'Email scheduled for ' . $data['send_at']);
         }
 
@@ -168,6 +169,18 @@ class CommunicationController extends Controller
                 $data['target'],
                 $attachmentPath,
                 auth()->id()
+            );
+            app(\App\Services\CommunicationJobService::class)->ensureJob(
+                $trackingId,
+                'email',
+                'manual_bulk',
+                $recipientsData,
+                $subject,
+                $messageBody,
+                'running',
+                auth()->id(),
+                null,
+                ['target' => $data['target'], 'attachment_path' => $attachmentPath]
             );
             \Log::info('Email bulk send job dispatched', [
                 'tracking_id' => $trackingId,
@@ -308,7 +321,7 @@ class CommunicationController extends Controller
         // === HANDLE SCHEDULED SMS ===
         if ($request->schedule === 'later' && $request->send_at) {
             $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
-            ScheduledCommunication::create([
+            $scheduled = ScheduledCommunication::create([
                 'type'          => 'sms',
                 'template_id'   => $data['template_id'] ?? null,
                 'target'        => $data['target'],
@@ -317,6 +330,7 @@ class CommunicationController extends Controller
                 'send_at'       => $data['send_at'],
                 'status'        => 'pending',
             ]);
+            $this->registerScheduledCommunicationJob($scheduled, 'SMS', $message);
             return redirect()->route('communication.send.sms')->with('success', 'SMS scheduled for ' . $data['send_at']);
         }
 
@@ -379,6 +393,18 @@ class CommunicationController extends Controller
                 $data['target'],
                 $request->input('sender_id'),
                 auth()->id()
+            );
+            app(\App\Services\CommunicationJobService::class)->ensureJob(
+                $trackingId,
+                'sms',
+                'manual_bulk',
+                $recipientsData,
+                $title,
+                $message,
+                'running',
+                auth()->id(),
+                null,
+                ['target' => $data['target'], 'sender_id' => $request->input('sender_id')]
             );
             \Log::info('SMS bulk send job dispatched', [
                 'tracking_id' => $trackingId,
@@ -488,7 +514,7 @@ class CommunicationController extends Controller
             $hasInsufficientCredits = collect($failures)->contains('insufficient_credits', true);
             if ($hasInsufficientCredits) {
                 \App\Services\CommunicationPauseService::pauseDueToInsufficientCredits(0, 'CommunicationController::sendSMS');
-                $withData['error'] = 'SMS could not be sent: insufficient SMS credits. All scheduled communications are now paused. Top up credits, then resume from Communication → Queues.';
+                $withData['error'] = 'SMS could not be sent: insufficient SMS credits. All scheduled communications are now paused. Top up credits, then resume from Communication → Bulk jobs.';
             } else {
                 $withData['error'] = 'Some sends failed. Sample: ' . json_encode(array_diff_key($failures[0] ?? [], ['insufficient_credits' => true]));
             }
@@ -576,7 +602,7 @@ class CommunicationController extends Controller
                 return back()->with('error', 'Scheduling with media is not supported yet. Please send now.');
             }
             $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
-            ScheduledCommunication::create([
+            $scheduled = ScheduledCommunication::create([
                 'type'          => 'whatsapp',
                 'template_id'   => $data['template_id'] ?? null,
                 'target'        => $data['target'],
@@ -585,6 +611,7 @@ class CommunicationController extends Controller
                 'send_at'       => $data['send_at'],
                 'status'        => 'pending',
             ]);
+            $this->registerScheduledCommunicationJob($scheduled, $title, $message);
             return redirect()->route('communication.send.whatsapp')->with('success', 'WhatsApp message scheduled for ' . $data['send_at']);
         }
 
@@ -665,6 +692,18 @@ class CommunicationController extends Controller
                 $mediaUrl,
                 $skipSent,
                 auth()->id()
+            );
+            app(\App\Services\CommunicationJobService::class)->ensureJob(
+                $trackingId,
+                'whatsapp',
+                'manual_bulk',
+                $recipientsData,
+                $title,
+                $message,
+                'running',
+                auth()->id(),
+                null,
+                ['target' => $data['target'], 'media_url' => $mediaUrl]
             );
             
             \Log::info('WhatsApp bulk send job dispatched', [
@@ -1189,61 +1228,17 @@ class CommunicationController extends Controller
 
     public function logsScheduled()
     {
-        $scheduled = ScheduledCommunication::latest()->paginate(20);
-        // Normalize variable name for the blade view
-        return view('communication.logs_scheduled', [
-            'logs' => $scheduled,
-        ]);
+        return redirect()->route('communication.pending-jobs', ['status' => 'pending', 'source' => 'scheduled_comm']);
     }
 
     /**
-     * Upcoming scheduled communications, paused items, and queue overview.
+     * Queues page redirects to Bulk jobs hub.
      */
     public function queues(Request $request)
     {
         abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
 
-        $paused = CommunicationPauseService::isPaused();
-        $pauseMeta = CommunicationPauseService::getMeta();
-
-        $scheduledFee = ScheduledFeeCommunication::with(['template', 'createdBy'])
-            ->whereIn('status', ['pending', 'active', 'paused'])
-            ->orderByRaw('COALESCE(recurrence_next_at, send_at) ASC')
-            ->limit(50)
-            ->get();
-
-        $scheduledComms = ScheduledCommunication::with('template')
-            ->whereIn('status', ['pending', 'paused'])
-            ->where('send_at', '>=', now()->subDay())
-            ->orderBy('send_at')
-            ->limit(50)
-            ->get();
-
-        $feeReminders = FeeReminder::with('student')
-            ->whereIn('status', ['pending', 'paused'])
-            ->orderBy('due_date')
-            ->limit(50)
-            ->get();
-
-        $queueJobs = \DB::table('jobs')->where('queue', 'default')->orderByDesc('created_at')->limit(20)->get();
-
-        $pausedSmsCount = CommunicationPauseService::countPausedSmsLogs();
-        $pausedBulkSmsCount = count($pauseMeta['paused_bulk_sms'] ?? []);
-        $showResume = CommunicationPauseService::hasResumableWork();
-        $pausedReminderCount = FeeReminder::query()->where('status', 'paused')->count();
-
-        return view('communication.queues', compact(
-            'paused',
-            'pauseMeta',
-            'scheduledFee',
-            'scheduledComms',
-            'feeReminders',
-            'queueJobs',
-            'pausedSmsCount',
-            'pausedBulkSmsCount',
-            'showResume',
-            'pausedReminderCount'
-        ));
+        return redirect()->route('communication.pending-jobs', $request->query());
     }
 
     public function resumePausedCommunications(Request $request)
@@ -1251,13 +1246,14 @@ class CommunicationController extends Controller
         abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
 
         if (!CommunicationPauseService::hasResumableWork()) {
-            return back()->with('info', 'Nothing to resume. Pending reminders will send automatically when due (see Fee reminders below).');
+            return redirect()->route('communication.pending-jobs')
+                ->with('info', 'Nothing to resume.');
         }
 
         try {
             $counts = CommunicationPauseService::resume(auth()->id());
         } catch (\RuntimeException $e) {
-            return redirect()->route('communication.queues')->with('error', $e->getMessage());
+            return redirect()->route('communication.pending-jobs')->with('error', $e->getMessage());
         }
 
         $msg = sprintf(
@@ -1269,7 +1265,7 @@ class CommunicationController extends Controller
             $counts['bulk_jobs_redispatched']
         );
 
-        return redirect()->route('communication.queues')->with('success', $msg);
+        return redirect()->route('communication.pending-jobs')->with('success', $msg);
     }
 
     /* ========== RECIPIENT BUILDER ========== */
@@ -1286,6 +1282,69 @@ class CommunicationController extends Controller
     private function collectRecipients(array $data, string $type): array
     {
         return CommunicationHelperService::collectRecipients($data, $type);
+    }
+
+    /**
+     * Register a durable Bulk jobs row when a ScheduledCommunication is created.
+     */
+    protected function registerScheduledCommunicationJob(
+        \App\Models\ScheduledCommunication $scheduled,
+        string $title,
+        string $message
+    ): void {
+        try {
+            $channel = $scheduled->type === 'whatsapp' ? 'whatsapp' : ($scheduled->type === 'email' ? 'email' : 'sms');
+            $raw = CommunicationHelperService::collectRecipients([
+                'target' => $scheduled->target,
+                'classroom_id' => $scheduled->classroom_id,
+                'classroom_ids' => $scheduled->classroom_ids
+                    ? array_filter(array_map('intval', explode(',', $scheduled->classroom_ids)))
+                    : null,
+            ], $scheduled->type === 'whatsapp' ? 'whatsapp' : $scheduled->type);
+
+            $pairs = CommunicationHelperService::expandRecipientsToPairs($raw);
+            $recipients = [];
+            foreach ($pairs as $pair) {
+                [$contact, $entity] = array_pad($pair, 2, null);
+                $row = [
+                    'contact' => $contact,
+                    'recipient_id' => $entity->id ?? null,
+                    'recipient_type' => $scheduled->target,
+                    'name' => trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? '')),
+                    'entity' => [
+                        'id' => $entity->id ?? null,
+                        'type' => is_object($entity) ? get_class($entity) : null,
+                        'first_name' => $entity->first_name ?? null,
+                        'last_name' => $entity->last_name ?? null,
+                    ],
+                ];
+                if ($channel === 'email') {
+                    $row['email'] = $contact;
+                } else {
+                    $row['phone'] = $contact;
+                }
+                $recipients[] = $row;
+            }
+
+            app(\App\Services\CommunicationJobService::class)->createFromRecipients(
+                $channel,
+                'scheduled_comm',
+                $recipients,
+                $title,
+                $message,
+                'scheduled_comm_' . $scheduled->id,
+                'scheduled',
+                $scheduled->send_at,
+                auth()->id(),
+                $scheduled,
+                ['target' => $scheduled->target]
+            );
+        } catch (\Throwable $e) {
+            \Log::warning('Failed to register scheduled communication job', [
+                'scheduled_id' => $scheduled->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function expandRecipientsToPairs(array $rawRecipients): array
@@ -1561,7 +1620,8 @@ class CommunicationController extends Controller
             ['key' => 'invoice_number', 'value' => 'Invoice number (e.g., INV-2024-001)'],
             ['key' => 'total_amount', 'value' => 'Total invoice amount'],
             ['key' => 'due_date', 'value' => 'Due date'],
-            ['key' => 'outstanding_amount', 'value' => 'Total outstanding (all fee invoices, due or not yet due)'],
+            ['key' => 'outstanding_amount', 'value' => 'Due / overdue fee balance only (excludes not-yet-due invoices)'],
+            ['key' => 'total_fee_balance', 'value' => 'Total unpaid fee balance (includes invoices not yet due)'],
             ['key' => 'status', 'value' => 'Invoice status (paid, partial, unpaid)'],
             ['key' => 'invoice_link', 'value' => 'Public invoice link (10-char hash)'],
             ['key' => 'days_overdue', 'value' => 'Number of days overdue'],
@@ -1712,252 +1772,124 @@ class CommunicationController extends Controller
     }
 
     /**
-     * View all queue jobs (pending, failed, completed)
+     * Unified Bulk jobs hub — durable communication_jobs registry.
      */
     public function pendingJobs(Request $request)
     {
-        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+        abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
 
-        $statusFilter = $request->query('status', 'all'); // all, pending, failed, completed
+        $statusFilter = $request->query('status', 'all');
+        $channelFilter = $request->query('channel', 'all');
+        $sourceFilter = $request->query('source', 'all');
 
-        // Helper function to extract job details from payload
-        $extractJobDetails = function($payload, $source = 'jobs') {
-            $payloadData = json_decode($payload, true);
-            $displayName = $payloadData['displayName'] ?? '';
-            
-            // Extract job class
-            $jobClass = '';
-            if (preg_match('/(App\\\\Jobs\\\\.+?)(?:\@|\s|$)/', $displayName, $matches)) {
-                $jobClass = $matches[1];
-            }
+        $query = \App\Models\CommunicationJob::with('createdBy')->latest('id');
 
-            $details = [
-                'displayName' => $displayName,
-                'job_class' => $jobClass,
-                'payload_data' => $payloadData,
-            ];
-
-            // Check if communication job and extract details
-            $isCommunicationJob = str_contains($displayName, 'BulkSendWhatsAppMessages') || str_contains($jobClass, 'BulkSendWhatsAppMessages');
-            
-            if ($isCommunicationJob) {
-                $details['is_communication_job'] = true;
-                $details['job_type'] = 'whatsapp';
-                
-                // Extract job properties using reflection
-                try {
-                    if (isset($payloadData['data']['command'])) {
-                        $commandData = unserialize($payloadData['data']['command']);
-                        if (is_object($commandData)) {
-                            $reflection = new \ReflectionClass($commandData);
-                            
-                            // Extract all job properties
-                            $properties = ['recipients', 'message', 'title', 'target', 'mediaUrl', 'trackingId', 'userId'];
-                            foreach ($properties as $propName) {
-                                if ($reflection->hasProperty($propName)) {
-                                    $prop = $reflection->getProperty($propName);
-                                    $prop->setAccessible(true);
-                                    $details[$propName] = $prop->getValue($commandData);
-                                }
-                            }
-                            
-                            // If userId not found, try skipSent property
-                            if (!isset($details['userId'])) {
-                                if ($reflection->hasProperty('skipSent')) {
-                                    // Try to get userId from a different approach
-                                    // For now, we'll try to extract from logs later
-                                }
-                            }
-                        }
-                    }
-                } catch (\Exception $e) {
-                    \Log::warning('Failed to extract job details', ['error' => $e->getMessage()]);
-                }
-            }
-
-            return $details;
-        };
-
-        // Get pending jobs
-        $pendingJobs = [];
-        if ($statusFilter === 'all' || $statusFilter === 'pending') {
-            $pending = \DB::table('jobs')
-                ->where('queue', 'default')
-                ->orderBy('created_at', 'desc')
-                ->get();
-            
-            foreach ($pending as $job) {
-                $jobDetails = $extractJobDetails($job->payload, 'jobs');
-                $jobDetails['id'] = $job->id;
-                $jobDetails['uuid'] = null;
-                $jobDetails['status'] = 'pending';
-                $jobDetails['queue'] = $job->queue;
-                $jobDetails['attempts'] = $job->attempts;
-                $jobDetails['available_at'] = $job->available_at;
-                $jobDetails['created_at'] = $job->created_at;
-                $jobDetails['reserved_at'] = $job->reserved_at;
-                $jobDetails['exception'] = null;
-                $jobDetails['failed_at'] = null;
-                
-                $pendingJobs[] = $jobDetails;
-            }
-        }
-
-        // Get failed jobs
-        $failedJobs = [];
-        if ($statusFilter === 'all' || $statusFilter === 'failed') {
-            $failed = \DB::table('failed_jobs')
-                ->orderBy('failed_at', 'desc')
-                ->get();
-            
-            foreach ($failed as $job) {
-                $jobDetails = $extractJobDetails($job->payload, 'failed_jobs');
-                $jobDetails['id'] = null;
-                $jobDetails['uuid'] = $job->uuid;
-                $jobDetails['status'] = 'failed';
-                $jobDetails['queue'] = $job->queue;
-                $jobDetails['attempts'] = 0;
-                $jobDetails['available_at'] = null;
-                $jobDetails['created_at'] = strtotime($job->failed_at) - 3600; // Estimate
-                $jobDetails['reserved_at'] = null;
-                $jobDetails['exception'] = $job->exception;
-                $jobDetails['failed_at'] = strtotime($job->failed_at);
-                
-                $failedJobs[] = $jobDetails;
-            }
-        }
-
-        // Combine and sort by created_at
-        $allJobs = array_merge($pendingJobs, $failedJobs);
-        
-        // Filter to only show communication jobs
-        $allJobs = array_filter($allJobs, function($job) {
-            return ($job['is_communication_job'] ?? false) === true;
-        });
-
-        // Sort by created_at descending
-        usort($allJobs, function($a, $b) {
-            return ($b['created_at'] ?? 0) - ($a['created_at'] ?? 0);
-        });
-
-        // Paginate manually
-        $perPage = 20;
-        $currentPage = (int) $request->query('page', 1);
-        $offset = ($currentPage - 1) * $perPage;
-        $paginatedJobs = array_slice($allJobs, $offset, $perPage);
-
-        // Create paginator manually
-        $jobs = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedJobs,
-            count($allJobs),
-            $perPage,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
-        // Enrich jobs with user info and completion status
-        foreach ($jobs->items() as &$job) {
-            // Get user info
-            $userId = $job['userId'] ?? null;
-            if ($userId) {
-                $user = \App\Models\User::find($userId);
-                $job['user_name'] = $user ? $user->name : 'Unknown User';
-                $job['user_email'] = $user ? $user->email : null;
+        if ($statusFilter !== 'all') {
+            if ($statusFilter === 'pending') {
+                $query->whereIn('status', ['pending', 'scheduled']);
             } else {
-                $job['user_name'] = 'Unknown';
-                $job['user_email'] = null;
+                $query->where('status', $statusFilter);
             }
-
-            // Check completion status for pending jobs
-            if ($job['status'] === 'pending' && isset($job['trackingId'])) {
-                // Check if job completed by looking at cache progress
-                $progress = \Cache::get("bulk_whatsapp_progress:{$job['trackingId']}", null);
-                if ($progress && isset($progress['status']) && $progress['status'] === 'completed') {
-                    $job['status'] = 'completed';
-                    $job['sent_count'] = $progress['sent'] ?? 0;
-                    $job['failed_count'] = $progress['failed'] ?? 0;
-                    $job['skipped_count'] = $progress['skipped'] ?? 0;
-                } elseif ($progress && isset($progress['status']) && $progress['status'] === 'failed') {
-                    $job['status'] = 'failed';
-                    $job['error'] = $progress['error'] ?? 'Job failed';
-                } else {
-                    // Check CommunicationLogs for completed jobs (jobs that finished but cache expired)
-                    // Look for logs with similar message/title within 1 hour of job creation
-                    $jobCreatedAt = \Carbon\Carbon::createFromTimestamp($job['created_at']);
-                    if ($job['message'] && $job['title']) {
-                        $logsCount = CommunicationLog::where('channel', 'whatsapp')
-                            ->where('title', $job['title'])
-                            ->where('message', 'like', '%' . substr($job['message'], 0, 50) . '%')
-                            ->whereBetween('created_at', [
-                                $jobCreatedAt->copy()->subMinutes(5),
-                                $jobCreatedAt->copy()->addHours(2)
-                            ])
-                            ->count();
-                        
-                        // If we have logs matching this job and job is not in jobs table anymore, likely completed
-                        if ($logsCount > 0 && $logsCount >= ($recipientCount * 0.8)) { // At least 80% of recipients logged
-                            $sentCount = CommunicationLog::where('channel', 'whatsapp')
-                                ->where('title', $job['title'])
-                                ->where('message', 'like', '%' . substr($job['message'], 0, 50) . '%')
-                                ->where('status', 'sent')
-                                ->whereBetween('created_at', [
-                                    $jobCreatedAt->copy()->subMinutes(5),
-                                    $jobCreatedAt->copy()->addHours(2)
-                                ])
-                                ->count();
-                            
-                            $failedCount = CommunicationLog::where('channel', 'whatsapp')
-                                ->where('title', $job['title'])
-                                ->where('message', 'like', '%' . substr($job['message'], 0, 50) . '%')
-                                ->where('status', 'failed')
-                                ->whereBetween('created_at', [
-                                    $jobCreatedAt->copy()->subMinutes(5),
-                                    $jobCreatedAt->copy()->addHours(2)
-                                ])
-                                ->count();
-                            
-                            $job['status'] = 'completed';
-                            $job['sent_count'] = $sentCount;
-                            $job['failed_count'] = $failedCount;
-                        }
-                    }
-                }
-            }
-
-            // Get recipient count
-            $job['recipient_count'] = count($job['recipients'] ?? []);
-            
-            // Format dates
-            $job['created_at_formatted'] = $job['created_at'] ? \Carbon\Carbon::createFromTimestamp($job['created_at'])->format('Y-m-d H:i:s') : '-';
-            $job['available_at_formatted'] = $job['available_at'] ? \Carbon\Carbon::createFromTimestamp($job['available_at'])->format('Y-m-d H:i:s') : '-';
-            $job['failed_at_formatted'] = $job['failed_at'] ? \Carbon\Carbon::createFromTimestamp($job['failed_at'])->format('Y-m-d H:i:s') : null;
+        }
+        if ($channelFilter !== 'all') {
+            $query->where('channel', $channelFilter);
+        }
+        if ($sourceFilter !== 'all') {
+            $query->where('source', $sourceFilter);
         }
 
-        return view('communication.pending-jobs', compact('jobs', 'statusFilter'));
+        $jobs = $query->paginate(20)->withQueryString();
+
+        $paused = CommunicationPauseService::isPaused();
+        $pauseMeta = CommunicationPauseService::getMeta();
+        $pausedSmsCount = CommunicationPauseService::countPausedSmsLogs();
+        $showResume = CommunicationPauseService::hasResumableWork();
+
+        return view('communication.pending-jobs', compact(
+            'jobs',
+            'statusFilter',
+            'channelFilter',
+            'sourceFilter',
+            'paused',
+            'pauseMeta',
+            'pausedSmsCount',
+            'showResume'
+        ));
+    }
+
+    public function showCommunicationJob(\App\Models\CommunicationJob $communicationJob)
+    {
+        abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
+
+        $recipients = $communicationJob->recipients()->orderBy('id')->paginate(50)->withQueryString();
+
+        return view('communication.job-show', compact('communicationJob', 'recipients'));
+    }
+
+    public function pauseCommunicationJob(\App\Models\CommunicationJob $communicationJob)
+    {
+        abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
+
+        if (!$communicationJob->isPausable()) {
+            return back()->with('error', 'This job cannot be paused.');
+        }
+
+        app(\App\Services\CommunicationJobService::class)->pauseJob($communicationJob, 'manual');
+
+        return back()->with('success', 'Job paused.');
+    }
+
+    public function resumeCommunicationJob(\App\Models\CommunicationJob $communicationJob)
+    {
+        abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
+
+        if (!$communicationJob->isResumable()) {
+            return back()->with('error', 'This job cannot be resumed.');
+        }
+
+        if ($communicationJob->channel === 'sms') {
+            try {
+                $balance = app(\App\Services\SMSService::class)->checkBalance(true);
+                if ($balance !== null && $balance < 1) {
+                    return back()->with('error', 'Cannot resume: SMS balance is still ' . $balance . '. Top up credits first.');
+                }
+            } catch (\Throwable $e) {
+                // continue; resume may still work for non-SMS or when balance API fails
+            }
+        }
+
+        app(\App\Services\CommunicationJobService::class)->resumeJob($communicationJob);
+
+        return back()->with('success', 'Job resumed.');
     }
 
     /**
-     * Cancel a pending job
+     * Cancel a durable communication job (and remaining recipients).
      */
     public function cancelJob(Request $request, $id)
     {
-        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+        abort_unless(can_access('communication', 'sms', 'add') || can_access('communication', 'email', 'add'), 403);
 
-        try {
-            $deleted = \DB::table('jobs')->where('id', $id)->delete();
-
-            if ($deleted) {
-                return back()->with('success', 'Job cancelled successfully.');
-            } else {
-                return back()->with('error', 'Job not found or already processed.');
+        $job = \App\Models\CommunicationJob::find($id);
+        if (!$job) {
+            // Legacy: cancel raw Laravel queue row
+            try {
+                $deleted = \DB::table('jobs')->where('id', $id)->delete();
+                return $deleted
+                    ? back()->with('success', 'Queue job cancelled.')
+                    : back()->with('error', 'Job not found.');
+            } catch (\Exception $e) {
+                return back()->with('error', 'Failed to cancel job: ' . $e->getMessage());
             }
-        } catch (\Exception $e) {
-            \Log::error('Failed to cancel job', [
-                'job_id' => $id,
-                'error' => $e->getMessage(),
-            ]);
-            return back()->with('error', 'Failed to cancel job: ' . $e->getMessage());
         }
+
+        if (!$job->isCancellable()) {
+            return back()->with('error', 'This job cannot be cancelled.');
+        }
+
+        app(\App\Services\CommunicationJobService::class)->cancel($job);
+
+        return back()->with('success', 'Job cancelled. Already-sent messages were kept.');
     }
 
     /**

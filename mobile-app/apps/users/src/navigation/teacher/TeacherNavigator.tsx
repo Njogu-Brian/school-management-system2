@@ -42,6 +42,9 @@ import { TeacherClassesScreen } from '../../features/teacher/screens/TeacherClas
 import { TeacherHomeScreen } from '../../features/teacher/screens/TeacherHomeScreen';
 import { TeacherMoreHubScreen } from '../../features/teacher/screens/TeacherMoreHubScreen';
 import { TeacherTransportScreen } from '../../features/teacher/screens/TeacherTransportScreen';
+import { TeacherReportCardDetailScreen } from '../../features/teacher/screens/TeacherReportCardDetailScreen';
+import { TeacherReportCardsHubScreen } from '../../features/teacher/screens/TeacherReportCardsHubScreen';
+import { TeacherStudentReportCardsScreen } from '../../features/teacher/screens/TeacherStudentReportCardsScreen';
 import { TimetableHubScreen } from '../../features/teacher/screens/TimetableHubScreen';
 import { UsersAppHeaderChrome } from '../UsersAppHeaderChrome';
 import { createUsersTabBar } from '../UsersPremiumTabBar';
@@ -127,5 +130,8 @@ export const TeacherNavigator: React.FC = () => (
     <Stack.Screen name="MyAdvances" component={MyAdvancesScreen} />
     <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
     <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
+    <Stack.Screen name="ReportCardsHub" component={TeacherReportCardsHubScreen} />
+    <Stack.Screen name="StudentReportCards" component={TeacherStudentReportCardsScreen} />
+    <Stack.Screen name="TeacherReportCardDetail" component={TeacherReportCardDetailScreen} />
   </Stack.Navigator>
 );

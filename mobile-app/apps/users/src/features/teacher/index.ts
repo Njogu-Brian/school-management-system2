@@ -14,3 +14,6 @@ export { RequirementDetailScreen } from './screens/RequirementDetailScreen';
 export { LessonPlanReviewQueueScreen } from './screens/LessonPlanReviewQueueScreen';
 export { LessonPlanReviewDetailScreen } from './screens/LessonPlanReviewDetailScreen';
 export { TimetableHubScreen } from './screens/TimetableHubScreen';
+export { TeacherReportCardsHubScreen } from './screens/TeacherReportCardsHubScreen';
+export { TeacherStudentReportCardsScreen } from './screens/TeacherStudentReportCardsScreen';
+export { TeacherReportCardDetailScreen } from './screens/TeacherReportCardDetailScreen';

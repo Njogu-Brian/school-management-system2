@@ -732,14 +732,17 @@ if (!function_exists('replace_placeholders')) {
                                 });
                         });
 
-                    // Include all non-reversed invoices (due or not yet due) so SMS matches parent expectations.
-                    $totalOutstanding = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($entity, false);
+                    // Due / overdue invoices only — not-yet-due Term invoices (e.g. Term 3 before opening) stay out.
+                    $totalOutstanding = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($entity, true);
+                    $totalFeeBalance = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($entity, false);
                     $latestInvoice = (clone $dueInvoiceQuery)
                         ->orderBy('due_date', 'desc')
                         ->orderBy('id', 'desc')
                         ->first();
                     $replacements['{{outstanding_amount}}'] = number_format(round($totalOutstanding, 2), 2);
                     $replacements['{outstanding_amount}'] = $replacements['{{outstanding_amount}}'];
+                    $replacements['{{total_fee_balance}}'] = number_format(round($totalFeeBalance, 2), 2);
+                    $replacements['{total_fee_balance}'] = $replacements['{{total_fee_balance}}'];
                     $priorTerm = (float) \App\Services\StudentBalanceService::getOutstandingPriorTermArrears($entity);
                     $replacements['{{prior_term_balance}}'] = number_format(round($priorTerm, 2), 2);
                     $replacements['{prior_term_balance}'] = $replacements['{{prior_term_balance}}'];
@@ -752,6 +755,8 @@ if (!function_exists('replace_placeholders')) {
                 } catch (\Throwable $e) {
                     $replacements['{{outstanding_amount}}'] = '0.00';
                     $replacements['{outstanding_amount}'] = '0.00';
+                    $replacements['{{total_fee_balance}}'] = '0.00';
+                    $replacements['{total_fee_balance}'] = '0.00';
                     $replacements['{{prior_term_balance}}'] = '0.00';
                     $replacements['{prior_term_balance}'] = '0.00';
                     $replacements['{{total_amount}}'] = '0.00';

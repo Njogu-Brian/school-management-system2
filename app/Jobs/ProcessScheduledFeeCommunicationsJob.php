@@ -162,6 +162,7 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
 
                 if (!empty($recipientsData)) {
                     $totalSent += count($recipientsData);
+                    $source = 'scheduled_fee';
                     if ($channel === 'email') {
                         BulkSendEmail::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, $item->created_by);
                     } elseif ($channel === 'whatsapp') {
@@ -169,9 +170,26 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                     } else {
                         BulkSendSMS::dispatch($trackingId, $recipientsData, $message, $title, $item->target, 'finance', $item->created_by);
                     }
+                    try {
+                        app(\App\Services\CommunicationJobService::class)->ensureJob(
+                            $trackingId,
+                            $channel === 'whatsapp' ? 'whatsapp' : $channel,
+                            $source,
+                            $recipientsData,
+                            $title,
+                            $message,
+                            'running',
+                            $item->created_by,
+                            $item,
+                            ['target' => $item->target, 'sender_id' => $channel === 'sms' ? 'finance' : null]
+                        );
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to register scheduled fee communication job', ['error' => $e->getMessage()]);
+                    }
                     Log::info('ProcessScheduledFeeCommunicationsJob: bulk job dispatched', ['item_id' => $item->id, 'channel' => $channel, 'count' => count($recipientsData)]);
                 }
             } else {
+                $inlineRecipients = [];
                 foreach ($pairs as $pair) {
                     [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
                     try {
@@ -200,6 +218,13 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                             'sent_at' => now(),
                             'tracking_id' => 'scheduled_fee_' . $item->id,
                         ]);
+                        $inlineRecipients[] = [
+                            'contact' => $contact,
+                            'phone' => $channel !== 'email' ? $contact : null,
+                            'email' => $channel === 'email' ? $contact : null,
+                            'recipient_id' => $entity->id ?? null,
+                            'name' => trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? '')),
+                        ];
                         $totalSent++;
                     } catch (\Throwable $e) {
                         Log::warning('Scheduled fee communication send failed', [
@@ -208,6 +233,28 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                             'contact' => $contact,
                             'error' => $e->getMessage(),
                         ]);
+                    }
+                }
+                if (!empty($inlineRecipients)) {
+                    try {
+                        $job = app(\App\Services\CommunicationJobService::class)->createFromRecipients(
+                            $channel === 'whatsapp' ? 'whatsapp' : $channel,
+                            'scheduled_fee',
+                            $inlineRecipients,
+                            $subject,
+                            $message,
+                            'scheduled_fee_' . $item->id . '_' . $channel . '_inline_' . Str::uuid()->toString(),
+                            'completed',
+                            null,
+                            $item->created_by,
+                            $item,
+                            ['target' => $item->target]
+                        );
+                        $job->recipients()->update(['status' => 'sent', 'sent_at' => now()]);
+                        app(\App\Services\CommunicationJobService::class)->syncCounts($job);
+                        $job->update(['finished_at' => now(), 'status' => 'completed']);
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to register inline scheduled fee job', ['error' => $e->getMessage()]);
                     }
                 }
             }

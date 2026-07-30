@@ -477,8 +477,8 @@ class FeeReminderController extends Controller
             return max(0, $invoice->balance);
         }
 
-        // Total outstanding including balance brought forward; all invoices (due or not yet due).
-        return \App\Services\StudentBalanceService::getTotalOutstandingBalance($student, false);
+        // Total due / overdue outstanding including balance brought forward (excludes not-yet-due invoices).
+        return \App\Services\StudentBalanceService::getTotalOutstandingBalance($student, true);
     }
 
     /**

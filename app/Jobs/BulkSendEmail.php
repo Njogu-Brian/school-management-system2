@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CommunicationLog;
+use App\Services\CommunicationJobService;
 use App\Services\CommunicationPauseService;
 use App\Mail\GenericMail;
 use Illuminate\Bus\Queueable;
@@ -49,13 +50,35 @@ class BulkSendEmail implements ShouldQueue
 
     public function handle(): void
     {
-        if (CommunicationPauseService::isPaused()) {
+        $jobService = app(CommunicationJobService::class);
+        $commJob = $jobService->ensureJob(
+            $this->trackingId,
+            'email',
+            str_starts_with($this->trackingId, 'scheduled_fee_') ? 'scheduled_fee'
+                : (str_starts_with($this->trackingId, 'scheduled_') ? 'scheduled_comm' : 'manual_bulk'),
+            $this->recipients,
+            $this->subject,
+            $this->message,
+            'pending',
+            $this->userId,
+            null,
+            ['target' => $this->target, 'attachment_path' => $this->attachmentPath]
+        );
+
+        if ($commJob->status === 'cancelled') {
+            return;
+        }
+
+        if (CommunicationPauseService::isPaused() || $commJob->status === 'paused') {
             CommunicationPauseService::pauseBulkProgress($this->trackingId, 'email', [
                 'total' => count($this->recipients),
             ]);
+            $jobService->markPaused($commJob, $commJob->pause_reason ?? 'insufficient_sms_credits');
 
             return;
         }
+
+        $jobService->markRunning($commJob);
 
         $totalRecipients = count($this->recipients);
         $sentCount = 0;
@@ -98,6 +121,22 @@ class BulkSendEmail implements ShouldQueue
         ]);
 
         foreach ($this->recipients as $item) {
+            $freshJob = $jobService->findByTrackingId($this->trackingId);
+            if ($freshJob && in_array($freshJob->status, ['cancelled', 'paused'], true)) {
+                return;
+            }
+            if (CommunicationPauseService::isPaused()) {
+                CommunicationPauseService::pauseBulkProgress($this->trackingId, 'email', [
+                    'total' => $totalRecipients,
+                    'processed' => $processed,
+                    'sent' => $sentCount,
+                    'failed' => $failedCount,
+                ]);
+                $jobService->markPaused($this->trackingId);
+
+                return;
+            }
+
             $email = $item['email'] ?? null;
             $entityData = $item['entity'] ?? $item;
             if (!$email) {
@@ -140,6 +179,7 @@ class BulkSendEmail implements ShouldQueue
                     'sent_at' => now(),
                     'tracking_id' => $this->trackingId,
                 ]);
+                $jobService->markRecipientByContact($this->trackingId, $email, 'sent', $recipientId);
             } catch (\Throwable $e) {
                 $failedCount++;
                 $entity = $entity ?? (is_array($entityData) ? (object) $entityData : (object) []);
@@ -164,6 +204,7 @@ class BulkSendEmail implements ShouldQueue
                     'sent_at' => now(),
                     'tracking_id' => $this->trackingId,
                 ]);
+                $jobService->markRecipientByContact($this->trackingId, $email, 'failed', $entity->id ?? null, null, $e->getMessage());
             }
 
             if ($processed % 10 === 0 || $processed === $totalRecipients) {
@@ -202,6 +243,8 @@ class BulkSendEmail implements ShouldQueue
             'processed' => $processed,
             'report_id' => $reportId,
         ]);
+
+        $jobService->markCompleted($this->trackingId);
 
         Log::info('Bulk Email send job completed', [
             'tracking_id' => $this->trackingId,
@@ -253,5 +296,10 @@ class BulkSendEmail implements ShouldQueue
             'error' => $exception->getMessage(),
         ]);
         $this->updateProgress(['status' => 'failed', 'error' => $exception->getMessage()]);
+        try {
+            app(CommunicationJobService::class)->markFailed($this->trackingId, $exception->getMessage());
+        } catch (\Throwable $e) {
+            // ignore
+        }
     }
 }

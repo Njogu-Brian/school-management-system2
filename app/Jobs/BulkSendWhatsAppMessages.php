@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\CommunicationLog;
 use App\Models\Student;
+use App\Services\CommunicationJobService;
 use App\Services\CommunicationPauseService;
 use App\Services\WhatsAppService;
 use Illuminate\Bus\Queueable;
@@ -120,13 +121,35 @@ class BulkSendWhatsAppMessages implements ShouldQueue
      */
     public function handle(WhatsAppService $whatsAppService): void
     {
-        if (CommunicationPauseService::isPaused()) {
+        $jobService = app(CommunicationJobService::class);
+        $commJob = $jobService->ensureJob(
+            $this->trackingId,
+            'whatsapp',
+            str_starts_with($this->trackingId, 'scheduled_fee_') ? 'scheduled_fee'
+                : (str_starts_with($this->trackingId, 'scheduled_') ? 'scheduled_comm' : 'manual_bulk'),
+            array_values($this->recipients),
+            $this->title,
+            $this->message,
+            'pending',
+            $this->userId,
+            null,
+            ['target' => $this->target, 'media_url' => $this->mediaUrl]
+        );
+
+        if ($commJob->status === 'cancelled') {
+            return;
+        }
+
+        if (CommunicationPauseService::isPaused() || $commJob->status === 'paused') {
             CommunicationPauseService::pauseBulkProgress($this->trackingId, 'whatsapp', [
                 'total' => count($this->recipients),
             ]);
+            $jobService->markPaused($commJob, $commJob->pause_reason ?? 'insufficient_sms_credits');
 
             return;
         }
+
+        $jobService->markRunning($commJob);
 
         $batch = array_slice($this->recipients, 0, self::CHUNK_SIZE);
         $remaining = array_slice($this->recipients, self::CHUNK_SIZE);
@@ -190,6 +213,31 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         ]);
 
         foreach ($batch as $item) {
+            $freshJob = $jobService->findByTrackingId($this->trackingId);
+            if ($freshJob && in_array($freshJob->status, ['cancelled', 'paused'], true)) {
+                if ($freshJob->status === 'paused') {
+                    CommunicationPauseService::pauseBulkProgress($this->trackingId, 'whatsapp', [
+                        'total' => $totalRecipients,
+                        'processed' => $processed,
+                        'sent' => $sentCount,
+                        'failed' => $failedCount,
+                    ]);
+                }
+
+                return;
+            }
+            if (CommunicationPauseService::isPaused()) {
+                CommunicationPauseService::pauseBulkProgress($this->trackingId, 'whatsapp', [
+                    'total' => $totalRecipients,
+                    'processed' => $processed,
+                    'sent' => $sentCount,
+                    'failed' => $failedCount,
+                ]);
+                $jobService->markPaused($this->trackingId);
+
+                return;
+            }
+
             $phone = $item['phone'] ?? null;
             $entityData = $item['entity'] ?? $item;
             if (!$phone) {
@@ -343,6 +391,12 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
                     'tracking_id'   => $this->trackingId,
                 ]);
+                $jobService->markRecipientByContact(
+                    $this->trackingId,
+                    $phone,
+                    $status,
+                    $entity->id ?? null
+                );
 
                 if ($status === 'sent') {
                     $sentCount++;
@@ -468,6 +522,12 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             'processed' => $processed,
             'report_id' => $reportId,
         ]);
+
+        try {
+            app(CommunicationJobService::class)->markCompleted($this->trackingId);
+        } catch (\Throwable $e) {
+            // ignore
+        }
 
         Log::info('Bulk WhatsApp send job completed', [
             'tracking_id' => $this->trackingId,
