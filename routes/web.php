@@ -221,6 +221,9 @@ Route::post('/webhooks/payment/stripe', [\App\Http\Controllers\PaymentWebhookCon
 Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookController::class, 'handlePaypal'])->name('payment.webhook.paypal');
 
 // Public Payment Pages (no auth required)
+Route::get('/pay', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showPublicSelfPayForm'])->name('payment.public.form');
+Route::post('/pay/lookup', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'lookupPublicSelfPayStudent'])->middleware('throttle:30,1')->name('payment.public.lookup');
+Route::post('/pay', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processPublicSelfPay'])->middleware('throttle:10,1')->name('payment.public.process');
 Route::get('/pay/{identifier}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showPaymentPage'])->name('payment.link.show');
 Route::post('/pay/{identifier}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processLinkPayment'])->name('payment.link.process');
 Route::get('/pay/waiting/{transaction}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showPublicWaiting'])->name('payment.link.waiting');

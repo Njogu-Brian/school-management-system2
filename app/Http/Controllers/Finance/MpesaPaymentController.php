@@ -484,6 +484,159 @@ class MpesaPaymentController extends Controller
     }
 
     /**
+     * Public self-service pay landing page (domain/pay).
+     */
+    public function showPublicSelfPayForm(Request $request)
+    {
+        $prefill = trim((string) $request->query('q', ''));
+        $selectedStudent = null;
+        $feeBalance = 0.0;
+        $invoices = [];
+
+        if ($request->filled('student_id')) {
+            $selectedStudent = Student::query()
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->with('classroom')
+                ->find($request->student_id);
+        } elseif ($prefill !== '') {
+            $matches = $this->searchStudentsForPublicPay($prefill);
+            if ($matches->count() === 1) {
+                $selectedStudent = $matches->first();
+            }
+        }
+
+        if ($selectedStudent) {
+            $invoices = $this->unpaidInvoiceSummariesForStudent((int) $selectedStudent->id);
+            $feeBalance = round(array_sum(array_column($invoices, 'balance')), 2);
+        }
+
+        return view('finance.mpesa.public-pay', compact('prefill', 'selectedStudent', 'feeBalance', 'invoices'));
+    }
+
+    /**
+     * AJAX lookup for student by admission number or name.
+     */
+    public function lookupPublicSelfPayStudent(Request $request)
+    {
+        $request->validate([
+            'q' => 'required|string|min:2|max:120',
+        ]);
+
+        $students = $this->searchStudentsForPublicPay($request->q);
+
+        return response()->json([
+            'students' => $students->map(function (Student $s) {
+                $invoices = $this->unpaidInvoiceSummariesForStudent((int) $s->id);
+                $balance = round(array_sum(array_column($invoices, 'balance')), 2);
+
+                return [
+                    'id' => $s->id,
+                    'full_name' => $s->full_name,
+                    'admission_number' => $s->admission_number,
+                    'classroom_name' => $s->classroom?->name,
+                    'fee_balance' => $balance,
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
+     * Parent self-service STK push from /pay.
+     */
+    public function processPublicSelfPay(Request $request)
+    {
+        $mpesaStkMax = MpesaGateway::STK_MAX_AMOUNT_KES;
+
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'phone_number' => 'required|string',
+            'amount' => 'required|numeric|min:1|max:' . $mpesaStkMax,
+        ]);
+
+        $student = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->find($request->student_id);
+
+        if (!$student) {
+            return back()->with('error', 'Student not found or is not currently active.')->withInput();
+        }
+
+        $phoneNumber = trim($request->phone_number);
+        if (!MpesaGateway::isValidKenyanPhone($phoneNumber)) {
+            return back()->with('error', 'Enter a valid Kenyan mobile number (e.g. 0712345678).')->withInput();
+        }
+
+        $amount = (float) $request->amount;
+
+        try {
+            $result = $this->mpesaGateway->initiateAdminPromptedPayment(
+                studentId: (int) $student->id,
+                phoneNumber: $phoneNumber,
+                amount: $amount,
+                invoiceId: null,
+                adminId: null,
+                notes: 'Public self-service pay (/pay)',
+                isSwimming: false,
+                sharedAllocations: null
+            );
+
+            if ($result['success'] ?? false) {
+                return redirect()->route('payment.link.waiting', $result['transaction_id']);
+            }
+
+            return back()
+                ->with('error', $this->formatErrorMessage($result['message'] ?? 'Could not send M-PESA prompt. Please try again.'))
+                ->withInput();
+        } catch (\Throwable $e) {
+            Log::warning('Public self-pay STK failed', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Payment could not be started. Please try again later.')->withInput();
+        }
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Student>
+     */
+    private function searchStudentsForPublicPay(string $query)
+    {
+        $q = trim($query);
+        if ($q === '') {
+            return collect();
+        }
+
+        $base = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->with('classroom');
+
+        $exact = (clone $base)
+            ->whereRaw('LOWER(admission_number) = ?', [strtolower($q)])
+            ->limit(5)
+            ->get();
+
+        if ($exact->isNotEmpty()) {
+            return $exact;
+        }
+
+        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+
+        return $base->where(function ($w) use ($q, $like) {
+            $w->where('admission_number', 'like', $like)
+                ->orWhereRaw("LOWER(CONCAT_WS(' ', first_name, middle_name, last_name)) LIKE ?", [strtolower($like)])
+                ->orWhere('first_name', 'like', $like)
+                ->orWhere('last_name', 'like', $like);
+        })
+            ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
+            ->limit(10)
+            ->get();
+    }
+
+    /**
      * Show public payment page (for payment links).
      * Family link (student_id null): load all students in family with fee balances for share/full/partial UI.
      */
@@ -492,7 +645,21 @@ class MpesaPaymentController extends Controller
         $paymentLink = PaymentLink::where('hashed_id', $identifier)
             ->orWhere('token', $identifier)
             ->with(['student', 'invoice'])
-            ->firstOrFail();
+            ->first();
+
+        if (!$paymentLink) {
+            $matches = $this->searchStudentsForPublicPay((string) $identifier);
+            if ($matches->count() === 1) {
+                $student = $matches->first();
+
+                return redirect()->route('payment.public.form', [
+                    'student_id' => $student->id,
+                    'q' => $student->admission_number,
+                ]);
+            }
+
+            return redirect()->route('payment.public.form', ['q' => (string) $identifier]);
+        }
 
         if (!$paymentLink->isActive()) {
             return view('finance.mpesa.link-expired', compact('paymentLink'));
