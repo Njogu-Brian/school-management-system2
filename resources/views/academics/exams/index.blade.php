@@ -286,6 +286,16 @@
                               </form>
                             </li>
                           @endif
+                          @can('exams.publish')
+                            @if(in_array($exam->status, ['locked', 'published'], true))
+                              <li>
+                                <form action="{{ route('academics.exams.reopen', $exam) }}" method="POST" class="d-inline" onsubmit="return confirm('Reopen this exam for mark entry? Teachers will be able to correct marks.');">
+                                  @csrf
+                                  <button type="submit" class="dropdown-item text-warning"><i class="bi bi-unlock"></i> Reopen for Editing</button>
+                                </form>
+                              </li>
+                            @endif
+                          @endcan
                           @if(!$exam->is_locked)
                             <li><hr class="dropdown-divider"></li>
                             <li>

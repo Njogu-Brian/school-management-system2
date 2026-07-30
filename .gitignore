@@ -44,3 +44,4 @@ _stitch_inventory/
 
 # Local award certificate generation (templates, PDFs, dumps, scripts)
 /storage/certificates/
+/storage/temp_backup/

@@ -506,6 +506,7 @@ Route::middleware('auth')->group(function () {
             Route::put('/{classroom}', [ExamClassroomGradingController::class, 'update'])->name('update');
         });
         Route::post('exams/publish/{exam}', [ExamPublishingController::class, 'publish'])->name('exams.publish');
+        Route::post('exams/reopen/{exam}', [ExamController::class, 'reopen'])->name('exams.reopen');
         Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
         Route::get('exams/bulk-create', [ExamController::class, 'createBulk'])->name('exams.bulk-create');
         Route::post('exams/bulk-store', [ExamController::class, 'storeBulk'])->name('exams.bulk-store');

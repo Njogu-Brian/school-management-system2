@@ -90,6 +90,14 @@
                 <button type="submit" class="btn btn-settings-primary w-100"><i class="bi bi-cloud-upload"></i> Publish Results</button>
               </form>
             @endif
+            @can('exams.publish')
+              @if(in_array($exam->status, ['locked', 'published'], true))
+                <form action="{{ route('academics.exams.reopen', $exam) }}" method="POST" onsubmit="return confirm('Reopen this exam for mark entry? Teachers will be able to correct marks.');">
+                  @csrf
+                  <button type="submit" class="btn btn-ghost-strong text-warning w-100"><i class="bi bi-unlock"></i> Reopen for Editing</button>
+                </form>
+              @endif
+            @endcan
           </div>
         </div>
 

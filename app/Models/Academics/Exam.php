@@ -234,11 +234,23 @@ class Exam extends Model
             'marking' => ['moderation', 'open'],
             'moderation' => ['approved', 'marking'],
             'approved' => ['published', 'locked', 'moderation'],
-            'published' => ['locked', 'approved'],
-            'locked' => [],
+            'published' => ['locked', 'approved', 'marking', 'moderation'],
+            'locked' => ['approved', 'marking', 'moderation', 'published'],
         ];
 
         return in_array($newStatus, $transitions[$this->status] ?? []);
+    }
+
+    /** Statuses that reopen mark entry for regular teachers after publish/lock. */
+    public static function reopeningStatuses(): array
+    {
+        return ['marking', 'moderation', 'approved'];
+    }
+
+    public function isReopeningTo(string $newStatus): bool
+    {
+        return in_array($this->status, ['published', 'locked'], true)
+            && in_array($newStatus, self::reopeningStatuses(), true);
     }
 
     public function isWithinDateRange()

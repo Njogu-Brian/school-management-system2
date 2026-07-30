@@ -23,7 +23,7 @@ class ExamController extends Controller
         $this->middleware('permission:exams.create')->only(['create', 'store', 'createBulk', 'storeBulk']);
         $this->middleware('permission:exams.edit')->only(['edit', 'update']);
         $this->middleware('permission:exams.delete')->only(['destroy']);
-        $this->middleware('permission:exams.publish')->only(['publish']);
+        $this->middleware('permission:exams.publish')->only(['publish', 'reopen']);
     }
 
     public function index(Request $request)
@@ -398,23 +398,13 @@ class ExamController extends Controller
         $v['max_marks'] = (float) ($examType->default_max_mark ?? 100);
 
         // Validate status transition
-        if (method_exists($exam, 'canTransitionTo') && $v['status'] !== $exam->status) {
-            if (!$exam->canTransitionTo($v['status'])) {
+        if ($v['status'] !== $exam->status) {
+            $transitionError = $this->applyStatusTransition($exam, $v['status'], $v);
+            if ($transitionError) {
                 return back()
                     ->withInput()
-                    ->with('error', "Cannot transition from {$exam->status} to {$v['status']}.");
+                    ->with('error', $transitionError);
             }
-        }
-
-        // Handle status-specific actions
-        if ($v['status'] === 'published' && !$exam->published_at) {
-            $v['published_at'] = now();
-            $v['published_by'] = Auth::id();
-        }
-
-        if ($v['status'] === 'locked' && !$exam->locked_at) {
-            $v['locked_at'] = now();
-            $v['locked_by'] = Auth::id();
         }
 
         $exam->update($v);
@@ -827,21 +817,10 @@ class ExamController extends Controller
                 }
 
                 if ($newStatus !== $exam->status) {
-                    if (method_exists($exam, 'canTransitionTo') && !$exam->canTransitionTo($newStatus)) {
+                    $transitionError = $this->applyStatusTransition($exam, $newStatus, $payload);
+                    if ($transitionError) {
                         $skipped++;
                         continue;
-                    }
-
-                    $payload['status'] = $newStatus;
-
-                    if ($newStatus === 'published' && !$exam->published_at) {
-                        $payload['published_at'] = now();
-                        $payload['published_by'] = Auth::id();
-                    }
-
-                    if ($newStatus === 'locked' && !$exam->locked_at) {
-                        $payload['locked_at'] = now();
-                        $payload['locked_by'] = Auth::id();
                     }
                 }
             }
@@ -881,6 +860,72 @@ class ExamController extends Controller
         }
 
         return back()->with($updated > 0 ? 'success' : 'error', $message);
+    }
+
+    /**
+     * Reopen a locked or published exam so teachers can correct marks.
+     */
+    public function reopen(Exam $exam)
+    {
+        if (! in_array($exam->status, ['locked', 'published'], true)) {
+            return back()->with('error', 'Only locked or published exams can be reopened for editing.');
+        }
+
+        $payload = [];
+        $error = $this->applyStatusTransition($exam, 'marking', $payload);
+        if ($error) {
+            return back()->with('error', $error);
+        }
+
+        $exam->update($payload);
+
+        return back()->with('success', 'Exam reopened for mark entry. Teachers can now correct marks.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function applyStatusTransition(Exam $exam, string $newStatus, array &$payload): ?string
+    {
+        if ($newStatus === $exam->status) {
+            return null;
+        }
+
+        if (! $exam->canTransitionTo($newStatus)) {
+            return "Cannot transition from {$exam->status} to {$newStatus}.";
+        }
+
+        if ($exam->isReopeningTo($newStatus) && ! Auth::user()->hasPermissionTo('exams.publish')) {
+            return 'You do not have permission to reopen locked or published exams.';
+        }
+
+        if (in_array($newStatus, ['published', 'locked'], true) && ! Auth::user()->hasPermissionTo('exams.publish')) {
+            return 'You do not have permission to publish or lock exams.';
+        }
+
+        $payload['status'] = $newStatus;
+
+        if ($exam->status === 'locked' && $newStatus !== 'locked') {
+            $payload['locked_at'] = null;
+            $payload['locked_by'] = null;
+        }
+
+        if ($exam->isReopeningTo($newStatus)) {
+            $payload['published_at'] = null;
+            $payload['published_by'] = null;
+        }
+
+        if ($newStatus === 'published' && ! $exam->published_at) {
+            $payload['published_at'] = now();
+            $payload['published_by'] = Auth::id();
+        }
+
+        if ($newStatus === 'locked' && ! $exam->locked_at) {
+            $payload['locked_at'] = now();
+            $payload['locked_by'] = Auth::id();
+        }
+
+        return null;
     }
 
     private function getMappedActiveSubjects(?array $classroomIds = null)

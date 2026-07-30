@@ -123,6 +123,9 @@
                 <option value="{{ $st }}" @selected($v['status']==$st)>{{ ucfirst($st) }}</option>
               @endforeach
             </select>
+            @if(in_array($exam->status ?? '', ['locked', 'published'], true))
+              <div class="form-text text-warning">To let teachers correct marks, change status to <strong>Marking</strong> or use Reopen for Editing on the exams list.</div>
+            @endif
           </div>
         @else
           <input type="hidden" name="status" value="draft">

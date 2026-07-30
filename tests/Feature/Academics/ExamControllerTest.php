@@ -164,5 +164,59 @@ class ExamControllerTest extends TestCase
         $response->assertSessionHasErrors();
         $this->assertDatabaseHas('exams', ['id' => $exam->id]);
     }
+
+    /** @test */
+    public function admin_can_reopen_locked_exam_for_marking()
+    {
+        $exam = Exam::factory()->create([
+            'status' => 'locked',
+            'locked_at' => now(),
+            'published_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('academics.exams.reopen', $exam));
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+
+        $exam->refresh();
+        $this->assertSame('marking', $exam->status);
+        $this->assertNull($exam->locked_at);
+        $this->assertNull($exam->published_at);
+    }
+
+    /** @test */
+    public function admin_can_change_locked_exam_status_to_marking_via_update()
+    {
+        $examType = \App\Models\Academics\ExamType::query()->create([
+            'name' => 'CAT',
+            'code' => 'CAT',
+            'default_max_mark' => 100,
+        ]);
+        $exam = Exam::factory()->create([
+            'status' => 'locked',
+            'locked_at' => now(),
+            'exam_type_id' => $examType->id,
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->put(route('academics.exams.update', $exam), [
+                'name' => $exam->name,
+                'modality' => $exam->modality ?? 'physical',
+                'academic_year_id' => $exam->academic_year_id,
+                'term_id' => $exam->term_id,
+                'classroom_id' => $exam->classroom_id,
+                'subject_id' => $exam->subject_id,
+                'weight' => $exam->weight ?? 1,
+                'status' => 'marking',
+                'exam_type_id' => $examType->id,
+            ]);
+
+        $response->assertRedirect();
+        $exam->refresh();
+        $this->assertSame('marking', $exam->status);
+        $this->assertNull($exam->locked_at);
+    }
 }
 
