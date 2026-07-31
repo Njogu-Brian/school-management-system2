@@ -155,33 +155,9 @@ class StaffAdvanceController extends Controller
         $advance->status = 'approved';
         $advance->approved_by = auth()->id();
         $advance->approved_at = now();
-        
-        // If monthly deduction, create custom deduction
-        if ($advance->repayment_method === 'monthly_deduction' && $advance->monthly_deduction_amount) {
-            // Get or create loan deduction type
-            $loanType = \App\Models\DeductionType::firstOrCreate(
-                ['code' => 'LOAN'],
-                [
-                    'name' => 'Loan Repayment',
-                    'calculation_method' => 'fixed_amount',
-                    'is_active' => true,
-                    'is_statutory' => false,
-                ]
-            );
 
-            \App\Models\CustomDeduction::create([
-                'staff_id' => $advance->staff_id,
-                'deduction_type_id' => $loanType->id,
-                'staff_advance_id' => $advance->id,
-                'amount' => $advance->monthly_deduction_amount,
-                'effective_from' => Carbon::now()->startOfMonth(),
-                'frequency' => 'monthly',
-                'total_amount' => $advance->amount,
-                'status' => 'active',
-                'description' => "Loan repayment for advance #{$advance->id}",
-                'created_by' => auth()->id(),
-            ]);
-        }
+        // Recovery happens through the payroll advance_deduction line, so no
+        // matching custom deduction is created here — that would deduct twice.
 
         $advance->status = 'active';
         $advance->save();

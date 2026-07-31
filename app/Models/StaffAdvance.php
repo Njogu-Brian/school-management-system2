@@ -117,4 +117,34 @@ class StaffAdvance extends Model
     {
         return $this->status === 'active' && $this->balance > 0;
     }
+
+    /**
+     * Amount payroll should recover for this advance in one run.
+     * lump_sum clears the whole balance; installments spread it; monthly uses the set amount.
+     */
+    public function payrollDeductionAmount(): float
+    {
+        if ($this->status !== 'active') {
+            return 0.0;
+        }
+
+        $balance = (float) $this->balance;
+        if ($balance <= 0) {
+            return 0.0;
+        }
+
+        $installment = match ($this->repayment_method) {
+            'monthly_deduction' => (float) ($this->monthly_deduction_amount ?? 0),
+            'installments' => $this->installment_count > 0
+                ? round((float) $this->amount / (int) $this->installment_count, 2)
+                : $balance,
+            default => $balance,
+        };
+
+        if ($installment <= 0) {
+            return 0.0;
+        }
+
+        return min($installment, $balance);
+    }
 }

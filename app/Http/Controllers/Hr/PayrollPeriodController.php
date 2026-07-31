@@ -179,15 +179,13 @@ class PayrollPeriodController extends Controller
 
                 // Process advance deductions
                 $advanceDeduction = 0;
-                $activeAdvances = $member->activeAdvances()
-                    ->where('repayment_method', 'monthly_deduction')
-                    ->get();
-                
+                $activeAdvances = $member->activeAdvances()->get();
+
                 foreach ($activeAdvances as $advance) {
-                    if ($advance->monthly_deduction_amount && $advance->balance > 0) {
-                        $deductionAmount = min($advance->monthly_deduction_amount, $advance->balance);
+                    $deductionAmount = $advance->payrollDeductionAmount();
+                    if ($deductionAmount > 0) {
                         $advanceDeduction += $deductionAmount;
-                        
+
                         // Record repayment
                         $advance->recordRepayment($deductionAmount);
                     }

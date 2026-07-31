@@ -226,13 +226,9 @@ class RecalculatePayrollPeriodCommand extends Command
         $record->housing_levy_deduction = $deductions['housing_levy'];
 
         $advanceDeduction = 0;
-        $activeAdvances = $member->activeAdvances()
-            ->where('repayment_method', 'monthly_deduction')
-            ->get();
-
-        foreach ($activeAdvances as $advance) {
-            if ($advance->monthly_deduction_amount && $advance->balance > 0) {
-                $deductionAmount = min((float) $advance->monthly_deduction_amount, (float) $advance->balance);
+        foreach ($member->activeAdvances()->get() as $advance) {
+            $deductionAmount = $advance->payrollDeductionAmount();
+            if ($deductionAmount > 0) {
                 $advanceDeduction += $deductionAmount;
                 $advance->recordRepayment($deductionAmount);
             }
