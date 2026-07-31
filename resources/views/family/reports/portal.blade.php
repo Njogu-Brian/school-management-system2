@@ -128,6 +128,12 @@
         }
         .fees-term { font-size: .83rem; color: var(--muted); margin-top: .1rem; }
         .fees-total { font-size: 1.08rem; font-weight: 800; margin-top: .25rem; }
+        .fees-note {
+            margin-top: .35rem;
+            font-size: .72rem;
+            color: #0369a1;
+            line-height: 1.35;
+        }
         .invoice-button {
             flex: 0 0 auto;
             min-height: 44px;
@@ -170,12 +176,41 @@
             font-size: .78rem;
         }
         @media (max-width: 640px) {
-            .portal-main { padding: .65rem; }
-            .report-document { border-radius: .65rem; margin-bottom: 1rem; }
-            .report-document-head { align-items: flex-start; }
-            .report-body { padding: .55rem; }
-            .fees-panel { margin: 0 .55rem .55rem; align-items: stretch; flex-direction: column; }
-            .invoice-button { width: 100%; }
+            .portal-header-inner {
+                padding: .65rem .75rem;
+                min-height: 56px;
+            }
+            .portal-title { font-size: .92rem; line-height: 1.25; }
+            .portal-main { padding: .55rem; }
+            .intro { font-size: .84rem; margin-bottom: .75rem; }
+            .report-document { border-radius: .65rem; margin-bottom: .85rem; }
+            .report-document-head {
+                align-items: flex-start;
+                padding: .65rem .75rem;
+                gap: .5rem;
+            }
+            .student-name { font-size: .92rem; }
+            .download-link {
+                min-height: 40px;
+                padding: .4rem .55rem;
+                font-size: .78rem;
+            }
+            .report-body {
+                padding: .45rem;
+                font-size: .82rem;
+            }
+            .report-body table {
+                font-size: .72rem !important;
+            }
+            .fees-panel {
+                margin: 0 .45rem .55rem;
+                align-items: stretch;
+                flex-direction: column;
+                padding: .8rem .85rem;
+            }
+            .fees-total { font-size: 1.15rem; }
+            .invoice-button { width: 100%; min-height: 48px; }
+            .locked-panel { margin: .65rem; padding: 1.35rem .85rem; }
             .portal-count { display: none; }
         }
         @media print {
@@ -231,6 +266,9 @@
             $isNextTerm = ($billing['invoice_scope'] ?? '') === 'next_term';
             $hasInvoice = !empty($billing['invoices']);
             $invoiceTitle = $isNextTerm ? 'Next Term Fees' : 'Outstanding Fees';
+            $feesUrl = $child['fees_url'] ?? $payUrl;
+            $isFamilyFees = $payUrl && $feesUrl === $payUrl && count($children) > 1;
+            $feesButtonLabel = $isFamilyFees ? 'View Family Fees' : 'View Fees & Pay';
         @endphp
 
         <article class="report-document">
@@ -260,15 +298,10 @@
                         <strong>KES {{ number_format($billing['report_term_balance'] ?? 0, 2) }}</strong>
                         to view this report form.
                     </div>
-                    @if($child['invoice_url'])
-                        <a href="{{ $child['invoice_url'] }}" class="invoice-button">
-                            <i class="bi bi-receipt" aria-hidden="true"></i>
-                            View Invoice &amp; Pay
-                        </a>
-                    @elseif($payUrl)
-                        <a href="{{ $payUrl }}" class="invoice-button">
-                            <i class="bi bi-credit-card" aria-hidden="true"></i>
-                            Make Payment
+                    @if($feesUrl)
+                        <a href="{{ $feesUrl }}" class="invoice-button">
+                            <i class="bi bi-wallet2" aria-hidden="true"></i>
+                            {{ $feesButtonLabel }}
                         </a>
                     @endif
                 </div>
@@ -284,11 +317,14 @@
                         <div class="fees-label">{{ $invoiceTitle }}</div>
                         <div class="fees-term">{{ $billing['display_term_label'] }}</div>
                         <div class="fees-total">KES {{ number_format($billing['invoice_total_balance'] ?? 0, 2) }}</div>
+                        @if($isFamilyFees)
+                            <div class="fees-note">Opens shared family fees for all children</div>
+                        @endif
                     </div>
-                    @if($child['invoice_url'])
-                        <a href="{{ $child['invoice_url'] }}" class="invoice-button">
-                            <i class="bi bi-receipt" aria-hidden="true"></i>
-                            View Invoice
+                    @if($feesUrl)
+                        <a href="{{ $feesUrl }}" class="invoice-button">
+                            <i class="bi bi-wallet2" aria-hidden="true"></i>
+                            {{ $feesButtonLabel }}
                         </a>
                     @endif
                 </section>

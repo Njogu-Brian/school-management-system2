@@ -32,7 +32,7 @@
             --pay-green-light: #00c851;
             --pay-bg: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-secondary) 50%, color-mix(in srgb, var(--brand-primary) 80%, var(--brand-secondary)) 100%);
             --card-radius: 1rem;
-            --tap-min: 44px;
+            --tap-min: 48px;
         }
         * { box-sizing: border-box; }
         html { -webkit-text-size-adjust: 100%; }
@@ -44,10 +44,9 @@
             background: var(--pay-bg);
             color: #1a1a1a;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
-            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-            padding: 12px;
+            padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
         }
         .pay-card {
             background: #fff;
@@ -55,39 +54,40 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.15);
             overflow: hidden;
             width: 100%;
-            max-width: 420px;
+            max-width: 440px;
+            margin: 0 auto;
         }
         .pay-header {
             background: var(--pay-bg);
             color: #fff;
-            padding: 1.5rem 1.25rem;
+            padding: 1.25rem 1.1rem;
             text-align: center;
         }
-        .pay-header .bi-phone { font-size: 2.5rem; opacity: 0.95; }
-        .pay-header h1 { font-size: 1.35rem; font-weight: 700; margin: 0.5rem 0 0; }
-        .pay-header .school { font-size: 0.9rem; opacity: 0.9; margin-top: 0.25rem; }
-        .pay-body { padding: 1.25rem 1.25rem 1.5rem; }
+        .pay-header .bi-phone { font-size: 2.15rem; opacity: 0.95; }
+        .pay-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0.45rem 0 0; }
+        .pay-header .school { font-size: 0.88rem; opacity: 0.9; margin-top: 0.25rem; }
+        .pay-body { padding: 1.1rem 1.05rem 1.35rem; }
         .balance-box {
             background: #f0f9f4;
             border: 1px solid #c8e6d0;
             border-radius: 0.75rem;
-            padding: 1rem 1.25rem;
-            margin-bottom: 1.25rem;
+            padding: 0.9rem 1rem;
+            margin-bottom: 1.1rem;
         }
         .balance-box .label { font-size: 0.8rem; color: #555; font-weight: 600; }
-        .balance-box .value { font-size: 1.5rem; font-weight: 700; color: var(--mpesa-green); }
+        .balance-box .value { font-size: 1.4rem; font-weight: 700; color: var(--mpesa-green); }
         .child-row {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             gap: 0.75rem;
-            padding: 0.75rem 0;
+            padding: 0.7rem 0;
             border-bottom: 1px solid #eee;
         }
         .child-row:last-child { border-bottom: none; }
-        .child-name { font-weight: 600; color: #333; }
-        .child-meta { font-size: 0.8rem; color: #666; }
-        .child-balance { font-weight: 700; color: var(--mpesa-green); font-size: 0.95rem; }
+        .child-name { font-weight: 700; color: #333; font-size: .98rem; }
+        .child-meta { font-size: 0.8rem; color: #666; margin-top: .1rem; }
+        .child-balance { font-weight: 700; color: var(--mpesa-green); font-size: 0.95rem; white-space: nowrap; }
         .form-label { font-weight: 600; color: #333; margin-bottom: 0.35rem; }
         .form-control, .input-group-text {
             min-height: var(--tap-min);
@@ -95,30 +95,41 @@
         }
         .btn-pay {
             width: 100%;
-            min-height: var(--tap-min);
-            font-size: 1.1rem;
+            min-height: 48px;
+            font-size: 1.05rem;
             font-weight: 700;
             border: none;
             border-radius: 0.75rem;
             background: var(--mpesa-green);
             color: #fff;
-            margin-top: 1.25rem;
+            margin-top: 1.1rem;
             box-shadow: 0 4px 14px rgba(0,126,51,0.35);
         }
-        .btn-pay:hover, .btn-pay:focus { color: #fff; background: #006629; opacity: 0.95; transform: translateY(-1px); }
-        .btn-pay:disabled { opacity: 0.7; transform: none; }
+        .btn-pay:hover, .btn-pay:focus { color: #fff; background: #006629; opacity: 0.95; }
+        .btn-pay:disabled { opacity: 0.7; }
         .btn-quick {
-            min-height: 36px;
-            padding: 0.35rem 0.75rem;
+            min-height: 44px;
+            padding: 0.45rem 0.8rem;
             font-size: 0.9rem;
+            font-weight: 600;
         }
         #statusMessage { margin-top: 1rem; border-radius: 0.75rem; padding: 1rem; display: none; }
         .share-block { background: #f8f9fa; border-radius: 0.75rem; padding: 1rem; margin-top: 0.75rem; }
-        .sibling-amount-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
-        .sibling-amount-row input { flex: 0 0 100px; }
+        .sibling-amount-row {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            margin-bottom: 0.55rem;
+        }
+        .sibling-amount-row input {
+            flex: 1 1 auto;
+            min-width: 0;
+            max-width: 140px;
+            min-height: 44px;
+        }
         .invoice-breakdown {
             margin: 0.35rem 0 0.75rem;
-            padding: 0.5rem 0.65rem;
+            padding: 0.55rem 0.65rem;
             background: #fafafa;
             border-radius: 0.5rem;
             border: 1px solid #eee;
@@ -129,12 +140,12 @@
             align-items: baseline;
             justify-content: space-between;
             gap: 0.35rem 0.75rem;
-            padding: 0.4rem 0;
+            padding: 0.45rem 0;
             border-bottom: 1px solid #ececec;
-            font-size: 0.82rem;
+            font-size: 0.84rem;
         }
         .invoice-breakdown .inv-line:last-child { border-bottom: none; }
-        .invoice-breakdown .inv-meta { color: #555; flex: 1 1 auto; min-width: 0; }
+        .invoice-breakdown .inv-meta { color: #555; flex: 1 1 auto; min-width: 0; word-break: break-word; }
         .invoice-breakdown .inv-bal { font-weight: 700; color: #c62828; white-space: nowrap; }
         .invoice-block { padding-bottom: 0.35rem; margin-bottom: 0.35rem; border-bottom: 1px solid #ececec; }
         .invoice-block:last-child { border-bottom: none; margin-bottom: 0; }
@@ -143,10 +154,11 @@
         .inv-line-item .inv-meta { font-weight: 400; }
         .inv-item-amt { font-weight: 600; color: #333; white-space: nowrap; }
         .breakdown-heading { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #666; margin: 0.25rem 0 0.15rem; }
-        @@media (min-width: 576px) {
-            body { padding: 24px; }
-            .pay-body { padding: 1.5rem 1.5rem 2rem; }
+        @media (min-width: 576px) {
+            body { padding: 24px; align-items: center; }
+            .pay-body { padding: 1.4rem 1.4rem 1.75rem; }
             .pay-card { max-width: 480px; }
+            .pay-header { padding: 1.5rem 1.25rem; }
         }
     </style>
 </head>

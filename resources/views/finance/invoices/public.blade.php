@@ -22,18 +22,22 @@
             --brand-secondary: {{ $brandSecondary }};
             --mpesa-green: {{ $brandMpesaGreen }};
             --page-bg: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-secondary) 55%, #1a1a2e 100%);
-            --tap-min: 44px;
+            --tap-min: 48px;
+            --text: #0f172a;
+            --muted: #64748b;
         }
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
         body {
             margin: 0;
             min-height: 100vh;
             min-height: 100dvh;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: var(--page-bg);
-            color: #1a1a1a;
-            padding: 12px;
+            color: var(--text);
+            padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
         }
-        .wrap { max-width: 520px; margin: 0 auto; }
+        .wrap { max-width: 480px; margin: 0 auto; width: 100%; }
         .card-panel {
             background: #fff;
             border-radius: 1rem;
@@ -44,35 +48,77 @@
         .card-head {
             background: var(--page-bg);
             color: #fff;
-            padding: 1.25rem;
+            padding: 1.15rem 1rem;
             text-align: center;
         }
-        .card-body { padding: 1.1rem 1.25rem 1.25rem; }
+        .card-head h1 { font-size: 1.2rem; font-weight: 700; margin: .35rem 0 0; }
+        .card-body { padding: 1rem 1rem 1.15rem; }
+        .student-block { margin-bottom: 1rem; }
+        .student-name { font-weight: 700; font-size: 1.02rem; }
+        .student-meta { color: var(--muted); font-size: .84rem; margin-top: .15rem; }
         .summary-row {
             display: flex;
             justify-content: space-between;
+            align-items: flex-start;
             gap: .75rem;
-            padding: .35rem 0;
+            padding: .45rem 0;
             font-size: .95rem;
         }
+        .summary-row > span:first-child { color: var(--muted); flex: 0 0 auto; }
+        .summary-row > span:last-child { text-align: right; font-weight: 600; }
         .summary-row.total {
-            border-top: 1px solid #eee;
-            margin-top: .5rem;
-            padding-top: .75rem;
+            border-top: 1px solid #e2e8f0;
+            margin-top: .55rem;
+            padding-top: .8rem;
             font-weight: 700;
-            font-size: 1.05rem;
+            font-size: 1.08rem;
         }
+        .summary-row.total > span:first-child { color: var(--text); font-weight: 700; }
         .btn-portal {
             min-height: var(--tap-min);
             border-radius: .75rem;
-            font-weight: 600;
+            font-weight: 700;
             width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: .4rem;
+            font-size: .98rem;
         }
-        .items-table { width: 100%; font-size: .9rem; border-collapse: collapse; }
-        .items-table th, .items-table td { padding: .45rem .35rem; border-bottom: 1px solid #eee; }
-        .items-table th { color: #666; font-weight: 600; }
-        .badge-status { border-radius: 999px; padding: .25rem .65rem; font-size: .8rem; }
-        .footer-note { color: rgba(255,255,255,.85); font-size: .8rem; text-align: center; margin-top: 1rem; }
+        .items-wrap { margin-top: 1rem; }
+        .items-wrap .fw-semibold { font-size: .92rem; margin-bottom: .55rem; }
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            gap: .75rem;
+            padding: .55rem 0;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: .9rem;
+        }
+        .item-row:last-child { border-bottom: none; }
+        .item-label { color: #334155; min-width: 0; word-break: break-word; }
+        .item-amt { font-weight: 700; white-space: nowrap; }
+        .badge-status {
+            border-radius: 999px;
+            padding: .28rem .7rem;
+            font-size: .78rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            font-weight: 600;
+        }
+        .actions { display: grid; gap: .65rem; margin-top: 1.1rem; }
+        .footer-note {
+            color: rgba(255,255,255,.88);
+            font-size: .78rem;
+            text-align: center;
+            line-height: 1.45;
+            padding: 0 .25rem;
+        }
+        @media (min-width: 480px) {
+            body { padding: 20px; }
+            .card-body { padding: 1.15rem 1.25rem 1.35rem; }
+            .card-head { padding: 1.35rem 1.25rem; }
+        }
     </style>
 </head>
 <body>
@@ -80,14 +126,14 @@
     <div class="card-panel">
         <div class="card-head">
             <div class="small opacity-75">{{ $schoolName }}</div>
-            <h1 class="h4 mb-0 mt-1">Invoice</h1>
-            <div class="small mt-1">{{ $invoice->invoice_number }}</div>
+            <h1>Invoice</h1>
+            <div class="small mt-1 opacity-90">{{ $invoice->invoice_number }}</div>
         </div>
         <div class="card-body">
             @if($student)
-                <div class="mb-3">
-                    <div class="fw-semibold">{{ $student->full_name ?? trim($student->first_name.' '.$student->last_name) }}</div>
-                    <div class="text-muted small">
+                <div class="student-block">
+                    <div class="student-name">{{ $student->full_name ?? trim($student->first_name.' '.$student->last_name) }}</div>
+                    <div class="student-meta">
                         {{ $student->admission_number ?? '' }}
                         @if($student->classroom?->name) · {{ $student->classroom->name }} @endif
                     </div>
@@ -96,42 +142,35 @@
 
             <div class="summary-row"><span>Term</span><span>{{ $invoice->term->name ?? '—' }} / {{ $invoice->academicYear->year ?? $invoice->year ?? '—' }}</span></div>
             @if($invoice->issued_date)
-                <div class="summary-row"><span>Issue date</span><span>{{ \Carbon\Carbon::parse($invoice->issued_date)->format('d M Y') }}</span></div>
+                <div class="summary-row"><span>Issued</span><span>{{ \Carbon\Carbon::parse($invoice->issued_date)->format('d M Y') }}</span></div>
             @endif
             @if($invoice->due_date)
-                <div class="summary-row"><span>Due date</span><span>{{ \Carbon\Carbon::parse($invoice->due_date)->format('d M Y') }}</span></div>
+                <div class="summary-row"><span>Due</span><span>{{ \Carbon\Carbon::parse($invoice->due_date)->format('d M Y') }}</span></div>
             @endif
-            <div class="summary-row"><span>Status</span><span><span class="badge-status bg-light border">{{ ucfirst($invoice->status ?? 'unpaid') }}</span></span></div>
+            <div class="summary-row"><span>Status</span><span><span class="badge-status">{{ ucfirst($invoice->status ?? 'unpaid') }}</span></span></div>
             <div class="summary-row total"><span>Balance due</span><span class="text-danger">KES {{ number_format($balance, 2) }}</span></div>
 
             @if($invoice->items && $invoice->items->count())
-                <div class="mt-3">
-                    <div class="fw-semibold mb-2">Invoice items</div>
-                    <table class="items-table">
-                        <thead>
-                            <tr><th>Item</th><th class="text-end">Amount</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach($invoice->items as $item)
-                                <tr>
-                                    <td>{{ $item->votehead->name ?? $item->description ?? 'Fee item' }}</td>
-                                    <td class="text-end">KES {{ number_format((float) ($item->amount ?? 0), 2) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                <div class="items-wrap">
+                    <div class="fw-semibold">Invoice items</div>
+                    @foreach($invoice->items as $item)
+                        <div class="item-row">
+                            <span class="item-label">{{ $item->votehead->name ?? $item->description ?? 'Fee item' }}</span>
+                            <span class="item-amt">KES {{ number_format((float) ($item->amount ?? 0), 2) }}</span>
+                        </div>
+                    @endforeach
                 </div>
             @endif
 
-            <div class="d-grid gap-2 mt-3">
+            <div class="actions">
                 @if(!empty($paymentUrl) && $balance > 0)
                     <a href="{{ $paymentUrl }}" class="btn btn-success btn-portal">
-                        <i class="bi bi-phone me-1"></i> Pay with M-PESA
+                        <i class="bi bi-phone" aria-hidden="true"></i> Pay with M-PESA
                     </a>
                 @endif
                 @if(!empty($reportPortalUrl))
                     <a href="{{ $reportPortalUrl }}" class="btn btn-outline-primary btn-portal">
-                        <i class="bi bi-journal-text me-1"></i> View Term Report Cards
+                        <i class="bi bi-journal-text" aria-hidden="true"></i> View Report Forms
                     </a>
                 @endif
             </div>

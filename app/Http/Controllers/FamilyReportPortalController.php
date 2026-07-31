@@ -27,6 +27,19 @@ class FamilyReportPortalController extends Controller
         $yearId = $link->academic_year_id;
         $termId = $link->term_id;
 
+        // Prefer the shared family payment page so siblings open one fees view.
+        $paymentLink = null;
+        if ($link->family_id) {
+            $paymentLink = ensure_family_payment_link($link->family_id);
+        } elseif ($students->isNotEmpty()) {
+            $paymentLink = get_or_create_payment_link_for_student($students->first())
+                ?: PaymentLink::active()->where('student_id', $students->first()->id)->first();
+        }
+
+        $payUrl = $paymentLink
+            ? route('payment.link.show', $paymentLink->hashed_id ?? $paymentLink->token)
+            : null;
+
         $children = [];
         foreach ($students as $student) {
             $reportCard = ReportCard::query()
@@ -44,7 +57,7 @@ class FamilyReportPortalController extends Controller
 
             $billing = ReportCardAccessService::billingContextForReportCard($reportCard);
             $canViewReport = (bool) ($billing['can_view_report'] ?? false);
-            $firstInvoiceUrl = collect($billing['invoices'] ?? [])
+            $fallbackInvoiceUrl = collect($billing['invoices'] ?? [])
                 ->pluck('public_url')
                 ->filter()
                 ->first();
@@ -56,24 +69,13 @@ class FamilyReportPortalController extends Controller
                 'dto' => $canViewReport
                     ? ReportCardBatchService::build($reportCard->id)
                     : null,
-                'invoice_url' => $firstInvoiceUrl ?: get_public_student_statement_url($student),
+                // Family shared /pay link first — siblings should not open separate invoices.
+                'fees_url' => $payUrl
+                    ?: ($fallbackInvoiceUrl ?: get_public_student_statement_url($student)),
                 'view_url' => route('family.reports.show', [$link->token, $reportCard->public_token]),
                 'pdf_url' => route('family.reports.pdf', [$link->token, $reportCard->public_token]),
             ];
         }
-
-        $paymentLink = null;
-        if ($link->family_id) {
-            $paymentLink = ensure_family_payment_link($link->family_id);
-        } elseif ($students->isNotEmpty()) {
-            $paymentLink = PaymentLink::active()
-                ->where('student_id', $students->first()->id)
-                ->first();
-        }
-
-        $payUrl = $paymentLink
-            ? route('payment.link.show', $paymentLink->hashed_id ?? $paymentLink->token)
-            : null;
 
         return view('family.reports.portal', [
             'link' => $link,
