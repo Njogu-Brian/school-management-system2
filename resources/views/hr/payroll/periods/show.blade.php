@@ -49,10 +49,10 @@
                 @endif
 
                 @if(in_array($period->status, ['completed', 'processing']) && $period->payrollRecords->count() > 0)
-                    <form action="{{ route('hr.payroll.periods.recalculate', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Recalculate NSSF/SHIF/housing/PAYE for this period using current staff exemption ticks? Kids fees, uniform, loan and advances are kept.')">
+                    <form action="{{ route('hr.payroll.periods.recalculate', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Recalculate this period? Earnings, statutory deductions, advances, and custom deductions will be refreshed from the current setup. Manual bonuses and cancelled slips are kept. Paid slips are unchanged.')">
                         @csrf
                         <button type="submit" class="btn btn-ghost-strong">
-                            <i class="bi bi-arrow-repeat"></i> Recalculate Statutory
+                            <i class="bi bi-arrow-repeat"></i> Recalculate Period
                         </button>
                     </form>
                 @endif

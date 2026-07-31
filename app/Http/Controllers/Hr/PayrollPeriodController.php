@@ -279,8 +279,8 @@ class PayrollPeriodController extends Controller
     }
 
     /**
-     * Recalculate statutory deductions on an already-processed period
-     * using current staff exemption ticks (NSSF/SHIF/housing/PAYE).
+     * Recalculate an already-processed period from current salary structures,
+     * statutory exemptions, advances, and custom deductions.
      */
     public function recalculate($id)
     {
@@ -301,10 +301,10 @@ class PayrollPeriodController extends Controller
         $output = trim(\Artisan::output());
 
         if ($exit !== 0) {
-            return back()->with('error', 'Recalculation failed. '.$output);
+            return back()->with('error', 'Period recalculation failed. '.$output);
         }
 
-        return back()->with('success', 'Statutory deductions recalculated from current staff exemptions. Re-download exports if needed.');
+        return back()->with('success', 'Period recalculated from current salary structures, statutory settings, advances, and custom deductions. Re-download exports if needed.');
     }
 
     /**
