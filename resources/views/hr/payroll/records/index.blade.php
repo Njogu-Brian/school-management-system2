@@ -49,6 +49,7 @@
                             <option value="draft" @selected(request('status')==='draft')>Draft</option>
                             <option value="approved" @selected(request('status')==='approved')>Approved</option>
                             <option value="paid" @selected(request('status')==='paid')>Paid</option>
+                            <option value="cancelled" @selected(request('status')==='cancelled')>Cancelled</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -108,7 +109,15 @@
                                     <td><span class="text-danger">Ksh {{ number_format($record->total_deductions, 2) }}</span></td>
                                     <td><strong class="text-primary">Ksh {{ number_format($record->net_salary, 2) }}</strong></td>
                                     <td>
-                                        <span class="pill-badge {{ $record->status === 'approved' ? 'pill-success' : ($record->status === 'paid' ? 'pill-info' : 'pill-warning') }}">
+                                        @php
+                                            $statusPill = match($record->status) {
+                                                'approved' => 'pill-success',
+                                                'paid' => 'pill-info',
+                                                'cancelled' => 'pill-danger',
+                                                default => 'pill-warning',
+                                            };
+                                        @endphp
+                                        <span class="pill-badge {{ $statusPill }}">
                                             {{ ucfirst($record->status) }}
                                         </span>
                                     </td>
@@ -117,9 +126,11 @@
                                             <a href="{{ route('hr.payroll.records.show', $record->id) }}" class="btn btn-sm btn-ghost-strong">
                                                 <i class="bi bi-eye"></i> View
                                             </a>
+                                            @if($record->status !== 'cancelled')
                                             <a href="{{ route('hr.payroll.records.payslip', $record->id) }}" class="btn btn-sm btn-ghost-strong" target="_blank">
                                                 <i class="bi bi-file-earmark-pdf"></i> Payslip
                                             </a>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

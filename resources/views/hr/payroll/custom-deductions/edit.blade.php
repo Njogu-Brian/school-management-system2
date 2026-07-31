@@ -54,14 +54,35 @@
 
                     <div class="col-md-6">
                         <label class="form-label">Frequency <span class="text-danger">*</span></label>
-                        <select name="frequency" class="form-select @error('frequency') is-invalid @enderror" required>
+                        <select name="frequency" id="frequency" class="form-select @error('frequency') is-invalid @enderror" required>
                             <option value="one_time" @selected(old('frequency', $deduction->frequency)==='one_time')>One Time</option>
                             <option value="monthly" @selected(old('frequency', $deduction->frequency)==='monthly')>Monthly</option>
-                            <option value="quarterly" @selected(old('frequency', $deduction->frequency)==='quarterly')>Quarterly</option>
-                            <option value="yearly" @selected(old('frequency', $deduction->frequency)==='yearly')>Yearly</option>
+                            <option value="quarterly" @selected(old('frequency', $deduction->frequency)==='quarterly')>Quarterly (Jan/Apr/Jul/Oct)</option>
+                            <option value="yearly" @selected(old('frequency', $deduction->frequency)==='yearly')>Yearly (January)</option>
+                            <option value="custom_months" @selected(old('frequency', $deduction->frequency)==='custom_months')>Selected months</option>
                         </select>
                         @error('frequency')
                             <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    @php
+                        $selectedMonths = old('applicable_months', $deduction->applicable_months ?? []);
+                    @endphp
+                    <div class="col-12 {{ old('frequency', $deduction->frequency) === 'custom_months' ? '' : 'd-none' }}" id="applicable_months_field">
+                        <label class="form-label">Deduct in these months <span class="text-danger">*</span></label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach(\App\Models\CustomDeduction::monthLabels() as $num => $label)
+                                <label class="form-check form-check-inline border rounded px-2 py-1 mb-0">
+                                    <input type="checkbox" class="form-check-input" name="applicable_months[]" value="{{ $num }}"
+                                        @checked(in_array($num, $selectedMonths) || in_array((string) $num, $selectedMonths))>
+                                    <span class="form-check-label">{{ $label }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <div class="form-text">Example for school fees: tick Jan, May, Sep (term months only).</div>
+                        @error('applicable_months')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -109,5 +130,11 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('frequency').addEventListener('change', function() {
+  document.getElementById('applicable_months_field').classList.toggle('d-none', this.value !== 'custom_months');
+});
+</script>
 @endsection
 

@@ -238,7 +238,7 @@
                                     <td>Ksh {{ number_format($record->gross_salary, 2) }}</td>
                                     <td>Ksh {{ number_format($record->total_deductions, 2) }}</td>
                                     <td><strong>Ksh {{ number_format($record->net_salary, 2) }}</strong></td>
-                                    <td><span class="pill-badge {{ $record->status === 'approved' ? 'pill-success' : 'pill-warning' }}">{{ ucfirst($record->status) }}</span></td>
+                                    <td><span class="pill-badge {{ $record->status === 'approved' ? 'pill-success' : ($record->status === 'paid' ? 'pill-info' : ($record->status === 'cancelled' ? 'pill-danger' : 'pill-warning')) }}">{{ ucfirst($record->status) }}</span></td>
                                     <td class="text-end">
                                         <a href="{{ route('hr.payroll.records.show', $record->id) }}" class="btn btn-sm btn-ghost-strong">
                                             <i class="bi bi-eye"></i> View

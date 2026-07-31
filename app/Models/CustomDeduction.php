@@ -18,6 +18,7 @@ class CustomDeduction extends Model
         'effective_from',
         'effective_to',
         'frequency',
+        'applicable_months',
         'installment_number',
         'total_installments',
         'total_amount',
@@ -34,9 +35,19 @@ class CustomDeduction extends Model
         'amount_deducted' => 'decimal:2',
         'effective_from' => 'date',
         'effective_to' => 'date',
+        'applicable_months' => 'array',
         'installment_number' => 'integer',
         'total_installments' => 'integer',
     ];
+
+    public static function monthLabels(): array
+    {
+        return [
+            1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr',
+            5 => 'May', 6 => 'Jun', 7 => 'Jul', 8 => 'Aug',
+            9 => 'Sep', 10 => 'Oct', 11 => 'Nov', 12 => 'Dec',
+        ];
+    }
 
     public function staff()
     {
@@ -90,6 +101,29 @@ class CustomDeduction extends Model
     }
 
     /**
+     * Reverse a previously recorded deduction (e.g. cancelled payslip).
+     */
+    public function reverseDeduction($amount)
+    {
+        $amount = min((float) $amount, (float) $this->amount_deducted);
+        if ($amount <= 0) {
+            return;
+        }
+
+        $this->amount_deducted = max(0, (float) $this->amount_deducted - $amount);
+
+        if ($this->total_installments && $this->installment_number > 0) {
+            $this->installment_number = max(0, $this->installment_number - 1);
+        }
+
+        if ($this->status === 'completed' && (! $this->total_amount || $this->amount_deducted < $this->total_amount)) {
+            $this->status = 'active';
+        }
+
+        $this->save();
+    }
+
+    /**
      * Check if should be deducted this month
      */
     public function shouldDeductThisMonth($year, $month)
@@ -115,11 +149,18 @@ class CustomDeduction extends Model
                 return true;
             
             case 'quarterly':
-                $quarter = ceil($month / 3);
                 return $month % 3 == 1; // First month of quarter
             
             case 'yearly':
                 return $month == 1; // January
+
+            case 'custom_months':
+                $months = collect($this->applicable_months ?? [])
+                    ->map(fn ($m) => (int) $m)
+                    ->filter(fn ($m) => $m >= 1 && $m <= 12)
+                    ->all();
+
+                return in_array((int) $month, $months, true);
             
             default:
                 return true;

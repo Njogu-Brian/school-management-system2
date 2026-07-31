@@ -81,13 +81,13 @@ class PayrollPeriod extends Model
      */
     public function calculateTotals()
     {
-        $records = $this->payrollRecords;
-        
+        $records = $this->payrollRecords->where('status', '!=', 'cancelled');
+
         $this->total_gross = $records->sum('gross_salary');
         $this->total_deductions = $records->sum('total_deductions');
         $this->total_net = $records->sum('net_salary');
         $this->staff_count = $records->count();
-        
+
         return $this;
     }
 

@@ -253,15 +253,15 @@
                 </div>
                 @endif
 
+                @php
+                    $percentage = $advance->amount > 0 ? ($advance->amount_repaid / $advance->amount) * 100 : 0;
+                @endphp
                 <div class="settings-card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Progress</h5>
                         <span class="pill-badge pill-success">{{ number_format($percentage, 1) }}% repaid</span>
                     </div>
                     <div class="card-body">
-                        @php
-                            $percentage = $advance->amount > 0 ? ($advance->amount_repaid / $advance->amount) * 100 : 0;
-                        @endphp
                         <div class="mb-2">
                             <div class="d-flex justify-content-between small mb-1">
                                 <span>Repayment Progress</span>

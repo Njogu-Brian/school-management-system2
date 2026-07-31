@@ -55,6 +55,10 @@ class PayslipController extends Controller
     {
         $record = PayrollRecord::with(['staff', 'payrollPeriod', 'salaryStructure'])->findOrFail($id);
 
+        if ($record->status === 'cancelled') {
+            abort(403, 'Payslip is not available for cancelled payroll records.');
+        }
+
         if (!$record->payslip_number) {
             $record->generatePayslipNumber();
             $record->payslip_generated_at = now();

@@ -296,6 +296,7 @@ class SystemAlertService
             fingerprint: $fingerprint,
             deepLink: $deepLink,
             metadata: $context,
+            escalate: false,
         );
     }
 
@@ -566,16 +567,23 @@ class SystemAlertService
         string $escalationFingerprint,
         ?Collection $recipients = null,
     ): void {
+        $emailEnabled = (bool) config('system_alerts.escalation.email', false);
+        $smsEnabled = (bool) config('system_alerts.escalation.sms', false);
+
+        if (! $emailEnabled && ! $smsEnabled) {
+            return;
+        }
+
         if ($this->hasRecentEscalation($escalationFingerprint)) {
             return;
         }
 
         $actionUrl = $deepLink ? url($deepLink) : url('/');
         $smsBody = Str::limit($title.': '.$body, 155);
-        $smsService = app(SMSService::class);
+        $smsService = $smsEnabled ? app(SMSService::class) : null;
 
         foreach ($recipients ?? $this->getSuperAdmins() as $admin) {
-            if ($admin->email) {
+            if ($emailEnabled && $admin->email) {
                 try {
                     Mail::send('emails.system-alert', [
                         'subject' => $title,
@@ -593,7 +601,7 @@ class SystemAlertService
             }
 
             $phone = $admin->staff?->phone_number;
-            if ($phone) {
+            if ($smsEnabled && $phone) {
                 try {
                     $smsService->sendSMS($phone, $smsBody);
                 } catch (\Throwable $e) {

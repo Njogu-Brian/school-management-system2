@@ -129,6 +129,7 @@ class PayrollPeriodController extends Controller
                 // Check if record already exists
                 $existingRecord = PayrollRecord::where('payroll_period_id', $period->id)
                     ->where('staff_id', $member->id)
+                    ->whereIn('status', ['draft', 'approved', 'paid'])
                     ->first();
 
                 if ($existingRecord) {

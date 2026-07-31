@@ -63,12 +63,33 @@ class CustomDeductionController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'effective_from' => 'required|date',
             'effective_to' => 'nullable|date|after:effective_from',
-            'frequency' => 'required|in:one_time,monthly,quarterly,yearly',
+            'frequency' => 'required|in:one_time,monthly,quarterly,yearly,custom_months',
+            'applicable_months' => 'nullable|array',
+            'applicable_months.*' => 'integer|between:1,12',
             'total_installments' => 'nullable|integer|min:1',
             'total_amount' => 'nullable|numeric|min:0.01',
             'description' => 'nullable|string',
             'notes' => 'nullable|string',
         ]);
+
+        if ($validated['frequency'] === 'custom_months') {
+            $months = collect($validated['applicable_months'] ?? [])
+                ->map(fn ($m) => (int) $m)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            if ($months === []) {
+                return back()->withInput()->withErrors([
+                    'applicable_months' => 'Select at least one month for selected-months frequency.',
+                ]);
+            }
+
+            $validated['applicable_months'] = $months;
+        } else {
+            $validated['applicable_months'] = null;
+        }
 
         $validated['installment_number'] = 0;
         $validated['amount_deducted'] = 0;
@@ -125,10 +146,31 @@ class CustomDeductionController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'effective_from' => 'required|date',
             'effective_to' => 'nullable|date|after:effective_from',
-            'frequency' => 'required|in:one_time,monthly,quarterly,yearly',
+            'frequency' => 'required|in:one_time,monthly,quarterly,yearly,custom_months',
+            'applicable_months' => 'nullable|array',
+            'applicable_months.*' => 'integer|between:1,12',
             'description' => 'nullable|string',
             'notes' => 'nullable|string',
         ]);
+
+        if ($validated['frequency'] === 'custom_months') {
+            $months = collect($validated['applicable_months'] ?? [])
+                ->map(fn ($m) => (int) $m)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            if ($months === []) {
+                return back()->withInput()->withErrors([
+                    'applicable_months' => 'Select at least one month for selected-months frequency.',
+                ]);
+            }
+
+            $validated['applicable_months'] = $months;
+        } else {
+            $validated['applicable_months'] = null;
+        }
 
         $deduction->update($validated);
 

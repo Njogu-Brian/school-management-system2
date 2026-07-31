@@ -120,7 +120,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        <span class="pill-badge pill-info">{{ ucfirst($deduction->frequency) }}</span>
+                                        <span class="pill-badge pill-info">{{ $deduction->frequency === 'custom_months' ? 'Selected months' : ucfirst(str_replace('_', ' ', $deduction->frequency)) }}</span>
                                     </td>
                                     <td>
                                         <div>{{ $deduction->effective_from->format('M d, Y') }}</div>

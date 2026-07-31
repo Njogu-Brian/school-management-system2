@@ -908,6 +908,7 @@ Route::middleware('auth')->group(function () {
                 
                 // Payroll Records
                 Route::resource('records', \App\Http\Controllers\Hr\PayrollRecordController::class);
+                Route::post('/records/{id}/cancel', [\App\Http\Controllers\Hr\PayrollRecordController::class, 'cancel'])->name('records.cancel');
                 Route::get('/records/{id}/payslip', [\App\Http\Controllers\Hr\PayslipController::class, 'show'])->name('records.payslip');
                 Route::get('/records/{id}/payslip/download', [\App\Http\Controllers\Hr\PayslipController::class, 'download'])->name('records.payslip.download');
                 

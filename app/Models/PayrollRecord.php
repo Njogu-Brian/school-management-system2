@@ -158,4 +158,17 @@ class PayrollRecord extends Model
     {
         return in_array($this->status, ['draft', 'approved']) && !$this->payrollPeriod->isLocked();
     }
+
+    /**
+     * Check if record can be rejected/cancelled
+     */
+    public function canCancel()
+    {
+        return in_array($this->status, ['draft', 'approved']) && !$this->payrollPeriod->isLocked();
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === 'cancelled';
+    }
 }

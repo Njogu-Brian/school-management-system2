@@ -91,7 +91,9 @@
                             <div class="col-md-6 mb-3">
                                 <label class="text-muted small">Frequency</label>
                                 <div>
-                                    <span class="pill-badge pill-info">{{ ucfirst($deduction->frequency) }}</span>
+                                    <span class="pill-badge pill-info">
+                                        {{ $deduction->frequency === 'custom_months' ? 'Selected months' : ucfirst(str_replace('_', ' ', $deduction->frequency)) }}
+                                    </span>
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
@@ -100,6 +102,16 @@
                                     <span class="pill-badge {{ $badge }}">{{ ucfirst($deduction->status) }}</span>
                                 </div>
                             </div>
+                            @if($deduction->frequency === 'custom_months' && !empty($deduction->applicable_months))
+                            <div class="col-12 mb-3">
+                                <label class="text-muted small">Applies in</label>
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    @foreach($deduction->applicable_months as $monthNum)
+                                        <span class="pill-badge pill-secondary">{{ \App\Models\CustomDeduction::monthLabels()[(int) $monthNum] ?? $monthNum }}</span>
+                                    @endforeach
+                                </div>
+                            </div>
+                            @endif
                             <div class="col-md-6 mb-3">
                                 <label class="text-muted small">Effective From</label>
                                 <div>{{ $deduction->effective_from->format('F d, Y') }}</div>

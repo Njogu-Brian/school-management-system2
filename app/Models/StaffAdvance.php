@@ -90,6 +90,27 @@ class StaffAdvance extends Model
     }
 
     /**
+     * Reverse a previously recorded payroll repayment (e.g. cancelled payslip).
+     */
+    public function reverseRepayment($amount)
+    {
+        $amount = min((float) $amount, (float) $this->amount_repaid);
+        if ($amount <= 0) {
+            return;
+        }
+
+        $this->amount_repaid = max(0, (float) $this->amount_repaid - $amount);
+        $this->balance = (float) $this->amount - (float) $this->amount_repaid;
+
+        if ($this->status === 'completed' && $this->balance > 0) {
+            $this->status = 'active';
+            $this->completed_date = null;
+        }
+
+        $this->save();
+    }
+
+    /**
      * Check if advance is active
      */
     public function isActive()
