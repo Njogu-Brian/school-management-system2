@@ -247,7 +247,11 @@ class ReportCardAccessService
             }
 
             return [
+                'id' => (int) $inv->id,
                 'invoice_number' => $inv->invoice_number ?? ('#'.$inv->id),
+                'public_url' => $inv->hashed_id
+                    ? route('invoices.public', $inv->hashed_id)
+                    : null,
                 'year' => $inv->year,
                 'term' => $inv->term,
                 'total' => round((float) $inv->total, 2),

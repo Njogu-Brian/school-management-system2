@@ -9,7 +9,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="{{ $brandPrimary }}">
-    <title>Report Cards - {{ $schoolName }}</title>
+    <title>Report Forms - {{ $schoolName }}</title>
     @include('layouts.partials.favicon')
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
@@ -17,179 +17,294 @@
         :root {
             --brand-primary: {{ $brandPrimary }};
             --brand-secondary: {{ $brandSecondary }};
-            --page-bg: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-secondary) 55%, #1a1a2e 100%);
-            --tap-min: 44px;
+            --page-bg: #eef2f7;
+            --text: #0f172a;
+            --muted: #475569;
         }
         * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
         body {
             margin: 0;
             min-height: 100vh;
-            min-height: 100dvh;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: var(--page-bg);
-            color: #1a1a1a;
-            padding: 12px;
-            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            color: var(--text);
         }
-        .portal-wrap { max-width: 520px; margin: 0 auto; }
         .portal-header {
-            background: #fff;
-            border-radius: 1rem;
-            padding: 1.25rem;
-            text-align: center;
-            margin-bottom: 1rem;
-            box-shadow: 0 8px 24px rgba(0,0,0,.12);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background: color-mix(in srgb, var(--brand-primary) 94%, #000);
+            color: #fff;
+            box-shadow: 0 2px 12px rgba(15, 23, 42, .18);
         }
-        .portal-header h1 { font-size: 1.2rem; font-weight: 700; margin: .5rem 0 0; }
-        .portal-header .sub { color: #666; font-size: .9rem; }
-        .child-card {
-            background: #fff;
-            border-radius: 1rem;
-            padding: 1rem 1.1rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 6px 20px rgba(0,0,0,.1);
+        .portal-header-inner {
+            max-width: 1040px;
+            min-height: 64px;
+            margin: 0 auto;
+            padding: .7rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
         }
-        .child-name { font-size: 1.05rem; font-weight: 700; }
-        .child-meta { font-size: .85rem; color: #666; margin-bottom: .75rem; }
-        .badge-locked { background: #fff3cd; color: #856404; }
-        .badge-open { background: #d1e7dd; color: #0f5132; }
-        .invoice-box {
-            background: #f8f9fa;
-            border-radius: .75rem;
-            padding: .75rem;
-            margin: .75rem 0;
+        .portal-title { font-size: 1rem; font-weight: 700; margin: 0; }
+        .portal-subtitle { font-size: .8rem; color: rgba(255,255,255,.78); }
+        .portal-count {
+            flex: 0 0 auto;
+            padding: .35rem .65rem;
+            border: 1px solid rgba(255,255,255,.3);
+            border-radius: 999px;
+            font-size: .78rem;
+        }
+        .portal-main {
+            max-width: 1040px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        .intro {
+            margin-bottom: 1rem;
+            color: var(--muted);
             font-size: .9rem;
         }
-        .invoice-line { display: flex; justify-content: space-between; gap: .5rem; padding: .2rem 0; }
-        .btn-portal {
-            min-height: var(--tap-min);
-            border-radius: .75rem;
-            font-weight: 600;
-            width: 100%;
-        }
-        .btn-row { display: grid; gap: .5rem; margin-top: .75rem; }
-        @media (min-width: 480px) {
-            .btn-row.two { grid-template-columns: 1fr 1fr; }
-        }
-        .pay-banner {
+        .report-document {
             background: #fff;
-            border-radius: 1rem;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            text-align: center;
-            box-shadow: 0 6px 20px rgba(0,0,0,.1);
+            border: 1px solid #dbe3ee;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .08);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
         }
-        .footer-note { color: rgba(255,255,255,.85); font-size: .8rem; text-align: center; margin-top: 1rem; }
+        .report-document-head {
+            padding: .75rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            border-bottom: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+        .student-name { font-weight: 700; font-size: .98rem; }
+        .student-meta { color: var(--muted); font-size: .8rem; margin-top: .12rem; }
+        .report-body {
+            padding: 1rem;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .download-link {
+            min-height: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .45rem .7rem;
+            border: 1px solid #cbd5e1;
+            border-radius: .55rem;
+            color: var(--brand-primary);
+            background: #fff;
+            text-decoration: none;
+            font-size: .82rem;
+            font-weight: 600;
+            transition: background-color .2s, border-color .2s;
+        }
+        .download-link:hover { background: #f1f5f9; border-color: #94a3b8; }
+        .fees-panel {
+            margin: 0 1rem 1rem;
+            border: 1px solid #bae6fd;
+            border-left: 4px solid #0284c7;
+            border-radius: .75rem;
+            padding: .9rem 1rem;
+            background: #f0f9ff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        .fees-label {
+            color: #075985;
+            font-size: .72rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+        }
+        .fees-term { font-size: .83rem; color: var(--muted); margin-top: .1rem; }
+        .fees-total { font-size: 1.08rem; font-weight: 800; margin-top: .25rem; }
+        .invoice-button {
+            flex: 0 0 auto;
+            min-height: 44px;
+            padding: .65rem 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: .4rem;
+            border-radius: .6rem;
+            background: #0369a1;
+            color: #fff;
+            font-weight: 700;
+            font-size: .86rem;
+            text-decoration: none;
+            transition: background-color .2s;
+        }
+        .invoice-button:hover { background: #075985; color: #fff; }
+        .locked-panel {
+            margin: 1rem;
+            padding: 2rem 1rem;
+            border: 1px solid #fde68a;
+            border-radius: .75rem;
+            background: #fffbeb;
+            text-align: center;
+        }
+        .locked-icon { font-size: 1.8rem; color: #b45309; }
+        .locked-title { font-weight: 750; margin-top: .5rem; }
+        .locked-copy { color: #78350f; max-width: 520px; margin: .4rem auto 1rem; font-size: .9rem; }
+        .empty-state {
+            padding: 3rem 1rem;
+            background: #fff;
+            border-radius: .8rem;
+            text-align: center;
+            color: var(--muted);
+        }
+        .portal-footer {
+            padding: .5rem 1rem 1.5rem;
+            text-align: center;
+            color: #64748b;
+            font-size: .78rem;
+        }
+        @media (max-width: 640px) {
+            .portal-main { padding: .65rem; }
+            .report-document { border-radius: .65rem; margin-bottom: 1rem; }
+            .report-document-head { align-items: flex-start; }
+            .report-body { padding: .55rem; }
+            .fees-panel { margin: 0 .55rem .55rem; align-items: stretch; flex-direction: column; }
+            .invoice-button { width: 100%; }
+            .portal-count { display: none; }
+        }
+        @media print {
+            body { background: #fff; }
+            .portal-header, .intro, .download-link, .invoice-button, .portal-footer { display: none !important; }
+            .portal-main { max-width: none; margin: 0; padding: 0; }
+            .report-document {
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+                margin: 0;
+                break-after: page;
+                page-break-after: always;
+            }
+            .report-document:last-child { break-after: auto; page-break-after: auto; }
+            .report-document-head { display: none; }
+            .report-body { padding: 0; overflow: visible; }
+            .fees-panel { break-inside: avoid; page-break-inside: avoid; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            html { scroll-behavior: auto; }
+            *, *::before, *::after { transition-duration: .01ms !important; }
+        }
     </style>
 </head>
 <body>
-<div class="portal-wrap">
-    <div class="portal-header">
-        <div class="sub">{{ $schoolName }}</div>
-        <h1>Family Report Cards</h1>
-        <div class="sub">{{ $termLabel }}</div>
+<header class="portal-header">
+    <div class="portal-header-inner">
+        <div>
+            <h1 class="portal-title">{{ $schoolName }} · Report Forms</h1>
+            <div class="portal-subtitle">{{ $termLabel }}</div>
+        </div>
+        <div class="portal-count">
+            {{ count($children) }} {{ \Illuminate\Support\Str::plural('report', count($children)) }}
+        </div>
     </div>
+</header>
 
-    @if($payUrl)
-        <div class="pay-banner">
-            <div class="mb-2"><i class="bi bi-credit-card"></i> Pay school fees via M-PESA</div>
-            <a href="{{ $payUrl }}" class="btn btn-success btn-portal">Pay Now</a>
+<main class="portal-main">
+    @if(count($children) > 1)
+        <div class="intro">
+            All family report forms are shown below. Scroll down to view each child.
         </div>
     @endif
 
     @forelse($children as $child)
         @php
             $student = $child['student'];
-            $rc = $child['report_card'];
+            $reportCard = $child['report_card'];
             $billing = $child['billing'];
+            $dto = $child['dto'];
             $locked = !($billing['can_view_report'] ?? false);
+            $isNextTerm = ($billing['invoice_scope'] ?? '') === 'next_term';
+            $hasInvoice = !empty($billing['invoices']);
+            $invoiceTitle = $isNextTerm ? 'Next Term Fees' : 'Outstanding Fees';
         @endphp
-        <div class="child-card">
-            <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+
+        <article class="report-document">
+            <div class="report-document-head">
                 <div>
-                    <div class="child-name">{{ $student->full_name ?? trim($student->first_name.' '.$student->last_name) }}</div>
-                    <div class="child-meta">
+                    <div class="student-name">{{ $student->full_name ?? trim($student->first_name.' '.$student->last_name) }}</div>
+                    <div class="student-meta">
                         {{ $student->admission_number }}
-                        @if($rc->classroom?->name) · {{ $rc->classroom->name }} @endif
-                        @if($rc->stream?->name) {{ $rc->stream->name }} @endif
+                        @if($reportCard->classroom?->name) · {{ $reportCard->classroom->name }} @endif
+                        @if($reportCard->stream?->name) {{ $reportCard->stream->name }} @endif
                     </div>
                 </div>
-                <span class="badge rounded-pill {{ $locked ? 'badge-locked' : 'badge-open' }}">
-                    {{ $locked ? 'Locked' : 'Available' }}
-                </span>
+                @unless($locked)
+                    <a href="{{ $child['pdf_url'] }}" class="download-link" target="_blank" rel="noopener">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                        <span>Download PDF</span>
+                    </a>
+                @endunless
             </div>
 
             @if($locked)
-                <div class="alert alert-warning py-2 mb-2 small mb-0">
-                    <i class="bi bi-lock-fill"></i>
-                    Clear <strong>KES {{ number_format($billing['report_term_balance'] ?? 0, 2) }}</strong> for this term to view the report card.
-                </div>
-            @endif
-
-            @if(!empty($billing['invoices']))
-                @php $upcoming = ($billing['invoice_scope'] ?? '') === 'next_term'; @endphp
-                <div class="invoice-box">
-                    <div class="fw-semibold mb-1">{{ $billing['display_term_label'] ?? 'Invoices' }}</div>
-                    @foreach($billing['invoices'] as $inv)
-                        <div class="invoice-line">
-                            <span>
-                                {{ $inv['invoice_number'] }}
-                                @if($inv['due_date_label'])
-                                    <span class="text-muted" style="font-size:.78rem;">· due {{ $inv['due_date_label'] }}</span>
-                                @endif
-                            </span>
-                            <strong>KES {{ number_format($inv['balance'], 2) }}</strong>
-                        </div>
-                        @foreach($inv['lines'] ?? [] as $line)
-                            <div class="invoice-line text-muted" style="font-size:.8rem;padding-left:.5rem;">
-                                <span>{{ $line['label'] }}</span>
-                                <span>KES {{ number_format($line['balance'], 2) }}</span>
-                            </div>
-                        @endforeach
-                    @endforeach
-                    <div class="invoice-line fw-bold border-top pt-2 mt-1">
-                        <span>{{ $upcoming ? 'Total (not yet due)' : 'Total due' }}</span>
-                        <span>KES {{ number_format($billing['invoice_total_balance'] ?? 0, 2) }}</span>
+                <div class="locked-panel">
+                    <i class="bi bi-lock-fill locked-icon" aria-hidden="true"></i>
+                    <div class="locked-title">Report form unavailable</div>
+                    <div class="locked-copy">
+                        Please clear the outstanding {{ $termLabel }} fee balance of
+                        <strong>KES {{ number_format($billing['report_term_balance'] ?? 0, 2) }}</strong>
+                        to view this report form.
                     </div>
-                    @if($upcoming)
-                        <div class="text-muted mt-1" style="font-size:.78rem;">
-                            <i class="bi bi-info-circle"></i>
-                            This is next term's invoice, shown for planning. It does not affect access to the report form above.
-                        </div>
-                    @endif
-                </div>
-            @elseif(($billing['invoice_scope'] ?? '') === 'none')
-                <div class="text-success small"><i class="bi bi-check-circle"></i> Fees up to date</div>
-            @endif
-
-            <div class="btn-row {{ $locked ? '' : 'two' }}">
-                @unless($locked)
-                    <a href="{{ $child['view_url'] }}" class="btn btn-primary btn-portal">
-                        <i class="bi bi-eye"></i> View Report
-                    </a>
-                    <a href="{{ $child['pdf_url'] }}" class="btn btn-outline-primary btn-portal" target="_blank">
-                        <i class="bi bi-download"></i> Download PDF
-                    </a>
-                @else
-                    @if($payUrl)
-                        <a href="{{ $payUrl }}" class="btn btn-warning btn-portal">
-                            <i class="bi bi-credit-card"></i> Pay to Unlock
+                    @if($child['invoice_url'])
+                        <a href="{{ $child['invoice_url'] }}" class="invoice-button">
+                            <i class="bi bi-receipt" aria-hidden="true"></i>
+                            View Invoice &amp; Pay
+                        </a>
+                    @elseif($payUrl)
+                        <a href="{{ $payUrl }}" class="invoice-button">
+                            <i class="bi bi-credit-card" aria-hidden="true"></i>
+                            Make Payment
                         </a>
                     @endif
-                @endunless
-            </div>
-        </div>
+                </div>
+            @elseif($dto)
+                <div class="report-body">
+                    @include('academics.report_cards.partials.core', ['dto' => $dto, 'isPdf' => false])
+                </div>
+            @endif
+
+            @if(!$locked && $isNextTerm && $hasInvoice)
+                <section class="fees-panel" aria-label="Next term fees">
+                    <div>
+                        <div class="fees-label">{{ $invoiceTitle }}</div>
+                        <div class="fees-term">{{ $billing['display_term_label'] }}</div>
+                        <div class="fees-total">KES {{ number_format($billing['invoice_total_balance'] ?? 0, 2) }}</div>
+                    </div>
+                    @if($child['invoice_url'])
+                        <a href="{{ $child['invoice_url'] }}" class="invoice-button">
+                            <i class="bi bi-receipt" aria-hidden="true"></i>
+                            View Invoice
+                        </a>
+                    @endif
+                </section>
+            @endif
+        </article>
     @empty
-        <div class="child-card text-center text-muted">
-            No published report cards are available yet for this family.
+        <div class="empty-state">
+            <i class="bi bi-file-earmark-text fs-2 d-block mb-2" aria-hidden="true"></i>
+            No published report forms are available for this family.
         </div>
     @endforelse
+</main>
 
-    <div class="footer-note">
-        @if($schoolPhone) Tel: {{ $schoolPhone }} · @endif
-        @if($schoolEmail) {{ $schoolEmail }} @endif
-        <div class="mt-1">Generated {{ now()->format('d M Y, H:i') }}</div>
-    </div>
-</div>
+<footer class="portal-footer">
+    @if($schoolPhone) Tel: {{ $schoolPhone }} · @endif
+    @if($schoolEmail) {{ $schoolEmail }} @endif
+</footer>
 </body>
 </html>

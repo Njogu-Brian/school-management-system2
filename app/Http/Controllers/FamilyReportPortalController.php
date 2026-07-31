@@ -43,11 +43,20 @@ class FamilyReportPortalController extends Controller
             }
 
             $billing = ReportCardAccessService::billingContextForReportCard($reportCard);
+            $canViewReport = (bool) ($billing['can_view_report'] ?? false);
+            $firstInvoiceUrl = collect($billing['invoices'] ?? [])
+                ->pluck('public_url')
+                ->filter()
+                ->first();
 
             $children[] = [
                 'student' => $student,
                 'report_card' => $reportCard,
                 'billing' => $billing,
+                'dto' => $canViewReport
+                    ? ReportCardBatchService::build($reportCard->id)
+                    : null,
+                'invoice_url' => $firstInvoiceUrl ?: get_public_student_statement_url($student),
                 'view_url' => route('family.reports.show', [$link->token, $reportCard->public_token]),
                 'pdf_url' => route('family.reports.pdf', [$link->token, $reportCard->public_token]),
             ];
