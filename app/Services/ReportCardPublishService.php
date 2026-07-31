@@ -26,9 +26,10 @@ class ReportCardPublishService
     /**
      * @param  array<int>  $reportCardIds
      * @param  array<string>  $channels  sms|email|whatsapp
+     * @param  array<string, int|string|null>  $templateIds  channel => communication_templates.id override
      * @return array{published: int, families_notified: int, failed: int}
      */
-    public function publishMany(array $reportCardIds, array $channels = [], bool $notify = true): array
+    public function publishMany(array $reportCardIds, array $channels = [], bool $notify = true, array $templateIds = []): array
     {
         $channels = array_values(array_unique(array_filter($channels)));
         $reportCards = ReportCard::query()
@@ -48,7 +49,7 @@ class ReportCardPublishService
         if ($notify && $channels !== []) {
             $groups = $this->groupByFamily($reportCards);
             foreach ($groups as $group) {
-                $ok = $this->notifyFamilyGroup($group, $channels);
+                $ok = $this->notifyFamilyGroup($group, $channels, $templateIds);
                 if ($ok) {
                     $familiesNotified++;
                 } else {
@@ -83,6 +84,57 @@ class ReportCardPublishService
         }
 
         return $reportCard->fresh();
+    }
+
+    /**
+     * Report form template codes per channel, in order of preference.
+     * WhatsApp falls back to the SMS wording so a school that has not customised
+     * the WhatsApp template still gets a sensible message.
+     *
+     * @return list<string>
+     */
+    public static function templateCodesForChannel(string $channel): array
+    {
+        return match ($channel) {
+            'email' => ['academics_family_report_portal_email', 'academics_report_email'],
+            'whatsapp' => ['academics_family_report_portal_whatsapp', 'academics_family_report_portal_sms', 'academics_report_sms'],
+            default => ['academics_family_report_portal_sms', 'academics_report_sms'],
+        };
+    }
+
+    public static function resolveTemplateForChannel(string $channel, int|string|null $preferredId = null): ?CommunicationTemplate
+    {
+        if ($preferredId) {
+            $chosen = CommunicationTemplate::find($preferredId);
+            if ($chosen) {
+                return $chosen;
+            }
+        }
+
+        foreach (self::templateCodesForChannel($channel) as $code) {
+            $template = CommunicationTemplate::where('code', $code)->first();
+            if ($template) {
+                return $template;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Templates a user may pick for each channel on the publish screens.
+     *
+     * @return array<string, \Illuminate\Support\Collection<int, CommunicationTemplate>>
+     */
+    public static function selectableTemplates(): array
+    {
+        $all = CommunicationTemplate::orderBy('title')->get();
+
+        return [
+            'sms' => $all->where('type', 'sms')->values(),
+            'whatsapp' => $all->whereIn('type', ['whatsapp', 'sms'])->values(),
+            'email' => $all->where('type', 'email')->values(),
+        ];
     }
 
     /**
@@ -124,8 +176,9 @@ class ReportCardPublishService
     /**
      * @param  array{family_id: ?int, student_id: ?int, report_cards: Collection, year_id: int, term_id: int, students: Collection}  $group
      * @param  array<string>  $channels
+     * @param  array<string, int|string|null>  $templateIds
      */
-    protected function notifyFamilyGroup(array $group, array $channels): bool
+    protected function notifyFamilyGroup(array $group, array $channels, array $templateIds = []): bool
     {
         $portalLink = ensure_family_report_portal_link(
             $group['family_id'],
@@ -171,10 +224,7 @@ class ReportCardPublishService
                 continue;
             }
 
-            $templateCode = $channel === 'email'
-                ? 'academics_family_report_portal_email'
-                : 'academics_family_report_portal_sms';
-            $template = CommunicationTemplate::where('code', $templateCode)->first();
+            $template = self::resolveTemplateForChannel($channel, $templateIds[$channel] ?? null);
 
             foreach (CommunicationHelperService::expandRecipientsToPairs($recipients) as $pair) {
                 [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);

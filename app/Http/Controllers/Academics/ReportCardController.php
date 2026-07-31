@@ -11,6 +11,7 @@ use App\Models\Student;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Models\Academics\Classroom;
+use App\Models\CommunicationTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -280,12 +281,41 @@ class ReportCardController extends Controller
             ->with('success','Report card deleted.');
     }
 
+    /**
+     * channel => template id chosen on the publish form. Empty values fall back to the
+     * default report form templates resolved by ReportCardPublishService.
+     *
+     * @return array<string, int>
+     */
+    private function templateIdsFromRequest(Request $request): array
+    {
+        $raw = $request->input('template_ids', []);
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach (['sms', 'whatsapp', 'email'] as $channel) {
+            $id = $raw[$channel] ?? null;
+            if ($id !== null && $id !== '' && CommunicationTemplate::whereKey($id)->exists()) {
+                $out[$channel] = (int) $id;
+            }
+        }
+
+        return $out;
+    }
+
     public function publish(Request $request, ReportCard $report_card, ReportCardPublishService $publishService)
     {
         $notify = $request->boolean('notify_parents');
         $channels = $notify ? $request->input('channels', ['sms', 'email', 'whatsapp']) : [];
 
-        $publishService->publishMany([$report_card->id], (array) $channels, $notify);
+        $publishService->publishMany(
+            [$report_card->id],
+            (array) $channels,
+            $notify,
+            $this->templateIdsFromRequest($request)
+        );
 
         return back()->with('success', $notify
             ? 'Report published and family link sent.'
@@ -304,7 +334,8 @@ class ReportCardController extends Controller
         $result = $publishService->publishMany(
             $data['ids'],
             $data['channels'],
-            true
+            true,
+            $this->templateIdsFromRequest($request)
         );
 
         return back()->with('success', sprintf(
@@ -337,7 +368,7 @@ class ReportCardController extends Controller
             return back()->with('warning', 'No report cards found for the selected class.');
         }
 
-        $result = $publishService->publishMany($ids, $data['channels'], true);
+        $result = $publishService->publishMany($ids, $data['channels'], true, $this->templateIdsFromRequest($request));
 
         return back()->with('success', sprintf(
             'Published %d report card(s). Notified %d familie(s).',
@@ -560,7 +591,7 @@ class ReportCardController extends Controller
                 ->all();
 
             $channels = $request->input('channels', ['sms', 'email', 'whatsapp']);
-            $result = $publishService->publishMany($ids, $channels, true);
+            $result = $publishService->publishMany($ids, $channels, true, $this->templateIdsFromRequest($request));
             $message = sprintf(
                 'Generated and published %d report card(s). Notified %d familie(s).',
                 $result['published'],

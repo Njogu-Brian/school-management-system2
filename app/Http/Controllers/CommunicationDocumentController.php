@@ -86,13 +86,7 @@ class CommunicationDocumentController extends Controller
                         $template = CommunicationTemplate::where('code', 'finance_share_link_email')->first();
                     }
                 } elseif ($type === 'report_card') {
-                    if ($channel === 'sms') {
-                        $template = CommunicationTemplate::where('code', 'academics_family_report_portal_sms')->first()
-                            ?? CommunicationTemplate::where('code', 'academics_report_sms')->first();
-                    } elseif ($channel === 'email') {
-                        $template = CommunicationTemplate::where('code', 'academics_family_report_portal_email')->first()
-                            ?? CommunicationTemplate::where('code', 'academics_report_email')->first();
-                    }
+                    $template = \App\Services\ReportCardPublishService::resolveTemplateForChannel($channel);
                 }
                 
                 // Fallback: create templates if seeder hasn't run yet

@@ -127,11 +127,17 @@
             @endif
 
             @if(!empty($billing['invoices']))
+                @php $upcoming = ($billing['invoice_scope'] ?? '') === 'next_term'; @endphp
                 <div class="invoice-box">
                     <div class="fw-semibold mb-1">{{ $billing['display_term_label'] ?? 'Invoices' }}</div>
                     @foreach($billing['invoices'] as $inv)
                         <div class="invoice-line">
-                            <span>{{ $inv['invoice_number'] }}</span>
+                            <span>
+                                {{ $inv['invoice_number'] }}
+                                @if($inv['due_date_label'])
+                                    <span class="text-muted" style="font-size:.78rem;">· due {{ $inv['due_date_label'] }}</span>
+                                @endif
+                            </span>
                             <strong>KES {{ number_format($inv['balance'], 2) }}</strong>
                         </div>
                         @foreach($inv['lines'] ?? [] as $line)
@@ -142,9 +148,15 @@
                         @endforeach
                     @endforeach
                     <div class="invoice-line fw-bold border-top pt-2 mt-1">
-                        <span>Total due</span>
+                        <span>{{ $upcoming ? 'Total (not yet due)' : 'Total due' }}</span>
                         <span>KES {{ number_format($billing['invoice_total_balance'] ?? 0, 2) }}</span>
                     </div>
+                    @if($upcoming)
+                        <div class="text-muted mt-1" style="font-size:.78rem;">
+                            <i class="bi bi-info-circle"></i>
+                            This is next term's invoice, shown for planning. It does not affect access to the report form above.
+                        </div>
+                    @endif
                 </div>
             @elseif(($billing['invoice_scope'] ?? '') === 'none')
                 <div class="text-success small"><i class="bi bi-check-circle"></i> Fees up to date</div>

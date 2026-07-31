@@ -26,6 +26,10 @@
               </div>
             </div>
           </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold">Message template</label>
+            @include('academics.report_cards.partials.notify-template-picker', ['idPrefix' => 'pub'])
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>

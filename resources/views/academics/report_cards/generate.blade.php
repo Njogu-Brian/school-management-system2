@@ -71,6 +71,9 @@
                 <label class="form-check-label" for="genChannelEmail">Email</label>
               </div>
             </div>
+            <div class="mt-3">
+              @include('academics.report_cards.partials.notify-template-picker', ['idPrefix' => 'gen'])
+            </div>
           </div>
         </div>
       </div>

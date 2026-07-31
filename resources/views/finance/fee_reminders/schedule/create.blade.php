@@ -137,12 +137,12 @@
             <div class="schedule-card-body">
               <div class="schedule-radio-group">
                 <label class="schedule-radio">
-                  <input type="radio" name="filter_type" value="all" {{ old('filter_type', 'all') == 'all' ? 'checked' : '' }}>
-                  <span>All</span>
+                  <input type="radio" name="filter_type" value="outstanding_fees" {{ old('filter_type', 'outstanding_fees') == 'outstanding_fees' ? 'checked' : '' }}>
+                  <span>Outstanding fees only (due / overdue — not future Term invoices)</span>
                 </label>
                 <label class="schedule-radio">
-                  <input type="radio" name="filter_type" value="outstanding_fees" {{ old('filter_type') == 'outstanding_fees' ? 'checked' : '' }}>
-                  <span>Outstanding fees only (due / overdue — not future Term invoices)</span>
+                  <input type="radio" name="filter_type" value="all" {{ old('filter_type') == 'all' ? 'checked' : '' }}>
+                  <span>All parents &mdash; ignores balances, so it also reaches parents who owe nothing. Do not use with <code>@{{outstanding_amount}}</code>.</span>
                 </label>
                 <label class="schedule-radio">
                   <input type="radio" name="filter_type" value="prior_term_balance" {{ old('filter_type') == 'prior_term_balance' ? 'checked' : '' }}>

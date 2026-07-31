@@ -224,14 +224,21 @@ class CommunicationTemplateSeeder extends Seeder
                 'title'   => 'Family Report Portal (SMS)',
                 'type'    => 'sms',
                 'subject' => null,
-                'content' => "Dear {{parent_name}},\n\nReport cards for {{children_names}} ({{term_name}} {{academic_year}}) are now available.\nView all reports, invoices, and pay fees here:\n{{family_portal_link}}\n\n{{school_name}}",
+                'content' => "Dear {{parent_name}},\n\nThe report form for {{children_names}} ({{term_name}} {{academic_year}}) is now ready.\nView and download it here:\n{{family_portal_link}}\n\n{{school_name}}",
+            ],
+            [
+                'code'    => 'academics_family_report_portal_whatsapp',
+                'title'   => 'Family Report Portal (WhatsApp)',
+                'type'    => 'whatsapp',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\nThe report form for {{children_names}} ({{term_name}} {{academic_year}}) is now ready.\nView and download it here:\n{{family_portal_link}}\n\n{{school_name}}",
             ],
             [
                 'code'    => 'academics_family_report_portal_email',
                 'title'   => 'Family Report Portal (Email)',
                 'type'    => 'email',
-                'subject' => 'Report Cards – {{term_name}} {{academic_year}}',
-                'content' => "Dear {{parent_name}},\n\nReport cards for {{children_names}} for {{term_name}}, {{academic_year}} are now available on the family portal.\n\nYou can view each child's report, check fee balances, and pay via M-Pesa using this link:\n{{family_portal_link}}\n\nWarm regards,\n{{school_name}} Academic Office",
+                'subject' => 'Report Form – {{term_name}} {{academic_year}}',
+                'content' => "Dear {{parent_name}},\n\nThe report form for {{children_names}} for {{term_name}}, {{academic_year}} is now available on the family portal.\n\nYou can view and download each child's report form using this link:\n{{family_portal_link}}\n\nWarm regards,\n{{school_name}} Academic Office",
             ],
 
             // Attendance

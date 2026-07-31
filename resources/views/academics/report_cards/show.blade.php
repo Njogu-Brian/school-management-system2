@@ -48,6 +48,9 @@
               <label class="form-check-label small text-dark" for="showChEmail">Email</label>
             </div>
           </div>
+          <div id="showPublishTemplates" style="min-width:320px;">
+            @include('academics.report_cards.partials.notify-template-picker', ['idPrefix' => 'show'])
+          </div>
           <button class="btn btn-settings-primary btn-sm mt-1"><i class="bi bi-upload"></i> Publish</button>
         </form>
         @endif
@@ -62,3 +65,21 @@
   </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const notify = document.getElementById('notifyFamily');
+  const blocks = ['showPublishChannels', 'showPublishTemplates']
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+  if (!notify || !blocks.length) return;
+
+  function sync() {
+    blocks.forEach(el => el.style.display = notify.checked ? '' : 'none');
+  }
+  notify.addEventListener('change', sync);
+  sync();
+});
+</script>
+@endpush

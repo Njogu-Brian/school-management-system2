@@ -71,6 +71,35 @@ class ScheduledFeeCommunicationController extends Controller
         ];
     }
 
+    /**
+     * A message that quotes a balance only makes sense for recipients who actually owe something.
+     * With filter_type "all" every active parent is included, so parents with nothing due receive
+     * "clear your balance of 0.00". Returns an error message when that combination is detected.
+     */
+    public static function balanceFilterMismatch(string $filterType, string $message): ?string
+    {
+        if ($filterType !== 'all') {
+            return null;
+        }
+
+        $balancePlaceholders = [
+            'outstanding_amount' => 'Outstanding fees only',
+            'total_fee_balance' => 'Outstanding fees only',
+            'prior_term_balance' => 'Balance from prior term(s) only',
+            'swimming_balance' => 'Swimming balances only',
+        ];
+
+        foreach ($balancePlaceholders as $placeholder => $suggestedFilter) {
+            if (str_contains($message, '{{'.$placeholder.'}}') || str_contains($message, '{'.$placeholder.'}')) {
+                return 'Your message uses {{'.$placeholder.'}}, but the filter is set to "All parents" — '
+                    .'parents who owe nothing would receive a reminder showing 0.00. '
+                    .'Select "'.$suggestedFilter.'" instead, or remove the balance placeholder from the message.';
+            }
+        }
+
+        return null;
+    }
+
     public function store(Request $request)
     {
         \Illuminate\Support\Facades\Log::info('Scheduled fee communication store request', [
@@ -133,6 +162,10 @@ class ScheduledFeeCommunicationController extends Controller
         }
         if ($message === '') {
             return back()->withInput()->withErrors(['custom_message' => 'Please provide a message or select a template.']);
+        }
+
+        if ($mismatch = self::balanceFilterMismatch($validated['filter_type'] ?? 'all', $message)) {
+            return back()->withInput()->withErrors(['filter_type' => $mismatch]);
         }
 
         // Ensure template type matches at least one selected channel (when using template)
