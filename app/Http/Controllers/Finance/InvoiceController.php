@@ -917,7 +917,7 @@ class InvoiceController extends Controller
         ]);
         
         // Get school settings
-        $schoolSettings = \App\Services\ReceiptService::getSchoolSettings();
+        $schoolSettings = app(\App\Services\ReceiptService::class)->getSchoolSettings();
 
         $reportPortalUrl = family_report_portal_url_for_student(
             $invoice->student,
