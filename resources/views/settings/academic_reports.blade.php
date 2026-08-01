@@ -39,12 +39,18 @@
                         <small class="text-muted d-block mt-1">Sends the public report card link when publishing, if SMS is configured.</small>
                     </div>
                     <div class="col-12">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" role="switch" id="block_results_when_fee_balance" name="block_results_when_fee_balance" value="1"
-                                {{ old('block_results_when_fee_balance', $blockResultsWhenFeeBalance) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="block_results_when_fee_balance">
-                                Block public report card when there is an outstanding fee balance for that term
-                            </label>
+                        <div class="p-3 border rounded-3 bg-light-subtle">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" role="switch" id="block_results_when_fee_balance" name="block_results_when_fee_balance" value="1"
+                                    {{ old('block_results_when_fee_balance', $blockResultsWhenFeeBalance) ? 'checked' : '' }}>
+                                <label class="form-check-label fw-semibold" for="block_results_when_fee_balance">
+                                    Require fee clearance before parents can view report forms
+                                </label>
+                            </div>
+                            <div class="small text-muted">
+                                <div class="mb-1"><strong>Enabled:</strong> parents with an outstanding balance for that report term cannot view or download the report form until fees are cleared.</div>
+                                <div><strong>Disabled:</strong> parents can open report forms even if fees are still outstanding.</div>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-4">

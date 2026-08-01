@@ -23,7 +23,7 @@ class ReportCardAccessService
             $reportCard
         );
 
-        $enforce = (bool) setting('block_results_when_fee_balance', true);
+        $enforce = setting_bool('block_results_when_fee_balance', true);
         if (! $enforce) {
             return [true, 0.0];
         }

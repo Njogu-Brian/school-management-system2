@@ -311,7 +311,7 @@ class SettingController extends Controller
     {
         return view('settings.academic_reports', [
             'notifyParentsOnReportPublish' => Setting::getBool('notify_parents_on_report_publish', false),
-            'blockResultsWhenFeeBalance' => Setting::getBool('block_results_when_fee_balance', false),
+            'blockResultsWhenFeeBalance' => Setting::getBool('block_results_when_fee_balance', true),
             'examPassMarkPercent' => Setting::getInt('exam_pass_mark_percent', 40),
         ]);
     }
