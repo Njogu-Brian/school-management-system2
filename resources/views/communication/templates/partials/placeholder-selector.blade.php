@@ -4,7 +4,7 @@
         if (in_array($key, ['school_name', 'school_phone', 'school_email', 'school_address', 'date'])) {
             return 'general';
         }
-        if (in_array($key, ['student_name', 'admission_number', 'class_name', 'class', 'parent_name', 'father_name', 'profile_update_link'])) {
+        if (in_array($key, ['student_name', 'admission_number', 'class_name', 'class', 'parent_name', 'father_name', 'profile_update_link', 'report_card_link', 'report_form_link', 'family_portal_link'])) {
             return 'student';
         }
         if (in_array($key, ['staff_name'])) {

@@ -783,6 +783,15 @@ if (!function_exists('replace_placeholders')) {
             $replacements['{{statement_link}}'] = $financePortalLink;
             $replacements['{statement_link}'] = $financePortalLink;
 
+            // Public family report portal link (only available after a report is published)
+            $reportCardLink = family_report_portal_url_for_student($entity) ?? '';
+            $replacements['{{report_card_link}}'] = $reportCardLink;
+            $replacements['{report_card_link}'] = $reportCardLink;
+            $replacements['{{report_form_link}}'] = $reportCardLink;
+            $replacements['{report_form_link}'] = $reportCardLink;
+            $replacements['{{family_portal_link}}'] = $reportCardLink;
+            $replacements['{family_portal_link}'] = $reportCardLink;
+
             // Swimming balance (amount owed when balance < 0)
             if ($entity->id && class_exists(\App\Models\SwimmingWallet::class)) {
                 try {
@@ -938,7 +947,7 @@ if (!function_exists('available_placeholders')) {
     {
         return [
             '{school_name}', '{school_phone}', '{school_email}', '{school_address}', '{term}', '{academic_year}', '{date}',
-            '{student_name}', '{admission_no}', '{class_name}', '{class}', '{grade}', '{parent_name}',
+            '{student_name}', '{admission_no}', '{class_name}', '{class}', '{grade}', '{parent_name}', '{report_card_link}',
             '{staff_name}', '{role}', '{experience}',
         ];
     }

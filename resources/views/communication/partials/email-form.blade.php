@@ -284,7 +284,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Smart placeholder validation before submit
     // Use escaped Blade syntax so these remain literal placeholders
-    const studentPlaceholders = ['@{{student_name}}', '@{{class_name}}', '@{{parent_name}}', '@{{admission_no}}'];
+    const studentPlaceholders = ['@{{student_name}}', '@{{class_name}}', '@{{parent_name}}', '@{{admission_no}}', '@{{report_card_link}}'];
     const staffPlaceholders = ['@{{staff_name}}', '@{{role}}'];
     const genericPlaceholders = ['@{{school_name}}', '@{{date}}'];
 

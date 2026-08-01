@@ -53,8 +53,20 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                     continue;
                 }
 
-            $template = CommunicationTemplate::find($item->template_id);
-            if (!$template) continue;
+            $template = $item->template_id
+                ? CommunicationTemplate::find($item->template_id)
+                : null;
+            $planJob = app(\App\Services\CommunicationJobService::class)
+                ->findByTrackingId('scheduled_comm_' . $item->id);
+            $message = $template?->content ?: $planJob?->message;
+            $title = $template?->title ?: ($planJob?->title ?: ucfirst($item->type));
+
+            if (! $message) {
+                \Log::warning('Scheduled communication has no template or saved message', [
+                    'scheduled_id' => $item->id,
+                ]);
+                continue;
+            }
 
             $recipients = CommunicationHelperService::collectRecipients([
                 'target' => $item->target,
@@ -69,8 +81,6 @@ class SendScheduledCommunicationsJob implements ShouldQueue
             // For large batches (>10), dispatch bulk job to avoid timeout
             if (count($pairs) > 10) {
                 $trackingId = 'scheduled_' . $item->type . '_' . $item->id . '_' . Str::uuid()->toString();
-                $title = $template->title ?? ucfirst($item->type);
-
                 if ($item->type === 'email') {
                     $recipientsData = [];
                     foreach ($pairs as [$email, $entity]) {
@@ -86,7 +96,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                             ],
                         ];
                     }
-                    \App\Jobs\BulkSendEmail::dispatch($trackingId, $recipientsData, $template->content, $title, $item->target, null, null);
+                    \App\Jobs\BulkSendEmail::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, null);
                 } elseif ($item->type === 'whatsapp') {
                     $recipientsData = [];
                     foreach ($pairs as [$phone, $entity]) {
@@ -104,7 +114,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                             ],
                         ];
                     }
-                    \App\Jobs\BulkSendWhatsAppMessages::dispatch($trackingId, $recipientsData, $template->content, $title, $item->target, null, true, null);
+                    \App\Jobs\BulkSendWhatsAppMessages::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, true, null);
                 } else {
                     // SMS - normalize Kenyan phones
                     $recipientsData = [];
@@ -124,7 +134,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                             ];
                         }
                     }
-                    \App\Jobs\BulkSendSMS::dispatch($trackingId, $recipientsData, $template->content, $title, $item->target, null, null);
+                    \App\Jobs\BulkSendSMS::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, null);
                 }
                 try {
                     app(\App\Services\CommunicationJobService::class)->ensureJob(
@@ -133,14 +143,13 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                         'scheduled_comm',
                         $recipientsData,
                         $title,
-                        $template->content,
+                        $message,
                         'running',
                         null,
                         $item,
                         ['target' => $item->target]
                     );
                     // Complete the pre-registered scheduled hub row if present
-                    $planJob = app(\App\Services\CommunicationJobService::class)->findByTrackingId('scheduled_comm_' . $item->id);
                     if ($planJob && in_array($planJob->status, ['scheduled', 'pending', 'paused'], true)) {
                         $planJob->update(['status' => 'completed', 'finished_at' => now()]);
                     }
@@ -153,7 +162,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
 
             foreach ($pairs as $pair) {
                 [$contact, $entity, $parentMeta] = array_pad($pair, 3, null);
-                $personalized = personalize_message_for_parent_recipient($template->content, $entity, $parentMeta);
+                $personalized = personalize_message_for_parent_recipient($message, $entity, $parentMeta);
                 if ($personalized === null) {
                     continue;
                 }
@@ -166,7 +175,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                     $providerStatus = null;
 
                     if ($item->type === 'email') {
-                        Mail::to($contact)->send(new GenericMail($template->title, $personalized));
+                        Mail::to($contact)->send(new GenericMail($title, $personalized));
                         $response = ['status' => 'sent'];
                         $providerStatus = 'sent';
                     } elseif ($item->type === 'whatsapp') {

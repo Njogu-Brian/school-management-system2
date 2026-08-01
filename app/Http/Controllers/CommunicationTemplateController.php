@@ -67,7 +67,8 @@ class CommunicationTemplateController extends Controller
             ['key' => 'class_name',   'value' => 'Classroom name'],
             ['key' => 'parent_name',  'value' => 'Parent\'s full name'],
             ['key' => 'father_name',  'value' => 'Parent\'s full name'],
-            
+            ['key' => 'report_card_link', 'value' => 'Public family report-card link (published reports only)'],
+
             // Staff
             ['key' => 'staff_name',   'value' => 'Staff full name'],
             

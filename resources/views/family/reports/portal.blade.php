@@ -119,6 +119,13 @@
             justify-content: space-between;
             gap: 1rem;
         }
+        .fees-panel-arrears {
+            border-color: #fed7aa;
+            border-left-color: #ea580c;
+            background: #fff7ed;
+        }
+        .fees-panel-arrears .fees-label { color: #9a3412; }
+        .fees-panel-arrears .fees-note { color: #c2410c; }
         .fees-label {
             color: #075985;
             font-size: .72rem;
@@ -263,9 +270,9 @@
             $billing = $child['billing'];
             $dto = $child['dto'];
             $locked = !($billing['can_view_report'] ?? false);
-            $isNextTerm = ($billing['invoice_scope'] ?? '') === 'next_term';
-            $hasInvoice = !empty($billing['invoices']);
-            $invoiceTitle = $isNextTerm ? 'Next Term Fees' : 'Outstanding Fees';
+            $arrearsBalance = (float) ($billing['report_term_balance'] ?? 0);
+            $nextTerm = $billing['next_term'] ?? null;
+            $nextTermTotal = (float) ($nextTerm['total_balance'] ?? 0);
             $feesUrl = $child['fees_url'] ?? $payUrl;
             $isFamilyFees = $payUrl && $feesUrl === $payUrl && count($children) > 1;
             $feesButtonLabel = $isFamilyFees ? 'View Family Fees' : 'View Fees & Pay';
@@ -311,24 +318,45 @@
                 </div>
             @endif
 
-            @if(!$locked && $isNextTerm && $hasInvoice)
-                <section class="fees-panel" aria-label="Next term fees">
-                    <div>
-                        <div class="fees-label">{{ $invoiceTitle }}</div>
-                        <div class="fees-term">{{ $billing['display_term_label'] }}</div>
-                        <div class="fees-total">KES {{ number_format($billing['invoice_total_balance'] ?? 0, 2) }}</div>
-                        @if($isFamilyFees)
-                            <div class="fees-note">Opens shared family fees for all children</div>
+            @unless($locked)
+                @if($arrearsBalance > 0.005)
+                    <section class="fees-panel fees-panel-arrears" aria-label="Outstanding fees">
+                        <div>
+                            <div class="fees-label">Outstanding Fees</div>
+                            <div class="fees-term">{{ $billing['display_term_label'] }}</div>
+                            <div class="fees-total">KES {{ number_format($arrearsBalance, 2) }}</div>
+                            @if($isFamilyFees)
+                                <div class="fees-note">Opens shared family fees for all children</div>
+                            @endif
+                        </div>
+                        @if($feesUrl)
+                            <a href="{{ $feesUrl }}" class="invoice-button">
+                                <i class="bi bi-wallet2" aria-hidden="true"></i>
+                                {{ $feesButtonLabel }}
+                            </a>
                         @endif
-                    </div>
-                    @if($feesUrl)
-                        <a href="{{ $feesUrl }}" class="invoice-button">
-                            <i class="bi bi-wallet2" aria-hidden="true"></i>
-                            {{ $feesButtonLabel }}
-                        </a>
-                    @endif
-                </section>
-            @endif
+                    </section>
+                @endif
+
+                @if($nextTermTotal > 0.005)
+                    <section class="fees-panel" aria-label="Next term fees">
+                        <div>
+                            <div class="fees-label">Next Term Fees</div>
+                            <div class="fees-term">{{ $nextTerm['term_label'] }}</div>
+                            <div class="fees-total">KES {{ number_format($nextTermTotal, 2) }}</div>
+                            @if($isFamilyFees)
+                                <div class="fees-note">Opens shared family fees for all children</div>
+                            @endif
+                        </div>
+                        @if($feesUrl)
+                            <a href="{{ $feesUrl }}" class="invoice-button">
+                                <i class="bi bi-wallet2" aria-hidden="true"></i>
+                                {{ $feesButtonLabel }}
+                            </a>
+                        @endif
+                    </section>
+                @endif
+            @endunless
         </article>
     @empty
         <div class="empty-state">

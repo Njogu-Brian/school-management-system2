@@ -116,10 +116,6 @@ class CommunicationController extends Controller
             return back()->with('error', 'Please select at least one classroom.');
         }
 
-        if ($request->schedule === 'later' && empty($data['template_id'])) {
-            return back()->with('error', 'Select a template when scheduling email.');
-        }
-
         // === HANDLE SCHEDULED EMAIL ===
         if ($request->schedule === 'later' && $request->send_at) {
             $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
@@ -312,10 +308,6 @@ class CommunicationController extends Controller
 
         if ($data['target'] === 'class' && empty(\App\Services\CommunicationHelperService::normalizeClassroomIds($data))) {
             return back()->with('error', 'Please select at least one classroom.');
-        }
-
-        if ($request->schedule === 'later' && empty($data['template_id'])) {
-            return back()->with('error', 'Select a template when scheduling SMS.');
         }
 
         // === HANDLE SCHEDULED SMS ===
@@ -590,10 +582,6 @@ class CommunicationController extends Controller
 
         if ($data['target'] === 'class' && empty(\App\Services\CommunicationHelperService::normalizeClassroomIds($data))) {
             return back()->with('error', 'Please select at least one classroom.');
-        }
-
-        if ($request->schedule === 'later' && empty($data['template_id'])) {
-            return back()->with('error', 'Select a template when scheduling WhatsApp.');
         }
 
         // === HANDLE SCHEDULED WHATSAPP ===
@@ -1604,6 +1592,7 @@ class CommunicationController extends Controller
             ['key' => 'parent_name',  'value' => "Parent's full name"],
             ['key' => 'father_name',  'value' => "Parent's full name"],
             ['key' => 'profile_update_link', 'value' => 'Profile update link for parents'],
+            ['key' => 'report_card_link', 'value' => 'Public family report-card link (published reports only)'],
 
             // Staff
             ['key' => 'staff_name',   'value' => 'Staff full name'],

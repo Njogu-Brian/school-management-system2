@@ -113,7 +113,8 @@ class ReportCardAccessService
      *   invoice_scope: string,
      *   display_term_label: string,
      *   invoices: list<array>,
-     *   invoice_total_balance: float
+     *   invoice_total_balance: float,
+     *   next_term: ?array{term_label: string, invoices: list<array>, total_balance: float}
      * }
      */
     public static function billingContextForReportCard(ReportCard $reportCard): array
@@ -128,6 +129,23 @@ class ReportCardAccessService
         );
 
         [$canView] = self::canViewPublicReportCard($reportCard);
+
+        $nextTerm = self::nextTerm($reportCard->term);
+        $nextTermContext = null;
+
+        if ($nextTerm) {
+            $nextTermInvoices = self::unpaidInvoicesForTerm(
+                (int) $reportCard->student_id,
+                (int) $nextTerm->academic_year_id,
+                (int) $nextTerm->id
+            );
+
+            $nextTermContext = [
+                'term_label' => trim(($nextTerm->name ?? 'Term').' '.($nextTerm->academicYear?->year ?? '').' (upcoming)'),
+                'invoices' => $nextTermInvoices,
+                'total_balance' => round(collect($nextTermInvoices)->sum('balance'), 2),
+            ];
+        }
 
         if ($reportTermBalance > 0.005) {
             $invoices = self::unpaidInvoicesForTerm(
@@ -144,26 +162,19 @@ class ReportCardAccessService
                 'display_term_label' => trim(($reportCard->term?->name ?? 'Term').' '.($reportCard->academicYear?->year ?? '')),
                 'invoices' => $invoices,
                 'invoice_total_balance' => round(collect($invoices)->sum('balance'), 2),
+                'next_term' => $nextTermContext,
             ];
         }
 
-        $nextTerm = self::nextTerm($reportCard->term);
-        if ($nextTerm) {
-            $invoices = self::unpaidInvoicesForTerm(
-                (int) $reportCard->student_id,
-                (int) $nextTerm->academic_year_id,
-                (int) $nextTerm->id
-            );
-
-            $nextYear = $nextTerm->academicYear?->year ?? '';
-
+        if ($nextTermContext) {
             return [
                 'report_term_balance' => 0.0,
                 'can_view_report' => $canView,
                 'invoice_scope' => 'next_term',
-                'display_term_label' => trim(($nextTerm->name ?? 'Term').' '.$nextYear.' (upcoming)'),
-                'invoices' => $invoices,
-                'invoice_total_balance' => round(collect($invoices)->sum('balance'), 2),
+                'display_term_label' => $nextTermContext['term_label'],
+                'invoices' => $nextTermContext['invoices'],
+                'invoice_total_balance' => $nextTermContext['total_balance'],
+                'next_term' => $nextTermContext,
             ];
         }
 
@@ -174,6 +185,7 @@ class ReportCardAccessService
             'display_term_label' => 'Fees up to date',
             'invoices' => [],
             'invoice_total_balance' => 0.0,
+            'next_term' => null,
         ];
     }
 
