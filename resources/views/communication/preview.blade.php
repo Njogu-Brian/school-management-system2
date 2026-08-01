@@ -520,7 +520,7 @@
                     <div class="message-area">
                         @if($channel === 'whatsapp')
                             <div class="message-bubble sent">
-                                <div class="message-content">{!! preg_replace('/(https?:\/\/[^\s]+)/', '<a href="$1" class="message-link" target="_blank">$1</a>', nl2br(e($message))) !!}</div>
+                                <div class="message-content">{!! preg_replace('/(https?:\/\/[^\s<]+)/', '<a href="$1" class="message-link" target="_blank">$1</a>', nl2br(e($message))) !!}</div>
                                 <div class="message-time">{{ now()->format('H:i') }}</div>
                             </div>
                         @elseif($channel === 'email')
@@ -529,7 +529,7 @@
                                     <div class="email-subject">Message from {{ setting('school_name', 'School') }}</div>
                                     <div class="email-from">From: {{ setting('school_email', 'school@example.com') }}</div>
                                 </div>
-                                <div class="email-body">{!! preg_replace('/(https?:\/\/[^\s]+)/', '<a href="$1" class="message-link" target="_blank">$1</a>', nl2br(e($message))) !!}</div>
+                                <div class="email-body">{!! preg_replace('/(https?:\/\/[^\s<]+)/', '<a href="$1" class="message-link" target="_blank">$1</a>', nl2br(e($message))) !!}</div>
                             </div>
                         @else
                             <div class="sms-message">
@@ -537,7 +537,7 @@
                                     <div class="sms-from">{{ setting('school_name', 'School') }}</div>
                                     <div class="sms-time">{{ now()->format('H:i') }}</div>
                                 </div>
-                                <div class="sms-body">{!! preg_replace('/(https?:\/\/[^\s]+)/', '<a href="$1" class="message-link" target="_blank">$1</a>', nl2br(e($message))) !!}</div>
+                                <div class="sms-body">{!! preg_replace('/(https?:\/\/[^\s<]+)/', '<a href="$1" class="message-link" target="_blank">$1</a>', nl2br(e($message))) !!}</div>
                             </div>
                         @endif
                     </div>
