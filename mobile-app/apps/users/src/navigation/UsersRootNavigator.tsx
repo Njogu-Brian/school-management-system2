@@ -26,7 +26,7 @@ import { OfflineShell } from '../providers/OfflineShell';
 import { RoleBasedNavigator } from './RoleBasedNavigator';
 
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending } = useAuth();
+  const { status, user, biometricEnrollmentPending, forcePasswordChangePending } = useAuth();
 
   if (status === 'initializing') {
     return <AuthLoadingScreen />;
@@ -46,7 +46,8 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   ) {
     return <AccessDeniedScreen />;
   }
-  if (user?.mustChangePassword) {
+  // Only after admin-triggered flag + a fresh sign-in (not session restore).
+  if (forcePasswordChangePending) {
     return <ForceChangePasswordScreen />;
   }
   if (biometricEnrollmentPending) {

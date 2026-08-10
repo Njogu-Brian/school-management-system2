@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 export const ForceChangePasswordScreen: React.FC = () => {
-  const { user, refreshUser, logout } = useAuth();
+  const { user, refreshUser, logout, clearForcePasswordChange } = useAuth();
   const { colors, palette, spacing, typography, radius } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -27,6 +27,7 @@ export const ForceChangePasswordScreen: React.FC = () => {
       });
       if (!res.success) throw new Error(res.message || 'Password change failed.');
       await refreshUser();
+      clearForcePasswordChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not change password.');
     } finally {

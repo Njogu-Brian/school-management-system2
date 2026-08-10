@@ -75,6 +75,12 @@ export interface AuthContextValue {
   biometricEnrollmentPending: boolean;
   /** Offer PIN enrollment after biometrics step (or when biometrics unavailable). */
   pinEnrollmentPending: boolean;
+  /**
+   * True only after a fresh sign-in when admin required a password change.
+   * Not set on session restore / biometric / PIN unlock so it does not block mid-day.
+   */
+  forcePasswordChangePending: boolean;
+  clearForcePasswordChange: () => void;
   login: (credentials: LoginCredentials) => Promise<void>;
   loginWithGoogleIdToken: (idToken: string) => Promise<void>;
   /** Request a login OTP for phone/email identifier. */
@@ -110,6 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [submitting, setSubmitting] = useState(false);
   const [biometricEnrollmentPending, setBiometricEnrollmentPending] = useState(false);
   const [pinEnrollmentPending, setPinEnrollmentPending] = useState(false);
+  const [forcePasswordChangePending, setForcePasswordChangePending] = useState(false);
 
   const logoutRef = useRef<() => Promise<void>>(async () => {});
   /** Last password/OTP credentials — used when enabling biometrics/PIN so unlock can re-login. */
@@ -148,6 +155,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (firstName) {
         await setRememberedFirstName(firstName);
       }
+
+      // Only after a fresh credential sign-in (not biometric/PIN unlock / session restore).
+      const freshLogin =
+        result.method === 'password' || result.method === 'otp' || result.method === 'google';
+      setForcePasswordChangePending(Boolean(freshLogin && result.user.mustChangePassword));
 
       if (await isPinEnabled()) {
         await savePinAuthBundle({
@@ -212,10 +224,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setError(null);
       setBiometricEnrollmentPending(false);
       setPinEnrollmentPending(false);
+      setForcePasswordChangePending(false);
       setStatus('unauthenticated');
     }
   }, [session]);
   logoutRef.current = logout;
+
+  const clearForcePasswordChange = useCallback(() => {
+    setForcePasswordChangePending(false);
+  }, []);
 
   useEffect(() => {
     if (!session.hydrated) {
@@ -502,6 +519,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       submitting,
       biometricEnrollmentPending,
       pinEnrollmentPending,
+      forcePasswordChangePending,
+      clearForcePasswordChange,
       login,
       loginWithGoogleIdToken,
       requestLoginOtp,
@@ -527,6 +546,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       submitting,
       biometricEnrollmentPending,
       pinEnrollmentPending,
+      forcePasswordChangePending,
+      clearForcePasswordChange,
       login,
       loginWithGoogleIdToken,
       requestLoginOtp,

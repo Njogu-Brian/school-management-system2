@@ -4,11 +4,11 @@ import React, { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 /**
- * Blocking screen when admin/server set must_change_password.
- * Current password is optional when the flag is set (temp passwords / forced reset).
+ * Shown only after a fresh sign-in when admin set must_change_password.
+ * Does not block restored sessions / biometric unlock mid-day.
  */
 export const ForceChangePasswordScreen: React.FC = () => {
-  const { user, refreshUser, logout } = useAuth();
+  const { user, refreshUser, logout, clearForcePasswordChange } = useAuth();
   const { colors, palette, spacing, typography, radius } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -31,6 +31,7 @@ export const ForceChangePasswordScreen: React.FC = () => {
       });
       if (!res.success) throw new Error(res.message || 'Password change failed.');
       await refreshUser();
+      clearForcePasswordChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not change password.');
     } finally {
@@ -59,9 +60,7 @@ export const ForceChangePasswordScreen: React.FC = () => {
         your school requires a new password before you continue.
       </Text>
 
-      {error ? (
-        <Text style={{ color: colors.error, marginBottom: spacing.sm }}>{error}</Text>
-      ) : null}
+      {error ? <Text style={{ color: colors.error, marginBottom: spacing.sm }}>{error}</Text> : null}
 
       <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: 4 }}>
         Current password (optional if you were given a temporary one)
