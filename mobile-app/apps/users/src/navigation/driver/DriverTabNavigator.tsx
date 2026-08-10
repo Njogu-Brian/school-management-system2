@@ -59,7 +59,6 @@ const DriverHomeStack = () => (
         header: ({ navigation }) => (
           <UsersAppHeaderChrome
             title="Home"
-            onMenuPress={() => navigation.getParent()?.navigate('DriverAccountTab' as never)}
           />
         ),
       }}
@@ -78,7 +77,6 @@ const DriverRoutesStackNav = () => (
         header: ({ navigation }) => (
           <UsersAppHeaderChrome
             title="Routes"
-            onMenuPress={() => navigation.getParent()?.navigate('DriverAccountTab' as never)}
           />
         ),
       }}
@@ -101,7 +99,7 @@ const DriverAccountStack = () => (
 const driverTabBar = createUsersTabBar({
   DriverHomeTab: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
   DriverRoutesTab: { label: 'Routes', icon: 'map-outline', iconFocused: 'map', tone: 'indigo' },
-  DriverAccountTab: { label: 'Account', icon: 'person-outline', iconFocused: 'person', tone: 'cyan' },
+  DriverAccountTab: { label: 'More', icon: 'grid-outline', iconFocused: 'grid', tone: 'cyan' },
 });
 
 export const DriverTabNavigator: React.FC = () => {

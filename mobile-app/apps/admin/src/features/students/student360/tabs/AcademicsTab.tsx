@@ -1,8 +1,10 @@
 import {
   ASSESSMENT_FILTER_CATEGORIES,
   buildPerformanceTrend,
+  buildSubjectProgress,
   computeTrendDelta,
   displayCategoryLabel,
+  progressDirection,
   type AssessmentDisplayCategory,
   type AssessmentHistoryItem,
   useStudentAcademicSummary,
@@ -16,6 +18,7 @@ import {
   AssessmentTimeline,
   EmptyState,
   PerformanceTrend,
+  ProgressTrendPanel,
   ReportCardHistoryList,
   type AssessmentFilterOption,
   type AssessmentTimelineItemData,
@@ -74,6 +77,8 @@ export const AcademicsTab: React.FC<AcademicsTabProps> = ({ studentId, onOpenRep
 
   const trendPoints = useMemo(() => buildPerformanceTrend(historyItems), [historyItems]);
   const trendDelta = useMemo(() => computeTrendDelta(trendPoints), [trendPoints]);
+  const subjectSeries = useMemo(() => buildSubjectProgress(historyItems), [historyItems]);
+  const overallDirection = progressDirection(trendDelta);
 
   const reportCardPercentByTerm = useMemo(() => {
     const m = new Map<number, number>();
@@ -186,6 +191,40 @@ export const AcademicsTab: React.FC<AcademicsTabProps> = ({ studentId, onOpenRep
         trendLabel={overview.trendLabel}
         trendDelta={overview.trendDelta}
       />
+
+      <ProgressTrendPanel
+        title="Overall progress"
+        subtitle="Recent assessments / report cards"
+        points={trendPoints.map((p) => ({ label: p.label, percentage: p.percentage }))}
+        direction={overallDirection}
+        delta={trendDelta}
+      />
+
+      {subjectSeries.length > 0 ? (
+        <Text
+          style={{
+            color: colors.primary,
+            fontWeight: '700',
+            marginTop: spacing.md,
+            marginBottom: spacing.xs,
+            fontSize: typography.caption.fontSize,
+            textTransform: 'uppercase',
+            letterSpacing: 0.4,
+          }}
+        >
+          Per subject
+        </Text>
+      ) : null}
+      {subjectSeries.map((s) => (
+        <ProgressTrendPanel
+          key={s.subjectId}
+          title={s.subjectName}
+          subtitle={s.latestPercent != null ? `Latest ${s.latestPercent.toFixed(0)}%` : undefined}
+          points={s.points.map((p) => ({ label: p.label, percentage: p.percentage }))}
+          direction={s.direction}
+          delta={s.delta}
+        />
+      ))}
 
       <PerformanceTrend
         points={trendPoints.map((p) => ({ label: p.label, percentage: p.percentage }))}

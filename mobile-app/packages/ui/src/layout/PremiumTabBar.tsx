@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Soft3DIcon, type Soft3DTone } from '../primitives/AccentIcon';
+import type { Soft3DTone } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface PremiumTabItem {
@@ -19,49 +20,41 @@ export interface PremiumTabBarProps {
   onTabPress: (key: string) => void;
 }
 
-const DEFAULT_TONES: Soft3DTone[] = ['blue', 'indigo', 'emerald', 'cyan'];
+/** Floating capsule height + side/bottom padding for scroll clearance. */
+export const FLOATING_TAB_BAR_BODY_HEIGHT = 64;
+export const FLOATING_TAB_BAR_CUSHION = 20;
+export const FLOATING_TAB_BAR_CLEARANCE =
+  FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + 24;
 
-/** Docked tab bar body height (icons + label). */
-export const FLOATING_TAB_BAR_BODY_HEIGHT = 58;
-export const FLOATING_TAB_BAR_CUSHION = 0;
-export const FLOATING_TAB_BAR_CLEARANCE = FLOATING_TAB_BAR_BODY_HEIGHT + 16;
-
-/** Extra scroll padding so content clears the docked tab bar + home indicator. */
 export function useFloatingTabBarClearance(_includeSafeArea = true): number {
   const insets = useSafeAreaInsets();
-  const safe = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0);
-  return FLOATING_TAB_BAR_BODY_HEIGHT + safe + 8;
+  const safe = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8);
+  return FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + safe;
 }
 
 /**
- * Solid docked bottom tab bar (always visible). No floating/liquid pill animation.
+ * Floating black capsule tab bar — inactive = outline icon only;
+ * active = gray pill with filled icon + label (matches product mock).
  */
 export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, onTabPress }) => {
-  const { palette, spacing, typography, isDark, colors } = useTheme();
+  const { spacing, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const compact = items.length >= 6;
-  const focusedSize = compact ? 26 : 28;
-  const idleSize = compact ? 24 : 26;
-  const labelSize = compact ? Math.max(9, typography.tiny.fontSize - 1) : typography.tiny.fontSize;
+  const barBg = isDark ? '#0B0B0D' : '#111114';
+  const activePill = isDark ? '#2A2A30' : '#2C2C32';
+  const iconColor = '#FFFFFF';
 
   return (
     <View
-      style={[
-        styles.wrap,
-        {
-          paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 6 : 4),
-          backgroundColor: isDark ? palette.surfaceRaised : palette.surface,
-          borderTopColor: isDark ? 'rgba(255,255,255,0.1)' : palette.borderSubtle,
-        },
-      ]}
+      pointerEvents="box-none"
+      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
     >
-      <View style={[styles.barInner, { paddingVertical: spacing.xs, paddingHorizontal: compact ? 2 : 4 }]}>
-        {items.map((item, index) => {
+      <View style={[styles.capsule, { backgroundColor: barBg }]}>
+        {items.map((item) => {
           const focused = item.key === activeKey;
           const iconName = (focused
             ? item.iconFocused ?? item.icon
             : item.icon) as keyof typeof Ionicons.glyphMap;
-          const tone = item.tone ?? DEFAULT_TONES[index % DEFAULT_TONES.length];
+
           return (
             <Pressable
               key={item.key}
@@ -69,28 +62,24 @@ export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, 
               accessibilityState={{ selected: focused }}
               accessibilityLabel={item.label}
               onPress={() => onTabPress(item.key)}
-              style={styles.item}
+              style={styles.slot}
             >
-              <Soft3DIcon
-                name={iconName}
-                tone={focused ? tone : 'muted'}
-                muted={!focused}
-                active={focused}
-                size={focused ? focusedSize : idleSize}
-              />
-              <Text
-                style={{
-                  marginTop: 2,
-                  color: focused ? colors.primary : palette.textMuted,
-                  fontSize: labelSize,
-                  fontWeight: focused ? '700' : '500',
-                }}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-              >
-                {item.label}
-              </Text>
+              {focused ? (
+                <Animated.View
+                  layout={LinearTransition.springify().damping(18).stiffness(220)}
+                  entering={FadeIn.duration(160)}
+                  style={[styles.activePill, { backgroundColor: activePill }]}
+                >
+                  <Ionicons name={iconName} size={20} color={iconColor} />
+                  <Text style={styles.activeLabel} numberOfLines={1}>
+                    {item.label}
+                  </Text>
+                </Animated.View>
+              ) : (
+                <View style={styles.idleIcon}>
+                  <Ionicons name={iconName} size={22} color={iconColor} />
+                </View>
+              )}
             </Pressable>
           );
         })}
@@ -108,13 +97,13 @@ export function getPremiumTabBarOptions(theme: {
   };
 }) {
   return {
-    tabBarActiveTintColor: theme.palette.primary,
-    tabBarInactiveTintColor: theme.palette.textMuted,
+    tabBarActiveTintColor: '#FFFFFF',
+    tabBarInactiveTintColor: 'rgba(255,255,255,0.7)',
     tabBarStyle: {
-      backgroundColor: theme.palette.surfaceRaised,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: theme.palette.borderSubtle,
-      elevation: 8,
+      backgroundColor: 'transparent',
+      borderTopWidth: 0,
+      elevation: 0,
+      position: 'absolute' as const,
     },
     tabBarLabelStyle: {
       fontSize: 11,
@@ -125,15 +114,51 @@ export function getPremiumTabBarOptions(theme: {
 
 const styles = StyleSheet.create({
   wrap: {
-    borderTopWidth: StyleSheet.hairlineWidth,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
   },
-  barInner: {
+  capsule: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 62,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 12,
   },
-  item: {
-    flex: 1,
+  slot: {
+    flexGrow: 1,
+    flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 46,
+  },
+  idleIcon: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    maxWidth: '100%',
+  },
+  activeLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

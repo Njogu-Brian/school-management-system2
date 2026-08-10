@@ -133,6 +133,57 @@ export function computeTrendDelta(points: PerformanceTrendPoint[]): number | nul
   return Math.round((last - prev) * 10) / 10;
 }
 
+export type ProgressDirection = 'up' | 'down' | 'stale';
+
+export function progressDirection(delta: number | null, staleThreshold = 0.5): ProgressDirection {
+  if (delta == null || Math.abs(delta) < staleThreshold) return 'stale';
+  return delta > 0 ? 'up' : 'down';
+}
+
+export interface SubjectProgressSeries {
+  subjectId: number;
+  subjectName: string;
+  points: PerformanceTrendPoint[];
+  delta: number | null;
+  direction: ProgressDirection;
+  latestPercent: number | null;
+}
+
+/** Build per-subject scored trends (oldest → newest) from assessment history. */
+export function buildSubjectProgress(items: AssessmentHistoryItem[]): SubjectProgressSeries[] {
+  const bySubject = new Map<number, AssessmentHistoryItem[]>();
+  for (const row of items) {
+    if (row.subjectId == null || row.scorePercent == null) continue;
+    if (row.displayCategory === 'report_card') continue;
+    const list = bySubject.get(row.subjectId) ?? [];
+    list.push(row);
+    bySubject.set(row.subjectId, list);
+  }
+
+  const series: SubjectProgressSeries[] = [];
+  for (const [subjectId, rows] of bySubject) {
+    const sorted = [...rows].sort((a, b) => (a.assessedOn ?? '').localeCompare(b.assessedOn ?? ''));
+    const points: PerformanceTrendPoint[] = sorted.slice(-8).map((row) => ({
+      label: row.typeLabel || 'Score',
+      percentage: row.scorePercent as number,
+      assessedOn: row.assessedOn,
+      kind: 'assessment' as const,
+    }));
+    if (points.length === 0) continue;
+    const delta = computeTrendDelta(points);
+    series.push({
+      subjectId,
+      subjectName: sorted[sorted.length - 1]?.subjectName ?? `Subject ${subjectId}`,
+      points,
+      delta,
+      direction: progressDirection(delta),
+      latestPercent: points[points.length - 1]?.percentage ?? null,
+    });
+  }
+
+  return series.sort((a, b) => a.subjectName.localeCompare(b.subjectName));
+}
+
 export function displayCategoryLabel(category: AssessmentDisplayCategory): string {
   const labels: Record<AssessmentDisplayCategory, string> = {
     all: 'All',

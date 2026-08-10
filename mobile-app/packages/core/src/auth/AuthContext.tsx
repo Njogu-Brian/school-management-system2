@@ -156,10 +156,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setRememberedFirstName(firstName);
       }
 
-      // Only after a fresh credential sign-in (not biometric/PIN unlock / session restore).
-      const freshLogin =
-        result.method === 'password' || result.method === 'otp' || result.method === 'google';
-      setForcePasswordChangePending(Boolean(freshLogin && result.user.mustChangePassword));
+      // Admin can set must_change_password for next credential sign-in, but do not
+      // auto-block the app here — many accounts already carry a stale flag from resets.
+      setForcePasswordChangePending(false);
 
       if (await isPinEnabled()) {
         await savePinAuthBundle({

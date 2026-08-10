@@ -66,7 +66,6 @@ const ParentHomeStack = () => (
         header: ({ navigation }) => (
           <UsersAppHeaderChrome
             title="Home"
-            onMenuPress={() => navigation.getParent()?.navigate('ParentMoreTab' as never)}
           />
         ),
       }}
@@ -99,7 +98,6 @@ const ParentChildrenStack = () => (
         header: ({ navigation }) => (
           <UsersAppHeaderChrome
             title="Children"
-            onMenuPress={() => navigation.getParent()?.navigate('ParentMoreTab' as never)}
           />
         ),
       }}
@@ -127,7 +125,6 @@ const ParentFeesStack = () => (
         header: ({ navigation }) => (
           <UsersAppHeaderChrome
             title="Fees"
-            onMenuPress={() => navigation.getParent()?.navigate('ParentMoreTab' as never)}
           />
         ),
       }}
@@ -139,27 +136,6 @@ const ParentFeesStack = () => (
   </Stack.Navigator>
 );
 
-const ParentDiaryStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen
-      name="DiaryList"
-      component={DiaryListScreen}
-      options={{
-        headerShown: true,
-        header: ({ navigation }) => (
-          <UsersAppHeaderChrome
-            title="Diary"
-            onMenuPress={() => navigation.getParent()?.navigate('ParentMoreTab' as never)}
-          />
-        ),
-      }}
-    />
-    <Stack.Screen name="DiaryChat" component={DiaryChatScreen} />
-    <Stack.Screen name="ChildHub" component={ChildHubScreen} />
-    {parentSharedScreens()}
-  </Stack.Navigator>
-);
-
 const ParentAcademicStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen
@@ -167,12 +143,7 @@ const ParentAcademicStack = () => (
       component={ParentAcademicScreen}
       options={{
         headerShown: true,
-        header: ({ navigation }) => (
-          <UsersAppHeaderChrome
-            title="Academic"
-            onMenuPress={() => navigation.getParent()?.navigate('ParentMoreTab' as never)}
-          />
-        ),
+        header: () => <UsersAppHeaderChrome title="Academic" />,
       }}
     />
     <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
@@ -191,6 +162,8 @@ const ParentMoreStack = () => (
       options={{ headerShown: true, header: () => <UsersAppHeaderChrome title="More" /> }}
     />
     <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
+    <Stack.Screen name="DiaryList" component={DiaryListScreen} />
+    <Stack.Screen name="DiaryChat" component={DiaryChatScreen} />
     {parentSharedScreens()}
   </Stack.Navigator>
 );
@@ -199,9 +172,8 @@ const parentTabBar = createUsersTabBar({
   ParentHomeTab: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
   ParentChildrenTab: { label: 'Children', icon: 'people-outline', iconFocused: 'people', tone: 'indigo' },
   ParentFeesTab: { label: 'Fees', icon: 'cash-outline', iconFocused: 'cash', tone: 'emerald' },
-  ParentDiaryTab: { label: 'Diary', icon: 'chatbubbles-outline', iconFocused: 'chatbubbles', tone: 'cyan' },
   ParentAcademicTab: { label: 'Academic', icon: 'school-outline', iconFocused: 'school', tone: 'violet' },
-  ParentMoreTab: { label: 'More', icon: 'menu-outline', iconFocused: 'menu', tone: 'amber' },
+  ParentMoreTab: { label: 'More', icon: 'grid-outline', iconFocused: 'grid', tone: 'amber' },
 });
 
 export const ParentTabNavigator: React.FC = () => {
@@ -214,7 +186,6 @@ export const ParentTabNavigator: React.FC = () => {
         options={{ tabBarLabel: 'Children' }}
       />
       <Tab.Screen name="ParentFeesTab" component={ParentFeesStack} options={{ tabBarLabel: 'Fees' }} />
-      <Tab.Screen name="ParentDiaryTab" component={ParentDiaryStack} options={{ tabBarLabel: 'Diary' }} />
       <Tab.Screen
         name="ParentAcademicTab"
         component={ParentAcademicStack}

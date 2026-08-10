@@ -18,7 +18,6 @@ import {
   AccessDeniedScreen,
   AuthLoadingScreen,
   BiometricEnableScreen,
-  ForceChangePasswordScreen,
   LoginScreen,
   ParentProfileReviewScreen,
 } from '../features/auth';
@@ -26,7 +25,7 @@ import { OfflineShell } from '../providers/OfflineShell';
 import { RoleBasedNavigator } from './RoleBasedNavigator';
 
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending, forcePasswordChangePending } = useAuth();
+  const { status, user, biometricEnrollmentPending } = useAuth();
 
   if (status === 'initializing') {
     return <AuthLoadingScreen />;
@@ -46,10 +45,8 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   ) {
     return <AccessDeniedScreen />;
   }
-  // Only after admin-triggered flag + a fresh sign-in (not session restore).
-  if (forcePasswordChangePending) {
-    return <ForceChangePasswordScreen />;
-  }
+  // Force-password gate disabled — admin trigger sets the DB flag for future use;
+  // do not block staff/parents on open or sign-in until an explicit opt-in is shipped.
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
   }

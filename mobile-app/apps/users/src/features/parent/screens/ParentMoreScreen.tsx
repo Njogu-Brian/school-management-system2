@@ -20,7 +20,14 @@ type Nav = StackNavigationProp<ParentStackParamList>;
 const LINKS: Array<{
   label: string;
   subtitle: string;
-  icon: 'person-outline' | 'wallet-outline' | 'megaphone-outline' | 'notifications-outline' | 'settings-outline' | 'alert-circle-outline';
+  icon:
+    | 'person-outline'
+    | 'wallet-outline'
+    | 'megaphone-outline'
+    | 'notifications-outline'
+    | 'settings-outline'
+    | 'alert-circle-outline'
+    | 'chatbubbles-outline';
   glyph?: 'wallet' | 'person' | 'megaphone' | 'notifications' | 'settings' | 'generic';
   tone: 'cyan' | 'amber' | 'blue' | 'indigo' | 'rose' | 'emerald';
   route: keyof ParentStackParamList;
@@ -31,6 +38,13 @@ const LINKS: Array<{
     icon: 'person-outline',
     tone: 'cyan',
     route: 'MyProfile',
+  },
+  {
+    label: 'Diary',
+    subtitle: 'Messages with teachers',
+    icon: 'chatbubbles-outline',
+    tone: 'blue',
+    route: 'DiaryList',
   },
   {
     label: 'Wallets',

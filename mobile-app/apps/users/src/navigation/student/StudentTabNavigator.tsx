@@ -38,7 +38,6 @@ const StudentHomeStack = () => (
         header: ({ navigation }) => (
           <UsersAppHeaderChrome
             title="Home"
-            onMenuPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
           />
         ),
       }}
@@ -58,7 +57,6 @@ const StudentHomeworkStack = () => (
         header: ({ navigation }) => (
           <UsersAppHeaderChrome
             title="Homework"
-            onMenuPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
           />
         ),
       }}
@@ -77,7 +75,6 @@ const StudentResultsStack = () => (
         header: ({ navigation }) => (
           <UsersAppHeaderChrome
             title="Results"
-            onMenuPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
           />
         ),
       }}
@@ -106,7 +103,7 @@ const studentTabBar = createUsersTabBar({
     tone: 'indigo',
   },
   StudentResultsTab: { label: 'Results', icon: 'ribbon-outline', iconFocused: 'ribbon', tone: 'emerald' },
-  StudentMoreTab: { label: 'More', icon: 'menu-outline', iconFocused: 'menu', tone: 'amber' },
+  StudentMoreTab: { label: 'More', icon: 'grid-outline', iconFocused: 'grid', tone: 'amber' },
 });
 
 export const StudentTabNavigator: React.FC = () => {

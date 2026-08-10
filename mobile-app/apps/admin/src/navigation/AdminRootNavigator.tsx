@@ -11,7 +11,6 @@ import {
   AccessDeniedScreen,
   AuthLoadingScreen,
   BiometricEnableScreen,
-  ForceChangePasswordScreen,
   LoginScreen,
 } from '../features/auth';
 import { AdminParentHomeScreen } from '../features/parent/screens/AdminParentHomeScreen';
@@ -23,7 +22,7 @@ import { OfflineShell } from '../providers/OfflineShell';
  * Route guard (build plan §5.1). Resolves authentication + enrollment states.
  */
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending, forcePasswordChangePending } = useAuth();
+  const { status, user, biometricEnrollmentPending } = useAuth();
   const { mode } = useAppMode();
 
   if (status === 'initializing') {
@@ -35,10 +34,7 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   if (!canAccessApp(user, 'admin')) {
     return <AccessDeniedScreen />;
   }
-  // Only after admin-triggered flag + a fresh sign-in (not session restore).
-  if (forcePasswordChangePending) {
-    return <ForceChangePasswordScreen />;
-  }
+  // Force-password gate disabled — admin can still set must_change_password via staff/parent tools.
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
   }

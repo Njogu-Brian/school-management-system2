@@ -5,7 +5,6 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { Pressable, Text } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
-import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
@@ -66,7 +65,6 @@ export const TeacherMoreHubScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
-      <AppModeSwitch style={{ marginBottom: spacing.md }} />
       {items.map((item) => (
         <Pressable
           key={`${item.route}-${item.title}`}
@@ -83,9 +81,10 @@ export const TeacherMoreHubScreen: React.FC = () => {
             marginBottom: spacing.sm,
           }}
         >
-          <Soft3DIcon name={item.icon} tone="cyan" size={40} />
-          <Text style={{ color: palette.textPrimary, fontWeight: '600', flex: 1 }}>{item.title}</Text>
-          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>Open</Text>
+          <Soft3DIcon name={item.icon} size={44} />
+          <Text style={{ color: palette.textPrimary, fontWeight: '600', flex: 1, fontSize: typography.body.fontSize }}>
+            {item.title}
+          </Text>
         </Pressable>
       ))}
       <Button

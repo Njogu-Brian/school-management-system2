@@ -4,3 +4,4 @@ export * from './AssessmentFilters';
 export * from './AssessmentTimeline';
 export * from './ReportCardHistoryList';
 export * from './PerformanceTrend';
+export * from './ProgressTrendPanel';

@@ -58,7 +58,7 @@ const teacherTabBar = createUsersTabBar({
   Classes: { label: 'Classes', icon: 'school-outline', iconFocused: 'school', tone: 'indigo' },
   Attendance: { label: 'Attendance', icon: 'checkbox-outline', iconFocused: 'checkbox', tone: 'emerald' },
   Activities: { label: 'Activities', icon: 'sparkles-outline', iconFocused: 'sparkles', tone: 'cyan' },
-  More: { label: 'More', icon: 'menu-outline', iconFocused: 'menu', tone: 'amber' },
+  More: { label: 'More', icon: 'grid-outline', iconFocused: 'grid', tone: 'amber' },
 });
 
 function teacherSharedScreens() {
@@ -117,7 +117,6 @@ function TeacherHomeStack() {
           header: ({ navigation }) => (
             <UsersAppHeaderChrome
               title="Home"
-              onMenuPress={() => navigation.getParent()?.navigate('More' as never)}
             />
           ),
         }}
@@ -138,7 +137,6 @@ function TeacherClassesStack() {
           header: ({ navigation }) => (
             <UsersAppHeaderChrome
               title="My classes"
-              onMenuPress={() => navigation.getParent()?.navigate('More' as never)}
             />
           ),
         }}
@@ -159,7 +157,6 @@ function TeacherAttendanceStack() {
           header: ({ navigation }) => (
             <UsersAppHeaderChrome
               title="Attendance"
-              onMenuPress={() => navigation.getParent()?.navigate('More' as never)}
             />
           ),
         }}
@@ -180,7 +177,6 @@ function TeacherActivitiesStack() {
           header: ({ navigation }) => (
             <UsersAppHeaderChrome
               title="Activities"
-              onMenuPress={() => navigation.getParent()?.navigate('More' as never)}
             />
           ),
         }}

@@ -1,7 +1,12 @@
 import {
+  buildPerformanceTrend,
+  buildSubjectProgress,
+  computeTrendDelta,
+  progressDirection,
   useCurrentUser,
   useMedicalRecords,
   useStudentAcademicSummary,
+  useStudentAssessmentHistory,
   useStudentAttendanceTrend,
   useStudentDetail,
   useStudentRequirements,
@@ -15,6 +20,7 @@ import {
   Button,
   EmptyState,
   FinanceFieldSection,
+  ProgressTrendPanel,
   ScreenContainer,
   Soft3DIcon,
   StaffFieldSection,
@@ -194,9 +200,18 @@ const AcademicsTab: React.FC<{ studentId: number; studentName?: string; isStaff?
   studentName,
   isStaff,
 }) => {
-  const { colors, spacing } = useTheme();
+  const { colors, spacing, palette, typography } = useTheme();
   const navigation = useNavigation<LooseNav>();
   const summaryQuery = useStudentAcademicSummary(studentId);
+  const historyQuery = useStudentAssessmentHistory(studentId, { category: 'all' });
+  const historyItems = useMemo(
+    () => historyQuery.data?.pages.flatMap((p) => p.rows) ?? [],
+    [historyQuery.data],
+  );
+  const overallPoints = useMemo(() => buildPerformanceTrend(historyItems), [historyItems]);
+  const overallDelta = useMemo(() => computeTrendDelta(overallPoints), [overallPoints]);
+  const overallDirection = progressDirection(overallDelta);
+  const subjectSeries = useMemo(() => buildSubjectProgress(historyItems), [historyItems]);
 
   const reportFormsButton =
     isStaff ? (
@@ -247,6 +262,38 @@ const AcademicsTab: React.FC<{ studentId: number; studentName?: string; isStaff?
   return (
     <View>
       <StudentSummaryWidgets widgets={widgets} />
+      <ProgressTrendPanel
+        title="Overall progress"
+        subtitle="Recent assessments / report cards"
+        points={overallPoints.map((p) => ({ label: p.label, percentage: p.percentage }))}
+        direction={overallDirection}
+        delta={overallDelta}
+      />
+      {subjectSeries.length > 0 ? (
+        <Text
+          style={{
+            color: palette.textSecondary,
+            fontWeight: '700',
+            fontSize: typography.caption.fontSize,
+            marginBottom: spacing.xs,
+            marginTop: spacing.sm,
+            textTransform: 'uppercase',
+            letterSpacing: 0.4,
+          }}
+        >
+          Per subject
+        </Text>
+      ) : null}
+      {subjectSeries.map((row) => (
+        <ProgressTrendPanel
+          key={row.subjectId}
+          title={row.subjectName}
+          subtitle={row.latestPercent != null ? `Latest ${row.latestPercent.toFixed(0)}%` : undefined}
+          points={row.points.map((p) => ({ label: p.label, percentage: p.percentage }))}
+          direction={row.direction}
+          delta={row.delta}
+        />
+      ))}
       {reportFormsButton}
     </View>
   );
