@@ -129,7 +129,7 @@ export const BottomTabsNavigator: React.FC = () => {
           <AppHeaderChrome
             title={TAB_HEADER_LABEL[route.name]}
             onMenuPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-            showGlobalSearch={route.name === 'Dashboard'}
+            showGlobalSearch
           />
         ),
       })}

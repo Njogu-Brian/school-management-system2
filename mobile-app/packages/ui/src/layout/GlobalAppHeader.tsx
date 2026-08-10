@@ -180,18 +180,19 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
                 marginHorizontal: spacing.md,
                 marginTop: spacing.xs,
                 marginBottom: spacing.sm,
-                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : palette.surfaceMuted,
-                borderColor: palette.borderSubtle,
-                borderRadius: radius.control,
+                backgroundColor: isDark ? 'rgba(12,16,24,0.88)' : palette.surfaceRaised,
+                borderColor: isDark ? 'rgba(255,255,255,0.14)' : palette.borderSubtle,
+                borderRadius: 50,
+                minHeight: 48,
               },
             ]}
           >
-            <Soft3DIcon name="search-outline" size={28} muted />
+            <Ionicons name="search-outline" size={20} color={isDark ? '#fff' : palette.textMuted} />
             <Text
               numberOfLines={1}
               style={{
                 flex: 1,
-                color: palette.textMuted,
+                color: isDark ? 'rgba(255,255,255,0.55)' : palette.textMuted,
                 fontSize: typography.body.fontSize,
                 fontWeight: '500',
               }}
@@ -202,12 +203,14 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
               style={[
                 styles.searchHint,
                 {
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : palette.surfaceRaised,
-                  borderRadius: radius.sm,
+                  backgroundColor: colors.primary,
+                  borderRadius: 999,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
                 },
               ]}
             >
-              <Text style={{ color: palette.textMuted, fontSize: 11, fontWeight: '600' }}>Go</Text>
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Search</Text>
             </View>
           </Pressable>
         ) : null}

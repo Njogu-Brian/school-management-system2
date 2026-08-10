@@ -1,17 +1,19 @@
-import { useCurrentUser, UserRole } from '@erp/core';
-import { AcademicScreenHeader, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
+import { useAuth, useCurrentUser, UserRole } from '@erp/core';
+import { AcademicScreenHeader, Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { Pressable, Text } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
+import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
 
 export const TeacherMoreHubScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { logout } = useAuth();
+  const { palette, spacing, typography, radius, colors } = useTheme();
   const navigation = useNavigation<Nav>();
 
   const isSenior =
@@ -91,6 +93,14 @@ export const TeacherMoreHubScreen: React.FC = () => {
           <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>Open</Text>
         </Pressable>
       ))}
+      <Button
+        label="Sign out"
+        variant="ghost"
+        onPress={() =>
+          confirmAction('Sign out', 'Sign out of the Users app on this device?', 'Sign out', () => void logout(), true)
+        }
+        style={{ marginTop: spacing.md, borderColor: colors.error, borderWidth: 1 }}
+      />
     </ScreenContainer>
   );
 };

@@ -58,7 +58,10 @@ export interface ReportCardListRecord {
   class_id: number;
   class_name?: string;
   term_id: number;
+  /** Prefer this over raw term_id in UI (e.g. "Term 2"). */
+  term_name?: string | null;
   academic_year_id: number;
+  academic_year_name?: string | number | null;
   overall_marks: number;
   overall_percentage: number;
   overall_grade?: string | null;

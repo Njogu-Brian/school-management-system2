@@ -4,6 +4,8 @@ import {
   AnnouncementDetailScreen,
   AnnouncementFormScreen,
   AnnouncementsListScreen,
+  AppAdoptionScreen,
+  AppIssuesScreen,
   CommunicationDashboardScreen,
   SmsComposeScreen,
   SmsHistoryScreen,
@@ -28,5 +30,7 @@ export const CommunicationStackNavigator: React.FC = () => (
     <Stack.Screen name="TemplatesList" component={TemplatesListScreen} />
     <Stack.Screen name="TemplateForm" component={TemplateFormScreen} />
     <Stack.Screen name="TemplateDetail" component={TemplateDetailScreen} />
+    <Stack.Screen name="AppAdoption" component={AppAdoptionScreen} />
+    <Stack.Screen name="AppIssues" component={AppIssuesScreen} />
   </Stack.Navigator>
 );

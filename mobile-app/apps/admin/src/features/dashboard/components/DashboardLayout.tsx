@@ -1,4 +1,4 @@
-import { useAuth, useCan } from '@erp/core';
+import { timeOfDayGreeting, useAuth, useCan } from '@erp/core';
 import {
   DashboardHero,
   EmptyState,
@@ -27,19 +27,13 @@ const DASHBOARD_TABS = [
   { key: 'alerts' as const, label: 'Alerts' },
 ];
 
-function greetingForHour(hour: number): string {
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
 export const DashboardLayout: React.FC = () => {
   const canViewDashboard = useCan('dashboard.view');
   const { spacing, palette } = useTheme();
   const { user } = useAuth();
   const [tab, setTab] = useState<DashboardTab>('overview');
 
-  const greeting = useMemo(() => greetingForHour(new Date().getHours()), []);
+  const greeting = useMemo(() => timeOfDayGreeting(), []);
   const displayName = (user?.name ?? 'Admin').split(' ')[0];
 
   const contentStyle = useMemo(

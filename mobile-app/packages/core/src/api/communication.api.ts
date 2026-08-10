@@ -163,6 +163,19 @@ export const communicationApi = {
     return apiClient.post('/communication/email', payload);
   },
 
+  sendApp(payload: {
+    title?: string;
+    message?: string;
+    template_id?: number;
+    target: 'parents' | 'staff' | 'class' | 'student' | 'specific_students';
+    classroom_id?: number;
+    classroom_ids?: number[];
+    student_id?: number;
+    selected_student_ids?: string;
+  }): Promise<ApiResponse<{ notified: number; pushed: number }>> {
+    return apiClient.post('/communication/send-app', payload);
+  },
+
   listPublicAnnouncements(params?: { limit?: number }): Promise<ApiResponse<AnnouncementRecord[]>> {
     return apiClient.get<AnnouncementRecord[]>('/public/announcements', params);
   },

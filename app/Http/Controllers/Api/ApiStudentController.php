@@ -143,8 +143,14 @@ class ApiStudentController extends Controller
         ];
 
         if ($user && $user->canViewStudentFeeAmounts()) {
-            $feesBalance = (float) StudentBalanceService::getTotalOutstandingBalance($student);
-            $data['fees_balance'] = round($feesBalance, 2);
+            $feesTotal = (float) StudentBalanceService::getTotalOutstandingBalance($student, false);
+            $feesDue = (float) StudentBalanceService::getTotalOutstandingBalance($student, true);
+            $feesUpcoming = max(0, round($feesTotal - $feesDue, 2));
+            // Keep fees_balance as currently due (what parents must pay now).
+            $data['fees_balance'] = round($feesDue, 2);
+            $data['fees_due'] = round($feesDue, 2);
+            $data['fees_upcoming'] = $feesUpcoming;
+            $data['fees_total_outstanding'] = round($feesTotal, 2);
         }
 
         return response()->json([

@@ -139,6 +139,8 @@ class UnifiedTransactionService
                 END as match_status"),
                 'match_confidence',
                 DB::raw("CASE 
+                    WHEN bill_ref_number LIKE 'WALLET-%' AND status = 'processed' THEN 'wallet'
+                    WHEN bill_ref_number LIKE 'WALLET-%' THEN 'wallet_pending'
                     WHEN status = 'processed' THEN 'confirmed'
                     WHEN status = 'failed' THEN 'rejected'
                     ELSE 'draft'
@@ -243,8 +245,13 @@ class UnifiedTransactionService
                         })
                         ->where('payment_created', false);
                 } else {
+                    // Exclude parent-wallet STK C2B rows — they are wallet credits, not fee drafts.
                     $query->whereIn('status', ['pending', 'processing'])
-                        ->where('is_duplicate', false);
+                        ->where('is_duplicate', false)
+                        ->where(function ($q) {
+                            $q->whereNull('bill_ref_number')
+                                ->orWhere('bill_ref_number', 'not like', 'WALLET-%');
+                        });
                 }
                 break;
             case 'collected':

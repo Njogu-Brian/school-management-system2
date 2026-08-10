@@ -37,6 +37,18 @@ export async function setRememberedUsername(username: string | null): Promise<vo
   await AsyncStorage.setItem(ASYNC_KEYS.REMEMBERED_USERNAME, username.trim());
 }
 
+export async function getRememberedFirstName(): Promise<string | null> {
+  return AsyncStorage.getItem(ASYNC_KEYS.REMEMBERED_FIRST_NAME);
+}
+
+export async function setRememberedFirstName(firstName: string | null): Promise<void> {
+  if (!firstName?.trim()) {
+    await AsyncStorage.removeItem(ASYNC_KEYS.REMEMBERED_FIRST_NAME);
+    return;
+  }
+  await AsyncStorage.setItem(ASYNC_KEYS.REMEMBERED_FIRST_NAME, firstName.trim());
+}
+
 export async function isPinEnabled(): Promise<boolean> {
   const raw = await AsyncStorage.getItem(ASYNC_KEYS.PIN_ENABLED);
   return raw ? (JSON.parse(raw) as boolean) : false;

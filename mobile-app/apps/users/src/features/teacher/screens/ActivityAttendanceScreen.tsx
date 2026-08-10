@@ -1,8 +1,8 @@
 import {
+  attendanceApi,
   useActivityAttendance,
   useActivityStudents,
   useSaveActivityAttendance,
-  type AttendanceMarkStatus,
 } from '@erp/core';
 import {
   AcademicScreenHeader,
@@ -16,15 +16,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type Route = RouteProp<TeacherStackParamList, 'ActivityAttendance'>;
-
-/** Activities are presence-based; `late` still counts as attended when saved. */
-type ActivityStatus = 'present' | 'absent' | 'late';
-const STATUS_OPTIONS: ActivityStatus[] = ['present', 'absent', 'late'];
 
 function formatDateYmd(d: Date): string {
   const y = d.getFullYear();
@@ -33,47 +29,10 @@ function formatDateYmd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function StatusButton({
-  status,
-  active,
-  onPress,
-  colors,
-  palette,
-  typography,
-}: {
-  status: ActivityStatus;
-  active: boolean;
-  onPress: () => void;
-  colors: { success: string; error: string; warning: string };
-  palette: { surfaceMuted: string; textPrimary: string; textOnPrimary: string };
-  typography: { caption: { fontSize: number } };
-}) {
-  const label = status === 'present' ? 'P' : status === 'absent' ? 'A' : 'L';
-  const bg =
-    status === 'present' ? colors.success : status === 'absent' ? colors.error : colors.warning;
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      style={[
-        styles.statusBtn,
-        { backgroundColor: active ? bg : palette.surfaceMuted, borderColor: active ? bg : 'transparent' },
-      ]}
-    >
-      <Text
-        style={{
-          color: active ? palette.textOnPrimary : palette.textPrimary,
-          fontWeight: '800',
-          fontSize: typography.caption.fontSize,
-        }}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
+/**
+ * Activity roll — checkbox attendance (attended / not), school-day gated.
+ * Does not send class-attendance SMS; matches portal presence-based activity marking.
+ */
 export const ActivityAttendanceScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<Route>();
@@ -83,8 +42,10 @@ export const ActivityAttendanceScreen: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [statusById, setStatusById] = useState<Record<number, ActivityStatus>>({});
-  const [serverSnapshot, setServerSnapshot] = useState<Record<number, ActivityStatus>>({});
+  const [attendedById, setAttendedById] = useState<Record<number, boolean>>({});
+  const [serverSnapshot, setServerSnapshot] = useState<Record<number, boolean>>({});
+  const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
+  const [schoolDayMessage, setSchoolDayMessage] = useState<string | null>(null);
 
   const studentsQuery = useActivityStudents(activityId, dateStr);
   const attendanceQuery = useActivityAttendance(activityId, dateStr);
@@ -93,44 +54,75 @@ export const ActivityAttendanceScreen: React.FC = () => {
   const students = studentsQuery.data ?? [];
   const loading = studentsQuery.isLoading || attendanceQuery.isLoading;
 
-  // Hydrate: default everyone to absent, mark attended students present from the server.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await attendanceApi.getSchoolDay(dateStr);
+        if (cancelled) return;
+        if (!res.success || !res.data) {
+          setSchoolDayOk(null);
+          setSchoolDayMessage(null);
+          return;
+        }
+        if (!res.data.is_school_day) {
+          setSchoolDayOk(false);
+          setSchoolDayMessage('This date is not a school day (weekend, holiday, or break).');
+        } else {
+          setSchoolDayOk(true);
+          setSchoolDayMessage(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setSchoolDayOk(null);
+          setSchoolDayMessage(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dateStr]);
+
   useEffect(() => {
     if (studentsQuery.data == null || attendanceQuery.data == null) return;
     const attended = new Set((attendanceQuery.data ?? []).map((r) => r.student_id));
-    const next: Record<number, ActivityStatus> = {};
+    const next: Record<number, boolean> = {};
     for (const s of studentsQuery.data) {
-      next[s.id] = attended.has(s.id) ? 'present' : 'absent';
+      next[s.id] = attended.has(s.id);
     }
-    setStatusById(next);
+    setAttendedById(next);
     setServerSnapshot(next);
   }, [studentsQuery.data, attendanceQuery.data]);
 
-  const setStatus = (studentId: number, status: ActivityStatus) => {
-    setStatusById((prev) => ({ ...prev, [studentId]: status }));
+  const toggle = (studentId: number) => {
+    setAttendedById((prev) => ({ ...prev, [studentId]: !prev[studentId] }));
   };
 
-  const markAll = (status: ActivityStatus) => {
-    setStatusById(() => {
-      const next: Record<number, ActivityStatus> = {};
-      for (const s of students) next[s.id] = status;
-      return next;
-    });
+  const markAll = (value: boolean) => {
+    const next: Record<number, boolean> = {};
+    for (const s of students) next[s.id] = value;
+    setAttendedById(next);
   };
 
   const isDirty = useMemo(() => {
     if (students.length === 0) return false;
-    return students.some((s) => (statusById[s.id] ?? 'absent') !== (serverSnapshot[s.id] ?? 'absent'));
-  }, [students, statusById, serverSnapshot]);
+    return students.some((s) => (attendedById[s.id] ?? false) !== (serverSnapshot[s.id] ?? false));
+  }, [students, attendedById, serverSnapshot]);
 
   const attendedCount = useMemo(
-    () => students.filter((s) => (statusById[s.id] ?? 'absent') !== 'absent').length,
-    [students, statusById],
+    () => students.filter((s) => attendedById[s.id]).length,
+    [students, attendedById],
   );
 
   const submit = async () => {
+    if (schoolDayOk === false) {
+      showError('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
+      return;
+    }
     const records = students.map((s) => ({
       student_id: s.id,
-      status: (statusById[s.id] ?? 'absent') as AttendanceMarkStatus,
+      status: (attendedById[s.id] ? 'present' : 'absent') as 'present' | 'absent',
     }));
     if (records.length === 0) {
       showError('Nothing to submit', 'No students are enrolled in this activity.');
@@ -138,23 +130,23 @@ export const ActivityAttendanceScreen: React.FC = () => {
     }
     try {
       await saveMutation.mutateAsync({ activityId, date: dateStr, records });
-      const snap: Record<number, ActivityStatus> = {};
-      for (const s of students) snap[s.id] = statusById[s.id] ?? 'absent';
+      const snap: Record<number, boolean> = {};
+      for (const s of students) snap[s.id] = !!attendedById[s.id];
       setServerSnapshot(snap);
-      showSuccess('Saved', 'Activity attendance saved.');
+      showSuccess('Saved', 'Activity roll saved.');
     } catch (err) {
       showError('Could not save', (err as Error).message);
     }
   };
 
-  const showSubmit = students.length > 0 && isDirty;
+  const canSubmit = students.length > 0 && schoolDayOk !== false && isDirty;
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} clearFloatingTabBar={false}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, flex: 1 }}>
         <AcademicScreenHeader
           title={activityName}
-          subtitle="Mark today's activity attendance"
+          subtitle="Activity roll"
           onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
         />
 
@@ -183,16 +175,22 @@ export const ActivityAttendanceScreen: React.FC = () => {
           />
         ) : null}
 
-        {students.length > 0 ? (
+        {schoolDayMessage ? (
+          <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
+            <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
+          </View>
+        ) : null}
+
+        {students.length > 0 && schoolDayOk !== false ? (
           <View style={styles.bulkRow}>
-            <Pressable onPress={() => markAll('present')}>
-              <Text style={{ color: colors.success, fontWeight: '700' }}>All Present</Text>
+            <Pressable onPress={() => markAll(true)}>
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>Select all</Text>
             </Pressable>
-            <Pressable onPress={() => markAll('absent')}>
-              <Text style={{ color: colors.error, fontWeight: '700' }}>All Absent</Text>
+            <Pressable onPress={() => markAll(false)}>
+              <Text style={{ color: palette.textSecondary, fontWeight: '700' }}>Clear all</Text>
             </Pressable>
             <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
-              {attendedCount}/{students.length}
+              {attendedCount}/{students.length} attended
             </Text>
           </View>
         ) : null}
@@ -204,31 +202,39 @@ export const ActivityAttendanceScreen: React.FC = () => {
             data={students}
             keyExtractor={(item) => String(item.id)}
             style={{ flex: 1 }}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: showSubmit ? spacing.sm : spacing.lg }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: canSubmit ? spacing.sm : spacing.lg }}
             renderItem={({ item }) => {
-              const status = statusById[item.id] ?? 'absent';
+              const attended = !!attendedById[item.id];
               return (
-                <View style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surfaceRaised }]}>
+                <Pressable
+                  onPress={() => schoolDayOk !== false && toggle(item.id)}
+                  disabled={schoolDayOk === false}
+                  style={[
+                    styles.row,
+                    {
+                      borderColor: palette.border,
+                      backgroundColor: palette.surfaceRaised,
+                      opacity: schoolDayOk === false ? 0.55 : 1,
+                    },
+                  ]}
+                >
                   <View style={{ flex: 1, marginRight: spacing.sm }}>
                     <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{item.full_name}</Text>
                     <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
                       {item.admission_number}
                     </Text>
                   </View>
-                  <View style={styles.statusRow}>
-                    {STATUS_OPTIONS.map((opt) => (
-                      <StatusButton
-                        key={opt}
-                        status={opt}
-                        active={status === opt}
-                        onPress={() => setStatus(item.id, opt)}
-                        colors={colors}
-                        palette={palette}
-                        typography={typography}
-                      />
-                    ))}
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <Switch
+                      value={attended}
+                      onValueChange={() => toggle(item.id)}
+                      disabled={schoolDayOk === false}
+                    />
+                    <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+                      {attended ? 'Attended' : 'Not attended'}
+                    </Text>
                   </View>
-                </View>
+                </Pressable>
               );
             }}
             ListEmptyComponent={
@@ -241,7 +247,7 @@ export const ActivityAttendanceScreen: React.FC = () => {
           />
         )}
 
-        {showSubmit ? (
+        {canSubmit ? (
           <View
             style={{
               paddingTop: spacing.sm,
@@ -251,7 +257,7 @@ export const ActivityAttendanceScreen: React.FC = () => {
               borderTopColor: palette.border,
             }}
           >
-            <Button label="Submit attendance" onPress={() => void submit()} loading={saveMutation.isPending} />
+            <Button label="Submit roll" onPress={() => void submit()} loading={saveMutation.isPending} />
           </View>
         ) : null}
       </View>
@@ -264,6 +270,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  warnBanner: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 10,
     padding: 12,
@@ -284,14 +296,5 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
-  },
-  statusRow: { flexDirection: 'row', gap: 6 },
-  statusBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
   },
 });

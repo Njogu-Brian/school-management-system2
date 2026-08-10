@@ -69,4 +69,15 @@ export const staffApi = {
   uploadPhoto(id: number, formData: FormData): Promise<ApiResponse<{ avatar: string | null }>> {
     return apiClient.postMultipart<{ avatar: string | null }>(`/staff/${id}/photo`, formData);
   },
+
+  resetPassword(
+    id: number,
+    payload: { password_option: 'id_number' | 'random' | 'custom'; new_password?: string; share?: boolean },
+  ): Promise<ApiResponse<{ login: string; temporary_password: string; must_change_password: boolean }>> {
+    return apiClient.post(`/staff/${id}/reset-password`, payload);
+  },
+
+  resendCredentials(id: number): Promise<ApiResponse<{ login: string }>> {
+    return apiClient.post(`/staff/${id}/resend-credentials`, {});
+  },
 };

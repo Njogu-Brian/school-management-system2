@@ -1357,6 +1357,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('logs',           [CommunicationController::class, 'logs'])->name('communication.logs');
         Route::get('logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
         Route::get('conversations',  [CommunicationController::class, 'conversations'])->name('communication.conversations');
+        Route::get('app-adoption', [\App\Http\Controllers\AppOpsController::class, 'adoption'])->name('communication.app-adoption');
+        Route::get('app-issues', [\App\Http\Controllers\AppOpsController::class, 'issues'])->name('communication.app-issues');
 
         // Queues & pause/resume
         Route::get('queues', [CommunicationController::class, 'queues'])->name('communication.queues');

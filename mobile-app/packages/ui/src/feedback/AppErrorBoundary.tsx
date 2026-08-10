@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../theme/tokens';
 
 interface AppErrorBoundaryProps {
   children: React.ReactNode;
+  /** users | admin — included in crash reports */
+  appName?: 'users' | 'admin';
 }
 
 interface AppErrorBoundaryState {
@@ -12,12 +14,25 @@ interface AppErrorBoundaryState {
   message?: string;
 }
 
+type IssueReporter = (payload: {
+  app?: 'users' | 'admin';
+  platform?: string;
+  app_version?: string;
+  message: string;
+  stack?: string;
+  component_stack?: string;
+  extra?: Record<string, unknown>;
+}) => Promise<unknown>;
+
+let issueReporter: IssueReporter | null = null;
+
+/** Register once from App.tsx so the boundary can POST without importing api client at module load. */
+export function registerAppIssueReporter(reporter: IssueReporter | null): void {
+  issueReporter = reporter;
+}
+
 /**
- * Top-level render guard. Catches render-time errors so a single broken screen never
- * crashes the whole shell. Crash reporting (Sentry) is wired in a later batch
- * (build plan §1.3); for now it offers a local reset.
- *
- * Uses raw tokens (not useTheme) so it stays functional even if a provider above failed.
+ * Top-level render guard. Reports crashes to POST /app-issues when a reporter is registered.
  */
 export class AppErrorBoundary extends React.Component<
   AppErrorBoundaryProps,
@@ -32,9 +47,20 @@ export class AppErrorBoundary extends React.Component<
     return { hasError: true, message: error.message };
   }
 
-  override componentDidCatch(error: Error): void {
+  override componentDidCatch(error: Error, info: React.ErrorInfo): void {
     // eslint-disable-next-line no-console
-    console.error('[AppErrorBoundary]', error);
+    console.error('[AppErrorBoundary]', error, info?.componentStack);
+    if (!issueReporter) return;
+    void issueReporter({
+      app: this.props.appName ?? 'users',
+      platform: Platform.OS,
+      message: error.message || 'Unknown render error',
+      stack: error.stack,
+      component_stack: info?.componentStack ?? undefined,
+      extra: { name: error.name },
+    }).catch(() => {
+      /* never block UI */
+    });
   }
 
   private handleReset = (): void => {
@@ -51,11 +77,7 @@ export class AppErrorBoundary extends React.Component<
         <Ionicons name="warning-outline" size={44} color={COLORS.warning} />
         <Text style={styles.title}>Something went wrong</Text>
         <Text style={styles.message}>{this.state.message ?? 'An unexpected error occurred.'}</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={this.handleReset}
-          style={styles.button}
-        >
+        <Pressable accessibilityRole="button" onPress={this.handleReset} style={styles.button}>
           <Text style={styles.buttonText}>Reload</Text>
         </Pressable>
       </View>
@@ -79,17 +101,15 @@ const styles = StyleSheet.create({
   },
   message: {
     marginTop: 8,
-    fontSize: 14,
     textAlign: 'center',
     color: COLORS.textSubLight,
-    maxWidth: 320,
   },
   button: {
     marginTop: 20,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
   },
-  buttonText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
+  buttonText: { color: '#fff', fontWeight: '700' },
 });

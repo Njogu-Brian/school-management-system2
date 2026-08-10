@@ -753,6 +753,14 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Logs
     </a>
+    <a href="{{ route('communication.app-adoption') }}"
+    class="sublink {{ Request::is('communication/app-adoption*') ? 'active' : '' }}">
+    <i class="bi bi-phone"></i> App adoption
+    </a>
+    <a href="{{ route('communication.app-issues') }}"
+    class="sublink {{ Request::is('communication/app-issues*') ? 'active' : '' }}">
+    <i class="bi bi-bug"></i> App crash logs
+    </a>
     <a href="{{ route('communication.pending-jobs') }}"
     class="sublink {{ Request::is('communication/pending-jobs*') || Request::is('communication/queues*') ? 'active' : '' }}">
     <i class="bi bi-list-task"></i> Bulk jobs

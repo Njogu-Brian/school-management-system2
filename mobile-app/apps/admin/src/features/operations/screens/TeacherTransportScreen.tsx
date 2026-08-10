@@ -70,6 +70,7 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
   const [streamId, setStreamId] = useState<number | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [section, setSection] = useState<'roster' | 'actions'>('roster');
 
   const classroomsQuery = useClassrooms();
   const streamsQuery = useClassroomStreams(classId, { enabled: classId != null });
@@ -174,7 +175,27 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const renderItem = ({ item }: { item: TeacherTransportStudent }) => {
+  const renderRosterItem = ({ item }: { item: TeacherTransportStudent }) => {
+    return (
+      <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.surface }]}>
+        <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{item.full_name}</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+          {item.admission_number}
+          {item.class_name ? ` · ${item.class_name}` : ''}
+          {item.stream_name ? ` / ${item.stream_name}` : ''}
+        </Text>
+        <FeeBadge status={item.fee_status} balance={item.outstanding_balance} />
+        <Text style={[styles.legLabel, { color: palette.textSecondary }]}>Morning</Text>
+        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize }}>{formatLeg(item.morning)}</Text>
+        <Text style={[styles.legLabel, { color: palette.textSecondary }]}>Evening</Text>
+        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize }}>
+          {item.pickup ? 'Picked by parent — evening trip skipped' : formatLeg(item.evening)}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderActionItem = ({ item }: { item: TeacherTransportStudent }) => {
     const pickupActive = !!item.pickup;
     const eveningOwn = item.evening?.type === 'own_means';
     const morningOwn = item.morning?.type === 'own_means';
@@ -189,13 +210,8 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
           {item.class_name ? ` · ${item.class_name}` : ''}
           {item.stream_name ? ` / ${item.stream_name}` : ''}
         </Text>
-        <FeeBadge status={item.fee_status} balance={item.outstanding_balance} />
-
-        <Text style={[styles.legLabel, { color: palette.textSecondary }]}>Morning</Text>
-        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize }}>{formatLeg(item.morning)}</Text>
-        <Text style={[styles.legLabel, { color: palette.textSecondary }]}>Evening</Text>
-        <Text style={{ color: palette.textPrimary, fontSize: typography.body.fontSize }}>
-          {pickupActive ? 'Picked by parent — evening trip skipped' : formatLeg(item.evening)}
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
+          Evening: {pickupActive ? 'Parent pickup logged' : formatLeg(item.evening)}
         </Text>
 
         <View style={styles.actionRow}>
@@ -303,10 +319,21 @@ export const TeacherTransportScreen: React.FC<Props> = ({ navigation }) => {
                 </FilterChipRow>
               </>
             ) : null}
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
+              Section
+            </Text>
+            <FilterChipRow>
+              <FilterChip label="Class roster" active={section === 'roster'} onPress={() => setSection('roster')} />
+              <FilterChip
+                label="Pickup / reassign"
+                active={section === 'actions'}
+                onPress={() => setSection('actions')}
+              />
+            </FilterChipRow>
             <View style={{ height: spacing.md }} />
           </View>
         }
-        renderItem={renderItem}
+        renderItem={section === 'roster' ? renderRosterItem : renderActionItem}
         ListEmptyComponent={
           query.isLoading ? (
             <SkeletonListRows variant="card" />

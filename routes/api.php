@@ -31,6 +31,9 @@ Route::post('/password/otp', [AuthApiController::class, 'requestPasswordResetOtp
 Route::post('/password/verify-otp', [AuthApiController::class, 'verifyPasswordResetOtp']);
 Route::post('/password/reset', [AuthApiController::class, 'resetPassword']);
 
+/** Mobile crash ingest — auth optional (login-screen crashes). */
+Route::post('/app-issues', [\App\Http\Controllers\Api\ApiAppIssuesController::class, 'store']);
+
 /*
 |--------------------------------------------------------------------------
 | Parent account claim (first-time self-service signup) — public
@@ -132,7 +135,7 @@ Route::prefix('website')->group(function () {
     Route::post('/events/{slug}/register', [\App\Http\Controllers\Api\Website\EventRegistrationApiController::class, 'register']);
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->group(function () {
     // Sprint 7: Parent portal website connector
     Route::prefix('website/parent')->group(function () {
         $parent = \App\Http\Controllers\Api\Website\ParentPortalApiController::class;
@@ -239,6 +242,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/students/{studentId}/medical-records', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'store']);
     Route::get('/students/{studentId}/medical-records/{id}', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'show']);
     Route::post('/students/{studentId}/medical-records/{id}/certificate', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'uploadCertificate']);
+    Route::get('/students/{id}/parent-credentials', [\App\Http\Controllers\Api\ApiParentCredentialsController::class, 'show']);
+    Route::post('/students/{id}/parent-credentials/reset', [\App\Http\Controllers\Api\ApiParentCredentialsController::class, 'reset']);
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'show']);
@@ -293,6 +298,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/staff/{staffId}/performance-reviews/{id}', [\App\Http\Controllers\Api\ApiStaffPerformanceController::class, 'show']);
     Route::get('/staff/{staffId}/training-records', [\App\Http\Controllers\Api\ApiStaffTrainingController::class, 'index']);
     Route::get('/staff/{staffId}/training-records/{id}', [\App\Http\Controllers\Api\ApiStaffTrainingController::class, 'show']);
+    Route::post('/staff/{id}/reset-password', [\App\Http\Controllers\Api\ApiStaffController::class, 'resetPassword']);
+    Route::post('/staff/{id}/resend-credentials', [\App\Http\Controllers\Api\ApiStaffController::class, 'resendCredentials']);
     Route::get('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'show']);
     Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);
     Route::post('/staff/{id}/photo', [\App\Http\Controllers\Api\ApiStaffController::class, 'uploadPhoto']);
@@ -359,6 +366,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/communication/sms', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendSms']);
     Route::post('/communication/whatsapp', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendWhatsApp']);
     Route::post('/communication/email', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendEmail']);
+    Route::post('/communication/send-app', [\App\Http\Controllers\Api\ApiCommunicationController::class, 'sendApp']);
+    Route::get('/admin/app-adoption', [\App\Http\Controllers\Api\ApiAppAdoptionController::class, 'index']);
+    Route::get('/admin/app-issues', [\App\Http\Controllers\Api\ApiAppIssuesController::class, 'index']);
 
     Route::get('/concerns', [\App\Http\Controllers\Api\ApiConcernController::class, 'index']);
     Route::get('/concerns/staff-options', [\App\Http\Controllers\Api\ApiConcernController::class, 'staffOptions']);

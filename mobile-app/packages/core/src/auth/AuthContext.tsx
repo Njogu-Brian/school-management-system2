@@ -28,6 +28,7 @@ import {
   isPinEnabled,
   savePinAuthBundle,
   setRememberedUsername,
+  setRememberedFirstName,
 } from '../storage/pinStorage';
 import { mapApiUser } from './mapUser';
 import { parseGoogleIdToken } from './googleIdentity';
@@ -142,6 +143,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const creds = lastCredentialsRef.current;
       if (creds?.identifier) {
         await setRememberedUsername(creds.identifier);
+      }
+      const firstName = result.user?.name?.trim()?.split(/\s+/)[0];
+      if (firstName) {
+        await setRememberedFirstName(firstName);
       }
 
       if (await isPinEnabled()) {
@@ -467,6 +472,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const onChange = (next: AppStateStatus) => {
+      // Touch while leaving foreground so brief STK / payment prompts don't idle-expire the session.
+      if (next === 'inactive' || next === 'background') {
+        if (session.token && session.isValid) {
+          void session.touch();
+        }
+        return;
+      }
       if (next !== 'active') {
         return;
       }

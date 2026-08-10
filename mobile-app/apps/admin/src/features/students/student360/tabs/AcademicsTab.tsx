@@ -102,7 +102,7 @@ export const AcademicsTab: React.FC<AcademicsTabProps> = ({ studentId, onOpenRep
       return {
         id: rc.id,
         title: rc.class_name ? `Report · ${rc.class_name}` : `Report card #${rc.id}`,
-        subtitle: `Term ${rc.term_id} · Year ${rc.academic_year_id}`,
+        subtitle: `${rc.term_name ?? `Term ${rc.term_id}`} · ${rc.academic_year_name ?? `Year ${rc.academic_year_id}`}`,
         status: rc.status,
         percentageLabel: pctLabel,
         generatedAtLabel: rc.generated_at ? formatDateLabel(rc.generated_at) : undefined,

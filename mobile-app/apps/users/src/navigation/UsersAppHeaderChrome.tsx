@@ -15,6 +15,12 @@ export interface UsersAppHeaderChromeProps {
    * to hide the menu button entirely).
    */
   onMenuPress?: () => void;
+  /**
+   * Optional search. When omitted, the search affordance is hidden (avoids navigating
+   * to a missing ParentMoreTab from teacher/driver/student headers).
+   */
+  onSearchPress?: () => void;
+  searchPrompt?: string;
 }
 
 /**
@@ -27,6 +33,8 @@ export const UsersAppHeaderChrome: React.FC<UsersAppHeaderChromeProps> = ({
   profileRoute = 'MyProfile',
   notificationsRoute = 'Notifications',
   onMenuPress,
+  onSearchPress,
+  searchPrompt = 'Search…',
 }) => {
   const navigation = useNavigation();
   const { toggleTheme } = useTheme();
@@ -45,6 +53,8 @@ export const UsersAppHeaderChrome: React.FC<UsersAppHeaderChromeProps> = ({
     <GlobalAppHeader
       title={title}
       onMenuPress={onMenuPress}
+      onSearchPress={onSearchPress}
+      searchPrompt={searchPrompt}
       onNotificationsPress={onNotifications}
       onThemeTogglePress={toggleTheme}
       onProfilePress={onProfile}

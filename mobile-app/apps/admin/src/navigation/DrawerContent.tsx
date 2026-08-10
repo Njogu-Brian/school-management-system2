@@ -13,7 +13,7 @@ import {
   DrawerContentComponentProps,
   DrawerContentScrollView,
 } from '@react-navigation/drawer';
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { confirmAction } from '../features/shared/utils/feedback';
@@ -62,6 +62,10 @@ const AREA_TONE: Record<string, Soft3DTone> = {
   settings: 'teal',
 };
 
+/**
+ * Frosted responsive sidebar — icon+label rail on phone (drawer), permanent on tablet
+ * with optional compact mode that fades labels (matches collapsible menu pattern).
+ */
 export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const { palette, colors, spacing, typography, radius, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -71,6 +75,9 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const { schoolName, logoUrl } = useBranding();
   const user = useCurrentUser();
   const { logout } = useAuth();
+  const isWide = windowWidth >= 900;
+  const [compact, setCompact] = useState(false);
+  const showLabels = !isWide || !compact;
 
   const confirmLogout = (): void => {
     confirmAction('Sign out', 'Are you sure you want to sign out?', 'Sign out', () => void logout(), true);
@@ -78,7 +85,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
 
   const handlePress = (area: AdminNavArea): void => {
     navigateDrawerAreaHome(props.navigation, area.key);
-    props.navigation.closeDrawer();
+    if (!isWide) props.navigation.closeDrawer();
   };
 
   const frosted = (
@@ -97,7 +104,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
         style={[
           StyleSheet.absoluteFill,
           {
-            backgroundColor: isDark ? 'rgba(12,16,24,0.28)' : 'rgba(0,74,153,0.06)',
+            backgroundColor: isDark ? 'rgba(12,16,24,0.55)' : 'rgba(0,74,153,0.08)',
           },
         ]}
       />
@@ -118,7 +125,18 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
           ) : (
             <Soft3DIcon name="school" tone="blue" size={40} />
           )}
-          <View style={[styles.headerText, { marginLeft: spacing.sm }]}>
+          <View
+            style={[
+              styles.headerText,
+              {
+                marginLeft: spacing.sm,
+                opacity: showLabels ? 1 : 0,
+                maxWidth: showLabels ? undefined : 0,
+                overflow: 'hidden',
+              },
+            ]}
+            pointerEvents={showLabels ? 'auto' : 'none'}
+          >
             <Text
               style={{
                 color: palette.textPrimary,
@@ -140,6 +158,21 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
               Admin
             </Text>
           </View>
+          {isWide ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={compact ? 'Expand sidebar' : 'Collapse sidebar'}
+              onPress={() => setCompact((v) => !v)}
+              hitSlop={8}
+              style={{ marginLeft: 'auto', padding: 6 }}
+            >
+              <Ionicons
+                name={compact ? 'menu' : 'menu-outline'}
+                size={22}
+                color={palette.textSecondary}
+              />
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={{ paddingVertical: spacing.sm }}>
@@ -157,7 +190,11 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
                   styles.item,
                   {
                     borderRadius: radius.control,
-                    backgroundColor: active ? palette.primaryMuted : 'transparent',
+                    backgroundColor: active
+                      ? isDark
+                        ? 'rgba(255,255,255,0.1)'
+                        : palette.primaryMuted
+                      : 'transparent',
                   },
                 ]}
               >
@@ -175,7 +212,9 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
                     fontSize: typography.body.fontSize,
                     fontWeight: active ? '700' : '500',
                     flex: 1,
+                    opacity: showLabels ? 1 : 0,
                   }}
+                  numberOfLines={1}
                 >
                   {area.label}
                 </Text>
@@ -185,8 +224,8 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
         </View>
 
         <View style={[styles.footer, { borderTopColor: palette.borderSubtle }]}>
-          <AppModeSwitch style={{ marginBottom: spacing.md }} />
-          {user ? (
+          {showLabels ? <AppModeSwitch style={{ marginBottom: spacing.md }} /> : null}
+          {user && showLabels ? (
             <View style={styles.userRow}>
               <View style={[styles.avatar, { backgroundColor: palette.primaryMuted }]}>
                 <Text style={[styles.avatarText, { color: colors.primary }]}>
@@ -219,16 +258,18 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
             style={styles.logout}
           >
             <Soft3DIcon name="log-out-outline" tone="rose" size={32} />
-            <Text
-              style={{
-                marginLeft: spacing.mdSm,
-                color: colors.error,
-                fontSize: typography.titleSmall.fontSize,
-                fontWeight: '600',
-              }}
-            >
-              Sign out
-            </Text>
+            {showLabels ? (
+              <Text
+                style={{
+                  marginLeft: spacing.mdSm,
+                  color: colors.error,
+                  fontSize: typography.titleSmall.fontSize,
+                  fontWeight: '600',
+                }}
+              >
+                Sign out
+              </Text>
+            ) : null}
           </Pressable>
         </View>
       </DrawerContentScrollView>

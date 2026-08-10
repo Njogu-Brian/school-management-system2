@@ -685,4 +685,145 @@ class ApiStaffController extends Controller
             ],
         ]);
     }
+
+    /**
+     * POST /api/staff/{id}/reset-password
+     * Reset login password and optionally share via email/SMS. Returns plaintext once for admin to copy.
+     * Device app PIN is local to the phone and cannot be reset from the server.
+     */
+    public function resetPassword(Request $request, int $id)
+    {
+        $this->assertStaffManageAccess($request);
+        $staff = Staff::with('user')->findOrFail($id);
+        $user = $staff->user;
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Staff has no user account.'], 422);
+        }
+
+        $validated = $request->validate([
+            'password_option' => 'required|in:id_number,random,custom',
+            'new_password' => 'nullable|string|min:6',
+            'share' => 'nullable|boolean',
+        ]);
+
+        if ($validated['password_option'] === 'custom' && ! empty($validated['new_password'])) {
+            $newPassword = $validated['new_password'];
+        } elseif ($validated['password_option'] === 'id_number' && $staff->id_number) {
+            $newPassword = $staff->id_number;
+        } else {
+            $newPassword = \Illuminate\Support\Str::random(8);
+        }
+
+        $user->update([
+            'password' => \Illuminate\Support\Facades\Hash::make($newPassword),
+            'must_change_password' => true,
+        ]);
+
+        $share = (bool) ($validated['share'] ?? false);
+        $sharedVia = [];
+        if ($share) {
+            $sharedVia = $this->shareStaffCredentials($staff, $user, $newPassword);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $share
+                ? 'Password reset. Share channels attempted where contact details exist.'
+                : 'Password reset. Share the temporary password securely.',
+            'data' => [
+                'login' => $user->email,
+                'temporary_password' => $newPassword,
+                'must_change_password' => true,
+                'shared_via' => $sharedVia,
+                'note' => 'Device app PIN stays on their phone — they reset it in Settings.',
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/staff/{id}/resend-credentials
+     * Shares current ID-number password reminder (welcome templates / plain message).
+     * Prefer reset-password when the password must actually change.
+     */
+    public function resendCredentials(Request $request, int $id)
+    {
+        $this->assertStaffManageAccess($request);
+        $staff = Staff::with('user')->findOrFail($id);
+        $user = $staff->user;
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Staff has no user account.'], 422);
+        }
+
+        $passwordPlain = $staff->id_number ?: null;
+        if (! $passwordPlain) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No ID number on file to use as the shared password. Use Reset password instead.',
+            ], 422);
+        }
+
+        $sharedVia = $this->shareStaffCredentials($staff, $user, $passwordPlain);
+
+        return response()->json([
+            'success' => true,
+            'message' => empty($sharedVia)
+                ? 'Could not send — check email/phone and communication credits.'
+                : 'Credentials shared via: ' . implode(', ', $sharedVia),
+            'data' => [
+                'login' => $user->email,
+                'shared_via' => $sharedVia,
+            ],
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function shareStaffCredentials(Staff $staff, $user, string $password): array
+    {
+        $shared = [];
+        $schoolName = DB::table('settings')->where('key', 'school_name')->value('value')
+            ?? config('app.name', 'School');
+        $body = "{$schoolName}: Your staff login is {$user->email}. Temporary password: {$password}. Change it after signing in.";
+
+        $comm = app(\App\Services\CommunicationService::class);
+
+        if ($user->email) {
+            try {
+                $comm->sendEmail(
+                    'staff',
+                    $staff->id,
+                    $user->email,
+                    'Staff login credentials',
+                    nl2br(e($body)),
+                    null
+                );
+                $shared[] = 'email';
+            } catch (\Throwable $e) {
+                Log::warning('Staff credentials email failed', [
+                    'staff_id' => $staff->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $phone = $staff->phone_number ?? $user->phone_number ?? null;
+        if ($phone) {
+            try {
+                $phoneService = app(PhoneNumberService::class);
+                $smsPhone = $phoneService->formatWithCountryCode($phone, '+254');
+                $result = $comm->sendSMS('staff', $staff->id, $smsPhone, $body, 'Login credentials');
+                if ($result['success'] ?? false) {
+                    $shared[] = 'sms';
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Staff credentials SMS failed', [
+                    'staff_id' => $staff->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $shared;
+    }
 }

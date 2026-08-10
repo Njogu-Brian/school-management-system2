@@ -337,6 +337,7 @@ class ApiParentClaimController extends Controller
         $user->load('roles', 'roles.permissions', 'staff');
         $expiresAt = now()->addDays(7);
         $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
+        $user->markAppLogin();
 
         return response()->json([
             'success' => true,

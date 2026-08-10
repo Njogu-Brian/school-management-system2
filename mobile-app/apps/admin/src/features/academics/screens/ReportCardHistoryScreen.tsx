@@ -73,7 +73,9 @@ export const ReportCardHistoryScreen: React.FC<Props> = ({ route, navigation }) 
               key={rc.id}
               card={{
                 id: rc.id,
-                termLabel: rc.class_name ? `${rc.class_name} · Term ${rc.term_id}` : `Term ${rc.term_id}`,
+                termLabel: rc.class_name
+                  ? `${rc.class_name} · ${rc.term_name ?? `Term ${rc.term_id}`}`
+                  : (rc.term_name ?? `Term ${rc.term_id}`),
                 status: rc.status,
                 overallGrade: rc.overall_grade,
                 overallPercentage: rc.overall_percentage,

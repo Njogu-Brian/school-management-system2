@@ -215,6 +215,23 @@ class ReportCardPublishService
         $anySent = false;
 
         foreach ($channels as $channel) {
+            if ($channel === 'app') {
+                try {
+                    $result = app(\App\Services\AppChannelNotifyService::class)->notifyParentsForStudent(
+                        $primaryStudent,
+                        'Report cards available',
+                        "Report cards for {$childrenNames} ({$termName} {$academicYear}) are ready.\n{$portalUrl}",
+                        ['type' => 'report_card', 'deep_link' => $portalUrl]
+                    );
+                    if (($result['notified'] ?? 0) > 0) {
+                        $anySent = true;
+                    }
+                } catch (\Throwable $e) {
+                    \Log::warning('Report card app channel failed: '.$e->getMessage());
+                }
+                continue;
+            }
+
             $recipients = CommunicationHelperService::collectRecipients([
                 'target' => 'student',
                 'student_id' => $primaryStudent->id,

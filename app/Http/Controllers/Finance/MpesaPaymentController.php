@@ -1386,6 +1386,60 @@ class MpesaPaymentController extends Controller
                 return;
             }
 
+            // Parent family wallet top-up / saving STK — credit wallet, do not create fee Payment
+            if (in_array($transaction->purpose, ['wallet_topup', 'wallet_saving'], true) && $transaction->parent_wallet_id) {
+                $wallet = \App\Models\ParentWallet::find($transaction->parent_wallet_id);
+                if ($wallet) {
+                    $walletResult = app(\App\Services\ParentWalletService::class)->creditDeposit(
+                        (int) $wallet->parent_info_id,
+                        (float) $transaction->amount,
+                        PaymentTransaction::class,
+                        (int) $transaction->id,
+                        [
+                            'mpesa_receipt' => $mpesaReceiptNumber,
+                            'purpose' => $transaction->purpose,
+                        ],
+                        $transaction->initiated_by
+                    );
+                    $transaction->update([
+                        'status' => 'completed',
+                        'mpesa_receipt_number' => $mpesaReceiptNumber ?? $transaction->mpesa_receipt_number,
+                        'external_transaction_id' => $mpesaReceiptNumber,
+                        'completed_at' => now(),
+                        'paid_at' => now(),
+                    ]);
+
+                    // Mark matching C2B row as processed so it does not linger as "draft" in the portal.
+                    if ($mpesaReceiptNumber) {
+                        \App\Models\MpesaC2BTransaction::where('trans_id', $mpesaReceiptNumber)
+                            ->update([
+                                'status' => 'processed',
+                                'allocation_status' => 'auto_matched',
+                            ]);
+                    } elseif ($transaction->parent_wallet_id) {
+                        $walletParentInfoId = \App\Models\ParentWallet::where('id', $transaction->parent_wallet_id)->value('parent_info_id');
+                        if ($walletParentInfoId) {
+                            \App\Models\MpesaC2BTransaction::where('bill_ref_number', 'WALLET-'.$walletParentInfoId)
+                                ->where('trans_amount', $transaction->amount)
+                                ->where('status', '!=', 'processed')
+                                ->orderByDesc('id')
+                                ->limit(1)
+                                ->update([
+                                    'status' => 'processed',
+                                    'allocation_status' => 'auto_matched',
+                                ]);
+                        }
+                    }
+
+                    DB::commit();
+                    Log::info('Parent wallet credited via STK callback', [
+                        'transaction_id' => $transaction->id,
+                        'applied_to_fees' => $walletResult['applied_to_fees'] ?? 0,
+                    ]);
+                    return;
+                }
+            }
+
             // Shared payment (siblings): create one payment per child, allocate, receipt and notify each
             if ($transaction->is_shared && !empty($transaction->shared_allocations)) {
                 $firstPaymentId = null;

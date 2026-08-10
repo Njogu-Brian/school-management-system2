@@ -242,6 +242,8 @@ class CommunicationController extends Controller
         $reportId = $this->storeDeliveryReport('email', $reportRows, ['sent' => $sentCount, 'failed' => $failedCount, 'skipped' => 0]);
         $withData['delivery_report_id'] = $reportId;
 
+        $this->maybeDispatchAppChannel($request, $data, $messageBody ?? $message ?? '', 'Email', $subject ?? 'School update');
+
         return redirect()->route('communication.send.email')->with($withData);
     }
 
@@ -514,6 +516,8 @@ class CommunicationController extends Controller
         $allReportRows = array_merge($reportRows, $reportRowsSkipped);
         $reportId = $this->storeDeliveryReport('sms', $allReportRows, ['sent' => $sentCount, 'failed' => $failedCount, 'skipped' => count($skipped)]);
         $withData['delivery_report_id'] = $reportId;
+
+        $this->maybeDispatchAppChannel($request, $data, $message, 'SMS');
 
         return redirect()->route('communication.send.sms')->with($withData);
     }
@@ -850,6 +854,8 @@ class CommunicationController extends Controller
         $allReportRows = array_merge($reportRows, $reportRowsSkipped);
         $reportId = $this->storeDeliveryReport('whatsapp', $allReportRows, ['sent' => $sentCount, 'failed' => $failedCount, 'skipped' => count($skipped)]);
         $withData['delivery_report_id'] = $reportId;
+
+        $this->maybeDispatchAppChannel($request, $data, $message, 'WhatsApp');
 
         return redirect()->route('communication.send.whatsapp')->with($withData);
     }
@@ -2085,5 +2091,31 @@ class CommunicationController extends Controller
             ]);
             return back()->with('error', 'Failed to send job immediately: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Optional fan-out to in-app + Expo push when compose forms check "Also send app notification".
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function maybeDispatchAppChannel(Request $request, array $data, string $body, string $channelLabel, ?string $title = null): void
+    {
+        if (! $request->boolean('also_send_app_notification')) {
+            return;
+        }
+
+        $title = $title ?: ('School '.$channelLabel);
+        $service = app(\App\Services\AppChannelNotifyService::class);
+        $users = $service->usersForCommunicationTarget($data);
+        if ($users->isEmpty()) {
+            return;
+        }
+
+        $service->notifyUsers(
+            $users,
+            $title,
+            $service->truncateBody($body),
+            ['source_channel' => strtolower($channelLabel)]
+        );
     }
 }

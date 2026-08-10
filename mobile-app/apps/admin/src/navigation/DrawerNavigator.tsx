@@ -6,7 +6,7 @@ import {
 } from '@react-navigation/drawer';
 import { DrawerActions } from '@react-navigation/native';
 import React from 'react';
-import { useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { AcademicsStackNavigator } from './AcademicsStackNavigator';
 import { AdmissionsStackNavigator } from './AdmissionsStackNavigator';
 import { ApprovalsStackNavigator } from './ApprovalsStackNavigator';
@@ -71,6 +71,7 @@ export const DrawerNavigator: React.FC = () => {
         : 'Workspace';
 
   const drawerWidth = Math.min(280, Math.round(windowWidth * 0.72));
+  const isTablet = windowWidth >= 900;
 
   return (
     <Drawer.Navigator
@@ -78,14 +79,16 @@ export const DrawerNavigator: React.FC = () => {
       drawerContent={(props) => <DrawerContent {...props} />}
       screenOptions={{
         headerShown: false,
-        drawerType: 'front',
-        overlayColor: 'rgba(0,0,0,0.45)',
+        drawerType: isTablet ? 'permanent' : 'front',
+        overlayColor: isTablet ? 'transparent' : 'rgba(0,0,0,0.45)',
         drawerStyle: {
           width: drawerWidth,
           backgroundColor: 'transparent',
-          borderTopRightRadius: 24,
-          borderBottomRightRadius: 24,
+          borderTopRightRadius: isTablet ? 0 : 24,
+          borderBottomRightRadius: isTablet ? 0 : 24,
           overflow: 'hidden',
+          borderRightWidth: isTablet ? StyleSheet.hairlineWidth : 0,
+          borderRightColor: 'rgba(128,128,128,0.25)',
         },
       }}
     >

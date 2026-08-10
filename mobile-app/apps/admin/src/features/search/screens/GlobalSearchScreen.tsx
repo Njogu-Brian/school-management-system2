@@ -232,6 +232,7 @@ export const GlobalSearchScreen: React.FC<Props> = ({ navigation }) => {
           onChangeText={setQuery}
           placeholder="Search anything…"
           autoFocus
+          actionLabel="Search"
         />
         <FilterChipRow>
           {MODULE_FILTERS.map((m) => (

@@ -24,6 +24,10 @@
                 <input class="form-check-input" type="checkbox" name="channels[]" value="email" id="pubChannelEmail" checked>
                 <label class="form-check-label" for="pubChannelEmail"><i class="bi bi-envelope"></i> Email</label>
               </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="channels[]" value="app" id="pubChannelApp">
+                <label class="form-check-label" for="pubChannelApp"><i class="bi bi-phone"></i> App notification</label>
+              </div>
             </div>
           </div>
           <div class="mb-1">

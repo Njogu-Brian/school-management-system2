@@ -125,4 +125,40 @@ export const studentsApi = {
   ): Promise<ApiResponse<StudentRecord>> {
     return apiClient.post<StudentRecord>(`/students/${studentId}/update`, payload);
   },
+
+  parentCredentials(studentId: number): Promise<
+    ApiResponse<{
+      parent_info_id: number | null;
+      accounts: Array<{
+        user_id: number;
+        name: string;
+        login: string | null;
+        phone: string | null;
+        must_change_password: boolean;
+      }>;
+    }>
+  > {
+    return apiClient.get(`/students/${studentId}/parent-credentials`);
+  },
+
+  resetParentCredentials(
+    studentId: number,
+    payload: {
+      user_id?: number;
+      password_option: 'random' | 'custom';
+      new_password?: string;
+      share?: boolean;
+    },
+  ): Promise<
+    ApiResponse<{
+      user_id: number;
+      login: string | null;
+      temporary_password: string;
+      must_change_password: boolean;
+      shared_via: string[];
+      note?: string;
+    }>
+  > {
+    return apiClient.post(`/students/${studentId}/parent-credentials/reset`, payload);
+  },
 };

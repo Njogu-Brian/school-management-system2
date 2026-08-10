@@ -8,3 +8,5 @@ export { SmsLogDetailScreen } from './screens/SmsLogDetailScreen';
 export { TemplatesListScreen } from './screens/TemplatesListScreen';
 export { TemplateFormScreen } from './screens/TemplateFormScreen';
 export { TemplateDetailScreen } from './screens/TemplateDetailScreen';
+export { AppAdoptionScreen } from './screens/AppAdoptionScreen';
+export { AppIssuesScreen } from './screens/AppIssuesScreen';

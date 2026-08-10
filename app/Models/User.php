@@ -26,6 +26,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'name', 'email', 'password', 'must_change_password',
         'google_id', 'google_email',
         'parent_id', 'phone_number', 'parent_profile_review_required',
+        'last_login_at', 'last_seen_at',
     ];
 
     protected $hidden = [
@@ -37,7 +38,19 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'parent_profile_review_required' => 'boolean',
+        'last_login_at' => 'datetime',
+        'last_seen_at' => 'datetime',
     ];
+
+    /** Mark durable mobile/API login activity (survives token revoke). */
+    public function markAppLogin(): void
+    {
+        $now = now();
+        $this->forceFill([
+            'last_login_at' => $now,
+            'last_seen_at' => $now,
+        ])->saveQuietly();
+    }
 
     /**
      * Spatie role names may differ in casing across seeders and guards.

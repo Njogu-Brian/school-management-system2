@@ -30,9 +30,9 @@ export const MpesaPromptScreen: React.FC = () => {
 
   useEffect(() => {
     if (amount) return;
-    const bal = stats.data?.fees_balance;
+    const bal = stats.data?.fees_due ?? stats.data?.fees_balance;
     if (typeof bal === 'number' && bal > 0) setAmount(String(bal));
-  }, [stats.data?.fees_balance, amount]);
+  }, [stats.data?.fees_due, stats.data?.fees_balance, amount]);
 
   useEffect(() => {
     const parent = detail.data?.parent;
@@ -94,10 +94,15 @@ export const MpesaPromptScreen: React.FC = () => {
           marginBottom: spacing.md,
         }}
       >
-        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Balance</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Balance due</Text>
         <Text style={{ color: palette.textPrimary, fontSize: 22, fontWeight: '700', marginTop: 4 }}>
-          {formatKes(stats.data?.fees_balance)}
+          {formatKes(stats.data?.fees_due ?? stats.data?.fees_balance)}
         </Text>
+        {(stats.data?.fees_upcoming ?? 0) > 0 ? (
+          <Text style={{ color: palette.textMuted, marginTop: 6, fontSize: typography.caption.fontSize }}>
+            Upcoming {formatKes(stats.data?.fees_upcoming)}
+          </Text>
+        ) : null}
       </View>
 
       <TextField

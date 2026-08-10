@@ -65,7 +65,7 @@ export const ChildResultsScreen: React.FC = () => {
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ color: palette.textPrimary, fontWeight: '700', flex: 1 }}>
-                {card.class_name ?? 'Report card'} · Term {card.term_id}
+                {card.class_name ?? 'Report card'} · {card.term_name ?? `Term ${card.term_id}`}
               </Text>
               <StatusBadge
                 label={card.access_locked ? 'Fees due' : card.status}

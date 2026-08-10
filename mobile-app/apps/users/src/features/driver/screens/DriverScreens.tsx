@@ -1,4 +1,4 @@
-import { useDriverBoarding, useDriverTrip, useDriverTripActions, useDriverTrips } from '@erp/core';
+import { timeOfDayGreeting, useAuth, useCurrentUser, useDriverBoarding, useDriverTrip, useDriverTripActions, useDriverTrips } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
@@ -201,6 +201,7 @@ export const DriverHomeScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const tabClearance = useFloatingTabBarClearance();
   const tripsQuery = useDriverTrips();
+  const user = useCurrentUser();
 
   const trips = tripsQuery.data ?? [];
   const meta = trips.length > 0 ? `${trips.length} trips today` : undefined;
@@ -209,7 +210,8 @@ export const DriverHomeScreen: React.FC = () => {
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="operations"
-        greeting="Welcome back"
+        greeting={timeOfDayGreeting(user?.name)}
+        userName={user?.name ?? 'Driver'}
         title="Driver portal"
         subtitle="Today's roster, vehicle status, and self-service"
         meta={meta}
@@ -469,7 +471,8 @@ export const DriverRoutesScreen: React.FC = () => {
 
 export const DriverMoreHubScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
-  const { spacing } = useTheme();
+  const { logout } = useAuth();
+  const { spacing, colors } = useTheme();
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
@@ -480,6 +483,14 @@ export const DriverMoreHubScreen: React.FC = () => {
       />
       <AppModeSwitch style={{ marginBottom: spacing.md }} />
       <HubLinksList onNavigate={(route) => navigation.navigate(route as never)} />
+      <Button
+        label="Sign out"
+        variant="ghost"
+        onPress={() =>
+          confirmAction('Sign out', 'Sign out of the Users app on this device?', 'Sign out', () => void logout(), true)
+        }
+        style={{ marginTop: spacing.md, borderColor: colors.error, borderWidth: 1 }}
+      />
     </ScreenContainer>
   );
 };

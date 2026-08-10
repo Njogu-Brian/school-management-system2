@@ -428,6 +428,55 @@ class ApiCommunicationController extends Controller
         ]);
     }
 
+    /**
+     * POST /communication/send-app — in-app + push only.
+     */
+    public function sendApp(Request $request)
+    {
+        $data = $request->validate([
+            'title' => 'nullable|string|max:120',
+            'message' => 'nullable|string',
+            'template_id' => 'nullable|exists:communication_templates,id',
+            'target' => 'required|string|in:parents,staff,class,student,specific_students',
+            'classroom_id' => 'nullable|integer|exists:classrooms,id',
+            'classroom_ids' => 'nullable|array',
+            'classroom_ids.*' => 'integer|exists:classrooms,id',
+            'student_id' => 'nullable|integer',
+            'selected_student_ids' => 'nullable|string',
+            'also_send_app_notification' => 'sometimes|boolean',
+        ]);
+
+        $message = $data['message'] ?? '';
+        if (! empty($data['template_id'])) {
+            $tpl = CommunicationTemplate::find($data['template_id']);
+            $message = $tpl?->content ?: $message;
+        }
+
+        if (! filled($message)) {
+            return response()->json(['success' => false, 'message' => 'Message content is required.'], 422);
+        }
+
+        $title = $data['title'] ?? 'School update';
+        $service = app(\App\Services\AppChannelNotifyService::class);
+        $users = $service->usersForCommunicationTarget($data);
+        if ($users->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No app users found for this audience. Parents/staff need linked accounts.',
+            ], 422);
+        }
+
+        $result = $service->notifyUsers($users, $title, $service->truncateBody($message), [
+            'source' => 'admin_app_compose',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "App notifications sent to {$result['notified']} user(s).",
+            'data' => $result,
+        ]);
+    }
+
     protected function serializeTemplate(CommunicationTemplate $t): array
     {
         return [

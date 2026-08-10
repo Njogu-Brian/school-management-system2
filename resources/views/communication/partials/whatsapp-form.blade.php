@@ -160,6 +160,15 @@
         </div>
     </div>
 
+    <div class="col-12">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="also_send_app_notification" value="1" id="waAlsoApp" {{ old('also_send_app_notification') ? 'checked' : '' }}>
+            <label class="form-check-label" for="waAlsoApp">
+                Also send in-app notification (Users/Admin app + push when devices are registered)
+            </label>
+        </div>
+    </div>
+
     <div class="col-12 d-flex justify-content-end gap-2">
         <a href="{{ route('communication.logs') }}" class="btn btn-ghost-strong">Cancel</a>
         <button type="button" class="btn btn-outline-success" id="preview-whatsapp-btn" style="min-width: 120px;">

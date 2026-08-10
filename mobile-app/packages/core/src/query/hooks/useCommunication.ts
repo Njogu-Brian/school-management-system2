@@ -225,6 +225,16 @@ export function useSendEmail() {
   });
 }
 
+export function useSendApp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: communicationApi.sendApp,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.communication.logs() });
+    },
+  });
+}
+
 export function usePublicAnnouncements(options?: { enabled?: boolean; limit?: number }) {
   return useQuery({
     queryKey: [...queryKeys.communication.all, 'public-announcements', options?.limit ?? 5],

@@ -32,6 +32,12 @@
                     <i class="bi bi-envelope"></i> Email (PDF attachment)
                   </label>
                 </div>
+                <div class="form-check">
+                  <input class="form-check-input channel-checkbox" type="checkbox" name="channels[]" value="app" id="channelApp">
+                  <label class="form-check-label" for="channelApp">
+                    <i class="bi bi-phone"></i> App notification
+                  </label>
+                </div>
               </div>
               <small class="text-muted d-block mt-2">Select one or more channels to send the document</small>
             </div>

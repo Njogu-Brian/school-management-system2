@@ -9,4 +9,6 @@ export type CommunicationStackParamList = {
   TemplatesList: undefined;
   TemplateDetail: { templateId: number };
   TemplateForm: { templateId?: number } | undefined;
+  AppAdoption: undefined;
+  AppIssues: undefined;
 };

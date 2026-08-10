@@ -1,4 +1,4 @@
-import { useClassrooms, useCurrentUser, useUnreadNotificationCount } from '@erp/core';
+import { timeOfDayGreeting, useClassrooms, useCurrentUser, useUnreadNotificationCount } from '@erp/core';
 import {
   DashboardHero,
   DashboardSection,
@@ -99,7 +99,7 @@ export const TeacherHomeScreen: React.FC = () => {
     >
       <DashboardHero
         variant="academics"
-        greeting="Welcome back"
+        greeting={timeOfDayGreeting(user?.name)}
         userName={user?.name ?? 'Teacher'}
         title={user?.roleName ?? 'Teacher'}
         subtitle="Today's capture, teaching, and self-service in one place"

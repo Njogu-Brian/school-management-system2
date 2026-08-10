@@ -1,14 +1,20 @@
 import {
+  useAuth,
+} from '@erp/core';
+import {
   AcademicScreenHeader,
+  Button,
   ScreenContainer,
+  SearchBar,
   Soft3DIcon,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
+import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
 
@@ -67,12 +73,32 @@ const LINKS: Array<{
 
 export const ParentMoreScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { logout } = useAuth();
+  const { palette, spacing, typography, radius, colors } = useTheme();
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return LINKS;
+    return LINKS.filter(
+      (l) => l.label.toLowerCase().includes(q) || l.subtitle.toLowerCase().includes(q),
+    );
+  }, [query]);
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <AcademicScreenHeader title="More" onProfilePress={() => navigation.navigate('MyProfile')} />
-      {LINKS.map((item) => (
+      <SearchBar
+        expandable
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search menu…"
+        actionLabel="Go"
+        onActionPress={() => {
+          if (filtered[0]) navigation.navigate(filtered[0].route as never);
+        }}
+      />
+      {filtered.map((item) => (
         <Pressable
           key={item.route}
           onPress={() => navigation.navigate(item.route as never)}
@@ -80,12 +106,12 @@ export const ParentMoreScreen: React.FC = () => {
             flexDirection: 'row',
             alignItems: 'center',
             gap: spacing.md,
-            backgroundColor: palette.surface,
+            marginBottom: spacing.sm,
+            padding: spacing.md,
+            borderRadius: radius.lg,
             borderWidth: 1,
             borderColor: palette.border,
-            borderRadius: radius.lg,
-            padding: spacing.md,
-            marginBottom: spacing.sm,
+            backgroundColor: palette.surface,
           }}
         >
           <Soft3DIcon name={item.icon} glyph={item.glyph} tone={item.tone} size={44} />
@@ -97,6 +123,14 @@ export const ParentMoreScreen: React.FC = () => {
           </View>
         </Pressable>
       ))}
+      <Button
+        label="Sign out"
+        variant="ghost"
+        onPress={() =>
+          confirmAction('Sign out', 'Sign out of the Users app on this device?', 'Sign out', () => void logout(), true)
+        }
+        style={{ marginTop: spacing.md, borderColor: colors.error, borderWidth: 1 }}
+      />
     </ScreenContainer>
   );
 };

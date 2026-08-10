@@ -209,6 +209,29 @@ class PaymentWebhookController extends Controller
                                     'mpesa_receipt_number' => $result['mpesa_receipt_number'] ?? $transaction->mpesa_receipt_number,
                                     'paid_at' => now(),
                                 ]);
+
+                                $receipt = $result['mpesa_receipt_number'] ?? null;
+                                if ($receipt) {
+                                    \App\Models\MpesaC2BTransaction::where('trans_id', $receipt)
+                                        ->update([
+                                            'status' => 'processed',
+                                            'allocation_status' => 'auto_matched',
+                                        ]);
+                                } elseif ($transaction->parent_wallet_id) {
+                                    $walletParentInfoId = \App\Models\ParentWallet::where('id', $transaction->parent_wallet_id)->value('parent_info_id');
+                                    if ($walletParentInfoId) {
+                                        \App\Models\MpesaC2BTransaction::where('bill_ref_number', 'WALLET-'.$walletParentInfoId)
+                                            ->where('trans_amount', $transaction->amount)
+                                            ->where('status', '!=', 'processed')
+                                            ->orderByDesc('id')
+                                            ->limit(1)
+                                            ->update([
+                                                'status' => 'processed',
+                                                'allocation_status' => 'auto_matched',
+                                            ]);
+                                    }
+                                }
+
                                 $webhook->markAsProcessed(
                                     'Parent wallet credited; applied_to_fees='.($walletResult['applied_to_fees'] ?? 0)
                                 );

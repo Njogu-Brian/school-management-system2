@@ -25,7 +25,6 @@ const TILES: Array<{
     | 'ChildHomework'
     | 'StudentStatement'
     | 'Transport'
-    | 'LiveBusTrack'
     | 'DiaryChat'
     | 'RaiseConcern';
 }> = [
@@ -34,7 +33,7 @@ const TILES: Array<{
   { label: 'Homework', icon: 'book-outline', tone: 'amber', route: 'ChildHomework' },
   { label: 'Fees', icon: 'cash-outline', tone: 'blue', route: 'StudentStatement' },
   { label: 'Transport', icon: 'bus-outline', tone: 'cyan', route: 'Transport' },
-  { label: 'Track bus', icon: 'navigate-outline', tone: 'blue', route: 'LiveBusTrack' },
+  // Live bus tracking hidden until the feature is production-ready.
   { label: 'Diary', icon: 'chatbubbles-outline', tone: 'violet', route: 'DiaryChat' },
   { label: 'Raise concern', icon: 'alert-circle-outline', tone: 'rose', route: 'RaiseConcern' },
 ];

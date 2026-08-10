@@ -135,6 +135,8 @@ export const CommunicationDashboardScreen: React.FC<Props> = ({ navigation }) =>
             <QuickAction label="Announcements" icon="megaphone-outline" onPress={openAnnouncements} />
             <QuickAction label="SMS history" icon="list-outline" onPress={() => navigation.navigate('SmsHistory')} />
             <QuickAction label="Templates" icon="document-text-outline" onPress={() => navigation.navigate('TemplatesList')} />
+            <QuickAction label="App adoption" icon="people-outline" onPress={() => navigation.navigate('AppAdoption')} />
+            <QuickAction label="Crash logs" icon="bug-outline" onPress={() => navigation.navigate('AppIssues')} />
           </View>
         </DashboardSection>
 

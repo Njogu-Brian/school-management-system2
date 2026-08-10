@@ -1,7 +1,9 @@
-import type { StaffDetail } from '@erp/core';
-import { StaffFieldSection } from '@erp/ui';
-import React from 'react';
+import { staffApi, type StaffDetail } from '@erp/core';
+import { Button, StaffFieldSection, useTheme } from '@erp/ui';
+import React, { useState } from 'react';
+import { Text, View } from 'react-native';
 import { capitalizeStatus } from '../utils/formatters';
+import { confirmAction, showError, showSuccess } from '../../../shared/utils/feedback';
 
 export interface EmploymentTabProps {
   staff: StaffDetail;
@@ -9,8 +11,60 @@ export interface EmploymentTabProps {
 }
 
 export const EmploymentTab: React.FC<EmploymentTabProps> = ({ staff, canViewFinance }) => {
+  const { spacing, palette, typography } = useTheme();
+  const [busy, setBusy] = useState(false);
   const exemptions =
     staff.statutoryExemptions.length > 0 ? staff.statutoryExemptions.join(', ') : null;
+
+  const resetAndShare = (option: 'id_number' | 'random') => {
+    confirmAction(
+      'Reset login password',
+      option === 'id_number'
+        ? 'Reset password to ID number and show it so you can share with the staff member?'
+        : 'Generate a random temporary password and show it for sharing?',
+      'Reset',
+      async () => {
+        setBusy(true);
+        try {
+          const res = await staffApi.resetPassword(staff.id, {
+            password_option: option,
+            share: true,
+          });
+          if (!res.success || !res.data) throw new Error(res.message || 'Reset failed.');
+          showSuccess(
+            'Password reset',
+            `Login: ${res.data.login}\nTemporary password: ${res.data.temporary_password}\nThey must change it on next sign-in. App PIN stays on their device — they can reset it in Settings.`,
+          );
+        } catch (err) {
+          showError('Reset failed', err instanceof Error ? err.message : 'Could not reset password.');
+        } finally {
+          setBusy(false);
+        }
+      },
+      true,
+    );
+  };
+
+  const resend = () => {
+    confirmAction(
+      'Resend credentials',
+      'Send login details via configured email/SMS templates?',
+      'Send',
+      async () => {
+        setBusy(true);
+        try {
+          const res = await staffApi.resendCredentials(staff.id);
+          if (!res.success) throw new Error(res.message || 'Send failed.');
+          showSuccess('Sent', res.message ?? 'Credentials shared where templates allow.');
+        } catch (err) {
+          showError('Send failed', err instanceof Error ? err.message : 'Could not resend credentials.');
+        } finally {
+          setBusy(false);
+        }
+      },
+      true,
+    );
+  };
 
   return (
     <>
@@ -51,6 +105,30 @@ export const EmploymentTab: React.FC<EmploymentTabProps> = ({ staff, canViewFina
           { label: 'Address', value: staff.residentialAddress },
         ]}
       />
+
+      <View style={{ marginBottom: spacing.md }}>
+        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
+          Login credentials
+        </Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+          Reset or share portal/app login password. Device app PIN is managed by the user in Settings (not stored on the server).
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <Button
+            label="Reset to ID number"
+            variant="secondary"
+            loading={busy}
+            onPress={() => resetAndShare('id_number')}
+          />
+          <Button
+            label="Reset random password"
+            variant="secondary"
+            loading={busy}
+            onPress={() => resetAndShare('random')}
+          />
+          <Button label="Resend credentials" variant="ghost" loading={busy} onPress={resend} />
+        </View>
+      </View>
 
       <StaffFieldSection
         title="Emergency contact"

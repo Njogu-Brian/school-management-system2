@@ -1,4 +1,14 @@
-import { useCurrentUser, useInfiniteStudentList, studentsApi, financeApi, useStudentStats, useUnreadNotificationCount } from '@erp/core';
+import {
+  timeOfDayGreeting,
+  useCurrentUser,
+  useInfiniteStudentList,
+  studentsApi,
+  financeApi,
+  useStudentStats,
+  useUnreadNotificationCount,
+  useStudentReportCards,
+  type ReportCardListRecord,
+} from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
@@ -9,6 +19,7 @@ import {
   ScreenContainer,
   SkeletonListRows,
   Soft3DIcon,
+  StatusBadge,
   useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
@@ -44,9 +55,132 @@ const SCHOOL_ACTIONS: Array<{
   { label: 'Raise concern', icon: 'alert-circle-outline', route: 'ConcernsList' },
 ];
 
+function FamilyFeesCard({
+  studentIds,
+  onPressFees,
+}: {
+  studentIds: number[];
+  onPressFees: () => void;
+}) {
+  const { palette, spacing, typography, radius, colors } = useTheme();
+  // Hooks can't be called in a loop — support up to 4 children on the home snapshot.
+  const s0 = useStudentStats(studentIds[0] ?? 0, { enabled: (studentIds[0] ?? 0) > 0 });
+  const s1 = useStudentStats(studentIds[1] ?? 0, { enabled: (studentIds[1] ?? 0) > 0 });
+  const s2 = useStudentStats(studentIds[2] ?? 0, { enabled: (studentIds[2] ?? 0) > 0 });
+  const s3 = useStudentStats(studentIds[3] ?? 0, { enabled: (studentIds[3] ?? 0) > 0 });
+
+  const { due, upcoming, loading } = useMemo(() => {
+    const rows = [s0, s1, s2, s3].slice(0, studentIds.length);
+    let dueSum = 0;
+    let upcomingSum = 0;
+    let anyLoading = false;
+    for (const row of rows) {
+      if (row.isLoading) anyLoading = true;
+      dueSum += Number(row.data?.fees_due ?? row.data?.fees_balance ?? 0);
+      upcomingSum += Number(row.data?.fees_upcoming ?? 0);
+    }
+    return { due: dueSum, upcoming: upcomingSum, loading: anyLoading };
+  }, [s0, s1, s2, s3, studentIds.length]);
+
+  return (
+    <Pressable
+      onPress={onPressFees}
+      style={{
+        backgroundColor: palette.surface,
+        borderColor: palette.border,
+        borderWidth: 1,
+        borderRadius: radius.lg,
+        padding: spacing.md,
+        marginBottom: spacing.sm,
+      }}
+    >
+      <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
+        School fees
+      </Text>
+      <View style={{ flexDirection: 'row', gap: spacing.md }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+            Current due
+          </Text>
+          <Text style={{ color: colors.primary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
+            {loading ? '…' : formatKes(due)}
+          </Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+            Upcoming
+          </Text>
+          <Text style={{ color: palette.textPrimary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
+            {loading ? '…' : formatKes(upcoming)}
+          </Text>
+        </View>
+      </View>
+      <Text style={{ color: palette.textMuted, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
+        Due = current / open term · Upcoming = next term before opening
+      </Text>
+    </Pressable>
+  );
+}
+
+function ChildResultsSnapshot({
+  studentId,
+  studentName,
+  onOpen,
+}: {
+  studentId: number;
+  studentName: string;
+  onOpen: (card: ReportCardListRecord) => void;
+}) {
+  const { palette, spacing, typography, radius } = useTheme();
+  const reportCards = useStudentReportCards(studentId, { enabled: studentId > 0 });
+  const published = useMemo(
+    () => (reportCards.data ?? []).filter((c) => c.status === 'published').slice(0, 2),
+    [reportCards.data],
+  );
+
+  if (reportCards.isLoading || published.length === 0) return null;
+
+  return (
+    <View style={{ marginBottom: spacing.sm }}>
+      {published.map((card) => (
+        <Pressable
+          key={card.id}
+          onPress={() => onOpen(card)}
+          style={{
+            backgroundColor: palette.surface,
+            borderColor: palette.border,
+            borderWidth: 1,
+            borderRadius: radius.lg,
+            padding: spacing.md,
+            marginBottom: spacing.sm,
+          }}
+        >
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flex: 1, paddingRight: spacing.sm }}>
+              <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
+                {studentName} · {card.class_name ?? 'Report card'}
+              </Text>
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+                Term {card.term_name ?? `Term ${card.term_id}`}
+                {card.generated_at || card.updated_at
+                  ? ` · ${formatShortDate(card.generated_at ?? card.updated_at)}`
+                  : ''}
+              </Text>
+            </View>
+            <StatusBadge
+              label={card.access_locked ? 'Fees due' : 'Published'}
+              tone={card.access_locked ? 'warning' : 'success'}
+            />
+          </View>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export const ParentHomeScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { spacing } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const navigation = useNavigation<Nav>();
   const tabClearance = useFloatingTabBarClearance();
   const unreadQuery = useUnreadNotificationCount();
@@ -55,10 +189,16 @@ export const ParentHomeScreen: React.FC = () => {
     classroomId: null,
     streamId: null,
     status: 'active',
-    perPage: 1,
+    perPage: 8,
   });
 
-  const childrenCount = childrenQuery.data?.pages[0]?.total ?? 0;
+  const children = useMemo(
+    () => childrenQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [childrenQuery.data],
+  );
+  const childrenCount = childrenQuery.data?.pages[0]?.total ?? children.length;
+  const studentIds = useMemo(() => children.map((c) => c.id).slice(0, 4), [children]);
+
   const meta = useMemo(() => {
     const parts: string[] = [];
     if (childrenCount > 0) parts.push(`${childrenCount} ${childrenCount === 1 ? 'child' : 'children'}`);
@@ -71,12 +211,58 @@ export const ParentHomeScreen: React.FC = () => {
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="people"
-        greeting="Welcome back"
+        greeting={timeOfDayGreeting(user?.name)}
         userName={user?.name ?? 'Parent'}
         title="Parent portal"
         subtitle="Track fees, attendance, and school updates for your children"
         meta={meta}
       />
+
+      <DashboardSection title="Fees snapshot">
+        {childrenQuery.isLoading ? (
+          <SkeletonListRows count={1} />
+        ) : studentIds.length === 0 ? (
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+            Link a child to see due and upcoming fees.
+          </Text>
+        ) : (
+          <FamilyFeesCard studentIds={studentIds} onPressFees={() => navigation.navigate('FeesHome')} />
+        )}
+      </DashboardSection>
+
+      <DashboardSection title="Current results">
+        {childrenQuery.isLoading ? (
+          <SkeletonListRows count={2} />
+        ) : children.length === 0 ? (
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+            Published report cards will appear here.
+          </Text>
+        ) : (
+          <>
+            {children.slice(0, 4).map((child) => (
+              <ChildResultsSnapshot
+                key={child.id}
+                studentId={child.id}
+                studentName={child.fullName}
+                onOpen={(card) =>
+                  navigation.navigate('ReportCardDetail', {
+                    studentId: child.id,
+                    reportCardId: card.id,
+                  })
+                }
+              />
+            ))}
+            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+              Tap a published report card to view it, or open Academic for the full list.
+            </Text>
+            <Button
+              label="View all results"
+              variant="secondary"
+              onPress={() => navigation.navigate('AcademicHome')}
+            />
+          </>
+        )}
+      </DashboardSection>
 
       <DashboardSection title="Children & fees">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
@@ -185,7 +371,8 @@ function ChildFeeCard({
   >([]);
   const [showInvoices, setShowInvoices] = useState(false);
 
-  const balance = stats.data?.fees_balance;
+  const balanceDue = stats.data?.fees_due ?? stats.data?.fees_balance ?? 0;
+  const balanceUpcoming = stats.data?.fees_upcoming ?? 0;
 
   const openPayLink = async () => {
     setLoadingLink(true);
@@ -240,10 +427,16 @@ function ChildFeeCard({
       </Pressable>
 
       <Text style={{ color: palette.textSecondary, marginTop: spacing.md, fontSize: typography.caption.fontSize }}>
-        Outstanding balance
+        Current due
       </Text>
       <Text style={{ color: colors.primary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
-        {stats.isLoading ? '…' : formatKes(balance)}
+        {stats.isLoading ? '…' : formatKes(balanceDue)}
+      </Text>
+      <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
+        Upcoming
+      </Text>
+      <Text style={{ color: palette.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 2 }}>
+        {stats.isLoading ? '…' : formatKes(balanceUpcoming)}
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
@@ -258,7 +451,7 @@ function ChildFeeCard({
           onPress={() =>
             navigation.navigate('MpesaPrompt', {
               studentId,
-              amount: typeof balance === 'number' && balance > 0 ? balance : undefined,
+              amount: typeof balanceDue === 'number' && balanceDue > 0 ? balanceDue : undefined,
             })
           }
         />

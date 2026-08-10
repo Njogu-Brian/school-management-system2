@@ -19,13 +19,13 @@ import {
   ConfirmDialog,
   EmptyState,
   FinanceFieldSection,
+  PinKeypad,
   ScreenContainer,
-  TextField,
   useTheme,
 } from '@erp/ui';
 import Constants from 'expo-constants';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 import { formatDateTimeLabel } from '../../shared/utils/formatters';
 import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
@@ -40,7 +40,10 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
   const [signOutVisible, setSignOutVisible] = useState(false);
   const [pinOn, setPinOn] = useState(false);
   const [remembered, setRemembered] = useState<string | null>(null);
+  const [pinSetupOpen, setPinSetupOpen] = useState(false);
+  const [pinStep, setPinStep] = useState<'create' | 'confirm'>('create');
   const [pinDraft, setPinDraft] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
   const [pinBusy, setPinBusy] = useState(false);
   const { palette, spacing, typography, radius, elevation, colors, isDark, toggleTheme, themeMode, setThemeMode } =
     useTheme();
@@ -63,17 +66,43 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
     void getRememberedUsername().then(setRemembered);
   }, []);
 
-  const savePinFromDraft = async () => {
-    if (!/^\d+$/.test(pinDraft) || pinDraft.length < PIN_MIN_LENGTH || pinDraft.length > PIN_MAX_LENGTH) {
-      showError('Invalid PIN', `Use ${PIN_MIN_LENGTH}–${PIN_MAX_LENGTH} digits.`);
+  const activePin = pinStep === 'create' ? pinDraft : pinConfirm;
+  const setActivePin = pinStep === 'create' ? setPinDraft : setPinConfirm;
+
+  const onPinKey = (key: string) => {
+    if (key === '⌫') {
+      setActivePin((v) => v.slice(0, -1));
+      return;
+    }
+    setActivePin((v) => (v.length >= PIN_MAX_LENGTH ? v : v + key));
+  };
+
+  const closePinSetup = () => {
+    setPinSetupOpen(false);
+    setPinStep('create');
+    setPinDraft('');
+    setPinConfirm('');
+  };
+
+  const savePin = async () => {
+    if (pinStep === 'create') {
+      if (pinDraft.length < PIN_MIN_LENGTH) return;
+      setPinStep('confirm');
+      return;
+    }
+    if (pinDraft !== pinConfirm) {
+      showError('PIN mismatch', 'The PINs do not match. Try again.');
+      setPinDraft('');
+      setPinConfirm('');
+      setPinStep('create');
       return;
     }
     setPinBusy(true);
     try {
-      await enablePin(pinDraft);
-      setPinDraft('');
+      await enablePin(pinConfirm);
       setPinOn(true);
       setRemembered(await getRememberedUsername());
+      closePinSetup();
       showSuccess('PIN saved', 'You can unlock with your PIN next time.');
     } catch (err) {
       showError('PIN', err instanceof Error ? err.message : 'Could not save PIN.');
@@ -81,6 +110,12 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
       setPinBusy(false);
     }
   };
+
+  const pinDots = useMemo(
+    () =>
+      Array.from({ length: Math.max(activePin.length, PIN_MIN_LENGTH) }, (_, i) => i < activePin.length),
+    [activePin.length],
+  );
 
   const deviceName = Constants.deviceName ?? 'This device';
 
@@ -98,6 +133,12 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
   return (
     <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
       {onBack ? <AcademicScreenHeader title="Session & security" onBack={onBack} /> : null}
+      <Button
+        label="Sign out"
+        variant="destructive"
+        onPress={forceReauth}
+        style={{ marginBottom: spacing.md }}
+      />
       <FinanceFieldSection
         title="Appearance"
         rows={[
@@ -218,34 +259,85 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
         Status: {pinOn ? 'On' : 'Off'}
         {remembered ? ` · Remembered user: ${remembered}` : ''}
       </Text>
-      <TextField
-        label={`${pinOn ? 'Change' : 'Create'} PIN (${PIN_MIN_LENGTH}–${PIN_MAX_LENGTH} digits)`}
-        value={pinDraft}
-        onChangeText={(t) => setPinDraft(t.replace(/\D/g, '').slice(0, PIN_MAX_LENGTH))}
-        keyboardType="number-pad"
-        secureTextEntry
-        placeholder="••••"
-      />
-      <Button
-        label={pinOn ? 'Update PIN' : 'Save PIN'}
-        onPress={() => void savePinFromDraft()}
-        loading={pinBusy}
-        style={{ marginTop: spacing.sm }}
-      />
-      {pinOn ? (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         <Button
-          label="Remove PIN"
-          variant="ghost"
-          onPress={() =>
-            confirmAction('Remove PIN', 'You will need your password next time.', 'Remove', async () => {
-              await disablePin();
-              setPinOn(false);
-              showSuccess('PIN removed', 'PIN unlock is off.');
-            }, true)
-          }
-          style={{ marginTop: spacing.xs }}
+          label={pinOn ? 'Change PIN' : 'Create PIN'}
+          onPress={() => setPinSetupOpen(true)}
         />
-      ) : null}
+        {pinOn ? (
+          <Button
+            label="Remove PIN"
+            variant="ghost"
+            onPress={() =>
+              confirmAction('Remove PIN', 'You will need your password next time.', 'Remove', async () => {
+                await disablePin();
+                setPinOn(false);
+                showSuccess('PIN removed', 'PIN unlock is off.');
+              }, true)
+            }
+          />
+        ) : null}
+      </View>
+
+      <Modal visible={pinSetupOpen} transparent animationType="fade" onRequestClose={closePinSetup}>
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            justifyContent: 'center',
+            padding: spacing.lg,
+          }}
+          onPress={closePinSetup}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: palette.surface,
+              borderRadius: radius.card,
+              padding: spacing.lg,
+              alignItems: 'center',
+              maxHeight: '80%',
+            }}
+          >
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.headline.fontSize }}>
+            {pinStep === 'create' ? 'Create a PIN' : 'Confirm your PIN'}
+          </Text>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              textAlign: 'center',
+              marginTop: spacing.sm,
+              marginBottom: spacing.lg,
+              fontSize: typography.caption.fontSize,
+            }}
+          >
+            {PIN_MIN_LENGTH}–{PIN_MAX_LENGTH} digits · unlock Admin without retyping your password
+          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: spacing.lg }}>
+            {pinDots.map((filled, i) => (
+              <View
+                key={i}
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 6,
+                  backgroundColor: filled ? colors.primary : palette.border,
+                }}
+              />
+            ))}
+          </View>
+          <PinKeypad onKey={onPinKey} disabled={pinBusy} density="compact" />
+          <Button
+            label={pinStep === 'create' ? 'Continue' : 'Save PIN'}
+            onPress={() => void savePin()}
+            loading={pinBusy}
+            disabled={activePin.length < PIN_MIN_LENGTH}
+            style={{ marginTop: spacing.lg, alignSelf: 'stretch' }}
+          />
+          <Button label="Cancel" variant="ghost" onPress={closePinSetup} disabled={pinBusy} />
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Text
         style={{
@@ -425,12 +517,6 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
           )
         }
         style={{ marginTop: spacing.md }}
-      />
-      <Button
-        label="Force re-authentication"
-        variant="ghost"
-        onPress={forceReauth}
-        style={{ marginTop: spacing.sm }}
       />
 
       <ConfirmDialog

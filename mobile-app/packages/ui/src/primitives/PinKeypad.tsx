@@ -9,27 +9,39 @@ export interface PinKeypadProps {
   disabled?: boolean;
   /** Dark translucent keys for login chrome */
   variant?: 'default' | 'onDark';
+  /** Compact keys for sheets / settings (default). Use `comfortable` only on full-screen PIN flows. */
+  density?: 'compact' | 'comfortable';
 }
 
 /**
- * 3-column PIN pad with equal square keys (avoids wrap/gap misalignment).
+ * 3-column PIN pad with capped circular keys so it never fills the screen.
  */
-export const PinKeypad: React.FC<PinKeypadProps> = ({ onKey, disabled = false, variant = 'default' }) => {
-  const { palette, radius, spacing } = useTheme();
+export const PinKeypad: React.FC<PinKeypadProps> = ({
+  onKey,
+  disabled = false,
+  variant = 'default',
+  density = 'compact',
+}) => {
+  const { palette, spacing } = useTheme();
   const { width } = useWindowDimensions();
-  const padWidth = Math.min(320, width - spacing.lg * 2);
-  const gap = 10;
-  const keySize = Math.floor((padWidth - gap * 2) / 3);
+  const maxPad = density === 'comfortable' ? 280 : 240;
+  const padWidth = Math.min(maxPad, width - spacing.lg * 2);
+  const gap = density === 'comfortable' ? 12 : 10;
+  const rawSize = Math.floor((padWidth - gap * 2) / 3);
+  const keySize = Math.min(density === 'comfortable' ? 68 : 56, rawSize);
+  const fontSize = density === 'comfortable' ? 22 : 20;
 
   const onDark = variant === 'onDark';
 
   return (
-    <View style={[styles.pad, { width: padWidth, gap }]}>
+    <View style={[styles.pad, { width: keySize * 3 + gap * 2, gap }]}>
       {KEYS.map((key, idx) => {
         const empty = !key;
         return (
           <Pressable
             key={`${key}-${idx}`}
+            accessibilityRole="button"
+            accessibilityLabel={key === '⌫' ? 'Delete' : key || undefined}
             onPress={() => {
               if (!empty && !disabled) onKey(key);
             }}
@@ -39,7 +51,7 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({ onKey, disabled = false, v
               {
                 width: keySize,
                 height: keySize,
-                borderRadius: radius.lg,
+                borderRadius: keySize / 2,
                 backgroundColor: empty
                   ? 'transparent'
                   : onDark
@@ -54,21 +66,19 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({ onKey, disabled = false, v
               },
             ]}
           >
-            <Text
-              style={{
-                color: onDark ? '#fff' : palette.textPrimary,
-                fontSize: 22,
-                fontWeight: '600',
-                textAlign: 'center',
-                textAlignVertical: 'center',
-                includeFontPadding: false,
-                lineHeight: keySize,
-                width: '100%',
-                height: keySize,
-              }}
-            >
-              {key}
-            </Text>
+            {!empty ? (
+              <Text
+                style={{
+                  color: onDark ? '#fff' : palette.textPrimary,
+                  fontSize,
+                  fontWeight: '600',
+                  textAlign: 'center',
+                  includeFontPadding: false,
+                }}
+              >
+                {key}
+              </Text>
+            ) : null}
           </Pressable>
         );
       })}

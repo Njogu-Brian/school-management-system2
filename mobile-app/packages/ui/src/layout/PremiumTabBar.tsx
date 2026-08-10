@@ -1,8 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Soft3DIcon, type Soft3DTone } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
@@ -23,43 +28,71 @@ export interface PremiumTabBarProps {
 
 const DEFAULT_TONES: Soft3DTone[] = ['blue', 'indigo', 'emerald', 'cyan'];
 
-/**
- * Height of the floating tab chrome (Soft3D icons + labels + vertical padding),
- * excluding the device home-indicator / nav inset.
- * Keep in sync with Soft3D icon sizes (up to ~40) + label + bar padding.
- */
 export const FLOATING_TAB_BAR_BODY_HEIGHT = 96;
-/** Extra gap so last content never sits flush against the bar. */
 export const FLOATING_TAB_BAR_CUSHION = 32;
-
-/**
- * Static fallback for non-hook contexts (lists, tests). Prefer
- * `useFloatingTabBarClearance()` in components so safe-area is included.
- */
 export const FLOATING_TAB_BAR_CLEARANCE =
   FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + 48;
 
-/**
- * Bottom inset so scroll content / FABs / sticky footers clear the floating tab bar
- * and the device system navigation / gesture bar.
- * Always includes safe-area (home indicator / 3-button nav).
- */
 export function useFloatingTabBarClearance(_includeSafeArea = true): number {
   const insets = useSafeAreaInsets();
   const safe = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 8);
   return FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + safe;
 }
 
+/**
+ * Floating liquid-style tab bar — active tab lifts with a soft pill indicator
+ * that slides under the focused icon (no detached circle overlay).
+ */
 export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, onTabPress }) => {
-  const { palette, spacing, typography, radius, elevation, isDark } = useTheme();
+  const { palette, spacing, typography, radius, elevation, isDark, colors } = useTheme();
   const insets = useSafeAreaInsets();
   const compact = items.length >= 6;
   const focusedSize = compact ? 34 : 40;
   const idleSize = compact ? 28 : 34;
   const labelSize = compact ? Math.max(9, typography.tiny.fontSize - 1) : typography.tiny.fontSize;
+  const activeIndex = Math.max(
+    0,
+    items.findIndex((i) => i.key === activeKey),
+  );
+  const indicatorX = useSharedValue(0);
+  const [barWidth, setBarWidth] = React.useState(0);
+  const pillWidth = compact ? 44 : 52;
+
+  useEffect(() => {
+    if (barWidth <= 0 || items.length === 0) return;
+    const slot = barWidth / items.length;
+    indicatorX.value = withSpring(slot * activeIndex + slot / 2 - pillWidth / 2, {
+      damping: 20,
+      stiffness: 220,
+    });
+  }, [activeIndex, barWidth, items.length, indicatorX, pillWidth]);
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: indicatorX.value }],
+  }));
 
   const barBody = (
-    <View style={[styles.barInner, { paddingVertical: spacing.sm, paddingHorizontal: compact ? 2 : 4 }]}>
+    <View
+      style={[styles.barInner, { paddingVertical: spacing.sm, paddingHorizontal: compact ? 2 : 4 }]}
+      onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+    >
+      {barWidth > 0 && activeKey ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.liquidPill,
+            indicatorStyle,
+            {
+              width: pillWidth,
+              height: pillWidth,
+              borderRadius: pillWidth / 2,
+              backgroundColor: isDark ? 'rgba(75,159,255,0.22)' : 'rgba(0,74,153,0.12)',
+              borderColor: isDark ? 'rgba(75,159,255,0.45)' : `${colors.primary}55`,
+            },
+          ]}
+        />
+      ) : null}
+
       {items.map((item, index) => {
         const focused = item.key === activeKey;
         const iconName = (focused
@@ -117,6 +150,7 @@ export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, 
             marginHorizontal: spacing.md,
             borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.65)',
             overflow: 'hidden',
+            backgroundColor: isDark ? 'rgba(21,26,36,0.92)' : 'rgba(255,255,255,0.92)',
           },
         ]}
       >
@@ -144,7 +178,6 @@ export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, 
   );
 };
 
-/** Style helpers when using default RN tab bar as fallback. */
 export function getPremiumTabBarOptions(theme: {
   palette: {
     surfaceRaised: string;
@@ -181,17 +214,27 @@ const styles = StyleSheet.create({
   },
   barInner: {
     flexDirection: 'row',
+    position: 'relative',
   },
   item: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 58,
+    zIndex: 2,
   },
   activeLift: {
+    transform: [{ translateY: -2 }],
     shadowColor: '#004A99',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.22,
     shadowRadius: 8,
+  },
+  liquidPill: {
+    position: 'absolute',
+    top: 6,
+    left: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    zIndex: 1,
   },
 });

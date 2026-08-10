@@ -13,14 +13,21 @@ import { showError } from '../../shared/utils/feedback';
 
 type Props = {
   onUsePassword: () => void;
+  variant?: 'default' | 'onDark';
+  hidePasswordLink?: boolean;
 };
 
-export const PinUnlockPanel: React.FC<Props> = ({ onUsePassword }) => {
+export const PinUnlockPanel: React.FC<Props> = ({
+  onUsePassword,
+  variant = 'default',
+  hidePasswordLink = false,
+}) => {
   const { unlockWithPin, submitting } = useAuth();
-  const { spacing, typography, colors } = useTheme();
+  const { spacing, typography, colors, palette } = useTheme();
   const [pin, setPin] = useState('');
   const [username, setUsername] = useState<string | null>(null);
   const [available, setAvailable] = useState(false);
+  const onDark = variant === 'onDark';
 
   useEffect(() => {
     void (async () => {
@@ -62,20 +69,22 @@ export const PinUnlockPanel: React.FC<Props> = ({ onUsePassword }) => {
   if (!available) return null;
 
   return (
-    <View style={{ width: '100%', marginBottom: spacing.lg, alignItems: 'center' }}>
-      <Ionicons name="keypad-outline" size={36} color={colors.primaryOnDark ?? colors.primary} />
+    <View style={{ width: '100%', alignItems: 'center' }}>
+      <Ionicons name="keypad-outline" size={28} color={onDark ? '#93c5fd' : colors.primary} />
       <Text
         style={{
-          color: '#fff',
+          color: onDark ? '#fff' : palette.textPrimary,
           fontWeight: '700',
           marginTop: spacing.sm,
           fontSize: typography.body.fontSize,
         }}
       >
-        Unlock with PIN
+        Enter PIN
       </Text>
       {username ? (
-        <Text style={{ color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>{username}</Text>
+        <Text style={{ color: onDark ? 'rgba(255,255,255,0.65)' : palette.textSecondary, marginTop: 4 }}>
+          {username}
+        </Text>
       ) : null}
 
       <View style={{ flexDirection: 'row', gap: 8, marginVertical: spacing.md }}>
@@ -86,13 +95,19 @@ export const PinUnlockPanel: React.FC<Props> = ({ onUsePassword }) => {
               width: 10,
               height: 10,
               borderRadius: 5,
-              backgroundColor: filled ? colors.primary : 'rgba(255,255,255,0.25)',
+              backgroundColor: filled
+                ? onDark
+                  ? '#4B9FFF'
+                  : colors.primary
+                : onDark
+                  ? 'rgba(255,255,255,0.28)'
+                  : palette.border,
             }}
           />
         ))}
       </View>
 
-      <PinKeypad onKey={onKey} disabled={submitting} variant="onDark" />
+      <PinKeypad onKey={onKey} disabled={submitting} variant={variant} density="compact" />
 
       <Button
         label="Unlock"
@@ -101,9 +116,13 @@ export const PinUnlockPanel: React.FC<Props> = ({ onUsePassword }) => {
         disabled={pin.length < PIN_MIN_LENGTH || submitting}
         style={{ marginTop: spacing.md, alignSelf: 'stretch' }}
       />
-      <Pressable onPress={onUsePassword} style={{ marginTop: spacing.sm, alignItems: 'center' }}>
-        <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Use password instead</Text>
-      </Pressable>
+      {!hidePasswordLink ? (
+        <Pressable onPress={onUsePassword} style={{ marginTop: spacing.sm, alignItems: 'center' }}>
+          <Text style={{ color: onDark ? 'rgba(255,255,255,0.7)' : palette.textSecondary, fontWeight: '600' }}>
+            Use password instead
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 };

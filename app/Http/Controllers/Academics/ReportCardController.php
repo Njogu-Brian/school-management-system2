@@ -328,7 +328,7 @@ class ReportCardController extends Controller
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['integer', 'exists:report_cards,id'],
             'channels' => ['required', 'array', 'min:1'],
-            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
+            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp', 'app'])],
         ]);
 
         $result = $publishService->publishMany(
@@ -353,7 +353,7 @@ class ReportCardController extends Controller
             'classroom_id' => 'required|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
             'channels' => ['required', 'array', 'min:1'],
-            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
+            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp', 'app'])],
         ]);
 
         $ids = ReportCard::query()
@@ -537,7 +537,7 @@ class ReportCardController extends Controller
             'stream_id'        => 'nullable|exists:streams,id',
             'publish_and_notify' => 'nullable|boolean',
             'channels' => ['nullable', 'array'],
-            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
+            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp', 'app'])],
         ]);
 
         $classroomIds = collect($v['classroom_ids'])

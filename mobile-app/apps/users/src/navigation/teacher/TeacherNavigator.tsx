@@ -79,6 +79,8 @@ function TeacherTabs() {
           <UsersAppHeaderChrome
             title={TAB_TITLES[route.name] ?? route.name}
             onMenuPress={() => navigation.navigate('More' as never)}
+            onSearchPress={() => navigation.navigate('More' as never)}
+            searchPrompt="Search menu…"
           />
         ),
       })}

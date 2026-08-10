@@ -1,4 +1,4 @@
-import { apiClient, useCurrentUser, useStudentReportCards, useUnreadNotificationCount } from '@erp/core';
+import { apiClient, timeOfDayGreeting, useCurrentUser, useStudentReportCards, useUnreadNotificationCount } from '@erp/core';
 import {
   AcademicScreenHeader,
   DashboardHero,
@@ -45,7 +45,7 @@ export const StudentHomeScreen: React.FC = () => {
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="academics"
-        greeting="Welcome back"
+        greeting={timeOfDayGreeting(user?.name)}
         userName={user?.name ?? 'Student'}
         title="Student portal"
         subtitle="Homework, results, and school updates"

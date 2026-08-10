@@ -30,7 +30,7 @@ class CommunicationDocumentController extends Controller
     {
         $data = $request->validate([
             'channels' => ['required', 'array', 'min:1'],
-            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
+            'channels.*' => [Rule::in(['sms', 'email', 'whatsapp', 'app'])],
             'type'    => ['required', Rule::in(['invoice', 'receipt', 'statement', 'family_statement', 'report_card'])],
             'ids'     => ['required', 'array', 'min:1'],
             'ids.*'   => ['integer'],
@@ -67,6 +67,27 @@ class CommunicationDocumentController extends Controller
 
             // Send via each selected channel
             foreach ($channels as $channel) {
+                if ($channel === 'app') {
+                    $appTitle = $title ?: $subject;
+                    $appBody = \Illuminate\Support\Str::limit(trim(strip_tags($message))."\n".$viewLink, 500);
+                    $result = app(\App\Services\AppChannelNotifyService::class)->notifyParentsForStudent(
+                        $student,
+                        $appTitle,
+                        $appBody,
+                        [
+                            'document_type' => $type,
+                            'document_id' => $id,
+                            'deep_link' => $viewLink,
+                        ]
+                    );
+                    if (($result['notified'] ?? 0) > 0) {
+                        $sent++;
+                    } else {
+                        $failed++;
+                    }
+                    continue;
+                }
+
                 $recipients = CommunicationHelperService::collectRecipients([
                     'target'     => 'student',
                     'student_id' => $student->id,

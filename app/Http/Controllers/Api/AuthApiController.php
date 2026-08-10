@@ -45,6 +45,7 @@ class AuthApiController extends Controller
 
         $expiresAt = now()->addDays(7);
         $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
+        $user->markAppLogin();
 
         return response()->json([
             'success' => true,
@@ -108,6 +109,7 @@ class AuthApiController extends Controller
         $user->tokens()->delete();
         $expiresAt = now()->addDays(7);
         $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
+        $user->markAppLogin();
 
         return response()->json([
             'success' => true,
@@ -194,6 +196,7 @@ class AuthApiController extends Controller
         $user->tokens()->delete();
         $expiresAt = now()->addDays(7);
         $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
+        $user->markAppLogin();
 
         return response()->json([
             'success' => true,

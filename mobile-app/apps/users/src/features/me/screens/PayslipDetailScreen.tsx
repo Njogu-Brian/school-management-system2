@@ -24,6 +24,14 @@ function money(n: number | null | undefined): string {
   return formatFinanceAmount(n);
 }
 
+function activeMoneyRows(
+  rows: Array<{ label: string; value: number | null | undefined; always?: boolean }>,
+): Array<{ label: string; value: string }> {
+  return rows
+    .filter((r) => r.always || (typeof r.value === 'number' && Math.abs(r.value) > 0.0001))
+    .map((r) => ({ label: r.label, value: money(r.value) }));
+}
+
 /**
  * Full payslip breakdown — mirrors Admin `PayrollDetailScreen` for staff self-service.
  */
@@ -110,30 +118,30 @@ export const PayslipDetailScreen: React.FC = () => {
 
             <FinanceFieldSection
               title="Earnings"
-              rows={[
-                { label: 'Basic salary', value: money(record.basic_salary) },
-                { label: 'Housing', value: money(record.housing_allowance) },
-                { label: 'Transport', value: money(record.transport_allowance) },
-                { label: 'Medical', value: money(record.medical_allowance) },
-                { label: 'Other allowances', value: money(record.other_allowances) },
-                { label: 'Bonus', value: money(record.bonus) },
-                { label: 'Gross salary', value: money(record.gross_salary) },
-              ]}
+              rows={activeMoneyRows([
+                { label: 'Basic salary', value: record.basic_salary, always: true },
+                { label: 'Housing', value: record.housing_allowance },
+                { label: 'Transport', value: record.transport_allowance },
+                { label: 'Medical', value: record.medical_allowance },
+                { label: 'Other allowances', value: record.other_allowances },
+                { label: 'Bonus', value: record.bonus },
+                { label: 'Gross salary', value: record.gross_salary, always: true },
+              ])}
             />
 
             <FinanceFieldSection
               title="Deductions"
-              rows={[
-                { label: 'NSSF', value: money(record.nssf_deduction) },
-                { label: 'NHIF', value: money(record.nhif_deduction) },
-                { label: 'SHIF', value: money(record.shif_deduction) },
-                { label: 'PAYE', value: money(record.paye_deduction) },
-                { label: 'Housing levy', value: money(record.housing_levy_deduction) },
-                { label: 'Advance', value: money(record.advance_deduction) },
-                { label: 'Custom deductions', value: money(record.custom_deductions_total) },
-                { label: 'Other deductions', value: money(record.other_deductions) },
-                { label: 'Total deductions', value: money(record.deductions) },
-              ]}
+              rows={activeMoneyRows([
+                { label: 'NSSF', value: record.nssf_deduction },
+                { label: 'NHIF', value: record.nhif_deduction },
+                { label: 'SHIF', value: record.shif_deduction },
+                { label: 'PAYE', value: record.paye_deduction },
+                { label: 'Housing levy', value: record.housing_levy_deduction },
+                { label: 'Advance', value: record.advance_deduction },
+                { label: 'Custom deductions', value: record.custom_deductions_total },
+                { label: 'Other deductions', value: record.other_deductions },
+                { label: 'Total deductions', value: record.deductions, always: true },
+              ])}
             />
 
             {(record.notes || record.adjustments_notes) && (

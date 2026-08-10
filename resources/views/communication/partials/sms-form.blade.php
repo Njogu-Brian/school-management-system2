@@ -129,6 +129,16 @@
         <input type="datetime-local" name="send_at" class="form-control" value="{{ old('send_at') }}">
     </div>
 
+    <div class="col-12">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="also_send_app_notification" value="1" id="smsAlsoApp" {{ old('also_send_app_notification') ? 'checked' : '' }}>
+            <label class="form-check-label" for="smsAlsoApp">
+                Also send in-app notification (Users/Admin app + push when devices are registered)
+            </label>
+        </div>
+        <small class="text-muted">Applies to parents/staff with linked app accounts — not custom numbers alone.</small>
+    </div>
+
     <div class="col-12 d-flex justify-content-end gap-2">
         <a href="{{ route('communication.logs') }}" class="btn btn-ghost-strong">Cancel</a>
         <button type="button" class="btn btn-outline-primary" id="preview-sms-btn" style="min-width: 120px;">

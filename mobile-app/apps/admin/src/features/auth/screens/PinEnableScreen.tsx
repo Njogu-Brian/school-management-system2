@@ -92,7 +92,7 @@ export const PinEnableScreen: React.FC = () => {
         ))}
       </View>
 
-      <PinKeypad onKey={onKey} disabled={loading} />
+      <PinKeypad onKey={onKey} disabled={loading} density="compact" />
 
       <Button
         label={step === 'create' ? 'Continue' : 'Save PIN'}

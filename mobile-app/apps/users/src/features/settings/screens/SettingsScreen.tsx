@@ -6,11 +6,19 @@ import {
   PIN_MIN_LENGTH,
   useAuth,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, ConfirmDialog, PinKeypad, ScreenContainer, useTheme } from '@erp/ui';
+import {
+  AcademicScreenHeader,
+  Button,
+  ConfirmDialog,
+  PinKeypad,
+  ScreenContainer,
+  useTheme,
+} from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -19,6 +27,7 @@ const LEGAL_BASE = 'https://erp.royalkingsschools.sc.ke';
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { logout, enablePin } = useAuth();
   const { palette, spacing, typography, radius, themeMode, setThemeMode, colors } = useTheme();
   const { surfaceMode, setSurfaceMode } = useSurfaceModeControl();
@@ -124,35 +133,7 @@ export const SettingsScreen: React.FC = () => {
             No username saved yet — sign in once with password to remember it.
           </Text>
         )}
-        {pinSetupOpen ? (
-          <View style={{ marginBottom: spacing.md }}>
-            <Text style={{ color: palette.textPrimary, fontWeight: '600', marginBottom: spacing.sm }}>
-              {pinStep === 'create' ? 'Enter a new PIN' : 'Confirm your PIN'}
-            </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: spacing.md }}>
-              {pinDots.map((filled, i) => (
-                <View
-                  key={i}
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 5,
-                    backgroundColor: filled ? colors.primary : palette.border,
-                  }}
-                />
-              ))}
-            </View>
-            <PinKeypad onKey={onPinKey} disabled={pinLoading} />
-            <Button
-              label={pinStep === 'create' ? 'Continue' : 'Save PIN'}
-              onPress={() => void savePin()}
-              loading={pinLoading}
-              disabled={activePin.length < PIN_MIN_LENGTH}
-              style={{ marginTop: spacing.sm }}
-            />
-            <Button label="Cancel" variant="ghost" onPress={closePinSetup} disabled={pinLoading} />
-          </View>
-        ) : (
+        {pinSetupOpen ? null : (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
             <Button
               label={pinOn ? 'Change PIN' : 'Enable PIN'}
@@ -165,6 +146,66 @@ export const SettingsScreen: React.FC = () => {
           </View>
         )}
       </View>
+
+      <Modal visible={pinSetupOpen} transparent animationType="fade" onRequestClose={closePinSetup}>
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            justifyContent: 'center',
+            padding: spacing.lg,
+          }}
+          onPress={closePinSetup}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: palette.surface,
+              borderRadius: radius.lg,
+              padding: spacing.lg,
+              alignItems: 'center',
+              maxHeight: '80%',
+            }}
+          >
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.headline.fontSize }}>
+            {pinStep === 'create' ? 'Create a PIN' : 'Confirm your PIN'}
+          </Text>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              textAlign: 'center',
+              marginTop: spacing.sm,
+              marginBottom: spacing.lg,
+              fontSize: typography.caption.fontSize,
+            }}
+          >
+            {PIN_MIN_LENGTH}–{PIN_MAX_LENGTH} digits · used to unlock this app quickly
+          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: spacing.lg }}>
+            {pinDots.map((filled, i) => (
+              <View
+                key={i}
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 6,
+                  backgroundColor: filled ? colors.primary : palette.border,
+                }}
+              />
+            ))}
+          </View>
+          <PinKeypad onKey={onPinKey} disabled={pinLoading} density="compact" />
+          <Button
+            label={pinStep === 'create' ? 'Continue' : 'Save PIN'}
+            onPress={() => void savePin()}
+            loading={pinLoading}
+            disabled={activePin.length < PIN_MIN_LENGTH}
+            style={{ marginTop: spacing.lg, alignSelf: 'stretch' }}
+          />
+          <Button label="Cancel" variant="ghost" onPress={closePinSetup} disabled={pinLoading} />
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <View
         style={{

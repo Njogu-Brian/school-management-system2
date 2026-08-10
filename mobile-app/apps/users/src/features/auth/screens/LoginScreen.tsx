@@ -1,4 +1,12 @@
-import { getRememberedUsername, API_BASE_URL, useAuth, useBiometricAuth, useBranding } from '@erp/core';
+import {
+  getRememberedUsername,
+  getRememberedFirstName,
+  hasPinUnlockAvailable,
+  API_BASE_URL,
+  useAuth,
+  useBiometricAuth,
+  useBranding,
+} from '@erp/core';
 import { Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +32,8 @@ import { PinUnlockPanel } from './PinUnlockPanel';
 import { ParentClaimFlow } from './ParentClaimFlow';
 
 type AuthMode = 'password' | 'otp';
+/** Mutually exclusive unlock UI — never stack biometric + PIN + password. */
+type UnlockSurface = 'quick' | 'pin' | 'password';
 
 type LoginAnnouncement = { id: number; title: string; content: string };
 
@@ -60,8 +70,9 @@ export const LoginScreen: React.FC = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [showCredentialForm, setShowCredentialForm] = useState(false);
-  const [preferPassword, setPreferPassword] = useState(false);
+  const [unlockSurface, setUnlockSurface] = useState<UnlockSurface>('quick');
+  const [pinAvailable, setPinAvailable] = useState(false);
+  const [rememberedFirstName, setRememberedFirstNameState] = useState<string | null>(null);
   const [announcements, setAnnouncements] = useState<LoginAnnouncement[]>([]);
   const [showClaim, setShowClaim] = useState(false);
 
@@ -73,13 +84,15 @@ export const LoginScreen: React.FC = () => {
     void getRememberedUsername().then((name) => {
       if (name) setIdentifier(name);
     });
+    void hasPinUnlockAvailable().then(setPinAvailable);
+    void getRememberedFirstName().then(setRememberedFirstNameState);
   }, []);
 
   useEffect(() => {
-    if (unlockAvailable && !isLocked) {
-      setShowCredentialForm(false);
+    if ((unlockAvailable && !isLocked) || pinAvailable) {
+      setUnlockSurface((s) => (s === 'password' ? s : 'quick'));
     }
-  }, [unlockAvailable, isLocked]);
+  }, [unlockAvailable, isLocked, pinAvailable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +121,17 @@ export const LoginScreen: React.FC = () => {
   const canRequestOtp = identifier.trim().length > 0 && !busy;
   const canVerifyOtp = otpSent && otpCode.trim().length === 6 && !busy;
   const showBackground = Boolean(loginBackgroundUrl) && !bgFailed;
-  const bioFirst = unlockAvailable && !isLocked && !showCredentialForm && !preferPassword;
+  const canQuickUnlock = (unlockAvailable && !isLocked) || pinAvailable;
+  const showQuick = unlockSurface === 'quick' && canQuickUnlock;
+  const showPinOnly = unlockSurface === 'pin' && pinAvailable;
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    const part =
+      hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    if (rememberedFirstName) return `${part}, ${rememberedFirstName}`;
+    return part;
+  }, [rememberedFirstName]);
 
   const gradientStops = useMemo((): [string, string, string] => {
     const primary = branding?.colors?.primary ?? colorOverrides.primary ?? colors.primary;
@@ -150,7 +173,7 @@ export const LoginScreen: React.FC = () => {
         'Biometric sign-in locked',
         'Sign in with your email and password. You can use biometrics again after a successful sign-in.',
       );
-      setShowCredentialForm(true);
+      setUnlockSurface('password');
       return;
     }
     try {
@@ -158,7 +181,7 @@ export const LoginScreen: React.FC = () => {
     } catch (err) {
       showError('Unlock failed', err instanceof Error ? err.message : 'Biometric unlock failed.');
       await refreshBiometric();
-      setShowCredentialForm(true);
+      setUnlockSurface(pinAvailable ? 'pin' : 'password');
     }
   };
 
@@ -328,7 +351,11 @@ export const LoginScreen: React.FC = () => {
           marginBottom: spacing.xs,
         }}
       >
-        {bioFirst ? 'Welcome back' : 'Sign in to Users'}
+        {showQuick || showPinOnly
+          ? greeting
+          : rememberedFirstName
+            ? `${greeting}`
+            : 'Sign in to Users'}
       </Text>
       <Text
         style={{
@@ -337,9 +364,15 @@ export const LoginScreen: React.FC = () => {
           marginBottom: spacing.lg,
         }}
       >
-        {bioFirst
-          ? `Unlock with ${typeLabel} — no password needed`
-          : 'Password or one-time code for parents, teachers, students & drivers'}
+        {showPinOnly
+          ? 'Enter your app PIN to continue'
+          : showQuick
+            ? unlockAvailable && !isLocked
+              ? `Unlock with ${typeLabel} — or use your PIN`
+              : 'Unlock with your PIN — no password needed'
+            : rememberedFirstName
+              ? 'Welcome back — sign in with password or OTP'
+              : 'Password or one-time code for parents, teachers, students & drivers'}
       </Text>
 
       {announcements.length > 0 ? (
@@ -394,67 +427,18 @@ export const LoginScreen: React.FC = () => {
         </View>
       ) : null}
 
-      {bioFirst ? (
+      {showQuick ? (
         <>
-          <Pressable
-            onPress={handleBiometricUnlock}
-            disabled={busy}
-            style={({ pressed }) => [
-              styles.bioPrimary,
-              {
-                borderRadius: radius.control,
-                backgroundColor: colors.primary,
-                opacity: busy ? 0.5 : pressed ? 0.9 : 1,
-              },
-            ]}
-          >
-            {biometricSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Soft3DIcon name="shield-outline" size={36} />
-                <Text
-                  style={{
-                    color: '#fff',
-                    fontWeight: '700',
-                    fontSize: typography.button.fontSize,
-                    marginLeft: spacing.sm,
-                  }}
-                >
-                  Unlock with {typeLabel}
-                </Text>
-              </>
-            )}
-          </Pressable>
-          <View style={{ marginTop: spacing.lg, width: '100%' }}>
-            <PinUnlockPanel onUsePassword={() => { setPreferPassword(true); setShowCredentialForm(true); }} />
-          </View>
-          <Pressable
-            onPress={() => { setShowCredentialForm(true); setPreferPassword(true); }}
-            style={{ marginTop: spacing.md, alignItems: 'center' }}
-          >
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
-              Sign in with a different account
-            </Text>
-          </Pressable>
-        </>
-      ) : (
-        <>
-          {!preferPassword ? (
-            <PinUnlockPanel onUsePassword={() => setPreferPassword(true)} />
-          ) : null}
-          {credentialForm}
-          {unlockAvailable ? (
+          {unlockAvailable && !isLocked ? (
             <Pressable
               onPress={handleBiometricUnlock}
               disabled={busy}
               style={({ pressed }) => [
-                styles.bioBtn,
+                styles.bioPrimary,
                 {
                   borderRadius: radius.control,
-                  borderColor: 'rgba(255,255,255,0.35)',
-                  marginTop: spacing.md,
-                  opacity: busy ? 0.5 : pressed ? 0.85 : 1,
+                  backgroundColor: colors.primary,
+                  opacity: busy ? 0.5 : pressed ? 0.9 : 1,
                 },
               ]}
             >
@@ -462,12 +446,76 @@ export const LoginScreen: React.FC = () => {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <>
-                  <Ionicons name="finger-print" size={20} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: typography.button.fontSize }}>
-                    Continue with {typeLabel}
+                  <Soft3DIcon name="shield-outline" size={36} />
+                  <Text
+                    style={{
+                      color: '#fff',
+                      fontWeight: '700',
+                      fontSize: typography.button.fontSize,
+                      marginLeft: spacing.sm,
+                    }}
+                  >
+                    Unlock with {typeLabel}
                   </Text>
                 </>
               )}
+            </Pressable>
+          ) : null}
+          {pinAvailable ? (
+            <Pressable
+              onPress={() => setUnlockSurface('pin')}
+              style={({ pressed }) => [
+                styles.bioBtn,
+                {
+                  borderRadius: radius.control,
+                  borderColor: 'rgba(255,255,255,0.35)',
+                  marginTop: spacing.md,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="keypad-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: typography.button.fontSize }}>
+                Unlock with PIN
+              </Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => setUnlockSurface('password')}
+            style={{ marginTop: spacing.md, alignItems: 'center' }}
+          >
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
+              Sign in with password
+            </Text>
+          </Pressable>
+        </>
+      ) : showPinOnly ? (
+        <>
+          <PinUnlockPanel
+            variant="onDark"
+            hidePasswordLink
+            onUsePassword={() => setUnlockSurface('password')}
+          />
+          <Pressable
+            onPress={() => setUnlockSurface(canQuickUnlock ? 'quick' : 'password')}
+            style={{ marginTop: spacing.md, alignItems: 'center' }}
+          >
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
+              {unlockAvailable && !isLocked ? `Use ${typeLabel} instead` : 'Use password instead'}
+            </Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          {credentialForm}
+          {canQuickUnlock ? (
+            <Pressable
+              onPress={() => setUnlockSurface('quick')}
+              style={{ marginTop: spacing.md, alignItems: 'center' }}
+            >
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
+                Back to quick unlock
+              </Text>
             </Pressable>
           ) : null}
         </>

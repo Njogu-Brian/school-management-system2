@@ -4,7 +4,13 @@ export interface StudentStatsRecord {
   expected_school_days?: number;
   attendance_records_count?: number;
   attendance_days_marked?: number;
+  /** Currently due fees (term started / due_date reached). */
   fees_balance?: number;
+  fees_due?: number;
+  /** Invoices not yet due (e.g. next term before opening). */
+  fees_upcoming?: number;
+  /** Due + upcoming outstanding. */
+  fees_total_outstanding?: number;
   exam_average?: number | null;
 }
 

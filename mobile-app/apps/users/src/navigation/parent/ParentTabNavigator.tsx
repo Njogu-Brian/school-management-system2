@@ -67,6 +67,8 @@ const ParentHomeStack = () => (
           <UsersAppHeaderChrome
             title="Home"
             onMenuPress={() => navigation.getParent()?.navigate('ParentMoreTab' as never)}
+            onSearchPress={() => navigation.getParent()?.navigate('ParentMoreTab' as never)}
+            searchPrompt="Search menu…"
           />
         ),
       }}

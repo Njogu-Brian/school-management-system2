@@ -77,6 +77,8 @@ export const TeacherTransportScreen: React.FC = () => {
   const { colors, palette, spacing, typography, radius } = useTheme();
   const date = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [search, setSearch] = useState('');
+  const [classFilter, setClassFilter] = useState<string | null>(null);
+  const [section, setSection] = useState<'roster' | 'actions'>('roster');
   const rosterQuery = useTeacherTransportStudents({ date, search: search.trim() || undefined });
   const vehiclesQuery = useTeacherTransportVehicles();
   const { markPickup, cancelPickup, reassign } = useTeacherTransportActions();
@@ -92,7 +94,23 @@ export const TeacherTransportScreen: React.FC = () => {
   const [reassignEndDate, setReassignEndDate] = useState('');
   const [reassignReason, setReassignReason] = useState('');
 
-  const students = rosterQuery.data?.students ?? [];
+  const allStudents = rosterQuery.data?.students ?? [];
+  const classOptions = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of allStudents) {
+      const key = [s.class_name, s.stream_name].filter(Boolean).join(' · ') || 'Unassigned';
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return Array.from(map.entries()).map(([label, count]) => ({ label, count }));
+  }, [allStudents]);
+
+  const students = useMemo(() => {
+    if (!classFilter) return allStudents;
+    return allStudents.filter((s) => {
+      const key = [s.class_name, s.stream_name].filter(Boolean).join(' · ') || 'Unassigned';
+      return key === classFilter;
+    });
+  }, [allStudents, classFilter]);
 
   const confirmPickup = async () => {
     if (!pickupFor) return;
@@ -167,8 +185,8 @@ export const TeacherTransportScreen: React.FC = () => {
         ListHeaderComponent={
           <View style={{ marginBottom: spacing.sm }}>
             <AcademicScreenHeader
-              title="Transport pickup"
-              subtitle={`Roster for ${date}`}
+              title="Transport"
+              subtitle={`Assigned classes · ${date}`}
               onBack={() => navigation.goBack()}
             />
             <TextField
@@ -177,6 +195,47 @@ export const TeacherTransportScreen: React.FC = () => {
               onChangeText={setSearch}
               placeholder="Name or admission #"
             />
+            <FilterChipRow label="View">
+              <FilterChip
+                label="Class roster"
+                active={section === 'roster'}
+                onPress={() => setSection('roster')}
+              />
+              <FilterChip
+                label="Pickup / reassign"
+                active={section === 'actions'}
+                onPress={() => setSection('actions')}
+              />
+            </FilterChipRow>
+            {classOptions.length > 0 ? (
+              <FilterChipRow label="Class">
+                <FilterChip
+                  label={`All (${allStudents.length})`}
+                  active={classFilter == null}
+                  onPress={() => setClassFilter(null)}
+                />
+                {classOptions.map((c) => (
+                  <FilterChip
+                    key={c.label}
+                    label={`${c.label} (${c.count})`}
+                    active={classFilter === c.label}
+                    onPress={() => setClassFilter(c.label)}
+                  />
+                ))}
+              </FilterChipRow>
+            ) : null}
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                marginTop: spacing.xs,
+                marginBottom: spacing.sm,
+              }}
+            >
+              {section === 'roster'
+                ? 'Students in your classes and their morning / evening transport.'
+                : 'Record parent pickup or submit a temporary transport reassignment.'}
+            </Text>
           </View>
         }
         renderItem={({ item }) => (
@@ -203,33 +262,35 @@ export const TeacherTransportScreen: React.FC = () => {
             </View>
             <TransportLegLine label="Morning" leg={item.morning} />
             <TransportLegLine label="Evening" leg={item.evening} />
-            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
-              {item.pickup ? (
+            {section === 'actions' ? (
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+                {item.pickup ? (
+                  <Button
+                    label="Undo pickup"
+                    variant="ghost"
+                    onPress={() => void undoPickup(item)}
+                    loading={cancelPickup.isPending}
+                    style={{ flex: 1 }}
+                  />
+                ) : (
+                  <Button
+                    label="Mark parent pickup"
+                    onPress={() => {
+                      setPickupFor(item);
+                      setPickupName('Parent');
+                      setPickupNotes('');
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                )}
                 <Button
-                  label="Undo pickup"
+                  label="Reassign"
                   variant="ghost"
-                  onPress={() => void undoPickup(item)}
-                  loading={cancelPickup.isPending}
+                  onPress={() => openReassign(item)}
                   style={{ flex: 1 }}
                 />
-              ) : (
-                <Button
-                  label="Mark parent pickup"
-                  onPress={() => {
-                    setPickupFor(item);
-                    setPickupName('Parent');
-                    setPickupNotes('');
-                  }}
-                  style={{ flex: 1 }}
-                />
-              )}
-              <Button
-                label="Reassign transport"
-                variant="ghost"
-                onPress={() => openReassign(item)}
-                style={{ flex: 1 }}
-              />
-            </View>
+              </View>
+            ) : null}
             {item.pickup ? (
               <Text style={{ color: colors.success, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
                 Picked up by {item.pickup.picked_up_by ?? 'parent'}
