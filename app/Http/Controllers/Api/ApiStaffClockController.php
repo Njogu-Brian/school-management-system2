@@ -310,22 +310,51 @@ class ApiStaffClockController extends Controller
         $today = Carbon::today()->toDateString();
         $nowTime = Carbon::now()->format('H:i:s');
 
-        $record = StaffAttendance::firstOrNew(['staff_id' => $staffId, 'date' => $today]);
-        if ($record->check_in_time) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You already clocked in today.',
-            ], 422);
-        }
+        try {
+            $record = StaffAttendance::firstOrNew([
+                'staff_id' => $staffId,
+                'date' => $today,
+            ]);
 
-        $record->status = $record->status ?: 'present';
-        $record->check_in_time = $nowTime;
-        $record->check_in_latitude = (float) $validated['latitude'];
-        $record->check_in_longitude = (float) $validated['longitude'];
-        $record->check_in_distance_meters = round($distance, 2);
-        $record->check_in_accuracy_meters = isset($validated['accuracy_meters']) ? (float) $validated['accuracy_meters'] : null;
-        $record->marked_by = $request->user()->id;
-        $record->save();
+            if ($record->check_in_time) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You already clocked in today.',
+                ], 422);
+            }
+
+            $record->status = $record->status ?: 'present';
+            $record->check_in_time = $nowTime;
+            $record->check_in_latitude = (float) $validated['latitude'];
+            $record->check_in_longitude = (float) $validated['longitude'];
+            $record->check_in_distance_meters = round($distance, 2);
+            $record->check_in_accuracy_meters = isset($validated['accuracy_meters'])
+                ? (float) $validated['accuracy_meters']
+                : null;
+            $record->marked_by = $request->user()->id;
+            $record->save();
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Two simultaneous clock-in requests can both pass firstOrNew()
+            // before either request saves. The database unique constraint
+            // correctly rejects the second INSERT. Treat that as an
+            // already-clocked-in response instead of an application error.
+            if ((int) ($e->errorInfo[1] ?? 0) !== 1062) {
+                throw $e;
+            }
+
+            $existing = StaffAttendance::where('staff_id', $staffId)
+                ->where('date', $today)
+                ->first();
+
+            if ($existing && $existing->check_in_time) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You already clocked in today.',
+                ], 422);
+            }
+
+            throw $e;
+        }
 
         return response()->json([
             'success' => true,
