@@ -15,18 +15,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
 import { FlatList, Text, View } from 'react-native';
+import { navigateToTab } from '../../../navigation/navigateToTab';
 import { confirmAction } from '../../shared/utils/feedback';
-
-type CrossTabNav = {
-  navigate: (name: string, params?: object) => void;
-  getParent: () => CrossTabNav | undefined;
-};
-
-/** Jumps to a sibling tab's own stack (Home lives in its own nested stack). */
-function navigateToTab(navigation: CrossTabNav, tab: string, screen?: string): void {
-  const parent = navigation.getParent?.() ?? navigation;
-  parent.navigate(tab, screen ? { screen } : undefined);
-}
 
 const ACADEMICS_ACTIONS = [
   { label: 'Homework', icon: 'document-text-outline' as const, tab: 'StudentHomeworkTab' },
@@ -64,7 +54,7 @@ export const StudentHomeScreen: React.FC = () => {
                 key={item.tab}
                 label={item.label}
                 icon={item.icon}
-                onPress={() => navigateToTab(navigation as unknown as CrossTabNav, item.tab)}
+                onPress={() => navigateToTab(navigation as never, item.tab)}
               />
             ))}
           </View>

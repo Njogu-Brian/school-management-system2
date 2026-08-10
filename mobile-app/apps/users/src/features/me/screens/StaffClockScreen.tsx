@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { goBackInStack } from '../../../navigation/navigateToTab';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
 export const StaffClockScreen: React.FC = () => {
@@ -106,7 +107,7 @@ export const StaffClockScreen: React.FC = () => {
         <AcademicScreenHeader
           title="Sign in / out"
           subtitle="Clock in and out with GPS geofence"
-          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+          onBack={() => goBackInStack(navigation, 'MoreMain')}
         />
 
         {loading ? (

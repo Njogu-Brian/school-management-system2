@@ -1,6 +1,7 @@
 import type { Ionicons } from '@expo/vector-icons';
 import { PremiumTabBar, type PremiumTabItem } from '@erp/ui';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { StackActions } from '@react-navigation/native';
 import React from 'react';
 
 export type UsersTabConfig = Record<
@@ -16,6 +17,9 @@ export type UsersTabConfig = Record<
 /**
  * Builds a floating `PremiumTabBar` (Admin's chrome) for a given role's bottom tab
  * route names. Usage: `tabBar={createUsersTabBar({ Home: {...}, Classes: {...} })}`.
+ *
+ * Re-tapping the already-focused tab pops that tab's nested stack back to its root
+ * (e.g. More → Diary → tap More → More home).
  */
 export function createUsersTabBar(config: UsersTabConfig): (props: BottomTabBarProps) => React.ReactElement {
   const UsersTabBar = ({ state, navigation }: BottomTabBarProps): React.ReactElement => {
@@ -32,9 +36,21 @@ export function createUsersTabBar(config: UsersTabConfig): (props: BottomTabBarP
         target: route.key,
         canPreventDefault: true,
       });
-      if (!event.defaultPrevented) {
-        navigation.navigate(route.name);
+      if (event.defaultPrevented) return;
+
+      const isFocused = state.routes[state.index]?.key === route.key;
+      if (isFocused) {
+        const nested = route.state;
+        if (nested && typeof nested.index === 'number' && nested.index > 0 && nested.key) {
+          navigation.dispatch({
+            ...StackActions.popToTop(),
+            target: nested.key,
+          });
+        }
+        return;
       }
+
+      navigation.navigate(route.name);
     };
 
     return <PremiumTabBar items={items} activeKey={activeKey} onTabPress={onTabPress} />;

@@ -10,12 +10,13 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { navigateToTab } from '../../../navigation/navigateToTab';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
 type Route = RouteProp<ParentStackParamList, 'ChildHub'>;
 
-const TILES: Array<{
+type HubTile = {
   label: string;
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
   tone: 'indigo' | 'emerald' | 'amber' | 'blue' | 'cyan' | 'rose' | 'violet' | 'teal';
@@ -28,15 +29,65 @@ const TILES: Array<{
     | 'DiaryChat'
     | 'RaiseConcern'
     | 'ChildProfile';
-}> = [
-  { label: 'Profile', icon: 'person-outline', tone: 'teal', route: 'ChildProfile' },
-  { label: 'Results', icon: 'school-outline', tone: 'indigo', route: 'ChildResults' },
-  { label: 'Attendance', icon: 'calendar-outline', tone: 'emerald', route: 'ChildAttendance' },
-  { label: 'Homework', icon: 'book-outline', tone: 'amber', route: 'ChildHomework' },
-  { label: 'Fees', icon: 'cash-outline', tone: 'blue', route: 'StudentStatement' },
-  { label: 'Transport', icon: 'bus-outline', tone: 'cyan', route: 'Transport' },
-  { label: 'Diary', icon: 'chatbubbles-outline', tone: 'violet', route: 'DiaryChat' },
-  { label: 'Raise concern', icon: 'alert-circle-outline', tone: 'rose', route: 'RaiseConcern' },
+  /** When set, switch bottom tab so the bar highlight matches the destination area. */
+  tabJump?: { tab: string; screen: string; tabHome?: string };
+};
+
+const TILES: HubTile[] = [
+  {
+    label: 'Profile',
+    icon: 'person-outline',
+    tone: 'teal',
+    route: 'ChildProfile',
+  },
+  {
+    label: 'Results',
+    icon: 'school-outline',
+    tone: 'indigo',
+    route: 'ChildResults',
+    tabJump: { tab: 'ParentAcademicTab', screen: 'ChildResults', tabHome: 'AcademicHome' },
+  },
+  {
+    label: 'Attendance',
+    icon: 'calendar-outline',
+    tone: 'emerald',
+    route: 'ChildAttendance',
+    tabJump: { tab: 'ParentAcademicTab', screen: 'ChildAttendance', tabHome: 'AcademicHome' },
+  },
+  {
+    label: 'Homework',
+    icon: 'book-outline',
+    tone: 'amber',
+    route: 'ChildHomework',
+    tabJump: { tab: 'ParentAcademicTab', screen: 'ChildHomework', tabHome: 'AcademicHome' },
+  },
+  {
+    label: 'Fees',
+    icon: 'cash-outline',
+    tone: 'blue',
+    route: 'StudentStatement',
+    tabJump: { tab: 'ParentFeesTab', screen: 'StudentStatement', tabHome: 'FeesHome' },
+  },
+  {
+    label: 'Transport',
+    icon: 'bus-outline',
+    tone: 'cyan',
+    route: 'Transport',
+  },
+  {
+    label: 'Diary',
+    icon: 'chatbubbles-outline',
+    tone: 'violet',
+    route: 'DiaryChat',
+    tabJump: { tab: 'ParentMoreTab', screen: 'DiaryChat', tabHome: 'MoreMenu' },
+  },
+  {
+    label: 'Raise concern',
+    icon: 'alert-circle-outline',
+    tone: 'rose',
+    route: 'RaiseConcern',
+    tabJump: { tab: 'ParentMoreTab', screen: 'RaiseConcern', tabHome: 'MoreMenu' },
+  },
 ];
 
 export const ChildHubScreen: React.FC = () => {
@@ -70,11 +121,18 @@ export const ChildHubScreen: React.FC = () => {
           <Pressable
             key={tile.route}
             onPress={() => {
-              if (tile.route === 'RaiseConcern') {
-                navigation.navigate('RaiseConcern', { studentId });
+              const params = { studentId };
+              if (tile.tabJump) {
+                navigateToTab(
+                  navigation,
+                  tile.tabJump.tab,
+                  tile.tabJump.screen,
+                  params,
+                  tile.tabJump.tabHome,
+                );
                 return;
               }
-              navigation.navigate(tile.route, { studentId });
+              navigation.navigate(tile.route, params);
             }}
             style={[
               styles.tile,

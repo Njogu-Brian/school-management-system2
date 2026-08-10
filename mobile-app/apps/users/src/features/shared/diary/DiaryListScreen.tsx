@@ -13,10 +13,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { goBackInStack } from '../../../navigation/navigateToTab';
 
 type DiaryNav = StackNavigationProp<{
   DiaryList: undefined;
   DiaryChat: { studentId: number; studentName?: string };
+  MoreMain: undefined;
 }>;
 
 export const DiaryListScreen: React.FC = () => {
@@ -39,7 +41,7 @@ export const DiaryListScreen: React.FC = () => {
             <AcademicScreenHeader
               title="Student diary"
               subtitle="Parent–teacher message threads"
-              onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+              onBack={() => goBackInStack(navigation, 'MoreMain')}
             />
             <TextField
               label="Search"

@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
+import { navigateToTab } from '../../../navigation/navigateToTab';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 import { confirmAction } from '../../shared/utils/feedback';
 
@@ -21,32 +22,34 @@ type Action = {
   label: string;
   icon: React.ComponentProps<typeof QuickAction>['icon'];
   route: keyof TeacherStackParamList | 'Classes';
+  /** Prefer jumping to the matching bottom tab so the bar highlight stays in sync. */
+  tabJump?: { tab: string; screen: string; tabHome?: string };
 };
 
 const CLASS_TEACHER: Action[] = [
-  { label: 'Mark attendance', icon: 'checkbox-outline', route: 'MarkAttendance' },
-  { label: 'My students', icon: 'people-outline', route: 'Classes' },
-  { label: 'Transport', icon: 'bus-outline', route: 'TeacherTransportHub' },
+  { label: 'Mark attendance', icon: 'checkbox-outline', route: 'MarkAttendance', tabJump: { tab: 'Attendance', screen: 'AttendanceMain' } },
+  { label: 'My students', icon: 'people-outline', route: 'Classes', tabJump: { tab: 'Classes', screen: 'ClassesMain' } },
+  { label: 'Transport', icon: 'bus-outline', route: 'TeacherTransportHub', tabJump: { tab: 'More', screen: 'TeacherTransportHub', tabHome: 'MoreMain' } },
 ];
 
 const TEACHING: Action[] = [
-  { label: 'Enter marks', icon: 'create-outline', route: 'MarksHub' },
-  { label: 'Student diary', icon: 'chatbubbles-outline', route: 'DiaryList' },
-  { label: 'Homework', icon: 'book-outline', route: 'AssignmentsHub' },
-  { label: 'Lesson plans', icon: 'document-text-outline', route: 'LessonPlansHub' },
+  { label: 'Enter marks', icon: 'create-outline', route: 'MarksHub', tabJump: { tab: 'More', screen: 'MarksHub', tabHome: 'MoreMain' } },
+  { label: 'Student diary', icon: 'chatbubbles-outline', route: 'DiaryList', tabJump: { tab: 'More', screen: 'DiaryList', tabHome: 'MoreMain' } },
+  { label: 'Homework', icon: 'book-outline', route: 'AssignmentsHub', tabJump: { tab: 'More', screen: 'AssignmentsHub', tabHome: 'MoreMain' } },
+  { label: 'Lesson plans', icon: 'document-text-outline', route: 'LessonPlansHub', tabJump: { tab: 'More', screen: 'LessonPlansHub', tabHome: 'MoreMain' } },
 ];
 
 const SELF_SERVICE: Action[] = [
-  { label: 'Clock in/out', icon: 'time-outline', route: 'StaffClock' },
-  { label: 'My leave', icon: 'calendar-outline', route: 'MyLeaveList' },
-  { label: 'Advances', icon: 'cash-outline', route: 'MyAdvances' },
-  { label: 'Payslips', icon: 'wallet-outline', route: 'MyPayslips' },
+  { label: 'Clock in/out', icon: 'time-outline', route: 'StaffClock', tabJump: { tab: 'More', screen: 'StaffClock', tabHome: 'MoreMain' } },
+  { label: 'My leave', icon: 'calendar-outline', route: 'MyLeaveList', tabJump: { tab: 'More', screen: 'MyLeaveList', tabHome: 'MoreMain' } },
+  { label: 'Advances', icon: 'cash-outline', route: 'MyAdvances', tabJump: { tab: 'More', screen: 'MyAdvances', tabHome: 'MoreMain' } },
+  { label: 'Payslips', icon: 'wallet-outline', route: 'MyPayslips', tabJump: { tab: 'More', screen: 'MyPayslips', tabHome: 'MoreMain' } },
 ];
 
 const SCHOOL: Action[] = [
-  { label: 'Announcements', icon: 'megaphone-outline', route: 'Announcements' },
-  { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications' },
-  { label: 'Raise concern', icon: 'alert-circle-outline', route: 'RaiseConcern' },
+  { label: 'Announcements', icon: 'megaphone-outline', route: 'Announcements', tabJump: { tab: 'More', screen: 'Announcements', tabHome: 'MoreMain' } },
+  { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications', tabJump: { tab: 'More', screen: 'Notifications', tabHome: 'MoreMain' } },
+  { label: 'Raise concern', icon: 'alert-circle-outline', route: 'RaiseConcern', tabJump: { tab: 'More', screen: 'RaiseConcern', tabHome: 'MoreMain' } },
 ];
 
 function ActionGrid({
@@ -54,7 +57,7 @@ function ActionGrid({
   onPress,
 }: {
   actions: Action[];
-  onPress: (route: Action['route']) => void;
+  onPress: (action: Action) => void;
 }) {
   const { spacing } = useTheme();
   return (
@@ -64,7 +67,7 @@ function ActionGrid({
           key={action.route}
           label={action.label}
           icon={action.icon}
-          onPress={() => onPress(action.route)}
+          onPress={() => onPress(action)}
         />
       ))}
     </View>
@@ -93,7 +96,19 @@ export const TeacherHomeScreen: React.FC = () => {
     return parts.join(' · ') || undefined;
   }, [classTeacherCount, teachingClassCount, unreadQuery.data]);
 
-  const goTo = (route: Action['route']) => navigation.navigate(route as never);
+  const goTo = (action: Action) => {
+    if (action.tabJump) {
+      navigateToTab(
+        navigation,
+        action.tabJump.tab,
+        action.tabJump.screen,
+        undefined,
+        action.tabJump.tabHome,
+      );
+      return;
+    }
+    navigation.navigate(action.route as never);
+  };
 
   return (
     <ScreenContainer

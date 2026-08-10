@@ -71,14 +71,12 @@ const ParentHomeStack = () => (
         ),
       }}
     />
-    <Stack.Screen name="ChildrenList" component={ParentChildrenScreen} />
+    {/* Domain roots (Children / Fees / Academic) live on their own tabs — jump via navigateToTab. */}
     <Stack.Screen name="ChildHub" component={ChildHubScreen} />
     <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
     <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
     <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
-    <Stack.Screen name="FeesHome" component={ParentFeesScreen} />
-    <Stack.Screen name="AcademicHome" component={ParentAcademicScreen} />
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
     <Stack.Screen name="DiaryList" component={DiaryListScreen} />

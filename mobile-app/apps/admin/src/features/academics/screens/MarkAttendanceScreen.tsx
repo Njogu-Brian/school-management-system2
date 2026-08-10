@@ -257,19 +257,21 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
 
   const submit = async () => {
     if (!classId) return;
-    if (schoolDayOk === false) {
-      showError('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
-      return;
-    }
+    /** Only changed rows — includes `unmarked` so previously saved marks can be cleared. */
     const records = students
       .map((s) => ({
         student_id: s.id,
-        status: statusById[s.id] ?? 'unmarked',
+        status: (statusById[s.id] ?? 'unmarked') as AttendanceMarkStatus,
         student_name: s.name,
       }))
-      .filter((r) => r.status !== 'unmarked');
+      .filter((r) => r.status !== (serverSnapshot[r.student_id] ?? 'unmarked'));
     if (records.length === 0) {
-      showError('Nothing to submit', 'Mark at least one student as Present, Absent, or Late.');
+      showError('Nothing to submit', 'Change at least one student before submitting.');
+      return;
+    }
+    const hasNonUnmark = records.some((r) => r.status !== 'unmarked');
+    if (hasNonUnmark && schoolDayOk === false) {
+      showError('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
       return;
     }
 
@@ -318,7 +320,17 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     () => students.filter((s) => (statusById[s.id] ?? 'unmarked') !== 'unmarked').length,
     [students, statusById],
   );
-  const showSubmit = classId != null && students.length > 0 && schoolDayOk !== false;
+  const onlyUnmarksPending = useMemo(() => {
+    if (!isDirty) return false;
+    return students.every((s) => {
+      const next = statusById[s.id] ?? 'unmarked';
+      const prev = serverSnapshot[s.id] ?? 'unmarked';
+      if (next === prev) return true;
+      return next === 'unmarked';
+    });
+  }, [isDirty, students, statusById, serverSnapshot]);
+  const showSubmit =
+    classId != null && students.length > 0 && (schoolDayOk !== false || onlyUnmarksPending);
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
@@ -403,6 +415,9 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
             <Pressable onPress={() => markAll('late')}>
               <Text style={{ color: colors.warning, fontWeight: '700' }}>All Late</Text>
             </Pressable>
+            <Pressable onPress={() => markAll('unmarked')}>
+              <Text style={{ color: palette.textSecondary, fontWeight: '700' }}>Clear all</Text>
+            </Pressable>
             <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
               {markedCount}/{students.length}
             </Text>
@@ -438,7 +453,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
                         key={opt}
                         status={opt}
                         active={status === opt}
-                        onPress={() => setStatus(item.id, opt)}
+                        onPress={() => setStatus(item.id, status === opt ? 'unmarked' : opt)}
                         colors={colors}
                         palette={palette}
                         typography={typography}

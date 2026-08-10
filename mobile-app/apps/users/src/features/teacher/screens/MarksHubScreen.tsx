@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { goBackInStack } from '../../../navigation/navigateToTab';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
@@ -36,7 +37,7 @@ export const MarksHubScreen: React.FC = () => {
             <AcademicScreenHeader
               title="Marks entry"
               subtitle="Subjects you teach — bulk matrix or per-exam entry"
-              onBack={() => navigation.goBack()}
+              onBack={() => goBackInStack(navigation, 'MoreMain')}
             />
             <Pressable
               onPress={() => navigation.navigate('MarksMatrixSetup')}

@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
+import { goBackInStack } from '../../../navigation/navigateToTab';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type TransportMode = 'vehicle' | 'trip' | 'own_means';
@@ -174,7 +175,7 @@ export const TransportScreen: React.FC = () => {
       <AcademicScreenHeader
         title="Transport"
         subtitle={d?.fullName ?? undefined}
-        onBack={() => navigation.goBack()}
+        onBack={() => goBackInStack(navigation, 'ChildrenList')}
       />
 
       {studentId <= 0 ? (

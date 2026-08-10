@@ -29,6 +29,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { goBackInStack } from '../../../navigation/navigateToTab';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
 const TransportLegLine: React.FC<{ label: 'Morning' | 'Evening'; leg?: TeacherTransportLeg | null }> = ({
@@ -187,7 +188,7 @@ export const TeacherTransportScreen: React.FC = () => {
             <AcademicScreenHeader
               title="Transport"
               subtitle={`Assigned classes · ${date}`}
-              onBack={() => navigation.goBack()}
+              onBack={() => goBackInStack(navigation, 'MoreMain')}
             />
             <TextField
               label="Search"

@@ -13,6 +13,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
+import { goBackInStack } from '../../../navigation/navigateToTab';
 import { formatDateTime } from '../utils/format';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
@@ -29,7 +30,7 @@ export const DiaryListScreen: React.FC = () => {
         <AcademicScreenHeader
           title="Diary"
           subtitle="Messages with teachers"
-          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+          onBack={() => goBackInStack(navigation, 'MoreMenu')}
         />
       </View>
 

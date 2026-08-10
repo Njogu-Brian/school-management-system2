@@ -28,32 +28,35 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import { FlatList, Linking, Pressable, Text, View } from 'react-native';
+import { navigateToTab } from '../../../navigation/navigateToTab';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { showError, showSuccess, confirmAction } from '../../shared/utils/feedback';
 import { formatKes, formatShortDate } from '../utils/format';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
 
+type ParentTabJump = { tab: string; screen: string; tabHome?: string };
+
 const QUICK_ACTIONS: Array<{
   label: string;
   icon: 'people-outline' | 'cash-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'school-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
-  route: keyof ParentStackParamList;
+  jump: ParentTabJump;
 }> = [
-  { label: 'Children', icon: 'people-outline', route: 'ChildrenList' },
-  { label: 'Fees', icon: 'cash-outline', route: 'FeesHome' },
-  { label: 'Wallets', icon: 'wallet-outline', route: 'WalletHome' },
-  { label: 'Diary', icon: 'chatbubbles-outline', route: 'DiaryList' },
-  { label: 'Academic', icon: 'school-outline', route: 'AcademicHome' },
+  { label: 'Children', icon: 'people-outline', jump: { tab: 'ParentChildrenTab', screen: 'ChildrenList' } },
+  { label: 'Fees', icon: 'cash-outline', jump: { tab: 'ParentFeesTab', screen: 'FeesHome' } },
+  { label: 'Wallets', icon: 'wallet-outline', jump: { tab: 'ParentFeesTab', screen: 'WalletHome', tabHome: 'FeesHome' } },
+  { label: 'Diary', icon: 'chatbubbles-outline', jump: { tab: 'ParentMoreTab', screen: 'DiaryList', tabHome: 'MoreMenu' } },
+  { label: 'Academic', icon: 'school-outline', jump: { tab: 'ParentAcademicTab', screen: 'AcademicHome' } },
 ];
 
 const SCHOOL_ACTIONS: Array<{
   label: string;
   icon: 'people-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
-  route: keyof ParentStackParamList;
+  jump: ParentTabJump;
 }> = [
-  { label: 'Announcements', icon: 'megaphone-outline', route: 'Announcements' },
-  { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications' },
-  { label: 'Raise concern', icon: 'alert-circle-outline', route: 'ConcernsList' },
+  { label: 'Announcements', icon: 'megaphone-outline', jump: { tab: 'ParentMoreTab', screen: 'Announcements', tabHome: 'MoreMenu' } },
+  { label: 'Notifications', icon: 'notifications-outline', jump: { tab: 'ParentMoreTab', screen: 'Notifications', tabHome: 'MoreMenu' } },
+  { label: 'Raise concern', icon: 'alert-circle-outline', jump: { tab: 'ParentMoreTab', screen: 'ConcernsList', tabHome: 'MoreMenu' } },
 ];
 
 function FamilyFeesCard({
@@ -241,7 +244,10 @@ export const ParentHomeScreen: React.FC = () => {
             Link a child to see due and upcoming fees.
           </Text>
         ) : (
-          <FamilyFeesCard studentIds={studentIds} onPressFees={() => navigation.navigate('FeesHome')} />
+          <FamilyFeesCard
+            studentIds={studentIds}
+            onPressFees={() => navigateToTab(navigation, 'ParentFeesTab', 'FeesHome')}
+          />
         )}
       </DashboardSection>
 
@@ -260,7 +266,7 @@ export const ParentHomeScreen: React.FC = () => {
                 studentId={child.id}
                 studentName={child.fullName}
                 onOpen={(card) =>
-                  navigation.navigate('ReportCardDetail', {
+                  navigateToTab(navigation, 'ParentAcademicTab', 'ReportCardDetail', {
                     studentId: child.id,
                     reportCardId: card.id,
                   })
@@ -273,7 +279,7 @@ export const ParentHomeScreen: React.FC = () => {
             <Button
               label="View all results"
               variant="secondary"
-              onPress={() => navigation.navigate('AcademicHome')}
+              onPress={() => navigateToTab(navigation, 'ParentAcademicTab', 'AcademicHome')}
             />
           </>
         )}
@@ -283,10 +289,10 @@ export const ParentHomeScreen: React.FC = () => {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           {QUICK_ACTIONS.map((item) => (
             <QuickAction
-              key={item.route}
+              key={item.label}
               label={item.label}
               icon={item.icon}
-              onPress={() => navigation.navigate(item.route as never)}
+              onPress={() => navigateToTab(navigation, item.jump.tab, item.jump.screen, undefined, item.jump.tabHome)}
             />
           ))}
         </View>
@@ -296,10 +302,10 @@ export const ParentHomeScreen: React.FC = () => {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           {SCHOOL_ACTIONS.map((item) => (
             <QuickAction
-              key={item.route}
+              key={item.label}
               label={item.label}
               icon={item.icon}
-              onPress={() => navigation.navigate(item.route as never)}
+              onPress={() => navigateToTab(navigation, item.jump.tab, item.jump.screen, undefined, item.jump.tabHome)}
             />
           ))}
         </View>
@@ -440,7 +446,9 @@ function ChildFeeCard({
         marginBottom: spacing.md,
       }}
     >
-      <Pressable onPress={() => navigation.navigate('ChildHub', { studentId })}>
+      <Pressable
+        onPress={() => navigateToTab(navigation, 'ParentChildrenTab', 'ChildHub', { studentId })}
+      >
         <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{name}</Text>
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
           {[admissionNumber, className].filter(Boolean).join(' · ')}
