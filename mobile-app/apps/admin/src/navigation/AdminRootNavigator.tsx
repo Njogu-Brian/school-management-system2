@@ -11,6 +11,7 @@ import {
   AccessDeniedScreen,
   AuthLoadingScreen,
   BiometricEnableScreen,
+  ForceChangePasswordScreen,
   LoginScreen,
 } from '../features/auth';
 import { AdminParentHomeScreen } from '../features/parent/screens/AdminParentHomeScreen';
@@ -33,6 +34,9 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   }
   if (!canAccessApp(user, 'admin')) {
     return <AccessDeniedScreen />;
+  }
+  if (user?.mustChangePassword) {
+    return <ForceChangePasswordScreen />;
   }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;

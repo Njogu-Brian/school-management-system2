@@ -14,7 +14,7 @@ import {
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -27,10 +27,15 @@ import {
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { confirmAction, showSuccess } from '../../shared/utils/feedback';
 
+type HistoryFilter = 'all' | 'unread';
+
 export const NotificationsListScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<ParentStackParamList>>();
   const { colors, palette, spacing, typography, radius } = useTheme();
-  const listQuery = useInfiniteNotifications();
+  const [filter, setFilter] = useState<HistoryFilter>('all');
+  const listQuery = useInfiniteNotifications({
+    isRead: filter === 'unread' ? false : undefined,
+  });
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
   const acknowledge = useAcknowledgeNotification();
@@ -76,8 +81,38 @@ export const NotificationsListScreen: React.FC = () => {
           <View style={{ marginBottom: spacing.sm }}>
             <AcademicScreenHeader
               title="Notifications"
+              subtitle="Read messages stay in history until you delete them"
               onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
             />
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
+              {(['all', 'unread'] as const).map((key) => {
+                const active = filter === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setFilter(key)}
+                    style={{
+                      paddingHorizontal: spacing.md,
+                      paddingVertical: spacing.xs,
+                      borderRadius: radius.full ?? 999,
+                      backgroundColor: active ? colors.primary : palette.surface,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: active ? colors.primary : palette.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? '#fff' : palette.textSecondary,
+                        fontWeight: '600',
+                        fontSize: typography.caption.fontSize,
+                      }}
+                    >
+                      {key === 'all' ? 'All history' : 'Unread'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <Pressable
               onPress={() => void markAll.mutateAsync().then(() => showSuccess('Done', 'All marked read.'))}
               style={{ marginBottom: spacing.sm }}
@@ -175,7 +210,15 @@ export const NotificationsListScreen: React.FC = () => {
               onAction={() => void listQuery.refetch()}
             />
           ) : (
-            <EmptyState title="No notifications" message="You're all caught up." icon="notifications-outline" />
+            <EmptyState
+              title={filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
+              message={
+                filter === 'unread'
+                  ? 'Switch to All history to see previously read messages.'
+                  : 'New school messages will appear here and stay after you read them.'
+              }
+              icon="notifications-outline"
+            />
           )
         }
       />

@@ -66,6 +66,27 @@ export const EmploymentTab: React.FC<EmploymentTabProps> = ({ staff, canViewFina
     );
   };
 
+  const forceChangeOnNextLogin = () => {
+    confirmAction(
+      'Require password change',
+      'Ask this staff member to set a new password the next time they sign in? Their current password still works until then.',
+      'Require change',
+      async () => {
+        setBusy(true);
+        try {
+          const res = await staffApi.requirePasswordChange(staff.id);
+          if (!res.success) throw new Error(res.message || 'Could not update.');
+          showSuccess('Done', res.message ?? 'They must change password on next sign-in.');
+        } catch (err) {
+          showError('Failed', err instanceof Error ? err.message : 'Could not require password change.');
+        } finally {
+          setBusy(false);
+        }
+      },
+      true,
+    );
+  };
+
   return (
     <>
       <StaffFieldSection
@@ -127,6 +148,12 @@ export const EmploymentTab: React.FC<EmploymentTabProps> = ({ staff, canViewFina
             onPress={() => resetAndShare('random')}
           />
           <Button label="Resend credentials" variant="ghost" loading={busy} onPress={resend} />
+          <Button
+            label="Require change on next sign-in"
+            variant="ghost"
+            loading={busy}
+            onPress={forceChangeOnNextLogin}
+          />
         </View>
       </View>
 

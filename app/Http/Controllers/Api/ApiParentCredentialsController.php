@@ -137,6 +137,48 @@ class ApiParentCredentialsController extends Controller
     }
 
     /**
+     * POST /api/students/{id}/parent-credentials/require-password-change
+     * Force linked parent account(s) to change password on next sign-in.
+     */
+    public function requirePasswordChange(Request $request, int $id)
+    {
+        $this->assertManageAccess($request);
+        $student = Student::with('parent')->findOrFail($id);
+        $parent = $student->parent;
+        if (! $parent) {
+            return response()->json(['success' => false, 'message' => 'Student has no parent record.'], 422);
+        }
+
+        $validated = $request->validate([
+            'user_id' => 'nullable|integer|exists:users,id',
+        ]);
+
+        $query = User::query()->where('parent_id', $parent->id);
+        if (! empty($validated['user_id'])) {
+            $query->where('id', (int) $validated['user_id']);
+        }
+        $user = $query->first();
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No parent app account linked.',
+            ], 422);
+        }
+
+        $user->update(['must_change_password' => true]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Parent will be asked to change password on next sign-in.',
+            'data' => [
+                'user_id' => $user->id,
+                'login' => $user->email,
+                'must_change_password' => true,
+            ],
+        ]);
+    }
+
+    /**
      * @return list<string>
      */
     protected function shareCredentials(User $user, ParentInfo $parent, string $password): array

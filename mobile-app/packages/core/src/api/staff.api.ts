@@ -77,6 +77,10 @@ export const staffApi = {
     return apiClient.post(`/staff/${id}/reset-password`, payload);
   },
 
+  requirePasswordChange(id: number): Promise<ApiResponse<{ login: string; must_change_password: boolean }>> {
+    return apiClient.post(`/staff/${id}/require-password-change`, {});
+  },
+
   resendCredentials(id: number): Promise<ApiResponse<{ login: string }>> {
     return apiClient.post(`/staff/${id}/resend-credentials`, {});
   },

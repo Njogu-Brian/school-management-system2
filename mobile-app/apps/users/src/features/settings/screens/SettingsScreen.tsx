@@ -147,6 +147,18 @@ export const SettingsScreen: React.FC = () => {
         )}
       </View>
 
+      <View style={[styles.section, { backgroundColor: palette.surface, borderColor: palette.border, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md }]}>
+        <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>Account password</Text>
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.md }}>
+          Change the password you use to sign in to the app and portal.
+        </Text>
+        <Button
+          label="Change password"
+          variant="secondary"
+          onPress={() => navigation.navigate('MyProfile' as never)}
+        />
+      </View>
+
       <Modal visible={pinSetupOpen} transparent animationType="fade" onRequestClose={closePinSetup}>
         <Pressable
           style={{

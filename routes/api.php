@@ -244,6 +244,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::post('/students/{studentId}/medical-records/{id}/certificate', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'uploadCertificate']);
     Route::get('/students/{id}/parent-credentials', [\App\Http\Controllers\Api\ApiParentCredentialsController::class, 'show']);
     Route::post('/students/{id}/parent-credentials/reset', [\App\Http\Controllers\Api\ApiParentCredentialsController::class, 'reset']);
+    Route::post('/students/{id}/parent-credentials/require-password-change', [\App\Http\Controllers\Api\ApiParentCredentialsController::class, 'requirePasswordChange']);
     Route::get('/students/{id}', [\App\Http\Controllers\Api\ApiStudentController::class, 'show']);
     Route::get('/invoices', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [\App\Http\Controllers\Api\ApiInvoiceController::class, 'show']);
@@ -299,6 +300,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/staff/{staffId}/training-records', [\App\Http\Controllers\Api\ApiStaffTrainingController::class, 'index']);
     Route::get('/staff/{staffId}/training-records/{id}', [\App\Http\Controllers\Api\ApiStaffTrainingController::class, 'show']);
     Route::post('/staff/{id}/reset-password', [\App\Http\Controllers\Api\ApiStaffController::class, 'resetPassword']);
+    Route::post('/staff/{id}/require-password-change', [\App\Http\Controllers\Api\ApiStaffController::class, 'requirePasswordChange']);
     Route::post('/staff/{id}/resend-credentials', [\App\Http\Controllers\Api\ApiStaffController::class, 'resendCredentials']);
     Route::get('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'show']);
     Route::put('/staff/{id}', [\App\Http\Controllers\Api\ApiStaffController::class, 'update']);

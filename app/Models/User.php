@@ -38,6 +38,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'parent_profile_review_required' => 'boolean',
+        'must_change_password' => 'boolean',
         'last_login_at' => 'datetime',
         'last_seen_at' => 'datetime',
     ];

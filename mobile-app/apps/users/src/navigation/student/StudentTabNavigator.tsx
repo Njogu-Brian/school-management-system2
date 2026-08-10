@@ -39,8 +39,6 @@ const StudentHomeStack = () => (
           <UsersAppHeaderChrome
             title="Home"
             onMenuPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
-            onSearchPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
-            searchPrompt="Search menu…"
           />
         ),
       }}
@@ -61,8 +59,6 @@ const StudentHomeworkStack = () => (
           <UsersAppHeaderChrome
             title="Homework"
             onMenuPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
-            onSearchPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
-            searchPrompt="Search menu…"
           />
         ),
       }}
@@ -82,8 +78,6 @@ const StudentResultsStack = () => (
           <UsersAppHeaderChrome
             title="Results"
             onMenuPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
-            onSearchPress={() => navigation.getParent()?.navigate('StudentMoreTab' as never)}
-            searchPrompt="Search menu…"
           />
         ),
       }}

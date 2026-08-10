@@ -40,6 +40,9 @@ export interface User {
   /** True right after a parent claims their account — forces the profile-review screen. */
   parentProfileReviewRequired?: boolean;
 
+  /** When true, app must force password change before normal use. */
+  mustChangePassword?: boolean;
+
   /** Classrooms where this teacher is the assigned class teacher (homeroom / class-teacher duties). */
   classTeacherClassroomIds?: number[];
   /** All classrooms this teacher can access (class-teacher + subject-teacher scope). */

@@ -45,7 +45,7 @@ export const StudentHomeScreen: React.FC = () => {
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="academics"
-        greeting={timeOfDayGreeting(user?.name)}
+        greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Student'}
         title="Student portal"
         subtitle="Homework, results, and school updates"

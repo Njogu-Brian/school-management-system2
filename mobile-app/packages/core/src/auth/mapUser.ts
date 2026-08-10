@@ -30,6 +30,7 @@ export function mapApiUser(raw: ApiUser): User {
     canHomeMode: raw.can_home_mode ?? Boolean(raw.parent_id),
     canWorkMode: raw.can_work_mode ?? Boolean(raw.staff_id),
     parentProfileReviewRequired: raw.parent_profile_review_required ?? false,
+    mustChangePassword: raw.must_change_password ?? false,
     classTeacherClassroomIds: raw.class_teacher_classroom_ids ?? [],
     assignedClassroomIds: raw.assigned_classroom_ids ?? [],
     assignedSubjectIds: raw.assigned_subject_ids ?? [],

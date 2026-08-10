@@ -10,7 +10,6 @@ import {
   type ReportCardListRecord,
 } from '@erp/core';
 import {
-  AcademicScreenHeader,
   Button,
   DashboardHero,
   DashboardSection,
@@ -83,8 +82,7 @@ function FamilyFeesCard({
   }, [s0, s1, s2, s3, studentIds.length]);
 
   return (
-    <Pressable
-      onPress={onPressFees}
+    <View
       style={{
         backgroundColor: palette.surface,
         borderColor: palette.border,
@@ -98,27 +96,40 @@ function FamilyFeesCard({
         School fees
       </Text>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
-        <View style={{ flex: 1 }}>
+        <Pressable
+          onPress={onPressFees}
+          accessibilityRole="button"
+          accessibilityLabel="View or pay current due fees"
+          style={{ flex: 1 }}
+        >
           <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
             Current due
           </Text>
           <Text style={{ color: colors.primary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
             {loading ? '…' : formatKes(due)}
           </Text>
-        </View>
-        <View style={{ flex: 1 }}>
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+            Tap to view / pay
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={onPressFees}
+          accessibilityRole="button"
+          accessibilityLabel="View upcoming fees"
+          style={{ flex: 1 }}
+        >
           <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
             Upcoming
           </Text>
           <Text style={{ color: palette.textPrimary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
             {loading ? '…' : formatKes(upcoming)}
           </Text>
-        </View>
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+            Tap to view
+          </Text>
+        </Pressable>
       </View>
-      <Text style={{ color: palette.textMuted, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
-        Due = current / open term · Upcoming = next term before opening
-      </Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -211,7 +222,7 @@ export const ParentHomeScreen: React.FC = () => {
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="people"
-        greeting={timeOfDayGreeting(user?.name)}
+        greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Parent'}
         title="Parent portal"
         subtitle="Track fees, attendance, and school updates for your children"
@@ -310,9 +321,6 @@ export const ParentChildrenScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
-        <AcademicScreenHeader title="My children" />
-      </View>
       {listQuery.isLoading ? (
         <SkeletonListRows count={4} />
       ) : students.length === 0 ? (
@@ -426,18 +434,43 @@ function ChildFeeCard({
         </Text>
       </Pressable>
 
-      <Text style={{ color: palette.textSecondary, marginTop: spacing.md, fontSize: typography.caption.fontSize }}>
-        Current due
-      </Text>
-      <Text style={{ color: colors.primary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
-        {stats.isLoading ? '…' : formatKes(balanceDue)}
-      </Text>
-      <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
-        Upcoming
-      </Text>
-      <Text style={{ color: palette.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 2 }}>
-        {stats.isLoading ? '…' : formatKes(balanceUpcoming)}
-      </Text>
+      <Pressable
+        onPress={() =>
+          navigation.navigate('MpesaPrompt', {
+            studentId,
+            amount: typeof balanceDue === 'number' && balanceDue > 0 ? balanceDue : undefined,
+          })
+        }
+        accessibilityRole="button"
+        accessibilityLabel="View or pay current due"
+        style={{ marginTop: spacing.md }}
+      >
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+          Current due
+        </Text>
+        <Text style={{ color: colors.primary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
+          {stats.isLoading ? '…' : formatKes(balanceDue)}
+        </Text>
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+          Tap to view / pay
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={() => navigation.navigate('StudentStatement', { studentId })}
+        accessibilityRole="button"
+        accessibilityLabel="View upcoming fees on statement"
+        style={{ marginTop: spacing.sm }}
+      >
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+          Upcoming
+        </Text>
+        <Text style={{ color: palette.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 2 }}>
+          {stats.isLoading ? '…' : formatKes(balanceUpcoming)}
+        </Text>
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+          Tap to view statement
+        </Text>
+      </Pressable>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
         <Button
@@ -516,7 +549,6 @@ export const ParentFeesScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-      <AcademicScreenHeader title="Fees" subtitle="Balances, wallet, statements & M-Pesa" />
       <Pressable
         onPress={() => navigation.navigate('WalletHome')}
         style={{

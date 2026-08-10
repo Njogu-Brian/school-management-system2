@@ -210,7 +210,7 @@ export const DriverHomeScreen: React.FC = () => {
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
       <DashboardHero
         variant="operations"
-        greeting={timeOfDayGreeting(user?.name)}
+        greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Driver'}
         title="Driver portal"
         subtitle="Today's roster, vehicle status, and self-service"
@@ -476,11 +476,6 @@ export const DriverMoreHubScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader
-        title="Account"
-        subtitle="HR, vehicle, and settings"
-        onProfilePress={() => navigation.navigate('MyProfile')}
-      />
       <AppModeSwitch style={{ marginBottom: spacing.md }} />
       <HubLinksList onNavigate={(route) => navigation.navigate(route as never)} />
       <Button

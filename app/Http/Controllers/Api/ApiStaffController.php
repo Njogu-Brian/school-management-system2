@@ -741,6 +741,31 @@ class ApiStaffController extends Controller
     }
 
     /**
+     * POST /api/staff/{id}/require-password-change
+     * Force the staff user to set a new password on next sign-in (keeps current password until then).
+     */
+    public function requirePasswordChange(Request $request, int $id)
+    {
+        $this->assertStaffManageAccess($request);
+        $staff = Staff::with('user')->findOrFail($id);
+        $user = $staff->user;
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Staff has no user account.'], 422);
+        }
+
+        $user->update(['must_change_password' => true]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'They will be asked to change password on next sign-in.',
+            'data' => [
+                'login' => $user->email,
+                'must_change_password' => true,
+            ],
+        ]);
+    }
+
+    /**
      * POST /api/staff/{id}/resend-credentials
      * Shares current ID-number password reminder (welcome templates / plain message).
      * Prefer reset-password when the password must actually change.

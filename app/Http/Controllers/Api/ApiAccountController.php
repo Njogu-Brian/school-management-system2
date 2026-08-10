@@ -11,22 +11,38 @@ class ApiAccountController extends Controller
 {
     public function changePassword(Request $request)
     {
-        $request->validate([
-            'current_password' => ['required', 'string'],
+        $user = $request->user();
+        $forced = (bool) ($user->must_change_password ?? false);
+
+        $rules = [
             'new_password' => [
                 'required',
                 'confirmed',
                 Password::min(8)->mixedCase()->letters()->numbers()->symbols(),
             ],
-        ]);
+        ];
+        if (! $forced) {
+            $rules['current_password'] = ['required', 'string'];
+        } else {
+            $rules['current_password'] = ['nullable', 'string'];
+        }
 
-        $user = $request->user();
+        $request->validate($rules);
 
-        if (! Hash::check((string) $request->input('current_password'), (string) $user->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Your current password is incorrect.',
-            ], 422);
+        if (! $forced) {
+            if (! Hash::check((string) $request->input('current_password'), (string) $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your current password is incorrect.',
+                ], 422);
+            }
+        } elseif ($request->filled('current_password')) {
+            if (! Hash::check((string) $request->input('current_password'), (string) $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your current password is incorrect.',
+                ], 422);
+            }
         }
 
         $newPassword = (string) $request->input('new_password');

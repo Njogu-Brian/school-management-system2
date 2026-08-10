@@ -9,3 +9,4 @@ export { ParentClaimOtpScreen } from './screens/ParentClaimOtpScreen';
 export { ParentClaimAdmissionScreen } from './screens/ParentClaimAdmissionScreen';
 export { ParentClaimPasswordScreen } from './screens/ParentClaimPasswordScreen';
 export { ParentProfileReviewScreen } from './screens/ParentProfileReviewScreen';
+export { ForceChangePasswordScreen } from './screens/ForceChangePasswordScreen';

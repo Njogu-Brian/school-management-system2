@@ -2,7 +2,6 @@ import {
   useAuth,
 } from '@erp/core';
 import {
-  AcademicScreenHeader,
   Button,
   ScreenContainer,
   SearchBar,
@@ -87,7 +86,6 @@ export const ParentMoreScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="More" onProfilePress={() => navigation.navigate('MyProfile')} />
       <SearchBar
         expandable
         value={query}

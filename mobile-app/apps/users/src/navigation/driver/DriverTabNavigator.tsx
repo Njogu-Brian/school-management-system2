@@ -60,8 +60,6 @@ const DriverHomeStack = () => (
           <UsersAppHeaderChrome
             title="Home"
             onMenuPress={() => navigation.getParent()?.navigate('DriverAccountTab' as never)}
-            onSearchPress={() => navigation.getParent()?.navigate('DriverAccountTab' as never)}
-            searchPrompt="Search menu…"
           />
         ),
       }}
@@ -81,8 +79,6 @@ const DriverRoutesStackNav = () => (
           <UsersAppHeaderChrome
             title="Routes"
             onMenuPress={() => navigation.getParent()?.navigate('DriverAccountTab' as never)}
-            onSearchPress={() => navigation.getParent()?.navigate('DriverAccountTab' as never)}
-            searchPrompt="Search menu…"
           />
         ),
       }}

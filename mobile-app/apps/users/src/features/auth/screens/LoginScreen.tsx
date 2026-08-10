@@ -81,11 +81,18 @@ export const LoginScreen: React.FC = () => {
   }, [refreshBiometric]);
 
   useEffect(() => {
-    void getRememberedUsername().then((name) => {
+    void (async () => {
+      const [name, first] = await Promise.all([getRememberedUsername(), getRememberedFirstName()]);
       if (name) setIdentifier(name);
-    });
-    void hasPinUnlockAvailable().then(setPinAvailable);
-    void getRememberedFirstName().then(setRememberedFirstNameState);
+      if (first) {
+        setRememberedFirstNameState(first);
+      } else if (name) {
+        const local = name.includes('@') ? name.split('@')[0] : name;
+        const pretty = local.replace(/[._-]+/g, ' ').trim().split(/\s+/)[0];
+        if (pretty) setRememberedFirstNameState(pretty.charAt(0).toUpperCase() + pretty.slice(1));
+      }
+      setPinAvailable(await hasPinUnlockAvailable());
+    })();
   }, []);
 
   useEffect(() => {

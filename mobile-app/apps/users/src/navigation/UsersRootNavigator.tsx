@@ -18,6 +18,7 @@ import {
   AccessDeniedScreen,
   AuthLoadingScreen,
   BiometricEnableScreen,
+  ForceChangePasswordScreen,
   LoginScreen,
   ParentProfileReviewScreen,
 } from '../features/auth';
@@ -44,6 +45,9 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
     !user?.canHomeMode
   ) {
     return <AccessDeniedScreen />;
+  }
+  if (user?.mustChangePassword) {
+    return <ForceChangePasswordScreen />;
   }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;

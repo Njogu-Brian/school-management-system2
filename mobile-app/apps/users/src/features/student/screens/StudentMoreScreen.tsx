@@ -1,5 +1,4 @@
 import {
-  AcademicScreenHeader,
   ScreenContainer,
   Soft3DIcon,
   useTheme,
@@ -62,7 +61,6 @@ export const StudentMoreScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader title="More" onProfilePress={() => navigation.navigate('MyProfile')} />
       {LINKS.map((item) => (
         <Pressable
           key={item.route}

@@ -60,6 +60,8 @@ export interface ApiUser {
   assigned_classroom_ids?: number[];
   /** Subjects this teacher is assigned to teach. */
   assigned_subject_ids?: number[];
+  /** When true, client must force a password change before normal app use. */
+  must_change_password?: boolean;
   branches?: Array<{
     id: number;
     name: string;

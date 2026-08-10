@@ -161,4 +161,11 @@ export const studentsApi = {
   > {
     return apiClient.post(`/students/${studentId}/parent-credentials/reset`, payload);
   },
+
+  requireParentPasswordChange(
+    studentId: number,
+    payload?: { user_id?: number },
+  ): Promise<ApiResponse<{ user_id: number; login: string | null; must_change_password: boolean }>> {
+    return apiClient.post(`/students/${studentId}/parent-credentials/require-password-change`, payload ?? {});
+  },
 };

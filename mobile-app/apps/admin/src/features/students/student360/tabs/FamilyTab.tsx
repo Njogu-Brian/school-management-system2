@@ -164,6 +164,28 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
     );
   };
 
+  const forceChangeOnNextLogin = (account: ParentAccount) => {
+    confirmAction(
+      'Require password change',
+      `Ask ${account.name} to set a new password on next sign-in? Current password still works until then.`,
+      'Require change',
+      async () => {
+        setBusy(true);
+        try {
+          const res = await studentsApi.requireParentPasswordChange(student.id, { user_id: account.user_id });
+          if (!res.success) throw new Error(res.message || 'Could not update.');
+          showSuccess('Done', res.message ?? 'Parent must change password on next sign-in.');
+          void loadAccounts();
+        } catch (err) {
+          showError('Failed', err instanceof Error ? err.message : 'Could not require password change.');
+        } finally {
+          setBusy(false);
+        }
+      },
+      true,
+    );
+  };
+
   const hasParent =
     !!(
       parent?.fatherName ||
@@ -250,14 +272,22 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
             <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
               {a.login ?? 'No email'}
               {a.phone ? ` · ${a.phone}` : ''}
+              {a.must_change_password ? ' · Must change password' : ''}
             </Text>
-            <Button
-              label="Reset & share password"
-              variant="secondary"
-              loading={busy}
-              onPress={() => resetAccount(a)}
-              style={{ marginTop: spacing.sm }}
-            />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
+              <Button
+                label="Reset & share password"
+                variant="secondary"
+                loading={busy}
+                onPress={() => resetAccount(a)}
+              />
+              <Button
+                label="Require change on next sign-in"
+                variant="ghost"
+                loading={busy}
+                onPress={() => forceChangeOnNextLogin(a)}
+              />
+            </View>
           </View>
         ))
       )}

@@ -1,5 +1,9 @@
 export type TeacherStackParamList = {
-  Main: undefined;
+  HomeMain: undefined;
+  ClassesMain: undefined;
+  AttendanceMain: undefined;
+  ActivitiesMain: undefined;
+  MoreMain: undefined;
   MarkAttendance: undefined;
   Academics: undefined;
   ActivityAttendance: {

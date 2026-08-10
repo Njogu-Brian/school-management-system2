@@ -79,6 +79,9 @@ export const PayslipDetailScreen: React.FC = () => {
           />
         ) : (
           <View style={{ gap: spacing.md }}>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+              Net salary
+            </Text>
             <Text
               style={{
                 color: palette.primary,
@@ -89,7 +92,7 @@ export const PayslipDetailScreen: React.FC = () => {
               {money(record.net_salary)}
             </Text>
             <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-              Net pay · {record.period_name ?? record.month ?? '—'} · {record.status}
+              {record.period_name ?? record.month ?? '—'} · {record.status}
             </Text>
 
             <Button
@@ -142,6 +145,15 @@ export const PayslipDetailScreen: React.FC = () => {
                 { label: 'Other deductions', value: record.other_deductions },
                 { label: 'Total deductions', value: record.deductions, always: true },
               ])}
+            />
+
+            <FinanceFieldSection
+              title="Summary"
+              rows={[
+                { label: 'Gross salary', value: money(record.gross_salary) },
+                { label: 'Total deductions', value: money(record.deductions) },
+                { label: 'Net salary', value: money(record.net_salary) },
+              ]}
             />
 
             {(record.notes || record.adjustments_notes) && (

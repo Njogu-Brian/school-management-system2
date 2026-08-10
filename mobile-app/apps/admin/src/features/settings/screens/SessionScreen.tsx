@@ -24,6 +24,7 @@ import {
   useTheme,
 } from '@erp/ui';
 import Constants from 'expo-constants';
+import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
@@ -34,7 +35,33 @@ export interface SessionScreenProps {
   onBack?: () => void;
 }
 
+type NavLike = {
+  navigate: (name: string, params?: object) => void;
+  getState?: () => { routeNames?: string[] } | undefined;
+  getParent?: () => NavLike | undefined;
+};
+
+function navigateDashboardNested(navigation: NavLike, screen: string): void {
+  let current: NavLike | undefined = navigation;
+  while (current) {
+    const names = current.getState?.()?.routeNames ?? [];
+    if (names.includes('Dashboard')) {
+      current.navigate('Dashboard', { screen });
+      return;
+    }
+    if (names.includes('Workspace')) {
+      current.navigate('Workspace', {
+        screen: 'Dashboard',
+        params: { screen },
+      });
+      return;
+    }
+    current = current.getParent?.();
+  }
+}
+
 export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
+  const navigation = useNavigation();
   const { user, logout, enablePin, disablePin } = useAuth();
   const [meta, setMeta] = useState<PersistedSessionMeta | null>(null);
   const [signOutVisible, setSignOutVisible] = useState(false);
@@ -243,6 +270,26 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
           onValueChange={(on) => setSurfaceMode(on ? 'amoled' : 'default')}
         />
       </View>
+
+      <Text
+        style={{
+          fontWeight: '700',
+          marginTop: spacing.lg,
+          marginBottom: spacing.sm,
+          color: palette.textPrimary,
+          fontSize: typography.titleSmall.fontSize,
+        }}
+      >
+        Account password
+      </Text>
+      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+        Change the password you use to sign in to Admin and the portal.
+      </Text>
+      <Button
+        label="Change password"
+        variant="secondary"
+        onPress={() => navigateDashboardNested(navigation as unknown as NavLike, 'UserProfile')}
+      />
 
       <Text
         style={{

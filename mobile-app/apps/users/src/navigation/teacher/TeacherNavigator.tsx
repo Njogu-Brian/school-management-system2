@@ -53,14 +53,6 @@ import type { TeacherStackParamList } from './teacherStackTypes';
 const Stack = createStackNavigator<TeacherStackParamList>();
 const Tab = createBottomTabNavigator();
 
-const TAB_TITLES: Record<string, string> = {
-  Home: 'Home',
-  Classes: 'My classes',
-  Attendance: 'Attendance',
-  Activities: 'Activities',
-  More: 'More',
-};
-
 const teacherTabBar = createUsersTabBar({
   Home: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
   Classes: { label: 'Classes', icon: 'school-outline', iconFocused: 'school', tone: 'indigo' },
@@ -69,71 +61,158 @@ const teacherTabBar = createUsersTabBar({
   More: { label: 'More', icon: 'menu-outline', iconFocused: 'menu', tone: 'amber' },
 });
 
-function TeacherTabs() {
+function teacherSharedScreens() {
   return (
-    <Tab.Navigator
-      tabBar={teacherTabBar}
-      screenOptions={({ route, navigation }) => ({
-        headerShown: true,
-        header: () => (
-          <UsersAppHeaderChrome
-            title={TAB_TITLES[route.name] ?? route.name}
-            onMenuPress={() => navigation.navigate('More' as never)}
-            onSearchPress={() => navigation.navigate('More' as never)}
-            searchPrompt="Search menu…"
-          />
-        ),
-      })}
-    >
-      <Tab.Screen name="Home" component={TeacherHomeScreen} />
-      <Tab.Screen name="Classes" component={TeacherClassesScreen} />
-      <Tab.Screen name="Attendance" component={MarkAttendanceScreen} />
-      <Tab.Screen name="Activities" component={ActivitiesHubScreen} />
-      <Tab.Screen name="More" component={TeacherMoreHubScreen} />
-    </Tab.Navigator>
+    <>
+      <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
+      <Stack.Screen name="Academics" component={TeacherAcademicsHubScreen} />
+      <Stack.Screen name="ActivityAttendance" component={ActivityAttendanceScreen} />
+      <Stack.Screen name="MarksHub" component={MarksHubScreen} />
+      <Stack.Screen name="MarksMatrixSetup" component={MarksMatrixSetupScreen} />
+      <Stack.Screen name="MarksMatrixEntry" component={MarksMatrixEntryScreen} />
+      <Stack.Screen name="MarksExamSetup" component={MarksExamSetupScreen} />
+      <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />
+      <Stack.Screen name="LessonPlansHub" component={LessonPlansHubScreen} />
+      <Stack.Screen name="LessonPlanDetail" component={LessonPlanDetailScreen} />
+      <Stack.Screen name="CreateLessonPlan" component={CreateLessonPlanScreen} />
+      <Stack.Screen name="TimetableHub" component={TimetableHubScreen} />
+      <Stack.Screen name="RequirementsHub" component={RequirementsHubScreen} />
+      <Stack.Screen name="RequirementDetail" component={RequirementDetailScreen} />
+      <Stack.Screen name="StaffClock" component={StaffClockScreen} />
+      <Stack.Screen name="LeaveApply" component={LeaveApplyScreen} />
+      <Stack.Screen name="MyLeaveList" component={MyLeaveListScreen} />
+      <Stack.Screen name="MyPayslips" component={MyPayslipsScreen} />
+      <Stack.Screen name="PayslipDetail" component={PayslipDetailScreen} />
+      <Stack.Screen name="MyProfile" component={MyProfileScreen} />
+      <Stack.Screen name="TeacherTransportHub" component={TeacherTransportScreen} />
+      <Stack.Screen name="LessonPlanReview" component={LessonPlanReviewQueueScreen} />
+      <Stack.Screen name="LessonPlanReviewDetail" component={LessonPlanReviewDetailScreen} />
+      <Stack.Screen name="DiaryList" component={DiaryListScreen} />
+      <Stack.Screen name="DiaryChat" component={DiaryChatScreen} />
+      <Stack.Screen name="Announcements" component={AnnouncementsListScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsListScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
+      <Stack.Screen name="AssignmentsHub" component={AssignmentsHubScreen} />
+      <Stack.Screen name="CreateAssignment" component={CreateAssignmentScreen} />
+      <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
+      <Stack.Screen name="MyAdvances" component={MyAdvancesScreen} />
+      <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
+      <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
+      <Stack.Screen name="ReportCardsHub" component={TeacherReportCardsHubScreen} />
+      <Stack.Screen name="StudentReportCards" component={TeacherStudentReportCardsScreen} />
+      <Stack.Screen name="TeacherReportCardDetail" component={TeacherReportCardDetailScreen} />
+    </>
   );
 }
 
+function TeacherHomeStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="HomeMain"
+        component={TeacherHomeScreen}
+        options={{
+          headerShown: true,
+          header: ({ navigation }) => (
+            <UsersAppHeaderChrome
+              title="Home"
+              onMenuPress={() => navigation.getParent()?.navigate('More' as never)}
+            />
+          ),
+        }}
+      />
+      {teacherSharedScreens()}
+    </Stack.Navigator>
+  );
+}
+
+function TeacherClassesStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="ClassesMain"
+        component={TeacherClassesScreen}
+        options={{
+          headerShown: true,
+          header: ({ navigation }) => (
+            <UsersAppHeaderChrome
+              title="My classes"
+              onMenuPress={() => navigation.getParent()?.navigate('More' as never)}
+            />
+          ),
+        }}
+      />
+      {teacherSharedScreens()}
+    </Stack.Navigator>
+  );
+}
+
+function TeacherAttendanceStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="AttendanceMain"
+        component={MarkAttendanceScreen}
+        options={{
+          headerShown: true,
+          header: ({ navigation }) => (
+            <UsersAppHeaderChrome
+              title="Attendance"
+              onMenuPress={() => navigation.getParent()?.navigate('More' as never)}
+            />
+          ),
+        }}
+      />
+      {teacherSharedScreens()}
+    </Stack.Navigator>
+  );
+}
+
+function TeacherActivitiesStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="ActivitiesMain"
+        component={ActivitiesHubScreen}
+        options={{
+          headerShown: true,
+          header: ({ navigation }) => (
+            <UsersAppHeaderChrome
+              title="Activities"
+              onMenuPress={() => navigation.getParent()?.navigate('More' as never)}
+            />
+          ),
+        }}
+      />
+      {teacherSharedScreens()}
+    </Stack.Navigator>
+  );
+}
+
+function TeacherMoreStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="MoreMain"
+        component={TeacherMoreHubScreen}
+        options={{
+          headerShown: true,
+          header: () => <UsersAppHeaderChrome title="More" />,
+        }}
+      />
+      {teacherSharedScreens()}
+    </Stack.Navigator>
+  );
+}
+
+/** Tabs wrap stacks so the bottom bar stays visible on detail screens. */
 export const TeacherNavigator: React.FC = () => (
-  <Stack.Navigator initialRouteName="Main" screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="Main" component={TeacherTabs} />
-    <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
-    <Stack.Screen name="Academics" component={TeacherAcademicsHubScreen} />
-    <Stack.Screen name="ActivityAttendance" component={ActivityAttendanceScreen} />
-    <Stack.Screen name="MarksHub" component={MarksHubScreen} />
-    <Stack.Screen name="MarksMatrixSetup" component={MarksMatrixSetupScreen} />
-    <Stack.Screen name="MarksMatrixEntry" component={MarksMatrixEntryScreen} />
-    <Stack.Screen name="MarksExamSetup" component={MarksExamSetupScreen} />
-    <Stack.Screen name="MarksEntry" component={MarksEntryScreen} />
-    <Stack.Screen name="LessonPlansHub" component={LessonPlansHubScreen} />
-    <Stack.Screen name="LessonPlanDetail" component={LessonPlanDetailScreen} />
-    <Stack.Screen name="CreateLessonPlan" component={CreateLessonPlanScreen} />
-    <Stack.Screen name="TimetableHub" component={TimetableHubScreen} />
-    <Stack.Screen name="RequirementsHub" component={RequirementsHubScreen} />
-    <Stack.Screen name="RequirementDetail" component={RequirementDetailScreen} />
-    <Stack.Screen name="StaffClock" component={StaffClockScreen} />
-    <Stack.Screen name="LeaveApply" component={LeaveApplyScreen} />
-    <Stack.Screen name="MyLeaveList" component={MyLeaveListScreen} />
-    <Stack.Screen name="MyPayslips" component={MyPayslipsScreen} />
-    <Stack.Screen name="PayslipDetail" component={PayslipDetailScreen} />
-    <Stack.Screen name="MyProfile" component={MyProfileScreen} />
-    <Stack.Screen name="TeacherTransportHub" component={TeacherTransportScreen} />
-    <Stack.Screen name="LessonPlanReview" component={LessonPlanReviewQueueScreen} />
-    <Stack.Screen name="LessonPlanReviewDetail" component={LessonPlanReviewDetailScreen} />
-    <Stack.Screen name="DiaryList" component={DiaryListScreen} />
-    <Stack.Screen name="DiaryChat" component={DiaryChatScreen} />
-    <Stack.Screen name="Announcements" component={AnnouncementsListScreen} />
-    <Stack.Screen name="Notifications" component={NotificationsListScreen} />
-    <Stack.Screen name="Settings" component={SettingsScreen} />
-    <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
-    <Stack.Screen name="AssignmentsHub" component={AssignmentsHubScreen} />
-    <Stack.Screen name="CreateAssignment" component={CreateAssignmentScreen} />
-    <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
-    <Stack.Screen name="MyAdvances" component={MyAdvancesScreen} />
-    <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
-    <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />
-    <Stack.Screen name="ReportCardsHub" component={TeacherReportCardsHubScreen} />
-    <Stack.Screen name="StudentReportCards" component={TeacherStudentReportCardsScreen} />
-    <Stack.Screen name="TeacherReportCardDetail" component={TeacherReportCardDetailScreen} />
-  </Stack.Navigator>
+  <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={teacherTabBar}>
+    <Tab.Screen name="Home" component={TeacherHomeStack} options={{ tabBarLabel: 'Home' }} />
+    <Tab.Screen name="Classes" component={TeacherClassesStack} options={{ tabBarLabel: 'Classes' }} />
+    <Tab.Screen name="Attendance" component={TeacherAttendanceStack} options={{ tabBarLabel: 'Attendance' }} />
+    <Tab.Screen name="Activities" component={TeacherActivitiesStack} options={{ tabBarLabel: 'Activities' }} />
+    <Tab.Screen name="More" component={TeacherMoreStack} options={{ tabBarLabel: 'More' }} />
+  </Tab.Navigator>
 );

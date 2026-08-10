@@ -99,7 +99,7 @@ export const TeacherHomeScreen: React.FC = () => {
     >
       <DashboardHero
         variant="academics"
-        greeting={timeOfDayGreeting(user?.name)}
+        greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Teacher'}
         title={user?.roleName ?? 'Teacher'}
         subtitle="Today's capture, teaching, and self-service in one place"

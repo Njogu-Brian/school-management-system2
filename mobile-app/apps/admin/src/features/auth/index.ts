@@ -5,3 +5,4 @@ export { ModuleAccessDeniedScreen } from './screens/ModuleAccessDeniedScreen';
 export { BiometricEnableScreen } from './screens/BiometricEnableScreen';
 export { PinEnableScreen } from './screens/PinEnableScreen';
 export { PinUnlockPanel, PinUnlockScreen } from './screens/PinUnlockPanel';
+export { ForceChangePasswordScreen } from './screens/ForceChangePasswordScreen';

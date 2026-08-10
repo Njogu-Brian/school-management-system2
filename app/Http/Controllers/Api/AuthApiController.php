@@ -467,6 +467,10 @@ class AuthApiController extends Controller
             $data['parent_profile_review_required'] = (bool) $user->parent_profile_review_required;
         }
 
+        if (Schema::hasColumn('users', 'must_change_password')) {
+            $data['must_change_password'] = (bool) $user->must_change_password;
+        }
+
         // Student: linked via parent_id on students table (students.parent_id -> parent_info)
         // No user_id column on students; student users are rare - skip student_id if schema lacks it
 

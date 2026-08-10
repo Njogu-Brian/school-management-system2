@@ -1,5 +1,5 @@
 import { useAuth, useCurrentUser, UserRole } from '@erp/core';
-import { AcademicScreenHeader, Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
+import { Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
@@ -66,11 +66,6 @@ export const TeacherMoreHubScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
-      <AcademicScreenHeader
-        title="More"
-        subtitle="Self-service and extras"
-        onProfilePress={() => navigation.navigate('MyProfile')}
-      />
       <AppModeSwitch style={{ marginBottom: spacing.md }} />
       {items.map((item) => (
         <Pressable
