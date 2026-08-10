@@ -20,7 +20,7 @@ import { useExpoOtaUpdates } from './src/hooks/useExpoOtaUpdates';
 
 const ThemedStatusBar: React.FC = () => {
   const { isDark } = useTheme();
-  return <StatusBar style={isDark ? 'light' : 'dark'} />;
+  return <StatusBar style={isDark ? 'light' : 'dark'} translucent />;
 };
 
 function AppRoot(): React.JSX.Element {
