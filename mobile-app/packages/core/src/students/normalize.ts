@@ -48,8 +48,26 @@ export function toStudentDetail(raw: StudentRecord, gradeLevel?: number | string
     guardians: mapGuardians(raw.guardians),
     emergencyContact: mapEmergencyContact(raw),
     tripId: raw.trip_id ?? null,
+    tripName: raw.trip_name ?? null,
+    tripVehicle: raw.trip_vehicle ?? null,
     dropOffPointId: raw.drop_off_point_id ?? null,
+    dropOffPointName: raw.drop_off_point_name ?? null,
     dropOffPointOther: raw.drop_off_point_other ?? null,
+    transportSummary: raw.transport?.summary ?? null,
+    transportMorning: raw.transport?.morning
+      ? {
+          tripName: raw.transport.morning.trip_name ?? null,
+          vehicle: raw.transport.morning.vehicle ?? null,
+          dropOffPoint: raw.transport.morning.drop_off_point ?? null,
+        }
+      : null,
+    transportEvening: raw.transport?.evening
+      ? {
+          tripName: raw.transport.evening.trip_name ?? null,
+          vehicle: raw.transport.evening.vehicle ?? null,
+          dropOffPoint: raw.transport.evening.drop_off_point ?? null,
+        }
+      : null,
     preferredHospital: raw.preferred_hospital ?? null,
     hasAllergies: Boolean(raw.has_allergies),
     allergiesNotes: raw.allergies_notes ?? null,

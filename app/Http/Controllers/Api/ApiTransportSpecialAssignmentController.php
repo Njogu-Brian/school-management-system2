@@ -14,6 +14,7 @@ class ApiTransportSpecialAssignmentController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
         $perPage = min((int) $request->input('per_page', 30), 100);
         $query = TransportSpecialAssignment::with([
             'student.classroom',
@@ -23,6 +24,12 @@ class ApiTransportSpecialAssignmentController extends Controller
             'approver',
             'creator',
         ])->orderByDesc('created_at');
+
+        // Parents only see their children's requests.
+        if ($user && method_exists($user, 'accessibleStudentIds') && ($user->parent_id || $user->hasAnyRole(['Parent', 'Guardian']))) {
+            $ids = $user->accessibleStudentIds();
+            $query->whereIn('student_id', $ids === [] ? [0] : $ids);
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -51,6 +58,7 @@ class ApiTransportSpecialAssignmentController extends Controller
 
     public function store(Request $request)
     {
+        $user = $request->user();
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
@@ -62,6 +70,14 @@ class ApiTransportSpecialAssignmentController extends Controller
             'reason' => 'nullable|string|max:1000',
             'activate' => 'sometimes|boolean',
         ]);
+
+        if ($user && method_exists($user, 'canAccessStudent') && ($user->parent_id || $user->hasAnyRole(['Parent', 'Guardian']))) {
+            if (! $user->canAccessStudent((int) $validated['student_id'])) {
+                abort(403, 'You do not have access to this student.');
+            }
+            // Parent requests always require approval.
+            $request->merge(['activate' => false]);
+        }
 
         if ($validated['transport_mode'] === 'vehicle' && empty($validated['vehicle_id'])) {
             return response()->json([

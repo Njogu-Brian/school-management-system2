@@ -6,6 +6,7 @@ import { AnnouncementsScreen } from '../../features/parent/screens/Announcements
 import { ChildAttendanceScreen } from '../../features/parent/screens/ChildAttendanceScreen';
 import { ChildHomeworkScreen } from '../../features/parent/screens/ChildHomeworkScreen';
 import { ChildHubScreen } from '../../features/parent/screens/ChildHubScreen';
+import { ChildProfileScreen } from '../../features/parent/screens/ChildProfileScreen';
 import { ChildResultsScreen } from '../../features/parent/screens/ChildResultsScreen';
 import { ParentInvoiceDetailScreen } from '../../features/parent/screens/ParentInvoiceDetailScreen';
 import { ParentPaymentDetailScreen } from '../../features/parent/screens/ParentPaymentDetailScreen';
@@ -72,6 +73,7 @@ const ParentHomeStack = () => (
     />
     <Stack.Screen name="ChildrenList" component={ParentChildrenScreen} />
     <Stack.Screen name="ChildHub" component={ChildHubScreen} />
+    <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
     <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
     <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
@@ -103,6 +105,7 @@ const ParentChildrenStack = () => (
       }}
     />
     <Stack.Screen name="ChildHub" component={ChildHubScreen} />
+    <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
     <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
     <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
@@ -131,6 +134,7 @@ const ParentFeesStack = () => (
     />
     <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
     <Stack.Screen name="ChildHub" component={ChildHubScreen} />
+    <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     {parentSharedScreens()}
   </Stack.Navigator>
@@ -138,18 +142,12 @@ const ParentFeesStack = () => (
 
 const ParentAcademicStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen
-      name="AcademicHome"
-      component={ParentAcademicScreen}
-      options={{
-        headerShown: true,
-        header: () => <UsersAppHeaderChrome title="Academic" />,
-      }}
-    />
+    <Stack.Screen name="AcademicHome" component={ParentAcademicScreen} />
+    <Stack.Screen name="ChildHub" component={ChildHubScreen} />
+    <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
     <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
     <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
-    <Stack.Screen name="ChildHub" component={ChildHubScreen} />
     {parentSharedScreens()}
   </Stack.Navigator>
 );

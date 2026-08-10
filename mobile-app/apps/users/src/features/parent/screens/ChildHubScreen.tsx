@@ -18,7 +18,7 @@ type Route = RouteProp<ParentStackParamList, 'ChildHub'>;
 const TILES: Array<{
   label: string;
   icon: keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
-  tone: 'indigo' | 'emerald' | 'amber' | 'blue' | 'cyan' | 'rose' | 'violet';
+  tone: 'indigo' | 'emerald' | 'amber' | 'blue' | 'cyan' | 'rose' | 'violet' | 'teal';
   route:
     | 'ChildResults'
     | 'ChildAttendance'
@@ -26,14 +26,15 @@ const TILES: Array<{
     | 'StudentStatement'
     | 'Transport'
     | 'DiaryChat'
-    | 'RaiseConcern';
+    | 'RaiseConcern'
+    | 'ChildProfile';
 }> = [
+  { label: 'Profile', icon: 'person-outline', tone: 'teal', route: 'ChildProfile' },
   { label: 'Results', icon: 'school-outline', tone: 'indigo', route: 'ChildResults' },
   { label: 'Attendance', icon: 'calendar-outline', tone: 'emerald', route: 'ChildAttendance' },
   { label: 'Homework', icon: 'book-outline', tone: 'amber', route: 'ChildHomework' },
   { label: 'Fees', icon: 'cash-outline', tone: 'blue', route: 'StudentStatement' },
   { label: 'Transport', icon: 'bus-outline', tone: 'cyan', route: 'Transport' },
-  // Live bus tracking hidden until the feature is production-ready.
   { label: 'Diary', icon: 'chatbubbles-outline', tone: 'violet', route: 'DiaryChat' },
   { label: 'Raise concern', icon: 'alert-circle-outline', tone: 'rose', route: 'RaiseConcern' },
 ];

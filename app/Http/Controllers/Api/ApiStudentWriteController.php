@@ -44,9 +44,16 @@ class ApiStudentWriteController extends Controller
      */
     public function profileUpdateLink(Request $request, int $id)
     {
-        $this->assertCanManageStudents($request);
-
+        $user = $request->user();
         $student = Student::where('archive', 0)->where('is_alumni', false)->findOrFail($id);
+
+        $isManager = $user && $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+        $canAccess = $user && method_exists($user, 'canAccessStudent') && $user->canAccessStudent($id);
+
+        if (! $isManager && ! $canAccess) {
+            abort(403, 'You do not have permission to open this profile update link.');
+        }
+
         $link = get_or_create_profile_update_link_for_student($student->fresh());
         if (! $link) {
             return response()->json([

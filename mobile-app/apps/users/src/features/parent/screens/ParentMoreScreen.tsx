@@ -13,6 +13,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
+import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
@@ -100,6 +101,9 @@ export const ParentMoreScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
+      <View style={{ marginBottom: spacing.md }}>
+        <AppModeSwitch />
+      </View>
       <SearchBar
         expandable
         value={query}

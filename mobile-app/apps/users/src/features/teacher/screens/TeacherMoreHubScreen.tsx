@@ -3,8 +3,9 @@ import { Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
-import { Pressable, Text } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
+import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
@@ -65,6 +66,9 @@ export const TeacherMoreHubScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
+      <View style={{ marginBottom: spacing.md }}>
+        <AppModeSwitch />
+      </View>
       {items.map((item) => (
         <Pressable
           key={`${item.route}-${item.title}`}

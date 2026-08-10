@@ -71,7 +71,18 @@ class ApiStudentController extends Controller
 
     public function show(Request $request, $id)
     {
-        $student = Student::with(['parent', 'classroom', 'stream', 'category'])->findOrFail($id);
+        $student = Student::with([
+            'parent',
+            'classroom',
+            'stream',
+            'category',
+            'trip.vehicle',
+            'dropOffPoint',
+            'assignments.morningTrip.vehicle',
+            'assignments.eveningTrip.vehicle',
+            'assignments.morningDropOffPoint',
+            'assignments.eveningDropOffPoint',
+        ])->findOrFail($id);
         $user = $request->user();
 
         // Teachers can only view students from their assigned classes
@@ -266,8 +277,15 @@ class ApiStudentController extends Controller
             'stream_id' => $s->stream_id,
             'category_id' => $s->category_id,
             'trip_id' => $s->trip_id,
+            'trip_name' => $s->trip?->trip_name,
+            'trip_vehicle' => $s->trip?->vehicle?->vehicle_number,
             'drop_off_point_id' => $s->drop_off_point_id,
+            'drop_off_point_name' => $s->dropOffPoint?->name
+                ?? (($s->drop_off_point_other && strtoupper(trim((string) $s->drop_off_point_other)) === 'OWN MEANS')
+                    ? 'Own means'
+                    : null),
             'drop_off_point_other' => $s->drop_off_point_other,
+            'transport' => $this->formatTransport($s),
             'class_name' => $s->classroom->name ?? null,
             'stream_name' => $s->stream->name ?? null,
             'status' => $s->archive ? 'archived' : 'active',
@@ -323,6 +341,87 @@ class ApiStudentController extends Controller
             'created_at' => $s->created_at->toIso8601String(),
             'updated_at' => $s->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * Human-readable transport assignment for parents / student 360.
+     *
+     * @return array<string, mixed>
+     */
+    protected function formatTransport(Student $s): array
+    {
+        $assignment = $s->relationLoaded('assignments')
+            ? $s->assignments->first()
+            : $s->assignments()->with([
+                'morningTrip.vehicle',
+                'eveningTrip.vehicle',
+                'morningDropOffPoint',
+                'eveningDropOffPoint',
+            ])->first();
+
+        $legacyMode = null;
+        if ($s->drop_off_point_other && strtoupper(trim((string) $s->drop_off_point_other)) === 'OWN MEANS') {
+            $legacyMode = 'own_means';
+        } elseif ($s->trip_id || $s->drop_off_point_id) {
+            $legacyMode = 'trip';
+        }
+
+        return [
+            'mode' => $legacyMode,
+            'summary' => $this->transportSummary($s, $assignment),
+            'morning' => $assignment ? [
+                'trip_id' => $assignment->morning_trip_id,
+                'trip_name' => $assignment->morningTrip?->trip_name,
+                'vehicle' => $assignment->morningTrip?->vehicle?->vehicle_number,
+                'drop_off_point_id' => $assignment->morning_drop_off_point_id,
+                'drop_off_point' => $assignment->morningDropOffPoint?->name,
+            ] : null,
+            'evening' => $assignment ? [
+                'trip_id' => $assignment->evening_trip_id,
+                'trip_name' => $assignment->eveningTrip?->trip_name,
+                'vehicle' => $assignment->eveningTrip?->vehicle?->vehicle_number,
+                'drop_off_point_id' => $assignment->evening_drop_off_point_id,
+                'drop_off_point' => $assignment->eveningDropOffPoint?->name,
+            ] : null,
+            'legacy' => [
+                'trip_id' => $s->trip_id,
+                'trip_name' => $s->trip?->trip_name,
+                'vehicle' => $s->trip?->vehicle?->vehicle_number,
+                'drop_off_point_id' => $s->drop_off_point_id,
+                'drop_off_point' => $s->dropOffPoint?->name,
+                'drop_off_point_other' => $s->drop_off_point_other,
+            ],
+        ];
+    }
+
+    protected function transportSummary(Student $s, $assignment): string
+    {
+        if ($assignment && ($assignment->morning_trip_id || $assignment->evening_trip_id)) {
+            $parts = [];
+            if ($assignment->morningTrip) {
+                $parts[] = 'Morning: '.$assignment->morningTrip->trip_name
+                    .($assignment->morningDropOffPoint?->name ? ' · '.$assignment->morningDropOffPoint->name : '');
+            }
+            if ($assignment->eveningTrip) {
+                $parts[] = 'Evening: '.$assignment->eveningTrip->trip_name
+                    .($assignment->eveningDropOffPoint?->name ? ' · '.$assignment->eveningDropOffPoint->name : '');
+            }
+
+            return implode(' · ', $parts);
+        }
+
+        if ($s->drop_off_point_other && strtoupper(trim((string) $s->drop_off_point_other)) === 'OWN MEANS') {
+            return 'Own means';
+        }
+
+        $bits = array_filter([
+            $s->trip?->trip_name,
+            $s->trip?->vehicle?->vehicle_number,
+            $s->dropOffPoint?->name,
+            $s->drop_off_point_other,
+        ]);
+
+        return $bits ? implode(' · ', $bits) : 'No transport assigned';
     }
 
     /**

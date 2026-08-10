@@ -37,69 +37,108 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         :root {
-            --brand-primary: {{ setting('finance_primary_color', '#0f766e') }};
-            --brand-accent: {{ setting('finance_secondary_color', '#14b8a6') }};
-            --brand-bg: #f5f7fb;
+            --brand-primary: {{ setting('primary_color', setting('finance_primary_color', '#390754')) }};
+            --brand-accent: {{ setting('secondary_color', setting('finance_secondary_color', '#5b2a7a')) }};
+            --brand-bg: #f3f5f8;
             --brand-surface: #ffffff;
-            --brand-border: #e5e7eb;
+            --brand-border: #e2e8f0;
             --brand-text: #0f172a;
-            --brand-muted: #6b7280;
+            --brand-muted: #64748b;
+            --brand-success: #059669;
+            --radius: 16px;
+            --shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
         }
+        * { box-sizing: border-box; }
         body {
-            font-family: 'Poppins', sans-serif;
-            background: var(--brand-bg);
+            font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+            background:
+                radial-gradient(1200px 400px at 10% -10%, color-mix(in srgb, var(--brand-primary) 18%, transparent), transparent),
+                radial-gradient(900px 320px at 100% 0%, color-mix(in srgb, var(--brand-accent) 14%, transparent), transparent),
+                var(--brand-bg);
             color: var(--brand-text);
+            min-height: 100vh;
         }
         .hero {
             background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
             color: #fff;
-            border-radius: 20px;
+            border-radius: calc(var(--radius) + 4px);
             padding: 28px 24px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            inset: auto -40px -60px auto;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.12);
         }
         .form-shell {
             background: var(--brand-surface);
             border: 1px solid var(--brand-border);
-            border-radius: 16px;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 22px;
         }
         .form-section {
             border: 1px solid var(--brand-border);
             border-radius: 14px;
-            padding: 16px;
+            padding: 18px;
             background: #fff;
+            margin-bottom: 16px;
         }
+        .form-section + .form-section { margin-top: 4px; }
         .section-header {
-            font-weight: 600;
-            font-size: 0.95rem;
+            font-weight: 700;
+            font-size: 0.8rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
             color: var(--brand-muted);
+            margin-bottom: 12px;
         }
         .badge-pill {
             border-radius: 999px;
             padding: 6px 12px;
-            background: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.18);
             color: #fff;
             font-weight: 600;
+            font-size: 0.8rem;
         }
         .form-label {
             font-weight: 600;
             color: var(--brand-text);
+            font-size: 0.9rem;
+            margin-bottom: 6px;
         }
         .form-control, .form-select {
-            border-radius: 10px;
+            border-radius: 12px;
             border-color: var(--brand-border);
+            padding: 0.7rem 0.9rem;
+            min-height: 46px;
         }
         .form-control:focus, .form-select:focus {
             border-color: var(--brand-primary);
-            box-shadow: 0 0 0 0.2rem rgba(15,118,110,0.15);
+            box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--brand-primary) 18%, transparent);
+        }
+        .btn-primary {
+            background: var(--brand-primary);
+            border-color: var(--brand-primary);
+            border-radius: 12px;
+            font-weight: 600;
+            padding: 0.75rem 1.25rem;
+        }
+        .btn-primary:hover, .btn-primary:focus {
+            background: var(--brand-accent);
+            border-color: var(--brand-accent);
         }
         .upload-hint {
             font-size: 0.85rem;
             color: var(--brand-muted);
         }
-        .file-upload-wrapper {
-            position: relative;
-        }
+        .file-upload-wrapper { position: relative; }
         .file-upload-buttons {
             display: flex;
             gap: 8px;
@@ -107,23 +146,23 @@
         }
         .file-upload-btn {
             flex: 1;
-            padding: 10px;
-            border: 2px dashed var(--brand-border);
-            border-radius: 8px;
-            background: #f9fafb;
+            padding: 12px;
+            border: 1.5px dashed var(--brand-border);
+            border-radius: 12px;
+            background: #f8fafc;
             cursor: pointer;
             text-align: center;
-            transition: all 0.2s;
+            transition: border-color 0.15s, background 0.15s;
             font-size: 0.9rem;
             color: var(--brand-text);
         }
         .file-upload-btn:hover {
             border-color: var(--brand-primary);
-            background: #f0fdfa;
+            background: color-mix(in srgb, var(--brand-primary) 6%, #fff);
         }
         .file-upload-btn i {
             display: block;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             margin-bottom: 4px;
             color: var(--brand-primary);
         }
@@ -133,35 +172,41 @@
             width: 0;
             height: 0;
         }
-        .file-preview {
+        .file-preview, .existing-docs {
             margin-top: 8px;
-            padding: 8px;
-            background: #f9fafb;
-            border-radius: 6px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border: 1px solid var(--brand-border);
+            border-radius: 10px;
             font-size: 0.85rem;
         }
         .existing-docs {
-            margin-top: 8px;
-            padding: 8px;
-            background: #eff6ff;
-            border-radius: 6px;
-            font-size: 0.85rem;
+            background: color-mix(in srgb, var(--brand-primary) 6%, #fff);
         }
         .existing-docs a {
             color: var(--brand-primary);
             text-decoration: none;
             margin-right: 12px;
+            font-weight: 600;
         }
-        .existing-docs a:hover {
-            text-decoration: underline;
+        .existing-docs a:hover { text-decoration: underline; }
+        .alert {
+            border-radius: 12px;
+            border: none;
+        }
+        .sticky-actions {
+            position: sticky;
+            bottom: 0;
+            background: linear-gradient(180deg, transparent, var(--brand-surface) 28%);
+            padding: 16px 0 8px;
+            margin-top: 8px;
+            z-index: 5;
         }
         @media (max-width: 576px) {
-            .hero {
-                padding: 20px 18px;
-            }
-            .form-shell {
-                padding: 14px;
-            }
+            .hero { padding: 20px 18px; border-radius: 16px; }
+            .form-shell { padding: 14px; border-radius: 14px; }
+            .form-section { padding: 14px; }
+            .container { padding-left: 12px; padding-right: 12px; }
         }
     </style>
 </head>
@@ -676,9 +721,11 @@
                             </div>
                         </div>
 
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary btn-lg">Save Updates</button>
-                            <div class="text-muted small text-center">You can revisit this link anytime to make further updates.</div>
+                        <div class="sticky-actions">
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">Save updates</button>
+                                <div class="text-muted small text-center">You can revisit this link anytime to make further updates.</div>
+                            </div>
                         </div>
                     </form>
                 </div>

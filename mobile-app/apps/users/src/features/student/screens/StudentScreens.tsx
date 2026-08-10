@@ -1,6 +1,7 @@
-import { apiClient, timeOfDayGreeting, useCurrentUser, useStudentReportCards, useUnreadNotificationCount } from '@erp/core';
+import { apiClient, formatRoleLabel, timeOfDayGreeting, useAuth, useCurrentUser, useStudentReportCards, useUnreadNotificationCount } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   DashboardHero,
   DashboardSection,
   EmptyState,
@@ -14,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
 import { FlatList, Text, View } from 'react-native';
+import { confirmAction } from '../../shared/utils/feedback';
 
 type CrossTabNav = {
   navigate: (name: string, params?: object) => void;
@@ -33,7 +35,8 @@ const ACADEMICS_ACTIONS = [
 
 export const StudentHomeScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { spacing } = useTheme();
+  const { logout } = useAuth();
+  const { spacing, colors } = useTheme();
   const navigation = useNavigation();
   const tabClearance = useFloatingTabBarClearance();
   const studentId = user?.studentId ?? 0;
@@ -47,7 +50,8 @@ export const StudentHomeScreen: React.FC = () => {
         variant="academics"
         greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Student'}
-        title="Student portal"
+        roleLabel={formatRoleLabel(user?.roleName ?? user?.role, 'Student')}
+        title="Home"
         subtitle="Homework, results, and school updates"
         meta={meta}
       />
@@ -92,6 +96,15 @@ export const StudentHomeScreen: React.FC = () => {
           />
         </View>
       </DashboardSection>
+
+      <Button
+        label="Sign out"
+        variant="ghost"
+        onPress={() =>
+          confirmAction('Sign out', 'Sign out of the Users app on this device?', 'Sign out', () => void logout(), true)
+        }
+        style={{ marginTop: spacing.md, marginBottom: spacing.sm, borderColor: colors.error, borderWidth: 1 }}
+      />
     </ScreenContainer>
   );
 };

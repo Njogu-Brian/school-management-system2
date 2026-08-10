@@ -98,6 +98,65 @@ export function normalizeAcademicSummary(row: AcademicSummaryRecord): AcademicSu
   };
 }
 
+/**
+ * Compact exam / term label for progress charts.
+ * Examples: "Mid Term 1", "End Term 2", "Opener Term 3".
+ */
+export function assessmentChartLabel(row: AssessmentHistoryItem): string {
+  const raw = ((row.title ?? '').trim() || (row.typeLabel ?? '').trim() || 'Score')
+    .replace(/^Term Report\s*[—\-–]\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return formatExamProgressLabel(raw);
+}
+
+/** Normalize free-form exam titles into short chart markers. */
+export function formatExamProgressLabel(raw: string): string {
+  const cleaned = raw.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return 'Score';
+
+  const lower = cleaned.toLowerCase();
+
+  // Extract term number from common patterns (Term 2, T2, Term2, …).
+  const termMatch =
+    lower.match(/\bterm\s*[-_]?\s*([1-3])\b/) ||
+    lower.match(/\bt\s*([1-3])\b/) ||
+    lower.match(/\b([1-3])\s*(?:st|nd|rd|th)?\s*term\b/);
+  const termNum = termMatch?.[1] ?? null;
+
+  if (/\bopener\b/.test(lower) || /\bopening\b/.test(lower)) {
+    return termNum ? `Opener Term ${termNum}` : 'Opener';
+  }
+  if (/\bmid[\s_-]*term\b/.test(lower) || /\bmidterm\b/.test(lower) || /\bmid\b/.test(lower)) {
+    return termNum ? `Mid Term ${termNum}` : 'Mid Term';
+  }
+  if (
+    /\bend[\s_-]*of[\s_-]*term\b/.test(lower) ||
+    /\bend[\s_-]*term\b/.test(lower) ||
+    /\bendterm\b/.test(lower) ||
+    /\bfinal\b/.test(lower)
+  ) {
+    return termNum ? `End Term ${termNum}` : 'End Term';
+  }
+  if (/^term\s*[1-3]$/i.test(cleaned) || /^t\s*[1-3]$/i.test(cleaned)) {
+    return termNum ? `Term ${termNum}` : titleCaseWords(cleaned);
+  }
+
+  // Fallback: title-case, keep short.
+  const titled = titleCaseWords(cleaned);
+  return titled.length > 22 ? `${titled.slice(0, 20)}…` : titled;
+}
+
+function titleCaseWords(value: string): string {
+  return value
+    .toLowerCase()
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 /** Term-over-term and scored events for sparkline / list trend */
 export function buildPerformanceTrend(items: AssessmentHistoryItem[]): PerformanceTrendPoint[] {
   const reportCards = items
@@ -106,7 +165,7 @@ export function buildPerformanceTrend(items: AssessmentHistoryItem[]): Performan
 
   if (reportCards.length >= 2) {
     return reportCards.map((rc) => ({
-      label: rc.title.replace(/^Term Report —\s*/i, '').trim() || 'Term',
+      label: assessmentChartLabel(rc) || 'Term',
       percentage: rc.scorePercent as number,
       assessedOn: rc.assessedOn,
       kind: 'report_card' as const,
@@ -116,10 +175,10 @@ export function buildPerformanceTrend(items: AssessmentHistoryItem[]): Performan
   const scored = items
     .filter((i) => i.displayCategory !== 'report_card' && i.scorePercent != null)
     .sort((a, b) => (a.assessedOn ?? '').localeCompare(b.assessedOn ?? ''))
-    .slice(-8);
+    .slice(-12);
 
   return scored.map((row) => ({
-    label: row.subjectName ? `${row.subjectName}` : row.typeLabel,
+    label: assessmentChartLabel(row),
     percentage: row.scorePercent as number,
     assessedOn: row.assessedOn,
     kind: 'assessment' as const,
@@ -163,8 +222,11 @@ export function buildSubjectProgress(items: AssessmentHistoryItem[]): SubjectPro
   const series: SubjectProgressSeries[] = [];
   for (const [subjectId, rows] of bySubject) {
     const sorted = [...rows].sort((a, b) => (a.assessedOn ?? '').localeCompare(b.assessedOn ?? ''));
-    const points: PerformanceTrendPoint[] = sorted.slice(-8).map((row) => ({
-      label: row.typeLabel || 'Score',
+    // Prefer formal exams (mid/end/opener) when available so markers stay readable.
+    const examRows = sorted.filter((r) => r.displayCategory === 'exam');
+    const source = examRows.length > 0 ? examRows : sorted;
+    const points: PerformanceTrendPoint[] = source.slice(-12).map((row) => ({
+      label: assessmentChartLabel(row),
       percentage: row.scorePercent as number,
       assessedOn: row.assessedOn,
       kind: 'assessment' as const,

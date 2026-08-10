@@ -126,6 +126,10 @@ export const studentsApi = {
     return apiClient.post<StudentRecord>(`/students/${studentId}/update`, payload);
   },
 
+  profileUpdateLink(studentId: number): Promise<ApiResponse<{ url: string; token: string }>> {
+    return apiClient.get(`/students/${studentId}/profile-update-link`);
+  },
+
   parentCredentials(studentId: number): Promise<
     ApiResponse<{
       parent_info_id: number | null;

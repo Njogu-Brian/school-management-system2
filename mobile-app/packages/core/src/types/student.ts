@@ -28,8 +28,37 @@ export interface StudentRecord {
   religion?: string | null;
   nemis_number?: string | null;
   trip_id?: number | null;
+  trip_name?: string | null;
+  trip_vehicle?: string | null;
   drop_off_point_id?: number | null;
+  drop_off_point_name?: string | null;
   drop_off_point_other?: string | null;
+  transport?: {
+    mode?: string | null;
+    summary?: string | null;
+    morning?: {
+      trip_id?: number | null;
+      trip_name?: string | null;
+      vehicle?: string | null;
+      drop_off_point_id?: number | null;
+      drop_off_point?: string | null;
+    } | null;
+    evening?: {
+      trip_id?: number | null;
+      trip_name?: string | null;
+      vehicle?: string | null;
+      drop_off_point_id?: number | null;
+      drop_off_point?: string | null;
+    } | null;
+    legacy?: {
+      trip_id?: number | null;
+      trip_name?: string | null;
+      vehicle?: string | null;
+      drop_off_point_id?: number | null;
+      drop_off_point?: string | null;
+      drop_off_point_other?: string | null;
+    };
+  };
   preferred_hospital?: string | null;
   has_allergies?: boolean;
   allergies_notes?: string | null;
@@ -117,8 +146,22 @@ export interface StudentDetail extends StudentSummary {
   guardians: StudentGuardianContact[];
   emergencyContact: StudentEmergencyContact;
   tripId: number | null;
+  tripName: string | null;
+  tripVehicle: string | null;
   dropOffPointId: number | null;
+  dropOffPointName: string | null;
   dropOffPointOther: string | null;
+  transportSummary: string | null;
+  transportMorning: {
+    tripName: string | null;
+    vehicle: string | null;
+    dropOffPoint: string | null;
+  } | null;
+  transportEvening: {
+    tripName: string | null;
+    vehicle: string | null;
+    dropOffPoint: string | null;
+  } | null;
   preferredHospital: string | null;
   hasAllergies: boolean;
   allergiesNotes: string | null;

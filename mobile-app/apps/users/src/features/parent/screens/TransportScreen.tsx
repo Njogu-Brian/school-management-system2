@@ -1,4 +1,9 @@
-import { transportSpecialApi, useStudentDetail } from '@erp/core';
+import {
+  parentTransportApi,
+  transportSpecialApi,
+  useStudentDetail,
+  type ParentTransportOptions,
+} from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
@@ -13,12 +18,64 @@ import {
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type TransportMode = 'vehicle' | 'trip' | 'own_means';
 type ChangeDuration = 'temporary' | 'permanent';
+
+function OptionPicker({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: Array<{ id: number; label: string }>;
+  value: number | null;
+  onChange: (id: number | null) => void;
+}) {
+  const { palette, spacing, typography, radius } = useTheme();
+  return (
+    <View style={{ marginBottom: spacing.md }}>
+      <Text style={{ color: palette.textSecondary, fontWeight: '600', marginBottom: spacing.xs }}>{label}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {options.map((opt) => {
+            const active = value === opt.id;
+            return (
+              <Pressable
+                key={opt.id}
+                onPress={() => onChange(active ? null : opt.id)}
+                style={{
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm,
+                  borderRadius: radius.full,
+                  borderWidth: 1,
+                  borderColor: active ? palette.primary : palette.border,
+                  backgroundColor: active ? palette.primaryMuted : palette.surface,
+                  maxWidth: 220,
+                }}
+              >
+                <Text
+                  numberOfLines={2}
+                  style={{
+                    color: active ? palette.primary : palette.textPrimary,
+                    fontWeight: active ? '700' : '500',
+                    fontSize: typography.caption.fontSize,
+                  }}
+                >
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
 
 export const TransportScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -33,7 +90,20 @@ export const TransportScreen: React.FC = () => {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
+  const [tripId, setTripId] = useState<number | null>(null);
+  const [dropOffPointId, setDropOffPointId] = useState<number | null>(null);
+  const [vehicleId, setVehicleId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const optionsQuery = useQuery({
+    queryKey: ['parent-transport-options'],
+    queryFn: async () => {
+      const res = await parentTransportApi.options();
+      if (!res.success || !res.data) throw new Error(res.message || 'Failed to load transport options.');
+      return res.data as ParentTransportOptions;
+    },
+    staleTime: 5 * 60_000,
+  });
 
   const assignmentsQuery = useQuery({
     queryKey: ['transport-special', studentId],
@@ -59,11 +129,22 @@ export const TransportScreen: React.FC = () => {
       showError('End date required', 'Temporary changes need an end date (YYYY-MM-DD).');
       return;
     }
+    if (mode === 'trip' && !tripId) {
+      showError('Trip required', 'Select the trip you want for this child.');
+      return;
+    }
+    if (mode === 'vehicle' && !vehicleId) {
+      showError('Vehicle required', 'Select a vehicle for this request.');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await transportSpecialApi.create({
         student_id: studentId,
         transport_mode: mode,
+        trip_id: mode === 'trip' ? tripId : null,
+        vehicle_id: mode === 'vehicle' ? vehicleId : null,
+        drop_off_point_id: mode === 'own_means' ? null : dropOffPointId,
         start_date: startDate.trim(),
         end_date: changeDuration === 'temporary' ? endDate.trim() : null,
         reason: reason.trim(),
@@ -73,6 +154,9 @@ export const TransportScreen: React.FC = () => {
       showSuccess('Request submitted', 'School admin will review before it becomes active.');
       setReason('');
       setEndDate('');
+      setTripId(null);
+      setVehicleId(null);
+      setDropOffPointId(null);
       void assignmentsQuery.refetch();
     } catch (err) {
       showError('Request failed', err instanceof Error ? err.message : 'Could not submit change request.');
@@ -81,16 +165,20 @@ export const TransportScreen: React.FC = () => {
     }
   };
 
+  const d = detail.data;
+  const morning = d?.transportMorning;
+  const evening = d?.transportEvening;
+
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader
         title="Transport"
-        subtitle={detail.data?.fullName ?? undefined}
+        subtitle={d?.fullName ?? undefined}
         onBack={() => navigation.goBack()}
       />
 
       {studentId <= 0 ? (
-        <EmptyState title="Missing student" message="Select a child first." icon="alert-circle-outline" />
+        <EmptyState title="Missing student" message="Select a child first." icon="bus-outline" />
       ) : (
         <>
           <View
@@ -106,33 +194,43 @@ export const TransportScreen: React.FC = () => {
             <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
               Current assignment
             </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-              Trip ID: {detail.data?.tripId ?? '—'}
-            </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-              Drop-off point ID: {detail.data?.dropOffPointId ?? '—'}
-            </Text>
-            {detail.data?.dropOffPointOther ? (
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-                Other drop-off: {detail.data.dropOffPointOther}
-              </Text>
-            ) : null}
-            {!detail.data?.tripId && !detail.data?.dropOffPointId && !detail.data?.dropOffPointOther ? (
-              <Text style={{ color: palette.textMuted, marginTop: spacing.sm }}>
-                No transport details on file for this child.
-              </Text>
-            ) : null}
+            {detail.isLoading ? (
+              <SkeletonListRows variant="compact" count={2} />
+            ) : (
+              <>
+                <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>
+                  {d?.transportSummary || 'No transport assigned'}
+                </Text>
+                {morning?.tripName ? (
+                  <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
+                    Morning · {[morning.tripName, morning.vehicle, morning.dropOffPoint].filter(Boolean).join(' · ')}
+                  </Text>
+                ) : null}
+                {evening?.tripName ? (
+                  <Text style={{ color: palette.textSecondary, marginTop: 4, fontSize: typography.caption.fontSize }}>
+                    Evening · {[evening.tripName, evening.vehicle, evening.dropOffPoint].filter(Boolean).join(' · ')}
+                  </Text>
+                ) : null}
+                {!morning?.tripName && !evening?.tripName ? (
+                  <>
+                    <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
+                      Trip: {d?.tripName ?? (d?.tripId ? `#${d.tripId}` : '—')}
+                      {d?.tripVehicle ? ` · ${d.tripVehicle}` : ''}
+                    </Text>
+                    <Text style={{ color: palette.textSecondary, marginTop: 4, fontSize: typography.caption.fontSize }}>
+                      Drop-off: {d?.dropOffPointName ?? d?.dropOffPointOther ?? (d?.dropOffPointId ? `#${d.dropOffPointId}` : '—')}
+                    </Text>
+                  </>
+                ) : null}
+              </>
+            )}
           </View>
 
           <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
-            Special assignments
+            Change requests
           </Text>
           {assignmentsQuery.isLoading ? (
             <SkeletonListRows variant="compact" count={2} />
-          ) : assignmentsQuery.isError ? (
-            <Text style={{ color: palette.textMuted, marginBottom: spacing.md, fontSize: typography.caption.fontSize }}>
-              Could not load past requests.
-            </Text>
           ) : (assignmentsQuery.data ?? []).length === 0 ? (
             <Text style={{ color: palette.textMuted, marginBottom: spacing.md, fontSize: typography.caption.fontSize }}>
               No special transport requests on file.
@@ -154,6 +252,9 @@ export const TransportScreen: React.FC = () => {
                   {row.transport_mode.replace('_', ' ')} · {row.status}
                 </Text>
                 <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+                  {[row.trip_name, row.vehicle_number, row.drop_off_point].filter(Boolean).join(' · ') || 'Details pending'}
+                </Text>
+                <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
                   {row.start_date}
                   {row.end_date ? ` → ${row.end_date}` : ' · permanent'}
                 </Text>
@@ -170,7 +271,7 @@ export const TransportScreen: React.FC = () => {
             Request a change
           </Text>
           <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm, fontSize: typography.caption.fontSize }}>
-            Requests are submitted inactive until admin approval.
+            Choose the new arrangement. School admin must approve before it becomes active.
           </Text>
 
           <FilterChipRow label="Duration">
@@ -189,62 +290,63 @@ export const TransportScreen: React.FC = () => {
             ))}
           </FilterChipRow>
 
-          {changeDuration === 'permanent' ? (
-            <Text
-              style={{
-                color: palette.textSecondary,
-                fontSize: typography.caption.fontSize,
-                marginBottom: spacing.sm,
-                fontStyle: 'italic',
-              }}
-            >
-              Permanent changes require school approval and do not use an end date.
-            </Text>
-          ) : (
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-              Temporary changes must include an end date.
-            </Text>
-          )}
-
           <FilterChipRow label="Mode">
             {(
               [
                 { id: 'own_means', label: 'Own means' },
+                { id: 'trip', label: 'School trip' },
                 { id: 'vehicle', label: 'Vehicle' },
-                { id: 'trip', label: 'Trip' },
               ] as const
             ).map((opt) => (
               <FilterChip
                 key={opt.id}
                 label={opt.label}
                 active={mode === opt.id}
-                onPress={() => setMode(opt.id)}
+                onPress={() => {
+                  setMode(opt.id);
+                  setTripId(null);
+                  setVehicleId(null);
+                }}
               />
             ))}
           </FilterChipRow>
 
-          <TextField label="Start date (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} />
-          {changeDuration === 'temporary' ? (
-            <TextField
-              label="End date (required)"
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder="YYYY-MM-DD"
+          {mode === 'trip' ? (
+            <OptionPicker
+              label="Select trip"
+              options={(optionsQuery.data?.trips ?? []).map((t) => ({ id: t.id, label: t.label }))}
+              value={tripId}
+              onChange={setTripId}
             />
           ) : null}
-          <TextField
-            label="Reason"
-            value={reason}
-            onChangeText={setReason}
-            placeholder="Why do you need this change?"
-            multiline
-          />
+          {mode === 'vehicle' ? (
+            <OptionPicker
+              label="Select vehicle"
+              options={(optionsQuery.data?.vehicles ?? []).map((v) => ({ id: v.id, label: v.label }))}
+              value={vehicleId}
+              onChange={setVehicleId}
+            />
+          ) : null}
+          {mode !== 'own_means' ? (
+            <OptionPicker
+              label="Drop-off point (optional)"
+              options={(optionsQuery.data?.drop_off_points ?? []).map((p) => ({ id: p.id, label: p.label }))}
+              value={dropOffPointId}
+              onChange={setDropOffPointId}
+            />
+          ) : null}
+
+          <TextField label="Start date (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} />
+          {changeDuration === 'temporary' ? (
+            <TextField label="End date (YYYY-MM-DD)" value={endDate} onChangeText={setEndDate} />
+          ) : null}
+          <TextField label="Reason" value={reason} onChangeText={setReason} multiline />
 
           <Button
-            label="Submit request"
-            loading={submitting}
+            label={submitting ? 'Submitting…' : 'Submit change request'}
             onPress={() => void submit()}
-            style={{ marginTop: spacing.md }}
+            disabled={submitting}
+            style={{ marginTop: spacing.sm }}
           />
         </>
       )}

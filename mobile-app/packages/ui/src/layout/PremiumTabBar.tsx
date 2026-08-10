@@ -33,15 +33,17 @@ export function useFloatingTabBarClearance(_includeSafeArea = true): number {
 }
 
 /**
- * Floating black capsule tab bar — inactive = outline icon only;
- * active = gray pill with filled icon + label (matches product mock).
+ * Floating brand capsule tab bar — inactive = muted outline icon;
+ * active = lighter pill with filled icon + label. Shared by Users + Admin.
  */
 export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, onTabPress }) => {
-  const { spacing, isDark } = useTheme();
+  const { spacing, colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const barBg = isDark ? '#0B0B0D' : '#111114';
-  const activePill = isDark ? '#2A2A30' : '#2C2C32';
-  const iconColor = '#FFFFFF';
+  // ScholarCore navy capsule (not flat black).
+  const barBg = isDark ? colors.primaryDark : colors.primary;
+  const activePill = isDark ? 'rgba(75,159,255,0.28)' : 'rgba(255,255,255,0.2)';
+  const idleIcon = 'rgba(255,255,255,0.72)';
+  const activeIcon = '#FFFFFF';
 
   return (
     <View
@@ -70,14 +72,14 @@ export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, 
                   entering={FadeIn.duration(160)}
                   style={[styles.activePill, { backgroundColor: activePill }]}
                 >
-                  <Ionicons name={iconName} size={20} color={iconColor} />
+                  <Ionicons name={iconName} size={20} color={activeIcon} />
                   <Text style={styles.activeLabel} numberOfLines={1}>
                     {item.label}
                   </Text>
                 </Animated.View>
               ) : (
                 <View style={styles.idleIcon}>
-                  <Ionicons name={iconName} size={22} color={iconColor} />
+                  <Ionicons name={iconName} size={22} color={idleIcon} />
                 </View>
               )}
             </Pressable>
@@ -128,9 +130,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    shadowColor: '#000',
+    shadowColor: '#003366',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.32,
     shadowRadius: 18,
     elevation: 12,
   },

@@ -1,5 +1,6 @@
-import { timeOfDayGreeting, useClassrooms, useCurrentUser, useUnreadNotificationCount } from '@erp/core';
+import { formatRoleLabel, timeOfDayGreeting, useAuth, useClassrooms, useCurrentUser, useUnreadNotificationCount } from '@erp/core';
 import {
+  Button,
   DashboardHero,
   DashboardSection,
   QuickAction,
@@ -12,6 +13,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
+import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
 
@@ -71,7 +73,8 @@ function ActionGrid({
 
 export const TeacherHomeScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { spacing } = useTheme();
+  const { logout } = useAuth();
+  const { spacing, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const tabClearance = useFloatingTabBarClearance();
   const classroomsQuery = useClassrooms();
@@ -79,6 +82,7 @@ export const TeacherHomeScreen: React.FC = () => {
 
   const classTeacherCount = user?.classTeacherClassroomIds?.length ?? 0;
   const teachingClassCount = classroomsQuery.data?.length ?? 0;
+  const roleLabel = formatRoleLabel(user?.roleName ?? user?.role, 'Teacher');
 
   const meta = useMemo(() => {
     const parts: string[] = [];
@@ -101,7 +105,8 @@ export const TeacherHomeScreen: React.FC = () => {
         variant="academics"
         greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Teacher'}
-        title={user?.roleName ?? 'Teacher'}
+        roleLabel={roleLabel}
+        title="Home"
         subtitle="Today's capture, teaching, and self-service in one place"
         meta={meta}
       />
@@ -121,6 +126,15 @@ export const TeacherHomeScreen: React.FC = () => {
       <DashboardSection title="School">
         <ActionGrid actions={SCHOOL} onPress={goTo} />
       </DashboardSection>
+
+      <Button
+        label="Sign out"
+        variant="ghost"
+        onPress={() =>
+          confirmAction('Sign out', 'Sign out of the Users app on this device?', 'Sign out', () => void logout(), true)
+        }
+        style={{ marginTop: spacing.md, marginBottom: spacing.sm, borderColor: colors.error, borderWidth: 1 }}
+      />
     </ScreenContainer>
   );
 };

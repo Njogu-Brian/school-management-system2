@@ -12,6 +12,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { Text, Pressable, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
+import { ChildAcademicProgressSection } from '../components/ChildAcademicProgressSection';
 import { formatShortDate } from '../utils/format';
 
 export const ChildResultsScreen: React.FC = () => {
@@ -29,6 +30,37 @@ export const ChildResultsScreen: React.FC = () => {
         subtitle={detail.data?.fullName ?? undefined}
         onBack={() => navigation.goBack()}
       />
+
+      {studentId > 0 ? (
+        <>
+          <Text
+            style={{
+              color: palette.textSecondary,
+              fontWeight: '700',
+              fontSize: typography.caption.fontSize,
+              marginBottom: spacing.xs,
+              textTransform: 'uppercase',
+              letterSpacing: 0.4,
+            }}
+          >
+            Progress
+          </Text>
+          <ChildAcademicProgressSection studentId={studentId} hideIdentity />
+        </>
+      ) : null}
+
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontWeight: '700',
+          fontSize: typography.caption.fontSize,
+          marginBottom: spacing.xs,
+          textTransform: 'uppercase',
+          letterSpacing: 0.4,
+        }}
+      >
+        Report cards
+      </Text>
 
       {reportCards.isLoading ? (
         <SkeletonListRows count={4} />

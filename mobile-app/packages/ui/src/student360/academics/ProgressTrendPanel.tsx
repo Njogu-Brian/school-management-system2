@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Polyline } from 'react-native-svg';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
 
 export type ProgressTone = 'up' | 'down' | 'stale';
@@ -20,6 +19,10 @@ export interface ProgressTrendPanelProps {
   emptyMessage?: string;
 }
 
+const BAR_MAX_H = 100;
+const COL_W = 52;
+const LABEL_SLOT_H = 58;
+
 function toneMeta(direction: ProgressTone): {
   label: string;
   color: string;
@@ -34,56 +37,14 @@ function toneMeta(direction: ProgressTone): {
   return { label: 'Stable', color: '#64748B', icon: 'remove-outline' };
 }
 
-function Sparkline({
-  points,
-  color,
-  width,
-  height,
-}: {
-  points: number[];
-  color: string;
-  width: number;
-  height: number;
-}) {
-  const coords = useMemo(() => {
-    if (points.length === 0) return '';
-    const min = Math.min(...points, 0);
-    const max = Math.max(...points, 100);
-    const span = Math.max(max - min, 1);
-    const step = points.length > 1 ? width / (points.length - 1) : width;
-    return points
-      .map((v, i) => {
-        const x = i * step;
-        const y = height - ((v - min) / span) * (height - 8) - 4;
-        return `${x},${y}`;
-      })
-      .join(' ');
-  }, [points, width, height]);
-
-  const last = useMemo(() => {
-    if (points.length === 0) return null;
-    const parts = coords.split(' ');
-    const lastPair = parts[parts.length - 1]?.split(',') ?? [];
-    return { x: Number(lastPair[0]), y: Number(lastPair[1]) };
-  }, [coords, points.length]);
-
-  if (points.length < 2) {
-    return (
-      <View style={{ height, justifyContent: 'center' }}>
-        <View style={{ height: 3, borderRadius: 2, backgroundColor: `${color}55` }} />
-      </View>
-    );
-  }
-
-  return (
-    <Svg width={width} height={height}>
-      <Polyline points={coords} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-      {last ? <Circle cx={last.x} cy={last.y} r={4} fill={color} /> : null}
-    </Svg>
-  );
+function barFill(percent: number, tone: string, primary: string): string {
+  if (percent >= 70) return tone === '#059669' ? tone : primary;
+  if (percent >= 50) return primary;
+  if (percent >= 40) return '#D97706';
+  return '#DC2626';
 }
 
-/** Modern overall / subject progress card with sparkline and up/down/stale badge. */
+/** Overall / subject progress as a bar chart with angled exam labels. */
 export const ProgressTrendPanel: React.FC<ProgressTrendPanelProps> = ({
   title,
   subtitle,
@@ -92,10 +53,14 @@ export const ProgressTrendPanel: React.FC<ProgressTrendPanelProps> = ({
   delta = null,
   emptyMessage = 'Not enough scores yet to chart progress.',
 }) => {
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography, radius, colors } = useTheme();
   const meta = toneMeta(direction);
   const latest = points.length > 0 ? points[points.length - 1].percentage : null;
-  const values = points.map((p) => p.percentage);
+
+  const chartWidth = useMemo(
+    () => Math.max(points.length * COL_W + 8, 200),
+    [points.length],
+  );
 
   return (
     <View
@@ -134,33 +99,97 @@ export const ProgressTrendPanel: React.FC<ProgressTrendPanelProps> = ({
       ) : (
         <>
           <View style={[styles.metrics, { marginTop: spacing.sm }]}>
-            <Text style={{ color: palette.textPrimary, fontSize: 28, fontWeight: '800' }}>
+            <Text style={{ color: palette.textPrimary, fontSize: 26, fontWeight: '800' }}>
               {latest != null ? `${latest.toFixed(0)}%` : '—'}
             </Text>
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginLeft: spacing.sm }}>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginLeft: spacing.sm, flex: 1 }}>
               {delta == null
-                ? 'Latest score'
+                ? `${points.length} exam${points.length === 1 ? '' : 's'} · latest`
                 : delta > 0
-                  ? `+${delta.toFixed(1)} pts vs prior`
+                  ? `+${delta.toFixed(1)} pts vs prior · ${points.length} exams`
                   : delta < 0
-                    ? `${delta.toFixed(1)} pts vs prior`
-                    : 'No change vs prior'}
+                    ? `${delta.toFixed(1)} pts vs prior · ${points.length} exams`
+                    : `No change vs prior · ${points.length} exams`}
             </Text>
           </View>
-          <View style={{ marginTop: spacing.md }}>
-            <Sparkline points={values} color={meta.color} width={280} height={56} />
-          </View>
-          <View style={[styles.labels, { marginTop: spacing.xs }]}>
-            {points.slice(-4).map((p) => (
-              <Text
-                key={`${p.label}-${p.percentage}`}
-                numberOfLines={1}
-                style={{ flex: 1, color: palette.textMuted, fontSize: 10, textAlign: 'center' }}
-              >
-                {p.label}
-              </Text>
-            ))}
-          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={points.length > 5}
+            style={{ marginTop: spacing.md }}
+            contentContainerStyle={{ paddingRight: spacing.sm }}
+          >
+            <View style={[styles.chart, { width: chartWidth }]}>
+              {/* Y-axis guide line at baseline */}
+              <View
+                style={[
+                  styles.baseline,
+                  {
+                    backgroundColor: palette.borderSubtle,
+                    bottom: LABEL_SLOT_H,
+                  },
+                ]}
+              />
+              {points.map((p, index) => {
+                const h = Math.max(6, Math.round((Math.min(p.percentage, 100) / 100) * BAR_MAX_H));
+                const fill = barFill(p.percentage, meta.color, colors.primary);
+                const isLatest = index === points.length - 1;
+                return (
+                  <View key={`bar-${index}-${p.label}-${p.percentage}`} style={styles.col}>
+                    <View style={styles.barStack}>
+                      <Text
+                        style={{
+                          color: isLatest ? palette.textPrimary : palette.textSecondary,
+                          fontSize: 10,
+                          fontWeight: isLatest ? '800' : '600',
+                          marginBottom: 4,
+                        }}
+                      >
+                        {p.percentage.toFixed(0)}%
+                      </Text>
+                      <View
+                        style={[
+                          styles.barTrack,
+                          {
+                            height: BAR_MAX_H,
+                            backgroundColor: palette.surfaceMuted,
+                            borderRadius: radius.sm,
+                          },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.barFill,
+                            {
+                              height: h,
+                              backgroundColor: fill,
+                              borderTopLeftRadius: radius.sm,
+                              borderTopRightRadius: radius.sm,
+                              opacity: isLatest ? 1 : 0.85,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                    <View style={styles.labelSlot}>
+                      <Text
+                        numberOfLines={2}
+                        style={[
+                          styles.angledLabel,
+                          {
+                            color: isLatest ? palette.textPrimary : palette.textMuted,
+                            fontWeight: isLatest ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        {p.label}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
         </>
       )}
     </View>
@@ -179,5 +208,48 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   metrics: { flexDirection: 'row', alignItems: 'baseline' },
-  labels: { flexDirection: 'row', gap: 4 },
+  chart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    minHeight: BAR_MAX_H + LABEL_SLOT_H + 28,
+    paddingTop: 4,
+  },
+  baseline: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+  },
+  col: {
+    width: COL_W,
+    alignItems: 'center',
+  },
+  barStack: {
+    height: BAR_MAX_H + 20,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  barTrack: {
+    width: 28,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  barFill: {
+    width: '100%',
+  },
+  labelSlot: {
+    height: LABEL_SLOT_H,
+    width: COL_W,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    overflow: 'visible',
+    marginTop: 6,
+  },
+  angledLabel: {
+    width: 78,
+    fontSize: 9,
+    lineHeight: 11,
+    textAlign: 'left',
+    transform: [{ rotate: '-42deg' }, { translateY: 10 }, { translateX: -6 }],
+  },
 });

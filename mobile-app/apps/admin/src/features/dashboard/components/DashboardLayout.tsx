@@ -1,5 +1,6 @@
-import { timeOfDayGreeting, useAuth, useCan } from '@erp/core';
+import { formatRoleLabel, timeOfDayGreeting, useAuth, useCan } from '@erp/core';
 import {
+  Button,
   DashboardHero,
   EmptyState,
   ScrollableTabBar,
@@ -8,6 +9,7 @@ import {
 } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { confirmAction } from '../../shared/utils/feedback';
 import {
   AlertsSection,
   CriticalKpisSection,
@@ -29,8 +31,8 @@ const DASHBOARD_TABS = [
 
 export const DashboardLayout: React.FC = () => {
   const canViewDashboard = useCan('dashboard.view');
-  const { spacing, palette } = useTheme();
-  const { user } = useAuth();
+  const { spacing, palette, colors } = useTheme();
+  const { user, logout } = useAuth();
   const [tab, setTab] = useState<DashboardTab>('overview');
 
   const greeting = useMemo(() => timeOfDayGreeting(), []);
@@ -66,6 +68,7 @@ export const DashboardLayout: React.FC = () => {
           variant="default"
           greeting={greeting}
           userName={displayName}
+          roleLabel={formatRoleLabel(user?.roleName ?? user?.role, 'Admin')}
           title="Command Center"
           subtitle="Live pulse across your school"
           meta="KPIs · Approvals · Alerts"
@@ -88,6 +91,15 @@ export const DashboardLayout: React.FC = () => {
         {tab === 'executive' ? <ExecutiveDashboardSection /> : null}
         {tab === 'approvals' ? <PendingApprovalsSection /> : null}
         {tab === 'alerts' ? <AlertsSection /> : null}
+
+        <Button
+          label="Sign out"
+          variant="ghost"
+          onPress={() =>
+            confirmAction('Sign out', 'Are you sure you want to sign out?', 'Sign out', () => void logout(), true)
+          }
+          style={{ marginTop: spacing.lg, marginBottom: spacing.md, borderColor: colors.error, borderWidth: 1 }}
+        />
       </ScreenContainer>
       <QuickActionFab />
     </View>

@@ -58,6 +58,8 @@ export interface DashboardHeroProps {
   greeting?: string;
   /** Display name under greeting */
   userName?: string;
+  /** Role identity under the name, e.g. "Teacher" (already sentence-cased by caller). */
+  roleLabel?: string;
   variant?: DashboardHeroVariant;
   style?: ViewStyle;
 }
@@ -69,6 +71,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
   meta,
   greeting,
   userName,
+  roleLabel,
   variant = 'default',
   style,
 }) => {
@@ -118,7 +121,7 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
         <View style={styles.orb} pointerEvents="none" />
         <View style={styles.orbSmall} pointerEvents="none" />
 
-        {greeting || userName ? (
+        {greeting || userName || roleLabel ? (
           <View style={{ marginBottom: spacing.md }}>
             {greeting ? (
               <Text
@@ -144,6 +147,19 @@ export const DashboardHero: React.FC<DashboardHeroProps> = ({
                 numberOfLines={1}
               >
                 {userName}
+              </Text>
+            ) : null}
+            {roleLabel ? (
+              <Text
+                style={{
+                  color: 'rgba(255,255,255,0.9)',
+                  fontSize: typography.body.fontSize,
+                  fontWeight: '600',
+                  marginTop: 2,
+                }}
+                numberOfLines={1}
+              >
+                {roleLabel}
               </Text>
             ) : null}
           </View>

@@ -1,4 +1,4 @@
-import { timeOfDayGreeting, useAuth, useCurrentUser, useDriverBoarding, useDriverTrip, useDriverTripActions, useDriverTrips } from '@erp/core';
+import { formatRoleLabel, timeOfDayGreeting, useAuth, useCurrentUser, useDriverBoarding, useDriverTrip, useDriverTripActions, useDriverTrips } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
@@ -196,11 +196,12 @@ const HOME_QUICK_ACTIONS: Array<{
 ];
 
 export const DriverHomeScreen: React.FC = () => {
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography, radius, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const tabClearance = useFloatingTabBarClearance();
   const tripsQuery = useDriverTrips();
   const user = useCurrentUser();
+  const { logout } = useAuth();
 
   const trips = tripsQuery.data ?? [];
   const meta = trips.length > 0 ? `${trips.length} trips today` : undefined;
@@ -211,7 +212,8 @@ export const DriverHomeScreen: React.FC = () => {
         variant="operations"
         greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Driver'}
-        title="Driver portal"
+        roleLabel={formatRoleLabel(user?.roleName ?? user?.role, 'Driver')}
+        title="Home"
         subtitle="Today's roster, vehicle status, and self-service"
         meta={meta}
       />
@@ -275,6 +277,15 @@ export const DriverHomeScreen: React.FC = () => {
           ))}
         </View>
       </DashboardSection>
+
+      <Button
+        label="Sign out"
+        variant="ghost"
+        onPress={() =>
+          confirmAction('Sign out', 'Sign out of the Users app on this device?', 'Sign out', () => void logout(), true)
+        }
+        style={{ marginTop: spacing.md, marginBottom: spacing.sm, borderColor: colors.error, borderWidth: 1 }}
+      />
     </ScreenContainer>
   );
 };

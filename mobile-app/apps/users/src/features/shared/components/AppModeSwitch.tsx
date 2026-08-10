@@ -5,7 +5,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 /**
- * Work | Home segmented switch for dual-identity users (staff who are also parents).
+ * Staff | Parent segmented switch for dual-identity users (staff who are also parents).
  * Renders nothing for single-identity users.
  */
 export const AppModeSwitch: React.FC<{ style?: object }> = ({ style }) => {
@@ -17,8 +17,8 @@ export const AppModeSwitch: React.FC<{ style?: object }> = ({ style }) => {
   }
 
   const options: Array<{ key: 'work' | 'home'; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
-    { key: 'work', label: 'Work', icon: 'briefcase-outline' },
-    { key: 'home', label: 'Home', icon: 'home-outline' },
+    { key: 'work', label: 'Staff', icon: 'briefcase-outline' },
+    { key: 'home', label: 'Parent', icon: 'home-outline' },
   ];
 
   return (

@@ -6,8 +6,11 @@ export interface TransportSpecialAssignmentRecord {
   student_id: number;
   student_name?: string | null;
   vehicle_id?: number | null;
+  vehicle_number?: string | null;
   trip_id?: number | null;
+  trip_name?: string | null;
   drop_off_point_id?: number | null;
+  drop_off_point?: string | null;
   transport_mode: 'vehicle' | 'trip' | 'own_means' | string;
   start_date: string;
   end_date?: string | null;

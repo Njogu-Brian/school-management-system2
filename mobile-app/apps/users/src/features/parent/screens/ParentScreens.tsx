@@ -1,5 +1,7 @@
 import {
+  formatRoleLabel,
   timeOfDayGreeting,
+  useAuth,
   useCurrentUser,
   useInfiniteStudentList,
   studentsApi,
@@ -27,7 +29,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import { FlatList, Linking, Pressable, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
-import { showError, showSuccess } from '../../shared/utils/feedback';
+import { showError, showSuccess, confirmAction } from '../../shared/utils/feedback';
 import { formatKes, formatShortDate } from '../utils/format';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
@@ -191,7 +193,8 @@ function ChildResultsSnapshot({
 
 export const ParentHomeScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { palette, spacing, typography } = useTheme();
+  const { logout } = useAuth();
+  const { palette, spacing, typography, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const tabClearance = useFloatingTabBarClearance();
   const unreadQuery = useUnreadNotificationCount();
@@ -224,7 +227,8 @@ export const ParentHomeScreen: React.FC = () => {
         variant="people"
         greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Parent'}
-        title="Parent portal"
+        roleLabel={formatRoleLabel(user?.roleName ?? user?.role, 'Parent')}
+        title="Home"
         subtitle="Track fees, attendance, and school updates for your children"
         meta={meta}
       />
@@ -300,6 +304,15 @@ export const ParentHomeScreen: React.FC = () => {
           ))}
         </View>
       </DashboardSection>
+
+      <Button
+        label="Sign out"
+        variant="ghost"
+        onPress={() =>
+          confirmAction('Sign out', 'Sign out of the Users app on this device?', 'Sign out', () => void logout(), true)
+        }
+        style={{ marginTop: spacing.md, marginBottom: spacing.sm, borderColor: colors.error, borderWidth: 1 }}
+      />
     </ScreenContainer>
   );
 };

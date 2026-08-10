@@ -164,6 +164,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'show']);
     Route::put('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'update']);
     Route::post('/parent/profile-review/complete', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'complete']);
+    Route::get('/parent/transport-options', [\App\Http\Controllers\Api\ApiParentTransportController::class, 'options']);
 
     // Parent family wallet (Users app)
     Route::get('/parent-wallet', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'show']);

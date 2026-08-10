@@ -10,7 +10,9 @@ export interface GlobalAppHeaderProps {
   title: string;
   /** Opens the drawer. When omitted the menu button is hidden (e.g. nested stacks). */
   onMenuPress?: () => void;
-  /** Static label for the active branch (no switching logic in the shell batch). */
+  /**
+   * Optional campus/branch chip under the title. Omitted by default (no "Main Branch" placeholder).
+   */
   branchLabel?: string;
   onBranchPress?: () => void;
   /** When set, shows a tappable search affordance below the title row (opens global search). */
@@ -29,7 +31,7 @@ export interface GlobalAppHeaderProps {
 export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
   title,
   onMenuPress,
-  branchLabel = 'Main Branch',
+  branchLabel,
   onBranchPress,
   onSearchPress,
   searchPrompt = 'Search anything…',
@@ -92,36 +94,41 @@ export const GlobalAppHeader: React.FC<GlobalAppHeaderProps> = ({
               >
                 {title}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Switch branch"
-                onPress={onBranchPress}
-                style={[
-                  styles.branch,
-                  {
-                    backgroundColor: isDark ? 'rgba(75,159,255,0.14)' : palette.primaryMuted,
-                    borderRadius: radius.full,
-                    paddingHorizontal: spacing.sm,
-                    paddingVertical: 3,
-                    marginTop: spacing.xs,
-                  },
-                ]}
-              >
-                <Ionicons name="business-outline" size={12} color={palette.primary} />
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: palette.primary,
-                    fontSize: typography.caption.fontSize,
-                    marginHorizontal: 3,
-                    maxWidth: 160,
-                    fontWeight: '600',
-                  }}
+              {branchLabel ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Switch branch"
+                  onPress={onBranchPress}
+                  disabled={!onBranchPress}
+                  style={[
+                    styles.branch,
+                    {
+                      backgroundColor: isDark ? 'rgba(75,159,255,0.14)' : palette.primaryMuted,
+                      borderRadius: radius.full,
+                      paddingHorizontal: spacing.sm,
+                      paddingVertical: 3,
+                      marginTop: spacing.xs,
+                    },
+                  ]}
                 >
-                  {branchLabel}
-                </Text>
-                <Ionicons name="chevron-down" size={12} color={palette.primary} />
-              </Pressable>
+                  <Ionicons name="business-outline" size={12} color={palette.primary} />
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: palette.primary,
+                      fontSize: typography.caption.fontSize,
+                      marginHorizontal: 3,
+                      maxWidth: 160,
+                      fontWeight: '600',
+                    }}
+                  >
+                    {branchLabel}
+                  </Text>
+                  {onBranchPress ? (
+                    <Ionicons name="chevron-down" size={12} color={palette.primary} />
+                  ) : null}
+                </Pressable>
+              ) : null}
             </View>
           </View>
 

@@ -2,6 +2,7 @@ export type ParentStackParamList = {
   ParentHome: undefined;
   ChildrenList: undefined;
   ChildHub: { studentId: number };
+  ChildProfile: { studentId: number };
   ChildResults: { studentId: number };
   ReportCardDetail: { studentId: number; reportCardId: number };
   ChildAttendance: { studentId: number };
