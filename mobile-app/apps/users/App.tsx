@@ -3,6 +3,7 @@ import {
   AuthProvider,
   BiometricAuthProvider,
   RbacProvider,
+  SchoolProvider,
   SessionProvider,
 } from '@erp/core';
 import { AppErrorBoundary, registerAppIssueReporter, useTheme } from '@erp/ui';
@@ -28,18 +29,20 @@ function AppRoot(): React.JSX.Element {
   return (
     <>
       <ThemedStatusBar />
-      <SessionProvider>
-        <AuthProvider>
-          <PersistedQueryProvider>
-            <RbacProvider>
-              <BiometricAuthProvider>
-                <UsersPushNotifications />
-                <UsersRootNavigator />
-              </BiometricAuthProvider>
-            </RbacProvider>
-          </PersistedQueryProvider>
-        </AuthProvider>
-      </SessionProvider>
+      <SchoolProvider>
+        <SessionProvider>
+          <AuthProvider>
+            <PersistedQueryProvider>
+              <RbacProvider>
+                <BiometricAuthProvider>
+                  <UsersPushNotifications />
+                  <UsersRootNavigator />
+                </BiometricAuthProvider>
+              </RbacProvider>
+            </PersistedQueryProvider>
+          </AuthProvider>
+        </SessionProvider>
+      </SchoolProvider>
     </>
   );
 }

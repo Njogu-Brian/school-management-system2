@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             ExpensePermissionSeeder::class,
             CanonicalRolesAndPermissionsSeeder::class,
             StatutoryRulesetSeeder::class,
+            SchoolsRegistrySeeder::class,
         ]);
     }
 }

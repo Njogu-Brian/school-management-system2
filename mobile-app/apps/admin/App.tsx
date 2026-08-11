@@ -3,6 +3,7 @@ import {
   AuthProvider,
   BiometricAuthProvider,
   RbacProvider,
+  SchoolProvider,
   SessionProvider,
 } from '@erp/core';
 import { AppErrorBoundary, registerAppIssueReporter, ScreenContainerDefaultsProvider, useTheme } from '@erp/ui';
@@ -41,20 +42,22 @@ export default function App(): React.JSX.Element {
         <AppThemeProvider>
           <AppErrorBoundary appName="admin">
             <ThemedStatusBar />
-            <SessionProvider>
-              <AuthProvider>
-                <PersistedQueryProvider>
-                  <RbacProvider>
-                    <BiometricAuthProvider>
-                      <AdminPushNotifications />
-                      <ScreenContainerDefaultsProvider edges={['bottom']}>
-                        <AdminRootNavigator />
-                      </ScreenContainerDefaultsProvider>
-                    </BiometricAuthProvider>
-                  </RbacProvider>
-                </PersistedQueryProvider>
-              </AuthProvider>
-            </SessionProvider>
+            <SchoolProvider>
+              <SessionProvider>
+                <AuthProvider>
+                  <PersistedQueryProvider>
+                    <RbacProvider>
+                      <BiometricAuthProvider>
+                        <AdminPushNotifications />
+                        <ScreenContainerDefaultsProvider edges={['bottom']}>
+                          <AdminRootNavigator />
+                        </ScreenContainerDefaultsProvider>
+                      </BiometricAuthProvider>
+                    </RbacProvider>
+                  </PersistedQueryProvider>
+                </AuthProvider>
+              </SessionProvider>
+            </SchoolProvider>
           </AppErrorBoundary>
         </AppThemeProvider>
       </SafeAreaProvider>

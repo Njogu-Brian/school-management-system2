@@ -36,6 +36,23 @@ class ApiClient {
     this.setupInterceptors();
   }
 
+  /** Current tenant API base URL (after school-code resolve). */
+  getBaseURL(): string {
+    return String(this.client.defaults.baseURL ?? '');
+  }
+
+  /**
+   * Point the shared client at a tenant ERP instance.
+   * Called after control-plane school resolve (or legacy auto-bind).
+   */
+  setBaseURL(url: string): void {
+    const next = url.replace(/\/$/, '');
+    this.client.defaults.baseURL = next;
+    if (__DEV__) {
+      console.log(`[API] baseURL → ${next}`);
+    }
+  }
+
   /** Register a handler invoked when the server rejects a request with 401. */
   setOnUnauthorized(cb: UnauthorizedCallback | null): void {
     this.onUnauthorized = cb;

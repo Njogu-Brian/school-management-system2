@@ -3,6 +3,7 @@ export * from './staffAdvances.api';
 export * from './client';
 export * from './account.api';
 export * from './auth.api';
+export * from './schools.api';
 export * from './parentClaim.api';
 export * from './parentProfileReview.api';
 export * from './parentWallet.api';

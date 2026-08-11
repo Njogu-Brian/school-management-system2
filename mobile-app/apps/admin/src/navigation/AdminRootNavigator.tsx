@@ -1,4 +1,4 @@
-import { AppModeProvider, canAccessApp, useAppMode, useAuth } from '@erp/core';
+import { AppModeProvider, canAccessApp, useAppMode, useAuth, useSchool } from '@erp/core';
 import { useTheme } from '@erp/ui';
 import {
   DarkTheme,
@@ -12,6 +12,7 @@ import {
   AuthLoadingScreen,
   BiometricEnableScreen,
   LoginScreen,
+  SchoolCodeScreen,
 } from '../features/auth';
 import { AdminParentHomeScreen } from '../features/parent/screens/AdminParentHomeScreen';
 import { DrawerNavigator } from './DrawerNavigator';
@@ -24,7 +25,14 @@ import { OfflineShell } from '../providers/OfflineShell';
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   const { status, user, biometricEnrollmentPending } = useAuth();
   const { mode } = useAppMode();
+  const school = useSchool();
 
+  if (school.status === 'initializing') {
+    return <AuthLoadingScreen />;
+  }
+  if (school.status === 'needs_code') {
+    return <SchoolCodeScreen />;
+  }
   if (status === 'initializing') {
     return <AuthLoadingScreen />;
   }

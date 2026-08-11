@@ -4,6 +4,7 @@ import {
   effectiveRole,
   isAdminAppRole,
   useAuth,
+  useSchool,
   UserRole,
 } from '@erp/core';
 import { useTheme } from '@erp/ui';
@@ -20,13 +21,21 @@ import {
   BiometricEnableScreen,
   LoginScreen,
   ParentProfileReviewScreen,
+  SchoolCodeScreen,
 } from '../features/auth';
 import { OfflineShell } from '../providers/OfflineShell';
 import { RoleBasedNavigator } from './RoleBasedNavigator';
 
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   const { status, user, biometricEnrollmentPending } = useAuth();
+  const school = useSchool();
 
+  if (school.status === 'initializing') {
+    return <AuthLoadingScreen />;
+  }
+  if (school.status === 'needs_code') {
+    return <SchoolCodeScreen />;
+  }
   if (status === 'initializing') {
     return <AuthLoadingScreen />;
   }

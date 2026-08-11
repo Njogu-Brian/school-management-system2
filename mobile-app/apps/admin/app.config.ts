@@ -5,6 +5,9 @@ import type { ExpoConfig } from 'expo/config';
  * Package name must match what you enter in Google Play Console (cannot change later).
  */
 const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://erp.royalkingsschools.sc.ke/api';
+const controlPlaneBase =
+  process.env.EXPO_PUBLIC_CONTROL_PLANE_BASE_URL || apiBase;
+const requireSchoolCode = process.env.EXPO_PUBLIC_REQUIRE_SCHOOL_CODE === 'true';
 /** Linked EAS project: @briannjogu/royal-kings-admin */
 const EAS_PROJECT_ID = '0d0b7844-fe28-441d-ab98-bb27890a38f3';
 const APP_VERSION = '1.0.11';
@@ -38,6 +41,12 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.royalkingsschools.admin',
+    buildNumber: '1',
+    infoPlist: {
+      NSFaceIDUsageDescription: 'Unlock Royal Kings Admin with Face ID.',
+      NSPhotoLibraryUsageDescription: 'Allow Royal Kings Admin to update profile photos.',
+      NSCameraUsageDescription: 'Allow Royal Kings Admin to take a profile photo.',
+    },
   },
   android: {
     package: 'com.royalkingsschools.admin',
@@ -56,6 +65,8 @@ const config: ExpoConfig = {
   },
   extra: {
     API_BASE_URL: apiBase,
+    CONTROL_PLANE_BASE_URL: controlPlaneBase,
+    REQUIRE_SCHOOL_CODE: requireSchoolCode,
     eas: {
       projectId: process.env.EAS_PROJECT_ID ?? EAS_PROJECT_ID,
     },

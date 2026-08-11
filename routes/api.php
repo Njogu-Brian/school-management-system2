@@ -51,6 +51,9 @@ Route::prefix('parent-claim')->group(function () {
 Route::get('/app-branding', [\App\Http\Controllers\Api\ApiAppBrandingController::class, 'show']);
 Route::get('/public/announcements', [\App\Http\Controllers\Api\ApiAnnouncementController::class, 'publicIndex']);
 
+/** Control-plane: school code → tenant API URL (DB-per-school SaaS). */
+Route::get('/schools/resolve', [\App\Http\Controllers\Api\ApiSchoolResolveController::class, 'resolve']);
+
 /*
 |--------------------------------------------------------------------------
 | Public Website API (Next.js frontend — no auth)

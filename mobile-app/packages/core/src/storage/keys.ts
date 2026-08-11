@@ -19,6 +19,8 @@ export const ASYNC_KEYS = {
   REMEMBERED_FIRST_NAME: '@erp_remembered_first_name',
   /** Work|Home mode for dual-identity users (staff who are also parents). */
   APP_MODE: '@erp_app_mode',
+  /** Persisted control-plane school selection (code → tenant API URL). */
+  SCHOOL_CONTEXT: '@erp_school_context',
 } as const;
 
 export const BIOMETRIC_SECURE_KEYS = {

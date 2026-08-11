@@ -10,8 +10,27 @@
       "android": {
         "buildType": "apk"
       },
+      "ios": {
+        "simulator": false,
+        "resourceClass": "m-medium"
+      },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_CONTROL_PLANE_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_REQUIRE_SCHOOL_CODE": "false"
+      }
+    },
+    "preview-simulator": {
+      "channel": "preview",
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_CONTROL_PLANE_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_REQUIRE_SCHOOL_CODE": "false"
       }
     },
     "production": {
@@ -19,8 +38,13 @@
       "android": {
         "buildType": "app-bundle"
       },
+      "ios": {
+        "resourceClass": "m-medium"
+      },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_CONTROL_PLANE_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_REQUIRE_SCHOOL_CODE": "false"
       }
     }
   },
@@ -28,6 +52,11 @@
     "production": {
       "android": {
         "track": "internal"
+      },
+      "ios": {
+        "appleId": "",
+        "ascAppId": "",
+        "appleTeamId": ""
       }
     }
   }

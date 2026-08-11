@@ -39,6 +39,7 @@ import { BiometricUnlockStrategy, BiometricLoginLockedError } from './providers/
 import { PinUnlockStrategy, PinLoginLockedError } from './providers/PinAuthProvider';
 import type { AuthMethod, AuthProviderResult } from './providers/types';
 import { useSession } from './SessionContext';
+import { useSchool } from './SchoolContext';
 
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 12_000;
 
@@ -108,6 +109,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const session = useSession();
+  const school = useSchool();
   const [status, setStatus] = useState<AuthStatus>('initializing');
   const [user, setUser] = useState<User | null>(null);
   const [lastAuthMethod, setLastAuthMethod] = useState<AuthMethod | null>(null);
@@ -234,6 +236,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
+    // Wait until school API base URL is known before restoring a session.
+    if (school.status !== 'ready') {
+      return;
+    }
     if (!session.hydrated) {
       return;
     }
@@ -291,7 +297,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.hydrated]);
+  }, [session.hydrated, school.status]);
 
   /** Absolute escape hatch — never leave testers on the boot logo forever. */
   useEffect(() => {
