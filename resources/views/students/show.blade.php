@@ -285,6 +285,59 @@
             @endif
           </div>
         </div>
+
+        @php
+          $canManageParentCreds = auth()->user() && auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
+          $parentAccounts = $parentCredentials['accounts'] ?? [];
+        @endphp
+        @if($canManageParentCreds)
+        <div class="settings-card mb-3">
+          <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span class="fw-bold">Parent App Login</span>
+            <span class="badge bg-light text-dark">Users app / portal</span>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-3">
+              Reset or share the parent login password. Device PIN stays on their phone (Settings) and cannot be reset from the server.
+            </p>
+            @if(empty($parentAccounts))
+              <div class="text-muted">
+                No linked parent login yet. Parents create one via claim/OTP, or enrollments may create an account without sharing the password.
+              </div>
+            @else
+              <div class="vstack gap-3">
+                @foreach($parentAccounts as $account)
+                  <div class="border rounded p-3">
+                    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                      <div>
+                        <div class="fw-semibold">{{ $account['name'] ?? '—' }}</div>
+                        <div class="small text-muted">
+                          {{ $account['login'] ?? 'No email' }}
+                          @if(!empty($account['phone'])) · {{ $account['phone'] }}@endif
+                          @if(!empty($account['must_change_password']))
+                            <span class="badge bg-warning text-dark ms-1">Must change password</span>
+                          @endif
+                        </div>
+                      </div>
+                      <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#resetParentPasswordModal{{ $account['user_id'] }}">
+                          <i class="bi bi-key"></i> Reset &amp; share
+                        </button>
+                        <form action="{{ route('students.parent-credentials.require-password-change', $student->id) }}" method="POST" class="d-inline"
+                              onsubmit="return confirm('Ask {{ addslashes($account['name'] ?? 'this parent') }} to change password on next sign-in? Current password still works until then.');">
+                          @csrf
+                          <input type="hidden" name="user_id" value="{{ $account['user_id'] }}">
+                          <button type="submit" class="btn btn-sm btn-ghost-strong">Require change on next sign-in</button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                @endforeach
+              </div>
+            @endif
+          </div>
+        </div>
+        @endif
       </div>
     </div>
 
@@ -752,10 +805,96 @@
     </div>
   </div>
 </div>
+@endif
+
+@if(!empty($parentAccounts))
+  @foreach($parentAccounts as $account)
+  <div class="modal fade" id="resetParentPasswordModal{{ $account['user_id'] }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-key"></i> Reset password — {{ $account['name'] ?? 'Parent' }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form action="{{ route('students.parent-credentials.reset', $student->id) }}" method="POST"
+              class="js-parent-cred-reset"
+              data-account-name="{{ e($account['name'] ?? 'this parent') }}">
+          @csrf
+          <input type="hidden" name="user_id" value="{{ $account['user_id'] }}">
+          <div class="modal-body">
+            <div class="alert alert-info mb-3">
+              Login: <strong>{{ $account['login'] ?? ($account['phone'] ?? '—') }}</strong>.
+              The temporary password will appear on this page after reset; optionally also send email/SMS.
+              App PIN cannot be reset from the server.
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password options</label>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="password_option" id="parentPwRandom{{ $account['user_id'] }}" value="random" checked>
+                <label class="form-check-label" for="parentPwRandom{{ $account['user_id'] }}">Generate random password (8 characters)</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="password_option" id="parentPwCustom{{ $account['user_id'] }}" value="custom">
+                <label class="form-check-label" for="parentPwCustom{{ $account['user_id'] }}">Set custom password</label>
+              </div>
+            </div>
+            <div class="mb-3 js-custom-password-field" style="display: none;">
+              <label class="form-label">Custom password</label>
+              <input type="text" name="new_password" class="form-control" placeholder="Min 6 characters" minlength="6" autocomplete="off">
+            </div>
+            <div class="form-check">
+              <input type="hidden" name="share" value="0">
+              <input class="form-check-input" type="checkbox" name="share" value="1" id="parentPwShare{{ $account['user_id'] }}" checked>
+              <label class="form-check-label" for="parentPwShare{{ $account['user_id'] }}">Also send via email / SMS when contact details exist</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-key"></i> Reset password</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  @endforeach
+@endif
 
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.js-parent-cred-reset').forEach(function(form) {
+    form.querySelectorAll('input[name="password_option"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        const field = form.querySelector('.js-custom-password-field');
+        const input = field ? field.querySelector('input') : null;
+        if (!field || !input) return;
+        if (this.value === 'custom') {
+          field.style.display = 'block';
+          input.required = true;
+        } else {
+          field.style.display = 'none';
+          input.required = false;
+          input.value = '';
+        }
+      });
+    });
+    form.addEventListener('submit', function(e) {
+      const selected = form.querySelector('input[name="password_option"]:checked');
+      if (selected && selected.value === 'custom') {
+        const custom = form.querySelector('input[name="new_password"]');
+        if (!custom || custom.value.length < 6) {
+          e.preventDefault();
+          alert('Custom password must be at least 6 characters.');
+          return;
+        }
+      }
+      const name = form.getAttribute('data-account-name') || 'this parent';
+      if (!confirm('Reset password for ' + name + '? They must change it on next sign-in.')) {
+        e.preventDefault();
+      }
+    });
+  });
+
   const classroomSelect = document.getElementById('demoteClassroomSelect');
   const streamSelect = document.getElementById('demoteStreamSelect');
 
@@ -791,5 +930,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endpush
-@endif
 @endsection

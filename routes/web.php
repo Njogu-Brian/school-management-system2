@@ -50,6 +50,7 @@ use App\Http\Controllers\Students\DisciplinaryRecordController;
 use App\Http\Controllers\Students\ExtracurricularActivityController;
 use App\Http\Controllers\Students\AcademicHistoryController;
 use App\Http\Controllers\Students\StudentCategoryController;
+use App\Http\Controllers\Students\ParentCredentialsController;
 use App\Http\Controllers\FileDownloadController;
 use App\Http\Controllers\MediaController;
 
@@ -1185,6 +1186,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     Route::post('/students/{id}/restore', [StudentController::class, 'restore'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.restore');
+
+    Route::post('/students/{id}/parent-credentials/reset', [ParentCredentialsController::class, 'reset'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.reset');
+    Route::post('/students/{id}/parent-credentials/require-password-change', [ParentCredentialsController::class, 'requirePasswordChange'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.require-password-change');
 
     // Helper for cascading class → streams
     Route::post('/get-streams', [StudentController::class, 'getStreams'])

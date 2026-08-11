@@ -2081,7 +2081,13 @@ class StudentController extends Controller
         $communicationHistory = $commService->sentHistoryForStudent($student);
         $communicationUpcoming = $commService->upcomingForStudent($student);
 
-        return view('students.show', compact('student', 'communicationHistory', 'communicationUpcoming'));
+        $parentCredentials = ['parent_info_id' => null, 'accounts' => []];
+        $authUser = auth()->user();
+        if ($authUser && $authUser->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+            $parentCredentials = app(\App\Services\ParentCredentialsService::class)->listForStudent($student);
+        }
+
+        return view('students.show', compact('student', 'communicationHistory', 'communicationUpcoming', 'parentCredentials'));
     }
 
     public function getStreams(Request $request)
