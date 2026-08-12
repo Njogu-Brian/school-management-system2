@@ -1,0 +1,13 @@
+name: Users production Android
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build_android:
+    name: Build Users Android AAB
+    type: build
+    params:
+      platform: android
+      profile: production
+      message: Users Play Store production AAB

@@ -1,0 +1,73 @@
+name: Users Play Store Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - preview
+  push:
+    branches: [main]
+    paths:
+      - 'mobile-app/apps/users/**'
+      - 'mobile-app/packages/**'
+      - '.github/workflows/eas-build-users.yml'
+
+concurrency:
+  group: eas-users-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Users Android (${{ inputs.profile || 'production' }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile-app/apps/users
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Setup Expo / EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install monorepo deps
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Verify Play version bump
+        run: |
+          node -e "
+            const fs = require('fs');
+            const gradle = fs.readFileSync('android/app/build.gradle','utf8');
+            const m = gradle.match(/versionCode\\s+(\\d+)/);
+            if (!m) { console.error('versionCode missing in android/app/build.gradle'); process.exit(1); }
+            const code = Number(m[1]);
+            console.log('Users native versionCode =', code);
+            if (code < 6) { console.error('versionCode must be > Play production (5)'); process.exit(1); }
+          "
+
+      - name: EAS Build (Android AAB)
+        env:
+          EAS_BUILD_NO_EXPO_GO_WARNING: 'true'
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ inputs.profile || 'production' }} \
+            --non-interactive \
+            --no-wait

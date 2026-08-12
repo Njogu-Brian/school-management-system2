@@ -1,0 +1,72 @@
+name: Admin Play Store Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - preview
+  push:
+    branches: [main]
+    paths:
+      - 'mobile-app/apps/admin/**'
+      - 'mobile-app/packages/**'
+      - '.github/workflows/eas-build-admin.yml'
+
+concurrency:
+  group: eas-admin-android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Admin Android (${{ inputs.profile || 'production' }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile-app/apps/admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Setup Expo / EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install monorepo deps
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Verify Play version bump
+        run: |
+          node -e "
+            const fs = require('fs');
+            const text = fs.readFileSync('app.config.ts','utf8');
+            const code = Number((text.match(/versionCode:\s*(\d+)/)||[])[1]||0);
+            const ver = (text.match(/APP_VERSION\s*=\s*'([^']+)'/)||[])[1];
+            console.log('Admin version', ver, 'versionCode', code);
+            if (code < 13) { console.error('Admin versionCode must be > Play Console active (12)'); process.exit(1); }
+          "
+
+      - name: EAS Build (Android AAB)
+        env:
+          EAS_BUILD_NO_EXPO_GO_WARNING: 'true'
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ inputs.profile || 'production' }} \
+            --non-interactive \
+            --no-wait
