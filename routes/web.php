@@ -1201,8 +1201,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.send');
     Route::post('/students/parent-credentials/bulk-send', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'bulkSend'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.bulk-send');
-    Route::post('/students/parent-credentials/reset', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'resetPassword'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.reset');
+    Route::post('/students/parent-credentials/reset-password', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'resetPassword'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.reset-password');
     Route::post('/students/parent-credentials/pin-help', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'sendPinHelp'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.pin-help');
     Route::post('/students/parent-credentials/forced-action', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'assignForcedAction'])

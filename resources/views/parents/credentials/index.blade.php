@@ -154,7 +154,7 @@
         <input type="hidden" name="parent_info_id" value="{{ $row['parent_info_id'] }}">
         <input type="hidden" name="channels[]" value="sms">
       </form>
-      <form id="reset-{{ $row['parent_info_id'] }}" method="POST" action="{{ route('students.parent-credentials.reset') }}" class="d-none">
+      <form id="reset-{{ $row['parent_info_id'] }}" method="POST" action="{{ route('students.parent-credentials.reset-password') }}" class="d-none">
         @csrf
         <input type="hidden" name="parent_info_id" value="{{ $row['parent_info_id'] }}">
         <input type="hidden" name="share" value="1">
