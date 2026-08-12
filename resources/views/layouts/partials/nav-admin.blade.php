@@ -36,16 +36,20 @@
 $studentsActive = Request::is('students*')
     || Request::is('online-admissions*')
     || Request::is('families*')
-    || Request::is('admin/family-update*');
+    || Request::is('admin/family-update*')
+    || Request::is('parents/credentials*');
 $studentRecordsActive = Request::is('students/*/medical-records*') || Request::is('students/*/disciplinary-records*') || Request::is('students/*/activities*') || Request::is('students/*/academic-history*');
 @endphp
 <a href="#studentsMenu" data-bs-toggle="collapse" aria-expanded="{{ $studentsActive ? 'true' : 'false' }}" class="{{ $studentsActive ? 'parent-active' : '' }}">
     <i class="bi bi-person"></i> Students
 </a>
 <div class="collapse {{ $studentsActive ? 'show' : '' }}" id="studentsMenu">
-    <a href="{{ route('students.index') }}" class="{{ Request::is('students') && !Request::is('students/parents-contact*') && !$studentRecordsActive ? 'active' : '' }}">Student Details</a>
+    <a href="{{ route('students.index') }}" class="{{ Request::is('students') && !Request::is('students/parents-contact*') && !Request::is('students/parent-credentials*') && !$studentRecordsActive ? 'active' : '' }}">Student Details</a>
     @if(Route::has('students.parents-contact'))
     <a href="{{ route('students.parents-contact') }}" class="{{ Request::is('students/parents-contact*') ? 'active' : '' }}"><i class="bi bi-telephone"></i> Parents Contact</a>
+    @endif
+    @if(Route::has('students.parent-credentials'))
+    <a href="{{ route('students.parent-credentials') }}" class="{{ Request::is('students/parent-credentials*') ? 'active' : '' }}"><i class="bi bi-key"></i> Parent Credentials</a>
     @endif
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
     <a href="{{ route('students.bulk.assign-categories') }}" class="{{ Request::is('students/bulk-assign-categories*') ? 'active' : '' }}"><i class="bi bi-tag"></i> Assign Categories</a>

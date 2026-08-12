@@ -79,7 +79,7 @@ class ApiTimetableController extends Controller
             if (! $query->exists()) {
                 abort(403, 'You do not have access to this student.');
             }
-        } elseif ($user->hasAnyRole(['Parent', 'Guardian'])) {
+        } elseif ($user->shouldScopeAsParent()) {
             if (! $user->canAccessStudent((int) $studentId)) {
                 abort(403, 'You do not have access to this student.');
             }

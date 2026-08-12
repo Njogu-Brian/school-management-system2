@@ -23,7 +23,7 @@ class ParentCredentialsController extends Controller
 
         $validated = $request->validate([
             'user_id' => 'required|integer|exists:users,id',
-            'password_option' => 'required|in:random,custom',
+            'password_option' => 'required|in:random,custom,formula,admission',
             'new_password' => 'nullable|string|min:6',
             'share' => 'nullable|boolean',
         ]);

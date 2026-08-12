@@ -167,6 +167,10 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'show']);
     Route::put('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'update']);
     Route::post('/parent/profile-review/complete', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'complete']);
+    Route::get('/parent/forced-actions', [\App\Http\Controllers\Api\ApiParentForcedActionsController::class, 'index']);
+    Route::post('/parent/forced-actions/{id}/complete', [\App\Http\Controllers\Api\ApiParentForcedActionsController::class, 'complete']);
+    Route::post('/parent/forced-actions', [\App\Http\Controllers\Api\ApiParentForcedActionsController::class, 'storeForParent']);
+    Route::post('/parent/documents/id-card', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'storeParentIdCard']);
     Route::get('/parent/transport-options', [\App\Http\Controllers\Api\ApiParentTransportController::class, 'options']);
 
     // Parent family wallet (Users app)
@@ -241,6 +245,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/students/{id}/mpesa/payment-link', [\App\Http\Controllers\Api\ApiMpesaPaymentController::class, 'paymentLinkUrl']);
     Route::get('/students/{id}/fee-clearance', [ApiFeeClearanceController::class, 'show']);
     Route::get('/students/{id}/documents', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'index']);
+    Route::post('/students/{id}/documents', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'store']);
     Route::get('/students/{studentId}/documents/{documentId}/download', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'download']);
     Route::get('/students/{studentId}/medical-records', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'index']);
     Route::post('/students/{studentId}/medical-records', [\App\Http\Controllers\Api\ApiMedicalRecordsController::class, 'store']);

@@ -56,7 +56,17 @@ class ApiAccountController extends Controller
         $user->forceFill([
             'password' => Hash::make($newPassword),
             'must_change_password' => false,
+            'password_changed_at' => now(),
         ])->save();
+
+        if ($user->parent_id) {
+            \App\Models\ParentForcedAction::query()
+                ->where('parent_info_id', $user->parent_id)
+                ->where('type', \App\Models\ParentForcedAction::TYPE_CHANGE_PASSWORD)
+                ->where('status', \App\Models\ParentForcedAction::STATUS_PENDING)
+                ->get()
+                ->each(fn ($a) => $a->markCompleted());
+        }
 
         return response()->json([
             'success' => true,

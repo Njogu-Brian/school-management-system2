@@ -23,7 +23,7 @@ class ApiDiaryController extends Controller
 
         $query = StudentDiary::with(['student.classroom', 'latestEntry.author']);
 
-        if ($user->hasAnyRole(['Parent', 'Guardian', 'parent'])) {
+        if ($user->shouldScopeAsParent()) {
             $childIds = $user->accessibleStudentIds();
             $query->whereIn('student_id', $childIds);
         } elseif ($user->hasAnyRole(['Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher'])) {
@@ -162,7 +162,7 @@ class ApiDiaryController extends Controller
             return;
         }
 
-        if ($user->hasAnyRole(['Parent', 'Guardian', 'parent'])) {
+        if ($user->shouldScopeAsParent()) {
             abort_unless($user->canAccessStudent($student->id), 403, 'You do not have access to this student.');
 
             return;
@@ -189,7 +189,7 @@ class ApiDiaryController extends Controller
         if ($user->hasAnyRole(['Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher'])) {
             return 'teacher';
         }
-        if ($user->hasAnyRole(['Parent', 'Guardian', 'parent'])) {
+        if ($user->shouldScopeAsParent()) {
             return 'parent';
         }
 

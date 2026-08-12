@@ -194,8 +194,21 @@ class ApiParentProfileReviewController extends Controller
 
         if (Schema::hasColumn('users', 'parent_profile_review_required')) {
             $user->parent_profile_review_required = false;
-            $user->save();
         }
+        if (Schema::hasColumn('users', 'profile_completed_at')) {
+            $user->profile_completed_at = now();
+        }
+        $user->save();
+
+        \App\Models\ParentForcedAction::query()
+            ->where('parent_info_id', $user->parent_id)
+            ->whereIn('type', [
+                \App\Models\ParentForcedAction::TYPE_PROFILE_REVIEW,
+                \App\Models\ParentForcedAction::TYPE_UPLOAD_DOCUMENTS,
+            ])
+            ->where('status', \App\Models\ParentForcedAction::STATUS_PENDING)
+            ->get()
+            ->each(fn ($a) => $a->markCompleted());
 
         $user->load('roles', 'roles.permissions', 'staff');
 

@@ -385,7 +385,7 @@ class ApiStudentStatementController extends Controller
                 abort(403, 'You do not have access to this student.');
             }
         }
-        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+        if ($user && $user->shouldScopeAsParent()) {
             if (! $user->canAccessStudent((int) $student->id)) {
                 abort(403, 'You do not have access to this student.');
             }

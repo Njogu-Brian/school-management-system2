@@ -26,6 +26,8 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'name', 'email', 'password', 'must_change_password',
         'google_id', 'google_email',
         'parent_id', 'phone_number', 'parent_profile_review_required',
+        'credentials_sent_at', 'credentials_sent_via',
+        'first_app_login_at', 'password_changed_at', 'profile_completed_at',
         'last_login_at', 'last_seen_at',
     ];
 
@@ -39,6 +41,10 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'password' => 'hashed',
         'parent_profile_review_required' => 'boolean',
         'must_change_password' => 'boolean',
+        'credentials_sent_at' => 'datetime',
+        'first_app_login_at' => 'datetime',
+        'password_changed_at' => 'datetime',
+        'profile_completed_at' => 'datetime',
         'last_login_at' => 'datetime',
         'last_seen_at' => 'datetime',
     ];
@@ -47,10 +53,14 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     public function markAppLogin(): void
     {
         $now = now();
-        $this->forceFill([
+        $data = [
             'last_login_at' => $now,
             'last_seen_at' => $now,
-        ])->saveQuietly();
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'first_app_login_at') && ! $this->first_app_login_at) {
+            $data['first_app_login_at'] = $now;
+        }
+        $this->forceFill($data)->saveQuietly();
     }
 
     /**
@@ -73,6 +83,58 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     public function hasTeacherLikeRole(): bool
     {
         return $this->hasAnyRole(self::teacherLikeRoleNames());
+    }
+
+    /**
+     * Staff / admin roles that must not be narrowed by Parent scoping in shared APIs.
+     *
+     * @return list<string>
+     */
+    public static function elevatedStaffRoleNames(): array
+    {
+        return array_values(array_unique(array_merge([
+            'Super Admin',
+            'super admin',
+            'Super admin',
+            'Admin',
+            'admin',
+            'Secretary',
+            'secretary',
+            'Accountant',
+            'accountant',
+            'Finance',
+            'finance',
+            'Finance Officer',
+            'finance officer',
+            'Director',
+            'director',
+            'Academic Administrator',
+            'academic administrator',
+        ], self::teacherLikeRoleNames())));
+    }
+
+    public function hasElevatedStaffRole(): bool
+    {
+        return $this->hasAnyRole(self::elevatedStaffRoleNames());
+    }
+
+    /**
+     * Whether list/dashboard APIs should restrict this user to their linked children.
+     * Elevated staff who also have Parent role or parent_id keep full staff scope.
+     */
+    public function shouldScopeAsParent(): bool
+    {
+        if ($this->hasElevatedStaffRole()) {
+            return false;
+        }
+
+        return $this->hasAnyRole(['Parent', 'Guardian', 'parent']) || (bool) $this->parent_id;
+    }
+
+    /** True when this account is linked to parent_info (Users app parent features). */
+    public function isLinkedParentAccount(): bool
+    {
+        return (bool) $this->parent_id || $this->hasAnyRole(['Parent', 'Guardian', 'parent']);
     }
 
     /**

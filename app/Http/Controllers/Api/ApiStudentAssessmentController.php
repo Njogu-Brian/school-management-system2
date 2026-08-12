@@ -34,7 +34,7 @@ class ApiStudentAssessmentController extends Controller
         $user = $request->user();
         $this->assertUserCanAccessStudent($user, $student);
 
-        $guardianPublishedOnly = $user && $user->hasAnyRole(['Parent', 'Guardian']);
+        $guardianPublishedOnly = $user && $user->shouldScopeAsParent();
 
         $paginator = $this->facade->history(
             $student,
@@ -86,7 +86,7 @@ class ApiStudentAssessmentController extends Controller
         $user = $request->user();
         $this->assertUserCanAccessStudent($user, $student);
 
-        $guardianPublishedOnly = $user && $user->hasAnyRole(['Parent', 'Guardian']);
+        $guardianPublishedOnly = $user && $user->shouldScopeAsParent();
 
         $summary = $this->facade->academicSummary(
             $student,
@@ -114,7 +114,7 @@ class ApiStudentAssessmentController extends Controller
             }
         }
 
-        if ($user->hasAnyRole(['Parent', 'Guardian'])) {
+        if ($user->shouldScopeAsParent()) {
             if (! $user->canAccessStudent((int) $student->id)) {
                 abort(403, 'You do not have access to this student.');
             }

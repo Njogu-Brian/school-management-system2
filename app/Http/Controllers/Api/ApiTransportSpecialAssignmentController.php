@@ -26,7 +26,7 @@ class ApiTransportSpecialAssignmentController extends Controller
         ])->orderByDesc('created_at');
 
         // Parents only see their children's requests.
-        if ($user && method_exists($user, 'accessibleStudentIds') && ($user->parent_id || $user->hasAnyRole(['Parent', 'Guardian']))) {
+        if ($user && method_exists($user, 'accessibleStudentIds') && $user->shouldScopeAsParent()) {
             $ids = $user->accessibleStudentIds();
             $query->whereIn('student_id', $ids === [] ? [0] : $ids);
         }
@@ -71,7 +71,7 @@ class ApiTransportSpecialAssignmentController extends Controller
             'activate' => 'sometimes|boolean',
         ]);
 
-        if ($user && method_exists($user, 'canAccessStudent') && ($user->parent_id || $user->hasAnyRole(['Parent', 'Guardian']))) {
+        if ($user && method_exists($user, 'canAccessStudent') && $user->shouldScopeAsParent()) {
             if (! $user->canAccessStudent((int) $validated['student_id'])) {
                 abort(403, 'You do not have access to this student.');
             }

@@ -164,24 +164,40 @@ class AdmissionApplicationEnrollmentService
 
     protected function ensureParentUserAccount(ParentInfo $parent, AdmissionApplication $application): void
     {
-        if (! $application->email) {
-            return;
-        }
-
-        $existing = User::query()->where('email', $application->email)->first();
-        if ($existing) {
-            if (! $existing->parent_id) {
-                $existing->update(['parent_id' => $parent->id]);
+        try {
+            $credentials = app(\App\Services\ParentCredentialsService::class);
+            $result = $credentials->provisionAndShare($parent, ['sms', 'email'], null, true);
+            // If application email differs, prefer attaching it as login when unused.
+            if ($application->email && $result['user']->email !== $application->email) {
+                $taken = User::where('email', $application->email)->where('id', '!=', $result['user']->id)->exists();
+                if (! $taken) {
+                    $result['user']->update(['email' => $application->email]);
+                }
             }
+        } catch (\Throwable $e) {
+            \Log::warning('Admission enroll: parent credential provision failed', [
+                'parent_info_id' => $parent->id,
+                'error' => $e->getMessage(),
+            ]);
+            if (! $application->email) {
+                return;
+            }
+            $existing = User::query()->where('email', $application->email)->first();
+            if ($existing) {
+                if (! $existing->parent_id) {
+                    $existing->update(['parent_id' => $parent->id]);
+                }
 
-            return;
+                return;
+            }
+            User::create([
+                'name' => $application->parent_name,
+                'email' => $application->email,
+                'password' => bcrypt(\Illuminate\Support\Str::random(16)),
+                'parent_id' => $parent->id,
+                'must_change_password' => true,
+                'parent_profile_review_required' => true,
+            ])->assignRole('Parent');
         }
-
-        User::create([
-            'name' => $application->parent_name,
-            'email' => $application->email,
-            'password' => bcrypt(Str::random(16)),
-            'parent_id' => $parent->id,
-        ])->assignRole('Parent');
     }
 }

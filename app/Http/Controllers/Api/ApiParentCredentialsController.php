@@ -42,7 +42,7 @@ class ApiParentCredentialsController extends Controller
 
         $validated = $request->validate([
             'user_id' => 'nullable|integer|exists:users,id',
-            'password_option' => 'required|in:random,custom',
+            'password_option' => 'required|in:random,custom,formula,admission',
             'new_password' => 'nullable|string|min:6',
             'share' => 'nullable|boolean',
         ]);

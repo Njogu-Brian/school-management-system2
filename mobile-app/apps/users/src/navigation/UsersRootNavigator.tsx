@@ -19,6 +19,7 @@ import {
   AccessDeniedScreen,
   AuthLoadingScreen,
   BiometricEnableScreen,
+  ForceChangePasswordScreen,
   LoginScreen,
   ParentProfileReviewScreen,
   SchoolCodeScreen,
@@ -27,7 +28,7 @@ import { OfflineShell } from '../providers/OfflineShell';
 import { RoleBasedNavigator } from './RoleBasedNavigator';
 
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending } = useAuth();
+  const { status, user, biometricEnrollmentPending, forcePasswordChangePending } = useAuth();
   const school = useSchool();
 
   if (school.status === 'initializing') {
@@ -54,12 +55,14 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   ) {
     return <AccessDeniedScreen />;
   }
-  // Force-password gate disabled — admin trigger sets the DB flag for future use;
-  // do not block staff/parents on open or sign-in until an explicit opt-in is shipped.
+  // Temp credentials / admin reset — force password change before continuing.
+  if (forcePasswordChangePending || user?.mustChangePassword) {
+    return <ForceChangePasswordScreen />;
+  }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
   }
-  // Freshly claimed parent accounts must review their family details first (data only).
+  // Profile + required document uploads after first password change / provision.
   if (user?.parentProfileReviewRequired) {
     return <ParentProfileReviewScreen />;
   }

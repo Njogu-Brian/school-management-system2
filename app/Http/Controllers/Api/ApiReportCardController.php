@@ -233,7 +233,7 @@ class ApiReportCardController extends Controller
             return false;
         }
 
-        return $user->hasAnyRole(['Parent', 'Guardian']) || (bool) $user->parent_id;
+        return $user->shouldScopeAsParent();
     }
 
     /**
@@ -245,11 +245,11 @@ class ApiReportCardController extends Controller
             return false;
         }
 
-        if ($user->hasAnyRole(['Parent', 'Guardian'])) {
-            return true;
+        if (! $user->shouldScopeAsParent()) {
+            return false;
         }
 
-        return (bool) $user->parent_id && $user->canAccessStudent((int) $rc->student_id);
+        return $user->canAccessStudent((int) $rc->student_id);
     }
 
     protected function assertUserCanAccessStudent(?\App\Models\User $user, ?Student $student): void

@@ -1,4 +1,5 @@
 import {
+  documentsApi,
   useAuth,
   useCompleteParentProfileReview,
   useParentProfileReview,
@@ -7,6 +8,8 @@ import {
 } from '@erp/core';
 import { Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { showError, showSuccess } from '../../shared/utils/feedback';
@@ -20,12 +23,14 @@ interface StudentForm {
   has_allergies: boolean;
   allergies_notes: string;
   is_fully_immunized: boolean;
+  photoUploaded: boolean;
+  birthCertUploaded: boolean;
 }
 
+type PickedFile = { uri: string; name: string; type: string };
+
 /**
- * Forced one-time profile review after a parent claims their account (data only — no
- * document uploads). Saving + completing clears `parent_profile_review_required` and the
- * root gate then renders the normal shell.
+ * Forced profile review after first sign-in: family details + required document uploads.
  */
 export const ParentProfileReviewScreen: React.FC = () => {
   const { palette, colors, spacing, typography, radius } = useTheme();
@@ -48,6 +53,8 @@ export const ParentProfileReviewScreen: React.FC = () => {
     guardian_relationship: '',
   });
   const [students, setStudents] = useState<StudentForm[]>([]);
+  const [parentIdUploaded, setParentIdUploaded] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!query.data) return;
@@ -75,6 +82,8 @@ export const ParentProfileReviewScreen: React.FC = () => {
         has_allergies: s.has_allergies,
         allergies_notes: s.allergies_notes ?? '',
         is_fully_immunized: s.is_fully_immunized,
+        photoUploaded: false,
+        birthCertUploaded: false,
       })),
     );
   }, [query.data]);
@@ -102,12 +111,90 @@ export const ParentProfileReviewScreen: React.FC = () => {
     [parent, students],
   );
 
+  const pickImage = async (): Promise<PickedFile | null> => {
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (res.canceled || !res.assets?.[0]) return null;
+    const asset = res.assets[0];
+    const name = asset.fileName ?? `photo-${Date.now()}.jpg`;
+    return { uri: asset.uri, name, type: asset.mimeType ?? 'image/jpeg' };
+  };
+
+  const pickDocument = async (): Promise<PickedFile | null> => {
+    const res = await DocumentPicker.getDocumentAsync({
+      type: ['image/*', 'application/pdf'],
+      copyToCacheDirectory: true,
+    });
+    if (res.canceled || !res.assets?.[0]) return null;
+    const asset = res.assets[0];
+    return {
+      uri: asset.uri,
+      name: asset.name ?? `document-${Date.now()}.pdf`,
+      type: asset.mimeType ?? 'application/pdf',
+    };
+  };
+
+  const uploadParentId = async () => {
+    setUploading(true);
+    try {
+      const file = (await pickDocument()) ?? (await pickImage());
+      if (!file) return;
+      const slot = parent.father_name ? 'father' : parent.mother_name ? 'mother' : 'guardian';
+      const res = await documentsApi.uploadParentIdCard(file, slot);
+      if (!res.success) throw new Error(res.message || 'Upload failed');
+      setParentIdUploaded(true);
+      showSuccess('ID uploaded');
+    } catch (err) {
+      showError('Upload failed', err instanceof Error ? err.message : 'Try again');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const uploadStudentDoc = async (
+    studentId: number,
+    category: 'student_profile_photo' | 'student_birth_certificate',
+  ) => {
+    setUploading(true);
+    try {
+      const file =
+        category === 'student_profile_photo' ? await pickImage() : (await pickDocument()) ?? (await pickImage());
+      if (!file) return;
+      const res = await documentsApi.uploadStudentDocument(studentId, file, category);
+      if (!res.success) throw new Error(res.message || 'Upload failed');
+      if (category === 'student_profile_photo') {
+        setStudentField(studentId, 'photoUploaded', true);
+      } else {
+        setStudentField(studentId, 'birthCertUploaded', true);
+      }
+      showSuccess('Document uploaded');
+    } catch (err) {
+      showError('Upload failed', err instanceof Error ? err.message : 'Try again');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSaveAndFinish = async () => {
+    if (!parentIdUploaded) {
+      showError('ID required', 'Please upload one parent or guardian ID card.');
+      return;
+    }
+    const missing = students.find((s) => !s.photoUploaded || !s.birthCertUploaded);
+    if (missing) {
+      showError(
+        'Documents required',
+        `Upload passport photo and birth certificate for ${[missing.first_name, missing.last_name].filter(Boolean).join(' ') || 'each child'}.`,
+      );
+      return;
+    }
     try {
       await save.mutateAsync(payload);
       await complete.mutateAsync();
       await refreshUser();
-      showSuccess('All set', 'Your details have been saved.');
+      showSuccess('All set', 'Your details and documents have been saved.');
     } catch (err) {
       showError('Could not save', err instanceof Error ? err.message : 'Please try again.');
     }
@@ -123,7 +210,7 @@ export const ParentProfileReviewScreen: React.FC = () => {
     );
   }
 
-  const busy = save.isPending || complete.isPending;
+  const busy = save.isPending || complete.isPending || uploading;
 
   const Checkbox: React.FC<{ label: string; value: boolean; onToggle: () => void }> = ({ label, value, onToggle }) => (
     <Pressable
@@ -149,6 +236,31 @@ export const ParentProfileReviewScreen: React.FC = () => {
     </Pressable>
   );
 
+  const UploadRow: React.FC<{ label: string; done: boolean; onPress: () => void }> = ({
+    label,
+    done,
+    onPress,
+  }) => (
+    <Pressable
+      onPress={onPress}
+      disabled={busy}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: spacing.sm,
+        borderTopWidth: 1,
+        borderTopColor: palette.border,
+        marginTop: spacing.sm,
+      }}
+    >
+      <Text style={{ color: palette.textPrimary, flex: 1 }}>{label}</Text>
+      <Text style={{ color: done ? '#16a34a' : colors.primary, fontWeight: '700' }}>
+        {done ? 'Uploaded' : 'Upload'}
+      </Text>
+    </Pressable>
+  );
+
   return (
     <ScreenContainer
       scroll
@@ -157,14 +269,14 @@ export const ParentProfileReviewScreen: React.FC = () => {
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
         <Text style={{ color: palette.textPrimary, fontSize: typography.headlineLarge.fontSize, fontWeight: '800' }}>
-          Review your details
+          Complete your profile
         </Text>
         <Pressable onPress={() => void logout()} hitSlop={8}>
           <Text style={{ color: colors.error, fontWeight: '600' }}>Sign out</Text>
         </Pressable>
       </View>
       <Text style={{ color: palette.textSecondary, marginBottom: spacing.lg }}>
-        Please confirm your family details before continuing. You can update these anytime later.
+        Confirm family details and upload required documents (parent ID, child passport photo, birth certificate).
       </Text>
 
       <View
@@ -215,6 +327,11 @@ export const ParentProfileReviewScreen: React.FC = () => {
         <TextField label="Full name" value={parent.guardian_name} onChangeText={(t) => setParentField('guardian_name', t)} />
         <TextField label="Phone" value={parent.guardian_phone} onChangeText={(t) => setParentField('guardian_phone', t)} keyboardType="phone-pad" />
         <TextField label="Relationship" value={parent.guardian_relationship} onChangeText={(t) => setParentField('guardian_relationship', t)} />
+        <UploadRow
+          label="Parent / guardian ID card (required — one)"
+          done={parentIdUploaded}
+          onPress={() => void uploadParentId()}
+        />
       </View>
 
       {students.map((s) => (
@@ -241,6 +358,16 @@ export const ParentProfileReviewScreen: React.FC = () => {
             <TextField label="Allergy notes" value={s.allergies_notes} onChangeText={(t) => setStudentField(s.id, 'allergies_notes', t)} multiline />
           ) : null}
           <Checkbox label="Fully immunized" value={s.is_fully_immunized} onToggle={() => setStudentField(s.id, 'is_fully_immunized', !s.is_fully_immunized)} />
+          <UploadRow
+            label="Passport photo (required)"
+            done={s.photoUploaded}
+            onPress={() => void uploadStudentDoc(s.id, 'student_profile_photo')}
+          />
+          <UploadRow
+            label="Birth certificate (required)"
+            done={s.birthCertUploaded}
+            onPress={() => void uploadStudentDoc(s.id, 'student_birth_certificate')}
+          />
         </View>
       ))}
 

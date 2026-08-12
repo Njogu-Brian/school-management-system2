@@ -29,7 +29,7 @@ class ApiStudentController extends Controller
             $user->applyTeacherStudentFilter($query);
         }
 
-        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+        if ($user && $user->shouldScopeAsParent()) {
             $ids = $user->accessibleStudentIds();
             if ($ids === []) {
                 $query->whereRaw('1 = 0');
@@ -94,7 +94,7 @@ class ApiStudentController extends Controller
             }
         }
 
-        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+        if ($user && $user->shouldScopeAsParent()) {
             if (! $user->canAccessStudent((int) $id)) {
                 abort(403, 'You do not have access to this student.');
             }
@@ -126,7 +126,7 @@ class ApiStudentController extends Controller
             }
         }
 
-        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+        if ($user && $user->shouldScopeAsParent()) {
             if (! $user->canAccessStudent($id)) {
                 abort(403, 'You do not have access to this student.');
             }
@@ -190,7 +190,7 @@ class ApiStudentController extends Controller
             }
         }
 
-        if ($user && $user->hasAnyRole(['Parent', 'Guardian'])) {
+        if ($user && $user->shouldScopeAsParent()) {
             if (! $user->canAccessStudent($id)) {
                 abort(403, 'You do not have access to this student.');
             }

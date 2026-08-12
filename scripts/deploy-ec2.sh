@@ -14,6 +14,10 @@ echo "=========================================="
 echo ""
 echo "[1/8] Pulling latest code..."
 git pull origin main
+# Mobile app is built via EAS locally — drop it from the API server to save ~700MB disk.
+rm -rf mobile-app
+# Root npm tree is only needed during Vite build; keep after build, but drop website deps here.
+rm -rf website/node_modules
 echo "✓ Code updated"
 
 # Step 2: Composer

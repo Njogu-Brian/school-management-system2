@@ -492,6 +492,11 @@ class ApiParentClaimController extends Controller
 
     private function assignParentRole(User $user): void
     {
+        // Elevated staff keep admin/teacher API scope; parent_id alone enables Users-app parent mode.
+        if ($user->hasElevatedStaffRole()) {
+            return;
+        }
+
         try {
             $guard = config('auth.defaults.guard', 'web');
             Role::firstOrCreate(['name' => 'Parent', 'guard_name' => $guard]);

@@ -627,7 +627,7 @@ class ApiHomeworkController extends Controller
             return;
         }
 
-        $isGuardian = $user->hasAnyRole(['Parent', 'Guardian', 'parent']);
+        $isGuardian = $user->shouldScopeAsParent();
         if ($isGuardian) {
             abort_unless($user->canAccessStudent($student->id), 403, 'You do not have access to this student.');
 

@@ -31,7 +31,7 @@ class ApiDashboardController extends Controller
 
         $user->load('roles', 'staff');
 
-        if ($user->hasAnyRole(['Parent', 'Guardian'])) {
+        if ($user->shouldScopeAsParent()) {
             return response()->json([
                 'success' => true,
                 'data' => $this->parentDashboard($user),

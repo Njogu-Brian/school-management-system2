@@ -495,13 +495,7 @@ function ChildFeeCard({
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
         <Button
-          label="Statement"
-          variant="secondary"
-          onPress={() => navigation.navigate('StudentStatement', { studentId })}
-        />
-        <Button label="Pay link" variant="secondary" loading={loadingLink} onPress={() => void openPayLink()} />
-        <Button
-          label="M-Pesa"
+          label="Pay M-Pesa"
           onPress={() =>
             navigation.navigate('MpesaPrompt', {
               studentId,
@@ -510,11 +504,17 @@ function ChildFeeCard({
           }
         />
         <Button
+          label="Statement"
+          variant="secondary"
+          onPress={() => navigation.navigate('StudentStatement', { studentId })}
+        />
+        <Button
           label={showInvoices ? 'Hide invoices' : 'Invoices'}
           variant="ghost"
           loading={loadingInvoices}
           onPress={() => void loadInvoices()}
         />
+        <Button label="Browser link" variant="ghost" loading={loadingLink} onPress={() => void openPayLink()} />
       </View>
 
       {showInvoices ? (
@@ -554,7 +554,7 @@ function ChildFeeCard({
 }
 
 export const ParentFeesScreen: React.FC = () => {
-  const { palette, spacing, typography } = useTheme();
+  const { palette, spacing, typography, radius, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const listQuery = useInfiniteStudentList({
     search: '',
@@ -567,31 +567,124 @@ export const ParentFeesScreen: React.FC = () => {
     () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [listQuery.data],
   );
+  const studentIds = useMemo(() => students.map((s) => s.id), [students]);
+
+  // Up to 4 children for family totals (same pattern as home snapshot).
+  const s0 = useStudentStats(studentIds[0] ?? 0, { enabled: (studentIds[0] ?? 0) > 0 });
+  const s1 = useStudentStats(studentIds[1] ?? 0, { enabled: (studentIds[1] ?? 0) > 0 });
+  const s2 = useStudentStats(studentIds[2] ?? 0, { enabled: (studentIds[2] ?? 0) > 0 });
+  const s3 = useStudentStats(studentIds[3] ?? 0, { enabled: (studentIds[3] ?? 0) > 0 });
+
+  const { totalDue, totalUpcoming, loadingTotals } = useMemo(() => {
+    const rows = [s0, s1, s2, s3].slice(0, studentIds.length);
+    let due = 0;
+    let upcoming = 0;
+    let loading = false;
+    for (const r of rows) {
+      if (r.isLoading) loading = true;
+      due += Number(r.data?.fees_due ?? r.data?.fees_balance ?? 0);
+      upcoming += Number(r.data?.fees_upcoming ?? 0);
+    }
+    return { totalDue: due, totalUpcoming: upcoming, loadingTotals: loading };
+  }, [s0, s1, s2, s3, studentIds.length]);
+
+  const primaryPayStudent = useMemo(() => {
+    const stats = [s0, s1, s2, s3];
+    let bestIdx = 0;
+    let bestDue = -1;
+    studentIds.forEach((_, i) => {
+      const due = Number(stats[i]?.data?.fees_due ?? stats[i]?.data?.fees_balance ?? 0);
+      if (due > bestDue) {
+        bestDue = due;
+        bestIdx = i;
+      }
+    });
+    return students[bestIdx] ?? students[0];
+  }, [students, studentIds, s0, s1, s2, s3]);
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-      <Pressable
-        onPress={() => navigation.navigate('WalletHome')}
+      <View
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.md,
+          backgroundColor: colors.primary,
+          borderRadius: radius.lg,
+          padding: spacing.lg,
           marginBottom: spacing.md,
-          padding: spacing.md,
-          borderRadius: 16,
-          borderWidth: 1,
-          borderColor: palette.border,
-          backgroundColor: palette.surface,
         }}
       >
-        <Soft3DIcon name="wallet-outline" glyph="wallet" tone="emerald" size={48} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>Wallets</Text>
-          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-            Family balance, top up & saving plans
-          </Text>
+        <Text style={{ color: 'rgba(255,255,255,0.85)', fontWeight: '600', fontSize: typography.caption.fontSize }}>
+          Family balance due
+        </Text>
+        <Text style={{ color: '#fff', fontSize: 32, fontWeight: '800', marginTop: 4 }}>
+          {loadingTotals ? '…' : formatKes(totalDue)}
+        </Text>
+        <Text style={{ color: 'rgba(255,255,255,0.75)', marginTop: spacing.sm }}>
+          Upcoming {loadingTotals ? '…' : formatKes(totalUpcoming)}
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
+          <Button
+            label="Pay with M-Pesa"
+            onPress={() => {
+              if (!primaryPayStudent) return;
+              navigation.navigate('MpesaPrompt', {
+                studentId: primaryPayStudent.id,
+                amount: totalDue > 0 ? totalDue : undefined,
+              });
+            }}
+          />
+          <Button
+            label="Wallets"
+            variant="secondary"
+            onPress={() => navigation.navigate('WalletHome')}
+          />
         </View>
-      </Pressable>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md }}>
+        <Pressable
+          onPress={() => navigation.navigate('WalletHome')}
+          style={{
+            flex: 1,
+            padding: spacing.md,
+            borderRadius: radius.md,
+            borderWidth: 1,
+            borderColor: palette.border,
+            backgroundColor: palette.surface,
+          }}
+        >
+          <Soft3DIcon name="wallet-outline" glyph="wallet" tone="emerald" size={40} />
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.sm }}>Wallet</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+            Top up & pay invoices
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            if (primaryPayStudent) {
+              navigation.navigate('StudentStatement', { studentId: primaryPayStudent.id });
+            }
+          }}
+          style={{
+            flex: 1,
+            padding: spacing.md,
+            borderRadius: radius.md,
+            borderWidth: 1,
+            borderColor: palette.border,
+            backgroundColor: palette.surface,
+          }}
+        >
+          <Soft3DIcon name="receipt-outline" glyph="receipt" tone="sky" size={40} />
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.sm }}>Statements</Text>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+            History per child
+          </Text>
+        </Pressable>
+      </View>
+
+      <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm, fontSize: typography.title.fontSize }}>
+        By child
+      </Text>
+
       {listQuery.isLoading ? (
         <SkeletonListRows count={3} />
       ) : students.length === 0 ? (

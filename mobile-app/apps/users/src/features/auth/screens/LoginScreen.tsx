@@ -95,10 +95,11 @@ export const LoginScreen: React.FC = () => {
     })();
   }, []);
 
+  // Only set default unlock surface once when biometrics/PIN become available.
+  // Do not fight an explicit password / PIN choice (that broke "Sign in with password").
   useEffect(() => {
-    if ((unlockAvailable && !isLocked) || pinAvailable) {
-      setUnlockSurface((s) => (s === 'password' ? s : 'quick'));
-    }
+    if (!((unlockAvailable && !isLocked) || pinAvailable)) return;
+    setUnlockSurface((s) => (s === 'password' || s === 'pin' ? s : 'quick'));
   }, [unlockAvailable, isLocked, pinAvailable]);
 
   useEffect(() => {
@@ -500,17 +501,18 @@ export const LoginScreen: React.FC = () => {
         <>
           <PinUnlockPanel
             variant="onDark"
-            hidePasswordLink
             onUsePassword={() => setUnlockSurface('password')}
           />
-          <Pressable
-            onPress={() => setUnlockSurface(canQuickUnlock ? 'quick' : 'password')}
-            style={{ marginTop: spacing.md, alignItems: 'center' }}
-          >
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
-              {unlockAvailable && !isLocked ? `Use ${typeLabel} instead` : 'Use password instead'}
-            </Text>
-          </Pressable>
+          {unlockAvailable && !isLocked ? (
+            <Pressable
+              onPress={() => setUnlockSurface('quick')}
+              style={{ marginTop: spacing.md, alignItems: 'center' }}
+            >
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
+                Use {typeLabel} instead
+              </Text>
+            </Pressable>
+          ) : null}
         </>
       ) : (
         <>
@@ -534,9 +536,9 @@ export const LoginScreen: React.FC = () => {
         style={{ marginTop: spacing.lg, alignItems: 'center' }}
       >
         <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: typography.body.fontSize }}>
-          First time?{' '}
+          Use the login SMS from school, or{' '}
           <Text style={{ color: colors.primaryOnDark ?? '#4B9FFF', fontWeight: '700' }}>
-            Claim parent access
+            claim access
           </Text>
         </Text>
       </Pressable>
