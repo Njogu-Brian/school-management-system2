@@ -1,5 +1,5 @@
 # Build Royal Kings Users + Admin Android AABs for Play Store.
-# Always run from the app folders — never from the monorepo root.
+# Always run from the app folders - never from the monorepo root.
 #
 # Usage (PowerShell, from repo root):
 #   .\scripts\eas-build-playstore.ps1
@@ -39,11 +39,12 @@ function Assert-AdminVersion {
 function Invoke-AppBuild([string]$Name) {
   $dir = Join-Path $root "mobile-app\apps\$Name"
   if (-not (Test-Path (Join-Path $dir 'eas.json'))) {
-    throw "Missing eas.json in $dir — wrong folder"
+    throw "Missing eas.json in $dir - wrong folder"
   }
   Push-Location $dir
   try {
-    Write-Host "`n=== Building $Name ($Profile) from $dir ===" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "=== Building $Name ($Profile) from $dir ===" -ForegroundColor Cyan
     $env:EAS_BUILD_NO_EXPO_GO_WARNING = 'true'
     if ($Wait) {
       eas build --platform android --profile $Profile --non-interactive
@@ -57,7 +58,7 @@ function Invoke-AppBuild([string]$Name) {
   }
 }
 
-Write-Host "Do NOT run 'eas build' from the repo root — that creates the wrong Expo project." -ForegroundColor Yellow
+Write-Host "Do NOT run eas build from the repo root - that creates the wrong Expo project." -ForegroundColor Yellow
 
 if ($App -eq 'both' -or $App -eq 'users') {
   Assert-UsersVersion
@@ -68,4 +69,5 @@ if ($App -eq 'both' -or $App -eq 'admin') {
   Invoke-AppBuild 'admin'
 }
 
-Write-Host "`nDone. Watch builds at https://expo.dev/accounts/briannjogu" -ForegroundColor Green
+Write-Host ""
+Write-Host "Done. Watch builds at https://expo.dev/accounts/briannjogu" -ForegroundColor Green
