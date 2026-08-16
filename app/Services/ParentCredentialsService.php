@@ -647,9 +647,7 @@ class ParentCredentialsService
             ];
         }
 
-        $pool = $users
-            ->filter(fn (User $u) => ! $u->hasElevatedStaffRole())
-            ->values();
+        $pool = $users->values();
 
         $usedIds = [];
         $accounts = [];
@@ -689,8 +687,13 @@ class ParentCredentialsService
         }
 
         // Claimed parent accounts that did not match father/mother/guardian contacts.
+        // Skip elevated staff leftovers (e.g. Super Admin claimed a child) so they do not
+        // appear as a third “parent login” on the family row.
         foreach ($pool as $user) {
             if (isset($usedIds[$user->id])) {
+                continue;
+            }
+            if ($user->hasElevatedStaffRole()) {
                 continue;
             }
             $accounts[] = [
