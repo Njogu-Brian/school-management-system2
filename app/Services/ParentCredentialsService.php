@@ -559,6 +559,8 @@ class ParentCredentialsService
                 ->sort()
                 ->first();
 
+            $primaryUser = is_array($primary) ? ($primary['user'] ?? null) : null;
+
             $rows[] = [
                 'parent_info_id' => $parent->id,
                 'family_name' => $this->resolveDisplayName($parent),
@@ -567,14 +569,14 @@ class ParentCredentialsService
                 'child_admission' => $child?->admission_number,
                 'child_name' => $child ? trim($child->first_name.' '.$child->last_name) : null,
                 'children_count' => Student::where('parent_id', $parent->id)->where('archive', 0)->count(),
-                'user_id' => $primary['user']->id ?? null,
-                'login' => $primary['user']?->email ?: ($primary['user']?->phone_number ?? null),
+                'user_id' => $primaryUser?->id,
+                'login' => $primaryUser?->email ?: ($primaryUser?->phone_number ?? null),
                 'stage' => $rowStage,
                 'credentials_sent_at' => $anySent,
-                'credentials_sent_via' => $primary['user']?->credentials_sent_via,
+                'credentials_sent_via' => $primaryUser?->credentials_sent_via,
                 'first_app_login_at' => $anyLogin,
                 'must_change_password' => (bool) collect($accounts)->contains(fn (array $a) => $a['user']?->must_change_password),
-                'profile_completed_at' => $primary['user']?->profile_completed_at,
+                'profile_completed_at' => $primaryUser?->profile_completed_at,
                 'accounts' => array_map(function (array $a) {
                     $user = $a['user'];
                     $loginAt = $this->loginAtForUser($user);
