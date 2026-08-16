@@ -1160,6 +1160,22 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::get('/students/parents-contact', [StudentController::class, 'parentsContact'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('students.parents-contact');
 
+    // Parent credentials management — must be before students resource or {student}=parent-credentials → 404
+    Route::get('/students/parent-credentials', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'index'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials');
+    Route::get('/parents/credentials', fn () => redirect()->route('students.parent-credentials'))
+        ->middleware('role:Super Admin|Admin|Secretary')->name('parents.credentials');
+    Route::post('/students/parent-credentials/send', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'send'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.send');
+    Route::post('/students/parent-credentials/bulk-send', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'bulkSend'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.bulk-send');
+    Route::post('/students/parent-credentials/reset-password', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'resetPassword'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.reset-password');
+    Route::post('/students/parent-credentials/pin-help', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'sendPinHelp'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.pin-help');
+    Route::post('/students/parent-credentials/forced-action', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'assignForcedAction'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.forced-action');
+
     // Enrollment by class (boys/girls) — must be before students resource
     Route::get('/students/enrollment-report', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'index'])
         ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.enrollment-report');
@@ -1191,22 +1207,6 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.reset');
     Route::post('/students/{id}/parent-credentials/require-password-change', [ParentCredentialsController::class, 'requirePasswordChange'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.require-password-change');
-
-    Route::get('/students/parent-credentials', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'index'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials');
-    // Alias kept for older links / bookmarks
-    Route::get('/parents/credentials', fn () => redirect()->route('students.parent-credentials'))
-        ->middleware('role:Super Admin|Admin|Secretary')->name('parents.credentials');
-    Route::post('/students/parent-credentials/send', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'send'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.send');
-    Route::post('/students/parent-credentials/bulk-send', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'bulkSend'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.bulk-send');
-    Route::post('/students/parent-credentials/reset-password', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'resetPassword'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.reset-password');
-    Route::post('/students/parent-credentials/pin-help', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'sendPinHelp'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.pin-help');
-    Route::post('/students/parent-credentials/forced-action', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'assignForcedAction'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.forced-action');
 
     // Helper for cascading class → streams
     Route::post('/get-streams', [StudentController::class, 'getStreams'])
@@ -1466,6 +1466,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/adjustments/import',[InvoiceAdjustmentController::class, 'import'])->name('adjustments.import');
 
             Route::get('/{invoice}',      [InvoiceController::class, 'show'])->name('show');
+            Route::post('/{invoice}/send-payment-link', [InvoiceController::class, 'sendPaymentLink'])->name('send-payment-link');
             Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
             Route::put('/{invoice}',      [InvoiceController::class, 'update'])->name('update');
             Route::post('/reverse/{invoice}', [InvoiceController::class, 'reverse'])->name('reverse');
@@ -1613,6 +1614,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         
         // Bank Accounts
         Route::resource('bank-accounts', BankAccountController::class)->parameters(['bank-accounts' => 'bankAccount']);
+
+        // Combined Accounts & Payment Methods hub
+        Route::get('accounts-methods', [\App\Http\Controllers\Finance\AccountsMethodsController::class, 'index'])->name('accounts-methods.index');
         
         // Payment Methods
         Route::resource('payment-methods', PaymentMethodController::class)->parameters(['payment-methods' => 'paymentMethod']);
