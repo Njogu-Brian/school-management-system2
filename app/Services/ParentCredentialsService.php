@@ -97,7 +97,12 @@ class ParentCredentialsService
      */
     public function ensureParentUser(ParentInfo $parent): User
     {
-        $existing = User::query()->where('parent_id', $parent->id)->orderBy('id')->first();
+        $existing = User::query()
+            ->with('roles')
+            ->where('parent_id', $parent->id)
+            ->orderBy('id')
+            ->get()
+            ->first(fn (User $u) => ! $u->hasElevatedStaffRole());
         if ($existing) {
             return $existing;
         }
@@ -428,9 +433,46 @@ class ParentCredentialsService
 
     public function stageForParentInfo(ParentInfo $parent): string
     {
-        $user = User::query()->where('parent_id', $parent->id)->orderBy('id')->first();
+        $users = User::query()->where('parent_id', $parent->id)->orderBy('id')->get();
 
-        return $this->stageForUser($user);
+        return $this->stageForFamily($parent, $users);
+    }
+
+    /**
+     * Family funnel stage: least progressed among father/mother/(guardian) slots.
+     * Elevated staff linked via parent_id are ignored.
+     *
+     * @param  Collection<int, User>|iterable<User>  $users
+     */
+    public function stageForFamily(ParentInfo $parent, iterable $users): string
+    {
+        $accounts = $this->parentSlotAccounts($parent, collect($users));
+        if ($accounts === []) {
+            return self::STAGE_NOT_PROVISIONED;
+        }
+
+        $rank = [
+            self::STAGE_NOT_PROVISIONED => 0,
+            self::STAGE_CREDENTIALS_SENT => 1,
+            self::STAGE_PASSWORD_PENDING => 2,
+            self::STAGE_PROFILE_PENDING => 3,
+            self::STAGE_COMPLETE => 4,
+        ];
+
+        $worst = self::STAGE_COMPLETE;
+        $worstRank = $rank[$worst];
+        foreach ($accounts as $account) {
+            $s = $account['user']
+                ? $this->stageForUser($account['user'])
+                : self::STAGE_NOT_PROVISIONED;
+            $r = $rank[$s] ?? 0;
+            if ($r < $worstRank) {
+                $worst = $s;
+                $worstRank = $r;
+            }
+        }
+
+        return $worst;
     }
 
     /**
@@ -455,6 +497,7 @@ class ParentCredentialsService
 
     /**
      * Distinct families with active children.
+     * One row per family; father + mother (and guardian when needed) tracked separately.
      *
      * @return list<array<string, mixed>>
      */
@@ -476,7 +519,9 @@ class ParentCredentialsService
                                 ->orWhere('guardian_name', 'like', $term)
                                 ->orWhere('father_phone', 'like', $term)
                                 ->orWhere('mother_phone', 'like', $term)
-                                ->orWhere('guardian_phone', 'like', $term);
+                                ->orWhere('guardian_phone', 'like', $term)
+                                ->orWhere('father_email', 'like', $term)
+                                ->orWhere('mother_email', 'like', $term);
                         });
                 });
             })
@@ -485,6 +530,7 @@ class ParentCredentialsService
 
         $parents = ParentInfo::query()->whereIn('id', $parentIds)->orderBy('id')->get();
         $usersByParent = User::query()
+            ->with('roles')
             ->whereIn('parent_id', $parentIds)
             ->orderBy('id')
             ->get()
@@ -494,13 +540,25 @@ class ParentCredentialsService
         foreach ($parents as $parent) {
             /** @var Collection<int, User> $users */
             $users = $usersByParent->get($parent->id, collect());
-            $user = $users->first();
-            $rowStage = $this->stageForUser($user);
+            $accounts = $this->parentSlotAccounts($parent, $users);
+            $rowStage = $this->stageForFamily($parent, $users);
             if ($stage && $rowStage !== $stage) {
                 continue;
             }
 
             $child = $this->pickPasswordChild($parent);
+            $primary = collect($accounts)->first(fn (array $a) => $a['user'] !== null);
+            $anyLogin = collect($accounts)
+                ->map(fn (array $a) => $this->loginAtForUser($a['user']))
+                ->filter()
+                ->sort()
+                ->first();
+            $anySent = collect($accounts)
+                ->map(fn (array $a) => $a['user']?->credentials_sent_at)
+                ->filter()
+                ->sort()
+                ->first();
+
             $rows[] = [
                 'parent_info_id' => $parent->id,
                 'family_name' => $this->resolveDisplayName($parent),
@@ -509,18 +567,198 @@ class ParentCredentialsService
                 'child_admission' => $child?->admission_number,
                 'child_name' => $child ? trim($child->first_name.' '.$child->last_name) : null,
                 'children_count' => Student::where('parent_id', $parent->id)->where('archive', 0)->count(),
-                'user_id' => $user?->id,
-                'login' => $user?->email ?: $user?->phone_number,
+                'user_id' => $primary['user']->id ?? null,
+                'login' => $primary['user']?->email ?: ($primary['user']?->phone_number ?? null),
                 'stage' => $rowStage,
-                'credentials_sent_at' => $user?->credentials_sent_at,
-                'credentials_sent_via' => $user?->credentials_sent_via,
-                'first_app_login_at' => $user?->first_app_login_at,
-                'must_change_password' => (bool) ($user?->must_change_password),
-                'profile_completed_at' => $user?->profile_completed_at,
+                'credentials_sent_at' => $anySent,
+                'credentials_sent_via' => $primary['user']?->credentials_sent_via,
+                'first_app_login_at' => $anyLogin,
+                'must_change_password' => (bool) collect($accounts)->contains(fn (array $a) => $a['user']?->must_change_password),
+                'profile_completed_at' => $primary['user']?->profile_completed_at,
+                'accounts' => array_map(function (array $a) {
+                    $user = $a['user'];
+                    $loginAt = $this->loginAtForUser($user);
+
+                    return [
+                        'slot' => $a['slot'],
+                        'label' => $a['label'],
+                        'name' => $a['name'],
+                        'contact' => $a['contact'],
+                        'user_id' => $user?->id,
+                        'login' => $user?->email ?: $user?->phone_number,
+                        'stage' => $user ? $this->stageForUser($user) : self::STAGE_NOT_PROVISIONED,
+                        'credentials_sent_at' => $user?->credentials_sent_at,
+                        'first_app_login_at' => $loginAt,
+                        'must_change_password' => (bool) ($user?->must_change_password),
+                    ];
+                }, $accounts),
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * Expected father/mother/(guardian) login slots for a family, matched to users by email/phone.
+     * Elevated staff with parent_id are excluded from matching.
+     *
+     * @param  Collection<int, User>  $users
+     * @return list<array{slot:string,label:string,name:?string,contact:?string,user:?User}>
+     */
+    public function parentSlotAccounts(ParentInfo $parent, Collection $users): array
+    {
+        $slots = [];
+        if ($this->slotHasContact($parent, 'father')) {
+            $slots[] = [
+                'slot' => 'father',
+                'label' => 'Father',
+                'name' => filled($parent->father_name) ? trim((string) $parent->father_name) : null,
+                'emails' => array_filter([(string) ($parent->father_email ?? '')]),
+                'phones' => array_filter([
+                    (string) ($parent->father_phone ?? ''),
+                    (string) ($parent->father_whatsapp ?? ''),
+                ]),
+            ];
+        }
+        if ($this->slotHasContact($parent, 'mother')) {
+            $slots[] = [
+                'slot' => 'mother',
+                'label' => 'Mother',
+                'name' => filled($parent->mother_name) ? trim((string) $parent->mother_name) : null,
+                'emails' => array_filter([(string) ($parent->mother_email ?? '')]),
+                'phones' => array_filter([
+                    (string) ($parent->mother_phone ?? ''),
+                    (string) ($parent->mother_whatsapp ?? ''),
+                ]),
+            ];
+        }
+        if ($slots === [] && $this->slotHasContact($parent, 'guardian')) {
+            $slots[] = [
+                'slot' => 'guardian',
+                'label' => 'Guardian',
+                'name' => filled($parent->guardian_name) ? trim((string) $parent->guardian_name) : null,
+                'emails' => array_filter([(string) ($parent->guardian_email ?? '')]),
+                'phones' => array_filter([
+                    (string) ($parent->guardian_phone ?? ''),
+                    (string) ($parent->guardian_whatsapp ?? ''),
+                ]),
+            ];
+        }
+
+        $pool = $users
+            ->filter(fn (User $u) => ! $u->hasElevatedStaffRole())
+            ->values();
+
+        $usedIds = [];
+        $accounts = [];
+        foreach ($slots as $slot) {
+            $match = $pool->first(function (User $u) use ($slot, $usedIds) {
+                if (isset($usedIds[$u->id])) {
+                    return false;
+                }
+
+                return $this->userMatchesSlot($u, $slot['emails'], $slot['phones']);
+            });
+
+            // School staff emails often differ from parent_info emails — match leftover by name.
+            if (! $match && filled($slot['name'])) {
+                $needle = strtolower(trim((string) $slot['name']));
+                $match = $pool->first(function (User $u) use ($needle, $usedIds) {
+                    if (isset($usedIds[$u->id])) {
+                        return false;
+                    }
+
+                    return strtolower(trim((string) $u->name)) === $needle;
+                });
+            }
+
+            if ($match) {
+                $usedIds[$match->id] = true;
+            }
+
+            $contact = $slot['emails'][0] ?? ($slot['phones'][0] ?? null);
+            $accounts[] = [
+                'slot' => $slot['slot'],
+                'label' => $slot['label'],
+                'name' => $slot['name'] ?: ($match?->name),
+                'contact' => $contact,
+                'user' => $match,
+            ];
+        }
+
+        // Claimed parent accounts that did not match father/mother/guardian contacts.
+        foreach ($pool as $user) {
+            if (isset($usedIds[$user->id])) {
+                continue;
+            }
+            $accounts[] = [
+                'slot' => 'other',
+                'label' => 'Parent',
+                'name' => $user->name,
+                'contact' => $user->email ?: $user->phone_number,
+                'user' => $user,
+            ];
+        }
+
+        return $accounts;
+    }
+
+    /**
+     * Prefer first_app_login_at; fall back to last_login_at (older logins before first_app was stamped).
+     */
+    public function loginAtForUser(?User $user): ?\Illuminate\Support\Carbon
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return $user->first_app_login_at ?: $user->last_login_at;
+    }
+
+    protected function slotHasContact(ParentInfo $parent, string $slot): bool
+    {
+        return match ($slot) {
+            'father' => filled($parent->father_phone)
+                || filled($parent->father_email)
+                || filled($parent->father_whatsapp)
+                || filled($parent->father_name),
+            'mother' => filled($parent->mother_phone)
+                || filled($parent->mother_email)
+                || filled($parent->mother_whatsapp)
+                || filled($parent->mother_name),
+            'guardian' => filled($parent->guardian_phone)
+                || filled($parent->guardian_email)
+                || filled($parent->guardian_whatsapp)
+                || filled($parent->guardian_name),
+            default => false,
+        };
+    }
+
+    /**
+     * @param  list<string>  $emails
+     * @param  list<string>  $phones
+     */
+    protected function userMatchesSlot(User $user, array $emails, array $phones): bool
+    {
+        $userEmail = strtolower(trim((string) ($user->email ?? '')));
+        if ($userEmail !== '' && ! str_ends_with($userEmail, '@parents.local')) {
+            foreach ($emails as $email) {
+                if ($userEmail === strtolower(trim($email))) {
+                    return true;
+                }
+            }
+        }
+
+        $userPhone = normalize_contact_for_parent_match($user->phone_number ?? '');
+        if ($userPhone !== '') {
+            foreach ($phones as $phone) {
+                if ($userPhone === normalize_contact_for_parent_match($phone)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public function seedOnboardingActions(User $user, ParentInfo $parent): void

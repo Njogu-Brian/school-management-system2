@@ -14,7 +14,7 @@
         <div class="crumb">Students</div>
         <h1 class="mb-1">Parent Credentials</h1>
         <p class="text-muted mb-0">
-          Provision logins, send credentials (one message per family), and track first-signup progress.
+          Provision logins, send credentials (one message per family), and track father &amp; mother sign-in on the same family row.
           Temp password format: <code>admission-year</code> (e.g. RKS001-2026).
         </p>
       </div>
@@ -88,9 +88,8 @@
                   <th style="width:2rem"><input type="checkbox" id="checkAll"></th>
                   <th>Family</th>
                   <th>Child (password)</th>
-                  <th>Contact</th>
-                  <th>Stage</th>
-                  <th>Sent / Login</th>
+                  <th>Father / Mother sign-in</th>
+                  <th>Family stage</th>
                   <th style="min-width:14rem">Actions</th>
                 </tr>
               </thead>
@@ -108,27 +107,44 @@
                       <div>{{ $row['child_name'] ?? '—' }}</div>
                       <code class="small">{{ $row['child_admission'] ?? '—' }}</code>
                     </td>
-                    <td>
-                      <div class="small">{{ $row['phone'] ?? '—' }}</div>
-                      <div class="small text-muted">{{ $row['email'] ?? '' }}</div>
-                      @if($row['login'])
-                        <div class="small">Login: {{ $row['login'] }}</div>
-                      @endif
+                    <td class="small">
+                      @forelse(($row['accounts'] ?? []) as $account)
+                        <div class="mb-2 {{ !$loop->last ? 'pb-2 border-bottom' : '' }}">
+                          <div class="fw-semibold">
+                            {{ $account['label'] }}
+                            @if($account['name'])
+                              <span class="fw-normal">· {{ $account['name'] }}</span>
+                            @endif
+                          </div>
+                          <div class="text-muted">
+                            @if($account['login'])
+                              Login: {{ $account['login'] }}
+                            @elseif($account['contact'])
+                              Contact: {{ $account['contact'] }}
+                            @else
+                              No contact
+                            @endif
+                          </div>
+                          <div>
+                            <span class="badge text-bg-light border">{{ $stages[$account['stage']] ?? $account['stage'] }}</span>
+                            @if($account['first_app_login_at'])
+                              · Logged in {{ \Illuminate\Support\Carbon::parse($account['first_app_login_at'])->format('Y-m-d H:i') }}
+                            @elseif($account['user_id'])
+                              · <span class="text-muted">Never logged in</span>
+                            @else
+                              · <span class="text-muted">No app account</span>
+                            @endif
+                          </div>
+                          @if($account['credentials_sent_at'])
+                            <div class="text-muted">Sent {{ \Illuminate\Support\Carbon::parse($account['credentials_sent_at'])->format('Y-m-d H:i') }}</div>
+                          @endif
+                        </div>
+                      @empty
+                        <span class="text-muted">No father/mother contacts on file</span>
+                      @endforelse
                     </td>
                     <td>
                       <span class="badge text-bg-secondary">{{ $stages[$row['stage']] ?? $row['stage'] }}</span>
-                    </td>
-                    <td class="small">
-                      @if($row['credentials_sent_at'])
-                        Sent {{ \Illuminate\Support\Carbon::parse($row['credentials_sent_at'])->format('Y-m-d H:i') }}
-                        @if($row['credentials_sent_via']) ({{ $row['credentials_sent_via'] }}) @endif
-                        <br>
-                      @endif
-                      @if($row['first_app_login_at'])
-                        First login {{ \Illuminate\Support\Carbon::parse($row['first_app_login_at'])->format('Y-m-d H:i') }}
-                      @else
-                        <span class="text-muted">Never logged in</span>
-                      @endif
                     </td>
                     <td>
                       <div class="d-flex flex-wrap gap-1">
@@ -139,7 +155,7 @@
                     </td>
                   </tr>
                 @empty
-                  <tr><td colspan="7" class="text-center text-muted py-4">No families match.</td></tr>
+                  <tr><td colspan="6" class="text-center text-muted py-4">No families match.</td></tr>
                 @endforelse
               </tbody>
             </table>
