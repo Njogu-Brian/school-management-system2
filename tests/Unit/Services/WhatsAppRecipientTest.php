@@ -26,4 +26,16 @@ class WhatsAppRecipientTest extends TestCase
         $this->assertTrue($whatsapp->isValidRecipient('0712345678'));
         $this->assertTrue($whatsapp->isValidRecipient('+254712345678'));
     }
+
+    public function test_flattens_newlines_in_template_body_parameter(): void
+    {
+        $whatsapp = app(WhatsAppService::class);
+        $method = new \ReflectionMethod(WhatsAppService::class, 'truncateForTemplate');
+        $method->setAccessible(true);
+
+        $this->assertSame(
+            'Hello Parent. Payment of Ksh 1,000 received.',
+            $method->invoke($whatsapp, "Hello Parent.\n\nPayment of Ksh 1,000 received.")
+        );
+    }
 }

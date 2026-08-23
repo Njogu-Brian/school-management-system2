@@ -287,6 +287,7 @@ class WhatsAppService
                 'http_status' => $result['http_status'],
                 'message_id' => $result['message_id'],
                 'error' => data_get($body, 'error.message'),
+                'error_code' => data_get($body, 'error.code'),
             ]);
 
             return $result;
@@ -345,6 +346,11 @@ class WhatsAppService
 
     protected function truncateForTemplate(string $text, int $maxLength = 1024): string
     {
+        // Meta rejects template body params with newlines/tabs (error 132018).
+        $text = preg_replace('/[\r\n\t]+/', ' ', $text) ?? $text;
+        $text = preg_replace('/ {2,}/', ' ', $text) ?? $text;
+        $text = trim($text);
+
         if (mb_strlen($text) <= $maxLength) {
             return $text;
         }

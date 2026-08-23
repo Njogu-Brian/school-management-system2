@@ -3685,6 +3685,17 @@ class PaymentController extends Controller
                     $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
 
                     $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
+                    if ($status !== 'sent') {
+                        Log::warning('Payment WhatsApp sending failed', [
+                            'payment_id' => $payment->id,
+                            'phone' => $whatsappPhone,
+                            'http_status' => data_get($response, 'http_status'),
+                            'error' => data_get($response, 'body.error.message')
+                                ?? data_get($response, 'body.error.error_user_msg'),
+                            'error_code' => data_get($response, 'body.error.code'),
+                            'error_subcode' => data_get($response, 'body.error.error_subcode'),
+                        ]);
+                    }
 
                     \App\Models\CommunicationLog::create([
                         'recipient_type' => 'parent',
