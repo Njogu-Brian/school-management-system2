@@ -268,6 +268,12 @@ class ApiParentClaimController extends Controller
                     : null));
         $phone = $channel === 'phone' ? $this->normalizePhone($identifier) : null;
 
+        $usedPlaceholderEmail = false;
+        if ($email === null || $email === '') {
+            $email = $this->placeholderEmailFromPhone($phone ?? $identifier);
+            $usedPlaceholderEmail = true;
+        }
+
         // Detect an existing user by the verified contact.
         $existingUser = $this->findExistingUser($channel, $identifier);
 
@@ -288,7 +294,7 @@ class ApiParentClaimController extends Controller
         }
 
         try {
-            $reviewRequired = ! $this->parentInfoLooksComplete($parent);
+            $reviewRequired = ! $this->parentInfoLooksComplete($parent) || $usedPlaceholderEmail;
 
             $user = DB::transaction(function () use ($existingUser, $parent, $displayName, $email, $phone, $validated, $reviewRequired) {
                 if ($existingUser) {
@@ -518,6 +524,24 @@ class ApiParentClaimController extends Controller
             return '+' . $phone;
         }
         return $phone;
+    }
+
+    /**
+     * users.email is NOT NULL UNIQUE. Phone-channel claims often have no email,
+     * so store a unique placeholder and flag the account for profile review.
+     */
+    private function placeholderEmailFromPhone(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?: 'unknown';
+        $digits = substr($digits, -12);
+        $candidate = 'parent.' . $digits . '@noemail.local';
+        $suffix = 0;
+        while (User::where('email', $candidate)->exists()) {
+            $suffix++;
+            $candidate = 'parent.' . $digits . '.' . $suffix . '@noemail.local';
+        }
+
+        return $candidate;
     }
 
     /**

@@ -942,7 +942,15 @@ class PaymentController extends Controller
                 if ($status === 'sent') {
                     Log::info('Payment WhatsApp sent successfully', ['payment_id' => $payment->id, 'phone' => $whatsappPhone]);
                 } else {
-                    Log::warning('Payment WhatsApp sending failed', ['payment_id' => $payment->id, 'phone' => $whatsappPhone]);
+                    Log::warning('Payment WhatsApp sending failed', [
+                        'payment_id' => $payment->id,
+                        'phone' => $whatsappPhone,
+                        'http_status' => data_get($response, 'http_status'),
+                        'error' => data_get($response, 'body.error.message')
+                            ?? data_get($response, 'body.error.error_user_msg'),
+                        'error_code' => data_get($response, 'body.error.code'),
+                        'error_subcode' => data_get($response, 'body.error.error_subcode'),
+                    ]);
                 }
             } catch (\Exception $e) {
                 Log::error('Payment WhatsApp sending failed', [

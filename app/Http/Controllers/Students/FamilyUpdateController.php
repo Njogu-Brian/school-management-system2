@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\Document;
 use App\Models\ParentInfo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -286,10 +287,13 @@ class FamilyUpdateController extends Controller
                 abort(404, 'This profile update link has been deactivated. Please contact the school for a new link.');
             }
             
-            \Log::warning('FamilyUpdate: Invalid link token accessed', [
-                'token' => $token,
-                'token_length' => strlen($token),
-            ]);
+            $throttleKey = 'family_update_invalid_token:'.sha1((string) $token);
+            if (Cache::add($throttleKey, true, now()->addHours(6))) {
+                \Log::warning('FamilyUpdate: Invalid link token accessed', [
+                    'token' => $token,
+                    'token_length' => strlen($token),
+                ]);
+            }
             abort(404, 'This profile update link is invalid or has expired. Please contact the school for a new link.');
         }
         

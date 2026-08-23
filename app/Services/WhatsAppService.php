@@ -42,6 +42,31 @@ class WhatsAppService
             sleep($delaySeconds);
         }
 
+        if (! $this->isValidRecipient($to)) {
+            Log::warning('WhatsApp send skipped: invalid recipient number', [
+                'to' => $to,
+                'normalized' => $this->normalizeRecipient($to),
+            ]);
+
+            return [
+                'status' => 'error',
+                'http_status' => null,
+                'body' => [
+                    'error' => [
+                        'message' => 'Invalid WhatsApp recipient number',
+                        'code' => 'invalid_recipient',
+                    ],
+                ],
+                'message_id' => null,
+            ];
+        }
+
+        if (! $this->defaultTemplate) {
+            Log::warning('WhatsApp sending session text without WHATSAPP_DEFAULT_TEMPLATE; Meta will reject business-initiated messages outside the 24-hour window', [
+                'to' => $this->normalizeRecipient($to),
+            ]);
+        }
+
         if ($this->defaultTemplate) {
             $components = [];
             if (!in_array($this->defaultTemplate, ['hello_world'], true)) {
@@ -296,11 +321,26 @@ class WhatsAppService
         }
     }
 
-    protected function normalizeRecipient(string $number): string
+    public function isValidRecipient(string $number): bool
+    {
+        return (bool) preg_match('/^254[17]\d{8}$/', $this->normalizeRecipient($number));
+    }
+
+    public function normalizeRecipient(string $number): string
     {
         $clean = preg_replace('/[^\d+]/', '', $number);
+        $digits = ltrim((string) $clean, '+');
 
-        return ltrim((string) $clean, '+');
+        // Local Kenyan mobiles: 07xxxxxxxx / 01xxxxxxxx (or without leading 0)
+        if (preg_match('/^0([17]\d{8})$/', $digits, $matches)) {
+            return '254' . $matches[1];
+        }
+
+        if (preg_match('/^([17]\d{8})$/', $digits)) {
+            return '254' . $digits;
+        }
+
+        return $digits;
     }
 
     protected function truncateForTemplate(string $text, int $maxLength = 1024): string

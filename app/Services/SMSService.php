@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Cache;
 
 class SMSService
 {
+    public const UNREACHABLE_CACHE_KEY = 'sms_provider_unreachable';
+
     protected $apiUrl;
     protected $apiKey;
     protected $userId;
@@ -84,6 +86,12 @@ class SMSService
                 ]);
             }
             
+            if (Cache::get(self::UNREACHABLE_CACHE_KEY)) {
+                Log::debug('Skipping SMS credit-history fallback; provider recently unreachable');
+
+                return null;
+            }
+
             // Fallback: Try credit history endpoint (POST method)
             // According to documentation: POST /SMSApi/account/readcredithistory
             try {
@@ -100,7 +108,7 @@ class SMSService
                 \curl_setopt_array($curl, [
                     CURLOPT_URL            => $creditHistoryEndpoint,
                     CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_TIMEOUT        => 10,
+                    CURLOPT_TIMEOUT        => 20,
                     CURLOPT_POST           => true,
                     CURLOPT_POSTFIELDS     => $payload,
                     CURLOPT_HTTPHEADER     => [
@@ -138,17 +146,19 @@ class SMSService
                 Log::debug("Exception checking credit history: " . $e->getMessage());
             }
 
-            // If all methods failed, log comprehensive error
-            Log::error("Unable to check SMS balance", [
-                'tried_methods' => [
-                    'GET /SMSApi/account/readstatus',
-                    'POST /SMSApi/account/readcredithistory'
-                ],
-                'userid' => $this->userId ? 'set' : 'missing',
-                'api_key' => $this->apiKey ? 'set' : 'missing',
-                'account_status_response' => $accountStatus,
-                'suggestion' => 'Please verify the correct balance endpoint and response format with HostPinnacle support.'
-            ]);
+            if (! Cache::get(self::UNREACHABLE_CACHE_KEY)) {
+                Log::error("Unable to check SMS balance", [
+                    'tried_methods' => [
+                        'GET /SMSApi/account/readstatus',
+                        'POST /SMSApi/account/readcredithistory'
+                    ],
+                    'userid' => $this->userId ? 'set' : 'missing',
+                    'api_key' => $this->apiKey ? 'set' : 'missing',
+                    'account_status_response' => $accountStatus,
+                    'suggestion' => 'Please verify the correct balance endpoint and response format with HostPinnacle support.'
+                ]);
+            }
+
             return null;
         });
     }
@@ -483,8 +493,8 @@ class SMSService
             \curl_setopt_array($curl, [
                 CURLOPT_URL            => $fullUrl,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 10,
-                CURLOPT_HTTPGET        => true, // Use GET method
+                    CURLOPT_TIMEOUT        => 20,
+                    CURLOPT_HTTPGET        => true, // Use GET method
                 CURLOPT_HTTPHEADER     => [
                     "cache-control: no-cache",
                     "accept: application/json",
@@ -498,11 +508,23 @@ class SMSService
             \curl_close($curl);
 
             if ($err) {
-                Log::error("Account status check failed - cURL error", [
-                    'endpoint' => $endpoint,
-                    'http_code' => $httpCode,
-                    'error' => $err
-                ]);
+                $timedOut = str_contains(strtolower($err), 'timed out')
+                    || str_contains(strtolower($err), 'timeout');
+                if ($timedOut) {
+                    Cache::put(self::UNREACHABLE_CACHE_KEY, true, now()->addMinutes(10));
+                    Log::warning("Account status check failed - cURL timeout", [
+                        'endpoint' => $endpoint,
+                        'http_code' => $httpCode,
+                        'error' => $err,
+                    ]);
+                } else {
+                    Log::error("Account status check failed - cURL error", [
+                        'endpoint' => $endpoint,
+                        'http_code' => $httpCode,
+                        'error' => $err,
+                    ]);
+                }
+
                 return null;
             }
 

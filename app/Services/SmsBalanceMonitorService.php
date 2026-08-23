@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class SmsBalanceMonitorService
@@ -17,7 +18,9 @@ class SmsBalanceMonitorService
         $balance = $sms->checkBalance(true);
 
         if ($balance === null) {
-            Log::warning('SMS balance monitor: unable to read balance from provider');
+            if (! Cache::get(SMSService::UNREACHABLE_CACHE_KEY)) {
+                Log::warning('SMS balance monitor: unable to read balance from provider');
+            }
 
             return null;
         }

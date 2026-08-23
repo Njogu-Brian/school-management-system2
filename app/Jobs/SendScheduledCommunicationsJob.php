@@ -65,6 +65,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                 \Log::warning('Scheduled communication has no template or saved message', [
                     'scheduled_id' => $item->id,
                 ]);
+                $item->update(['status' => 'failed']);
                 continue;
             }
 
