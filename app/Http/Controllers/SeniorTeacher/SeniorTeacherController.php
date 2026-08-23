@@ -20,6 +20,8 @@ use App\Models\Academics\Homework;
 use App\Models\Academics\Exam;
 use App\Models\Invoice;
 use App\Models\Announcement;
+use App\Support\AcademicContext;
+use App\Models\Academics\ExamMark;
 
 class SeniorTeacherController extends Controller
 {
@@ -31,7 +33,7 @@ class SeniorTeacherController extends Controller
         $user = auth()->user();
         
         // Ensure user is a senior teacher
-        if (!$user->hasRole('Senior Teacher')) {
+        if (! $user->hasAnyRole(['Senior Teacher', 'Deputy Senior Teacher'])) {
             abort(403, 'Access denied. This dashboard is for Senior Teachers only.');
         }
 
@@ -57,25 +59,54 @@ class SeniorTeacherController extends Controller
     private function buildSeniorTeacherDashboardData(Request $request, User $user, array $classroomIds, array $staffIds): array
     {
         // Filters
-        $defaultYearId = AcademicYear::latest('id')->value('id') ?? null;
-        $defaultTermId = Term::latest('id')->value('id') ?? null;
-        
+        $defaultYearId = AcademicContext::resolveYearId(null);
+        $yearId = (int) (AcademicContext::resolveYearId(
+            $request->filled('year_id') ? (int) $request->get('year_id') : null
+        ) ?: 0);
+        $defaultTermId = $yearId ? (int) (AcademicContext::resolveTermId($yearId, null) ?: 0) : 0;
+        $termId = $yearId
+            ? (int) (AcademicContext::resolveTermId(
+                $yearId,
+                $request->filled('term_id') ? (int) $request->get('term_id') : null
+            ) ?: 0)
+            : 0;
+        $selectedTerm = $termId ? Term::find($termId) : null;
+        $hasExplicitDates = $request->filled('from') && $request->filled('to');
+        if ($hasExplicitDates) {
+            $from = $request->get('from');
+            $to = $request->get('to');
+        } elseif ($selectedTerm?->opening_date && $selectedTerm?->closing_date) {
+            $from = $selectedTerm->opening_date->toDateString();
+            $close = $selectedTerm->closing_date->toDateString();
+            $todayStr = now()->toDateString();
+            $to = ($todayStr >= $from && $todayStr <= $close) ? $todayStr : $close;
+        } else {
+            $from = now()->subDays(30)->toDateString();
+            $to = now()->toDateString();
+        }
+
         $filters = [
-            'year_id'      => (int)($request->get('year_id') ?? $defaultYearId ?? 0),
-            'term_id'      => (int)($request->get('term_id') ?? $defaultTermId ?? 0),
-            'from'         => $request->get('from') ?? now()->subDays(30)->toDateString(),
-            'to'           => $request->get('to') ?? now()->toDateString(),
+            'year_id'      => $yearId,
+            'term_id'      => $termId,
+            'from'         => $from,
+            'to'           => $to,
             'classroom_id' => $request->get('classroom_id'),
+            'stream_id'    => $request->get('stream_id'),
         ];
         $today = now()->toDateString();
+
+        if ($request->filled('classroom_id')) {
+            $classroomIds = array_values(array_intersect($classroomIds, [(int) $request->get('classroom_id')]));
+        }
 
         // Students in supervised/assigned classrooms
         $students = empty($classroomIds) 
             ? Student::whereRaw('1 = 0') 
-            : Student::whereIn('classroom_id', $classroomIds);
+            : Student::whereIn('classroom_id', $classroomIds)
+                ->when($filters['stream_id'], fn ($q) => $q->where('stream_id', $filters['stream_id']));
         
-        $totalStudents = $students->count();
-        $activeStudents = (clone $students)->where('status', 'Active')->count();
+        $totalStudents = (clone $students)->where('status', 'active')->count();
+        $activeStudents = $totalStudents;
         
         // Supervised classrooms (from assigned campus), with stream-level rows for display
         $supervisedClassroomIds = $user->getSupervisedClassroomIds();
@@ -88,22 +119,32 @@ class SeniorTeacherController extends Controller
 
         $supervisedStreamRows = collect();
         if ($supervisedClassrooms->isNotEmpty()) {
+            $classIds = $supervisedClassrooms->pluck('id');
+            $countRows = Student::query()
+                ->selectRaw('classroom_id, stream_id, COUNT(*) as c')
+                ->whereIn('classroom_id', $classIds)
+                ->groupBy('classroom_id', 'stream_id')
+                ->get();
+            $countMap = [];
+            foreach ($countRows as $row) {
+                $countMap[$row->classroom_id][$row->stream_id ?? 0] = (int) $row->c;
+            }
+
             foreach ($supervisedClassrooms as $classroom) {
                 $streams = $classroom->primaryStreams;
                 if ($streams->isNotEmpty()) {
                     foreach ($streams as $stream) {
-                        $count = Student::where('classroom_id', $classroom->id)->where('stream_id', $stream->id)->count();
-                        $supervisedStreamRows->push((object)[
+                        $supervisedStreamRows->push((object) [
                             'classroom' => $classroom,
                             'stream' => $stream,
-                            'student_count' => $count,
+                            'student_count' => $countMap[$classroom->id][$stream->id] ?? 0,
                         ]);
                     }
                 } else {
-                    $supervisedStreamRows->push((object)[
+                    $supervisedStreamRows->push((object) [
                         'classroom' => $classroom,
                         'stream' => null,
-                        'student_count' => $classroom->students()->count(),
+                        'student_count' => array_sum($countMap[$classroom->id] ?? []),
                     ]);
                 }
             }
@@ -134,14 +175,16 @@ class SeniorTeacherController extends Controller
         
         if (!empty($classroomIds)) {
             $attendanceToday = Attendance::whereDate('date', $today)
-                ->whereHas('student', function($q) use ($classroomIds) {
+                ->whereHas('student', function ($q) use ($classroomIds) {
                     $q->whereIn('classroom_id', $classroomIds);
                 })
-                ->get();
-            
-            $todayAttendance['present'] = $attendanceToday->where('status', 'Present')->count();
-            $todayAttendance['absent'] = $attendanceToday->where('status', 'Absent')->count();
-            $todayAttendance['late'] = $attendanceToday->where('status', 'Late')->count();
+                ->select('student_id', 'status')
+                ->get()
+                ->unique('student_id');
+
+            $todayAttendance['present'] = $attendanceToday->where('status', Attendance::STATUS_PRESENT)->count();
+            $todayAttendance['absent'] = $attendanceToday->where('status', Attendance::STATUS_ABSENT)->count();
+            $todayAttendance['late'] = $attendanceToday->where('status', Attendance::STATUS_LATE)->count();
         }
 
         // Recent student behaviours
@@ -172,13 +215,16 @@ class SeniorTeacherController extends Controller
             ->get();
 
         // Fee balance summary
-        $feeBalances = $this->calculateFeeBalances($classroomIds);
+        $feeBalances = $this->calculateFeeBalances($classroomIds, (int) $filters['term_id']);
 
         // Recent announcements
-        $announcements = Announcement::where('active', 1)
-            ->latest()
-            ->take(5)
-            ->get();
+        $announcementQuery = Announcement::query();
+        if (\Illuminate\Support\Facades\Schema::hasColumn('announcements', 'is_active')) {
+            $announcementQuery->where('is_active', 1);
+        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('announcements', 'active')) {
+            $announcementQuery->where('active', 1);
+        }
+        $announcements = $announcementQuery->latest()->take(5)->get();
 
         // Upcoming exams
         $upcomingExams = Exam::where('starts_on', '>=', $today)
@@ -205,11 +251,26 @@ class SeniorTeacherController extends Controller
             'recent_behaviours' => $recentBehaviours->count(),
         ];
 
+        $classSnapshots = $this->classSnapshots($supervisedStreamRows, $today, $filters['term_id']);
+        if (! empty($filters['stream_id'])) {
+            $classSnapshots = $classSnapshots->filter(fn ($row) => (int) ($row->stream?->id) === (int) $filters['stream_id'])->values();
+        }
+
+        $missingMarks = $this->missingMarks($classroomIds, (int) $filters['term_id']);
+        $attendanceConcerns = $this->attendanceConcerns($classroomIds, $today);
+        $interventionLearners = $this->interventionLearners($classroomIds, $today);
+        $teacherActivity = $this->teacherActivityToday($supervisedStaff, $today);
+
         return [
             'filters' => $filters,
             'kpis' => $kpis,
             'supervisedClassrooms' => $supervisedClassrooms,
             'supervisedStreamRows' => $supervisedStreamRows,
+            'classSnapshots' => $classSnapshots,
+            'missingMarks' => $missingMarks,
+            'attendanceConcerns' => $attendanceConcerns,
+            'interventionLearners' => $interventionLearners,
+            'teacherActivity' => $teacherActivity,
             'supervisedStaff' => $supervisedStaff,
             'assignedClassrooms' => $assignedClassrooms,
             'todayAttendance' => $todayAttendance,
@@ -219,42 +280,139 @@ class SeniorTeacherController extends Controller
             'announcements' => $announcements,
             'upcomingExams' => $upcomingExams,
             'attendanceTrends' => $attendanceTrends,
-            'years' => AcademicYear::all(),
-            'terms' => \App\Support\AcademicContext::allTermsForSelect(),
+            'years' => AcademicContext::years(),
+            'terms' => AcademicContext::allTermsForSelect(),
+            'defaultYearId' => $defaultYearId,
+            'defaultTermId' => $defaultTermId,
             'classrooms' => empty($classroomIds) ? collect() : Classroom::whereIn('id', $classroomIds)->get(),
+            'streams' => empty($classroomIds) ? collect() : Stream::whereIn('classroom_id', $classroomIds)->orderBy('name')->get(),
             'role' => 'senior_teacher',
         ];
     }
 
     /**
+     * Live class cards: attendance today, assessment completion and average only when marks exist.
+     */
+    private function classSnapshots($streamRows, string $today, int $termId): \Illuminate\Support\Collection
+    {
+        if ($streamRows->isEmpty()) {
+            return collect();
+        }
+
+        $classroomIds = $streamRows->pluck('classroom.id')->unique()->values();
+        $students = Student::query()
+            ->whereIn('classroom_id', $classroomIds)
+            ->where('status', 'active')
+            ->get(['id', 'classroom_id', 'stream_id']);
+
+        $attendance = Attendance::whereDate('date', $today)
+            ->whereIn('student_id', $students->pluck('id'))
+            ->get(['student_id', 'status'])
+            ->unique('student_id')
+            ->keyBy('student_id');
+
+        $examQuery = Exam::query()->whereIn('classroom_id', $classroomIds);
+        if ($termId > 0) {
+            $examQuery->where('term_id', $termId);
+        }
+        $exams = $examQuery->get(['id', 'classroom_id']);
+        $marks = collect();
+        if ($exams->isNotEmpty()) {
+            $marks = ExamMark::query()
+                ->whereIn('exam_id', $exams->pluck('id'))
+                ->whereIn('student_id', $students->pluck('id'))
+                ->get(['exam_id', 'student_id', 'score_raw', 'score_moderated', 'endterm_score', 'midterm_score', 'opener_score']);
+        }
+
+        return $streamRows->map(function ($row) use ($students, $attendance, $exams, $marks) {
+            $classStudents = $students->where('classroom_id', $row->classroom->id);
+            if ($row->stream) {
+                $classStudents = $classStudents->where('stream_id', $row->stream->id);
+            }
+            $studentIds = $classStudents->pluck('id');
+            $learnerCount = $studentIds->count();
+            $present = $studentIds->filter(fn ($id) => optional($attendance->get($id))->status === Attendance::STATUS_PRESENT)->count();
+            $attendancePct = $learnerCount > 0 ? round(($present / $learnerCount) * 100, 1) : null;
+
+            $classExamIds = $exams->where('classroom_id', $row->classroom->id)->pluck('id');
+            $classMarks = $marks->whereIn('exam_id', $classExamIds)->whereIn('student_id', $studentIds);
+            $completion = null;
+            $average = null;
+            if ($classMarks->isNotEmpty()) {
+                $entered = $classMarks->filter(function ($mark) {
+                    return $mark->score_moderated !== null
+                        || $mark->score_raw !== null
+                        || $mark->endterm_score !== null
+                        || $mark->midterm_score !== null
+                        || $mark->opener_score !== null;
+                });
+                $completion = round(($entered->count() / $classMarks->count()) * 100, 1);
+                $scored = $entered->map(function ($mark) {
+                    foreach (['score_moderated', 'score_raw', 'endterm_score', 'midterm_score', 'opener_score'] as $col) {
+                        if ($mark->{$col} !== null) {
+                            return (float) $mark->{$col};
+                        }
+                    }
+                    return null;
+                })->filter(fn ($v) => $v !== null);
+                $average = $scored->isNotEmpty() ? round($scored->avg(), 1) : null;
+            }
+
+            return (object) [
+                'classroom' => $row->classroom,
+                'stream' => $row->stream,
+                'student_count' => $learnerCount ?: $row->student_count,
+                'attendance_pct' => $attendancePct,
+                'assessment_completion' => $completion,
+                'average' => $average,
+                'url' => route('senior_teacher.students.index', array_filter([
+                    'classroom_id' => $row->classroom->id,
+                    'stream_id' => $row->stream?->id,
+                ])),
+            ];
+        });
+    }
+
+    /**
      * Calculate fee balances for supervised students
      */
-    private function calculateFeeBalances(array $classroomIds): array
+    private function calculateFeeBalances(array $classroomIds, int $termId = 0): array
     {
+        $empty = [
+            'total_invoiced' => 0,
+            'total_paid' => 0,
+            'total_balance' => 0,
+            'students_with_balance' => 0,
+            'overdue' => 0,
+        ];
+
         if (empty($classroomIds)) {
-            return [
-                'total_invoiced' => 0,
-                'total_paid' => 0,
-                'total_balance' => 0,
-                'students_with_balance' => 0,
-            ];
+            return $empty;
         }
 
         $studentIds = Student::whereIn('classroom_id', $classroomIds)->pluck('id');
-        
-        $totalInvoiced = Invoice::whereIn('student_id', $studentIds)->sum('total');
-        $totalPaid = Invoice::whereIn('student_id', $studentIds)->sum('paid_amount');
-        $totalBalance = $totalInvoiced - $totalPaid;
-        $studentsWithBalance = Invoice::whereIn('student_id', $studentIds)
-            ->whereRaw('total > paid_amount')
-            ->distinct('student_id')
-            ->count();
+        if ($studentIds->isEmpty()) {
+            return $empty;
+        }
+
+        $query = Invoice::query()
+            ->whereIn('student_id', $studentIds)
+            ->whereNull('reversed_at');
+        if ($termId > 0) {
+            $query->where('term_id', $termId);
+        }
+
+        $open = (clone $query)->whereIn('status', ['unpaid', 'partial']);
 
         return [
-            'total_invoiced' => $totalInvoiced,
-            'total_paid' => $totalPaid,
-            'total_balance' => $totalBalance,
-            'students_with_balance' => $studentsWithBalance,
+            'total_invoiced' => (float) (clone $query)->sum('total'),
+            'total_paid' => (float) (clone $query)->sum('paid_amount'),
+            'total_balance' => (float) (clone $open)->sum('balance'),
+            'students_with_balance' => (int) (clone $open)->where('balance', '>', 0)->distinct()->count('student_id'),
+            'overdue' => (float) (clone $open)
+                ->whereNotNull('due_date')
+                ->whereDate('due_date', '<', now()->toDateString())
+                ->sum('balance'),
         ];
     }
 
@@ -267,27 +425,128 @@ class SeniorTeacherController extends Controller
             return [];
         }
 
+        $startDate = now()->subDays($days - 1)->toDateString();
+        $endDate = now()->toDateString();
+        $rows = Attendance::query()
+            ->selectRaw('date, status, COUNT(DISTINCT student_id) as cnt')
+            ->whereBetween('date', [$startDate, $endDate])
+            ->whereIn('status', [Attendance::STATUS_PRESENT, Attendance::STATUS_ABSENT, Attendance::STATUS_LATE])
+            ->whereHas('student', fn ($q) => $q->whereIn('classroom_id', $classroomIds))
+            ->groupBy('date', 'status')
+            ->get()
+            ->groupBy(fn ($row) => Carbon::parse($row->date)->toDateString());
+
         $trends = [];
-        $startDate = now()->subDays($days - 1);
-        
         for ($i = 0; $i < $days; $i++) {
-            $date = $startDate->copy()->addDays($i)->toDateString();
-            
-            $attendance = Attendance::whereDate('date', $date)
-                ->whereHas('student', function($q) use ($classroomIds) {
-                    $q->whereIn('classroom_id', $classroomIds);
-                })
-                ->get();
-            
+            $date = now()->subDays($days - 1 - $i)->toDateString();
+            $dayRows = $rows->get($date, collect());
             $trends[] = [
                 'date' => $date,
-                'present' => $attendance->where('status', 'Present')->count(),
-                'absent' => $attendance->where('status', 'Absent')->count(),
-                'late' => $attendance->where('status', 'Late')->count(),
+                'present' => (int) optional($dayRows->firstWhere('status', Attendance::STATUS_PRESENT))->cnt,
+                'absent' => (int) optional($dayRows->firstWhere('status', Attendance::STATUS_ABSENT))->cnt,
+                'late' => (int) optional($dayRows->firstWhere('status', Attendance::STATUS_LATE))->cnt,
             ];
         }
-        
+
         return $trends;
+    }
+
+    private function missingMarks(array $classroomIds, int $termId)
+    {
+        if (empty($classroomIds)) {
+            return collect();
+        }
+
+        return Exam::query()
+            ->whereIn('classroom_id', $classroomIds)
+            ->when($termId > 0, fn ($q) => $q->where('term_id', $termId))
+            ->where('status', 'open')
+            ->with('classroom')
+            ->withCount(['marks as missing_count' => function ($q) {
+                $q->whereNull('score_raw')
+                    ->whereNull('score_moderated')
+                    ->whereNull('opener_score')
+                    ->whereNull('midterm_score')
+                    ->whereNull('endterm_score');
+            }])
+            ->latest()
+            ->take(20)
+            ->get()
+            ->filter(fn ($exam) => (int) $exam->missing_count > 0)
+            ->sortByDesc('missing_count')
+            ->take(8)
+            ->values();
+    }
+
+    private function attendanceConcerns(array $classroomIds, string $today)
+    {
+        if (empty($classroomIds)) {
+            return collect();
+        }
+
+        $absentIds = Attendance::query()
+            ->whereDate('date', $today)
+            ->where('status', Attendance::STATUS_ABSENT)
+            ->whereHas('student', fn ($q) => $q->whereIn('classroom_id', $classroomIds)->where('status', 'active'))
+            ->distinct()
+            ->pluck('student_id');
+
+        return Student::with(['classroom', 'stream'])
+            ->whereIn('id', $absentIds)
+            ->orderBy('first_name')
+            ->take(8)
+            ->get();
+    }
+
+    private function interventionLearners(array $classroomIds, string $today)
+    {
+        if (empty($classroomIds)) {
+            return collect();
+        }
+
+        $rows = Attendance::query()
+            ->selectRaw('student_id, COUNT(DISTINCT date) as days_absent')
+            ->where('status', Attendance::STATUS_ABSENT)
+            ->whereBetween('date', [now()->subDays(7)->toDateString(), $today])
+            ->whereHas('student', fn ($q) => $q->whereIn('classroom_id', $classroomIds)->where('status', 'active'))
+            ->groupBy('student_id')
+            ->having('days_absent', '>=', 3)
+            ->orderByDesc('days_absent')
+            ->take(8)
+            ->get();
+
+        $students = Student::with(['classroom', 'stream'])->whereIn('id', $rows->pluck('student_id'))->get()->keyBy('id');
+
+        return $rows->map(function ($row) use ($students) {
+            $student = $students->get($row->student_id);
+
+            return (object) [
+                'student' => $student,
+                'days_absent' => (int) $row->days_absent,
+                'url' => route('senior_teacher.students.index', array_filter([
+                    'classroom_id' => $student?->classroom_id,
+                    'stream_id' => $student?->stream_id,
+                ])),
+            ];
+        })->filter(fn ($row) => $row->student);
+    }
+
+    private function teacherActivityToday($supervisedStaff, string $today): array
+    {
+        $userIds = $supervisedStaff->pluck('user_id')->filter();
+        $marked = 0;
+        if ($userIds->isNotEmpty()) {
+            $marked = Attendance::query()
+                ->whereDate('date', $today)
+                ->whereIn('marked_by', $userIds)
+                ->distinct()
+                ->count('marked_by');
+        }
+
+        return [
+            'supervised' => $supervisedStaff->count(),
+            'marked_attendance' => $marked,
+        ];
     }
 
     /**

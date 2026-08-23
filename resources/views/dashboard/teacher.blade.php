@@ -10,82 +10,103 @@
   <div class="dashboard-shell">
     <div class="dash-hero d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
       <div>
-        <span class="crumb">Dashboard</span>
-        <h2 class="mb-1">Teacher Dashboard</h2>
-        <p class="mb-0">Welcome back, {{ $staff->full_name ?? auth()->user()->name }}!</p>
+        <span class="crumb">Teacher</span>
+        <h2 class="mb-1">{{ now()->format('G') < 12 ? 'Good morning' : (now()->format('G') < 17 ? 'Good afternoon' : 'Good evening') }}, {{ $staff->full_name ?? auth()->user()->name }}</h2>
+        <p class="mb-0">What do you need to do today?</p>
       </div>
       <div>
         <span class="dash-chip">{{ now()->format('l, F j, Y') }}</span>
       </div>
     </div>
 
-  {{-- Quick Stats --}}
+    @if(($pendingAttendance ?? collect())->isNotEmpty() || ($pendingMarks ?? collect())->isNotEmpty() || ($pendingHomework ?? collect())->isNotEmpty())
+      <div class="dash-card card card-body mb-3">
+        <div class="fw-semibold mb-2">Needs attention today</div>
+        <div class="d-flex flex-wrap gap-2">
+          @if(($pendingAttendance ?? collect())->isNotEmpty())
+            <a class="btn btn-warning" href="{{ route('attendance.mark.form') }}">Attendance to complete ({{ $pendingAttendance->count() }})</a>
+          @endif
+          @if(($pendingMarks ?? collect())->isNotEmpty())
+            <a class="btn btn-danger" href="{{ route('academics.exam-marks.index') }}">Marks to enter ({{ $pendingMarks->count() }})</a>
+          @endif
+          @if(($pendingHomework ?? collect())->isNotEmpty() && Route::has('academics.homework.index'))
+            <a class="btn btn-info" href="{{ route('academics.homework.index') }}">Homework ({{ $pendingHomework->count() }})</a>
+          @endif
+        </div>
+      </div>
+    @endif
+
+  {{-- Today's Timetable first --}}
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white border-bottom">
+      <h5 class="mb-0"><i class="bi bi-calendar-week me-2"></i>Today's Timetable</h5>
+    </div>
+    <div class="card-body">
+      @if($upcomingLessons->isEmpty())
+        <div class="erp-empty">
+          <i class="bi bi-calendar-x"></i>
+          No lessons scheduled for today.
+          @if(Route::has('academics.timetable.index'))
+            <div class="mt-2"><a href="{{ route('academics.timetable.index') }}" class="btn btn-primary btn-sm">View Full Timetable</a></div>
+          @endif
+        </div>
+      @else
+        <div class="list-group list-group-flush">
+          @foreach($upcomingLessons as $lesson)
+            <div class="list-group-item border-0 px-0">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <h6 class="mb-1">
+                    <i class="bi bi-clock me-2 text-primary"></i>
+                    Period {{ $lesson['period'] ?? 'N/A' }}
+                    @if(isset($lesson['start']) && isset($lesson['end']))
+                      <small class="text-muted">({{ $lesson['start'] }} - {{ $lesson['end'] }})</small>
+                    @endif
+                  </h6>
+                  <p class="mb-1">
+                    <strong>{{ $lesson['subject']->name ?? 'Subject' }}</strong> -
+                    {{ $lesson['classroom']->name ?? 'Class' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          @endforeach
+        </div>
+      @endif
+    </div>
+  </div>
+
+  {{-- Assigned scope --}}
   <div class="row g-3 mb-4">
-    <div class="col-md-3">
+    <div class="col-6 col-md-3">
       <div class="card h-100 shadow-sm border-0">
         <div class="card-body">
-          <div class="d-flex align-items-center">
-            <div class="flex-grow-1">
-              <div class="text-muted small mb-1">Assigned Classes</div>
-              <div class="fs-3 fw-bold text-primary">{{ $assignedClasses->count() }}</div>
-            </div>
-            <div class="ms-3">
-              <span class="badge rounded-circle p-3 bg-primary bg-opacity-10">
-                <i class="bi bi-building fs-4 text-primary"></i>
-              </span>
-            </div>
-          </div>
+          <div class="text-muted small mb-1">My Classes</div>
+          <div class="fs-3 fw-bold text-primary">{{ $assignedClasses->count() }}</div>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-md-3">
       <div class="card h-100 shadow-sm border-0">
         <div class="card-body">
-          <div class="d-flex align-items-center">
-            <div class="flex-grow-1">
-              <div class="text-muted small mb-1">Subjects</div>
-              <div class="fs-3 fw-bold text-success">{{ $assignedSubjects->count() }}</div>
-            </div>
-            <div class="ms-3">
-              <span class="badge rounded-circle p-3 bg-success bg-opacity-10">
-                <i class="bi bi-book fs-4 text-success"></i>
-              </span>
-            </div>
-          </div>
+          <div class="text-muted small mb-1">Subjects</div>
+          <div class="fs-3 fw-bold">{{ $assignedSubjects->count() }}</div>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-md-3">
       <div class="card h-100 shadow-sm border-0">
         <div class="card-body">
-          <div class="d-flex align-items-center">
-            <div class="flex-grow-1">
-              <div class="text-muted small mb-1">Total Students</div>
-              <div class="fs-3 fw-bold text-info">{{ number_format($totalStudents) }}</div>
-            </div>
-            <div class="ms-3">
-              <span class="badge rounded-circle p-3 bg-info bg-opacity-10">
-                <i class="bi bi-people fs-4 text-info"></i>
-              </span>
-            </div>
-          </div>
+          <div class="text-muted small mb-1">My Students</div>
+          <div class="fs-3 fw-bold">{{ number_format($totalStudents) }}</div>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-md-3">
       <div class="card h-100 shadow-sm border-0">
         <div class="card-body">
-          <div class="d-flex align-items-center">
-            <div class="flex-grow-1">
-              <div class="text-muted small mb-1">Today's Lessons</div>
-              <div class="fs-3 fw-bold text-warning">{{ $upcomingLessons->count() }}</div>
-            </div>
-            <div class="ms-3">
-              <span class="badge rounded-circle p-3 bg-warning bg-opacity-10">
-                <i class="bi bi-calendar-event fs-4 text-warning"></i>
-              </span>
-            </div>
-          </div>
+          <div class="text-muted small mb-1">Today's Lessons</div>
+          <div class="fs-3 fw-bold">{{ $upcomingLessons->count() }}</div>
         </div>
       </div>
     </div>
@@ -98,16 +119,16 @@
       {{-- My Classes & Subjects --}}
       <div class="card shadow-sm border-0 mb-4">
         <div class="card-header bg-white border-bottom">
-          <h5 class="mb-0"><i class="bi bi-building me-2"></i>My Classes & Subjects</h5>
+          <h5 class="mb-0"><i class="bi bi-building me-2"></i>My Classes</h5>
         </div>
         <div class="card-body">
           @if($assignedClasses->isEmpty())
-            <div class="text-center py-4">
-              <i class="bi bi-inbox fs-1 text-muted"></i>
-              <p class="text-muted mt-2">No classes assigned yet. Contact administrator.</p>
+            <div class="erp-empty">
+              <i class="bi bi-inbox"></i>
+              No classes assigned yet. Contact administrator.
             </div>
           @else
-            <div class="table-responsive">
+            <div class="table-responsive erp-invoice-table">
               <table class="table table-hover">
                 <thead>
                   <tr>
@@ -123,14 +144,7 @@
                       $classAssignments = $assignments->where('classroom_id', $classroom->id);
                       $classSubjects = $classAssignments->pluck('subject.name')->unique()->filter();
                       $classStudents = $studentsByClass->get($classroom->id, collect())->count();
-                      
-                      // Check if teacher is assigned to specific streams in this classroom
-                      $streamAssignmentsForClass = isset($streamAssignments) ? $streamAssignments->where('classroom_id', $classroom->id) : collect();
-                      $assignedStreamNames = [];
-                      if ($streamAssignmentsForClass->isNotEmpty()) {
-                          $streamIds = $streamAssignmentsForClass->pluck('stream_id')->toArray();
-                          $assignedStreamNames = \App\Models\Academics\Stream::whereIn('id', $streamIds)->pluck('name')->toArray();
-                      }
+                      $assignedStreamNames = $streamNamesByClass[$classroom->id] ?? [];
                     @endphp
                     <tr>
                       <td>
@@ -151,11 +165,11 @@
                       </td>
                       <td>
                         <div class="btn-group btn-group-sm">
-                          <a href="{{ route('attendance.mark.form') }}?classroom_id={{ $classroom->id }}" 
+                          <a href="{{ route('attendance.mark.form') }}?classroom_id={{ $classroom->id }}"
                              class="btn btn-outline-primary" title="Mark Attendance">
                             <i class="bi bi-calendar-check"></i>
                           </a>
-                          <a href="{{ route('academics.exam-marks.index') }}?classroom_id={{ $classroom->id }}" 
+                          <a href="{{ route('academics.exam-marks.index') }}?classroom_id={{ $classroom->id }}"
                              class="btn btn-outline-success" title="View Marks">
                             <i class="bi bi-journal-check"></i>
                           </a>
@@ -166,51 +180,25 @@
                 </tbody>
               </table>
             </div>
-          @endif
-        </div>
-      </div>
-
-      {{-- Today's Schedule --}}
-      <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-white border-bottom">
-          <h5 class="mb-0"><i class="bi bi-calendar-week me-2"></i>Today's Schedule</h5>
-        </div>
-        <div class="card-body">
-          @if($upcomingLessons->isEmpty())
-            <div class="text-center py-4">
-              <i class="bi bi-calendar-x fs-1 text-muted"></i>
-              <p class="text-muted mt-2">No lessons scheduled for today.</p>
-              <a href="{{ route('academics.timetable.index') }}" class="btn btn-primary btn-sm mt-2">
-                <i class="bi bi-calendar-week me-1"></i>View Full Timetable
-              </a>
-            </div>
-          @else
-            <div class="list-group list-group-flush">
-              @foreach($upcomingLessons as $lesson)
-                <div class="list-group-item border-0 px-0">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6 class="mb-1">
-                        <i class="bi bi-clock me-2 text-primary"></i>
-                        Period {{ $lesson['period'] ?? 'N/A' }}
-                        @if(isset($lesson['start']) && isset($lesson['end']))
-                          <small class="text-muted">({{ $lesson['start'] }} - {{ $lesson['end'] }})</small>
-                        @endif
-                      </h6>
-                      <p class="mb-1">
-                        <strong>{{ $lesson['subject']->name ?? 'Subject' }}</strong> - 
-                        {{ $lesson['classroom']->name ?? 'Class' }}
-                      </p>
-                    </div>
-                    <span class="badge bg-primary">Upcoming</span>
+            <div class="erp-invoice-cards">
+              @foreach($assignedClasses as $classroom)
+                @php
+                  $classAssignments = $assignments->where('classroom_id', $classroom->id);
+                  $classSubjects = $classAssignments->pluck('subject.name')->unique()->filter();
+                  $classStudents = $studentsByClass->get($classroom->id, collect())->count();
+                  $assignedStreamNames = $streamNamesByClass[$classroom->id] ?? [];
+                @endphp
+                <div class="erp-invoice-card">
+                  <div class="fw-semibold">{{ $classroom->name }}</div>
+                  <div class="small dash-muted">{{ implode(', ', $assignedStreamNames) ?: ($classAssignments->first()?->stream?->name ?? '') }}</div>
+                  <div class="small mt-1">{{ $classSubjects->implode(', ') }}</div>
+                  <div class="erp-kv mt-2"><span>Students</span><strong>{{ $classStudents }}</strong></div>
+                  <div class="d-grid gap-2 mt-2">
+                    <a href="{{ route('attendance.mark.form') }}?classroom_id={{ $classroom->id }}" class="btn btn-outline-primary btn-sm">Mark Attendance</a>
+                    <a href="{{ route('academics.exam-marks.index') }}?classroom_id={{ $classroom->id }}" class="btn btn-outline-success btn-sm">Enter Marks</a>
                   </div>
                 </div>
               @endforeach
-            </div>
-            <div class="mt-3 text-center">
-              <a href="{{ route('academics.timetable.index') }}" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-calendar-week me-1"></i>View Full Timetable
-              </a>
             </div>
           @endif
         </div>
@@ -318,15 +306,41 @@
           </div>
         </div>
       </div>
+
+      <div class="card shadow-sm border-0 mt-4">
+        <div class="card-header bg-white border-bottom">
+          <h5 class="mb-0"><i class="bi bi-exclamation-circle me-2"></i>Student Alerts</h5>
+        </div>
+        <div class="card-body">
+          @forelse($absenceAlerts ?? [] as $row)
+            <a href="{{ route('attendance.records', ['student_id' => $row->student_id]) }}" class="dash-list-item d-flex justify-content-between text-decoration-none">
+              <span>{{ $row->student_name }} · {{ $row->days_absent }} days absent</span>
+              <i class="bi bi-arrow-right"></i>
+            </a>
+          @empty
+            <div class="erp-empty"><i class="bi bi-check-circle"></i>No attendance alerts for your students in the last 7 days.</div>
+          @endforelse
+        </div>
+      </div>
     </div>
 
     {{-- Right Column --}}
     <div class="col-lg-4">
-      {{-- KPIs --}}
-      @include('dashboard.partials.kpis')
-
-      {{-- Upcoming Events --}}
-      @include('dashboard.partials.upcoming', ['upcoming' => $upcoming])
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-bottom">
+          <h5 class="mb-0"><i class="bi bi-journal-check me-2"></i>Upcoming Assessments</h5>
+        </div>
+        <div class="card-body">
+          @forelse($upcomingAssessments ?? [] as $exam)
+            <div class="dash-list-item">
+              <div class="fw-semibold">{{ $exam->name }}</div>
+              <div class="small dash-muted">{{ optional($exam->starts_on)->format('M j, Y') ?? \Carbon\Carbon::parse($exam->starts_on)->format('M j, Y') }}</div>
+            </div>
+          @empty
+            <div class="erp-empty"><i class="bi bi-calendar-x"></i>No upcoming assessments for your classes.</div>
+          @endforelse
+        </div>
+      </div>
 
       {{-- Announcements --}}
       @include('dashboard.partials.announcements', ['announcements' => $announcements])
@@ -380,18 +394,26 @@
             <a href="{{ route('attendance.mark.form') }}" class="btn btn-primary">
               <i class="bi bi-calendar-check me-2"></i>Mark Attendance
             </a>
+            @if(Route::has('academics.exam-marks.bulk.form'))
             <a href="{{ route('academics.exam-marks.bulk.form') }}" class="btn btn-success">
               <i class="bi bi-journal-check me-2"></i>Enter Marks
             </a>
+            @endif
+            @if(Route::has('academics.homework.create'))
             <a href="{{ route('academics.homework.create') }}" class="btn btn-info">
               <i class="bi bi-journal-plus me-2"></i>Create Homework
             </a>
+            @endif
+            @if(Route::has('academics.diaries.index'))
             <a href="{{ route('academics.diaries.index') }}" class="btn btn-warning">
               <i class="bi bi-journals me-2"></i>Open Diaries
             </a>
+            @endif
+            @if(Route::has('academics.timetable.index'))
             <a href="{{ route('academics.timetable.index') }}" class="btn btn-secondary">
               <i class="bi bi-calendar-week me-2"></i>View Timetable
             </a>
+            @endif
           </div>
         </div>
       </div>

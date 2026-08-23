@@ -71,7 +71,7 @@ return [
 
     'dashboards' => [
         'admin.dashboard' => ['Super Admin', 'Director', 'Admin', 'Secretary', 'Academic Administrator'],
-        'teacher.dashboard' => ['Teacher', 'teacher', 'Supervisor'],
+        'teacher.dashboard' => ['Super Admin', 'Director', 'Admin', 'Secretary', 'Teacher', 'teacher', 'Supervisor'],
         'senior_teacher.dashboard' => ['Senior Teacher', 'Deputy Senior Teacher'],
         'student.dashboard' => ['Student'],
         'parent.dashboard' => ['Parent'],

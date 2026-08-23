@@ -19,6 +19,8 @@
       </div>
     </div>
 
+    @include('dashboard.partials.filters')
+
     {{-- Quick Stats --}}
     <div class="row g-3 mb-4">
       <div class="col-md-3">
@@ -98,64 +100,79 @@
         {{-- Supervised Classrooms --}}
         <div class="card shadow-sm border-0 mb-4">
           <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-building me-2"></i>Supervised Classrooms</h5>
-            <a href="{{ route('senior_teacher.supervised_classrooms') }}" class="btn btn-sm btn-outline-primary">
-              View All
-            </a>
+            <h5 class="mb-0"><i class="bi bi-building me-2"></i>Classes under supervision</h5>
+            <a href="{{ route('senior_teacher.supervised_classrooms') }}" class="btn btn-sm btn-outline-primary">View All</a>
           </div>
           <div class="card-body">
-            @if(($supervisedStreamRows ?? collect())->isEmpty())
+            @if(($classSnapshots ?? collect())->isEmpty() && ($supervisedStreamRows ?? collect())->isEmpty())
               <div class="text-center py-4">
                 <i class="bi bi-inbox fs-1 text-muted"></i>
                 <p class="text-muted mt-2">No classrooms assigned for supervision yet.</p>
               </div>
             @else
-              <div class="table-responsive">
-                <table class="table table-hover">
-                  <thead>
-                    <tr>
-                      <th>Class</th>
-                      <th>Stream</th>
-                      <th>Students</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @foreach(($supervisedStreamRows ?? collect())->take(5) as $row)
-                      <tr>
-                        <td><strong>{{ $row->classroom->name }}</strong></td>
-                        <td>{{ $row->stream ? $row->stream->name : '—' }}</td>
-                        <td><span class="badge bg-info">{{ $row->student_count }} students</span></td>
-                        <td>
-                          <div class="btn-group btn-group-sm">
-                            <a href="{{ route('senior_teacher.students.index') }}?classroom_id={{ $row->classroom->id }}{{ $row->stream ? '&stream_id='.$row->stream->id : '' }}" 
-                               class="btn btn-outline-primary" title="View Students">
-                              <i class="bi bi-people"></i>
-                            </a>
-                            <a href="{{ route('attendance.mark.form') }}?class={{ $row->classroom->id }}{{ $row->stream ? '&stream='.$row->stream->id : '' }}" 
-                               class="btn btn-outline-success" title="Mark Attendance">
-                              <i class="bi bi-calendar-check"></i>
-                            </a>
-                          </div>
-                        </td>
-                      </tr>
-                    @endforeach
-                  </tbody>
-                </table>
+              <div class="row g-3">
+                @foreach(($classSnapshots ?? $supervisedStreamRows)->take(8) as $row)
+                  <div class="col-md-6">
+                    <a href="{{ $row->url ?? route('senior_teacher.students.index', array_filter(['classroom_id' => $row->classroom->id, 'stream_id' => $row->stream->id ?? null])) }}" class="dash-card card h-100 text-decoration-none text-reset">
+                      <div class="card-body">
+                        <div class="fw-semibold">{{ $row->classroom->name }}{{ $row->stream ? ' '.$row->stream->name : '' }}</div>
+                        <div class="small dash-muted mb-2">{{ $row->student_count }} learners</div>
+                        <div class="erp-kv"><span>Attendance</span><strong>{{ isset($row->attendance_pct) && $row->attendance_pct !== null ? $row->attendance_pct.'%' : '—' }}</strong></div>
+                        <div class="erp-kv"><span>Assessment completion</span><strong>{{ isset($row->assessment_completion) && $row->assessment_completion !== null ? $row->assessment_completion.'%' : '—' }}</strong></div>
+                        <div class="erp-kv"><span>Average performance</span><strong>{{ isset($row->average) && $row->average !== null ? $row->average : '—' }}</strong></div>
+                      </div>
+                    </a>
+                  </div>
+                @endforeach
               </div>
             @endif
+          </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+          <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-journal-x me-2"></i>Missing marks</h5>
+          </div>
+          <div class="card-body">
+            @forelse($missingMarks ?? [] as $exam)
+              <a href="{{ route('academics.exam-marks.index', ['exam_id' => $exam->id, 'classroom_id' => $exam->classroom_id]) }}" class="dash-list-item d-flex justify-content-between text-decoration-none">
+                <span>{{ $exam->name }} · {{ $exam->classroom->name ?? 'Class' }} ({{ $exam->missing_count }} missing)</span>
+                <i class="bi bi-arrow-right"></i>
+              </a>
+            @empty
+              <div class="erp-empty"><i class="bi bi-check-circle"></i>No open exams with missing marks for supervised classes.</div>
+            @endforelse
+          </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+          <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0"><i class="bi bi-person-exclamation me-2"></i>Learners requiring intervention</h5>
+          </div>
+          <div class="card-body">
+            @forelse($interventionLearners ?? [] as $row)
+              <a href="{{ $row->url }}" class="dash-list-item d-flex justify-content-between text-decoration-none">
+                <span>{{ $row->student->full_name }} · {{ $row->days_absent }} absences in 7 days</span>
+                <i class="bi bi-arrow-right"></i>
+              </a>
+            @empty
+              <div class="erp-empty"><i class="bi bi-check-circle"></i>No learners with 3 or more absences in the last 7 days.</div>
+            @endforelse
           </div>
         </div>
 
         {{-- Supervised Staff --}}
         <div class="card shadow-sm border-0 mb-4">
           <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>Supervised Staff</h5>
+            <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>Teacher activity</h5>
             <a href="{{ route('senior_teacher.supervised_staff') }}" class="btn btn-sm btn-outline-primary">
               View All
             </a>
           </div>
           <div class="card-body">
+            <div class="small dash-muted mb-3">
+              {{ $teacherActivity['marked_attendance'] ?? 0 }} of {{ $teacherActivity['supervised'] ?? 0 }} supervised teachers marked attendance today.
+            </div>
             @if($supervisedStaff->isEmpty())
               <div class="text-center py-4">
                 <i class="bi bi-inbox fs-1 text-muted"></i>
@@ -199,31 +216,41 @@
           </div>
           <div class="card-body">
             <div class="row text-center g-3">
-              <div class="col-md-3">
+              <div class="col-6 col-md-3">
                 <div class="p-3">
                   <div class="fs-4 fw-bold text-success">{{ $todayAttendance['present'] }}</div>
-                  <div class="text-muted small">Present</div>
+                  <div class="text-muted small">Present today</div>
                 </div>
               </div>
-              <div class="col-md-3">
+              <div class="col-6 col-md-3">
                 <div class="p-3">
                   <div class="fs-4 fw-bold text-danger">{{ $todayAttendance['absent'] }}</div>
-                  <div class="text-muted small">Absent</div>
+                  <div class="text-muted small">Absent today</div>
                 </div>
               </div>
-              <div class="col-md-3">
+              <div class="col-6 col-md-3">
                 <div class="p-3">
                   <div class="fs-4 fw-bold text-warning">{{ $todayAttendance['late'] }}</div>
-                  <div class="text-muted small">Late</div>
+                  <div class="text-muted small">Late today</div>
                 </div>
               </div>
-              <div class="col-md-3">
+              <div class="col-6 col-md-3">
                 <div class="p-3">
                   <div class="fs-4 fw-bold text-info">{{ $todayAttendance['total'] }}</div>
-                  <div class="text-muted small">Total Active</div>
+                  <div class="text-muted small">Active learners</div>
                 </div>
               </div>
             </div>
+            @if(($attendanceConcerns ?? collect())->isNotEmpty())
+              <hr>
+              <h6 class="mb-2">Attendance concerns today</h6>
+              @foreach($attendanceConcerns as $student)
+                <a href="{{ route('attendance.records', ['student_id' => $student->id, 'start' => now()->toDateString(), 'end' => now()->toDateString()]) }}" class="dash-list-item d-flex justify-content-between text-decoration-none">
+                  <span>{{ $student->full_name }} · {{ $student->classroom->name ?? '' }}</span>
+                  <i class="bi bi-arrow-right"></i>
+                </a>
+              @endforeach
+            @endif
             
             {{-- Attendance Trends Chart (Last 7 Days) --}}
             @if(!empty($attendanceTrends))
@@ -295,10 +322,13 @@
                 <span class="text-muted small">Total Paid</span>
                 <span class="text-success fw-bold">KES {{ number_format($feeBalances['total_paid'], 2) }}</span>
               </div>
-              <hr>
-              <div class="d-flex justify-content-between">
-                <span class="text-muted">Outstanding Balance</span>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted small">Outstanding</span>
                 <span class="text-danger fw-bold">KES {{ number_format($feeBalances['total_balance'], 2) }}</span>
+              </div>
+              <div class="d-flex justify-content-between">
+                <span class="text-muted small">Overdue</span>
+                <span class="fw-bold">KES {{ number_format($feeBalances['overdue'] ?? 0, 2) }}</span>
               </div>
             </div>
             <div class="alert alert-info mb-0">
@@ -329,7 +359,7 @@
                   <div class="list-group-item border-0 px-0">
                     <h6 class="mb-1">{{ $exam->name }}</h6>
                     <small class="text-muted">
-                      <i class="bi bi-calendar me-1"></i>{{ \Carbon\Carbon::parse($exam->start_date)->format('M j, Y') }}
+                      <i class="bi bi-calendar me-1"></i>{{ \Carbon\Carbon::parse($exam->starts_on ?? $exam->start_date)->format('M j, Y') }}
                     </small>
                   </div>
                 @endforeach

@@ -1,6 +1,6 @@
 <div class="dash-card card mb-3 h-100">
     <div class="card-header">
-        <strong>Behaviour (last 7 days)</strong>
+        <strong>Behaviour (selected period)</strong>
     </div>
 
     @php

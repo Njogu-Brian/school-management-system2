@@ -323,13 +323,22 @@ Route::get('/home', function () {
 */
 Route::middleware(['auth'])->group(function () {
     Route::get('/gallery', [GalleryController::class, 'index'])->name('gallery.index');
-    Route::get('/admin/home',    [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
-    Route::get('/teacher/home',  [DashboardController::class, 'teacherDashboard'])->name('teacher.dashboard');
+    Route::get('/search/suggest', [\App\Http\Controllers\SearchController::class, 'suggest'])->name('search.suggest');
+    Route::get('/admin/home', [DashboardController::class, 'adminDashboard'])
+        ->middleware('role:Super Admin|Director|Admin|Secretary|Academic Administrator')
+        ->name('admin.dashboard');
+    Route::get('/teacher/home',  [DashboardController::class, 'teacherDashboard'])
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor')
+        ->name('teacher.dashboard');
     Route::get('/supervisor/home',  [DashboardController::class, 'supervisorDashboard'])->name('supervisor.dashboard');
     Route::get('/parent/home',   [DashboardController::class, 'parentDashboard'])->name('parent.dashboard');
     Route::get('/student/home',  [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
-    Route::get('/finance/home',  [DashboardController::class, 'financeDashboard'])->name('finance.dashboard');
-    Route::get('/transport/home',[DashboardController::class, 'transportDashboard'])->name('transport.dashboard');
+    Route::get('/finance/home',  [DashboardController::class, 'financeDashboard'])
+        ->middleware('role:Super Admin|Director|Admin|Secretary|Accountant|Finance Officer')
+        ->name('finance.dashboard');
+    Route::get('/transport/home',[DashboardController::class, 'transportDashboard'])
+        ->middleware('role:Super Admin|Director|Admin|Secretary|Driver')
+        ->name('transport.dashboard');
 });
 
 /*

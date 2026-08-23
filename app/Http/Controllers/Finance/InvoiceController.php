@@ -42,6 +42,12 @@ class InvoiceController extends Controller
             ->when($request->filled('stream_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('stream_id',$request->stream_id)->where('archive', 0)->where('is_alumni', false)))
             ->when($request->filled('votehead_id'), fn($qq)=>$qq->whereHas('items', fn($ii)=>$ii->where('votehead_id',$request->votehead_id)))
             ->when($request->filled('status'), fn($qq)=>$qq->where('status',$request->status))
+            ->when($request->boolean('overdue'), function ($qq) {
+                $qq->whereIn('status', ['unpaid', 'partial'])
+                    ->where('balance', '>', 0)
+                    ->whereNotNull('due_date')
+                    ->whereDate('due_date', '<', now()->toDateString());
+            })
             ->latest();
 
         $invoices = $q->paginate(20)->appends($request->all());

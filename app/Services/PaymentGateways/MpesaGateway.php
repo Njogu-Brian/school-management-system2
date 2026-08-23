@@ -22,11 +22,11 @@ class MpesaGateway implements PaymentGatewayInterface
 
     public function __construct()
     {
-        $this->consumerKey = config('mpesa.consumer_key') ?? config('services.mpesa.consumer_key');
-        $this->consumerSecret = config('mpesa.consumer_secret') ?? config('services.mpesa.consumer_secret');
-        $this->shortcode = config('mpesa.shortcode') ?? config('services.mpesa.shortcode');
-        $this->passkey = config('mpesa.passkey') ?? config('services.mpesa.passkey');
-        $this->environment = config('mpesa.environment') ?? config('services.mpesa.environment', 'sandbox');
+        $this->consumerKey = (string) (config('mpesa.consumer_key') ?? config('services.mpesa.consumer_key') ?? '');
+        $this->consumerSecret = (string) (config('mpesa.consumer_secret') ?? config('services.mpesa.consumer_secret') ?? '');
+        $this->shortcode = (string) (config('mpesa.shortcode') ?? config('services.mpesa.shortcode') ?? '');
+        $this->passkey = (string) (config('mpesa.passkey') ?? config('services.mpesa.passkey') ?? '');
+        $this->environment = (string) (config('mpesa.environment') ?? config('services.mpesa.environment', 'sandbox'));
         
         // Verify environment configuration (simplified logging)
         $urls = $this->environment === 'production' 

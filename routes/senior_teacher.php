@@ -20,7 +20,7 @@ use App\Http\Controllers\Teacher\LeaveController;
 use App\Http\Controllers\Teacher\AdvanceRequestController;
 use App\Http\Controllers\Hr\StaffAttendanceController;
 
-Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(function () {
+Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher|Deputy Senior Teacher'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------

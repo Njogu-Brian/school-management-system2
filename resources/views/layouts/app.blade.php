@@ -457,6 +457,70 @@
                 font-size: 0.9375rem !important;
             }
         }
+        .header-search { position: relative; flex: 1; min-width: 160px; max-width: 520px; }
+        .header-search input {
+            width: 100%;
+            border-radius: 999px;
+            border: 1px solid var(--brand-border);
+            padding: 8px 14px 8px 38px;
+            background: var(--brand-surface);
+            color: var(--brand-text);
+            min-height: 38px;
+        }
+        .header-search .search-icon {
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            color: var(--brand-muted); pointer-events: none;
+        }
+        .header-search-results {
+            position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+            background: var(--brand-surface);
+            border: 1px solid var(--brand-border);
+            border-radius: 12px;
+            box-shadow: 0 12px 28px rgba(15,23,42,0.12);
+            z-index: 1200;
+            max-height: 360px;
+            overflow: auto;
+            display: none;
+        }
+        .header-search-results a {
+            display: block; padding: 10px 12px; text-decoration: none; color: var(--brand-text);
+            border-bottom: 1px solid var(--brand-border); cursor: pointer;
+        }
+        .header-search-results a:hover { background: color-mix(in srgb, var(--brand-primary) 8%, #ffffff 92%); }
+        .header-search-results .mod { font-size: 11px; font-weight: 700; color: var(--brand-primary); }
+        .header-search-results .search-group-label {
+            padding: 8px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+            color: var(--brand-muted);
+        }
+        .erp-bottom-nav { display: none; }
+        @media (max-width: 991.98px) {
+            .erp-bottom-nav {
+                display: flex;
+                position: fixed;
+                left: 0; right: 0; bottom: 0;
+                z-index: 1040;
+                background: var(--brand-primary, #3a1a59);
+                color: #fff;
+                padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+                justify-content: space-around;
+                box-shadow: 0 -8px 20px rgba(0,0,0,0.12);
+            }
+            .erp-bottom-nav a {
+                color: rgba(255,255,255,0.78);
+                text-decoration: none;
+                font-size: 11px;
+                font-weight: 600;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                min-width: 56px;
+                cursor: pointer;
+            }
+            .erp-bottom-nav a.active, .erp-bottom-nav a:hover { color: #fff; }
+            .erp-bottom-nav i { font-size: 1.15rem; }
+            body.with-sidebar .content { padding-bottom: 92px; }
+        }
     </style>
 </head>
 <body class="@auth with-sidebar @endauth">
@@ -485,7 +549,8 @@
         @auth
         @php $isSuperAdmin = auth()->user()->hasRole('Super Admin'); @endphp
         @php $canViewSystemAlerts = auth()->user()->hasAnyRole(['Super Admin', 'Secretary']); @endphp
-        <div class="app-header d-flex align-items-center gap-3 mb-3">
+        <div class="app-header d-flex align-items-center gap-3 mb-3 flex-wrap">
+            @include('layouts.partials.header-search')
             <div class="header-actions ms-auto">
                 @if($canViewSystemAlerts)
                 <div class="dropdown header-alerts" id="headerAlertsRoot">
@@ -917,6 +982,71 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js" crossorigin="anonymous"></script>
     @include('partials.academic_year_term_filter_script')
+    @auth
+    @include('layouts.partials.mobile-bottom-nav')
+    <script>
+    (function () {
+      const input = document.getElementById('headerSearchInput');
+      const box = document.getElementById('headerSearchResults');
+      if (!input || !box) return;
+      let timer = null;
+      const suggestUrl = @json(\Illuminate\Support\Facades\Route::has('search.suggest') ? route('search.suggest') : '');
+      if (!suggestUrl) return;
+
+      function hide() { box.style.display = 'none'; box.innerHTML = ''; }
+      function esc(s) {
+        return String(s || '').replace(/[&<>"']/g, function (c) {
+          return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);
+        });
+      }
+      function rowHtml(row) {
+        return '<a href="' + esc(row.url || '#') + '"><div class="mod">' + esc(row.module || '') + '</div><div>' + esc(row.title || '') + '</div><div class="small text-muted">' + esc(row.subtitle || '') + '</div></a>';
+      }
+
+      input.addEventListener('input', function () {
+        const q = input.value.trim();
+        clearTimeout(timer);
+        if (q.length < 2) { hide(); return; }
+        timer = setTimeout(async function () {
+          try {
+            const res = await fetch(suggestUrl + '?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            const groups = data.groups || [];
+            if (!groups.length && !(data.results || []).length) {
+              box.innerHTML = '<div class="p-3 text-muted small">No matching records.</div>';
+              box.style.display = 'block';
+              return;
+            }
+            if (groups.length) {
+              box.innerHTML = groups.map(function (g) {
+                if (!g.results || !g.results.length) return '';
+                return '<div class="search-group"><div class="search-group-label">' + esc(g.label) + '</div>' + g.results.map(rowHtml).join('') + '</div>';
+              }).join('');
+            } else {
+              box.innerHTML = (data.results || []).map(rowHtml).join('');
+            }
+            box.style.display = 'block';
+          } catch (e) {
+            box.innerHTML = '<div class="p-3 text-muted small">Unable to search right now.</div>';
+            box.style.display = 'block';
+          }
+        }, 250);
+      });
+
+      document.addEventListener('click', function (e) {
+        if (!document.getElementById('headerSearchRoot')?.contains(e.target)) hide();
+      });
+
+      const more = document.getElementById('mobileMoreToggle');
+      if (more) {
+        more.addEventListener('click', function (e) {
+          e.preventDefault();
+          document.getElementById('sidebarToggle')?.click();
+        });
+      }
+    })();
+    </script>
+    @endauth
     @stack('scripts')
 </body>
 </html>

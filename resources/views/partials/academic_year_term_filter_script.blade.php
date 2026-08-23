@@ -26,15 +26,27 @@
         return;
       }
       const optYear = opt.getAttribute('data-academic-year-id');
-      const show = yearId && optYear && String(optYear) === String(yearId);
+      if (!optYear) {
+        opt.hidden = false;
+        return;
+      }
+      const show = yearId && String(optYear) === String(yearId);
       opt.hidden = !show;
+      opt.disabled = !show;
       if (show && opt.value === currentTerm) {
         valid = true;
       }
     });
 
-    if (!yearId || !valid) {
-      termSelect.value = '';
+    if (!yearId) {
+      return;
+    }
+    if (!valid) {
+      const visible = Array.from(termSelect.options).filter(function (opt) {
+        return opt.value && !opt.hidden;
+      });
+      const current = visible.find(function (opt) { return opt.getAttribute('data-is-current') === '1'; });
+      termSelect.value = (current || visible[0] || { value: '' }).value;
     }
   };
 
@@ -52,6 +64,7 @@
   };
 
   function initForm(form) {
+    if (form.hasAttribute('data-no-year-term-filter')) return;
     const years = yearSelectsIn(form);
     const terms = termSelectsIn(form);
     if (!years.length || !terms.length) return;

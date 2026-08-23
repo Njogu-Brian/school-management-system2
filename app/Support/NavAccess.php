@@ -50,7 +50,8 @@ class NavAccess
             return true;
         }
 
-        $allowed = config("nav_access.dashboards.{$routeName}", []);
+        $dashboards = config('nav_access.dashboards', []);
+        $allowed = $dashboards[$routeName] ?? [];
 
         return ! empty($allowed) && $user->hasAnyRole($allowed);
     }

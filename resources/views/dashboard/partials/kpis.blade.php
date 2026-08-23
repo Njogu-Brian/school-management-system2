@@ -1,107 +1,105 @@
 <div class="row g-3 mb-3">
 @php
-    // Readable numbers & money (helpers from app/helpers.php)
     $n = fn($v, $d = 0) => format_number($v, $d);
     $m = fn($v) => format_money($v);
-
-    // Build your KPI cards (values already computed in the controller's $kpis array)
+    $roleName = $role ?? 'admin';
+    $showFinanceKpis = in_array($roleName, ['admin', 'finance']);
     $cards = [
         [
             'label' => 'Total Students',
-            'value' => $n($kpis['students']),
+            'value' => $n($kpis['students'] ?? 0),
             'icon'  => 'bi-people',
-            'delta'=> $kpis['students_delta'] ?? null,
-            'muted'=> null,
+            'delta' => $kpis['students_delta'] ?? null,
+            'muted' => 'Active students',
+            'scope' => 'overview',
+            'href'  => Route::has('students.index') ? route('students.index') : null,
+            'hide'  => in_array($roleName, ['finance', 'teacher']),
         ],
         [
-            'label' => 'Present Today',
-            'value' => $n($kpis['present_today']),
-            'icon'  => 'bi-person-check',
-            'delta'=> $kpis['attendance_delta'] ?? null,
-            'muted'=> 'of '. $n(($kpis['students'] ?? 0)),
-        ],
-        [
-            'label' => 'Absent Today',
-            'value' => $n($kpis['absent_today']),
-            'icon'  => 'bi-person-x',
-            'delta'=> $kpis['attendance_delta'] ?? null,
-            'muted'=> 'of '. $n(($kpis['students'] ?? 0)),
+            'label' => 'Staff Members',
+            'value' => $n($kpis['staff_active'] ?? 0),
+            'icon'  => 'bi-person-badge',
+            'muted' => ($kpis['teachers_on_leave'] ?? 0) ? ($n($kpis['teachers_on_leave']).' on leave today') : 'Active staff',
+            'scope' => 'today',
+            'href'  => Route::has('staff.index') ? route('staff.index') : null,
+            'hide'  => in_array($roleName, ['teacher', 'finance']),
         ],
         [
             'label' => 'Total Invoiced',
             'value' => $m($kpis['total_invoiced'] ?? 0),
             'icon'  => 'bi-receipt',
-            'delta'=> null,
-            'muted'=> null,
-            'hide' => !in_array(($role ?? 'admin'), ['admin','finance']),
+            'muted' => ($kpis['collection_rate'] ?? null) !== null ? ($n($kpis['collection_rate'], 1).'% collected') : 'Selected term',
+            'scope' => 'term',
+            'hide'  => ! $showFinanceKpis,
             'clickable' => true,
-            'data_target' => 'voteheadBreakdownModal',
         ],
         [
-            'label' => 'Payments Collected',
+            'label' => 'Total Paid',
             'value' => $m($kpis['fees_collected'] ?? 0),
             'icon'  => 'bi-cash-coin',
-            'delta'=> $kpis['fees_delta'] ?? null,
-            'muted'=> ($kpis['finance_scope'] ?? '') === 'term' ? 'Current term' : 'In selected date range',
-            'hide' => !in_array(($role ?? 'admin'), ['admin','finance']),
+            'muted' => ($kpis['finance_scope'] ?? '') === 'term' ? 'Term collections' : 'Selected dates',
+            'scope' => 'term',
+            'hide'  => ! $showFinanceKpis,
+            'href'  => Route::has('finance.payments.index') ? route('finance.payments.index') : null,
         ],
         [
-            'label' => 'Fees Outstanding',
+            'label' => 'Total Outstanding',
             'value' => $m($kpis['fees_outstanding'] ?? 0),
             'icon'  => 'bi-wallet2',
-            'delta'=> $kpis['fees_delta'] ?? null,
-            'muted'=> ($kpis['finance_scope'] ?? '') === 'term' ? 'Current term balance' : 'All outstanding',
-            'hide' => !in_array(($role ?? 'admin'), ['admin','finance']),
+            'muted' => ($kpis['owing_students'] ?? 0) ? ($n($kpis['owing_students']).' students owing') : 'Unpaid balance',
+            'scope' => 'term',
+            'hide'  => ! $showFinanceKpis,
+            'href'  => Route::has('finance.fee-balances.index') ? route('finance.fee-balances.index') : null,
         ],
         [
-            'label' => 'Teachers on Leave',
-            'value' => $n($kpis['teachers_on_leave'] ?? 0),
-            'icon'  => 'bi-calendar2-week',
-            'delta'=> null,
-            'muted'=> 'today',
+            'label' => 'Overdue',
+            'value' => $m($kpis['fees_overdue'] ?? 0),
+            'icon'  => 'bi-exclamation-triangle',
+            'muted' => ($kpis['overdue_invoice_count'] ?? 0) ? ($n($kpis['overdue_invoice_count']).' invoices past due') : 'Due date has passed',
+            'scope' => 'term',
+            'hide'  => ! $showFinanceKpis,
+            'href'  => Route::has('finance.fee-balances.index') ? route('finance.fee-balances.index') : null,
+        ],
+        [
+            'label' => 'Present Today',
+            'value' => isset($kpis['attendance_pct']) && $kpis['attendance_pct'] !== null ? $n($kpis['attendance_pct'], 1).'%' : '—',
+            'icon'  => 'bi-clipboard-check',
+            'muted' => empty($kpis['is_school_day'])
+                ? 'Not a school day'
+                : ($n($kpis['present_today'] ?? 0).' present · '.$n($kpis['absent_today'] ?? 0).' absent'),
+            'scope' => 'today',
+            'href'  => Route::has('attendance.records') ? route('attendance.records') : null,
+            'hide'  => $roleName === 'finance',
+        ],
+        [
+            'label' => 'Payments Today',
+            'value' => $m($kpis['payments_today'] ?? 0),
+            'icon'  => 'bi-cash-stack',
+            'muted' => 'Today-based',
+            'scope' => 'today',
+            'hide'  => ! $showFinanceKpis,
+            'href'  => Route::has('finance.payments.index') ? route('finance.payments.index') : null,
         ],
     ];
 @endphp
-
 @foreach($cards as $card)
     @continue(!empty($card['hide']))
-    <div class="col-12 col-sm-6 col-lg-4">
-        <div class="dash-card card h-100 {{ !empty($card['clickable']) ? 'cursor-pointer' : '' }}" 
-             @if(!empty($card['clickable']) && !empty($card['data_target']))
-             data-bs-toggle="modal" 
-             data-bs-target="#{{ $card['data_target'] }}"
-             style="cursor: pointer;"
-             @endif>
-            <div class="card-body d-flex">
-                <div class="flex-grow-1">
-                    <div class="dash-muted small mb-1">{{ $card['label'] }}</div>
-                    <div class="fs-4 fw-semibold">{{ $card['value'] }}</div>
-                    @if(!empty($card['muted']))
-                        <div class="dash-muted small">{{ $card['muted'] }}</div>
-                    @endif
-                </div>
-
-                <div class="ms-3 d-flex align-items-start">
-                    <span class="dash-kpi-icon">
-                        <i class="bi {{ $card['icon'] }} fs-5"></i>
-                    </span>
-                </div>
-            </div>
-
-            @if(!is_null($card['delta']))
-                @php
-                    $delta = (float)$card['delta'];
-                    $deltaUp = $delta >= 0;
-                @endphp
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <span class="dash-delta {{ $deltaUp ? 'up' : 'down' }}">
-                        <i class="bi {{ $deltaUp ? 'bi-arrow-up-right' : 'bi-arrow-down-right' }}"></i>
-                        {{ $deltaUp ? '+' : '' }}{{ number_format($delta, 1) }}%
-                    </span>
-                    <span class="small dash-muted"> vs. previous period</span>
-                </div>
+    <div class="col-6 col-lg-4 col-xxl-3">
+      @php $tag = !empty($card['href']) ? 'a' : 'div'; @endphp
+      <{{ $tag }} @if(!empty($card['href'])) href="{{ $card['href'] }}" @endif
+         @if(!empty($card['clickable'])) data-bs-toggle="modal" data-bs-target="#voteheadBreakdownModal" style="cursor:pointer" @endif
+         class="dash-card card h-100 erp-kpi text-decoration-none">
+        <div class="card-body d-flex">
+          <div class="flex-grow-1">
+            <div class="dash-muted small mb-1">{{ $card['label'] }}</div>
+            <div class="erp-kpi-value">{{ $card['value'] }}</div>
+            @if(!empty($card['muted']))
+              <div class="dash-muted small">{{ $card['muted'] }}</div>
             @endif
+          </div>
+          <span class="dash-kpi-icon"><i class="bi {{ $card['icon'] }}"></i></span>
         </div>
+      </{{ $tag }}>
     </div>
 @endforeach
 </div>

@@ -42,8 +42,8 @@ class FinanceTermKpiService
         $totalInvoiced = (float) InvoiceItem::whereIn('invoice_id', $termInvoiceIds)
             ->where('status', 'active')
             ->when(! empty($swimmingVoteheadIds), fn ($q) => $q->whereNotIn('votehead_id', $swimmingVoteheadIds))
-            ->get()
-            ->sum(fn ($item) => (float) $item->amount - (float) ($item->discount_amount ?? 0));
+            ->selectRaw('COALESCE(SUM(amount - COALESCE(discount_amount, 0)), 0) as total')
+            ->value('total');
 
         $feesCollected = (float) PaymentAllocation::whereHas('invoiceItem', function ($q) use ($termInvoiceIds, $swimmingVoteheadIds) {
             $q->whereIn('invoice_id', $termInvoiceIds)->where('status', 'active');
@@ -58,12 +58,12 @@ class FinanceTermKpiService
             })
             ->sum('amount');
 
-        $feesOutstanding = (float) Invoice::whereIn('id', $termInvoiceIds)
-            ->whereIn('status', ['unpaid', 'partial'])
-            ->where(function ($q) {
-                $q->whereNull('due_date')
-                    ->orWhereDate('due_date', '<=', now()->toDateString());
-            })
+        $openInvoices = Invoice::whereIn('id', $termInvoiceIds)
+            ->whereIn('status', ['unpaid', 'partial']);
+        $feesOutstanding = (float) (clone $openInvoices)->sum('balance');
+        $feesOverdue = (float) (clone $openInvoices)
+            ->whereNotNull('due_date')
+            ->whereDate('due_date', '<', now()->toDateString())
             ->sum('balance');
 
         return [
@@ -74,6 +74,7 @@ class FinanceTermKpiService
             'total_invoiced' => round($totalInvoiced, 2),
             'fees_collected' => round($feesCollected, 2),
             'fees_outstanding' => round($feesOutstanding, 2),
+            'fees_overdue' => round($feesOverdue, 2),
         ];
     }
 
@@ -87,6 +88,7 @@ class FinanceTermKpiService
             'total_invoiced' => 0.0,
             'fees_collected' => 0.0,
             'fees_outstanding' => 0.0,
+            'fees_overdue' => 0.0,
         ];
     }
 }

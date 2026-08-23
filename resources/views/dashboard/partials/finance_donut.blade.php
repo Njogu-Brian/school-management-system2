@@ -4,7 +4,11 @@
     </div>
 
     <div class="card-body">
-        <canvas id="financeDonut" height="160"></canvas>
+        @if((float)($kpis['fees_collected'] ?? 0) <= 0 && (float)($kpis['fees_outstanding'] ?? 0) <= 0)
+            <div class="erp-empty"><i class="bi bi-pie-chart"></i>No finance totals for this period.</div>
+        @else
+            <canvas id="financeDonut" height="160"></canvas>
+        @endif
     </div>
 
     @php
@@ -20,49 +24,3 @@
     </div>
 </div>
 
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const canvas = document.getElementById('financeDonut');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rootStyles = getComputedStyle(document.body);
-    const colPrimary = rootStyles.getPropertyValue('--brand-primary') || '#0f766e';
-    const colAccent = rootStyles.getPropertyValue('--brand-accent') || '#14b8a6';
-
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Collected', 'Outstanding'],
-            datasets: [{
-                data: [
-                    {{ (float)($kpis['fees_collected'] ?? 0) }},
-                    {{ (float)($kpis['fees_outstanding'] ?? 0) }}
-                ],
-                backgroundColor: [colPrimary.trim(), colAccent.trim()],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            cutout: '65%',
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { color: '#6c757d' }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.label || '';
-                            let value = context.parsed || 0;
-                            return `${label}: {{ config('app.currency', 'KES') }} ${value.toLocaleString()}`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-});
-</script>
-@endpush
