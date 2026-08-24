@@ -110,6 +110,7 @@ export interface EnrollApplicationPayload {
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
   marital_status?: string | null;
+  confirm_duplicate?: boolean;
 }
 
 export interface EnrolledStudentRecord {
@@ -135,6 +136,23 @@ export interface UpdateApplicationStatusPayload {
   review_notes?: string | null;
   classroom_id?: number | null;
   stream_id?: number | null;
+}
+
+export interface DuplicateMatchRecord {
+  source: string;
+  reason: string;
+  reason_label: string;
+  confidence: 'high' | 'medium';
+  full_name: string;
+  source_label: string;
+  student_id?: number | null;
+  admission_number?: string | null;
+  status?: string | null;
+  classroom?: string | null;
+  url?: string | null;
+  application_id?: number | null;
+  application_no?: string | null;
+  application_status?: string | null;
 }
 
 export interface ApplicationDetailRecord extends ApplicationListRecord {
@@ -163,6 +181,7 @@ export interface ApplicationDetailRecord extends ApplicationListRecord {
   documents: ApplicationDocumentRecord[];
   timeline: ApplicationTimelineRecord[];
   enrollment: ApplicationEnrollmentRecord;
+  duplicate_matches?: DuplicateMatchRecord[];
 }
 
 export interface ApplicationListFilters {
@@ -224,4 +243,5 @@ export interface ApplicationDetail {
   documents: ApplicationDocumentRecord[];
   timeline: ApplicationTimelineRecord[];
   enrollment: ApplicationEnrollmentRecord;
+  duplicateMatches: DuplicateMatchRecord[];
 }

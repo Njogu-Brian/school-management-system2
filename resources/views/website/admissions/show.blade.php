@@ -4,6 +4,26 @@
 <div class="settings-page"><div class="settings-shell">
 @include('website.partials.header', ['title' => 'Review Application', 'icon' => 'bi bi-clipboard-check', 'subtitle' => $application->application_no, 'actions' => '<a href="'.route('website.admissions.index').'" class="btn btn-outline-secondary">Back</a>'])
 
+@if (session('success'))
+  <div class="alert alert-success">{{ session('success') }}</div>
+@endif
+@if (session('error'))
+  <div class="alert alert-danger">{{ session('error') }}</div>
+@endif
+@if ($errors->any())
+  <div class="alert alert-danger">
+    <ul class="mb-0">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+  </div>
+@endif
+
+@if(!empty($duplicateMatches) && ($duplicateMatches instanceof \Illuminate\Support\Collection ? $duplicateMatches->isNotEmpty() : count($duplicateMatches)))
+  <div class="alert alert-warning mb-4">
+    <div class="fw-semibold mb-1"><i class="bi bi-person-exclamation"></i> Possible duplicate — check before creating a student</div>
+    <p class="small mb-2">This applicant matches a student already on the register, or another open application.</p>
+    @include('students.partials.duplicate_matches', ['matches' => $duplicateMatches])
+  </div>
+@endif
+
 <div class="row g-4">
 <div class="col-lg-7">
 <div class="settings-card mb-4"><div class="card-body">
@@ -52,6 +72,12 @@
 <div class="mb-3"><label class="form-label">Category</label>
 <select name="category_id" class="form-select" required>@foreach($categories as $cat)<option value="{{ $cat->id }}">{{ $cat->name }}</option>@endforeach</select></div>
 <div class="mb-3"><label class="form-label">Residential area</label><input type="text" name="residential_area" class="form-control" required></div>
+@if(!empty($duplicateMatches) && ($duplicateMatches instanceof \Illuminate\Support\Collection ? $duplicateMatches->isNotEmpty() : count($duplicateMatches)))
+<div class="form-check mb-3">
+<input class="form-check-input" type="checkbox" name="confirm_duplicate" value="1" id="confirm_duplicate_website" @checked(old('confirm_duplicate'))>
+<label class="form-check-label" for="confirm_duplicate_website">This is a different child. Create a student record anyway.</label>
+</div>
+@endif
 <button type="submit" class="btn btn-success w-100">Create Student Record</button>
 </form></div></div>
 @elseif($application->student_id)

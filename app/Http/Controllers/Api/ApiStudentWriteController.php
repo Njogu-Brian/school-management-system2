@@ -13,6 +13,7 @@ use App\Models\ActivityLog;
 use App\Models\StudentCategory;
 use App\Services\FamilyLinkingService;
 use App\Services\PhoneNumberService;
+use App\Services\Students\StudentDuplicateDetector;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -131,6 +132,7 @@ class ApiStudentWriteController extends Controller
             'knec_assessment_number' => 'nullable|string',
             'religion' => 'nullable|string|max:255',
             'admission_date' => 'nullable|date',
+            'confirm_duplicate' => 'sometimes|boolean',
         ]);
 
         $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
@@ -150,6 +152,26 @@ class ApiStudentWriteController extends Controller
                 'success' => false,
                 'message' => 'Please select a stream for the chosen class.',
             ], 422);
+        }
+
+        $detector = app(StudentDuplicateDetector::class);
+        $duplicateMatches = $detector->findAllMatches([
+            'first_name' => $request->first_name,
+            'middle_name' => $request->middle_name,
+            'last_name' => $request->last_name,
+            'dob' => $request->dob,
+            'gender' => $request->gender,
+            'nemis_number' => $request->nemis_number,
+            'knec_assessment_number' => $request->knec_assessment_number,
+            'admission_number' => $request->admission_number,
+        ]);
+        if ($duplicateMatches->isNotEmpty() && ! $request->boolean('confirm_duplicate')) {
+            return response()->json([
+                'success' => false,
+                'code' => 'possible_duplicate',
+                'message' => $detector->blockingMessage($duplicateMatches),
+                'matches' => $duplicateMatches->map->toArray()->values(),
+            ], 409);
         }
 
         $phone = app(PhoneNumberService::class);

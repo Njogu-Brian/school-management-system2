@@ -117,19 +117,11 @@ class OnlineAdmissionWorkflowService
             ? \Carbon\Carbon::parse($validated['admission_date'])->toDateString()
             : now()->toDateString();
 
-        if ($admission->dob) {
-            $duplicate = Student::query()
-                ->where('archive', 0)
-                ->where('first_name', trim((string) $admission->first_name))
-                ->where('last_name', trim((string) $admission->last_name))
-                ->whereDate('dob', $admission->dob)
-                ->first();
-            if ($duplicate) {
-                throw ValidationException::withMessages([
-                    'student' => 'An active student already exists with the same name and date of birth (Admission #: '.$duplicate->admission_number.').',
-                ]);
-            }
-        }
+        $detector = app(\App\Services\Students\StudentDuplicateDetector::class);
+        $detector->assertNoStudentDuplicates(
+            $detector->candidateFromOnlineAdmission($admission),
+            ! empty($validated['confirm_duplicate'])
+        );
 
         return DB::transaction(function () use ($admission, $validated, $admissionDate, $userId) {
             $classroom = Classroom::withCount(['streams', 'primaryStreams'])->find($validated['classroom_id']);

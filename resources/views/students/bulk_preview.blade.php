@@ -20,7 +20,7 @@
       @csrf
       <div class="card-body">
         <div class="alert alert-soft border-0">
-          <i class="bi bi-info-circle"></i> Students with missing or duplicate admission numbers will be auto-assigned during import.
+          <i class="bi bi-info-circle"></i> Rows marked <strong>Duplicate</strong> will be skipped. Missing admission numbers are auto-assigned. Existing admission numbers that already belong to a student are treated as duplicates.
         </div>
 
         <div class="table-responsive">
@@ -40,7 +40,11 @@
             </thead>
             <tbody>
               @foreach ($students as $index => $student)
-                <tr class="{{ $student['valid'] ? '' : 'table-danger' }}">
+                @php
+                  $isDuplicate = !empty($student['duplicate']) || !empty($student['existing']);
+                  $rowClass = !$student['valid'] ? 'table-danger' : ($isDuplicate ? 'table-warning' : '');
+                @endphp
+                <tr class="{{ $rowClass }}">
                   <td>{{ $index + 1 }}</td>
                   <td>{{ $student['admission_number'] ?? 'Auto' }}</td>
                   <td>{{ $student['first_name'] }}</td>
@@ -50,7 +54,16 @@
                   <td>{{ $student['classroom_name'] }}</td>
                   <td>{{ $student['father_phone'] ?? '-' }}</td>
                   <td>
-                    <span class="pill-badge pill-{{ $student['valid'] ? 'success' : 'danger' }}">{{ $student['valid'] ? 'Ready' : 'Invalid' }}</span>
+                    @if(!$student['valid'])
+                      <span class="pill-badge pill-danger">Invalid</span>
+                    @elseif($isDuplicate)
+                      <span class="pill-badge pill-warning" title="{{ $student['duplicate_summary'] ?? 'Possible duplicate' }}">Duplicate — will skip</span>
+                      @if(!empty($student['duplicate_summary']))
+                        <div class="small text-muted mt-1">{{ $student['duplicate_summary'] }}</div>
+                      @endif
+                    @else
+                      <span class="pill-badge pill-success">Ready</span>
+                    @endif
                   </td>
                   <input type="hidden" name="students[]" value="{{ base64_encode(json_encode($student)) }}">
                 </tr>

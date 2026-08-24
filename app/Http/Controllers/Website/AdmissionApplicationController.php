@@ -11,6 +11,7 @@ use App\Services\Admissions\AdmissionApplicationEnrollmentService;
 use App\Services\Admissions\AdmissionApplicationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class AdmissionApplicationController extends Controller
@@ -47,7 +48,16 @@ class AdmissionApplicationController extends Controller
         $classrooms = Classroom::query()->where('is_alumni', false)->orderBy('name')->get();
         $categories = StudentCategory::query()->orderBy('name')->get();
 
-        return view('website.admissions.show', compact('application', 'classrooms', 'categories'));
+        $detector = app(\App\Services\Students\StudentDuplicateDetector::class);
+        $duplicateMatches = $application->student_id
+            ? collect()
+            : $detector->findAllMatches(
+                $detector->candidateFromWebsiteApplication($application),
+                null,
+                ['admission_application' => $application->id]
+            );
+
+        return view('website.admissions.show', compact('application', 'classrooms', 'categories', 'duplicateMatches'));
     }
 
     public function updateStatus(Request $request, AdmissionApplication $application): RedirectResponse
@@ -83,9 +93,17 @@ class AdmissionApplicationController extends Controller
             'transport_fee_amount' => 'nullable|numeric|min:0',
             'enrollment_year' => 'nullable|integer',
             'enrollment_term' => 'nullable|integer|min:1|max:3',
+            'confirm_duplicate' => 'sometimes|boolean',
         ]);
 
-        $student = $this->enrollment->enroll($application, $validated, auth()->id());
+        try {
+            $student = $this->enrollment->enroll($application, $validated, auth()->id());
+        } catch (ValidationException $e) {
+            return back()->withInput()->with(
+                'error',
+                collect($e->errors())->flatten()->first() ?? 'Enrollment failed.'
+            );
+        }
 
         return redirect()
             ->route('students.show', $student)

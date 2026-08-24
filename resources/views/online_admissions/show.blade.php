@@ -44,6 +44,14 @@
       </div>
     @endif
 
+    @if(!empty($duplicateMatches) && ($duplicateMatches instanceof \Illuminate\Support\Collection ? $duplicateMatches->isNotEmpty() : count($duplicateMatches)))
+      <div class="alert alert-warning">
+        <div class="fw-semibold mb-1"><i class="bi bi-person-exclamation"></i> Possible duplicate — do not enroll until you have checked</div>
+        <p class="small mb-2">This applicant matches a student already on the register, or another open application. Enrolling will create a second admission number unless you confirm it is a different child.</p>
+        @include('students.partials.duplicate_matches', ['matches' => $duplicateMatches])
+      </div>
+    @endif
+
     <div class="row g-3">
       <div class="col-md-8">
         <div class="settings-card mb-3">
@@ -346,6 +354,12 @@
                     <input type="number" step="0.01" name="transport_fee_amount" class="form-control" placeholder="0.00" value="{{ old('transport_fee_amount') }}">
                     <div class="form-text">Added to the student's invoice on approval.</div>
                   </div>
+                  @if(!empty($duplicateMatches) && ($duplicateMatches instanceof \Illuminate\Support\Collection ? $duplicateMatches->isNotEmpty() : count($duplicateMatches)))
+                    <div class="form-check mb-3">
+                      <input class="form-check-input" type="checkbox" name="confirm_duplicate" value="1" id="confirm_duplicate_enroll" @checked(old('confirm_duplicate'))>
+                      <label class="form-check-label" for="confirm_duplicate_enroll">This is a different child. Enroll anyway.</label>
+                    </div>
+                  @endif
                   <button type="submit" class="btn btn-success w-100">
                     @if($isWaitlisted)
                       <i class="bi bi-arrow-up-circle"></i> Transfer from Waitlist & Enroll

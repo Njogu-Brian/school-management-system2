@@ -42,20 +42,11 @@ class AdmissionApplicationEnrollmentService
         }
 
         $nameParts = $application->childNameParts();
-
-        if ($application->dob) {
-            $duplicate = Student::query()
-                ->where('first_name', $nameParts['first_name'])
-                ->where('last_name', $nameParts['last_name'])
-                ->whereDate('dob', $application->dob)
-                ->first();
-
-            if ($duplicate) {
-                throw ValidationException::withMessages([
-                    'student' => 'An active student already exists with the same name and date of birth.',
-                ]);
-            }
-        }
+        $detector = app(\App\Services\Students\StudentDuplicateDetector::class);
+        $detector->assertNoStudentDuplicates(
+            $detector->candidateFromWebsiteApplication($application),
+            ! empty($validated['confirm_duplicate'])
+        );
 
         return DB::transaction(function () use ($application, $validated, $userId, $nameParts) {
             $classroom = Classroom::withCount(['streams', 'primaryStreams'])->findOrFail($validated['classroom_id']);

@@ -59,6 +59,7 @@ export function normalizeApplicationDetail(row: ApplicationDetailRecord): Applic
     documents: row.documents,
     timeline: row.timeline,
     enrollment: row.enrollment,
+    duplicateMatches: row.duplicate_matches ?? [],
   };
 }
 

@@ -10,6 +10,21 @@
 
 <div class="card-body">
 
+  @if($mode === 'create')
+    @php $sessionMatches = session('duplicate_matches', []); @endphp
+    <div id="duplicate-confirm-wrap" class="alert {{ !empty($sessionMatches) ? 'alert-warning' : 'alert-warning d-none' }}" role="alert">
+      <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle"></i> Possible duplicate admission</div>
+      <p class="small mb-2" id="duplicate-confirm-message">A matching student or application was found. Review below before creating a new record.</p>
+      <div id="duplicate-match-list">
+        @include('students.partials.duplicate_matches', ['matches' => $sessionMatches])
+      </div>
+      <div class="form-check mt-2">
+        <input class="form-check-input" type="checkbox" name="confirm_duplicate" value="1" id="confirm_duplicate" @checked(old('confirm_duplicate'))>
+        <label class="form-check-label" for="confirm_duplicate">This is a different child (for example twins). Create a new admission anyway.</label>
+      </div>
+    </div>
+  @endif
+
   {{-- IDENTIFIERS --}}
   <h6 class="text-uppercase text-muted mb-3">Identifiers</h6>
   <div class="row g-3">

@@ -106,6 +106,7 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
   const [allergiesNotes, setAllergiesNotes] = useState(application.allergiesNotes ?? '');
   const [hasAllergies, setHasAllergies] = useState(!!application.hasAllergies);
   const [isFullyImmunized, setIsFullyImmunized] = useState(!!application.isFullyImmunized);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
 
   const streamsQuery = useClassroomStreams(classroomId, { enabled: enrollment.can_enroll });
   const streams = streamsQuery.data ?? [];
@@ -128,13 +129,17 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
     return { year, term };
   }, [termKey]);
 
+  const duplicateMatches = application.duplicateMatches ?? [];
+  const hasDuplicates = duplicateMatches.length > 0;
+
   const canSubmit =
     enrollment.can_enroll &&
     classroomId != null &&
     categoryId != null &&
     residentialArea.trim().length > 0 &&
     (!streamsRequired || streamId != null) &&
-    (dropOffId !== 'other' || dropOffOther.trim().length > 0);
+    (dropOffId !== 'other' || dropOffOther.trim().length > 0) &&
+    (!hasDuplicates || confirmDuplicate);
 
   const handleEnroll = () => {
     if (!canSubmit || classroomId == null || categoryId == null) return;
@@ -170,6 +175,7 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
             emergency_contact_name: emergencyName.trim() || null,
             emergency_contact_phone: emergencyPhone.trim() || null,
             marital_status: application.maritalStatus,
+            confirm_duplicate: confirmDuplicate || undefined,
           })
           .then((result) => {
             confirmAction(
@@ -219,6 +225,36 @@ export const EnrollmentTab: React.FC<EnrollmentTabProps> = ({ application, onVie
       >
         Complete enrollment
       </Text>
+
+      {hasDuplicates ? (
+        <View
+          style={{
+            marginBottom: spacing.md,
+            padding: spacing.md,
+            borderRadius: 12,
+            backgroundColor: `${colors.warning ?? colors.primary}14`,
+            borderWidth: 1,
+            borderColor: colors.warning ?? colors.primary,
+            gap: spacing.xs,
+          }}
+        >
+          <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
+            Possible duplicate — check before enrolling
+          </Text>
+          {duplicateMatches.map((match) => (
+            <Text key={`${match.source}-${match.student_id ?? match.application_id ?? match.full_name}`} style={{ color: palette.textSecondary, fontSize: typography.overline.fontSize }}>
+              {match.full_name}
+              {match.admission_number ? ` (${match.admission_number})` : ''}
+              {match.status ? ` · ${match.status}` : ''} — {match.reason_label}
+            </Text>
+          ))}
+          <Pressable onPress={() => setConfirmDuplicate((v) => !v)} style={{ paddingVertical: spacing.xs }}>
+            <Text style={{ color: colors.primary, fontWeight: '700' }}>
+              {confirmDuplicate ? '✓ ' : ''}This is a different child. Enroll anyway.
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <ChipRow
         label="Class *"

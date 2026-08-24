@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\ActivityLog;
 use App\Services\FamilyLinkingService;
 use App\Services\PhoneNumberService;
+use App\Services\Students\StudentDuplicateDetector;
 
 class StudentController extends Controller
 {
@@ -493,6 +494,23 @@ class StudentController extends Controller
             $classroomHasStreams = $classroom && (($classroom->streams_count ?? 0) + ($classroom->primary_streams_count ?? 0)) > 0;
             if ($classroomHasStreams && !$streamId) {
                 return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
+            }
+
+            $detector = app(StudentDuplicateDetector::class);
+            $duplicateMatches = $detector->findAllMatches([
+                'first_name' => $request->first_name,
+                'middle_name' => $request->middle_name,
+                'last_name' => $request->last_name,
+                'dob' => $request->dob,
+                'gender' => $request->gender,
+                'nemis_number' => $request->nemis_number,
+                'knec_assessment_number' => $request->knec_assessment_number,
+                'admission_number' => $request->admission_number,
+            ]);
+            if ($duplicateMatches->isNotEmpty() && ! $request->boolean('confirm_duplicate')) {
+                return back()->withInput()
+                    ->with('duplicate_matches', $duplicateMatches->map->toArray()->all())
+                    ->with('error', $detector->blockingMessage($duplicateMatches));
             }
 
             // Sibling mapping (family/parent are shared across mapped siblings)
@@ -1624,6 +1642,7 @@ class StudentController extends Controller
 
         $students = [];
         $existingAdNos = Student::pluck('admission_number')->toArray();
+        $detector = app(StudentDuplicateDetector::class);
 
         foreach ($rows as $row) {
             $rowData = array_combine($headers, $row);
@@ -1700,10 +1719,30 @@ class StudentController extends Controller
                 !empty($classroomId) &&
                 !empty($categoryId);
 
-            $rowData['existing'] = in_array($rowData['admission_number'], $existingAdNos);
+            $rowData['existing'] = in_array($rowData['admission_number'] ?? null, $existingAdNos);
+
+            $dupMatches = $detector->findStudentMatches($rowData);
+            $rowData['duplicate'] = $dupMatches->isNotEmpty() || $rowData['existing'];
+            $rowData['duplicate_in_file'] = false;
+            $rowData['duplicate_summary'] = $dupMatches->isNotEmpty()
+                ? $detector->blockingMessage($dupMatches)
+                : ($rowData['existing'] ? 'Admission number already exists on the register.' : null);
 
             $students[] = $rowData;
         }
+
+        $seenKeys = [];
+        foreach ($students as $i => &$row) {
+            $key = $detector->identityKey($row);
+            if ($key && isset($seenKeys[$key])) {
+                $row['duplicate'] = true;
+                $row['duplicate_in_file'] = true;
+                $row['duplicate_summary'] = trim(($row['duplicate_summary'] ?? '').' Same child also appears earlier in this file.');
+            } elseif ($key) {
+                $seenKeys[$key] = $i;
+            }
+        }
+        unset($row);
 
         $allValid = collect($students)->every(fn($s) => $s['valid']);
         return view('students.bulk_preview', compact('students', 'allValid'));
@@ -1717,19 +1756,30 @@ class StudentController extends Controller
         $data = $request->input('students', []);
         $imported = 0;
         $duplicates = [];
+        $detector = app(StudentDuplicateDetector::class);
+        $seenKeys = [];
 
         foreach ($data as $encoded) {
             $row = json_decode(base64_decode($encoded), true);
             if (!$row['valid']) continue;
 
-            $existing = Student::where('first_name', $row['first_name'])
-                ->where('last_name', $row['last_name'])
-                ->whereDate('dob', $row['dob'])
-                ->first();
+            $identityKey = $detector->identityKey($row);
+            $existingMatch = $detector->findStudentMatches($row)->first();
+            $duplicateInFile = $identityKey && isset($seenKeys[$identityKey]);
 
-            if ($existing) {
-                $duplicates[] = $row['first_name'] . ' ' . $row['last_name'] . ' (DOB: ' . $row['dob'] . ')';
+            if ($existingMatch || $duplicateInFile) {
+                $label = trim(($row['first_name'] ?? '').' '.($row['last_name'] ?? ''));
+                if ($existingMatch) {
+                    $duplicates[] = $label.' — '.$existingMatch->reasonLabel
+                        .($existingMatch->admissionNumber ? ' (Admission #'.$existingMatch->admissionNumber.')' : '');
+                } else {
+                    $duplicates[] = $label.' — duplicate row in this file';
+                }
                 continue;
+            }
+
+            if ($identityKey) {
+                $seenKeys[$identityKey] = true;
             }
 
             $isNew = empty($row['admission_number']);

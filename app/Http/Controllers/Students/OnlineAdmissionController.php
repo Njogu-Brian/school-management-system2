@@ -260,7 +260,16 @@ class OnlineAdmissionController extends Controller
             $enrollmentTermOptions[] = ['year' => $nextYear, 'term' => $t, 'label' => "Term {$t} {$nextYear}"];
         }
 
-        return view('online_admissions.show', compact('admission', 'classrooms', 'streams', 'categories', 'trips', 'dropOffPoints', 'countryCodes', 'enrollmentTermOptions'));
+        $detector = app(\App\Services\Students\StudentDuplicateDetector::class);
+        $duplicateMatches = $admission->enrolled
+            ? collect()
+            : $detector->findAllMatches(
+                $detector->candidateFromOnlineAdmission($admission),
+                null,
+                ['online_admission' => $admission->id]
+            );
+
+        return view('online_admissions.show', compact('admission', 'classrooms', 'streams', 'categories', 'trips', 'dropOffPoints', 'countryCodes', 'enrollmentTermOptions', 'duplicateMatches'));
     }
 
     /**
@@ -364,6 +373,7 @@ class OnlineAdmissionController extends Controller
             'enrollment_year' => 'nullable|integer|min:2020|max:2030',
             'enrollment_term' => 'nullable|integer|in:1,2,3',
             'admission_date' => 'nullable|date',
+            'confirm_duplicate' => 'sometimes|boolean',
         ]);
 
         try {

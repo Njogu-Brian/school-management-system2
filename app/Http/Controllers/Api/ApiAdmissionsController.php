@@ -247,6 +247,7 @@ class ApiAdmissionsController extends Controller
             'enrollment_year' => 'nullable|integer|min:2020|max:2030',
             'enrollment_term' => 'nullable|integer|in:1,2,3',
             'admission_date' => 'nullable|date',
+            'confirm_duplicate' => 'sometimes|boolean',
         ]);
 
         try {
@@ -256,11 +257,17 @@ class ApiAdmissionsController extends Controller
                 (int) $request->user()->id,
             );
         } catch (ValidationException $e) {
+            $detector = app(\App\Services\Students\StudentDuplicateDetector::class);
+            $matches = $detector->findStudentMatches($detector->candidateFromOnlineAdmission($admission));
+            $isDuplicate = $matches->isNotEmpty() && ! $request->boolean('confirm_duplicate');
+
             return response()->json([
                 'success' => false,
+                'code' => $isDuplicate ? 'possible_duplicate' : 'validation_failed',
                 'message' => collect($e->errors())->flatten()->first() ?? 'Validation failed.',
                 'errors' => $e->errors(),
-            ], 422);
+                'matches' => $isDuplicate ? $matches->map->toArray()->values() : [],
+            ], $isDuplicate ? 409 : 422);
         }
 
         $admission->refresh()->load(['preferredClassroom', 'classroom', 'stream', 'reviewedBy']);
@@ -375,6 +382,15 @@ class ApiAdmissionsController extends Controller
     {
         $list = $this->serializeListItem($a);
 
+        $detector = app(\App\Services\Students\StudentDuplicateDetector::class);
+        $duplicateMatches = $a->enrolled
+            ? []
+            : $detector->findAllMatches(
+                $detector->candidateFromOnlineAdmission($a),
+                null,
+                ['online_admission' => $a->id]
+            )->map->toArray()->values()->all();
+
         return array_merge($list, [
             'nemis_number' => $a->nemis_number,
             'knec_assessment_number' => $a->knec_assessment_number,
@@ -401,6 +417,7 @@ class ApiAdmissionsController extends Controller
             'documents' => $this->serializeDocuments($a),
             'timeline' => $this->buildTimeline($a),
             'enrollment' => $this->serializeEnrollment($a),
+            'duplicate_matches' => $duplicateMatches,
         ]);
     }
 

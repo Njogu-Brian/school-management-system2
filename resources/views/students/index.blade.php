@@ -36,6 +36,11 @@
             <i class="bi bi-bar-chart-steps"></i> Enrollment by Class
           </a>
         @endif
+        @if(Route::has('students.duplicate-report'))
+          <a href="{{ route('students.duplicate-report') }}" class="btn btn-ghost-strong">
+            <i class="bi bi-person-exclamation"></i> Duplicate admissions
+          </a>
+        @endif
         @if(Route::has('students.bulk.assign-streams'))
           <a href="{{ route('students.bulk.assign-streams') }}" class="btn btn-ghost-strong">
             <i class="bi bi-diagram-3"></i> Bulk Assign Streams

@@ -1194,6 +1194,12 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::post('/students/parent-credentials/forced-action', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'assignForcedAction'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.forced-action');
 
+    // Duplicate admission report + live check — must be before students resource
+    Route::get('/students/duplicate-report', [\App\Http\Controllers\Students\StudentDuplicateReportController::class, 'index'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.duplicate-report');
+    Route::get('/students/duplicate-check', [\App\Http\Controllers\Students\StudentDuplicateReportController::class, 'check'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.duplicate-check');
+
     // Enrollment by class (boys/girls) — must be before students resource
     Route::get('/students/enrollment-report', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'index'])
         ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.enrollment-report');
