@@ -777,6 +777,18 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
   <a href="{{ route('staff.index') }}" class="{{ Request::is('staff') && !Request::is('staff/*') ? 'active' : '' }}">
     <i class="bi bi-people"></i> Staff
   </a>
+  <a href="{{ route('staff.registrations.index') }}" class="{{ Request::is('staff/registrations*') ? 'active' : '' }}">
+    <i class="bi bi-person-plus"></i> Staff registrations
+    @php
+      $staffRegPending = 0;
+      try {
+          $staffRegPending = \App\Models\StaffRegistration::where('status', 'pending')->count();
+      } catch (\Throwable $e) { /* ignore before migrate */ }
+    @endphp
+    @if($staffRegPending > 0)
+      <span class="badge bg-danger ms-2">{{ $staffRegPending }}</span>
+    @endif
+  </a>
   @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Director']))
   <a href="{{ route('hr.access-lookups') }}" class="{{ Request::is('hr/access-lookups*') || Request::is('hr/roles*') || Request::is('lookups*') ? 'active' : '' }}">
     <i class="bi bi-shield-lock"></i> Roles & Lookups

@@ -14,6 +14,9 @@
                 <p class="text-muted mb-0">Manage employees, roles, and HR details.</p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ route('staff.registrations.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-person-plus"></i> Registrations
+                </a>
                 <a href="{{ route('staff.upload.form') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-upload"></i> Bulk Upload
                 </a>

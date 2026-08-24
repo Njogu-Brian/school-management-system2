@@ -28,6 +28,8 @@ use App\Http\Controllers\StudentDropOffController;
 
 // Staff / HR
 use App\Http\Controllers\Hr\StaffController;
+use App\Http\Controllers\Hr\StaffRegistrationController;
+use App\Http\Controllers\Hr\PublicStaffRegistrationController;
 use App\Http\Controllers\Hr\StaffProfileController;
 use App\Http\Controllers\Hr\RolePermissionController;
 use App\Http\Controllers\Hr\LookupController; // HR lookup CRUD (categories, departments, job titles, custom fields)
@@ -792,6 +794,13 @@ Route::middleware('auth')->group(function () {
             Route::get('/',          [StaffController::class, 'index'])->name('index');
             Route::get('/create',    [StaffController::class, 'create'])->name('create');
             Route::post('/',         [StaffController::class, 'store'])->name('store');
+
+            Route::prefix('registrations')->name('registrations.')->group(function () {
+                Route::get('/', [StaffRegistrationController::class, 'index'])->name('index');
+                Route::get('/{registration}', [StaffRegistrationController::class, 'show'])->name('show');
+                Route::post('/{registration}/approve', [StaffRegistrationController::class, 'approve'])->name('approve');
+                Route::post('/{registration}/reject', [StaffRegistrationController::class, 'reject'])->name('reject');
+            });
 
             // Bulk Upload (new two-step + legacy) + Template (must come before {id})
             Route::get('/upload',         [StaffController::class, 'showUploadForm'])->name('upload.form');
@@ -2338,6 +2347,11 @@ Route::prefix('online-admissions')->group(function () {
     Route::get('/apply', [OnlineAdmissionController::class, 'showPublicForm'])->name('online-admissions.public-form');
     Route::post('/apply', [OnlineAdmissionController::class, 'storePublicApplication'])->name('online-admissions.public-submit');
 });
+
+Route::get('/join/staff', [PublicStaffRegistrationController::class, 'show'])->name('staff.public-register');
+Route::post('/join/staff', [PublicStaffRegistrationController::class, 'store'])
+    ->middleware('throttle:8,60')
+    ->name('staff.public-register.submit');
 
 /*
 ||--------------------------------------------------------------------------
