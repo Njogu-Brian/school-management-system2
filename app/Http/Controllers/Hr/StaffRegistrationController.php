@@ -37,7 +37,7 @@ class StaffRegistrationController extends Controller
 
     public function show(StaffRegistration $registration): View
     {
-        $registration->load(['reviewer', 'staff']);
+        $registration->load(['reviewer', 'staff', 'department', 'jobTitle', 'category']);
 
         return view('staff.registrations.show', [
             'registration' => $registration,

@@ -10,7 +10,9 @@ use App\Models\StaffCategory;
 use App\Models\StaffRegistration;
 use App\Models\User;
 use App\Services\PhoneNumberService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
@@ -25,7 +27,7 @@ class StaffRegistrationService
         return $value === null || $value === '' || $value === '1' || $value === 'true';
     }
 
-    public function submit(array $data, ?string $ip = null): StaffRegistration
+    public function submit(array $data, ?string $ip = null, ?UploadedFile $photo = null): StaffRegistration
     {
         $idNumber = trim((string) $data['id_number']);
         $email = strtolower(trim((string) $data['personal_email']));
@@ -49,6 +51,11 @@ class StaffRegistrationService
             ]);
         }
 
+        $photoPath = null;
+        if ($photo) {
+            $photoPath = $photo->store('staff_registration_photos', config('filesystems.public_disk', 'public'));
+        }
+
         return StaffRegistration::create([
             'first_name' => $data['first_name'],
             'middle_name' => $data['middle_name'] ?? null,
@@ -56,9 +63,13 @@ class StaffRegistrationService
             'gender' => $data['gender'],
             'date_of_birth' => $data['date_of_birth'],
             'marital_status' => $data['marital_status'] ?? null,
+            'residential_address' => $data['residential_address'] ?? null,
             'id_number' => $idNumber,
             'personal_email' => $email,
+            'photo' => $photoPath,
             'phone_number' => $this->phones->formatWithCountryCode($data['phone_number'] ?? null, '+254'),
+            'emergency_contact_name' => $data['emergency_contact_name'] ?? null,
+            'emergency_contact_relationship' => $data['emergency_contact_relationship'] ?? null,
             'emergency_contact_phone' => $this->phones->formatWithCountryCode($data['emergency_contact_phone'] ?? null, '+254'),
             'kra_pin' => $data['kra_pin'] ?? null,
             'nssf' => $data['nssf'] ?? null,
@@ -66,6 +77,15 @@ class StaffRegistrationService
             'bank_name' => $data['bank_name'] ?? null,
             'bank_branch' => $data['bank_branch'] ?? null,
             'bank_account' => $data['bank_account'] ?? null,
+            'payment_method' => $data['payment_method'] ?? 'bank',
+            'department_id' => $this->nullableId($data['department_id'] ?? null, Department::class),
+            'job_title_id' => $this->nullableId($data['job_title_id'] ?? null, JobTitle::class),
+            'staff_category_id' => $this->nullableId($data['staff_category_id'] ?? null, StaffCategory::class),
+            'hire_date' => $data['hire_date'] ?? null,
+            'employment_type' => $data['employment_type'] ?? 'full_time',
+            'contract_start_date' => $data['contract_start_date'] ?? null,
+            'contract_end_date' => $data['contract_end_date'] ?? null,
+            'max_lessons_per_week' => $data['max_lessons_per_week'] ?? null,
             'status' => StaffRegistration::STATUS_PENDING,
             'ip_address' => $ip,
         ]);
@@ -141,28 +161,35 @@ class StaffRegistrationService
                 'last_name' => $registration->last_name,
                 'work_email' => $workEmail,
                 'personal_email' => $registration->personal_email,
+                'photo' => $this->copyPhotoToStaff($registration),
                 'phone_number' => $registration->phone_number,
+                'emergency_contact_name' => $registration->emergency_contact_name,
+                'emergency_contact_relationship' => $registration->emergency_contact_relationship,
                 'emergency_contact_phone' => $registration->emergency_contact_phone,
                 'id_number' => $registration->id_number,
                 'date_of_birth' => $registration->date_of_birth,
                 'gender' => $registration->gender,
                 'marital_status' => $registration->marital_status,
+                'residential_address' => $registration->residential_address,
                 'kra_pin' => $registration->kra_pin,
                 'nssf' => $registration->nssf,
                 'nhif' => $registration->nhif,
                 'bank_name' => $registration->bank_name,
                 'bank_branch' => $registration->bank_branch,
                 'bank_account' => $registration->bank_account,
-                'payment_method' => 'bank',
-                'department_id' => $this->nullableId($hr['department_id'] ?? null, Department::class),
-                'job_title_id' => $this->nullableId($hr['job_title_id'] ?? null, JobTitle::class)
+                'payment_method' => $registration->payment_method ?: 'bank',
+                'department_id' => $this->nullableId($hr['department_id'] ?? $registration->department_id, Department::class),
+                'job_title_id' => $this->nullableId($hr['job_title_id'] ?? $registration->job_title_id, JobTitle::class)
                     ?? JobTitle::query()->where('name', 'Teacher')->value('id'),
-                'staff_category_id' => $this->nullableId($hr['staff_category_id'] ?? null, StaffCategory::class)
+                'staff_category_id' => $this->nullableId($hr['staff_category_id'] ?? $registration->staff_category_id, StaffCategory::class)
                     ?? StaffCategory::query()->where('name', 'Teaching')->value('id'),
+                'max_lessons_per_week' => $registration->max_lessons_per_week,
                 'status' => 'active',
                 'employment_status' => 'active',
-                'employment_type' => 'full_time',
-                'hire_date' => now()->toDateString(),
+                'employment_type' => $registration->employment_type ?: 'full_time',
+                'hire_date' => $registration->hire_date?->toDateString() ?: now()->toDateString(),
+                'contract_start_date' => $registration->contract_start_date,
+                'contract_end_date' => $registration->contract_end_date,
             ]);
 
             $registration->update([
@@ -188,6 +215,23 @@ class StaffRegistrationService
             'reviewed_by' => $reviewer->id,
             'reviewed_at' => now(),
         ]);
+    }
+
+    protected function copyPhotoToStaff(StaffRegistration $registration): ?string
+    {
+        if (! $registration->photo) {
+            return null;
+        }
+
+        $disk = config('filesystems.public_disk', 'public');
+        if (! Storage::disk($disk)->exists($registration->photo)) {
+            return $registration->photo;
+        }
+
+        $newPath = 'staff_photos/'.basename($registration->photo);
+        Storage::disk($disk)->copy($registration->photo, $newPath);
+
+        return $newPath;
     }
 
     protected function resolveRole(mixed $roleId): Role

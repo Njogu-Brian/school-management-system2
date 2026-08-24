@@ -29,7 +29,10 @@ class StaffRegistrationTest extends TestCase
     {
         $this->get(route('staff.public-register'))
             ->assertOk()
-            ->assertSee('Staff Registration');
+            ->assertSee('Staff Registration')
+            ->assertSee('Job title')
+            ->assertSee('Department')
+            ->assertSee('KRA PIN');
     }
 
     public function test_guest_can_submit_registration(): void

@@ -36,6 +36,11 @@
           <div class="card-header"><h5 class="mb-0">Application</h5></div>
           <div class="card-body">
             <div class="row g-3">
+              @if ($registration->photo_url)
+                <div class="col-12">
+                  <img src="{{ $registration->photo_url }}" alt="Passport photo" class="rounded" width="96" height="96" style="object-fit:cover">
+                </div>
+              @endif
               <div class="col-md-4"><div class="small text-muted">First name</div><div class="fw-semibold">{{ $registration->first_name }}</div></div>
               <div class="col-md-4"><div class="small text-muted">Middle name</div><div>{{ $registration->middle_name ?: '—' }}</div></div>
               <div class="col-md-4"><div class="small text-muted">Last name</div><div class="fw-semibold">{{ $registration->last_name }}</div></div>
@@ -43,12 +48,24 @@
               <div class="col-md-4"><div class="small text-muted">Date of birth</div><div>{{ $registration->date_of_birth?->format('d M Y') }}</div></div>
               <div class="col-md-4"><div class="small text-muted">Marital status</div><div>{{ $registration->marital_status ?: '—' }}</div></div>
               <div class="col-md-4"><div class="small text-muted">National ID</div><div>{{ $registration->id_number }}</div></div>
+              <div class="col-md-8"><div class="small text-muted">Residential address</div><div>{{ $registration->residential_address ?: '—' }}</div></div>
               <div class="col-md-4"><div class="small text-muted">Phone</div><div>{{ $registration->phone_number }}</div></div>
-              <div class="col-md-4"><div class="small text-muted">Alternative phone</div><div>{{ $registration->emergency_contact_phone ?: '—' }}</div></div>
-              <div class="col-12"><div class="small text-muted">Personal email</div><div>{{ $registration->personal_email }}</div></div>
+              <div class="col-md-8"><div class="small text-muted">Personal email</div><div>{{ $registration->personal_email }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Emergency name</div><div>{{ $registration->emergency_contact_name ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Relationship</div><div>{{ $registration->emergency_contact_relationship ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Emergency phone</div><div>{{ $registration->emergency_contact_phone ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Category</div><div>{{ $registration->category?->name ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Job title</div><div>{{ $registration->jobTitle?->name ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Department</div><div>{{ $registration->department?->name ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Hire date</div><div>{{ $registration->hire_date?->format('d M Y') ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Employment type</div><div>{{ $registration->employment_type ? str_replace('_', ' ', $registration->employment_type) : '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Max lessons / week</div><div>{{ $registration->max_lessons_per_week ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Contract start</div><div>{{ $registration->contract_start_date?->format('d M Y') ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Contract end</div><div>{{ $registration->contract_end_date?->format('d M Y') ?: '—' }}</div></div>
               <div class="col-md-4"><div class="small text-muted">KRA PIN</div><div>{{ $registration->kra_pin ?: '—' }}</div></div>
               <div class="col-md-4"><div class="small text-muted">NSSF</div><div>{{ $registration->nssf ?: '—' }}</div></div>
               <div class="col-md-4"><div class="small text-muted">SHIF / NHIF</div><div>{{ $registration->nhif ?: '—' }}</div></div>
+              <div class="col-md-4"><div class="small text-muted">Payment method</div><div>{{ strtoupper($registration->payment_method ?: 'bank') }}</div></div>
               <div class="col-md-4"><div class="small text-muted">Bank</div><div>{{ $registration->bank_name ?: '—' }}</div></div>
               <div class="col-md-4"><div class="small text-muted">Branch</div><div>{{ $registration->bank_branch ?: '—' }}</div></div>
               <div class="col-md-4"><div class="small text-muted">Account</div><div>{{ $registration->bank_account ?: '—' }}</div></div>
@@ -76,7 +93,7 @@
                   <select id="staff_category_id" name="staff_category_id" class="form-select">
                     <option value="">Default (Teaching)</option>
                     @foreach ($categories as $cat)
-                      <option value="{{ $cat->id }}" @selected(old('staff_category_id')==$cat->id)>{{ $cat->name }}</option>
+                      <option value="{{ $cat->id }}" @selected(old('staff_category_id', $registration->staff_category_id)==$cat->id)>{{ $cat->name }}</option>
                     @endforeach
                   </select>
                 </div>
@@ -85,7 +102,7 @@
                   <select id="job_title_id" name="job_title_id" class="form-select">
                     <option value="">Default (Teacher)</option>
                     @foreach ($jobTitles as $title)
-                      <option value="{{ $title->id }}" @selected(old('job_title_id')==$title->id)>{{ $title->name }}</option>
+                      <option value="{{ $title->id }}" @selected(old('job_title_id', $registration->job_title_id)==$title->id)>{{ $title->name }}</option>
                     @endforeach
                   </select>
                 </div>
@@ -94,7 +111,7 @@
                   <select id="department_id" name="department_id" class="form-select">
                     <option value="">—</option>
                     @foreach ($departments as $dept)
-                      <option value="{{ $dept->id }}" @selected(old('department_id')==$dept->id)>{{ $dept->name }}</option>
+                      <option value="{{ $dept->id }}" @selected(old('department_id', $registration->department_id)==$dept->id)>{{ $dept->name }}</option>
                     @endforeach
                   </select>
                 </div>
