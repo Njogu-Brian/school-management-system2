@@ -12,6 +12,7 @@ use App\Services\DocumentNumberService;
 use App\Services\InvoiceService;
 use App\Services\UniformFeeService;
 use App\Services\InvoiceFooterPlaceholderService;
+use App\Services\Finance\InvoicePdfPriorBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
@@ -837,25 +838,34 @@ class InvoiceController extends Controller
         $invoiceFooterTemplate = \App\Models\Setting::get('invoice_footer', '');
 
         $paymentRowsByInvoice = $this->invoicePaymentRowsForPdfBatch($invoices);
+        $priorOverlays = app(InvoicePdfPriorBalanceService::class)->overlayForInvoices($invoices);
 
-        $invoiceBundles = $invoices->map(function (Invoice $invoice) use ($paymentRowsByInvoice) {
+        $invoiceBundles = $invoices->map(function (Invoice $invoice) use ($paymentRowsByInvoice, $priorOverlays) {
             $invoice->fillTotalsFromLoadedRelations();
+            $overlay = $priorOverlays[$invoice->id] ?? [
+                'lines' => [],
+                'total' => 0.0,
+                'pdf_balance_due' => round((float) $invoice->balance, 2),
+            ];
 
             return [
                 'invoice' => $invoice,
                 'payment_rows' => $paymentRowsByInvoice[$invoice->id] ?? [],
+                'prior_balance_lines' => $overlay['lines'],
+                'prior_balance_total' => $overlay['total'],
+                'pdf_balance_due' => $overlay['pdf_balance_due'],
             ];
         });
 
-        $pdf = Pdf::loadView('finance.invoices.pdf.bulk', compact(
-            'invoiceBundles',
-            'filters',
-            'branding',
-            'printedBy',
-            'printedAt',
-            'invoiceHeader',
-            'invoiceFooterTemplate'
-        ))->setPaper('A4', 'portrait');
+        $pdf = Pdf::loadView('finance.invoices.pdf.bulk', [
+            'invoiceBundles' => $invoiceBundles,
+            'filters' => $filters,
+            'branding' => $branding,
+            'printedBy' => $printedBy,
+            'printedAt' => $printedAt,
+            'invoiceHeader' => $invoiceHeader,
+            'invoiceFooterTemplate' => $invoiceFooterTemplate,
+        ])->setPaper('A4', 'portrait');
 
         return $pdf->stream('invoices.pdf');
     }
@@ -873,6 +883,10 @@ class InvoiceController extends Controller
         ]);
         $invoice->recalculate();
         $paymentRows = $this->invoicePaymentRowsForPdf($invoice);
+        $priorOverlay = app(InvoicePdfPriorBalanceService::class)->overlayForInvoice($invoice);
+        $priorBalanceLines = $priorOverlay['lines'];
+        $priorBalanceTotal = $priorOverlay['total'];
+        $pdfBalanceDue = $priorOverlay['pdf_balance_due'];
 
         $branding  = $this->branding();
         $printedBy = optional(auth()->user())->name ?? 'System';
@@ -886,15 +900,18 @@ class InvoiceController extends Controller
             $invoice
         );
 
-        $pdf = Pdf::loadView('finance.invoices.pdf.single', compact(
-            'invoice',
-            'paymentRows',
-            'branding',
-            'printedBy',
-            'printedAt',
-            'invoiceHeader',
-            'invoiceFooter'
-        ))->setPaper('A4', 'portrait');
+        $pdf = Pdf::loadView('finance.invoices.pdf.single', [
+            'invoice' => $invoice,
+            'paymentRows' => $paymentRows,
+            'priorBalanceLines' => $priorBalanceLines,
+            'priorBalanceTotal' => $priorBalanceTotal,
+            'pdfBalanceDue' => $pdfBalanceDue,
+            'branding' => $branding,
+            'printedBy' => $printedBy,
+            'printedAt' => $printedAt,
+            'invoiceHeader' => $invoiceHeader,
+            'invoiceFooter' => $invoiceFooter,
+        ])->setPaper('A4', 'portrait');
 
         $filename = 'invoice-' . str_replace(['/', '\\'], '-', $invoice->invoice_number) . '.pdf';
         return $pdf->stream($filename);

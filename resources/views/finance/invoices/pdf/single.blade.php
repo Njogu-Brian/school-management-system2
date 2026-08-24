@@ -2,7 +2,10 @@
   $school = $branding ?? [];
   $logo   = $school['logoBase64'] ?? null;
   $s      = $invoice->student;
-  $paymentRows = $paymentRows ?? [];
+  $paymentRows = $paymentRows ?? $paymentRows ?? [];
+  $priorBalanceLines = $priorBalanceLines ?? $priorBalanceLines ?? [];
+  $priorBalanceTotal = (float) ($priorBalanceTotal ?? $priorBalanceTotal ?? 0);
+  $pdfBalanceDue = (float) ($pdfBalanceDue ?? $pdfBalanceDue ?? $invoice->balance ?? 0);
   // Ensure brand vars exist (DomPDF may not share scope with included partial)
   $brandPrimary   = $brandPrimary ?? setting('finance_primary_color', '#3a1a59');
   $brandMuted     = $brandMuted ?? setting('finance_muted_color', '#6b7280');
@@ -72,6 +75,7 @@
   .items td { padding: 7px 8px; border:1px solid #ddd; }
   .items thead th{ background: {{ $brandPrimary }}; color: #fff; }
   .items tbody tr.total-row th{ background:#f5f5f5; color: {{ setting('finance_text_color', '#333') }}; border-top: 2px solid {{ $brandPrimary }}; }
+  .items tbody tr.prior-row td{ background:#fff8e6; }
   .right{ text-align: right; }
   .center{ text-align: center; }
 
@@ -218,18 +222,61 @@
   </tbody>
 </table>
 
+@if($priorBalanceTotal > 0.009)
+<table class="items" style="margin-top:8px;">
+  <thead>
+    <tr>
+      <th style="width:5%">#</th>
+      <th>Previous unpaid invoice</th>
+      <th style="width:12%" class="right">Balance</th>
+    </tr>
+  </thead>
+  <tbody>
+    @foreach($priorBalanceLines as $pl)
+      <tr class="prior-row">
+        <td class="center">{{ $loop->iteration }}</td>
+        <td>
+          {{ $pl['label'] }}
+          @if(!empty($pl['invoice_number']))
+            <div class="small muted">{{ $pl['invoice_number'] }}</div>
+          @endif
+        </td>
+        <td class="right">{{ number_format($pl['balance'], 2) }}</td>
+      </tr>
+    @endforeach
+    <tr class="total-row">
+      <th colspan="2" class="right">Previous unpaid total</th>
+      <th class="right">{{ number_format($priorBalanceTotal, 2) }}</th>
+    </tr>
+  </tbody>
+</table>
+<p class="small muted" style="margin:6px 0 0 0;">Shown for this PDF only. Earlier invoices stay separate and are not added to school or student invoice totals. Payments clear the oldest unpaid invoice first.</p>
+@endif
+
 <table class="summary">
   <tr>
     <td class="lbl">Invoice total (after discounts)</td>
     <td class="val">KES {{ number_format((float) $invoice->total, 2) }}</td>
   </tr>
+  @if($priorBalanceTotal > 0.009)
+  <tr>
+    <td class="lbl">Previous unpaid invoice(s)</td>
+    <td class="val">KES {{ number_format($priorBalanceTotal, 2) }}</td>
+  </tr>
+  @endif
   <tr>
     <td class="lbl">Total payments allocated to this invoice</td>
     <td class="val">KES {{ number_format((float) $invoice->paid_amount, 2) }}</td>
   </tr>
+  @if($priorBalanceTotal > 0.009)
+  <tr>
+    <td class="lbl">Balance on this invoice</td>
+    <td class="val">KES {{ number_format((float) $invoice->balance, 2) }}</td>
+  </tr>
+  @endif
   <tr>
     <td class="lbl">Current balance due</td>
-    <td class="val" style="color:{{ ($invoice->balance ?? 0) > 0 ? '#b00020' : '#1b5e20' }};">KES {{ number_format((float) $invoice->balance, 2) }}</td>
+    <td class="val" style="color:{{ $pdfBalanceDue > 0 ? '#b00020' : '#1b5e20' }};">KES {{ number_format($pdfBalanceDue, 2) }}</td>
   </tr>
 </table>
 

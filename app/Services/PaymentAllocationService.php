@@ -224,8 +224,9 @@ class PaymentAllocationService
     }
 
     /**
-     * Return sort callback for invoice items: BBF first, then preferTermId, then issued_date.
-     * Ensures Balance Brought Forward is always cleared before other fees.
+     * Return sort callback for invoice items: BBF first, then preferTermId,
+     * then oldest year/term, then issued_date.
+     * Ensures Balance Brought Forward and previous-term invoices are cleared first.
      */
     protected static function invoiceItemsAllocationOrder(?int $preferTermId = null): \Closure
     {
@@ -241,6 +242,16 @@ class PaymentAllocationService
                 if ($aTerm !== $bTerm) {
                     return $aTerm <=> $bTerm;
                 }
+            }
+            $aYear = (int) ($a->invoice->year ?? 9999);
+            $bYear = (int) ($b->invoice->year ?? 9999);
+            if ($aYear !== $bYear) {
+                return $aYear <=> $bYear;
+            }
+            $aTermNo = (int) ($a->invoice->term ?? 99);
+            $bTermNo = (int) ($b->invoice->term ?? 99);
+            if ($aTermNo !== $bTermNo) {
+                return $aTermNo <=> $bTermNo;
             }
             $aDate = $a->invoice->issued_date?->format('Y-m-d') ?? '9999-99-99';
             $bDate = $b->invoice->issued_date?->format('Y-m-d') ?? '9999-99-99';

@@ -1,7 +1,7 @@
 @php
   $school = $branding ?? [];
   $logo   = $school['logoBase64'] ?? null;
-  $invoiceBundles = $invoiceBundles ?? [];
+  $invoiceBundles = $invoiceBundles ?? $invoiceBundles ?? [];
 @endphp
 <!doctype html>
 <html>
@@ -162,6 +162,9 @@
   @php
     $invoice = $bundle['invoice'];
     $payment_rows = $bundle['payment_rows'] ?? [];
+    $prior_balance_lines = $bundle['prior_balance_lines'] ?? [];
+    $prior_balance_total = (float) ($bundle['prior_balance_total'] ?? 0);
+    $pdf_balance_due = isset($bundle['pdf_balance_due']) ? (float) $bundle['pdf_balance_due'] : (float) ($invoice->balance ?? 0);
     $s = $invoice->student;
     $classId = $s->classroom_id ?? null;
   @endphp
@@ -244,19 +247,57 @@
       </tbody>
     </table>
 
+    @if($prior_balance_total > 0.009)
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:4%">#</th>
+          <th>Previous unpaid invoice</th>
+          <th style="width:12%" class="right">Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($prior_balance_lines as $pl)
+          <tr>
+            <td class="center">{{ $loop->iteration }}</td>
+            <td>{{ $pl['label'] }}@if(!empty($pl['invoice_number'])) <span class="muted">({{ $pl['invoice_number'] }})</span>@endif</td>
+            <td class="right">{{ number_format($pl['balance'], 2) }}</td>
+          </tr>
+        @endforeach
+        <tr>
+          <th colspan="2" class="right">Previous unpaid total</th>
+          <th class="right">{{ number_format($prior_balance_total, 2) }}</th>
+        </tr>
+      </tbody>
+    </table>
+    <p class="small muted" style="margin:4px 0 0 0;">Shown for this PDF only. Earlier invoices stay separate. Payments clear the oldest unpaid invoice first.</p>
+    @endif
+
     <div class="summary">
       <table>
         <tr>
           <td class="label">Invoice total (after discounts)</td>
           <td class="amt">KES {{ number_format((float) $invoice->total, 2) }}</td>
         </tr>
+        @if($prior_balance_total > 0.009)
+        <tr>
+          <td class="label">Previous unpaid invoice(s)</td>
+          <td class="amt">KES {{ number_format($prior_balance_total, 2) }}</td>
+        </tr>
+        @endif
         <tr>
           <td class="label">Total payments allocated to this invoice</td>
           <td class="amt">KES {{ number_format((float) $invoice->paid_amount, 2) }}</td>
         </tr>
+        @if($prior_balance_total > 0.009)
+        <tr>
+          <td class="label">Balance on this invoice</td>
+          <td class="amt">KES {{ number_format((float) $invoice->balance, 2) }}</td>
+        </tr>
+        @endif
         <tr>
           <td class="label">Current balance due</td>
-          <td class="amt" style="color:{{ ($invoice->balance ?? 0) > 0 ? '#b00020' : '#1b5e20' }};">KES {{ number_format((float) $invoice->balance, 2) }}</td>
+          <td class="amt" style="color:{{ $pdf_balance_due > 0 ? '#b00020' : '#1b5e20' }};">KES {{ number_format($pdf_balance_due, 2) }}</td>
         </tr>
       </table>
     </div>
