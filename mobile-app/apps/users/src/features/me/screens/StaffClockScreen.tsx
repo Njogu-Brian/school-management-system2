@@ -1,113 +1,65 @@
+import { useStaffClockHistory, useStaffClockToday } from '@erp/core';
 import {
-  authenticateWithBiometrics,
-  canUseBiometrics,
-  useStaffClockActions,
-  useStaffClockHistory,
-  useStaffClockToday,
-  useStaffGeofence,
-  useStaffGeofenceUpdate,
-} from '@erp/core';
-import { AcademicScreenHeader, Button, FinanceFieldSection, ScreenContainer, TextField, useTheme } from '@erp/ui';
+  AcademicScreenHeader,
+  EmptyState,
+  FinanceFieldSection,
+  ScreenContainer,
+  StatusBadge,
+  useTheme,
+  type SemanticTone,
+} from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
-import * as Location from 'expo-location';
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
-import { goBackInStack } from '../../../navigation/navigateToTab';
-import { showError, showSuccess } from '../../shared/utils/feedback';
+import React from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native';
+
+function formatClockTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  return value.slice(0, 5);
+}
+
+function formatClockDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const d = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function statusTone(status: string): SemanticTone {
+  const s = status.toLowerCase();
+  if (s === 'present') return 'success';
+  if (s === 'late' || s === 'half_day') return 'warning';
+  if (s === 'absent') return 'danger';
+  return 'info';
+}
 
 export const StaffClockScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { colors, palette, spacing } = useTheme();
-  const geoQuery = useStaffGeofence();
+  const { colors, palette, spacing, typography, radius } = useTheme();
   const todayQuery = useStaffClockToday();
   const historyQuery = useStaffClockHistory();
-  const { clockIn, clockOut } = useStaffClockActions();
-  const updateGeofence = useStaffGeofenceUpdate();
-  const [radiusMeters, setRadiusMeters] = useState('150');
 
-  const isConfigured = Boolean(geoQuery.data?.is_configured);
-  const canManageGeofence = Boolean(geoQuery.data?.can_manage);
-  const busy = clockIn.isPending || clockOut.isPending || updateGeofence.isPending;
-
-  const getCoords = async () => {
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (permission.status !== 'granted') {
-      throw new Error('Location permission is required to clock in or out.');
-    }
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    return {
-      latitude: pos.coords.latitude,
-      longitude: pos.coords.longitude,
-      accuracy_meters: pos.coords.accuracy ?? undefined,
-    };
-  };
-
-  const confirmIdentity = async () => {
-    const available = await canUseBiometrics();
-    if (!available) return;
-    const ok = await authenticateWithBiometrics('Confirm clock action');
-    if (!ok) {
-      throw new Error('Biometric confirmation was cancelled or failed.');
-    }
-  };
-
-  const perform = useCallback(
-    async (mode: 'in' | 'out') => {
-      if (!isConfigured) {
-        showError(
-          'Geofence not configured',
-          canManageGeofence
-            ? 'Set the school geofence using your device location below.'
-            : 'Ask an admin to configure the school geofence.',
-        );
-        return;
-      }
-      try {
-        await confirmIdentity();
-        const payload = await getCoords();
-        const res = mode === 'in' ? await clockIn.mutateAsync(payload) : await clockOut.mutateAsync(payload);
-        showSuccess('Success', res.message ?? `Clock-${mode} recorded.`);
-      } catch (err) {
-        showError('Unable to continue', (err as Error).message);
-      }
-    },
-    [canManageGeofence, clockIn, clockOut, isConfigured],
-  );
-
-  const setGeofenceFromDevice = useCallback(async () => {
-    const radius = Number(radiusMeters);
-    if (!Number.isFinite(radius) || radius < 25 || radius > 5000) {
-      showError('Invalid radius', 'Enter a radius between 25 and 5000 meters.');
-      return;
-    }
-    try {
-      const coords = await getCoords();
-      await updateGeofence.mutateAsync({
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        radius_meters: Math.round(radius),
-      });
-      showSuccess('Geofence updated', `School fence set to ${Math.round(radius)}m around your current location.`);
-    } catch (err) {
-      showError('Unable to set geofence', (err as Error).message);
-    }
-  }, [radiusMeters, updateGeofence]);
-
-  const loading = geoQuery.isLoading || todayQuery.isLoading;
-
-  useEffect(() => {
-    if (geoQuery.data?.radius_meters) {
-      setRadiusMeters(String(geoQuery.data.radius_meters));
-    }
-  }, [geoQuery.data?.radius_meters]);
+  const loading = todayQuery.isLoading && !todayQuery.data;
+  const history = historyQuery.data ?? [];
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+        refreshControl={
+          <RefreshControl
+            refreshing={todayQuery.isRefetching || historyQuery.isRefetching}
+            onRefresh={() => {
+              void todayQuery.refetch();
+              void historyQuery.refetch();
+            }}
+            colors={[colors.primary]}
+          />
+        }
+      >
         <AcademicScreenHeader
           title="Sign in / out"
-          subtitle="Clock in and out with GPS geofence"
-          onBack={() => goBackInStack(navigation, 'MoreMain')}
+          subtitle="Records from the school fingerprint and card machines"
+          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
         />
 
         {loading ? (
@@ -117,58 +69,84 @@ export const StaffClockScreen: React.FC = () => {
             <FinanceFieldSection
               title="Today"
               rows={[
-                {
-                  label: 'Geofence',
-                  value: isConfigured
-                    ? `${geoQuery.data?.radius_meters ?? 0}m radius`
-                    : 'Not configured',
-                },
-                { label: 'Check in', value: todayQuery.data?.check_in_time ?? '—' },
-                { label: 'Check out', value: todayQuery.data?.check_out_time ?? '—' },
+                { label: 'Status', value: todayQuery.data?.status?.replace(/_/g, ' ') ?? 'No record yet' },
+                { label: 'Check in', value: formatClockTime(todayQuery.data?.check_in_time) },
+                { label: 'Check out', value: formatClockTime(todayQuery.data?.check_out_time) },
               ]}
             />
-            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
-              <Button label="Sign in" onPress={() => void perform('in')} loading={clockIn.isPending} disabled={busy} />
-              <Button
-                label="Sign out"
-                variant="secondary"
-                onPress={() => void perform('out')}
-                loading={clockOut.isPending}
-                disabled={busy}
-              />
-            </View>
-
-            {canManageGeofence ? (
-              <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
-                <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>School geofence</Text>
-                <Text style={{ color: palette.textSecondary, fontSize: 12 }}>
-                  Set the fence center to your device’s current location. Staff must be inside this radius to sign in or out.
-                </Text>
-                <TextField
-                  label="Radius (meters)"
-                  value={radiusMeters}
-                  onChangeText={setRadiusMeters}
-                  keyboardType="number-pad"
-                  placeholder="150"
-                />
-                <Button
-                  label={isConfigured ? 'Update geofence from my location' : 'Set geofence from my location'}
-                  variant="secondary"
-                  onPress={() => void setGeofenceFromDevice()}
-                  loading={updateGeofence.isPending}
-                  disabled={busy}
-                />
-              </View>
-            ) : null}
-
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.sm }}>
-              Recent history
+            <Text
+              style={{
+                color: palette.textSecondary,
+                fontSize: typography.caption.fontSize,
+                marginTop: spacing.sm,
+                marginBottom: spacing.lg,
+              }}
+            >
+              Sign in and out at the campus gate. GPS clock-in is turned off. If a punch is missing, ask HR to
+              correct it.
             </Text>
-            {(historyQuery.data ?? []).slice(0, 10).map((row) => (
-              <Text key={row.id} style={{ color: palette.textSecondary, fontSize: 12, marginBottom: 4 }}>
-                {row.date} · {row.check_in_time ?? '—'} → {row.check_out_time ?? '—'}
-              </Text>
-            ))}
+
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
+              Recent attendance
+            </Text>
+            {historyQuery.isError ? (
+              <EmptyState
+                title="Could not load attendance"
+                message={(historyQuery.error as Error)?.message ?? 'Try again in a moment.'}
+                icon="alert-circle-outline"
+                actionLabel="Retry"
+                onAction={() => void historyQuery.refetch()}
+              />
+            ) : history.length === 0 ? (
+              <EmptyState
+                title="No gate records yet"
+                message="When you sign in on a K40, your check-in and check-out will appear here."
+                icon="time-outline"
+              />
+            ) : (
+              history.map((row) => (
+                <View
+                  key={row.id}
+                  style={{
+                    backgroundColor: palette.surface,
+                    borderColor: palette.border,
+                    borderWidth: 1,
+                    borderRadius: radius.lg,
+                    padding: spacing.md,
+                    marginBottom: spacing.sm,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
+                      {formatClockDate(row.date)}
+                    </Text>
+                    <StatusBadge
+                      label={row.status.replace(/_/g, ' ')}
+                      tone={statusTone(row.status)}
+                      compact
+                    />
+                  </View>
+                  <Text
+                    style={{
+                      color: palette.textSecondary,
+                      fontSize: typography.caption.fontSize,
+                      marginTop: 6,
+                    }}
+                  >
+                    {formatClockTime(row.check_in_time)} → {formatClockTime(row.check_out_time)}
+                  </Text>
+                  <Text
+                    style={{
+                      color: palette.textMuted,
+                      fontSize: typography.caption.fontSize,
+                      marginTop: 4,
+                    }}
+                  >
+                    School gate
+                  </Text>
+                </View>
+              ))
+            )}
           </>
         )}
       </ScrollView>

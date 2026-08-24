@@ -28,6 +28,7 @@ type Action = {
 
 const CLASS_TEACHER: Action[] = [
   { label: 'Mark attendance', icon: 'checkbox-outline', route: 'MarkAttendance', tabJump: { tab: 'Attendance', screen: 'AttendanceMain' } },
+  { label: 'Collect requirements', icon: 'clipboard-outline', route: 'RequirementsHub', tabJump: { tab: 'More', screen: 'RequirementsHub', tabHome: 'MoreMain' } },
   { label: 'My students', icon: 'people-outline', route: 'Classes', tabJump: { tab: 'Classes', screen: 'ClassesMain' } },
   { label: 'Transport', icon: 'bus-outline', route: 'TeacherTransportHub', tabJump: { tab: 'More', screen: 'TeacherTransportHub', tabHome: 'MoreMain' } },
 ];
@@ -40,7 +41,7 @@ const TEACHING: Action[] = [
 ];
 
 const SELF_SERVICE: Action[] = [
-  { label: 'Clock in/out', icon: 'time-outline', route: 'StaffClock', tabJump: { tab: 'More', screen: 'StaffClock', tabHome: 'MoreMain' } },
+  { label: 'My attendance', icon: 'time-outline', route: 'StaffClock', tabJump: { tab: 'More', screen: 'StaffClock', tabHome: 'MoreMain' } },
   { label: 'My leave', icon: 'calendar-outline', route: 'MyLeaveList', tabJump: { tab: 'More', screen: 'MyLeaveList', tabHome: 'MoreMain' } },
   { label: 'Advances', icon: 'cash-outline', route: 'MyAdvances', tabJump: { tab: 'More', screen: 'MyAdvances', tabHome: 'MoreMain' } },
   { label: 'Payslips', icon: 'wallet-outline', route: 'MyPayslips', tabJump: { tab: 'More', screen: 'MyPayslips', tabHome: 'MoreMain' } },

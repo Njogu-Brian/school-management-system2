@@ -374,8 +374,9 @@ const TransportTab: React.FC<{ student: StudentDetail; isStaff: boolean }> = ({ 
   return <FinanceFieldSection title="Transport assignment" rows={assignmentRows} />;
 };
 
-const RequirementsTab: React.FC<{ studentId: number }> = ({ studentId }) => {
+const RequirementsTab: React.FC<{ studentId: number; canCollect?: boolean }> = ({ studentId, canCollect }) => {
   const { colors, spacing } = useTheme();
+  const navigation = useNavigation<LooseNav>();
   const query = useStudentRequirements(studentId);
 
   if (query.isLoading) {
@@ -410,7 +411,17 @@ const RequirementsTab: React.FC<{ studentId: number }> = ({ studentId }) => {
     label: item.name,
     value: `${item.quantity_collected}/${item.quantity_required} ${item.unit ?? ''} · ${item.status}`.trim(),
   }));
-  return <FinanceFieldSection title="Requirements checklist" rows={rows} />;
+  return (
+    <View style={{ gap: spacing.md }}>
+      <FinanceFieldSection title="Requirements checklist" rows={rows} />
+      {canCollect ? (
+        <Button
+          label="Collect requirements"
+          onPress={() => navigation.navigate('RequirementDetail', { studentId })}
+        />
+      ) : null}
+    </View>
+  );
 };
 
 const FamilyTab: React.FC<{ student: StudentDetail }> = ({ student }) => {
@@ -524,7 +535,7 @@ export const StudentDetailScreen: React.FC = () => {
       case 'transport':
         return <TransportTab student={student} isStaff={isStaff} />;
       case 'requirements':
-        return <RequirementsTab studentId={studentId} />;
+        return <RequirementsTab studentId={studentId} canCollect={isStaff} />;
       case 'family':
         return <FamilyTab student={student} />;
       default:

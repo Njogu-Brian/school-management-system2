@@ -6,7 +6,7 @@ Never run `eas build` from the **repo root**. That creates the wrong Expo projec
 
 | App | Folder | Play package | Current target |
 |-----|--------|--------------|----------------|
-| **Users** | `mobile-app/apps/users` | `com.royalkingsschools.users` | `1.0.3` / versionCode **6** (native `android/app/build.gradle`) |
+| **Users** | `mobile-app/apps/users` | `com.royalkingsschools.users` | `1.0.4` / versionCode **7** (native `android/app/build.gradle`) |
 | **Admin** | `mobile-app/apps/admin` | `com.royalkingsschools.admin` | `1.0.12` / versionCode **13** (`app.config.ts`) |
 
 Bump **before** each Play upload so codes stay above the Console “Active” row.

@@ -40,6 +40,6 @@ Tracked for `apps/users`. Shells are wired; these items still limit depth or Pla
 ## 7. Teacher phase-2 (web parity still deferred)
 
 - Senior teacher supervised classrooms/staff/fees
-- Requirements collect action
+- Requirements collect action — done (Users teacher hub + POST /teacher/requirements/collect)
 - Student behaviour logging
 - Richer lesson plan editor (mobile now has create draft + submit; full web fields still richer)

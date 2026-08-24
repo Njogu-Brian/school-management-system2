@@ -23,8 +23,8 @@ function Assert-UsersVersion {
   $text = Get-Content $gradle -Raw
   if ($text -notmatch 'versionCode\s+(\d+)') { throw 'Users versionCode not found in android/app/build.gradle' }
   $code = [int]$Matches[1]
-  Write-Host "Users native versionCode = $code (Play production is 5; need >= 6)"
-  if ($code -lt 6) { throw "Users versionCode $code would conflict with Play Console" }
+  Write-Host "Users native versionCode = $code (Play production is 6; need >= 7)"
+  if ($code -lt 7) { throw "Users versionCode $code would conflict with Play Console" }
 }
 
 function Assert-AdminVersion {

@@ -44,8 +44,8 @@ type HubLink = {
 
 export const DRIVER_HUB_LINKS: HubLink[] = [
   {
-    title: 'Staff clock',
-    subtitle: 'Clock in or out for your shift',
+    title: 'My attendance',
+    subtitle: 'View gate sign-in and sign-out records',
     route: 'StaffClock',
     icon: 'time-outline',
     tone: 'cyan',
@@ -190,7 +190,7 @@ const HOME_QUICK_ACTIONS: Array<{
   route: keyof DriverStackParamList;
 }> = [
   { label: 'My vehicle', icon: 'car-outline', route: 'DriverVehicle' },
-  { label: 'Staff clock', icon: 'time-outline', route: 'StaffClock' },
+  { label: 'My attendance', icon: 'time-outline', route: 'StaffClock' },
   { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications' },
   { label: 'Raise concern', icon: 'alert-circle-outline', route: 'RaiseConcern' },
 ];

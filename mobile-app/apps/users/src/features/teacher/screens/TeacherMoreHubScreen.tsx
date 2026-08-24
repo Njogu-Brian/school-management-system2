@@ -37,10 +37,12 @@ export const TeacherMoreHubScreen: React.FC = () => {
         | 'list-outline'
         | 'alert-circle-outline'
         | 'book-outline'
-        | 'cash-outline';
+        | 'cash-outline'
+        | 'clipboard-outline';
     }> = [
       { title: 'Academics', route: 'Academics', icon: 'book-outline' },
-      { title: 'Clock in / out', route: 'StaffClock', icon: 'time-outline' },
+      { title: 'Collect requirements', route: 'RequirementsHub', icon: 'clipboard-outline' },
+      { title: 'My attendance', route: 'StaffClock', icon: 'time-outline' },
       { title: 'My leave', route: 'MyLeaveList', icon: 'list-outline' },
       { title: 'Apply for leave', route: 'LeaveApply', icon: 'calendar-outline' },
       { title: 'Salary advances', route: 'MyAdvances', icon: 'cash-outline' },

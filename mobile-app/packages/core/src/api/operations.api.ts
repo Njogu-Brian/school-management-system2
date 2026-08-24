@@ -405,6 +405,15 @@ export const operationsApi = {
     );
   },
 
+  collectStudentRequirement(payload: {
+    student_id: number;
+    template_id: number;
+    quantity_received: number;
+    notes?: string;
+  }): Promise<ApiResponse<{ id: number; quantity_collected: number; status: string }>> {
+    return apiClient.post('/teacher/requirements/collect', payload);
+  },
+
   listInventoryItems(params?: {
     search?: string;
     low_stock?: boolean;

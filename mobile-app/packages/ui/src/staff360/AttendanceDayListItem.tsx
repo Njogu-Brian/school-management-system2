@@ -75,7 +75,7 @@ export const AttendanceDayListItem: React.FC<AttendanceDayListItemProps> = ({ it
           marginTop: 4,
         }}
       >
-        {item.source === 'clock' ? 'Geofence clock' : 'Manual mark'}
+        {item.source === 'clock' ? 'School gate' : 'Manual mark'}
       </Text>
     </View>
   );

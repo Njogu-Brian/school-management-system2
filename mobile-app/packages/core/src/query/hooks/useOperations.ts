@@ -63,6 +63,32 @@ export function useStudentRequirements(studentId: number, options?: { enabled?: 
   });
 }
 
+export function useCollectStudentRequirement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      student_id: number;
+      template_id: number;
+      quantity_received: number;
+      notes?: string;
+    }) => {
+      const res = await operationsApi.collectStudentRequirement(payload);
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to record requirement.');
+      }
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({
+        queryKey: queryKeys.operations.studentRequirements(variables.student_id),
+      });
+      void qc.invalidateQueries({
+        queryKey: [...queryKeys.operations.all, 'requirements-students'],
+      });
+    },
+  });
+}
+
 export function useInventoryItems(options?: {
   enabled?: boolean;
   search?: string;

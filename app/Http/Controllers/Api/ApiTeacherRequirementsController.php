@@ -115,11 +115,11 @@ class ApiTeacherRequirementsController extends Controller
         $requirements = StudentRequirement::with(['requirementTemplate.requirementType'])
             ->where('student_id', $student->id)
             ->when($currentTerm, fn ($q) => $q->where('term_id', $currentTerm->id))
-            ->get()
-            ->keyBy('requirement_template_id');
+            ->get();
 
         $items = $templates->map(function (RequirementTemplate $tpl) use ($requirements) {
-            $existing = $requirements->get($tpl->id);
+            $existing = $requirements->firstWhere('requirement_template_id', $tpl->id);
+
             return [
                 'template_id' => $tpl->id,
                 'requirement_id' => $existing?->id,
@@ -131,7 +131,7 @@ class ApiTeacherRequirementsController extends Controller
                 'status' => $existing?->status ?? 'pending',
                 'student_type' => $tpl->student_type,
                 'custody_type' => $tpl->custody_type,
-                'notes' => $existing?->notes,
+                'notes' => $existing instanceof StudentRequirement ? $existing->notes : null,
             ];
         });
 
