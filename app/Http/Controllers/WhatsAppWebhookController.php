@@ -127,19 +127,38 @@ class WhatsAppWebhookController extends Controller
                 continue;
             }
 
-            $log = CommunicationLog::where('provider_id', $providerId)
-                ->where('channel', 'whatsapp')
+            $log = CommunicationLog::where('channel', 'whatsapp')
+                ->where('provider_id', $providerId)
                 ->first();
 
+            $deliveryState = data_get($status, 'status');
+            $deliveryErrors = data_get($status, 'errors');
+
             if (!$log) {
+                Log::warning('WhatsApp delivery status for unknown message', [
+                    'wamid' => $providerId,
+                    'status' => $deliveryState,
+                    'recipient' => data_get($status, 'recipient_id'),
+                    'errors' => $deliveryErrors,
+                ]);
                 continue;
             }
 
             $existingResponse = is_array($log->response) ? $log->response : [];
             $log->update([
-                'provider_status' => data_get($status, 'status'),
+                'provider_status' => $deliveryState,
+                'error_code' => data_get($deliveryErrors, '0.code'),
                 'response' => array_merge($existingResponse, ['delivery_status' => $status]),
             ]);
+
+            if ($deliveryState === 'failed') {
+                Log::warning('WhatsApp delivery failed', [
+                    'wamid' => $providerId,
+                    'contact' => $log->contact,
+                    'payment_id' => $log->payment_id,
+                    'errors' => $deliveryErrors,
+                ]);
+            }
         }
     }
 }

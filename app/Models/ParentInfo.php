@@ -131,21 +131,19 @@ class ParentInfo extends Model
     }
 
     /**
-     * WhatsApp numbers for school notifications (uses WhatsApp field, else phone per parent).
+     * WhatsApp numbers for school notifications.
+     *
+     * Uses the WhatsApp field when set, and also the phone if it is a different
+     * number (a parent abroad may have WhatsApp on one SIM and a Kenyan phone).
      *
      * @return list<string>
      */
     public function schoolNotificationWhatsAppNumbers(): array
     {
-        $father = ! empty($this->father_whatsapp) ? $this->father_whatsapp : ($this->father_phone ?: null);
-        $mother = ! empty($this->mother_whatsapp) ? $this->mother_whatsapp : ($this->mother_phone ?: null);
-        if ($this->school_notifications_muted_parent === 'father') {
-            $father = null;
-        } elseif ($this->school_notifications_muted_parent === 'mother') {
-            $mother = null;
-        }
-
-        return array_values(array_unique(array_filter([$father, $mother])));
+        return array_values(array_map(
+            fn (array $r) => $r['phone'],
+            $this->schoolNotificationWhatsAppRecipients()
+        ));
     }
 
     /**
@@ -153,27 +151,40 @@ class ParentInfo extends Model
      */
     public function schoolNotificationWhatsAppRecipients(): array
     {
+        $slots = [
+            'father' => [
+                'muted' => $this->school_notifications_muted_parent === 'father',
+                'name' => $this->father_name ?: null,
+                'numbers' => [$this->father_whatsapp, $this->father_phone],
+            ],
+            'mother' => [
+                'muted' => $this->school_notifications_muted_parent === 'mother',
+                'name' => $this->mother_name ?: null,
+                'numbers' => [$this->mother_whatsapp, $this->mother_phone],
+            ],
+        ];
+
         $out = [];
-
-        $father = ! empty($this->father_whatsapp) ? $this->father_whatsapp : ($this->father_phone ?: null);
-        $mother = ! empty($this->mother_whatsapp) ? $this->mother_whatsapp : ($this->mother_phone ?: null);
-
-        if ($this->school_notifications_muted_parent !== 'father' && filled($father)) {
-            $out[] = ['slot' => 'father', 'name' => $this->father_name ?: null, 'phone' => $father];
-        }
-        if ($this->school_notifications_muted_parent !== 'mother' && filled($mother)) {
-            $out[] = ['slot' => 'mother', 'name' => $this->mother_name ?: null, 'phone' => $mother];
-        }
-
         $seen = [];
-        $unique = [];
-        foreach ($out as $r) {
-            if (isset($seen[$r['phone']])) continue;
-            $seen[$r['phone']] = true;
-            $unique[] = $r;
+        foreach ($slots as $slot => $data) {
+            if ($data['muted']) {
+                continue;
+            }
+            foreach ($data['numbers'] as $raw) {
+                $phone = trim((string) ($raw ?? ''));
+                if ($phone === '') {
+                    continue;
+                }
+                $key = preg_replace('/\D+/', '', $phone) ?: $phone;
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $out[] = ['slot' => $slot, 'name' => $data['name'], 'phone' => $phone];
+            }
         }
 
-        return $unique;
+        return $out;
     }
 
     /**

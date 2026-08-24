@@ -29,6 +29,19 @@ class WhatsAppRecipientTest extends TestCase
         $this->assertSame('4917697784839', $whatsapp->normalizeRecipient('+4917697784839'));
     }
 
+    public function test_whatsapp_recipients_include_phone_when_it_differs_from_whatsapp_field(): void
+    {
+        $parent = new \App\Models\ParentInfo([
+            'mother_name' => 'Jane',
+            'mother_whatsapp' => '+4917697784839',
+            'mother_phone' => '+254724852028',
+        ]);
+
+        $phones = array_column($parent->schoolNotificationWhatsAppRecipients(), 'phone');
+
+        $this->assertEqualsCanonicalizing(['+4917697784839', '+254724852028'], $phones);
+    }
+
     public function test_flattens_newlines_in_template_body_parameter(): void
     {
         $whatsapp = app(WhatsAppService::class);
