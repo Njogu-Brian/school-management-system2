@@ -1102,38 +1102,17 @@ if (!function_exists('get_current_term_number')) {
 if (!function_exists('get_current_term_model')) {
     function get_current_term_model(): ?\App\Models\Term
     {
-        $tz = config('app.timezone', 'UTC');
-        $today = now()->timezone($tz)->toDateString();
+        return app(\App\Services\AcademicCalendarService::class)->currentTerm();
+    }
+}
 
-        // Prefer date-based determination: opening_date <= today <= closing_date
-        $byDate = \App\Models\Term::whereNotNull('opening_date')
-            ->whereNotNull('closing_date')
-            ->whereDate('opening_date', '<=', $today)
-            ->whereDate('closing_date', '>=', $today)
-            ->orderBy('opening_date')
-            ->first();
-        if ($byDate) {
-            return $byDate;
-        }
-
-        // Fallback to manually flagged current term
-        $manual = \App\Models\Term::where('is_current', true)->first();
-        if ($manual) {
-            return $manual;
-        }
-
-        // Fallback: nearest upcoming term, otherwise latest past term
-        $upcoming = \App\Models\Term::whereNotNull('opening_date')
-            ->whereDate('opening_date', '>', $today)
-            ->orderBy('opening_date')
-            ->first();
-        if ($upcoming) {
-            return $upcoming;
-        }
-
-        return \App\Models\Term::whereNotNull('closing_date')
-            ->orderByDesc('closing_date')
-            ->first();
+/**
+ * True when today (or the given date) falls inside a term session, not a holiday break.
+ */
+if (!function_exists('is_school_in_session')) {
+    function is_school_in_session(\Carbon\CarbonInterface|string|null $date = null): bool
+    {
+        return app(\App\Services\AcademicCalendarService::class)->isSchoolInSession($date);
     }
 }
 

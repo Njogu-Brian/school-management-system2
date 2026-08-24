@@ -48,7 +48,12 @@ class SchoolDay extends Model
             return $record->type === self::TYPE_SCHOOL_DAY;
         }
 
-        // Default: if not in database and not weekend, assume it's a school day
+        // Inter-term holidays and midterm breaks are not school days even if
+        // the calendar row was never generated for that date.
+        if (! app(\App\Services\AcademicCalendarService::class)->isDateInTermSession($date)) {
+            return false;
+        }
+
         return true;
     }
 

@@ -13,6 +13,7 @@ use App\Models\Student;
 use App\Models\Academics\Classroom;
 use App\Models\AcademicYear;
 use App\Models\Term;
+use App\Services\AcademicCalendarService;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -21,6 +22,7 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        AcademicCalendarService::flush();
         
         // Ensure critical tables exist (settings and announcements for login page)
         if (!\Illuminate\Support\Facades\Schema::hasTable('settings')) {

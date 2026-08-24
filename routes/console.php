@@ -47,6 +47,11 @@ Schedule::command('system-alerts:escalate')
     ->name('system-alerts-escalate')
     ->withoutOverlapping();
 
+Schedule::command('academic:sync-current-term')
+    ->dailyAt('00:05')
+    ->name('academic-sync-current-term')
+    ->withoutOverlapping();
+
 Schedule::command('payment-plans:update-statuses')->dailyAt('00:15');
 
 Schedule::command('parent-wallet:send-saving-reminders')

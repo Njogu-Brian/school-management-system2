@@ -31,7 +31,8 @@ class InvoiceService
             ->where('term', $term)
             ->first();
         
-        // Resolve due_date from term's opening_date (academic days) when available
+        // Resolve due_date from the term's opening date (academic days).
+        // This stays on opening day even during the holiday before the term starts.
         $dueDate = $termModel && $termModel->opening_date ? $termModel->opening_date->toDateString() : null;
 
         // If found and soft deleted, restore it
