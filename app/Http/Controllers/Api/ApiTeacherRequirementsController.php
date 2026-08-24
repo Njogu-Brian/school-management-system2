@@ -126,12 +126,12 @@ class ApiTeacherRequirementsController extends Controller
                 'name' => $tpl->requirementType?->name ?? 'Requirement',
                 'brand' => $tpl->brand,
                 'unit' => $tpl->unit,
-                'quantity_required' => (float) ($existing->quantity_required ?? $tpl->quantity_per_student ?? 0),
-                'quantity_collected' => (float) ($existing->quantity_collected ?? 0),
-                'status' => $existing->status ?? 'pending',
+                'quantity_required' => (float) ($existing?->quantity_required ?? $tpl->quantity_per_student ?? 0),
+                'quantity_collected' => (float) ($existing?->quantity_collected ?? 0),
+                'status' => $existing?->status ?? 'pending',
                 'student_type' => $tpl->student_type,
                 'custody_type' => $tpl->custody_type,
-                'notes' => $existing->notes,
+                'notes' => $existing?->notes,
             ];
         });
 
