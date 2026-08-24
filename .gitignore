@@ -45,3 +45,17 @@ _stitch_inventory/
 # Local award certificate generation (templates, PDFs, dumps, scripts)
 /storage/certificates/
 /storage/temp_backup/
+
+# Local payroll review dumps
+/tmp_payroll_review/
+
+# Local Fun Day / trip reconciliation scripts and extracts
+/scripts/fun_day_*
+/scripts/trip_fun_day_*
+/scripts/faulu_ent_book*
+/scripts/statement_jul_aug_credits.csv
+/scripts/statement_raw_text.txt
+/scripts/rebuild_fun_day_report.py
+/scripts/reconcile_fun_day_faulu.py
+/scripts/extract_statement_match.py
+/scripts/build_paid_transport_list.py

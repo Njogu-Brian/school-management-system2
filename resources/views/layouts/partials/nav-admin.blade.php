@@ -1,4 +1,5 @@
 {{-- Role-appropriate dashboard links --}}
+@include('layouts.partials.nav-section', ['label' => 'Main'])
 @foreach(\App\Support\NavAccess::dashboardLinks() as $dashLink)
 <li>
     <a href="{{ route($dashLink['route']) }}"
@@ -31,6 +32,7 @@
 @endif
 
 <!-- Students -->
+@include('layouts.partials.nav-section', ['label' => 'Management'])
 @if(nav_can('students'))
 @php 
 $studentsActive = Request::is('students*')
@@ -357,39 +359,6 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 </a>
 @endif
 
-{{-- Campus & Weekly Reports --}}
-@if(nav_can('campus_reports'))
-@php
-    $campusReportsActive = Request::is('reports/heatmaps*') || Request::is('weekly-reports*');
-@endphp
-<a href="#campusReportsMenu" data-bs-toggle="collapse" aria-expanded="{{ $campusReportsActive ? 'true' : 'false' }}" class="{{ $campusReportsActive ? 'parent-active' : '' }}">
-    <i class="bi bi-grid-3x3-gap"></i> Campus & Weekly Reports
-</a>
-<div class="collapse {{ $campusReportsActive ? 'show' : '' }}" id="campusReportsMenu">
-    <a href="{{ route('reports.heatmaps.show', 'lower') }}" class="sublink {{ Request::is('reports/heatmaps/lower*') ? 'active' : '' }}">
-        <i class="bi bi-thermometer-half"></i> Heatmap – Lower
-    </a>
-    <a href="{{ route('reports.heatmaps.show', 'upper') }}" class="sublink {{ Request::is('reports/heatmaps/upper*') ? 'active' : '' }}">
-        <i class="bi bi-thermometer-half"></i> Heatmap – Upper
-    </a>
-    <a href="{{ route('reports.class-reports.index') }}" class="sublink {{ Request::is('weekly-reports/class-reports*') ? 'active' : '' }}">
-        <i class="bi bi-journal-text"></i> Class Reports
-    </a>
-    <a href="{{ route('reports.subject-reports.index') }}" class="sublink {{ Request::is('weekly-reports/subject-reports*') ? 'active' : '' }}">
-        <i class="bi bi-book"></i> Subject Reports
-    </a>
-    <a href="{{ route('reports.staff-weekly.index') }}" class="sublink {{ Request::is('weekly-reports/staff-weekly*') ? 'active' : '' }}">
-        <i class="bi bi-person-lines-fill"></i> Staff Weekly
-    </a>
-    <a href="{{ route('reports.student-followups.index') }}" class="sublink {{ Request::is('weekly-reports/student-followups*') ? 'active' : '' }}">
-        <i class="bi bi-person-check"></i> Student Followups
-    </a>
-    <a href="{{ route('reports.operations-facilities.index') }}" class="sublink {{ Request::is('weekly-reports/operations-facilities*') ? 'active' : '' }}">
-        <i class="bi bi-building-gear"></i> Operations & Facilities
-    </a>
-</div>
-@endif
-
 {{-- Behaviours --}}
 @if(nav_can('behaviours'))
 @php $behaviourActive = Request::is('academics/behaviours*') || Request::is('academics/student-behaviours*'); @endphp
@@ -404,6 +373,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         
 
 <!-- Finance -->
+@include('layouts.partials.nav-section', ['label' => 'Operations'])
 @if(nav_can('finance'))
 {{-- Finance --}}
 @php
@@ -1008,7 +978,42 @@ class="{{ $posActive ? 'parent-active' : '' }}">
 @include('layouts.partials.nav-website-cms')
 @endif
 
+{{-- Reports --}}
+@include('layouts.partials.nav-section', ['label' => 'Reports'])
+@if(nav_can('campus_reports'))
+@php
+    $campusReportsActive = Request::is('reports/heatmaps*') || Request::is('weekly-reports*');
+@endphp
+<a href="#campusReportsMenu" data-bs-toggle="collapse" aria-expanded="{{ $campusReportsActive ? 'true' : 'false' }}" class="{{ $campusReportsActive ? 'parent-active' : '' }}">
+    <i class="bi bi-grid-3x3-gap"></i> Campus & Weekly Reports
+</a>
+<div class="collapse {{ $campusReportsActive ? 'show' : '' }}" id="campusReportsMenu">
+    <a href="{{ route('reports.heatmaps.show', 'lower') }}" class="sublink {{ Request::is('reports/heatmaps/lower*') ? 'active' : '' }}">
+        <i class="bi bi-thermometer-half"></i> Heatmap – Lower
+    </a>
+    <a href="{{ route('reports.heatmaps.show', 'upper') }}" class="sublink {{ Request::is('reports/heatmaps/upper*') ? 'active' : '' }}">
+        <i class="bi bi-thermometer-half"></i> Heatmap – Upper
+    </a>
+    <a href="{{ route('reports.class-reports.index') }}" class="sublink {{ Request::is('weekly-reports/class-reports*') ? 'active' : '' }}">
+        <i class="bi bi-journal-text"></i> Class Reports
+    </a>
+    <a href="{{ route('reports.subject-reports.index') }}" class="sublink {{ Request::is('weekly-reports/subject-reports*') ? 'active' : '' }}">
+        <i class="bi bi-book"></i> Subject Reports
+    </a>
+    <a href="{{ route('reports.staff-weekly.index') }}" class="sublink {{ Request::is('weekly-reports/staff-weekly*') ? 'active' : '' }}">
+        <i class="bi bi-person-lines-fill"></i> Staff Weekly
+    </a>
+    <a href="{{ route('reports.student-followups.index') }}" class="sublink {{ Request::is('weekly-reports/student-followups*') ? 'active' : '' }}">
+        <i class="bi bi-person-check"></i> Student Followups
+    </a>
+    <a href="{{ route('reports.operations-facilities.index') }}" class="sublink {{ Request::is('weekly-reports/operations-facilities*') ? 'active' : '' }}">
+        <i class="bi bi-building-gear"></i> Operations & Facilities
+    </a>
+</div>
+@endif
+
 <!-- Settings -->
+@include('layouts.partials.nav-section', ['label' => 'System'])
 @if(nav_can('settings'))
 @php $isSettingsActive = Request::is('settings*'); @endphp
 @php 

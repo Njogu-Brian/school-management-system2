@@ -130,10 +130,100 @@
             color: white;
             position: fixed;
             top: 0; left: 0;
-            padding-top: 20px;
-            overflow-y: auto;
-            transition: all 0.3s ease;
+            padding-top: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.25s ease, left 0.3s ease;
             z-index: 900;
+        }
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0 4px 8px;
+            margin: 0;
+        }
+        .sidebar-nav > li {
+            list-style: none;
+            margin: 0;
+        }
+        .nav-section-label {
+            display: block;
+            padding: 16px 16px 4px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.48);
+        }
+        .sidebar-footer {
+            flex-shrink: 0;
+            border-top: 1px solid rgba(255,255,255,0.12);
+            background: var(--brand-primary);
+            padding: 6px 8px 10px;
+        }
+        .sidebar-collapse-btn {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            background: transparent;
+            border: 0;
+            color: rgba(255,255,255,0.88);
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+        .sidebar-collapse-btn:hover {
+            background: rgba(255,255,255,0.08);
+        }
+        .sidebar-collapse-btn i {
+            margin-right: 10px;
+            transition: transform 0.2s ease;
+        }
+        body.sidebar-collapsed .sidebar { width: 72px; }
+        body.sidebar-collapsed .content,
+        body.sidebar-collapsed .content.finance-content { margin-left: 72px; }
+        body.sidebar-collapsed .nav-section-label,
+        body.sidebar-collapsed .sidebar .brand h5,
+        body.sidebar-collapsed .sidebar-collapse-label { display: none !important; }
+        @media (min-width: 992px) {
+            body.sidebar-collapsed .sidebar-nav .collapse { display: none !important; }
+        }
+        body.sidebar-collapsed .sidebar-nav > a,
+        body.sidebar-collapsed .sidebar-nav > li > a,
+        body.sidebar-collapsed .sidebar-footer a,
+        body.sidebar-collapsed .sidebar-collapse-btn {
+            justify-content: center;
+            font-size: 0;
+            line-height: 0;
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+        body.sidebar-collapsed .sidebar a i,
+        body.sidebar-collapsed .sidebar-collapse-btn i {
+            font-size: 1.15rem;
+            line-height: 1;
+            margin-right: 0;
+        }
+        body.sidebar-collapsed .sidebar-collapse-btn i {
+            transform: rotate(180deg);
+        }
+        .header-search .search-kbd {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--brand-muted);
+            background: color-mix(in srgb, var(--brand-border) 50%, #fff 50%);
+            border: 1px solid var(--brand-border);
+            border-radius: 6px;
+            padding: 1px 6px;
+            pointer-events: none;
         }
         .sidebar .brand {
             text-align: center;
@@ -415,9 +505,24 @@
         .avatar-44 { width:44px; height:44px; border-radius:50%; object-fit:cover; display:inline-block; }
 
         @media(max-width:992px){
-            .sidebar{ left:-240px; }
+            .sidebar{ left:-240px; width: 240px; }
             .sidebar.active{ left:0; }
             .content{ margin-left:0; }
+            .sidebar-collapse-btn { display: none !important; }
+            body.sidebar-collapsed .sidebar { width: 240px; }
+            body.sidebar-collapsed .content,
+            body.sidebar-collapsed .content.finance-content { margin-left: 0; }
+            body.sidebar-collapsed .nav-section-label,
+            body.sidebar-collapsed .sidebar .brand h5 { display: block !important; }
+            body.sidebar-collapsed .sidebar-nav > a,
+            body.sidebar-collapsed .sidebar-nav > li > a,
+            body.sidebar-collapsed .sidebar-footer a {
+                justify-content: flex-start;
+                font-size: 15px;
+                line-height: inherit;
+                padding: 10px 16px;
+            }
+            body.sidebar-collapsed .sidebar a i { margin-right: 10px; }
             .content.finance-content { 
                 padding: 0;
                 margin-left: 0; /* Remove margin on mobile */
@@ -462,7 +567,7 @@
             width: 100%;
             border-radius: 999px;
             border: 1px solid var(--brand-border);
-            padding: 8px 14px 8px 38px;
+            padding: 8px 72px 8px 38px;
             background: var(--brand-surface);
             color: var(--brand-text);
             min-height: 38px;
@@ -525,6 +630,15 @@
 </head>
 <body class="@auth with-sidebar @endauth">
     @auth
+    <script>
+        (function () {
+            try {
+                if (localStorage.getItem('erpSidebarCollapsed') === '1' && window.matchMedia('(min-width: 992px)').matches) {
+                    document.body.classList.add('sidebar-collapsed');
+                }
+            } catch (e) {}
+        })();
+    </script>
     <button class="sidebar-toggle d-lg-none" id="sidebarToggle"> <i class="bi bi-list"></i></button>
 
     <div class="sidebar">
@@ -533,13 +647,19 @@
             <h5>{{ $appName }}</h5>
         </div>
 
+        <nav class="sidebar-nav" aria-label="Primary">
 @include(\App\Support\NavAccess::resolvePartial())
+        </nav>
 
-
-        <!-- Logout -->
-        <a href="#" onclick="event.preventDefault();document.getElementById('logout-form').submit();" class="text-danger">
-            <i class="bi bi-box-arrow-right"></i> Logout
-        </a>
+        <div class="sidebar-footer">
+            <a href="#" onclick="event.preventDefault();document.getElementById('logout-form').submit();" class="text-danger" title="Logout">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </a>
+            <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar">
+                <i class="bi bi-chevron-left"></i>
+                <span class="sidebar-collapse-label">Collapse</span>
+            </button>
+        </div>
         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">@csrf</form>
     </div>
      @endauth
@@ -598,6 +718,10 @@
                         </div>
                         <div class="d-flex flex-column">
                             <span class="fw-semibold">{{ auth()->user()->name ?? 'User' }}</span>
+                            @php $headerRole = auth()->user()->roles->pluck('name')->first(); @endphp
+                            @if($headerRole)
+                            <small class="text-muted" style="line-height:1.1;">{{ $headerRole }}</small>
+                            @endif
                         </div>
                     </div>
                     @php
@@ -653,6 +777,28 @@
                         document.body.classList.toggle('sidebar-open', sidebar.classList.contains('active'));
                     });
                 });
+            }
+            const collapseBtn = document.getElementById('sidebarCollapseBtn');
+            if (collapseBtn) {
+                const syncCollapse = function (collapsed) {
+                    document.body.classList.toggle('sidebar-collapsed', collapsed);
+                    collapseBtn.setAttribute('title', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+                    try { localStorage.setItem('erpSidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
+                };
+                collapseBtn.addEventListener('click', function () {
+                    syncCollapse(!document.body.classList.contains('sidebar-collapsed'));
+                });
+                if (sidebar) {
+                    sidebar.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function (trigger) {
+                        trigger.addEventListener('click', function (e) {
+                            if (!document.body.classList.contains('sidebar-collapsed')) return;
+                            if (!window.matchMedia('(min-width: 992px)').matches) return;
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            syncCollapse(false);
+                        });
+                    });
+                }
             }
         });
         (function(){
@@ -1031,6 +1177,14 @@
             box.style.display = 'block';
           }
         }, 250);
+      });
+
+      document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+          e.preventDefault();
+          input.focus();
+          input.select();
+        }
       });
 
       document.addEventListener('click', function (e) {

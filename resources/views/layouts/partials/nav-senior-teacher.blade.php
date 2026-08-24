@@ -25,6 +25,7 @@
 @endphp
 
 {{-- Dashboard --}}
+@include('layouts.partials.nav-section', ['label' => 'Main'])
 <a href="{{ route('senior_teacher.dashboard') }}"
    class="{{ Request::is('senior-teacher/home') ? 'active' : '' }}">
   <i class="bi bi-speedometer2"></i> Dashboard
@@ -37,7 +38,7 @@
 
 {{-- Supervisory Section --}}
 <div class="mt-3 pt-3 border-top">
-  <div class="text-muted small fw-bold px-3 mb-2">Supervisory</div>
+  <div class="nav-section-label">Supervisory</div>
   
   {{-- Supervised Classrooms --}}
   <a href="{{ route('senior_teacher.supervised_classrooms') }}" 
@@ -99,7 +100,7 @@
 
 {{-- Teaching Section --}}
 <div class="mt-3 pt-3 border-top">
-  <div class="text-muted small fw-bold px-3 mb-2">Teaching & Academics</div>
+  <div class="nav-section-label">Teaching & Academics</div>
 
   {{-- Assessments --}}
   <a href="{{ route('academics.assessments.index') }}" class="{{ Request::is('academics/assessments*') ? 'active' : '' }}">
@@ -349,7 +350,7 @@
 
 {{-- Personal Section --}}
 <div class="mt-3 pt-3 border-top">
-  <div class="text-muted small fw-bold px-3 mb-2">Personal</div>
+  <div class="nav-section-label">Personal</div>
 
   {{-- Salary & Payslips --}}
   <a href="{{ route('senior_teacher.salary.index') }}" class="{{ $salaryActive ? 'active' : '' }}">
@@ -370,7 +371,7 @@
 
 {{-- Transport Section --}}
 <div class="mt-3 pt-3 border-top">
-  <div class="text-muted small fw-bold px-3 mb-2">Transport</div>
+  <div class="nav-section-label">Transport</div>
 
   {{-- Transport Dashboard --}}
   <a href="{{ url('/transport') }}" class="{{ $transportActive ? 'active' : '' }}">
@@ -385,7 +386,7 @@
 
 {{-- Inventory & Requirements Section --}}
 <div class="mt-3 pt-3 border-top">
-  <div class="text-muted small fw-bold px-3 mb-2">Inventory & Requirements</div>
+  <div class="nav-section-label">Inventory & Requirements</div>
 
   {{-- Requirements Collection --}}
   <a href="{{ route('inventory.student-requirements.index') }}" class="{{ $requirementsActive ? 'active' : '' }}">
@@ -398,7 +399,7 @@
   $campusReportsActive = Request::is('reports/heatmaps*') || Request::is('weekly-reports*');
 @endphp
 <div class="mt-3 pt-3 border-top">
-  <div class="text-muted small fw-bold px-3 mb-2">Reports</div>
+  <div class="nav-section-label">Reports</div>
 
   {{-- Campus Heatmaps (access by assigned campus) --}}
   <a href="#campusReportsMenu" data-bs-toggle="collapse" aria-expanded="{{ $campusReportsActive ? 'true' : 'false' }}" class="{{ $campusReportsActive ? 'parent-active' : '' }}">
@@ -436,7 +437,7 @@
 
 {{-- Communication Section --}}
 <div class="mt-3 pt-3 border-top">
-  <div class="text-muted small fw-bold px-3 mb-2">Communication</div>
+  <div class="nav-section-label">Communication</div>
 
   {{-- Announcements --}}
   <a href="{{ route('senior_teacher.announcements.index') }}" 

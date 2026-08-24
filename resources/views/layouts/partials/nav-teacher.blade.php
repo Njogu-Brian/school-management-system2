@@ -26,6 +26,7 @@
 @endphp
 
 {{-- Dashboard --}}
+@include('layouts.partials.nav-section', ['label' => 'Main'])
 <a href="{{ route('teacher.dashboard') }}"
    class="{{ Request::is('teacher/home') ? 'active' : '' }}">
   <i class="bi bi-speedometer2"></i> Dashboard
@@ -37,6 +38,7 @@
 </a>
 
 {{-- My Students --}}
+@include('layouts.partials.nav-section', ['label' => 'Classroom'])
 <a href="{{ $teacherUrl('teacher.students.index', '/my-students') }}" class="{{ $studentsActive ? 'active' : '' }}">
   <i class="bi bi-people"></i> My Students
 </a>
@@ -100,6 +102,7 @@
 </div>
 
 {{-- Exam Marks --}}
+@include('layouts.partials.nav-section', ['label' => 'Academics'])
 @if (can_access('exam_marks.view') || can_access('exam_marks.create'))
   <a href="#examMarksMenu" data-bs-toggle="collapse"
      aria-expanded="{{ $marksActive ? 'true' : 'false' }}"
@@ -140,6 +143,7 @@
 </a>
 
 {{-- Weekly Reports --}}
+@include('layouts.partials.nav-section', ['label' => 'Reports'])
 @php $weeklyReportsActive = Request::is('weekly-reports*'); @endphp
 <a href="#weeklyReportsMenu" data-bs-toggle="collapse"
    aria-expanded="{{ $weeklyReportsActive ? 'true' : 'false' }}"
@@ -247,11 +251,13 @@
 @endif
 
 {{-- Transport --}}
+@include('layouts.partials.nav-section', ['label' => 'Operations'])
 <a href="{{ $teacherUrl('teacher.transport.index', '/teacher/transport') }}" class="{{ $transportActive ? 'active' : '' }}">
   <i class="bi bi-truck"></i> School Transport
 </a>
 
 {{-- Salary & Payslips (routes live in routes/teacher.php; fallback URL if route cache omits names) --}}
+@include('layouts.partials.nav-section', ['label' => 'Personal'])
 <a href="{{ $teacherUrl('teacher.salary.index', '/teacher/salary') }}" class="{{ $salaryActive ? 'active' : '' }}">
   <i class="bi bi-cash-stack"></i> Salary & Payslips
 </a>
@@ -344,9 +350,7 @@
 
 {{-- Supervisor Section (only for supervisors) --}}
 @if(is_supervisor())
-<div class="mt-3 pt-3 border-top">
-  <div class="text-muted small fw-bold px-3 mb-2">Supervisor</div>
-  
+@include('layouts.partials.nav-section', ['label' => 'Supervisor']) 
   {{-- Lesson Plans Approval --}}
   <a href="{{ route('academics.lesson-plans.index') }}" 
      class="{{ Request::is('academics/lesson-plans*') ? 'active' : '' }}">
@@ -376,5 +380,4 @@
      class="{{ Request::is('supervisor/attendance*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Staff Attendance
   </a>
-</div>
 @endif
