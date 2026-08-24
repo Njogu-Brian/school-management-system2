@@ -105,6 +105,12 @@ class StaffController extends Controller
 
     public function store(Request $request)
 {
+    $request->merge([
+        'biometric_emp_code' => $request->filled('biometric_emp_code')
+            ? trim((string) $request->biometric_emp_code)
+            : null,
+    ]);
+
     // Validate core, HR, and access role
     $request->validate([
         'first_name'   => 'required|string|max:255',
@@ -131,6 +137,7 @@ class StaffController extends Controller
             'basic_salary' => 'nullable|numeric|min:0',
             'max_lessons_per_week' => 'nullable|integer|min:0',
             'payment_method' => 'nullable|in:bank,mpesa',
+            'biometric_emp_code' => 'nullable|string|max:32|unique:staff,biometric_emp_code',
             'statutory_exemptions' => 'nullable|array',
             'statutory_exemptions.*' => 'in:nssf,nhif,shif,housing_levy,paye',
         ]);
@@ -176,8 +183,13 @@ class StaffController extends Controller
             'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
             'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account','payment_method',
             'department_id','job_title_id','supervisor_id','staff_category_id',
-            'basic_salary','max_lessons_per_week'
+            'basic_salary','max_lessons_per_week',
+            'biometric_emp_code',
         ]);
+        $staffData['biometric_emp_code'] = filled($staffData['biometric_emp_code'] ?? null)
+            ? trim((string) $staffData['biometric_emp_code'])
+            : null;
+        $staffData['biometric_exempt'] = $request->boolean('biometric_exempt');
         $phoneService = app(\App\Services\PhoneNumberService::class);
         $staffData['phone_number'] = $phoneService->formatWithCountryCode($staffData['phone_number'] ?? null, '+254');
         $staffData['emergency_contact_phone'] = $phoneService->formatWithCountryCode($staffData['emergency_contact_phone'] ?? null, '+254');
@@ -391,6 +403,12 @@ class StaffController extends Controller
         $staff = Staff::with('user')->findOrFail($id);
         $user  = $staff->user;
 
+        $request->merge([
+            'biometric_emp_code' => $request->filled('biometric_emp_code')
+                ? trim((string) $request->biometric_emp_code)
+                : null,
+        ]);
+
         $request->validate([
             'first_name'   => 'required|string|max:255',
             'last_name'    => 'required|string|max:255',
@@ -420,6 +438,7 @@ class StaffController extends Controller
             'basic_salary' => 'nullable|numeric|min:0',
             'max_lessons_per_week' => 'nullable|integer|min:0',
             'payment_method' => 'nullable|in:bank,mpesa',
+            'biometric_emp_code' => 'nullable|string|max:32|unique:staff,biometric_emp_code,'.$staff->id,
             'statutory_exemptions' => 'nullable|array',
             'statutory_exemptions.*' => 'in:nssf,nhif,shif,housing_levy,paye',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png|max:2048',
@@ -459,8 +478,13 @@ class StaffController extends Controller
                 'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account','payment_method',
                 'department_id','job_title_id','supervisor_id','staff_category_id',
                 'hire_date','termination_date','employment_status','employment_type',
-                'contract_start_date','contract_end_date'
+                'contract_start_date','contract_end_date',
+                'biometric_emp_code',
             ]);
+            $staffData['biometric_emp_code'] = filled($staffData['biometric_emp_code'] ?? null)
+                ? trim((string) $staffData['biometric_emp_code'])
+                : null;
+            $staffData['biometric_exempt'] = $request->boolean('biometric_exempt');
             $phoneService = app(\App\Services\PhoneNumberService::class);
             $staffData['phone_number'] = $phoneService->formatWithCountryCode($staffData['phone_number'] ?? null, '+254');
             $staffData['emergency_contact_phone'] = $phoneService->formatWithCountryCode($staffData['emergency_contact_phone'] ?? null, '+254');

@@ -88,3 +88,9 @@ Schedule::call([BackupRestoreController::class, 'runScheduledIfDue'])
     ->withoutOverlapping();
 
 Schedule::command('backup:prune')->dailyAt('03:15');
+
+Schedule::command('biotime:sync --pull')
+    ->everyTwoMinutes()
+    ->name('biotime-sync-pull')
+    ->withoutOverlapping()
+    ->when(fn () => filled(config('biotime.base_url')) && filled(config('biotime.password')));

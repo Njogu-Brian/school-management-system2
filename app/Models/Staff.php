@@ -19,7 +19,7 @@ class Staff extends Model
     ];
 
     protected $fillable = [
-        'user_id','staff_id','first_name','middle_name','last_name',
+        'user_id','staff_id','biometric_emp_code','biometric_exempt','first_name','middle_name','last_name',
         'work_email','personal_email','phone_number','id_number',
         'date_of_birth','gender','marital_status','residential_address',
         'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
@@ -38,6 +38,7 @@ class Staff extends Model
         'contract_end_date' => 'date',
         'date_of_birth' => 'date',
         'basic_salary' => 'decimal:2',
+        'biometric_exempt' => 'boolean',
     ];
 
     public function getPhotoUrlAttribute(): string

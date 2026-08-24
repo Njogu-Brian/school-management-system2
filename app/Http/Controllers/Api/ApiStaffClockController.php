@@ -266,6 +266,13 @@ class ApiStaffClockController extends Controller
 
     public function clockIn(Request $request)
     {
+        if (! config('biotime.gps_clock_enabled')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sign in at the school gate fingerprint/card machine. GPS clock-in is turned off.',
+            ], 422);
+        }
+
         if ($response = $this->ensureStaffProfileLinked($request)) {
             return $response;
         }
@@ -368,6 +375,13 @@ class ApiStaffClockController extends Controller
 
     public function clockOut(Request $request)
     {
+        if (! config('biotime.gps_clock_enabled')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sign out at the school gate fingerprint/card machine. GPS clock-out is turned off.',
+            ], 422);
+        }
+
         if ($response = $this->ensureStaffProfileLinked($request)) {
             return $response;
         }

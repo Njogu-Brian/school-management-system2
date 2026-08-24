@@ -34,6 +34,13 @@ Route::post('/password/reset', [AuthApiController::class, 'resetPassword']);
 /** Mobile crash ingest — auth optional (login-screen crashes). */
 Route::post('/app-issues', [\App\Http\Controllers\Api\ApiAppIssuesController::class, 'store']);
 
+/** BioTime office-PC punch push (token in X-BioTime-Token). */
+Route::prefix('integrations/biotime')->group(function () {
+    $ingest = \App\Http\Controllers\Api\ApiBioTimeIngestController::class;
+    Route::get('/health', [$ingest, 'health']);
+    Route::post('/punches', [$ingest, 'store']);
+});
+
 /*
 |--------------------------------------------------------------------------
 | Parent account claim (first-time self-service signup) — public

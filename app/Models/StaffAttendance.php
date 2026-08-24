@@ -26,6 +26,7 @@ class StaffAttendance extends Model
         'check_out_distance_meters',
         'check_out_accuracy_meters',
         'notes',
+        'source',
         'marked_by',
     ];
 

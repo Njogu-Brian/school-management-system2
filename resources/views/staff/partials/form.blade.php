@@ -27,6 +27,11 @@
             <input type="text" name="staff_id" class="form-control" value="{{ old('staff_id', $staff->staff_id ?? '') }}" placeholder="Auto if blank">
           </div>
           <div class="col-md-3">
+            <label class="form-label">K40 / BioTime PIN</label>
+            <input type="text" name="biometric_emp_code" class="form-control" value="{{ old('biometric_emp_code', $staff->biometric_emp_code ?? '') }}" placeholder="Must match BioTime emp code" inputmode="numeric">
+            <div class="form-text">Numeric ID on the fingerprint machine.</div>
+          </div>
+          <div class="col-md-3">
             <label class="form-label">First Name *</label>
             <input type="text" name="first_name" class="form-control" value="{{ old('first_name', $staff->first_name ?? '') }}" required>
           </div>
@@ -129,6 +134,13 @@
           </div>
 
           <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">HR</h6></div>
+          <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="biometric_exempt" id="biometric_exempt" value="1"
+                     @checked(old('biometric_exempt', $staff->biometric_exempt ?? false))>
+              <label class="form-check-label" for="biometric_exempt">Exempt from gate attendance</label>
+            </div>
+          </div>
           <div class="col-md-3">
             <label class="form-label">Department</label>
             <select name="department_id" class="form-select">
