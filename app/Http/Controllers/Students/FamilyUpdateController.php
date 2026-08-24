@@ -348,6 +348,12 @@ class FamilyUpdateController extends Controller
             'ip' => $request->ip(),
         ]);
 
+        $submitLock = Cache::lock('family-update-submit:'.$token, 20);
+        if (! $submitLock->get()) {
+            return redirect()->route('family-update.form', $token)
+                ->with('success', 'Your details were already saved. You can close this page.');
+        }
+
         try {
             $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->firstOrFail();
             \Log::info('FamilyUpdate Submit: Link found', [
@@ -451,6 +457,7 @@ class FamilyUpdateController extends Controller
                 'input_sample' => array_slice($request->except(['_token', '_method', 'students']), 0, 5),
             ]);
             
+            $submitLock->release();
             return redirect()->route('family-update.form', $token)
                 ->withErrors($e->errors())
                 ->withInput()
@@ -465,6 +472,7 @@ class FamilyUpdateController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             
+            $submitLock->release();
             return redirect()->route('family-update.form', $token)
                 ->with('error', 'Validation error: ' . $e->getMessage() . '. Please check the form and try again.');
         }
@@ -529,57 +537,67 @@ class FamilyUpdateController extends Controller
                     
                     // Father fields
                     if (array_key_exists('father_name', $validated)) {
-                        $parentData['father_name'] = $validated['father_name'] ?: null;
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'father_name', $validated['father_name'] ?? null);
                     }
                     if (array_key_exists('father_id_number', $validated)) {
-                        $parentData['father_id_number'] = $validated['father_id_number'] ?: null;
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'father_id_number', $validated['father_id_number'] ?? null);
                     }
                     if (array_key_exists('father_phone', $validated)) {
-                        $parentData['father_phone'] = !empty($validated['father_phone']) 
-                            ? $this->formatPhoneWithCode($validated['father_phone'], $fatherCountryCode) 
-                            : null;
+                        if (!empty($validated['father_phone'])) {
+                            $parentData['father_phone'] = $this->formatPhoneWithCode($validated['father_phone'], $fatherCountryCode);
+                        } elseif (!filled($parent->father_phone)) {
+                            $parentData['father_phone'] = null;
+                        }
                     }
                     if (array_key_exists('father_whatsapp', $validated)) {
-                        $parentData['father_whatsapp'] = !empty($validated['father_whatsapp']) 
-                            ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherWhatsappCountryCode) 
-                            : null;
+                        if (!empty($validated['father_whatsapp'])) {
+                            $parentData['father_whatsapp'] = $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherWhatsappCountryCode);
+                        } elseif (!filled($parent->father_whatsapp)) {
+                            $parentData['father_whatsapp'] = null;
+                        }
                     }
                     if (array_key_exists('father_email', $validated)) {
-                        $parentData['father_email'] = $validated['father_email'] ?: null;
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'father_email', $validated['father_email'] ?? null);
                     }
                     
                     // Mother fields
                     if (array_key_exists('mother_name', $validated)) {
-                        $parentData['mother_name'] = $validated['mother_name'] ?: null;
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'mother_name', $validated['mother_name'] ?? null);
                     }
                     if (array_key_exists('mother_id_number', $validated)) {
-                        $parentData['mother_id_number'] = $validated['mother_id_number'] ?: null;
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'mother_id_number', $validated['mother_id_number'] ?? null);
                     }
                     if (array_key_exists('mother_phone', $validated)) {
-                        $parentData['mother_phone'] = !empty($validated['mother_phone']) 
-                            ? $this->formatPhoneWithCode($validated['mother_phone'], $motherCountryCode) 
-                            : null;
+                        if (!empty($validated['mother_phone'])) {
+                            $parentData['mother_phone'] = $this->formatPhoneWithCode($validated['mother_phone'], $motherCountryCode);
+                        } elseif (!filled($parent->mother_phone)) {
+                            $parentData['mother_phone'] = null;
+                        }
                     }
                     if (array_key_exists('mother_whatsapp', $validated)) {
-                        $parentData['mother_whatsapp'] = !empty($validated['mother_whatsapp']) 
-                            ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherWhatsappCountryCode) 
-                            : null;
+                        if (!empty($validated['mother_whatsapp'])) {
+                            $parentData['mother_whatsapp'] = $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherWhatsappCountryCode);
+                        } elseif (!filled($parent->mother_whatsapp)) {
+                            $parentData['mother_whatsapp'] = null;
+                        }
                     }
                     if (array_key_exists('mother_email', $validated)) {
-                        $parentData['mother_email'] = $validated['mother_email'] ?: null;
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'mother_email', $validated['mother_email'] ?? null);
                     }
                     
                     // Guardian fields
                     if (array_key_exists('guardian_name', $validated)) {
-                        $parentData['guardian_name'] = $validated['guardian_name'] ?: null;
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'guardian_name', $validated['guardian_name'] ?? null);
                     }
                     if (array_key_exists('guardian_phone', $validated)) {
-                        $parentData['guardian_phone'] = !empty($validated['guardian_phone']) 
-                            ? $this->formatPhoneWithCode($validated['guardian_phone'], $guardianCountryCode) 
-                            : null;
+                        if (!empty($validated['guardian_phone'])) {
+                            $parentData['guardian_phone'] = $this->formatPhoneWithCode($validated['guardian_phone'], $guardianCountryCode);
+                        } elseif (!filled($parent->guardian_phone)) {
+                            $parentData['guardian_phone'] = null;
+                        }
                     }
                     if (array_key_exists('guardian_relationship', $validated)) {
-                        $parentData['guardian_relationship'] = $validated['guardian_relationship'] ?: null;
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'guardian_relationship', $validated['guardian_relationship'] ?? null);
                     }
                     if (array_key_exists('marital_status', $validated)) {
                         $parentData['marital_status'] = $validated['marital_status'] ?: null;
@@ -1100,6 +1118,7 @@ class FamilyUpdateController extends Controller
                 'token' => $token,
             ]);
             
+            $submitLock->release();
             return redirect()->route('family-update.form', $token)
                 ->withErrors($e->errors())
                 ->withInput()
@@ -1117,6 +1136,7 @@ class FamilyUpdateController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             
+            $submitLock->release();
             return redirect()->route('family-update.form', $token)
                 ->with('error', 'Database error occurred: ' . $e->getMessage() . '. Please try again or contact support.');
                 
@@ -1133,6 +1153,7 @@ class FamilyUpdateController extends Controller
                 'family_id' => $family->id ?? null,
             ]);
             
+            $submitLock->release();
             return redirect()->route('family-update.form', $token)
                 ->with('error', 'An error occurred while updating: ' . $e->getMessage() . '. Please check the logs for details.');
         }
@@ -1147,6 +1168,7 @@ class FamilyUpdateController extends Controller
                 'success_flag' => $transactionSuccess,
             ]);
             
+            $submitLock->release();
             return redirect()->route('family-update.form', $token)
                 ->with('error', 'Update failed: ' . $errorMsg . '. Please try again or contact support. Check logs for details.');
         }
@@ -1163,6 +1185,7 @@ class FamilyUpdateController extends Controller
                 'result' => $transactionResult,
             ]);
             
+            $submitLock->release();
             return redirect()->route('family-update.form', $token)
                 ->with('warning', 'No changes were detected. Please make sure you modified at least one field before submitting.');
         }
@@ -1205,6 +1228,21 @@ class FamilyUpdateController extends Controller
         
         return redirect()->route('family-update.form', $token)
             ->with('success', $successMessage);
+    }
+
+    /**
+     * Public forms often submit empty text boxes. Do not wipe a stored value.
+     */
+    private function assignParentFieldUnlessBlanking(array &$parentData, ParentInfo $parent, string $field, $incoming): void
+    {
+        $incoming = is_string($incoming) ? trim($incoming) : $incoming;
+        $incoming = ($incoming === '' || $incoming === null) ? null : $incoming;
+
+        if ($incoming === null && filled($parent->{$field})) {
+            return;
+        }
+
+        $parentData[$field] = $incoming;
     }
 
     private function getCountryCodes(): array

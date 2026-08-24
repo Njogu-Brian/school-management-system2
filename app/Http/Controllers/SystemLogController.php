@@ -264,7 +264,17 @@ class SystemLogController extends Controller
             return 'communications';
         }
 
-        if (str_contains($m, 'whatsapp')) {
+        // Ignore parent field names like father_whatsapp so Family Update dumps
+        // are not tagged as WhatsApp sends.
+        $whatsappProbe = str_replace([
+            'father_whatsapp_country_code',
+            'mother_whatsapp_country_code',
+            'guardian_whatsapp_country_code',
+            'father_whatsapp',
+            'mother_whatsapp',
+            'guardian_whatsapp',
+        ], '', $m);
+        if (str_contains($whatsappProbe, 'whatsapp')) {
             return 'whatsapp';
         }
 

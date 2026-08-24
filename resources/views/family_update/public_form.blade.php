@@ -723,7 +723,10 @@
 
                         <div class="sticky-actions">
                             <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-primary btn-lg">Save updates</button>
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <span class="submit-text">Save updates</span>
+                                    <span class="submit-loading" style="display:none">Saving…</span>
+                                </button>
                                 <div class="text-muted small text-center">You can revisit this link anytime to make further updates.</div>
                             </div>
                         </div>
