@@ -25,6 +25,8 @@ class WhatsAppRecipientTest extends TestCase
         $this->assertFalse($whatsapp->isValidRecipient('12345'));
         $this->assertTrue($whatsapp->isValidRecipient('0712345678'));
         $this->assertTrue($whatsapp->isValidRecipient('+254712345678'));
+        $this->assertTrue($whatsapp->isValidRecipient('+4917697784839'));
+        $this->assertSame('4917697784839', $whatsapp->normalizeRecipient('+4917697784839'));
     }
 
     public function test_flattens_newlines_in_template_body_parameter(): void

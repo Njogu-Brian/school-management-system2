@@ -324,7 +324,19 @@ class WhatsAppService
 
     public function isValidRecipient(string $number): bool
     {
-        return (bool) preg_match('/^254[17]\d{8}$/', $this->normalizeRecipient($number));
+        $normalized = $this->normalizeRecipient($number);
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        // Kenyan mobiles stay strictly 254 + 7/1 + 8 digits.
+        if (str_starts_with($normalized, '254')) {
+            return (bool) preg_match('/^254[17]\d{8}$/', $normalized);
+        }
+
+        // Other countries: E.164 without +, 8–15 digits, no leading zero.
+        return (bool) preg_match('/^[1-9]\d{7,14}$/', $normalized);
     }
 
     public function normalizeRecipient(string $number): string
