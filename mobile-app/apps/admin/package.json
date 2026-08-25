@@ -15,7 +15,9 @@
     "android:local": "expo run:android",
     "android:device": "expo run:android --device",
     "logs:android": "powershell -ExecutionPolicy Bypass -File ./scripts/capture-launch-logs.ps1",
-    "icons:pad": "node ./scripts/pad-app-icons.mjs"
+    "icons:pad": "node ./scripts/pad-app-icons.mjs",
+    "update:preview": "eas update --channel preview --message",
+    "update:production": "eas update --channel production --message"
   },
   "dependencies": {
     "@erp/core": "*",

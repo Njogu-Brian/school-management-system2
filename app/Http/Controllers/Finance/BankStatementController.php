@@ -7,6 +7,7 @@ use App\Models\{
     BankStatementTransaction, BankAccount, Student, Family, MpesaC2BTransaction, Payment
 };
 use App\Services\BankStatementParser;
+use App\Services\Finance\MpesaStatementIdentity;
 use App\Services\PaymentAllocationService;
 use App\Services\SwimmingTransactionService;
 use App\Services\UnifiedTransactionService;
@@ -571,7 +572,27 @@ class BankStatementController extends Controller
             return $transaction;
         });
 
-        return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts', 'totalAmount', 'totalCount', 'perPageOptions', 'currentPerPage'));
+        $c2bStatementPhones = BankStatementTransaction::maskedPhonesByReference(
+            $transactions->getCollection()
+                ->filter(fn ($t) => $t instanceof MpesaC2BTransaction)
+                ->map(fn ($t) => $t->trans_id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all()
+        );
+
+        return view('finance.bank-statements.index', compact(
+            'transactions',
+            'bankAccounts',
+            'view',
+            'counts',
+            'totalAmount',
+            'totalCount',
+            'perPageOptions',
+            'currentPerPage',
+            'c2bStatementPhones'
+        ));
     }
 
     /**
@@ -988,7 +1009,10 @@ class BankStatementController extends Controller
             'transaction_type' => $isC2B ? 'credit' : ($transaction->transaction_type ?? 'credit'),
             'reference_number' => $isC2B ? $transaction->trans_id : $transaction->reference_number,
             'description' => $isC2B ? ($transaction->bill_ref_number ?? 'M-PESA Payment') : $transaction->description,
-            'phone_number' => $isC2B ? ($transaction->formatted_phone ?? $transaction->msisdn) : $transaction->phone_number,
+            'phone_number' => MpesaStatementIdentity::phoneForTransaction(
+                $transaction,
+                $isC2B ? BankStatementTransaction::maskedPhonesByReference(array_filter([$transaction->trans_id])) : []
+            ),
             'payer_name' => $isC2B ? $transaction->full_name : $transaction->payer_name,
             'student_id' => $transaction->student_id,
             'family_id' => $isC2B ? null : ($transaction->family_id ?? null),

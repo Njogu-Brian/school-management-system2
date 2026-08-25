@@ -231,15 +231,19 @@ export const SettingsScreen: React.FC = () => {
       >
         <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>Appearance</Text>
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-          Theme: {themeMode}
+          Automatic uses light during the day and switches to dark from 7:00 pm.
         </Text>
         <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-          {(['auto', 'light', 'dark'] as const).map((mode) => (
+          {([
+            { id: 'auto' as const, label: 'Automatic' },
+            { id: 'light' as const, label: 'Light' },
+            { id: 'dark' as const, label: 'Dark' },
+          ]).map((mode) => (
             <Button
-              key={mode}
-              label={mode}
-              variant={themeMode === mode ? 'primary' : 'secondary'}
-              onPress={() => setThemeMode(mode)}
+              key={mode.id}
+              label={mode.label}
+              variant={themeMode === mode.id ? 'primary' : 'secondary'}
+              onPress={() => setThemeMode(mode.id)}
             />
           ))}
         </View>

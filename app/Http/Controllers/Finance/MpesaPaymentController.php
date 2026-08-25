@@ -430,6 +430,44 @@ class MpesaPaymentController extends Controller
     }
 
     /**
+     * First usable parent M-PESA number for a student (editable on the pay form).
+     */
+    private function parentMpesaPhone(?Student $student): ?string
+    {
+        if (! $student) {
+            return null;
+        }
+        $student->loadMissing(['parent', 'family']);
+        $parent = $student->parent;
+        $family = $student->family;
+        $candidates = [
+            $parent?->father_phone,
+            $parent?->mother_phone,
+            $parent?->primary_contact_phone,
+            $family?->phone,
+            $parent?->father_whatsapp,
+            $parent?->mother_whatsapp,
+        ];
+        foreach ($candidates as $phone) {
+            $phone = trim((string) $phone);
+            if ($phone === '') {
+                continue;
+            }
+            if (MpesaGateway::isValidKenyanPhone($phone)) {
+                return MpesaGateway::formatPhoneNumberForDisplay($phone);
+            }
+        }
+        foreach ($candidates as $phone) {
+            $phone = trim((string) $phone);
+            if ($phone !== '') {
+                return MpesaGateway::formatPhoneNumberForDisplay($phone);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Unpaid/partial fee invoices for the public pay page breakdown (per student), including line items.
      *
      * @return list<array{invoice_number: string, year: mixed, term: mixed, total: float, paid_amount: float, balance: float, due_date_label: ?string, status: string, lines: list<array{label: string, balance: float}>}>
@@ -511,7 +549,9 @@ class MpesaPaymentController extends Controller
             $feeBalance = round(array_sum(array_column($invoices, 'balance')), 2);
         }
 
-        return view('finance.mpesa.public-pay', compact('prefill', 'selectedStudent', 'feeBalance', 'invoices'));
+        $prefillPhone = $this->parentMpesaPhone($selectedStudent);
+
+        return view('finance.mpesa.public-pay', compact('prefill', 'selectedStudent', 'feeBalance', 'invoices', 'prefillPhone'));
     }
 
     /**
@@ -536,6 +576,7 @@ class MpesaPaymentController extends Controller
                     'admission_number' => $s->admission_number,
                     'classroom_name' => $s->classroom?->name,
                     'fee_balance' => $balance,
+                    'parent_phone' => $this->parentMpesaPhone($s),
                 ];
             })->values(),
         ]);
@@ -714,6 +755,12 @@ class MpesaPaymentController extends Controller
 
         $reportPortalUrl = family_report_portal_url_for_payment_link($paymentLink);
 
+        $prefillPhoneStudent = $displayStudentForPay
+            ?? $payStudent
+            ?? (($familyStudents[0]['id'] ?? null) ? Student::find($familyStudents[0]['id']) : null)
+            ?? $paymentLink->student;
+        $prefillPhone = $this->parentMpesaPhone($prefillPhoneStudent);
+
         return view('finance.mpesa.payment-page', compact(
             'paymentLink',
             'familyStudents',
@@ -723,7 +770,8 @@ class MpesaPaymentController extends Controller
             'displayStudentForPay',
             'singleStudentInvoices',
             'feeBalance',
-            'reportPortalUrl'
+            'reportPortalUrl',
+            'prefillPhone'
         ));
     }
 
@@ -890,7 +938,9 @@ class MpesaPaymentController extends Controller
         $studentTotalOutstanding = \App\Services\StudentBalanceService::getTotalOutstandingBalance($invoice->student);
         $mpesaStkMaxKes = \App\Services\PaymentGateways\MpesaGateway::STK_MAX_AMOUNT_KES;
 
-        return view('finance.mpesa.invoice-payment', compact('invoice', 'studentTotalOutstanding', 'mpesaStkMaxKes'));
+        $prefillPhone = $this->parentMpesaPhone($invoice->student);
+
+        return view('finance.mpesa.invoice-payment', compact('invoice', 'studentTotalOutstanding', 'mpesaStkMaxKes', 'prefillPhone'));
     }
 
     /**

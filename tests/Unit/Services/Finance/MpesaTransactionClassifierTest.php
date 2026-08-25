@@ -42,6 +42,36 @@ class MpesaTransactionClassifierTest extends TestCase
 
         $this->assertSame(ExpenseStatementLine::TYPE_POCHI, $result['transaction_type']);
         $this->assertSame('Peter Kinuthia', $result['recipient_name']);
+        $this->assertSame('07******435', $result['recipient_phone']);
+    }
+
+    #[Test]
+    public function it_classifies_merchant_payment_online_as_buy_goods(): void
+    {
+        $result = $this->classifier->classify(
+            "Merchant Payment Online to\n7678156 - MEVED DAIRY\nFARM LIMITED",
+            2400,
+            0
+        );
+
+        $this->assertSame(ExpenseStatementLine::TYPE_BUY_GOODS, $result['transaction_type']);
+        $this->assertSame('Meved Dairy Farm Limited', $result['recipient_name']);
+        $this->assertSame('7678156', $result['merchant_reference']);
+        $this->assertSame('Meved Dairy Farm Limited', $result['display_name']);
+    }
+
+    #[Test]
+    public function it_masks_send_money_international_phones_to_local_form(): void
+    {
+        $result = $this->classifier->classify(
+            "Customer Transfer to -\n2547******768 PETER MWANGI",
+            500,
+            0
+        );
+
+        $this->assertSame(ExpenseStatementLine::TYPE_SEND_MONEY, $result['transaction_type']);
+        $this->assertSame('Peter Mwangi', $result['recipient_name']);
+        $this->assertSame('07******768', $result['recipient_phone']);
     }
 
     #[Test]

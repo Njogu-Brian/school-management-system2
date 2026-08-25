@@ -236,7 +236,7 @@ class ExpenseStatementImportService
                 continue;
             }
 
-            $narration = trim((string) ($txn['particulars'] ?? ''));
+            $narration = \App\Services\Finance\MpesaStatementIdentity::normalizeWhitespace((string) ($txn['particulars'] ?? ''));
             if ($narration === '') {
                 continue;
             }

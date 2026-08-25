@@ -12,6 +12,7 @@ export function useStaffClockToday(options?: { enabled?: boolean }) {
     },
     enabled: options?.enabled !== false,
     staleTime: 15_000,
+    refetchInterval: 15_000,
     retry: (failureCount, err) => {
       const status = (err as { status?: number })?.status;
       return status !== 403 && status !== 422 && failureCount < 2;
@@ -29,6 +30,7 @@ export function useStaffClockHistory(options?: { enabled?: boolean }) {
     },
     enabled: options?.enabled !== false,
     staleTime: 30_000,
+    refetchInterval: 15_000,
     retry: (failureCount, err) => {
       const status = (err as { status?: number })?.status;
       return status !== 403 && status !== 422 && failureCount < 2;
@@ -59,6 +61,7 @@ export function useStaffClockRoster(options?: { enabled?: boolean }) {
     },
     enabled: options?.enabled !== false,
     staleTime: 60_000,
+    refetchInterval: 20_000,
   });
 }
 
@@ -72,6 +75,7 @@ export function useStaffMemberClockHistory(staffId: number, options?: { enabled?
     },
     enabled: options?.enabled !== false && staffId > 0,
     staleTime: 30_000,
+    refetchInterval: 15_000,
   });
 }
 

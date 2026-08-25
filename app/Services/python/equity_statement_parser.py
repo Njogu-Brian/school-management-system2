@@ -35,6 +35,27 @@ def debug_log(message):
 def _norm_spaces(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip())
 
+
+def collapse_narration(value: str) -> str:
+    """One statement row, one line — PDF cell wraps must not look like combined transactions."""
+    return re.sub(r"\s+", " ", (value or "").replace("\r", " ").replace("\n", " ")).strip()
+
+
+def is_duplicate_fragment(existing: str, new: str) -> bool:
+    """True when `new` is a wrap/truncation of text already captured (stop combining narration)."""
+    if not new:
+        return True
+    e = collapse_narration(existing).upper()
+    n = collapse_narration(new).upper()
+    if not n:
+        return True
+    if not e:
+        return False
+    if n in e or e in n:
+        return True
+    token = n[:12]
+    return len(token) >= 8 and token in e
+
 def _parse_money(s: str):
     """Parse KES-like amount token e.g. 17,500.00 or 2.26 into float."""
     if not s:
@@ -70,7 +91,12 @@ def _strip_trailing_foreign_txn_starters(body: str, ref: str | None) -> str:
             if starter.match(s) and ru not in s.upper():
                 break
         out.append(ln)
-    return "\n".join(out).strip()
+    joined = "\n".join(out).strip()
+    # Collapsed extracts put the next APP/ lead-in on the same line after this row's money.
+    inline_app = re.search(r"\s+APP/", joined, re.I)
+    if inline_app and ru not in joined[inline_app.start() :].upper():
+        joined = joined[: inline_app.start()].strip()
+    return joined
 
 
 def _strip_orphan_lines_after_charge(body: str, ref: str | None) -> str:
@@ -140,6 +166,54 @@ def _relocate_masked_card_preamble_rows(transactions: list) -> list:
         cur[field] = _norm_spaces(head)
         nxt[field] = _norm_spaces(tail + " " + nxp)
     return transactions
+
+
+def _is_merchant_wrap_line(lns: str) -> bool:
+    """True for a merchant-only wrap such as CHICKEN PARK-WAT- (not WAIRI/ or a card mask)."""
+    if not lns or re.search(r"\b[\d,]+\.\d{2}\b", lns):
+        return False
+    if re.search(r"APP/|USSD/|MPESA|PAY BILL|ACC\.", lns, re.I):
+        return False
+    if "/" in lns:
+        return False
+    if re.search(r"\d{4,}X{3,}", lns, re.I):
+        return False
+    if not re.search(r"[A-Za-z]{3,}", lns):
+        return False
+    return bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9\s\-]{2,60}", lns))
+
+
+def _narrative_without_isolated_ref(full: str, ref: str | None) -> str:
+    """
+    Keep the full Narrative column. The transaction reference is its own column — strip
+    that isolated token only. Never cut the string at the ref: Equity often prints the
+    rest of the timestamp after it (BY:/…/24-08- S40643062 2026 17:28).
+    """
+    full = _norm_spaces(full)
+    if ref:
+        full = re.sub(
+            r"(?<![A-Za-z0-9])" + re.escape(ref) + r"(?![A-Za-z0-9])",
+            " ",
+            full,
+            count=1,
+            flags=re.I,
+        )
+        full = _norm_spaces(full)
+    # Rejoin a date split by the removed reference column and/or cheque-remark tokens:
+    # BY:/623614658382/24-08- 00038209 8996 2026 17:28 → BY:/623614658382/24-08-2026 17:28 …
+    def _rejoin_by_timestamp(match: re.Match) -> str:
+        remarks = match.group(3).strip()
+        core = match.group(1) + match.group(2) + match.group(4) + match.group(5)
+        return core + ((" " + remarks) if remarks else "")
+
+    full = re.sub(
+        r"(BY\s*:/\s*\d+/)(\d{2}-\d{2}-)\s+(.*?)\s+(\d{4})(\s+\d{2}:\d{2})",
+        _rejoin_by_timestamp,
+        full,
+        flags=re.I,
+    )
+    full = re.sub(r"(\d{2}-\d{2}-)\s+(\d{4})(\s+\d{2}:\d{2})", r"\1\2\3", full)
+    return full
 
 
 def _dedupe_narrative_tokens(narrative: str) -> str:
@@ -341,6 +415,24 @@ def parse_equity_transactions_from_text(full_text: str):
                 if carry_txt and carry_txt not in body_norm:
                     body = _norm_spaces(carry_txt + " " + body_norm)
                     body_norm = _norm_spaces(body)
+
+        # Merchant wrap (CHICKEN PARK-WAT-) between two date-pairs belongs on the BY:/ deposit,
+        # not on the previous card row (WAIRI/ … 627851XXXXXX stays there).
+        prefix_before_by = re.split(r"BY\s*:", _norm_spaces(body), maxsplit=1, flags=re.I)[0]
+        looks_like_by_deposit = bool(re.search(r"BY\s*:/", body, re.I)) and not re.search(
+            r"[A-Za-z]{3,}", prefix_before_by
+        )
+        if looks_like_by_deposit and idx > 0:
+            prev_start = starts[idx - 1].start()
+            prev_end = block_start
+            prev_block = cleaned[prev_start:prev_end].strip()
+            prev_body_raw = start_re.sub("", prev_block, count=1).strip()
+            merchant_lines = [ln.strip() for ln in prev_body_raw.split("\n") if _is_merchant_wrap_line(ln.strip())]
+            if merchant_lines:
+                wrap = "\n".join(merchant_lines[-2:])
+                if wrap.upper() not in body.upper():
+                    body = wrap + "\n" + body
+
         looks_like_ref_only = (
             bool(re.fullmatch(r"(S\d{8,11}|\d{6,15})", body_norm, flags=re.IGNORECASE))
             or (body_norm and not re.search(r"[A-Za-z]", body_norm) and re.fullmatch(r"\d{6,15}(\s+\d{6,15})*", body_norm))
@@ -438,7 +530,7 @@ def parse_equity_transactions_from_text(full_text: str):
                 debit = txn_amount
             else:
                 # Fallback: treat as credit unless the particulars strongly indicates a charge/reversal.
-                up = (particulars or "").upper()
+                up = (particulars_full or "").upper()
                 if any(k in up for k in ["CHARGE", "REVERS", "FEE"]):
                     debit = txn_amount
                 else:
@@ -465,20 +557,11 @@ def parse_equity_transactions_from_text(full_text: str):
     transactions = _relocate_masked_card_preamble_rows(transactions)
 
     # Convert particulars_full -> narrative-only "particulars" (statement Narrative column).
+    # Keep every character of the narrative; remove only the isolated reference token.
     for t in transactions:
         full = _norm_spaces(str(t.get("particulars_full") or ""))
         ref = str(t.get("transaction_code") or "").strip()
-        narrative = full
-        if ref:
-            up = full.upper()
-            ref_up = ref.upper()
-            pos = up.find(ref_up)
-            if pos > 0:
-                narrative = full[:pos]
-            elif pos == 0:
-                # Some rows start with the ref token (e.g. CHARGE lines). Remove the ref and keep the rest.
-                narrative = re.sub(r"^\s*" + re.escape(ref) + r"\b[\s/:-]*", "", full, flags=re.IGNORECASE)
-        t["particulars"] = _dedupe_narrative_tokens(_norm_spaces(narrative))
+        t["particulars"] = _dedupe_narrative_tokens(_narrative_without_isolated_ref(full, ref))
         t.pop("particulars_full", None)
     return transactions
 
@@ -860,7 +943,7 @@ def parse_paybill_table(tables_data):
                 'tran_date': tran_date,
                 'value_date': tran_date,
                 'completed_at': completion_time if completion_time else None,
-                'particulars': details,
+                'particulars': collapse_narration(details),
                 'credit': credit,
                 'debit': debit,
                 'balance': None,
@@ -915,7 +998,7 @@ def parse_paybill_from_text(page_texts):
             'tran_date': tran_date,
             'value_date': tran_date,
             'completed_at': date_cand,
-            'particulars': details.strip(),
+            'particulars': collapse_narration(details),
             'credit': credit,
             'debit': debit,
             'balance': None,
@@ -1265,7 +1348,7 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                 # Get the full particulars - handle cases where cell might be None or empty
                 cell_value = row[particulars_col] if particulars_col < len(row) else None
                 if cell_value is not None:
-                    particulars = str(cell_value).strip()
+                    particulars = collapse_narration(str(cell_value))
                 else:
                     particulars = ""
                 
@@ -1652,10 +1735,12 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                             has_numbers = bool(re.search(r'\d', cell_str))
                             # Include if it has letters (like "MPS", "EAZZYPAY") or is a long alphanumeric string
                             if has_letters or (has_numbers and len(cell_str) > 10):
-                                other_cells.append(cell_str)
+                                if not is_duplicate_fragment(' '.join(other_cells), cell_str):
+                                    other_cells.append(cell_str)
                             elif len(cell_str) > 0 and not cell_str.startswith('---'):
                                 # Also include shorter cells that might be part of particulars
-                                other_cells.append(cell_str)
+                                if not is_duplicate_fragment(' '.join(other_cells), cell_str):
+                                    other_cells.append(cell_str)
                 
                 if other_cells:
                     # Join all cells to get full particulars
@@ -1672,13 +1757,13 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                 elif not particulars or particulars.startswith('---'):
                     particulars = 'Transaction'
             
-            # Clean up particulars - remove excessive newlines and dates
+            # Clean up particulars - never keep wrapped PDF newlines or duplicated fragments
             if particulars:
-                # Remove multiple consecutive newlines
-                particulars = re.sub(r'\n+', ' ', particulars)
-                # Remove standalone dates (they shouldn't be in particulars)
-                particulars = re.sub(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', '', particulars)
-                particulars = particulars.strip()
+                particulars = collapse_narration(particulars)
+                # Remove standalone dates, but keep BY:/…/24-08-2026 17:28 timestamps intact.
+                if not re.search(r"BY\s*:", particulars, re.I):
+                    particulars = re.sub(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', '', particulars)
+                particulars = collapse_narration(particulars)
                 # Limit length to prevent database issues
                 if len(particulars) > 1000:
                     particulars = particulars[:1000]

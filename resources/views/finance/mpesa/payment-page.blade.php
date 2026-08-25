@@ -54,7 +54,7 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.15);
             overflow: hidden;
             width: 100%;
-            max-width: 440px;
+            max-width: 640px;
             margin: 0 auto;
         }
         .pay-header {
@@ -157,12 +157,16 @@
         @media (min-width: 576px) {
             body { padding: 24px; align-items: center; }
             .pay-body { padding: 1.4rem 1.4rem 1.75rem; }
-            .pay-card { max-width: 480px; }
+            .pay-card { max-width: 680px; }
             .pay-header { padding: 1.5rem 1.25rem; }
         }
+        @media (min-width: 992px) {
+            .pay-card { max-width: 720px; }
+        }
     </style>
+    @include('finance.partials.mobile-public-viewport')
 </head>
-<body>
+<body class="pay-public-body">
     <div class="pay-card">
         <div class="pay-header">
             <i class="bi bi-phone"></i>
@@ -212,10 +216,18 @@
                         <input class="form-check-input" type="checkbox" id="shareToggle" style="min-width: 3rem; min-height: 1.5rem;" checked>
                         <label class="form-check-label fw-semibold" for="shareToggle">Pay for all children in one transaction</label>
                     </div>
-                    <p class="small text-muted">One M-PESA payment; adjust amounts below per child or pay the full total.</p>
+                    <p class="small text-muted">Enter the amount you want to pay. We split it across children (full invoices first, otherwise equal shares rounded to KES 10). You can still edit each child.</p>
 
                     <div id="shareBlock" class="share-block">
-                        <p class="small fw-semibold mb-2">Amount per child (one M-PESA payment for total):</p>
+                        <label class="form-label" for="family_payment_amount">Amount to pay (KES)</label>
+                        <div class="input-group input-group-lg mb-2">
+                            <span class="input-group-text">KES</span>
+                            <input type="number" class="form-control" id="family_payment_amount" inputmode="numeric" step="10" min="1" placeholder="Enter amount" autocomplete="off">
+                        </div>
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullFamilyBtn">Pay full family balance</button>
+                        </div>
+                        <p class="small fw-semibold mb-2">Amount per child (editable):</p>
                         <div id="siblingAllocationsList"></div>
                         <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
                             <span class="fw-semibold">Total</span>
@@ -243,7 +255,7 @@
                     <label class="form-label mt-3">Your M-PESA number</label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text"><i class="bi bi-phone"></i></span>
-                        <input type="tel" class="form-control" id="phone_number" name="phone_number" placeholder="0712345678" required>
+                        <input type="tel" class="form-control" id="phone_number" name="phone_number" placeholder="0712345678" value="{{ $prefillPhone ?? '' }}" required>
                     </div>
                     <button type="submit" class="btn btn-pay mt-4" id="payBtn"><i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA</button>
                 </form>
@@ -277,7 +289,7 @@
                     <label class="form-label">Amount (KES)</label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text">KES</span>
-                        <input type="number" class="form-control" id="payment_amount" name="amount" step="0.01" min="1" max="{{ $mpesaStkMaxKes }}" value="{{ $feeBalance > 0 ? $feeBalance : $paymentLink->amount }}" required>
+                        <input type="number" class="form-control" id="payment_amount" name="amount" step="10" min="1" max="{{ $mpesaStkMaxKes }}" value="" placeholder="Enter amount" inputmode="numeric" autocomplete="off" required>
                     </div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullBtn">Pay full balance</button>
@@ -288,7 +300,7 @@
                     <label class="form-label mt-3">Your M-PESA number</label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text"><i class="bi bi-phone"></i></span>
-                        <input type="tel" class="form-control" id="phone_number" name="phone_number" placeholder="0712345678" required>
+                        <input type="tel" class="form-control" id="phone_number" name="phone_number" placeholder="0712345678" value="{{ $prefillPhone ?? '' }}" required>
                     </div>
                     <button type="submit" class="btn btn-pay mt-4" id="payBtn"><i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA</button>
                 </form>
@@ -363,28 +375,98 @@
             return true;
         }
 
-        if (isFamilyLink && showFamilySplitUi && familyStudents.length > 1) {
-            var feeBalanceMap = {};
-            familyStudents.forEach(function(s) { feeBalanceMap[s.id] = parseFloat(s.fee_balance) || 0; });
+        function roundToTen(n) {
+            return Math.round(n / 10) * 10;
+        }
 
-            function buildSiblingList(prefillFullBalance) {
+        function smartAllocate(balances, payment) {
+            var n = balances.length;
+            var alloc = balances.map(function () { return 0; });
+            if (n === 0 || payment <= 0) return alloc;
+            var total = balances.reduce(function (s, b) { return s + b; }, 0);
+            if (payment >= total - 0.009) {
+                alloc = balances.slice();
+                if (payment > total) alloc[0] += payment - total;
+                return alloc;
+            }
+            var maxBal = Math.max.apply(null, balances);
+            if (payment >= total - maxBal - 0.009) {
+                var shortfall = total - payment;
+                var absorbIdx = balances.indexOf(maxBal);
+                alloc = balances.map(function (b, i) {
+                    return i === absorbIdx ? Math.max(0, b - shortfall) : b;
+                });
+                return alloc;
+            }
+            var remaining = payment;
+            var open = [];
+            balances.forEach(function (b, i) { if (b > 0) open.push(i); });
+            while (remaining >= 5 && open.length) {
+                var share = roundToTen(remaining / open.length);
+                if (share < 10 && remaining >= 10) share = 10;
+                if (share <= 0) break;
+                var nextOpen = [];
+                var progressed = false;
+                open.forEach(function (i) {
+                    var room = balances[i] - alloc[i];
+                    var give = Math.min(share, room, remaining);
+                    give = roundToTen(give);
+                    if (give > remaining) give = remaining;
+                    if (give > 0) {
+                        alloc[i] += give;
+                        remaining -= give;
+                        progressed = true;
+                    }
+                    if (balances[i] - alloc[i] >= 5 && remaining > 0) nextOpen.push(i);
+                });
+                if (!progressed) break;
+                open = nextOpen;
+            }
+            if (remaining > 0) {
+                balances.forEach(function (b, i) {
+                    if (remaining <= 0) return;
+                    var room = b - alloc[i];
+                    if (room <= 0) return;
+                    var give = Math.min(room, remaining);
+                    alloc[i] += give;
+                    remaining -= give;
+                });
+            }
+            return alloc;
+        }
+
+        if (isFamilyLink && showFamilySplitUi && familyStudents.length > 1) {
+            var applyingSplit = false;
+
+            function refreshSiblingTotal() {
+                var t = 0;
+                $('.sibling-amount').each(function() { t += parseFloat($(this).val()) || 0; });
+                $('#siblingTotalDisplay').text('KES ' + t.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                if (!applyingSplit) {
+                    $('#family_payment_amount').val(t > 0 ? String(Math.round(t)) : '');
+                }
+            }
+
+            function applySmartSplit(amount) {
+                var bals = familyStudents.map(function (s) { return parseFloat(s.fee_balance) || 0; });
+                var split = smartAllocate(bals, amount);
+                applyingSplit = true;
+                $('.sibling-amount').each(function (idx) {
+                    $(this).val(split[idx] > 0 ? String(split[idx]) : '');
+                });
+                applyingSplit = false;
+                refreshSiblingTotal();
+            }
+
+            function buildSiblingList() {
                 var list = '';
                 familyStudents.forEach(function(s) {
                     var bal = parseFloat(s.fee_balance) || 0;
-                    var val = (prefillFullBalance && bal > 0) ? bal.toFixed(2) : '0';
-                    list += '<div class="sibling-amount-row"><label class="flex-grow-1 small mb-0">' + s.full_name + ' <span class="text-muted">(bal. KES ' + (bal).toLocaleString('en-KE', {minimumFractionDigits: 2}) + ')</span></label><div class="input-group input-group-sm" style="max-width: 120px;"><span class="input-group-text">KES</span><input type="number" class="form-control sibling-amount" step="0.01" min="0" data-student-id="' + s.id + '" data-balance="' + bal + '" value="' + val + '" placeholder="0"></div></div>';
+                    list += '<div class="sibling-amount-row"><label class="flex-grow-1 small mb-0">' + s.full_name + ' <span class="text-muted">(bal. KES ' + (bal).toLocaleString('en-KE', {minimumFractionDigits: 2}) + ')</span></label><div class="input-group input-group-sm" style="max-width: 140px;"><span class="input-group-text">KES</span><input type="number" class="form-control sibling-amount" step="10" min="0" data-student-id="' + s.id + '" data-balance="' + bal + '" value="" placeholder="0"></div></div>';
                 });
                 $('#siblingAllocationsList').html(list);
-                $(document).off('input', '.sibling-amount').on('input', '.sibling-amount', function() {
-                    var t = 0;
-                    $('.sibling-amount').each(function() { t += parseFloat($(this).val()) || 0; });
-                    $('#siblingTotalDisplay').text('KES ' + t.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-                    $('#payment_amount').val(t > 0 ? t.toFixed(2) : '');
-                });
-                var total = 0;
-                $('.sibling-amount').each(function() { total += parseFloat($(this).val()) || 0; });
-                $('#siblingTotalDisplay').text('KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-                $('#payment_amount').val(total > 0 ? total.toFixed(2) : '');
+                $(document).off('input', '.sibling-amount').on('input', '.sibling-amount', refreshSiblingTotal);
+                refreshSiblingTotal();
             }
 
             function syncSingleStudentRequired() {
@@ -401,25 +483,31 @@
                 $('#shareBlock').toggle(on);
                 $('#singleBlock').toggle(!on);
                 syncSingleStudentRequired();
-                if (on) buildSiblingList(true);
+                if (on) buildSiblingList();
             });
 
-            buildSiblingList(true);
+            buildSiblingList();
             syncSingleStudentRequired();
+
+            $('#family_payment_amount').on('input', function () {
+                var amt = parseFloat($(this).val()) || 0;
+                if (amt >= 1) applySmartSplit(amt);
+            });
+
+            $('#payFullFamilyBtn').on('click', function () {
+                var total = familyStudents.reduce(function (s, st) { return s + (parseFloat(st.fee_balance) || 0); }, 0);
+                $('#family_payment_amount').val(total > 0 ? String(Math.round(total)) : '');
+                applySmartSplit(total);
+            });
 
             $('#single_student_id').on('change', function() {
                 var bal = $(this).find('option:selected').data('balance');
-                if (bal != null) $('#payment_amount').val(parseFloat(bal).toFixed(2));
+                if (bal != null) $('#payment_amount').val(parseFloat(bal).toFixed(0));
             });
 
             $('#payFullBtn').on('click', function() {
-                if ($('#shareToggle').is(':checked')) {
-                    $('.sibling-amount').each(function() { $(this).val(parseFloat($(this).data('balance') || 0).toFixed(2)); });
-                    $('.sibling-amount').first().trigger('input');
-                } else {
-                    var opt = $('#single_student_id option:selected');
-                    if (opt.length && opt.data('balance') != null) $('#payment_amount').val(parseFloat(opt.data('balance')).toFixed(2));
-                }
+                var opt = $('#single_student_id option:selected');
+                if (opt.length && opt.data('balance') != null) $('#payment_amount').val(parseFloat(opt.data('balance')).toFixed(0));
             });
         } else {
             var fullBalance = {{ ($feeBalance ?? 0) }};

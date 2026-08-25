@@ -71,6 +71,7 @@
             }
         }
     </style>
+    @include('finance.partials.mobile-public-viewport')
 </head>
 <body>
     <div class="finance-page">

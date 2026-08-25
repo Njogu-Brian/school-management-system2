@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SearchBar } from '../primitives/SearchBar';
-import { useTheme } from '../theme/ThemeContext';
 
 export interface StudentSearchBarProps {
   value: string;
@@ -14,10 +13,8 @@ export const StudentSearchBar: React.FC<StudentSearchBarProps> = ({
   onChangeText,
   placeholder = 'Search name or admission no.',
 }) => {
-  const { spacing } = useTheme();
-
   return (
-    <View style={[styles.wrap, { marginBottom: spacing.sm }]}>
+    <View style={styles.wrap}>
       <SearchBar value={value} onChangeText={onChangeText} placeholder={placeholder} />
     </View>
   );

@@ -111,6 +111,31 @@ class BankStatementTransaction extends Model
         return $this->belongsTo(User::class, 'archived_by');
     }
 
+    /**
+     * @param  list<string>  $refs
+     * @return array<string, string>
+     */
+    public static function maskedPhonesByReference(array $refs): array
+    {
+        $refs = array_values(array_unique(array_filter($refs)));
+        if ($refs === []) {
+            return [];
+        }
+
+        return static::query()
+            ->whereIn('reference_number', $refs)
+            ->whereNotNull('phone_number')
+            ->where('phone_number', '!=', '')
+            ->orderByDesc('id')
+            ->get(['reference_number', 'phone_number'])
+            ->unique('reference_number')
+            ->mapWithKeys(fn ($row) => [
+                $row->reference_number => \App\Services\Finance\MpesaStatementIdentity::toLocalMaskedPhone($row->phone_number),
+            ])
+            ->filter()
+            ->all();
+    }
+
     public function isAutoAssigned(): bool
     {
         return $this->match_status === 'matched' && $this->match_confidence >= 0.85;

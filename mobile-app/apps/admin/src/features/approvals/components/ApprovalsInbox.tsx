@@ -113,11 +113,16 @@ export const ApprovalsInbox: React.FC<ApprovalsInboxProps> = ({
             backgroundColor: palette.surface,
             borderBottomColor: palette.borderSubtle,
             gap: spacing.sm,
+            flexShrink: 0,
           },
         ]}
       >
-        <SearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search approvals…" />
-        <FilterTriggerButton activeCount={activeFilterCount} onPress={() => setFiltersOpen(true)} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <SearchBar value={searchInput} onChangeText={setSearchInput} placeholder="Search approvals…" />
+          </View>
+          <FilterTriggerButton activeCount={activeFilterCount} onPress={() => setFiltersOpen(true)} />
+        </View>
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
           {SECTION_HINT[status]}
         </Text>

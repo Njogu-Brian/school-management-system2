@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Pay Invoice - M-PESA</title>
     @include('layouts.partials.branding-vars')
@@ -26,7 +26,7 @@
             border-radius: 15px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             overflow: hidden;
-            max-width: 600px;
+            max-width: 680px;
             width: 100%;
         }
         .payment-header {
@@ -108,8 +108,9 @@
             border-bottom: 1px solid #f0f0f0;
         }
     </style>
+    @include('finance.partials.mobile-public-viewport')
 </head>
-<body>
+<body class="pay-public-body">
     <div class="payment-card">
         <div class="payment-header">
             <i class="fas fa-file-invoice-dollar"></i>
@@ -173,8 +174,8 @@
                             <span class="input-group-text">KES</span>
                         </div>
                         <input type="number" class="form-control form-control-lg" id="payment_amount" 
-                               name="amount" step="0.01" min="1" max="{{ $mpesaStkMaxKes }}"
-                               value="{{ $invoice->balance }}" required>
+                               name="amount" step="10" min="1" max="{{ $mpesaStkMaxKes }}"
+                               value="" placeholder="Enter amount" required>
                     </div>
                     <small class="form-text text-muted">
                         <i class="fas fa-info-circle"></i> Pay in full, in part, or more (overpayment is credited). Total fee balance for this learner: KES {{ number_format($studentTotalOutstanding, 2) }}. M-PESA limit KES {{ number_format($mpesaStkMaxKes) }} per transaction.
@@ -203,7 +204,7 @@
                             <span class="input-group-text"><i class="fas fa-phone"></i></span>
                         </div>
                         <input type="tel" class="form-control form-control-lg" id="phone_number" 
-                               placeholder="e.g., 0712345678" required>
+                               placeholder="e.g., 0712345678" value="{{ $prefillPhone ?? '' }}" required>
                         <div class="input-group-append">
                             <button class="btn btn-outline-secondary" type="button" id="editPhoneBtn" title="Edit phone number">
                                 <i class="fas fa-edit"></i>
@@ -240,7 +241,7 @@
     $(document).ready(function() {
         // Pre-fill phone number from URL parameter if available
         const urlParams = new URLSearchParams(window.location.search);
-        const prefilledPhone = urlParams.get('phone');
+        const prefilledPhone = urlParams.get('phone') || @json($prefillPhone ?? '');
         if (prefilledPhone) {
             $('#phone_number').val(prefilledPhone);
         }

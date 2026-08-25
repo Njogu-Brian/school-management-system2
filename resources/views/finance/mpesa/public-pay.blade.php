@@ -41,7 +41,7 @@
             border-radius: 1rem;
             box-shadow: 0 12px 40px rgba(0,0,0,0.18);
             width: 100%;
-            max-width: 440px;
+            max-width: 640px;
             overflow: hidden;
             margin: auto;
         }
@@ -90,8 +90,9 @@
         #lookupResults { max-height: 240px; overflow-y: auto; }
         .hint { font-size: 0.85rem; color: #6b7280; }
     </style>
+    @include('finance.partials.mobile-public-viewport')
 </head>
-<body>
+<body class="pay-public-body">
 <div class="pay-card">
     <div class="pay-header">
         <i class="bi bi-phone" style="font-size:2.25rem;"></i>
@@ -146,14 +147,14 @@
             <div class="mb-3">
                 <label class="form-label" for="phone_number">M-PESA phone number</label>
                 <input type="tel" class="form-control" id="phone_number" name="phone_number"
-                       value="{{ old('phone_number') }}" placeholder="07XX XXX XXX" inputmode="tel" required>
+                       value="{{ old('phone_number', $prefillPhone ?? '') }}" placeholder="07XX XXX XXX" inputmode="tel" required>
             </div>
 
             <div class="mb-2">
                 <label class="form-label" for="amount">Amount to pay (KES)</label>
                 <input type="number" class="form-control" id="amount" name="amount" min="1"
                        max="{{ $mpesaStkMaxKes }}" step="1"
-                       value="{{ old('amount', $feeBalance > 0 ? (int) ceil($feeBalance) : '') }}"
+                       value="{{ old('amount') }}"
                        placeholder="Enter amount" required>
                 @if($feeBalance > 0)
                     <button type="button" class="btn btn-sm btn-outline-success mt-2" id="btnPayFull">
@@ -194,7 +195,7 @@
         }
         resultsEl.innerHTML = students.map(s => `
             <div class="student-pick" data-id="${s.id}" data-name="${s.full_name}" data-adm="${s.admission_number || ''}"
-                 data-class="${s.classroom_name || ''}" data-balance="${s.fee_balance}">
+                 data-class="${s.classroom_name || ''}" data-balance="${s.fee_balance}" data-phone="${s.parent_phone || ''}">
                 <div class="fw-semibold">${s.full_name}</div>
                 <div class="small text-muted">${s.admission_number || ''}${s.classroom_name ? ' · ' + s.classroom_name : ''}</div>
                 <div class="small fw-bold text-success">Balance: KES ${Number(s.fee_balance).toLocaleString()}</div>
@@ -221,8 +222,9 @@
         if (balEl) balEl.textContent = 'KES ' + balance.toLocaleString(undefined, {minimumFractionDigits: 2});
         selectedBox.classList.remove('d-none');
         btnSubmit.disabled = false;
-        if (balance > 0 && !amountInput.value) {
-            amountInput.value = Math.ceil(balance);
+        const phoneInput = document.getElementById('phone_number');
+        if (phoneInput && el.dataset.phone && !phoneInput.value) {
+            phoneInput.value = el.dataset.phone;
         }
     }
 

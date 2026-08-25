@@ -100,8 +100,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           borderColor: focused ? palette.primary : palette.borderSubtle,
           borderRadius: expandable ? 50 : radius.control,
           paddingHorizontal: spacing.md,
-          marginBottom: spacing.sm,
+          marginBottom: 0,
           minHeight: expandable ? 52 : 48,
+          width: '100%',
         },
         style,
       ]}
@@ -177,7 +178,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     minHeight: 48,
     gap: 10,
-    flex: 1,
+    alignSelf: 'stretch',
+    width: '100%',
   },
   input: { flex: 1, paddingVertical: 12 },
   circle: {

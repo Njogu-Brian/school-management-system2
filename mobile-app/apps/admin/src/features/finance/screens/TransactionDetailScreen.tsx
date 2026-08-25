@@ -13,7 +13,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import type { FinanceStackParamList } from '../../../navigation/financeStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 import { TransactionAssignSection } from '../components/TransactionAssignSection';
-import { formatKes } from '../utils/formatters';
+import { formatKes, formatTransactionPhone } from '../utils/formatters';
 
 type Props = StackScreenProps<FinanceStackParamList, 'TransactionDetail'>;
 
@@ -126,7 +126,7 @@ export const TransactionDetailScreen: React.FC<Props> = ({ route, navigation }) 
           rows={[
             { label: 'Student', value: txn.student_name },
             { label: 'Payer name', value: txn.payer_name ?? [txn.first_name, txn.last_name].filter(Boolean).join(' ') },
-            { label: 'Phone', value: txn.msisdn ?? txn.phone_number },
+            { label: 'Phone', value: formatTransactionPhone(txn.phone_number, txn.msisdn) },
             { label: 'Bill ref', value: txn.bill_ref_number },
             { label: 'Description', value: txn.description ?? txn.match_reason },
           ]}

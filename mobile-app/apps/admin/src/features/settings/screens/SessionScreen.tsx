@@ -203,11 +203,15 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
         </Text>
         <Switch value={isDark} onValueChange={() => toggleTheme()} />
       </View>
-      <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.sm }}>
-        {(['light', 'dark', 'auto'] as const).map((mode) => (
+      <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.sm, flexWrap: 'wrap' }}>
+        {([
+          { id: 'light' as const, label: 'Light' },
+          { id: 'dark' as const, label: 'Dark' },
+          { id: 'auto' as const, label: 'Automatic' },
+        ]).map((mode) => (
           <Pressable
-            key={mode}
-            onPress={() => setThemeMode(mode)}
+            key={mode.id}
+            onPress={() => setThemeMode(mode.id)}
             style={{
               paddingHorizontal: spacing.md,
               paddingVertical: spacing.sm,
@@ -215,23 +219,25 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
               justifyContent: 'center',
               borderRadius: radius.control,
               borderWidth: StyleSheet.hairlineWidth,
-              borderColor: themeMode === mode ? palette.primary : palette.borderSubtle,
-              backgroundColor: themeMode === mode ? palette.primaryMuted : palette.surfaceRaised,
+              borderColor: themeMode === mode.id ? palette.primary : palette.borderSubtle,
+              backgroundColor: themeMode === mode.id ? palette.primaryMuted : palette.surfaceRaised,
             }}
           >
             <Text
               style={{
-                color: themeMode === mode ? palette.primary : palette.textSub,
+                color: themeMode === mode.id ? palette.primary : palette.textSub,
                 fontWeight: '600',
                 fontSize: typography.body.fontSize,
-                textTransform: 'capitalize',
               }}
             >
-              {mode}
+              {mode.label}
             </Text>
           </Pressable>
         ))}
       </View>
+      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+        Automatic uses light during the day and dark from 7:00 pm to 6:00 am.
+      </Text>
       <View
         style={[
           styles.deviceRow,

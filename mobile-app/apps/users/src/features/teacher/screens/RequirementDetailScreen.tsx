@@ -82,7 +82,7 @@ export const RequirementDetailScreen: React.FC = () => {
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl, flexGrow: 1 }}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl * 3, flexGrow: 1 }}
         refreshControl={
           <RefreshControl
             refreshing={detailQuery.isRefetching}

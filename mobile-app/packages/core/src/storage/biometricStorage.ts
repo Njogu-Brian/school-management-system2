@@ -29,15 +29,31 @@ export async function getBiometricTypeLabel(): Promise<string> {
   return 'Biometrics';
 }
 
-export async function authenticateWithBiometrics(
+export type BiometricPromptResult = 'success' | 'cancel' | 'failed';
+
+export async function promptBiometrics(
   reason = 'Authenticate to unlock',
-): Promise<boolean> {
+): Promise<BiometricPromptResult> {
   const result = await LocalAuthentication.authenticateAsync({
     promptMessage: reason,
     fallbackLabel: 'Use device passcode',
     disableDeviceFallback: false,
+    cancelLabel: 'Cancel',
   });
-  return result.success;
+  if (result.success) {
+    return 'success';
+  }
+  const err = 'error' in result ? String(result.error) : '';
+  if (err === 'user_cancel' || err === 'system_cancel' || err === 'app_cancel') {
+    return 'cancel';
+  }
+  return 'failed';
+}
+
+export async function authenticateWithBiometrics(
+  reason = 'Authenticate to unlock',
+): Promise<boolean> {
+  return (await promptBiometrics(reason)) === 'success';
 }
 
 export async function setBiometricEnabled(enabled: boolean): Promise<void> {
@@ -71,7 +87,7 @@ export async function saveBiometricAuthBundle(
   await SecureStore.setItemAsync(
     BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE,
     JSON.stringify(payload),
-    { ...SECURE_OPTIONS, requireAuthentication: true },
+    SECURE_OPTIONS,
   );
   await clearBiometricFailureCount();
 }

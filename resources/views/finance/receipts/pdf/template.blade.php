@@ -12,7 +12,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5, viewport-fit=cover">
     <title>Receipt - {{ $receipt_number ?? $payment->receipt_number }}</title>
     @include('layouts.partials.favicon')
     <style>
@@ -41,6 +41,14 @@
             page-break-after: always;
             page-break-inside: avoid;
             margin: 0 auto;
+        }
+        @media screen and (max-width: 1100px) {
+            .receipt-container {
+                max-width: 100%;
+                padding: 12px;
+            }
+            body { font-size: 15px; }
+            table { font-size: 13px !important; }
         }
         
         .header {

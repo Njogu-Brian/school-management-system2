@@ -61,8 +61,8 @@ export const StaffClockScreen: React.FC<Props> = ({ navigation }) => {
         }
       >
         <AcademicScreenHeader
-          title="Sign in / out"
-          subtitle="Records from the school fingerprint and card machines"
+          title="Staff attendance"
+          subtitle="Live records from BioTime fingerprint and card machines"
           onBack={() => navigation.goBack()}
         />
         {canViewTeam ? (

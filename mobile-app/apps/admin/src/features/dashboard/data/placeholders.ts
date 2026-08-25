@@ -78,7 +78,7 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
   },
   {
     id: 'qa_clock',
-    label: 'Sign in / out',
+    label: 'Staff attendance',
     icon: 'time-outline',
     permissions: ['people.view', 'staff.view'],
   },

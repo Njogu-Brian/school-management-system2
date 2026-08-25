@@ -20,8 +20,9 @@
             padding: 6px 12px !important; font-size: 13px !important; border-radius: 6px !important;
         }
         .receipt-card { transition: box-shadow 0.2s; }
-        .receipt-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .receipt-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08);         }
     </style>
+    @include('finance.partials.mobile-public-viewport')
 </head>
 <body>
     <div class="finance-page">
@@ -33,7 +34,7 @@
                 <div class="d-flex flex-wrap gap-2">
                     @if($paymentLinkUrl && ($totalOutstandingBalance ?? 0) > 0)
                         <a href="{{ $paymentLinkUrl }}" class="btn btn-success btn-sm">
-                            <i class="bi bi-phone me-1"></i> Pay Now (KES {{ number_format($totalOutstandingBalance ?? 0, 2) }})
+                            <i class="bi bi-phone me-1"></i> Pay Now
                         </a>
                     @endif
                     @if($updateLinkUrl)

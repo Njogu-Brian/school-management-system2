@@ -570,7 +570,10 @@
                             $txnAmount = $isC2B ? $transaction->trans_amount : $transaction->amount;
                             $txnDescription = $isC2B ? ($transaction->bill_ref_number ?? 'M-PESA Payment') : $transaction->description;
                             $txnReference = $isC2B ? $transaction->trans_id : ($transaction->reference_number ?? 'N/A');
-                            $txnPhone = $isC2B ? ($transaction->formatted_phone ?? $transaction->msisdn) : $transaction->phone_number;
+                            $txnPhone = \App\Services\Finance\MpesaStatementIdentity::phoneForTransaction(
+                                $transaction,
+                                $c2bStatementPhones ?? []
+                            );
                             $txnStatus = $isC2B ? ($transaction->status === 'processed' ? 'confirmed' : ($transaction->status === 'failed' ? 'rejected' : 'draft')) : $transaction->status;
                             $txnMatchStatus = $isC2B ? ($transaction->allocation_status === 'auto_matched' ? 'matched' : ($transaction->allocation_status === 'manually_allocated' ? 'manual' : 'unmatched')) : $transaction->match_status;
                             $txnMatchConfidence = $isC2B ? ($transaction->match_confidence ?? 0) : ($transaction->match_confidence ?? 0);

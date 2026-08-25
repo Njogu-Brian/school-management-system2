@@ -116,6 +116,7 @@
             }
         }
     </style>
+    @include('finance.partials.mobile-public-viewport')
 </head>
 <body>
     <div class="finance-page">
@@ -128,7 +129,7 @@
             @endphp
             @if($hasBalance)
                 <a href="{{ route('receipts.pay-now', $payment->public_token) }}" class="btn btn-success btn-sm">
-                    <i class="bi bi-phone me-1"></i> Pay Now (KES {{ number_format($totalOutstandingBalance ?? 0, 2) }})
+                    <i class="bi bi-phone me-1"></i> Pay Now
                 </a>
             @endif
             @if($family && $updateLink && $updateLink->is_active)

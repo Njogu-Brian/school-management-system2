@@ -58,7 +58,7 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
   }, [termsQuery.data, termId]);
 
   const statementFilters = useMemo(() => {
-    if (termId) return { term_id: termId, detailed: true as const };
+    if (termId && yearId) return { term_id: termId, academic_year_id: yearId, detailed: true as const };
     if (yearId) return { academic_year_id: yearId, detailed: true as const };
     return { year: new Date().getFullYear(), detailed: true as const };
   }, [termId, yearId]);
@@ -77,8 +77,8 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
     enabled: canView && selectedStudentId != null,
   });
 
-  const filterTerms = statementQuery.data?.filters?.available_terms ?? termsQuery.data ?? [];
-  const filterYears = statementQuery.data?.filters?.available_years ?? yearsQuery.data ?? [];
+  const filterTerms = termsQuery.data ?? [];
+  const filterYears = yearsQuery.data ?? [];
   const periodLabel = useMemo(() => {
     if (termId) {
       const t = filterTerms.find((x) => x.id === termId);
@@ -120,7 +120,7 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
                 <FilterChip
                   key={y.id}
                   label={String(y.year)}
-                  active={yearId === y.id && !termId}
+                  active={yearId === y.id}
                   onPress={() => {
                     setYearId(y.id);
                     setTermId(null);
@@ -130,6 +130,11 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
             </FilterChipRow>
 
             <FilterChipRow label="Term">
+              <FilterChip
+                label="All terms"
+                active={termId == null}
+                onPress={() => setTermId(null)}
+              />
               {filterTerms.map((t) => (
                 <FilterChip
                   key={t.id}
@@ -137,7 +142,7 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
                   active={termId === t.id}
                   onPress={() => {
                     setTermId(t.id);
-                    setYearId(t.academic_year_id);
+                    if (t.academic_year_id) setYearId(t.academic_year_id);
                   }}
                 />
               ))}

@@ -37,8 +37,8 @@
         .waiting-card {
             background: #fff;
             border-radius: 16px;
-            padding: 40px;
-            max-width: 500px;
+            padding: 28px 20px;
+            max-width: 640px;
             width: 100%;
             text-align: center;
             box-shadow: 0 20px 60px rgba(0,0,0,0.25);
@@ -61,8 +61,9 @@
         .receipt-link { margin-top: 16px; font-size: 16px; }
         .receipt-link a { color: var(--mpesa-green); font-weight: 600; }
     </style>
+    @include('finance.partials.mobile-public-viewport')
 </head>
-<body>
+<body class="pay-public-body">
     <div class="waiting-card">
         <div id="waitingState">
             <div class="phone-icon"><i class="bi bi-phone-vibrate"></i></div>

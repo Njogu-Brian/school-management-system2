@@ -33,6 +33,27 @@ def debug_log(message):
         print(message, file=sys.stderr)
 
 
+def collapse_narration(value):
+    """One statement row, one line — PDF cell wraps must not look like combined transactions."""
+    return re.sub(r"\s+", " ", (value or "").replace("\r", " ").replace("\n", " ")).strip()
+
+
+def is_duplicate_fragment(existing, new):
+    """True when `new` is a wrap/truncation of text already captured (stop combining narration)."""
+    if not new:
+        return True
+    e = collapse_narration(existing).upper()
+    n = collapse_narration(new).upper()
+    if not n:
+        return True
+    if not e:
+        return False
+    if n in e or e in n:
+        return True
+    token = n[:12]
+    return len(token) >= 8 and token in e
+
+
 def extract_text_from_pdf_pdfplumber(pdf_path):
     """Extract text and tables from PDF using pdfplumber"""
     pages_content = []
@@ -520,7 +541,7 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                 # Get the full particulars - handle cases where cell might be None or empty
                 cell_value = row[particulars_col] if particulars_col < len(row) else None
                 if cell_value is not None:
-                    particulars = str(cell_value).strip()
+                    particulars = collapse_narration(str(cell_value))
                 else:
                     particulars = ""
                 
@@ -585,14 +606,19 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                                     if not is_date and not is_amount and not is_header:
                                         # Check if it looks like continuation (has letters/numbers, not just spaces)
                                         if re.search(r'[A-Za-z0-9]', next_cell_str):
-                                            combined_parts.append(next_cell_str)
+                                            if not is_duplicate_fragment(' '.join(combined_parts), next_cell_str):
+                                                combined_parts.append(next_cell_str)
                                     else:
                                         # If we hit a date/amount/header, stop combining
                                         break
                     
                     # Join all parts to get full particulars
                     if combined_parts:
-                        particulars = ' '.join([p for p in combined_parts if p]).strip()
+                        parts = []
+                        for part in combined_parts:
+                            if part and not is_duplicate_fragment(' '.join(parts), part):
+                                parts.append(part)
+                        particulars = collapse_narration(' '.join(parts))
                         
                         # CRITICAL: Remove footer text from particulars if it got included
                         footer_patterns = [

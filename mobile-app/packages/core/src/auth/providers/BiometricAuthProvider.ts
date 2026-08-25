@@ -1,7 +1,7 @@
 import { authApi } from '../../api/auth.api';
 import { sessionsApi } from '../../api/sessions.api';
 import {
-  authenticateWithBiometrics,
+  promptBiometrics,
   clearBiometricFailureCount,
   getBiometricAuthBundle,
   incrementBiometricFailureCount,
@@ -50,8 +50,11 @@ export class BiometricUnlockStrategy implements IAuthProvider {
       throw new BiometricLoginLockedError();
     }
 
-    const verified = await authenticateWithBiometrics('Authenticate to unlock Admin Console');
-    if (!verified) {
+    const prompt = await promptBiometrics('Unlock with biometrics');
+    if (prompt === 'cancel') {
+      throw new Error('Biometric authentication was cancelled.');
+    }
+    if (prompt !== 'success') {
       const failures = await incrementBiometricFailureCount();
       if (failures >= BIOMETRIC_MAX_FAILURES) {
         throw new BiometricLoginLockedError();

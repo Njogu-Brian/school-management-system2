@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BankStatementTransaction;
 use App\Models\MpesaC2BTransaction;
 use App\Models\Student;
+use App\Services\Finance\MpesaStatementIdentity;
 use App\Services\UnifiedTransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -52,8 +53,12 @@ class ApiFinanceTransactionsController extends Controller
             ? collect()
             : Student::whereIn('id', $studentIds)->get()->keyBy('id');
 
-        $data = $items->map(function ($row) use ($students) {
-            return $this->formatUnifiedRow($row, $students);
+        $c2bStatementPhones = BankStatementTransaction::maskedPhonesByReference(
+            $items->where('transaction_type', 'c2b')->pluck('trans_code')->filter()->unique()->values()->all()
+        );
+
+        $data = $items->map(function ($row) use ($students, $c2bStatementPhones) {
+            return $this->formatUnifiedRow($row, $students, $c2bStatementPhones);
         })->values();
 
         return response()->json([
@@ -100,7 +105,7 @@ class ApiFinanceTransactionsController extends Controller
         ]);
     }
 
-    protected function formatUnifiedRow(object $row, Collection $studentsById): array
+    protected function formatUnifiedRow(object $row, Collection $studentsById, array $c2bStatementPhones = []): array
     {
         $type = $row->transaction_type ?? null;
         $sid = $row->student_id ? (int) $row->student_id : null;
@@ -127,7 +132,7 @@ class ApiFinanceTransactionsController extends Controller
             'trans_code' => $row->trans_code ?? null,
             'description' => $row->description ?? null,
             'bill_ref_number' => $row->bill_ref_number ?? null,
-            'phone_number' => $row->phone_number ?? null,
+            'phone_number' => MpesaStatementIdentity::phoneForTransaction($row, $c2bStatementPhones),
             'payer_name' => $row->payer_name ?? null,
             'student_id' => $sid,
             'student_name' => $studentName,
@@ -153,7 +158,7 @@ class ApiFinanceTransactionsController extends Controller
             'amount' => (float) $t->amount,
             'reference_number' => $t->reference_number,
             'description' => $t->description,
-            'phone_number' => $t->phone_number,
+            'phone_number' => MpesaStatementIdentity::toLocalMaskedPhone($t->phone_number),
             'payer_name' => $t->payer_name,
             'bank_type' => $t->bank_type,
             'student_id' => $t->student_id,
@@ -176,6 +181,10 @@ class ApiFinanceTransactionsController extends Controller
     protected function formatC2bDetail(MpesaC2BTransaction $t): array
     {
         $student = $t->student;
+        $displayPhone = MpesaStatementIdentity::phoneForTransaction(
+            $t,
+            BankStatementTransaction::maskedPhonesByReference(array_filter([(string) $t->trans_id]))
+        );
 
         return [
             'id' => $t->id,
@@ -184,7 +193,8 @@ class ApiFinanceTransactionsController extends Controller
             'trans_amount' => (float) $t->trans_amount,
             'trans_id' => $t->trans_id,
             'bill_ref_number' => $t->bill_ref_number,
-            'msisdn' => $t->msisdn,
+            'msisdn' => $displayPhone,
+            'phone_number' => $displayPhone,
             'first_name' => $t->first_name,
             'last_name' => $t->last_name,
             'student_id' => $t->student_id,
@@ -198,6 +208,7 @@ class ApiFinanceTransactionsController extends Controller
             'is_duplicate' => (bool) $t->is_duplicate,
             'is_swimming_transaction' => (bool) ($t->is_swimming_transaction ?? false),
             'match_reason' => $t->match_reason,
+            'description' => $t->bill_ref_number,
         ];
     }
 }

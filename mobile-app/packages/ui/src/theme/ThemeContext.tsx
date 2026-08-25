@@ -1,5 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   BORDER_RADIUS,
   COLORS,
@@ -161,10 +160,17 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   surfaceMode = 'default',
   colorOverrides,
 }) => {
-  const scheme = useColorScheme();
+  const [autoTick, setAutoTick] = useState(0);
+  useEffect(() => {
+    if (themeMode !== 'auto') return undefined;
+    const id = setInterval(() => setAutoTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [themeMode]);
+  const hour = new Date().getHours();
+  const isNight = hour >= 19 || hour < 6;
   const isDark = forcedMode
     ? forcedMode === 'dark'
-    : themeMode === 'dark' || (themeMode === 'auto' && scheme === 'dark');
+    : themeMode === 'dark' || (themeMode === 'auto' && isNight && autoTick >= 0);
 
   const setThemeMode = useCallback(
     (mode: ThemeMode) => {

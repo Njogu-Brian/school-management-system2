@@ -116,7 +116,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
       style={[
         styles.flex,
         contentContainerStyle,
-        clearFloatingTabBar && !hasBottomEdge ? { paddingBottom: systemNavPad } : null,
+        clearFloatingTabBar ? { paddingBottom: tabClearance } : !hasBottomEdge ? { paddingBottom: systemNavPad } : null,
       ]}
     >
       {children}

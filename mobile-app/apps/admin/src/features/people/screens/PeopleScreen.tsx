@@ -61,7 +61,7 @@ export const PeopleScreen: React.FC = () => {
             onPress={() => navigation.navigate('PayrollRecords')}
           />
           <QuickAction
-            label="Sign in / out"
+            label="Staff attendance"
             icon="time-outline"
             onPress={() => navigation.navigate('StaffClock')}
           />

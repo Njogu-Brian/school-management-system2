@@ -90,7 +90,7 @@ export const QuickActionFab: React.FC = () => {
     },
     {
       id: 'staff_clock',
-      label: 'Sign in / out',
+      label: 'Staff attendance',
       icon: 'time-outline',
       visible: canPeople,
       onPress: () => navigateToTab(navigation, 'People', 'StaffClock'),

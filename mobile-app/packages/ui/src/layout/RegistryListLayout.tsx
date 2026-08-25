@@ -63,13 +63,16 @@ export function RegistryListLayout<T>({
             paddingTop: spacing.sm,
             paddingBottom: spacing.sm,
             gap: spacing.sm,
+            flexShrink: 0,
           },
         ]}
       >
-        {searchBar}
-        {showFilterTrigger && onOpenFilters ? (
-          <FilterTriggerButton activeCount={activeFilterCount} onPress={onOpenFilters} />
-        ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View style={{ flex: 1, minWidth: 0 }}>{searchBar}</View>
+          {showFilterTrigger && onOpenFilters ? (
+            <FilterTriggerButton activeCount={activeFilterCount} onPress={onOpenFilters} />
+          ) : null}
+        </View>
       </View>
 
       <FlatList

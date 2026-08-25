@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\{
     BankStatementTransaction, Student, ParentInfo, Family, BankAccount, Payment
 };
+use App\Services\Finance\MpesaStatementIdentity;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -102,7 +103,7 @@ class BankStatementParser
             // Map parser output to our format
             // Parser returns: tran_date, particulars, credit, debit, transaction_code
             $transactionDate = $txnData['tran_date'] ?? null;
-            $particulars = $txnData['particulars'] ?? '';
+            $particulars = MpesaStatementIdentity::normalizeWhitespace($txnData['particulars'] ?? '');
             $credit = $txnData['credit'] ?? 0;
             $debit = $txnData['debit'] ?? 0;
             $transactionCode = $txnData['transaction_code'] ?? null;
@@ -111,9 +112,12 @@ class BankStatementParser
             $amount = $credit > 0 ? $credit : $debit;
             $transactionType = $credit > 0 ? 'credit' : 'debit';
             
-            // Extract payer name and phone from particulars
+            // Extract payer name and phone from particulars (prefer narration, then parser-extracted MSISDN)
             $payerName = $this->extractPayerName($particulars);
             $phoneNumber = $this->extractPhoneNumber($particulars);
+            if ($phoneNumber === null && preg_match('/MPESA|PAY BILL|2547|\b07\d/i', $particulars)) {
+                $phoneNumber = MpesaStatementIdentity::toLocalMaskedPhone($txnData['phone_number_extracted'] ?? null);
+            }
             
             // IMPORTANT: avoid creating duplicates when a Payment already exists and is already linked elsewhere.
             // This happens frequently for Equity statements when older imports used phone-like refs and later re-imports use real Transaction Reference.
@@ -131,25 +135,26 @@ class BankStatementParser
                         ->first();
 
                     if ($existingSameLine) {
+                        $identity = [
+                            'description' => $particulars,
+                            'phone_number' => $phoneNumber,
+                            'payer_name' => $payerName,
+                            'raw_data' => $txnData,
+                        ];
                         if (! $existingSameLine->payment_created) {
-                            $existingSameLine->update([
+                            $existingSameLine->update(array_merge([
                                 'bank_account_id' => $bankAccountId,
                                 'bank_type' => $bankType,
                                 'transaction_date' => $transactionDate,
                                 'amount' => $amount,
                                 'transaction_type' => $transactionType,
-                                'description' => $particulars,
-                                'phone_number' => $phoneNumber,
-                                'payer_name' => $payerName,
-                                'raw_data' => $txnData,
-                            ]);
-                            $updatedExisting++;
-                            $created[] = $existingSameLine->id;
-
-                            continue;
+                            ], $identity));
+                        } else {
+                            // Linked payments stay as-is; refresh the statement narrative / phone / payee only.
+                            $existingSameLine->update($identity);
                         }
-
-                        $duplicates++;
+                        $updatedExisting++;
+                        $created[] = $existingSameLine->id;
 
                         continue;
                     }
@@ -883,77 +888,52 @@ class BankStatementParser
     
     /**
      * Parse MPESA paybill description format
-     * Format: "Pay Bill from 25471****156 - FRANCISCAH WAMBUGU Acc. Trevor Osairi"
-     * Returns: ['partial_phone' => '25471...156', 'parent_name' => 'FRANCISCAH WAMBUGU', 'child_name' => 'Trevor Osairi']
+     * Format: "Pay Bill from 25470****430 - BELINDAH **** RATALA Acc. Trevor Osairi"
+     * Returns: phone in local masked form (0700***000), statement payee name, account/child names
      */
     protected function parseMpesaPaybillDescription(string $description): array
     {
+        $party = MpesaStatementIdentity::parseParty($description);
         $result = [
-            'partial_phone' => null,
-            'parent_name' => null,
-            'child_name' => null,
+            'partial_phone' => $party['phone'],
+            'parent_name' => $party['name'],
+            'child_name' => $party['account'],
+            'child_names' => [],
+            'child_admission_numbers' => [],
         ];
-        
-        // Extract partial phone: 25471****156 (first 3 and last 3 digits)
-        if (preg_match('/(\d{3,5})\*+(\d{3})/', $description, $phoneMatches)) {
-            $result['partial_phone'] = $phoneMatches[1] . '...' . $phoneMatches[2];
+
+        $childNameString = trim((string) $party['account']);
+        if ($childNameString === '') {
+            return $result;
         }
-        
-        // Extract parent name: Between "from" and "Acc." or "-"
-        // Pattern: "Pay Bill from 25471****156 - FRANCISCAH WAMBUGU Acc. Trevor Osairi"
-        if (preg_match('/from\s+\d+\*+[^\s]+\s*-\s*([A-Z][A-Z\s]+?)(?:\s+Acc\.|$)/i', $description, $parentMatches)) {
-            $result['parent_name'] = trim($parentMatches[1]);
-        } elseif (preg_match('/-\s*([A-Z][A-Z\s]{3,30}?)(?:\s+Acc\.|$)/i', $description, $parentMatches)) {
-            $result['parent_name'] = trim($parentMatches[1]);
+
+        if (preg_match_all('/RKS\s*\d{3,}/i', $childNameString, $admMatches)) {
+            $result['child_admission_numbers'] = array_map(function ($m) {
+                return preg_replace('/\s+/', '', strtoupper($m));
+            }, $admMatches[0]);
         }
-        
-        // Extract child name(s) and admission numbers: After "Acc."
-        // Handles: "Acc. Trevor Osairi", "Acc. Imani wakina", "Acc. susan & david", "Acc. RKS066&RKS233&RKS702", "Acc. Christiannjenga"
-        if (preg_match('/Acc\.\s*([A-Z0-9][A-Za-z0-9\s&]+?)(?:\s|$)/i', $description, $childMatches)) {
-            $childNameString = trim($childMatches[1]);
-            $result['child_name'] = $childNameString;
-            
-            // Check if it contains admission numbers (RKS format)
-            if (preg_match_all('/RKS\s*\d{3,}/i', $childNameString, $admMatches)) {
-                $result['child_admission_numbers'] = array_map(function($m) {
-                    return preg_replace('/\s+/', '', strtoupper($m));
-                }, $admMatches[0]);
+
+        $childNames = [];
+        $studentParts = preg_split('/\s*(?:&|and)\s*/i', $childNameString) ?: [];
+
+        foreach ($studentParts as $part) {
+            $part = trim($part);
+
+            if ($part === '' || preg_match('/^RKS\d+$/i', $part)) {
+                continue;
             }
-            
-            // Extract individual names - preserve full names (2 words) before splitting
-            $childNames = [];
-            
-            // First, extract full names (2 words) like "Imani wakina" or "Trevor Osairi"
-            // Split by "and" or "&" first to separate multiple students
-            $studentParts = preg_split('/\s*(?:&|and)\s*/i', $childNameString);
-            
-            foreach ($studentParts as $part) {
-                $part = trim($part);
-                
-                // Skip if it's an admission number
-                if (preg_match('/^RKS\d+$/i', $part)) {
-                    continue;
-                }
-                
-                // Check if it's a full name (2 words) - preserve it as full name
-                if (preg_match('/^([A-Z][a-z]+\s+[a-z]+)$/i', $part, $fullNameMatch)) {
-                    // Full name like "Imani wakina" - capitalize properly
-                    $fullName = ucwords(strtolower($part));
-                    $childNames[] = $fullName;
-                } elseif (preg_match('/^([A-Z][a-z]+\s+[A-Z][a-z]+)$/', $part, $fullNameMatch)) {
-                    // Full name like "Imani Wakina" - already proper case
-                    $childNames[] = $part;
-                } elseif (strlen($part) > 2) {
-                    // Single name or other format
-                    $childNames[] = $part;
-                }
+
+            if (preg_match('/^([A-Z][a-z]+\s+[a-z]+)$/i', $part)) {
+                $childNames[] = ucwords(strtolower($part));
+            } elseif (strlen($part) > 2) {
+                $childNames[] = $part;
             }
-            
-            $result['child_names'] = array_unique(array_filter($childNames, function($name) {
-                return strlen(trim($name)) > 1 && !preg_match('/^RKS\d+$/i', trim($name));
-            }));
         }
-        
+
+        $result['child_names'] = array_values(array_unique(array_filter($childNames, function ($name) {
+            return strlen(trim($name)) > 1 && ! preg_match('/^RKS\d+$/i', trim($name));
+        })));
+
         return $result;
     }
     
@@ -1076,31 +1056,29 @@ class BankStatementParser
      */
     protected function findStudentsByPartialPhone(string $partialPhone): array
     {
-        // Format: "25471...156" or "25471****156"
-        $parts = preg_split('/\.\.\.|\*+/', $partialPhone);
-        if (count($parts) !== 2) {
+        $variants = MpesaStatementIdentity::partialPhoneMatchParts($partialPhone);
+        if ($variants === []) {
             return [];
         }
-        
-        $prefix = $parts[0]; // First 3-5 digits
-        $suffix = $parts[1]; // Last 3 digits
-        
+
         $students = [];
-        
-        // Search in parent_info table
-        $parents = ParentInfo::where(function($q) use ($prefix, $suffix) {
-            $q->where('father_phone', 'LIKE', "{$prefix}%{$suffix}")
-              ->orWhere('mother_phone', 'LIKE', "{$prefix}%{$suffix}")
-              ->orWhere('guardian_phone', 'LIKE', "{$prefix}%{$suffix}")
-              ->orWhere('father_whatsapp', 'LIKE', "{$prefix}%{$suffix}")
-              ->orWhere('mother_whatsapp', 'LIKE', "{$prefix}%{$suffix}")
-              ->orWhere('guardian_whatsapp', 'LIKE', "{$prefix}%{$suffix}");
+
+        $parents = ParentInfo::where(function ($q) use ($variants) {
+            foreach ($variants as [$prefix, $suffix]) {
+                $like = "{$prefix}%{$suffix}";
+                $q->orWhere('father_phone', 'LIKE', $like)
+                    ->orWhere('mother_phone', 'LIKE', $like)
+                    ->orWhere('guardian_phone', 'LIKE', $like)
+                    ->orWhere('father_whatsapp', 'LIKE', $like)
+                    ->orWhere('mother_whatsapp', 'LIKE', $like)
+                    ->orWhere('guardian_whatsapp', 'LIKE', $like);
+            }
         })->get();
-        
+
         foreach ($parents as $parent) {
             $students = array_merge($students, $parent->students->all());
         }
-        
+
         return $students;
     }
     
@@ -1177,14 +1155,11 @@ class BankStatementParser
             return false;
         }
         
-        $parts = preg_split('/\.\.\.|\*+/', $partialPhone);
-        if (count($parts) !== 2) {
+        $variants = MpesaStatementIdentity::partialPhoneMatchParts($partialPhone);
+        if ($variants === []) {
             return false;
         }
-        
-        $prefix = $parts[0];
-        $suffix = $parts[1];
-        
+
         $parent = $student->parentInfo;
         $phones = [
             $parent->father_phone,
@@ -1194,10 +1169,16 @@ class BankStatementParser
             $parent->mother_whatsapp,
             $parent->guardian_whatsapp,
         ];
-        
+
         foreach ($phones as $phone) {
-            if ($phone && preg_match("/^{$prefix}.*{$suffix}$/", $phone)) {
-                return true;
+            $digits = preg_replace('/\D+/', '', (string) $phone) ?? '';
+            if ($digits === '') {
+                continue;
+            }
+            foreach ($variants as [$prefix, $suffix]) {
+                if (str_starts_with($digits, $prefix) && str_ends_with($digits, $suffix)) {
+                    return true;
+                }
             }
         }
         
@@ -1221,48 +1202,37 @@ class BankStatementParser
         if (empty($description)) {
             return null;
         }
-        
-        // Common patterns for payer names in MPESA/Equity statements
-        // Look for patterns like "FROM JOHN DOE", "PAID BY JANE SMITH", etc.
+
+        $party = MpesaStatementIdentity::parseParty($description);
+        if ($party['name']) {
+            return $party['name'];
+        }
+
         $patterns = [
             '/FROM\s+([A-Z][A-Z\s]{2,30})/i',
             '/PAID\s+BY\s+([A-Z][A-Z\s]{2,30})/i',
             '/SENT\s+FROM\s+([A-Z][A-Z\s]{2,30})/i',
             '/RECEIVED\s+FROM\s+([A-Z][A-Z\s]{2,30})/i',
-            '/BY\s+([A-Z][A-Z\s]{2,30})/i',
         ];
-        
+
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $description, $matches)) {
                 $name = trim($matches[1]);
-                // Filter out common words that aren't names
-                $exclude = ['MPESA', 'PAYBILL', 'SENT', 'RECEIVED', 'FROM', 'TO', 'KES', 'SCHOOL', 'FEES', 'ADMISSION'];
+                $exclude = ['MPESA', 'PAYBILL', 'SENT', 'RECEIVED', 'FROM', 'TO', 'KES', 'SCHOOL', 'FEES', 'ADMISSION', 'PAY', 'BILL'];
                 $words = explode(' ', $name);
-                $filtered = array_filter($words, fn($w) => !in_array(strtoupper($w), $exclude) && strlen($w) > 2);
-                
+                $filtered = array_filter($words, fn ($w) => ! in_array(strtoupper($w), $exclude) && strlen($w) > 2);
+
                 if (count($filtered) >= 1) {
                     return implode(' ', $filtered);
                 }
             }
         }
-        
-        // Fallback: Look for capitalized words at the start (likely names)
-        if (preg_match('/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/', $description, $matches)) {
-            $name = trim($matches[1]);
-            $exclude = ['MPESA', 'PAYBILL', 'SENT', 'RECEIVED', 'FROM', 'TO', 'KES', 'SCHOOL', 'FEES'];
-            $words = explode(' ', $name);
-            $filtered = array_filter($words, fn($w) => !in_array(strtoupper($w), $exclude));
-            
-            if (count($filtered) >= 1) {
-                return implode(' ', $filtered);
-            }
-        }
-        
+
         return null;
     }
-    
+
     /**
-     * Extract phone number from description
+     * Extract phone number from description in local masked form (0700***000).
      */
     protected function extractPhoneNumber(string $description): ?string
     {
@@ -1270,39 +1240,12 @@ class BankStatementParser
             return null;
         }
 
-        // Prefer real MSISDN shapes first. Equity statements often include 0120263… till / account
-        // tokens: the old pattern 0[17]\d{8} matched "0120263149" inside 0120263149140 and produced
-        // bogus 254120263149 (01 + 20263149 normalized).
-        if (preg_match('/\b2547\d{8}\b/', $description, $m)) {
-            return $m[0];
-        }
-        if (preg_match('/\b2549\d{8}\b/', $description, $m)) {
-            return $m[0];
-        }
-        if (preg_match('/\b2541\d{8}\b/', $description, $m)) {
-            return $m[0];
-        }
-        if (preg_match('/\b07\d{8}\b/', $description, $m)) {
-            return '254' . substr($m[0], 1);
-        }
-        if (preg_match('/\+2547\d{8}\b/', $description, $m)) {
-            return substr($m[0], 1);
-        }
-        if (preg_match('/\+2549\d{8}\b/', $description, $m)) {
-            return substr($m[0], 1);
-        }
-        if (preg_match('/\+2541\d{8}\b/', $description, $m)) {
-            return substr($m[0], 1);
+        $party = MpesaStatementIdentity::parseParty($description);
+        if ($party['phone']) {
+            return $party['phone'];
         }
 
-        // APP/MPESA/2547… or 12-digit MSISDN embedded without leading 0
-        if (preg_match('/(?:APP|USSD)\/MPESA\/(2547\d{8}|07\d{8})\b/i', $description, $m)) {
-            $p = $m[1];
-
-            return str_starts_with($p, '07') ? ('254' . substr($p, 1)) : $p;
-        }
-
-        return null;
+        return MpesaStatementIdentity::extractPhoneFromText($description);
     }
     
     /**
@@ -1319,6 +1262,10 @@ class BankStatementParser
      */
     public function findStudentsByPhone(string $phoneNumber): array
     {
+        if (str_contains($phoneNumber, '*') || str_contains($phoneNumber, '...')) {
+            return $this->findStudentsByPartialPhone($phoneNumber);
+        }
+
         $students = [];
         
         // Search in parent_info table
@@ -2681,10 +2628,9 @@ class BankStatementParser
                         $histCount = (clone $historicalQuery)
                             ->where('student_id', $student->id)
                             ->where(function($q) use ($partialPhone) {
-                                $parts = preg_split('/\.\.\.|\*+/', $partialPhone);
-                                if (count($parts) === 2) {
-                                    $q->where('phone_number', 'LIKE', "{$parts[0]}%{$parts[1]}")
-                                      ->orWhere('description', 'LIKE', "%{$parts[0]}%{$parts[1]}%");
+                                foreach (MpesaStatementIdentity::partialPhoneMatchParts($partialPhone) as [$prefix, $suffix]) {
+                                    $q->orWhere('phone_number', 'LIKE', "{$prefix}%{$suffix}")
+                                        ->orWhere('description', 'LIKE', "%{$prefix}%{$suffix}%");
                                 }
                             })
                             ->count();

@@ -22,7 +22,7 @@ export interface PremiumTabBarProps {
 
 /** Floating capsule height + side/bottom padding for scroll clearance. */
 export const FLOATING_TAB_BAR_BODY_HEIGHT = 64;
-export const FLOATING_TAB_BAR_CUSHION = 20;
+export const FLOATING_TAB_BAR_CUSHION = 28;
 export const FLOATING_TAB_BAR_CLEARANCE =
   FLOATING_TAB_BAR_BODY_HEIGHT + FLOATING_TAB_BAR_CUSHION + 24;
 

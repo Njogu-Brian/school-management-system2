@@ -23,6 +23,7 @@ class MpesaTransactionClassifier
     {
         $normalized = $this->normalizeNarration($narration);
         $upper = strtoupper($normalized);
+        $party = MpesaStatementIdentity::parseParty($normalized);
 
         if ($this->isFeeNarration($upper)) {
             return $this->buildResult(
@@ -38,8 +39,9 @@ class MpesaTransactionClassifier
             );
         }
 
-        if (str_contains($upper, 'CUSTOMER TRANSFER TO')) {
-            [$phone, $name] = $this->extractPhoneAndName($normalized, 'Customer Transfer to');
+        if (str_contains($upper, 'CUSTOMER TRANSFER TO') || str_contains($upper, 'CUSTOMER TRANSFER FULIZA')) {
+            $phone = $party['phone'];
+            $name = $party['name'];
 
             return $this->buildResult(
                 ExpenseStatementLine::TYPE_SEND_MONEY,
@@ -54,8 +56,9 @@ class MpesaTransactionClassifier
             );
         }
 
-        if (str_contains($upper, 'CUSTOMER PAYMENT TO SMALL BUSINESS')) {
-            [$phone, $name] = $this->extractPhoneAndName($normalized, 'Customer Payment to Small Business');
+        if (str_contains($upper, 'CUSTOMER PAYMENT TO SMALL BUSINESS') || str_contains($upper, 'CUSTOMER SEND MONEY TO MICRO SME')) {
+            $phone = $party['phone'];
+            $name = $party['name'];
 
             return $this->buildResult(
                 ExpenseStatementLine::TYPE_POCHI,
@@ -70,19 +73,21 @@ class MpesaTransactionClassifier
             );
         }
 
-        if (str_contains($upper, 'MERCHANT PAYMENT TO')) {
+        if (str_contains($upper, 'MERCHANT PAYMENT') && ! str_contains($upper, 'CHARGE')) {
             $merchant = $this->extractMerchantPayment($normalized);
+            $name = $merchant['name'] ?: $party['name'];
+            $till = $merchant['till'] ?: $party['till'];
 
             return $this->buildResult(
                 ExpenseStatementLine::TYPE_BUY_GOODS,
                 false,
-                $merchant['name'],
+                $name,
                 null,
                 null,
                 null,
-                $merchant['till'],
-                $this->groupKey('buy_goods', $merchant['till'], $merchant['name']),
-                $merchant['name'] ?: ($merchant['till'] ?: 'Buy Goods')
+                $till,
+                $this->groupKey('buy_goods', $till, $name),
+                $name ?: ($till ?: 'Buy Goods')
             );
         }
 
@@ -99,6 +104,36 @@ class MpesaTransactionClassifier
                 null,
                 $this->groupKey('paybill', $paybill['number'], $paybill['account'] ?: $paybill['recipient']),
                 $paybill['recipient'] ?: ('Paybill ' . ($paybill['number'] ?: ''))
+            );
+        }
+
+        if (str_contains($upper, 'BUNDLE PURCHASE')) {
+            $bundle = $this->extractBundlePurchase($normalized);
+
+            return $this->buildResult(
+                ExpenseStatementLine::TYPE_PAYBILL,
+                false,
+                $bundle['recipient'],
+                $bundle['phone'],
+                $bundle['number'],
+                $bundle['account'],
+                null,
+                $this->groupKey('paybill', $bundle['number'], $bundle['recipient']),
+                $bundle['recipient'] ?: 'Bundle Purchase'
+            );
+        }
+
+        if (str_contains($upper, 'AIRTIME PURCHASE')) {
+            return $this->buildResult(
+                ExpenseStatementLine::TYPE_OTHER,
+                false,
+                'Airtime Purchase',
+                $party['phone'],
+                null,
+                null,
+                null,
+                'other:airtime',
+                'Airtime Purchase'
             );
         }
 
@@ -121,11 +156,11 @@ class MpesaTransactionClassifier
         return $this->buildResult(
             ExpenseStatementLine::TYPE_OTHER,
             false,
-            $this->truncate($normalized, 80),
-            null,
-            null,
-            null,
-            null,
+            $this->otherRecipientName($normalized, $party['name']),
+            $party['phone'],
+            $party['paybill'],
+            $party['account'],
+            $party['till'],
             'other:' . substr(sha1($normalized), 0, 16),
             $this->truncate($normalized, 60) ?: 'Other'
         );
@@ -149,11 +184,11 @@ class MpesaTransactionClassifier
 
         $tail = trim($matches[1]);
         $phone = null;
-        if (preg_match('/(\d{2,4}\*+\d{2,4}|\d{10,12})/', $tail, $phoneMatch)) {
-            $phone = $phoneMatch[1];
+        if (preg_match('/(\d+\*+\d+|\d{10,12})/', $tail, $phoneMatch)) {
+            $phone = MpesaStatementIdentity::toLocalMaskedPhone($phoneMatch[1]);
         }
 
-        $name = trim(preg_replace('/\d{2,4}\*+\d{2,4}|\d{10,12}/', '', $tail));
+        $name = trim(preg_replace('/\d+\*+\d+|\d{10,12}/', '', $tail));
         $name = $this->titleCase($name);
 
         return [$phone, $name ?: null];
@@ -164,10 +199,10 @@ class MpesaTransactionClassifier
         $till = null;
         $name = null;
 
-        if (preg_match('/Merchant Payment to\s+(\d+)\s*[-–]?\s*(.+)$/i', $narration, $matches)) {
+        if (preg_match('/Merchant Payment(?:\s+Online)?\s+to\s+(\d+)\s*[-–]?\s*(.+)$/i', $narration, $matches)) {
             $till = $matches[1];
             $name = $this->titleCase(trim($matches[2]));
-        } elseif (preg_match('/Merchant Payment to\s+(.+)$/i', $narration, $matches)) {
+        } elseif (preg_match('/Merchant Payment(?:\s+Online)?\s+to\s+(.+)$/i', $narration, $matches)) {
             $name = $this->titleCase(trim($matches[1]));
         }
 
@@ -197,6 +232,40 @@ class MpesaTransactionClassifier
             'recipient' => $recipient,
             'account' => $account,
         ];
+    }
+
+    /**
+     * @return array{number: ?string, recipient: ?string, account: ?string, phone: ?string}
+     */
+    protected function extractBundlePurchase(string $narration): array
+    {
+        $number = null;
+        $recipient = null;
+        $phone = null;
+
+        if (preg_match('/Bundle Purchase to\s+(\d+)\s*(.+?)(?:\s+by\s*[-–]?\s*(.+))?$/i', $narration, $matches)) {
+            $number = $matches[1];
+            $recipient = $this->titleCase(trim(preg_replace('/\d+\*+\d+|\d{10,12}/', '', $matches[2])));
+            if (isset($matches[3])) {
+                [$phone] = $this->extractPhoneAndName('Customer Transfer to ' . $matches[3], 'Customer Transfer to');
+            }
+        }
+
+        return [
+            'number' => $number,
+            'recipient' => $recipient ?: 'Safaricom Bundles',
+            'account' => null,
+            'phone' => $phone,
+        ];
+    }
+
+    protected function otherRecipientName(string $normalized, ?string $parsedName): ?string
+    {
+        if ($parsedName && mb_strlen($parsedName) <= 80 && strtoupper($parsedName) !== strtoupper($normalized)) {
+            return $parsedName;
+        }
+
+        return null;
     }
 
     protected function normalizeNarration(string $narration): string

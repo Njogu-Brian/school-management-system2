@@ -56,7 +56,7 @@
                                 </td>
                                 <td>
                                     @if($transaction->msisdn)
-                                        {{ $transaction->formatted_phone ?? $transaction->msisdn }}
+                                        {{ $transaction->formatted_phone ?: '—' }}
                                     @else
                                         N/A
                                     @endif
