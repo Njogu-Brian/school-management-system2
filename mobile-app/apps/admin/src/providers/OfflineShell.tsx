@@ -1,4 +1,4 @@
-import { getAppQueryClient, useNetworkStatus, useSyncQueue } from '@erp/core';
+import { enqueueAttendanceDrafts, getAppQueryClient, useNetworkStatus, useSyncQueue } from '@erp/core';
 import { OfflineBanner } from '@erp/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import { SyncConflictSheet } from './SyncConflictSheet';
@@ -7,24 +7,34 @@ import { SyncConflictSheet } from './SyncConflictSheet';
 export const OfflineShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const networkStatus = useNetworkStatus();
   const prevStatus = useRef(networkStatus);
+  const didInitialDrain = useRef(false);
   const { pendingCount, conflictCount, refresh, process } = useSyncQueue();
   const [conflictsOpen, setConflictsOpen] = useState(false);
 
   useEffect(() => {
-    if (prevStatus.current !== 'online' && networkStatus === 'online') {
-      void getAppQueryClient().invalidateQueries();
-      void process().then(({ processed, failed, conflicts }) => {
-        if (processed > 0 || failed > 0 || conflicts > 0) {
-          void getAppQueryClient().invalidateQueries({ queryKey: ['finance'] });
-          void getAppQueryClient().invalidateQueries({ queryKey: ['academics'] });
-          void getAppQueryClient().invalidateQueries({ queryKey: ['students'] });
-          void getAppQueryClient().invalidateQueries({ queryKey: ['dashboard'] });
-        }
-        void refresh();
-        if (conflicts > 0) setConflictsOpen(true);
-      });
+    if (networkStatus !== 'online') {
+      prevStatus.current = networkStatus;
+      return;
     }
-    prevStatus.current = networkStatus;
+
+    const shouldDrain = !didInitialDrain.current || prevStatus.current !== 'online';
+    didInitialDrain.current = true;
+    prevStatus.current = 'online';
+    if (!shouldDrain) return;
+
+    void (async () => {
+      await enqueueAttendanceDrafts();
+      void getAppQueryClient().invalidateQueries();
+      const { processed, failed, conflicts } = await process();
+      if (processed > 0 || failed > 0 || conflicts > 0) {
+        void getAppQueryClient().invalidateQueries({ queryKey: ['finance'] });
+        void getAppQueryClient().invalidateQueries({ queryKey: ['academics'] });
+        void getAppQueryClient().invalidateQueries({ queryKey: ['students'] });
+        void getAppQueryClient().invalidateQueries({ queryKey: ['dashboard'] });
+      }
+      void refresh();
+      if (conflicts > 0) setConflictsOpen(true);
+    })();
   }, [networkStatus, process, refresh]);
 
   const onRetry = () => {
@@ -32,7 +42,9 @@ export const OfflineShell: React.FC<{ children: React.ReactNode }> = ({ children
       setConflictsOpen(true);
       return;
     }
-    void process().then(() => void refresh());
+    void enqueueAttendanceDrafts()
+      .then(() => process())
+      .then(() => void refresh());
     void getAppQueryClient().refetchQueries({ type: 'active' });
   };
 

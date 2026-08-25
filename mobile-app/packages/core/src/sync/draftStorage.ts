@@ -1,9 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DRAFT_PREFIX = 'erp_draft_v1:';
+const ATTENDANCE_DRAFT_PREFIX = `${DRAFT_PREFIX}attendance:`;
 
 export function attendanceDraftKey(date: string, classId: number, streamId: number | null): string {
-  return `${DRAFT_PREFIX}attendance:${date}:${classId}:${streamId ?? 0}`;
+  return `${ATTENDANCE_DRAFT_PREFIX}${date}:${classId}:${streamId ?? 0}`;
+}
+
+/** Parse `erp_draft_v1:attendance:{date}:{classId}:{streamId}` keys stored on device. */
+export function parseAttendanceDraftKey(
+  key: string,
+): { date: string; classId: number; streamId: number | null } | null {
+  if (!key.startsWith(ATTENDANCE_DRAFT_PREFIX)) return null;
+  const rest = key.slice(ATTENDANCE_DRAFT_PREFIX.length);
+  const parts = rest.split(':');
+  if (parts.length < 3) return null;
+  const date = parts[0];
+  const classId = Number(parts[1]);
+  const streamRaw = Number(parts[2]);
+  if (!date || !Number.isFinite(classId) || !Number.isFinite(streamRaw)) return null;
+  return { date, classId, streamId: streamRaw === 0 ? null : streamRaw };
 }
 
 export function marksDraftKey(examId: number, subjectId: number, classroomId: number): string {

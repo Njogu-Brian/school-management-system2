@@ -1,6 +1,7 @@
 import {
   attendanceApi,
   attendanceDraftKey,
+  clearDraft as deleteDraftKey,
   queueOrExecute,
   studentsApi,
   SYNC_KINDS,
@@ -12,7 +13,6 @@ import {
 } from '@erp/core';
 import {
   AcademicScreenHeader,
-  Button,
   EmptyState,
   FilterChip,
   FilterChipRow,
@@ -98,12 +98,11 @@ export const MarkAttendanceScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
   /**
-   * As the Attendance tab root the screen sits under the persistent GlobalAppHeader,
-   * so we hide the in-content header and drop the top safe-area edge. When pushed as
-   * the `MarkAttendance` stack screen there is no chrome, so we show the back header
-   * and inherit the default top+bottom edges.
+   * Attendance tab root is `AttendanceMain` (nested under the Attendance tab).
+   * `MarkAttendance` is the same screen pushed from Home — both sit above the
+   * floating tab bar.
    */
-  const isTabRoot = route.name === 'Attendance';
+  const isTabRoot = route.name === 'AttendanceMain' || route.name === 'Attendance';
   const { colors, palette, spacing, typography } = useTheme();
   const tabClearance = useFloatingTabBarClearance();
   const networkStatus = useNetworkStatus();
@@ -122,7 +121,12 @@ export const MarkAttendanceScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
   const [schoolDayMessage, setSchoolDayMessage] = useState<string | null>(null);
-  const [hasLocalDraft, setHasLocalDraft] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'queued' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const submitInFlightRef = useRef(false);
+  const needsResubmitRef = useRef(false);
+  const viewRef = useRef({ classId, streamId, dateStr });
+  viewRef.current = { classId, streamId, dateStr };
 
   const draftKey = classId ? attendanceDraftKey(dateStr, classId, streamId) : null;
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<AttendanceDraft>(draftKey);
@@ -192,18 +196,15 @@ export const MarkAttendanceScreen: React.FC = () => {
       if (draftLoadedRef.current && savedDraft?.statusById) {
         setStatusById({ ...byId, ...savedDraft.statusById });
         setServerSnapshot(savedDraft.serverSnapshot ?? snapshot);
-        setHasLocalDraft(true);
       } else {
         setStatusById(byId);
         setServerSnapshot(snapshot);
-        setHasLocalDraft(false);
       }
     } catch (err) {
       const savedDraft = draftRef.current;
       if (draftLoadedRef.current && savedDraft?.statusById) {
         setStatusById(savedDraft.statusById);
         setServerSnapshot(savedDraft.serverSnapshot ?? {});
-        setHasLocalDraft(true);
         showSuccess('Offline', 'Showing your saved draft. Server data unavailable.');
       } else {
         showError('Error', err instanceof Error ? err.message : 'Failed to load class.');
@@ -219,7 +220,6 @@ export const MarkAttendanceScreen: React.FC = () => {
 
   const setStatus = (studentId: number, status: AttendanceMarkStatus) => {
     setStatusById((prev) => ({ ...prev, [studentId]: status }));
-    setHasLocalDraft(true);
   };
 
   const markAll = (status: AttendanceMarkStatus) => {
@@ -228,7 +228,6 @@ export const MarkAttendanceScreen: React.FC = () => {
       for (const s of students) next[s.id] = status;
       return next;
     });
-    setHasLocalDraft(true);
   };
 
   const isDirty = useMemo(() => {
@@ -240,84 +239,105 @@ export const MarkAttendanceScreen: React.FC = () => {
     if (!draftKey || students.length === 0) return;
     if (!isDirty) {
       void clearDraft();
-      setHasLocalDraft(false);
       return;
     }
-    setHasLocalDraft(true);
     setDraft({
       statusById,
       serverSnapshot,
     });
   }, [statusById, draftKey, students.length, isDirty, setDraft, clearDraft, serverSnapshot]);
 
-  const markSubmittedLocally = async () => {
-    const snap: Record<number, string> = {};
-    for (const s of students) {
-      snap[s.id] = statusById[s.id] ?? 'unmarked';
-    }
-    setServerSnapshot(snap);
-    draftRef.current = null;
-    await clearDraft();
-    setHasLocalDraft(false);
-  };
-
   const submit = async () => {
     if (!classId) return;
+    if (submitInFlightRef.current) {
+      needsResubmitRef.current = true;
+      return;
+    }
+    const submittedClassId = classId;
+    const submittedStreamId = streamId;
+    const submittedDate = dateStr;
+    const submittedStudents = students;
+    const submittedStatus = { ...statusById };
+    const submittedSnapshot = { ...serverSnapshot };
+
     /** Only changed rows — includes `unmarked` so previously saved marks can be cleared. */
-    const records = students
+    const records = submittedStudents
       .map((s) => ({
         student_id: s.id,
-        status: (statusById[s.id] ?? 'unmarked') as AttendanceMarkStatus,
+        status: (submittedStatus[s.id] ?? 'unmarked') as AttendanceMarkStatus,
         student_name: s.name,
       }))
-      .filter((r) => r.status !== (serverSnapshot[r.student_id] ?? 'unmarked'));
+      .filter((r) => r.status !== (submittedSnapshot[r.student_id] ?? 'unmarked'));
     if (records.length === 0) {
-      showError('Nothing to submit', 'Change at least one student before submitting.');
+      setSaveStatus('idle');
       return;
     }
     const hasNonUnmark = records.some((r) => r.status !== 'unmarked');
     if (hasNonUnmark && schoolDayOk === false) {
-      showError('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
+      setSaveStatus('error');
+      setSaveError(schoolDayMessage ?? 'Pick a valid school day.');
       return;
     }
 
     const classLabel =
-      classroomsQuery.data?.find((c) => c.id === classId)?.name ?? `Class #${classId}`;
+      classroomsQuery.data?.find((c) => c.id === submittedClassId)?.name ?? `Class #${submittedClassId}`;
     const payload = {
-      date: dateStr,
-      class_id: classId,
-      stream_id: streamId,
+      date: submittedDate,
+      class_id: submittedClassId,
+      stream_id: submittedStreamId,
       class_label: classLabel,
       records,
-      baseSnapshot: serverSnapshot,
+      baseSnapshot: submittedSnapshot,
     };
 
+    submitInFlightRef.current = true;
+    setSaveStatus('saving');
+    setSaveError(null);
     try {
       const result = await queueOrExecute(
         SYNC_KINDS.ATTENDANCE_MARK,
         payload,
         async () => {
           await markMutation.mutateAsync({
-            date: dateStr,
-            class_id: classId,
-            stream_id: streamId,
+            date: submittedDate,
+            class_id: submittedClassId,
+            stream_id: submittedStreamId,
             records: records.map((r) => ({ student_id: r.student_id, status: r.status })),
           });
         },
         networkStatus,
-        { label: `Attendance · ${classLabel} · ${dateStr}` },
+        { label: `Attendance · ${classLabel} · ${submittedDate}` },
       );
 
-      await markSubmittedLocally();
+      const view = viewRef.current;
+      const stillOnSameClass =
+        view.classId === submittedClassId &&
+        view.streamId === submittedStreamId &&
+        view.dateStr === submittedDate;
 
-      if (result === 'queued') {
-        showSuccess('Queued for sync', 'Attendance will push to the server when you reconnect.');
+      if (stillOnSameClass) {
+        const snap: Record<number, string> = {};
+        for (const s of submittedStudents) {
+          snap[s.id] = submittedStatus[s.id] ?? 'unmarked';
+        }
+        setServerSnapshot(snap);
+        draftRef.current = null;
+        await clearDraft();
+        setSaveStatus(result === 'queued' ? 'queued' : 'saved');
       } else {
-        showSuccess('Submitted', 'Attendance saved on the server.');
-        void loadStudents();
+        await deleteDraftKey(attendanceDraftKey(submittedDate, submittedClassId, submittedStreamId));
       }
     } catch (err) {
-      showError('Could not submit', (err as Error).message);
+      const message = (err as Error).message;
+      setSaveStatus('error');
+      setSaveError(message);
+      showError('Could not save attendance', message);
+    } finally {
+      submitInFlightRef.current = false;
+      if (needsResubmitRef.current) {
+        needsResubmitRef.current = false;
+        void submit();
+      }
     }
   };
 
@@ -338,8 +358,23 @@ export const MarkAttendanceScreen: React.FC = () => {
   }, [isDirty, students, statusById, serverSnapshot]);
   const canSubmit =
     classId != null && students.length > 0 && (schoolDayOk !== false || onlyUnmarksPending);
-  /** Hide the disabled "Submitted" mid-air state — only surface the footer when there are unsaved changes. */
-  const showSubmit = canSubmit && isDirty;
+
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+
+  /** Push each mark to the server shortly after the teacher taps — no Submit button. */
+  useEffect(() => {
+    if (!isDirty || !canSubmit || loading) return;
+    const handle = setTimeout(() => {
+      void submitRef.current();
+    }, 800);
+    return () => clearTimeout(handle);
+  }, [isDirty, statusById, canSubmit, loading, dateStr, classId, streamId]);
+
+  useEffect(() => {
+    setSaveStatus('idle');
+    setSaveError(null);
+  }, [classId, streamId, dateStr]);
 
   return (
     <ScreenContainer
@@ -357,10 +392,31 @@ export const MarkAttendanceScreen: React.FC = () => {
           />
         )}
 
-        {hasLocalDraft && isDirty ? (
+        {saveStatus === 'error' ? (
+          <View style={[styles.warnBanner, { backgroundColor: `${colors.error}14`, borderColor: colors.error }]}>
+            <Text style={{ color: colors.error, fontSize: typography.body.fontSize }}>
+              {saveError ?? 'Could not save attendance.'}
+            </Text>
+            <Pressable onPress={() => void submit()} style={{ marginTop: spacing.xs }}>
+              <Text style={{ color: colors.error, fontWeight: '700' }}>Retry save</Text>
+            </Pressable>
+          </View>
+        ) : saveStatus === 'saving' || isDirty ? (
           <View style={[styles.warnBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
             <Text style={{ color: colors.primary, fontSize: typography.body.fontSize }}>
-              Unsubmitted changes — saved as a draft on this device until you submit.
+              Saving to the server…
+            </Text>
+          </View>
+        ) : saveStatus === 'queued' ? (
+          <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
+            <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>
+              Saved on this phone — will upload when you are online.
+            </Text>
+          </View>
+        ) : saveStatus === 'saved' ? (
+          <View style={[styles.warnBanner, { backgroundColor: `${colors.success}14`, borderColor: colors.success }]}>
+            <Text style={{ color: colors.success, fontSize: typography.body.fontSize }}>
+              Saved to the server.
             </Text>
           </View>
         ) : null}
@@ -449,7 +505,7 @@ export const MarkAttendanceScreen: React.FC = () => {
             style={{ flex: 1 }}
             contentContainerStyle={{
               flexGrow: 1,
-              paddingBottom: showSubmit ? spacing.sm : isTabRoot ? tabClearance : spacing.lg,
+              paddingBottom: tabClearance,
             }}
             renderItem={({ item }) => {
               const status = statusById[item.id] ?? 'unmarked';
@@ -497,23 +553,6 @@ export const MarkAttendanceScreen: React.FC = () => {
             }
           />
         )}
-        {showSubmit ? (
-          <View
-            style={{
-              paddingTop: spacing.sm,
-              paddingBottom: isTabRoot ? tabClearance : spacing.md,
-              backgroundColor: palette.background,
-              borderTopWidth: StyleSheet.hairlineWidth,
-              borderTopColor: palette.border,
-            }}
-          >
-            <Button
-              label={networkStatus === 'offline' ? 'Submit (queue offline)' : 'Submit attendance'}
-              onPress={() => void submit()}
-              loading={markMutation.isPending}
-            />
-          </View>
-        ) : null}
       </View>
     </ScreenContainer>
   );

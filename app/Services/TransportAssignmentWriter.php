@@ -6,6 +6,7 @@ use App\Models\DropOffPoint;
 use App\Models\Student;
 use App\Models\StudentAssignment;
 use App\Models\Trip;
+use Illuminate\Support\Collection;
 
 class TransportAssignmentWriter
 {
@@ -164,12 +165,67 @@ class TransportAssignmentWriter
         return round((float) $value, 2);
     }
 
+    public static function tripLegLabel(Trip $trip): string
+    {
+        $leg = $trip->assignmentLeg();
+        if ($leg === 'morning') {
+            return 'Morning';
+        }
+        if ($leg === 'evening') {
+            return 'Evening';
+        }
+
+        if ($trip->type) {
+            return (string) $trip->type;
+        }
+
+        if ($trip->direction) {
+            return $trip->direction === 'pickup' ? 'Morning' : ($trip->direction === 'dropoff' ? 'Evening' : ucfirst((string) $trip->direction));
+        }
+
+        return 'Unspecified';
+    }
+
+    public static function vehicleLabel(?Trip $trip): string
+    {
+        if (! $trip) {
+            return 'No vehicle';
+        }
+
+        return $trip->vehicle?->vehicle_number
+            ?? $trip->vehicle?->registration_number
+            ?? 'No vehicle';
+    }
+
+    /**
+     * Option text inside a vehicle group: "Morning — CBD Route".
+     */
+    public static function tripOptionLabel(Trip $trip): string
+    {
+        return self::tripLegLabel($trip).' — '.$trip->name;
+    }
+
     public static function tripLabel(Trip $trip): string
     {
-        $vehicle = $trip->vehicle?->vehicle_number
-            ?? $trip->vehicle?->registration_number
-            ?? 'N/A';
+        return self::vehicleLabel($trip).' · '.self::tripOptionLabel($trip);
+    }
 
-        return $vehicle.' — '.$trip->name;
+    /**
+     * Group trips by vehicle, sorted by vehicle number then trip name.
+     *
+     * @param  iterable<Trip>  $trips
+     * @return Collection<int, Collection<int, Trip>>
+     */
+    public static function groupedByVehicle(iterable $trips): Collection
+    {
+        return collect($trips)
+            ->sortBy(function (Trip $trip) {
+                $vehicle = mb_strtolower(self::vehicleLabel($trip));
+                $leg = $trip->assignmentLeg() === 'evening' ? '2' : '1';
+
+                return sprintf('%s %s %s', $vehicle, $leg, mb_strtolower((string) $trip->name));
+            }, SORT_NATURAL)
+            ->groupBy(fn (Trip $trip) => (string) ($trip->vehicle_id ?: 'none'))
+            ->values();
     }
 }

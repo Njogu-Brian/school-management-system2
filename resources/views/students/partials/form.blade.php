@@ -268,12 +268,11 @@
     <div class="col-md-6 transport-field">
       <label class="form-label" for="morning_trip_id">Morning trip <span class="text-danger">*</span></label>
       <select name="morning_trip_id" id="morning_trip_id" class="form-select">
-        <option value="">Select morning trip</option>
-        @foreach ($morningTrips as $trip)
-          <option value="{{ $trip->id }}" @selected(old('morning_trip_id', $assignment?->morning_trip_id)==$trip->id)>
-            {{ \App\Services\TransportAssignmentWriter::tripLabel($trip) }}
-          </option>
-        @endforeach
+        @include('student_assignments.partials.trip_options', [
+            'trips' => $morningTrips,
+            'selected' => old('morning_trip_id', $assignment?->morning_trip_id),
+            'placeholder' => 'Select morning trip',
+        ])
       </select>
       <div class="form-text">Not required if morning pickup is OWN MEANS.</div>
     </div>
@@ -289,12 +288,11 @@
     <div class="col-md-6 transport-field">
       <label class="form-label" for="evening_trip_id">Evening trip <span class="text-danger">*</span></label>
       <select name="evening_trip_id" id="evening_trip_id" class="form-select">
-        <option value="">Select evening trip</option>
-        @foreach ($eveningTrips as $trip)
-          <option value="{{ $trip->id }}" @selected(old('evening_trip_id', $assignment?->evening_trip_id)==$trip->id)>
-            {{ \App\Services\TransportAssignmentWriter::tripLabel($trip) }}
-          </option>
-        @endforeach
+        @include('student_assignments.partials.trip_options', [
+            'trips' => $eveningTrips,
+            'selected' => old('evening_trip_id', $assignment?->evening_trip_id),
+            'placeholder' => 'Select evening trip',
+        ])
       </select>
       <div class="form-text">Not required if evening drop-off is OWN MEANS.</div>
     </div>

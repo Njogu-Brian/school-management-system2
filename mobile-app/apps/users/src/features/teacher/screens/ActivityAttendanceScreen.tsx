@@ -10,6 +10,7 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
+  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -38,6 +39,7 @@ export const ActivityAttendanceScreen: React.FC = () => {
   const route = useRoute<Route>();
   const { activityId, activityName } = route.params;
   const { colors, palette, spacing, typography } = useTheme();
+  const tabClearance = useFloatingTabBarClearance();
 
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
@@ -202,7 +204,7 @@ export const ActivityAttendanceScreen: React.FC = () => {
             data={students}
             keyExtractor={(item) => String(item.id)}
             style={{ flex: 1 }}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: canSubmit ? spacing.sm : spacing.lg }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: canSubmit ? spacing.sm : tabClearance }}
             renderItem={({ item }) => {
               const attended = !!attendedById[item.id];
               return (
@@ -251,7 +253,7 @@ export const ActivityAttendanceScreen: React.FC = () => {
           <View
             style={{
               paddingTop: spacing.sm,
-              paddingBottom: spacing.md,
+              paddingBottom: tabClearance,
               backgroundColor: palette.background,
               borderTopWidth: StyleSheet.hairlineWidth,
               borderTopColor: palette.border,
