@@ -843,6 +843,7 @@ Route::middleware('auth')->group(function () {
                 Route::get('/', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'index'])->name('index');
                 Route::post('/bulk-mark', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'bulkMark'])->name('bulk-mark');
                 Route::get('/report', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'report'])->name('report');
+                Route::get('/gate-logs', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'gateLogs'])->name('gate-logs');
             });
 
             // Staff Document Management (must come before {id})
@@ -1016,6 +1017,7 @@ Route::middleware('auth')->group(function () {
             // Staff Attendance (supervisors can view their subordinates' attendance)
             Route::get('/attendance', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'index'])->name('attendance.index');
             Route::get('/attendance/report', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'report'])->name('attendance.report');
+            Route::get('/attendance/gate-logs', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'gateLogs'])->name('attendance.gate-logs');
         });
 
     // HR Lookups standalone page (optional UI outside settings tab)

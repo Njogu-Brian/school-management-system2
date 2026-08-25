@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Hr;
 
 use App\Http\Controllers\Controller;
+use App\Models\BioTimePunch;
 use App\Models\StaffAttendance;
-use App\Models\Staff;
-use Illuminate\Http\Request;
+use App\Services\Hr\StaffAttendanceAccess;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class StaffAttendanceController extends Controller
 {
@@ -23,48 +25,52 @@ class StaffAttendanceController extends Controller
 
     public function index(Request $request)
     {
+        StaffAttendanceAccess::abortUnlessCanViewTeam();
+
         $date = $request->get('date', date('Y-m-d'));
         $staffId = $request->get('staff_id');
 
-        $query = StaffAttendance::with(['staff', 'markedBy'])
-            ->where('date', $date);
-
-        // Supervisors can only see their subordinates' attendance
-        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
-            $subordinateIds = get_subordinate_staff_ids();
-            if (!empty($subordinateIds)) {
-                $query->whereIn('staff_id', $subordinateIds);
-            } else {
-                $query->whereRaw('1 = 0'); // No subordinates, show nothing
-            }
-        }
+        $query = StaffAttendanceAccess::applyStaffScope(
+            StaffAttendance::with(['staff', 'markedBy'])->where('date', $date)
+        );
 
         if ($staffId) {
             $query->where('staff_id', $staffId);
         }
 
         $attendanceRecords = $query->orderBy('staff_id')->get();
-        
-        // Supervisors see only their subordinates
-        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
-            $subordinateIds = get_subordinate_staff_ids();
-            $staff = Staff::where('status', 'active')
-                ->whereIn('id', $subordinateIds)
-                ->orderBy('first_name')
-                ->get();
-            $allStaff = $staff;
-        } else {
-            $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
-            $allStaff = Staff::where('status', 'active')->orderBy('first_name')->get();
-        }
-
+        $staff = StaffAttendanceAccess::staffDropdownQuery()->get();
+        $allStaff = $staff;
         $summary = $this->statusSummary($attendanceRecords);
+        $canManage = StaffAttendanceAccess::canManageAttendance();
+        $reportRoute = $request->route()?->getName() === 'supervisor.attendance.index'
+            ? 'supervisor.attendance.report'
+            : 'staff.attendance.report';
+        $gateLogsRoute = str_replace('.index', '.gate-logs', $reportRoute);
+        $bulkMarkRoute = $request->route()?->getName() === 'supervisor.attendance.index'
+            ? null
+            : 'staff.attendance.bulk-mark';
 
-        return view('staff.attendance.index', compact('attendanceRecords', 'staff', 'allStaff', 'date', 'summary'));
+        return view('staff.attendance.index', compact(
+            'attendanceRecords',
+            'staff',
+            'allStaff',
+            'date',
+            'summary',
+            'canManage',
+            'reportRoute',
+            'gateLogsRoute',
+            'bulkMarkRoute'
+        ));
     }
 
     public function mark(Request $request)
     {
+        StaffAttendanceAccess::abortUnlessCanViewTeam();
+        if (! StaffAttendanceAccess::canManageAttendance()) {
+            abort(403);
+        }
+
         $request->validate([
             'staff_id' => 'required|exists:staff,id',
             'date' => 'required|date',
@@ -74,7 +80,7 @@ class StaffAttendanceController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        $attendance = StaffAttendance::updateOrCreate(
+        StaffAttendance::updateOrCreate(
             [
                 'staff_id' => $request->staff_id,
                 'date' => $request->date,
@@ -85,6 +91,7 @@ class StaffAttendanceController extends Controller
                 'check_out_time' => $request->check_out_time,
                 'notes' => $request->notes,
                 'marked_by' => auth()->id(),
+                'source' => 'manual',
             ]
         );
 
@@ -93,6 +100,11 @@ class StaffAttendanceController extends Controller
 
     public function bulkMark(Request $request)
     {
+        StaffAttendanceAccess::abortUnlessCanViewTeam();
+        if (! StaffAttendanceAccess::canManageAttendance()) {
+            abort(403);
+        }
+
         $request->validate([
             'date' => 'required|date',
             'attendance' => 'required|array',
@@ -112,6 +124,7 @@ class StaffAttendanceController extends Controller
                     'check_out_time' => $record['check_out_time'] ?? null,
                     'notes' => $record['notes'] ?? null,
                     'marked_by' => auth()->id(),
+                    'source' => 'manual',
                 ]
             );
         }
@@ -121,22 +134,15 @@ class StaffAttendanceController extends Controller
 
     public function report(Request $request)
     {
+        StaffAttendanceAccess::abortUnlessCanViewTeam();
+
         $staffId = $request->get('staff_id');
         $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->toDateString());
         $endDate = $request->get('end_date', Carbon::now()->endOfMonth()->toDateString());
 
-        $query = StaffAttendance::with('staff')
-            ->whereBetween('date', [$startDate, $endDate]);
-
-        // Supervisors can only see their subordinates' attendance
-        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
-            $subordinateIds = get_subordinate_staff_ids();
-            if (!empty($subordinateIds)) {
-                $query->whereIn('staff_id', $subordinateIds);
-            } else {
-                $query->whereRaw('1 = 0'); // No subordinates, show nothing
-            }
-        }
+        $query = StaffAttendanceAccess::applyStaffScope(
+            StaffAttendance::with('staff')->whereBetween('date', [$startDate, $endDate])
+        );
 
         if ($staffId) {
             $query->where('staff_id', $staffId);
@@ -201,17 +207,13 @@ class StaffAttendanceController extends Controller
         ];
 
         $attendance = $query->orderBy('date', 'desc')->paginate(50)->withQueryString();
-        
-        // Supervisors see only their subordinates
-        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
-            $subordinateIds = get_subordinate_staff_ids();
-            $staff = Staff::where('status', 'active')
-                ->whereIn('id', $subordinateIds)
-                ->orderBy('first_name')
-                ->get();
-        } else {
-            $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
-        }
+        $staff = StaffAttendanceAccess::staffDropdownQuery()->get();
+        $canManage = StaffAttendanceAccess::canManageAttendance();
+        $reportRoute = $request->route()?->getName() ?? 'staff.attendance.report';
+        $indexRoute = str_contains($reportRoute, 'senior_teacher')
+            ? 'senior_teacher.staff_attendance.report'
+            : (str_contains($reportRoute, 'supervisor') ? 'supervisor.attendance.report' : 'staff.attendance.report');
+        $gateLogsRoute = str_replace('.report', '.gate-logs', $indexRoute);
 
         return view('staff.attendance.report', compact(
             'attendance',
@@ -220,7 +222,73 @@ class StaffAttendanceController extends Controller
             'endDate',
             'summary',
             'mapPoints',
-            'schoolGeofence'
+            'schoolGeofence',
+            'canManage',
+            'reportRoute',
+            'gateLogsRoute'
+        ));
+    }
+
+    public function gateLogs(Request $request)
+    {
+        StaffAttendanceAccess::abortUnlessCanViewTeam();
+
+        $staffId = $request->get('staff_id');
+        $startDate = $request->get('start_date', Carbon::now()->startOfMonth()->toDateString());
+        $endDate = $request->get('end_date', Carbon::now()->endOfMonth()->toDateString());
+        $multipleOnly = $request->boolean('multiple_only');
+
+        $query = StaffAttendanceAccess::applyStaffScope(
+            BioTimePunch::with('staff')->whereDate('punch_time', '>=', $startDate)->whereDate('punch_time', '<=', $endDate),
+            'staff_id'
+        );
+
+        if ($staffId) {
+            $query->where('staff_id', $staffId);
+        }
+
+        if ($multipleOnly) {
+            $multiDayKeys = BioTimePunch::query()
+                ->selectRaw('staff_id, DATE(punch_time) as punch_date')
+                ->whereDate('punch_time', '>=', $startDate)
+                ->whereDate('punch_time', '<=', $endDate)
+                ->whereNotNull('staff_id')
+                ->groupBy('staff_id', 'punch_date')
+                ->havingRaw('COUNT(*) > 1')
+                ->get()
+                ->map(fn ($row) => $row->staff_id.'|'.$row->punch_date);
+
+            if ($multiDayKeys->isEmpty()) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($multiDayKeys) {
+                    foreach ($multiDayKeys as $key) {
+                        [$sid, $day] = explode('|', $key, 2);
+                        $q->orWhere(function ($inner) use ($sid, $day) {
+                            $inner->where('staff_id', $sid)->whereDate('punch_time', $day);
+                        });
+                    }
+                });
+            }
+        }
+
+        $punches = $query->orderByDesc('punch_time')->paginate(100)->withQueryString();
+        $roleMap = $this->gatePunchRoleMap($startDate, $endDate, $staffId);
+        $staff = StaffAttendanceAccess::staffDropdownQuery()->get();
+
+        $reportRoute = $request->route()?->getName() ?? 'staff.attendance.gate-logs';
+        $gateLogsRoute = $reportRoute;
+        $indexReportRoute = str_replace('.gate-logs', '.report', $reportRoute);
+
+        return view('staff.attendance.gate-logs', compact(
+            'punches',
+            'staff',
+            'startDate',
+            'endDate',
+            'multipleOnly',
+            'roleMap',
+            'gateLogsRoute',
+            'indexReportRoute'
         ));
     }
 
@@ -243,12 +311,66 @@ class StaffAttendanceController extends Controller
 
         $summary = $this->statusSummary(collect($attendance->items()));
 
+        $myGateLogs = BioTimePunch::query()
+            ->where('staff_id', $user->staff->id)
+            ->whereDate('punch_time', '>=', $startDate)
+            ->whereDate('punch_time', '<=', $endDate)
+            ->orderByDesc('punch_time')
+            ->limit(200)
+            ->get();
+
+        $roleMap = $this->gatePunchRoleMap($startDate, $endDate, (string) $user->staff->id);
+
         return view('staff.attendance.my-report', [
             'attendance' => $attendance,
             'startDate' => $startDate,
             'endDate' => $endDate,
             'summary' => $summary,
             'staffName' => $user->staff->full_name,
+            'myGateLogs' => $myGateLogs,
+            'roleMap' => $roleMap,
         ]);
+    }
+
+    /**
+     * @return array<int, string> punch_id => role label
+     */
+    private function gatePunchRoleMap(string $startDate, string $endDate, ?string $staffId = null): array
+    {
+        $query = BioTimePunch::query()
+            ->whereDate('punch_time', '>=', $startDate)
+            ->whereDate('punch_time', '<=', $endDate)
+            ->whereNotNull('staff_id')
+            ->orderBy('punch_time');
+
+        $query = StaffAttendanceAccess::applyStaffScope($query, 'staff_id');
+
+        if ($staffId) {
+            $query->where('staff_id', $staffId);
+        }
+
+        $groups = $query->get()->groupBy(function (BioTimePunch $punch) {
+            return $punch->staff_id.'|'.Carbon::parse($punch->punch_time)->toDateString();
+        });
+
+        $map = [];
+        foreach ($groups as $rows) {
+            /** @var Collection<int, BioTimePunch> $rows */
+            $sorted = $rows->sortBy('punch_time')->values();
+            $count = $sorted->count();
+            foreach ($sorted as $index => $punch) {
+                if ($index === 0 && $count === 1) {
+                    $map[$punch->id] = 'check_in_only';
+                } elseif ($index === 0) {
+                    $map[$punch->id] = 'check_in';
+                } elseif ($index === $count - 1) {
+                    $map[$punch->id] = 'check_out';
+                } else {
+                    $map[$punch->id] = 'extra';
+                }
+            }
+        }
+
+        return $map;
     }
 }

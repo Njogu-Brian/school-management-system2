@@ -17,6 +17,10 @@ return [
     /** Shared secret for the office-PC push script. Header: X-BioTime-Token */
     'ingest_token' => env('BIOTIME_INGEST_TOKEN', ''),
 
+    /** Defaults when creating employees on BioTime from the office-PC sync script. */
+    'default_department_id' => (int) env('BIOTIME_DEFAULT_DEPARTMENT_ID', 1),
+    'default_area_ids' => array_values(array_filter(array_map('intval', explode(',', (string) env('BIOTIME_DEFAULT_AREA_IDS', '1'))))),
+
     /** Keep GPS clock-in API off now that gates are the source of truth. */
     'gps_clock_enabled' => filter_var(env('STAFF_GPS_CLOCK_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 ];

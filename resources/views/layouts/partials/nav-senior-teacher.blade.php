@@ -91,10 +91,14 @@
     <i class="bi bi-check-circle"></i> Leave Approval
   </a>
 
-  {{-- Staff Attendance (supervised) --}}
-  <a href="{{ route('supervisor.attendance.report') }}"
-     class="{{ Request::is('supervisor/attendance*') ? 'active' : '' }}">
-    <i class="bi bi-clock-history"></i> Staff Attendance Report
+  {{-- Staff Attendance --}}
+  <a href="{{ route('senior_teacher.staff_attendance.report') }}"
+     class="{{ Request::is('senior-teacher/staff-attendance/report*') ? 'active' : '' }}">
+    <i class="bi bi-clock-history"></i> Staff Attendance
+  </a>
+  <a href="{{ route('senior_teacher.staff_attendance.gate-logs') }}"
+     class="{{ Request::is('senior-teacher/staff-attendance/gate-logs*') ? 'active' : '' }}">
+    <i class="bi bi-fingerprint"></i> Gate Punch Log
   </a>
 </div>
 

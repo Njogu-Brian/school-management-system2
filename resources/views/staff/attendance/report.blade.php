@@ -26,9 +26,16 @@
                 <h1 class="mb-1">Staff Attendance Report</h1>
                 <p class="text-muted mb-0">View attendance history and statistics.</p>
             </div>
-            <a href="{{ route('staff.attendance.index') }}" class="btn btn-ghost-strong">
-                <i class="bi bi-arrow-left"></i> Back to Marking
-            </a>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ route($gateLogsRoute ?? 'staff.attendance.gate-logs', request()->only(['staff_id', 'start_date', 'end_date'])) }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-fingerprint"></i> Gate Punch Log
+                </a>
+                @if(($canManage ?? true) && Route::has('staff.attendance.index'))
+                <a href="{{ route('staff.attendance.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-arrow-left"></i> Back to Marking
+                </a>
+                @endif
+            </div>
         </div>
 
         <div class="settings-card mb-3">
@@ -41,6 +48,7 @@
             </div>
             <div class="card-body">
                 <form method="GET" class="row g-2 align-items-end">
+                    <input type="hidden" name="route_context" value="{{ $reportRoute ?? '' }}">
                     <div class="col-md-3">
                         <label class="form-label">Staff</label>
                         <select name="staff_id" class="form-select">
@@ -138,7 +146,7 @@
 
         <div class="settings-card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-list-ul"></i> Attendance Records (with geofence tracking)</h5>
+                <h5 class="mb-0"><i class="bi bi-list-ul"></i> Daily Attendance (first gate punch = in, last = out)</h5>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -152,6 +160,7 @@
                                 <th>In Distance</th>
                                 <th>Check Out</th>
                                 <th>Out Distance</th>
+                                <th>Source</th>
                                 <th>Location Track</th>
                                 <th>Notes</th>
                             </tr>
@@ -190,6 +199,15 @@
                                     <td>{{ $record->check_in_distance_meters !== null ? number_format($record->check_in_distance_meters, 1).' m' : '—' }}</td>
                                     <td>{{ $record->check_out_time ? $record->check_out_time->format('H:i') : '—' }}</td>
                                     <td>{{ $record->check_out_distance_meters !== null ? number_format($record->check_out_distance_meters, 1).' m' : '—' }}</td>
+                                    <td>
+                                        @if($record->source === 'biometric')
+                                            <span class="pill-badge pill-info">School gate</span>
+                                        @elseif($record->source)
+                                            <span class="pill-badge pill-secondary">{{ ucfirst($record->source) }}</span>
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
                                     <td class="small">
                                         @if($record->check_in_latitude !== null && $record->check_in_longitude !== null)
                                             In: {{ number_format((float)$record->check_in_latitude, 5) }}, {{ number_format((float)$record->check_in_longitude, 5) }}<br>
@@ -205,11 +223,11 @@
                                 </tr>
                             @empty
                                 <tr id="noAttendanceRowsFallback">
-                                    <td colspan="9" class="text-center text-muted py-4">No attendance records found.</td>
+                                    <td colspan="10" class="text-center text-muted py-4">No attendance records found.</td>
                                 </tr>
                             @endforelse
                             <tr id="noFilteredRows" style="display:none;">
-                                <td colspan="9" class="text-center text-muted py-4">No out-of-geofence records on this page.</td>
+                                <td colspan="10" class="text-center text-muted py-4">No out-of-geofence records on this page.</td>
                             </tr>
                         </tbody>
                     </table>

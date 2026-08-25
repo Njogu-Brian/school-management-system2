@@ -29,7 +29,7 @@
           <div class="col-md-3">
             <label class="form-label">K40 / BioTime PIN</label>
             <input type="text" name="biometric_emp_code" class="form-control" value="{{ old('biometric_emp_code', $staff->biometric_emp_code ?? '') }}" placeholder="Must match BioTime emp code" inputmode="numeric">
-            <div class="form-text">Numeric ID on the fingerprint machine.</div>
+            <div class="form-text">Must match BioTime employee ID. After adding or changing staff, run <code>biotime-sync-employees-from-erp.ps1</code> on the BioTime PC.</div>
           </div>
           <div class="col-md-3">
             <label class="form-label">First Name *</label>

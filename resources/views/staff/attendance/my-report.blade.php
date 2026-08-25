@@ -120,6 +120,46 @@
                 </div>
             @endif
         </div>
+
+        @if(isset($myGateLogs) && $myGateLogs->isNotEmpty())
+        <div class="settings-card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-fingerprint"></i> Gate Punch Detail</h5>
+                <p class="text-muted small mb-0 mt-1">All punches at the school gate. Daily attendance uses the first punch as check-in and the last as check-out.</p>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-modern table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date &amp; Time</th>
+                                <th>Device</th>
+                                <th>Used for attendance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($myGateLogs as $punch)
+                                @php
+                                    $role = $roleMap[$punch->id] ?? 'extra';
+                                    $roleText = match($role) {
+                                        'check_in' => 'Daily check-in',
+                                        'check_out' => 'Daily check-out',
+                                        'check_in_only' => 'Only punch (waiting for checkout)',
+                                        default => 'Extra punch (log only)',
+                                    };
+                                @endphp
+                                <tr>
+                                    <td>{{ $punch->punch_time?->format('d M Y H:i:s') }}</td>
+                                    <td>{{ $punch->terminal_alias ?: ($punch->terminal_sn ?: '—') }}</td>
+                                    <td>{{ $roleText }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        @endif
     </div>
 </div>
 @endsection

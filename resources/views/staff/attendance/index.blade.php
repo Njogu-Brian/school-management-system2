@@ -13,9 +13,14 @@
                 <h1 class="mb-1">Staff Attendance</h1>
                 <p class="text-muted mb-0">Mark and view staff attendance.</p>
             </div>
-            <a href="{{ route('staff.attendance.report') }}" class="btn btn-ghost-strong">
-                <i class="bi bi-graph-up"></i> View Reports
-            </a>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ route($reportRoute ?? 'staff.attendance.report') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-graph-up"></i> Daily Report
+                </a>
+                <a href="{{ route($gateLogsRoute ?? 'staff.attendance.gate-logs') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-fingerprint"></i> Gate Punch Log
+                </a>
+            </div>
         </div>
 
         @if(session('success'))
@@ -117,7 +122,8 @@
                 <h5 class="mb-0"><i class="bi bi-list-ul"></i> Attendance for {{ \Carbon\Carbon::parse($date)->format('d M Y') }}</h5>
             </div>
             <div class="card-body">
-                <form action="{{ route('staff.attendance.bulk-mark') }}" method="POST" id="bulkAttendanceForm">
+                @if($canManage ?? true)
+                <form action="{{ route($bulkMarkRoute ?? 'staff.attendance.bulk-mark') }}" method="POST" id="bulkAttendanceForm">
                     @csrf
                     <input type="hidden" name="date" value="{{ $date }}">
                     
@@ -183,6 +189,41 @@
                         </button>
                     </div>
                 </form>
+                @else
+                    <div class="table-responsive">
+                        <table class="table table-modern table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Staff</th>
+                                    <th>Status</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Source</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($attendanceRecords as $attendanceRecord)
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold">{{ $attendanceRecord->staff?->full_name }}</div>
+                                            <small class="text-muted">{{ $attendanceRecord->staff?->staff_id }}</small>
+                                        </td>
+                                        <td>{{ ucfirst(str_replace('_', ' ', $attendanceRecord->status)) }}</td>
+                                        <td>{{ $attendanceRecord->check_in_time ? $attendanceRecord->check_in_time->format('H:i') : '—' }}</td>
+                                        <td>{{ $attendanceRecord->check_out_time ? $attendanceRecord->check_out_time->format('H:i') : '—' }}</td>
+                                        <td>{{ $attendanceRecord->source === 'biometric' ? 'School gate' : ucfirst($attendanceRecord->source ?? 'manual') }}</td>
+                                        <td>{{ $attendanceRecord->notes ?? '—' }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">No attendance records for this date.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
             </div>
         </div>
     </div>

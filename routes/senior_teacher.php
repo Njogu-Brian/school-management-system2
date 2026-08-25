@@ -71,6 +71,11 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher|Deputy Senior 
         Route::get('/report', [StaffAttendanceController::class, 'myReport'])->name('report');
     });
 
+    Route::prefix('senior-teacher/staff-attendance')->name('senior_teacher.staff_attendance.')->group(function () {
+        Route::get('/report', [StaffAttendanceController::class, 'report'])->name('report');
+        Route::get('/gate-logs', [StaffAttendanceController::class, 'gateLogs'])->name('gate-logs');
+    });
+
     /*
     |--------------------------------------------------------------------------
     | Exam Marks

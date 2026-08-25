@@ -38,6 +38,7 @@ Route::post('/app-issues', [\App\Http\Controllers\Api\ApiAppIssuesController::cl
 Route::prefix('integrations/biotime')->group(function () {
     $ingest = \App\Http\Controllers\Api\ApiBioTimeIngestController::class;
     Route::get('/health', [$ingest, 'health']);
+    Route::get('/employees', [$ingest, 'employees']);
     Route::post('/punches', [$ingest, 'store']);
 });
 

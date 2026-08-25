@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\BioTime\BioTimeEmployeeExport;
 use App\Services\BioTime\BioTimeSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -44,6 +45,28 @@ class ApiBioTimeIngestController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'BioTime ingest is ready.',
+        ]);
+    }
+
+    public function employees(Request $request, BioTimeEmployeeExport $export)
+    {
+        if (! $this->tokenMatches($request)) {
+            return response()->json(['success' => false, 'message' => 'Invalid BioTime ingest token.'], 401);
+        }
+
+        $employees = $export->activeEmployees();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Active staff for BioTime employee sync.',
+            'data' => [
+                'employees' => $employees,
+                'count' => count($employees),
+                'defaults' => [
+                    'department_id' => (int) config('biotime.default_department_id', 1),
+                    'area_ids' => config('biotime.default_area_ids', [1]),
+                ],
+            ],
         ]);
     }
 
