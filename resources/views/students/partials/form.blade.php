@@ -219,41 +219,90 @@
 </div>
 
   {{-- TRANSPORT --}}
+  @php
+    $assignment = $s?->assignment;
+    $needsTransportOld = old('needs_transport');
+    $needsTransportYes = $needsTransportOld === '1' || $needsTransportOld === 1 || $needsTransportOld === true;
+    $needsTransportNo = $needsTransportOld === '0' || $needsTransportOld === 0;
+    if ($needsTransportOld === null && $s) {
+        $needsTransportYes = (bool) (
+            $assignment?->morning_trip_id
+            || $assignment?->evening_trip_id
+            || $assignment?->morning_drop_off_point_id
+            || $assignment?->evening_drop_off_point_id
+            || $s->drop_off_point_id
+            || $s->trip_id
+        );
+        $needsTransportNo = ! $needsTransportYes;
+    }
+    $morningTrips = collect($trips ?? [])->filter(fn ($t) => ($t->assignmentLeg() ?? null) !== 'evening');
+    $eveningTrips = collect($trips ?? [])->filter(fn ($t) => ($t->assignmentLeg() ?? null) !== 'morning');
+    $ownMeansPoint = collect($dropOffPoints ?? [])->first(fn ($p) => $p->isOwnMeans());
+    $ownMeansId = $ownMeansPoint?->id;
+  @endphp
   <h6 class="text-uppercase text-muted mb-3">Transport</h6>
   <div class="row g-3">
     <div class="col-md-12">
-      <div class="form-check form-switch">
-        @php $needsTransport = old('drop_off_point_id', $s->drop_off_point_id ?? null) || old('trip_id', $s->trip_id ?? null); @endphp
-        <input class="form-check-input" type="checkbox" id="needs_transport" name="needs_transport" value="1" @checked($needsTransport)>
-        <label class="form-check-label" for="needs_transport">Student needs school transport</label>
+      <label class="form-label fw-semibold">Does this student need school transport? <span class="text-danger">*</span></label>
+      <div class="d-flex gap-4">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="needs_transport" id="needs_transport_yes" value="1" required @checked($needsTransportYes)>
+          <label class="form-check-label" for="needs_transport_yes">Yes</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="needs_transport" id="needs_transport_no" value="0" required @checked($needsTransportNo)>
+          <label class="form-check-label" for="needs_transport_no">No</label>
+        </div>
       </div>
     </div>
+
     <div class="col-md-6 transport-field">
-      <label class="form-label">Trip</label>
-      <select name="trip_id" class="form-select">
-        <option value="">—</option>
-        @foreach (($trips ?? []) as $trip)
-          <option value="{{ $trip->id }}" @selected(old('trip_id', $s->trip_id ?? '')==$trip->id)>{{ $trip->name }}</option>
-        @endforeach
-      </select>
-    </div>
-    <div class="col-md-4 transport-field">
-      <label class="form-label">Drop-off Point</label>
-      <select name="drop_off_point_id" class="form-select" id="drop_off_point_id">
-        <option value="">—</option>
+      <label class="form-label" for="morning_drop_off_point_id">Morning pickup <span class="text-danger">*</span></label>
+      <select name="morning_drop_off_point_id" id="morning_drop_off_point_id" class="form-select">
+        <option value="">Select pickup point</option>
         @foreach (($dropOffPoints ?? []) as $p)
-          <option value="{{ $p->id }}" @selected(old('drop_off_point_id', $s->drop_off_point_id ?? '')==$p->id)>{{ $p->name }}</option>
+          <option value="{{ $p->id }}" @selected(old('morning_drop_off_point_id', $assignment?->morning_drop_off_point_id ?? $s?->drop_off_point_id ?? '')==$p->id)>{{ $p->name }}</option>
         @endforeach
-        <option value="other">Other (specify)</option>
       </select>
-      <input type="text" name="drop_off_point_other" id="drop_off_point_other" class="form-control mt-2"
-             placeholder="Type drop-off point" value="{{ old('drop_off_point_other', $s->drop_off_point_other ?? '') }}">
-      <div class="form-text">Used for morning &amp; evening legs; fee is calculated from point rates.</div>
+    </div>
+    <div class="col-md-6 transport-field">
+      <label class="form-label" for="morning_trip_id">Morning trip <span class="text-danger">*</span></label>
+      <select name="morning_trip_id" id="morning_trip_id" class="form-select">
+        <option value="">Select morning trip</option>
+        @foreach ($morningTrips as $trip)
+          <option value="{{ $trip->id }}" @selected(old('morning_trip_id', $assignment?->morning_trip_id)==$trip->id)>
+            {{ \App\Services\TransportAssignmentWriter::tripLabel($trip) }}
+          </option>
+        @endforeach
+      </select>
+      <div class="form-text">Not required if morning pickup is OWN MEANS.</div>
+    </div>
+    <div class="col-md-6 transport-field">
+      <label class="form-label" for="evening_drop_off_point_id">Evening drop-off <span class="text-danger">*</span></label>
+      <select name="evening_drop_off_point_id" id="evening_drop_off_point_id" class="form-select">
+        <option value="">Select drop-off point</option>
+        @foreach (($dropOffPoints ?? []) as $p)
+          <option value="{{ $p->id }}" @selected(old('evening_drop_off_point_id', $assignment?->evening_drop_off_point_id ?? $s?->drop_off_point_id ?? '')==$p->id)>{{ $p->name }}</option>
+        @endforeach
+      </select>
+    </div>
+    <div class="col-md-6 transport-field">
+      <label class="form-label" for="evening_trip_id">Evening trip <span class="text-danger">*</span></label>
+      <select name="evening_trip_id" id="evening_trip_id" class="form-select">
+        <option value="">Select evening trip</option>
+        @foreach ($eveningTrips as $trip)
+          <option value="{{ $trip->id }}" @selected(old('evening_trip_id', $assignment?->evening_trip_id)==$trip->id)>
+            {{ \App\Services\TransportAssignmentWriter::tripLabel($trip) }}
+          </option>
+        @endforeach
+      </select>
+      <div class="form-text">Not required if evening drop-off is OWN MEANS.</div>
     </div>
     <div class="col-md-4 transport-field">
-      <label class="form-label">Transport Fee override (optional)</label>
-      <input type="number" step="0.01" name="transport_fee_amount" class="form-control" value="{{ old('transport_fee_amount') }}" placeholder="Auto from rates">
-      <div class="form-text">Leave blank to bill from drop-off rates. Only enter an amount if rates are missing.</div>
+      <label class="form-label" for="transport_fee_amount">Transport amount (KES / term) <span class="text-danger">*</span></label>
+      <input type="number" step="0.01" min="0" name="transport_fee_amount" id="transport_fee_amount" class="form-control"
+             value="{{ old('transport_fee_amount', ($transportFee ?? null)?->amount ?? '') }}" placeholder="0 is allowed">
+      <div class="form-text">Required when transport is Yes. Zero is allowed (for example own means or waived fee).</div>
     </div>
   </div>
 
@@ -578,32 +627,51 @@
     if (display) display.value = '';
   });
 
-  // transport visibility + other drop-off input
+  // transport visibility + own-means trip toggle
   (function(){
-    const toggle = document.getElementById('needs_transport');
+    const yes = document.getElementById('needs_transport_yes');
+    const no = document.getElementById('needs_transport_no');
     const fields = document.querySelectorAll('.transport-field');
-    const dropSelect = document.getElementById('drop_off_point_id');
-    const dropOther = document.getElementById('drop_off_point_other');
+    const morningPoint = document.getElementById('morning_drop_off_point_id');
+    const eveningPoint = document.getElementById('evening_drop_off_point_id');
+    const morningTrip = document.getElementById('morning_trip_id');
+    const eveningTrip = document.getElementById('evening_trip_id');
+    const amount = document.getElementById('transport_fee_amount');
+    const ownMeansId = @json($ownMeansId);
+
+    function transportOn() {
+      return !!yes?.checked;
+    }
+
+    function syncOwnMeans(pointEl, tripEl) {
+      if (!pointEl || !tripEl) return;
+      const isOwn = ownMeansId && String(pointEl.value) === String(ownMeansId);
+      tripEl.disabled = !transportOn() || isOwn;
+      tripEl.required = transportOn() && !isOwn;
+      if (isOwn) tripEl.value = '';
+    }
 
     function syncFields() {
-      const enabled = toggle?.checked;
+      const enabled = transportOn();
       fields.forEach(f => f.style.display = enabled ? '' : 'none');
+      [morningPoint, eveningPoint, amount].forEach((el) => {
+        if (el) el.required = enabled;
+      });
       if (!enabled) {
-        dropOther.value = '';
-        if (dropSelect) dropSelect.value = '';
+        if (morningPoint) morningPoint.value = '';
+        if (eveningPoint) eveningPoint.value = '';
+        if (morningTrip) morningTrip.value = '';
+        if (eveningTrip) eveningTrip.value = '';
+        if (amount) amount.value = '';
       }
-      syncOther();
+      syncOwnMeans(morningPoint, morningTrip);
+      syncOwnMeans(eveningPoint, eveningTrip);
     }
 
-    function syncOther() {
-      if (!dropSelect || !dropOther) return;
-      const showOther = dropSelect.value === 'other';
-      dropOther.style.display = showOther ? '' : 'none';
-      if (!showOther) dropOther.value = '';
-    }
-
-    toggle?.addEventListener('change', syncFields);
-    dropSelect?.addEventListener('change', syncOther);
+    yes?.addEventListener('change', syncFields);
+    no?.addEventListener('change', syncFields);
+    morningPoint?.addEventListener('change', () => syncOwnMeans(morningPoint, morningTrip));
+    eveningPoint?.addEventListener('change', () => syncOwnMeans(eveningPoint, eveningTrip));
     syncFields();
   })();
 

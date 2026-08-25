@@ -284,6 +284,11 @@ class Student extends Model
     {
         return $this->hasMany(StudentAssignment::class);
     }
+
+    public function assignment()
+    {
+        return $this->hasOne(StudentAssignment::class);
+    }
     public function family()
     {
         return $this->belongsTo(Family::class);

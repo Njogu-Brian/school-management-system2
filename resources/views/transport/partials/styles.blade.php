@@ -325,4 +325,87 @@
     .theme-dark .transport-tile-name {
         color: #e2e8f0;
     }
+
+    .transport-tabs {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .transport-tabs a,
+    .transport-tabs .transport-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.55rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid var(--settings-border, #e2e8f0);
+        background: #fff;
+        color: inherit;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background-color 0.2s, border-color 0.2s;
+    }
+
+    .transport-tabs a:hover,
+    .transport-tabs .transport-tab:hover {
+        background: rgba(15, 118, 110, 0.08);
+    }
+
+    .transport-tabs a.active,
+    .transport-tabs .transport-tab.active {
+        background: #0f766e;
+        border-color: #0f766e;
+        color: #fff;
+    }
+
+    .transport-search-results {
+        position: absolute;
+        z-index: 20;
+        left: 0;
+        right: 0;
+        top: 100%;
+        margin-top: 0.25rem;
+        background: #fff;
+        border: 1px solid var(--settings-border, #e2e8f0);
+        border-radius: 12px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+        max-height: 280px;
+        overflow-y: auto;
+    }
+
+    .transport-search-results button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 0.7rem 0.9rem;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .transport-search-results button:hover {
+        background: rgba(15, 118, 110, 0.08);
+    }
+
+    .assignment-row-incomplete {
+        background: rgba(245, 158, 11, 0.08);
+    }
+
+    .theme-dark .transport-tabs a,
+    .theme-dark .transport-tabs .transport-tab,
+    .theme-dark .transport-search-results {
+        background: #1e293b;
+        border-color: rgba(255, 255, 255, 0.1);
+        color: #e2e8f0;
+    }
+
+    .theme-dark .transport-search-results button {
+        color: #e2e8f0;
+        border-bottom-color: rgba(255, 255, 255, 0.08);
+    }
 </style>

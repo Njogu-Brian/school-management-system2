@@ -22,8 +22,8 @@
                 <a href="{{ route('transport.dropoffpoints.edit', $dropOffPoint) }}" class="btn btn-settings-primary">
                     <i class="bi bi-pencil"></i> Edit rates
                 </a>
-                <a href="{{ route('transport.student-dropoffs.index') }}" class="btn btn-ghost-strong">
-                    <i class="bi bi-geo-alt"></i> Student drop-offs
+                <a href="{{ route('transport.student-assignments.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-people"></i> Assign students
                 </a>
                 <a href="{{ route('transport.dropoffpoints.index') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-arrow-left"></i> All points

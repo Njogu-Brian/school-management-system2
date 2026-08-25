@@ -653,7 +653,7 @@ class="{{ $isTransportActive ? 'parent-active' : '' }}">
         </a>
         <a href="{{ route('transport.dropoffpoints.index') }}"
         class="sublink {{ Request::is('transport/dropoffpoints*') || Request::is('transport/student-dropoffs*') ? 'active' : '' }}">
-        <i class="bi bi-pin-map"></i> Drop-offs
+        <i class="bi bi-pin-map"></i> Pickup / Drop-offs
         </a>
         <a href="{{ route('transport.student-assignments.index') }}" 
         class="sublink {{ Request::is('transport/student-assignments*') ? 'active' : '' }}">

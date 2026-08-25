@@ -10,9 +10,9 @@
         <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
                 <p class="eyebrow text-muted mb-1">Transport</p>
-                <h1 class="mb-1">Drop-offs</h1>
+                <h1 class="mb-1">Pickup / drop-off points</h1>
                 <p class="text-muted mb-0">
-                    Morning pickup and evening drop-off rates. Open a point to see assigned children.
+                    Create and edit pickup / drop-off points and rates. Open a point to see assigned children — students are assigned from Assignments.
                 </p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
@@ -25,8 +25,8 @@
                 <a href="{{ route('transport.dropoffpoints.template') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-download"></i> Template
                 </a>
-                <a href="{{ route('transport.student-dropoffs.index') }}" class="btn btn-ghost-strong">
-                    <i class="bi bi-geo-alt"></i> Assign student points
+                <a href="{{ route('transport.student-assignments.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-people"></i> Assign students
                 </a>
                 <a href="{{ route('finance.transport-fees.index') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-cash-coin"></i> Transport fees

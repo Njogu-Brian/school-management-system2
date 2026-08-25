@@ -24,6 +24,8 @@ use App\Services\SMSService;
 use App\Services\ArchiveStudentService;
 use App\Services\RestoreStudentService;
 use App\Services\TransportFeeService;
+use App\Services\TransportAssignmentWriter;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Mail;
 use App\Models\CommunicationTemplate;
 use App\Mail\GenericMail;
@@ -360,8 +362,9 @@ class StudentController extends Controller
         $categories = StudentCategory::orderBy('name')->get();
         $classrooms = Classroom::orderBy('name')->get();
         $streams    = Stream::orderBy('name')->get();
+        DropOffPoint::ownMeans();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
-        $trips = Trip::orderBy('trip_name')->get();
+        $trips = Trip::with('vehicle')->orderBy('trip_name')->get();
         $countryCodes = $this->getCountryCodes();
 
         return view('students.create', [
@@ -439,6 +442,7 @@ class StudentController extends Controller
             $request->merge(['stream_id' => null]);
         }
         try {
+            $this->validateTransportAdmission($request);
             $request->validate([
                 'first_name' => 'required|string|max:255',
                 'middle_name' => 'nullable|string|max:255',
@@ -752,23 +756,7 @@ class StudentController extends Controller
 
             $this->sendAdmissionCommunication($student, $parent);
             
-            // Create transport fee from enrollment drop-off rates (fallback to manual amount)
-            if ($request->boolean('needs_transport') && ($student->drop_off_point_id || $request->filled('transport_fee_amount'))) {
-                try {
-                    TransportFeeService::billFromEnrollmentDropOff(
-                        $student,
-                        $request->filled('transport_fee_amount') ? (float) $request->transport_fee_amount : null,
-                        'admission',
-                        'Captured during student creation',
-                        true
-                    );
-                } catch (\Throwable $e) {
-                    Log::warning('Transport fee capture failed during student creation', [
-                        'student_id' => $student->id,
-                        'message' => $e->getMessage(),
-                    ]);
-                }
-            }
+            $this->applyTransportFromAdmissionRequest($request, $student);
 
             // Charge fees for newly admitted student (this will create the invoice and sync existing transport fee)
             try {
@@ -784,6 +772,8 @@ class StudentController extends Controller
             }
 
             return redirect()->route('students.index')->with('success', 'Student created successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Student Creation Failed: ' . $e->getMessage(), [
                 'request' => $request->all(),
@@ -798,18 +788,24 @@ class StudentController extends Controller
      */
     public function edit($id)
     {
-        $student      = Student::withArchived()->with(['parent','classroom','stream','category'])->findOrFail($id);
+        $student      = Student::withArchived()->with(['parent','classroom','stream','category','assignment'])->findOrFail($id);
         $categories   = StudentCategory::orderBy('name')->get();
         $classrooms   = Classroom::orderBy('name')->get();
         $streams      = Stream::orderBy('name')->get();
+        DropOffPoint::ownMeans();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
-        $trips = Trip::orderBy('trip_name')->get();
+        $trips = Trip::with('vehicle')->orderBy('trip_name')->get();
         $countryCodes = $this->getCountryCodes();
         $familyMembers = $student->family_id
             ? Student::where('family_id',$student->family_id)->where('id','!=',$student->id)->get()
             : collect();
+        [$year, $term] = TransportFeeService::resolveYearAndTerm();
+        $transportFee = \App\Models\TransportFee::where('student_id', $student->id)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->first();
 
-        return view('students.edit', compact('student','categories','classrooms','streams','familyMembers','dropOffPoints','trips','countryCodes'));
+        return view('students.edit', compact('student','categories','classrooms','streams','familyMembers','dropOffPoints','trips','countryCodes','transportFee'));
     }
     /**
      * Update student
@@ -837,6 +833,7 @@ class StudentController extends Controller
             }
 
             \Log::info('Student Update: Starting validation');
+            $this->validateTransportAdmission($request);
             $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
@@ -1086,6 +1083,8 @@ class StudentController extends Controller
 
         $student->update($updateData);
 
+        $this->applyTransportFromAdmissionRequest($request, $student->fresh());
+
         if (array_key_exists('admission_date', $updateData) && $previousAdmissionDate !== $student->admission_date?->toDateString()) {
             ActivityLog::log(
                 'update',
@@ -1096,29 +1095,6 @@ class StudentController extends Controller
             );
         }
         \Log::info('Student Update: Student record updated', ['student_id' => $student->id]);
-
-        // When transport is removed from the student (no drop-off, no trip), remove transport from their fee invoice
-        $transportRemoved = !$student->drop_off_point_id && !$student->trip_id;
-        if ($transportRemoved && $currentYear && $currentTerm) {
-            try {
-                TransportFeeService::upsertFee([
-                    'student_id' => $student->id,
-                    'amount' => 0,
-                    'year' => $currentYear,
-                    'term' => $currentTerm,
-                    'drop_off_point_id' => null,
-                    'drop_off_point_name' => null,
-                    'source' => 'manual',
-                    'note' => 'Transport removed from student profile',
-                    'skip_invoice' => false,
-                ]);
-            } catch (\Throwable $e) {
-                \Log::warning('Student update: could not remove transport from invoice', [
-                    'student_id' => $student->id,
-                    'message' => $e->getMessage(),
-                ]);
-            }
-        }
         
         // Handle photo upload
         if ($request->hasFile('photo')) {
@@ -2786,6 +2762,69 @@ class StudentController extends Controller
             DB::rollBack();
             \Log::error('Student update import error: ' . $e->getMessage());
             return back()->with('error', 'Error processing import: ' . $e->getMessage());
+        }
+    }
+
+    private function validateTransportAdmission(Request $request): void
+    {
+        DropOffPoint::ownMeans();
+
+        $request->validate([
+            'needs_transport' => 'required|in:0,1',
+            'morning_drop_off_point_id' => [
+                Rule::requiredIf(fn () => (string) $request->input('needs_transport') === '1'),
+                'nullable',
+                'exists:drop_off_points,id',
+            ],
+            'evening_drop_off_point_id' => [
+                Rule::requiredIf(fn () => (string) $request->input('needs_transport') === '1'),
+                'nullable',
+                'exists:drop_off_points,id',
+            ],
+            'morning_trip_id' => [
+                Rule::requiredIf(fn () => (string) $request->input('needs_transport') === '1'
+                    && TransportAssignmentWriter::tripRequiredForPoint($request->input('morning_drop_off_point_id'))),
+                'nullable',
+                'exists:trips,id',
+            ],
+            'evening_trip_id' => [
+                Rule::requiredIf(fn () => (string) $request->input('needs_transport') === '1'
+                    && TransportAssignmentWriter::tripRequiredForPoint($request->input('evening_drop_off_point_id'))),
+                'nullable',
+                'exists:trips,id',
+            ],
+            'transport_fee_amount' => [
+                Rule::requiredIf(fn () => (string) $request->input('needs_transport') === '1'),
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
+        ]);
+    }
+
+    private function applyTransportFromAdmissionRequest(Request $request, Student $student): void
+    {
+        try {
+            if ((string) $request->input('needs_transport') !== '1') {
+                TransportAssignmentWriter::clear($student, true);
+                return;
+            }
+
+            TransportAssignmentWriter::save($student, [
+                'morning_trip_id' => $request->input('morning_trip_id'),
+                'evening_trip_id' => $request->input('evening_trip_id'),
+                'morning_drop_off_point_id' => $request->input('morning_drop_off_point_id'),
+                'evening_drop_off_point_id' => $request->input('evening_drop_off_point_id'),
+                'amount' => $request->input('transport_fee_amount'),
+                'source' => 'admission',
+                'note' => 'Captured during student admission',
+                'skip_invoice' => true,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Transport assignment failed during student save', [
+                'student_id' => $student->id,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 }

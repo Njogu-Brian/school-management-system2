@@ -55,6 +55,7 @@
                     <div class="col-md-4">
                         <div class="alert alert-info mb-0">
                             <strong>{{ $studentsWithoutAssignments }}</strong> student(s) without transport assignments
+                            <a href="{{ route('transport.student-assignments.index') }}" class="alert-link">Assign now <i class="bi bi-arrow-right"></i></a>
                         </div>
                     </div>
                     @endif

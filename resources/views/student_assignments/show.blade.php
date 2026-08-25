@@ -14,7 +14,7 @@
                 <p class="mb-0">{{ $assignment->student?->full_name ?? 'Student' }}</p>
             </div>
             <div class="header-actions">
-                <a href="{{ route('transport.student-assignments.edit', $assignment) }}" class="btn btn-settings-primary">
+                <a href="{{ route('transport.student-assignments.index', ['tab' => 'student', 'student_id' => $assignment->student_id]) }}" class="btn btn-settings-primary">
                     <i class="bi bi-pencil"></i> Edit
                 </a>
                 <a href="{{ route('transport.student-assignments.index') }}" class="btn btn-ghost-strong">

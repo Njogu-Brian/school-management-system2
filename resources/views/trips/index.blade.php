@@ -11,9 +11,12 @@
             <div>
                 <p class="eyebrow mb-1">Transport</p>
                 <h1 class="mb-1">Trips</h1>
-                <p class="mb-0">Morning pickup and evening drop-off paired by vehicle.</p>
+                <p class="mb-0">Create morning and evening trips, then open a trip to see assigned students and their pickup / drop-off points.</p>
             </div>
             <div class="header-actions">
+                <a href="{{ route('transport.student-assignments.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-people"></i> Assign students
+                </a>
                 <a href="{{ route('transport.trips.create') }}" class="btn btn-settings-primary">
                     <i class="bi bi-plus-circle"></i> Create Trip
                 </a>
@@ -88,7 +91,7 @@
                                     </div>
                                     <div class="transport-tile-actions">
                                         <a href="{{ route('transport.trips.assign', $trip) }}" class="btn btn-sm btn-settings-primary">
-                                            <i class="bi bi-people"></i> Assign
+                                            <i class="bi bi-people"></i> View students
                                         </a>
                                         <a href="{{ route('transport.trips.edit', $trip) }}" class="btn btn-sm btn-ghost-strong" title="Edit">
                                             <i class="bi bi-pencil"></i>
@@ -124,7 +127,7 @@
                                     </div>
                                     <div class="transport-tile-actions">
                                         <a href="{{ route('transport.trips.assign', $trip) }}" class="btn btn-sm btn-settings-primary">
-                                            <i class="bi bi-people"></i> Assign
+                                            <i class="bi bi-people"></i> View students
                                         </a>
                                         <a href="{{ route('transport.trips.edit', $trip) }}" class="btn btn-sm btn-ghost-strong" title="Edit">
                                             <i class="bi bi-pencil"></i>

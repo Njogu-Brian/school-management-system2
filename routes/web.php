@@ -729,10 +729,12 @@ Route::middleware('auth')->group(function () {
             Route::resource('dropoffpoints', DropOffPointController::class);
             Route::get('student-dropoffs', [StudentDropOffController::class, 'index'])->name('student-dropoffs.index');
             Route::post('student-dropoffs', [StudentDropOffController::class, 'update'])->name('student-dropoffs.update');
-            Route::resource('student-assignments', StudentAssignmentController::class)
-                ->parameters(['student-assignments' => 'student_assignment']);
+            Route::get('student-assignments/search', [StudentAssignmentController::class, 'search'])->name('student-assignments.search');
+            Route::get('student-assignments/quote-amount', [StudentAssignmentController::class, 'quoteAmount'])->name('student-assignments.quote-amount');
             Route::get('student-assignments/bulk/assign', [StudentAssignmentController::class, 'bulkAssign'])->name('student-assignments.bulk-assign');
             Route::post('student-assignments/bulk/assign', [StudentAssignmentController::class, 'bulkAssignStore'])->name('student-assignments.bulk-assign.store');
+            Route::resource('student-assignments', StudentAssignmentController::class)
+                ->parameters(['student-assignments' => 'student_assignment']);
 
             // Import & Template for dropoff points
             Route::get('dropoffpoints/import',   [DropOffPointController::class, 'importForm'])->name('dropoffpoints.import.form');

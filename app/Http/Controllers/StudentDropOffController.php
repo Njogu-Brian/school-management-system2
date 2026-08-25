@@ -14,38 +14,8 @@ class StudentDropOffController extends Controller
 {
     public function index(Request $request)
     {
-        DropOffPoint::ownMeans();
-        $classrooms = Classroom::orderBy('name')->get();
-        $classroomId = $request->integer('classroom_id') ?: null;
-        $dropOffPoints = DropOffPoint::orderBy('name')->get(['id', 'name']);
-        $ownMeansPointId = DropOffPoint::ownMeans()->id;
-
-        $students = collect();
-        $assignmentMap = collect();
-
-        if ($classroomId) {
-            $students = Student::query()
-                ->with(['classroom', 'stream', 'dropOffPoint'])
-                ->where('archive', 0)
-                ->where('is_alumni', false)
-                ->where('classroom_id', $classroomId)
-                ->orderBy('first_name')
-                ->get();
-
-            $assignmentMap = StudentAssignment::query()
-                ->whereIn('student_id', $students->pluck('id'))
-                ->get()
-                ->keyBy('student_id');
-        }
-
-        return view('transport.student_dropoffs.index', [
-            'classrooms' => $classrooms,
-            'classroomId' => $classroomId,
-            'students' => $students,
-            'assignmentMap' => $assignmentMap,
-            'dropOffPoints' => $dropOffPoints,
-            'ownMeansPointId' => $ownMeansPointId,
-        ]);
+        return redirect()->route('transport.dropoffpoints.index')
+            ->with('success', 'Pickup and drop-off points are listed here. Assign students from Transport → Assignments.');
     }
 
     public function update(Request $request)
