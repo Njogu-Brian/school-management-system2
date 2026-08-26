@@ -157,7 +157,7 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
         }
 
         // Check for route conflict in student assignment
-        $existingAssignment = StudentAssignment::where('student_id', $student->id)->first();
+        $existingAssignment = StudentAssignment::forStudent((int) $student->id, $this->year ?? null, $this->term ?? null, true);
         $hasConflict = false;
         $conflictMessage = '';
         $hasFeeConflict = false;
@@ -254,21 +254,17 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
         } else {
             // Create or update student assignment (only if no conflict or conflict resolved)
             if (!$hasConflict) {
-                $assignmentData = [
-                    'student_id' => $student->id,
-                    'evening_trip_id' => $trip->id,
-                ];
-
+                $assignment = StudentAssignment::firstOrNewForTerm((int) $student->id, $this->year, $this->term);
+                $assignment->evening_trip_id = $trip->id;
                 if ($dropOffPoint) {
-                    $assignmentData['evening_drop_off_point_id'] = $dropOffPoint->id;
+                    $assignment->evening_drop_off_point_id = $dropOffPoint->id;
                 }
-
-                if ($existingAssignment) {
-                    $existingAssignment->update($assignmentData);
-                    $this->updatedCount++;
-                } else {
-                    StudentAssignment::create($assignmentData);
+                $wasNew = ! $assignment->exists;
+                $assignment->save();
+                if ($wasNew) {
                     $this->successCount++;
+                } else {
+                    $this->updatedCount++;
                 }
 
                 // Sync transport fee if enabled and drop-off point exists

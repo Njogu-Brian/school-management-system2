@@ -22,6 +22,7 @@ class DropOffPointController extends Controller
         // (morning/evening legs), not the unused drop_off_point_vehicle pivot.
         $usageByPoint = [];
         $assignments = StudentAssignment::query()
+            ->forTerm()
             ->with(['morningTrip.vehicle', 'eveningTrip.vehicle'])
             ->where(function ($q) {
                 $q->whereNotNull('morning_drop_off_point_id')
@@ -160,6 +161,7 @@ class DropOffPointController extends Controller
     public function show(DropOffPoint $dropoffpoint)
     {
         $assignments = StudentAssignment::query()
+            ->forTerm()
             ->with([
                 'student.classroom',
                 'student.stream',

@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
+use App\Models\AcademicYear;
 use App\Models\DropOffPoint;
 use App\Models\Student;
 use App\Models\StudentAssignment;
+use App\Models\Term;
 use App\Models\TransportFee;
 use App\Models\Trip;
 use App\Services\TransportAssignmentWriter;
@@ -26,6 +28,10 @@ class StudentAssignmentController extends Controller
         if (! in_array($tab, ['class', 'student'], true)) {
             $tab = 'class';
         }
+
+        [$year, $term, $academicYearId] = $this->resolveRequestedYearTerm($request);
+        $academicYears = AcademicYear::orderByDesc('year')->get();
+        $allTerms = Term::with('academicYear')->whereNotNull('opening_date')->orderBy('opening_date')->get();
 
         $classrooms = Classroom::orderBy('name')->get(['id', 'name']);
         $streams = Stream::orderBy('name')->get(['id', 'name', 'classroom_id']);
@@ -57,11 +63,8 @@ class StudentAssignmentController extends Controller
 
             $students = $query->orderBy('first_name')->orderBy('last_name')->get();
 
-            $assignments = StudentAssignment::whereIn('student_id', $students->pluck('id'))
-                ->get()
-                ->keyBy('student_id');
+            $assignments = StudentAssignment::keyedForStudents($students->pluck('id'), $year, $term, true);
 
-            [$year, $term] = TransportFeeService::resolveYearAndTerm();
             $fees = TransportFee::query()
                 ->whereIn('student_id', $students->pluck('id'))
                 ->where('year', $year)
@@ -92,9 +95,12 @@ class StudentAssignmentController extends Controller
             }
 
             if ($selectedStudent) {
-                $selectedAssignment = $selectedStudent->assignment
-                    ?: StudentAssignment::where('student_id', $selectedStudent->id)->first();
-                [$year, $term] = TransportFeeService::resolveYearAndTerm();
+                $selectedAssignment = StudentAssignment::forStudent((int) $selectedStudent->id, $year, $term, true);
+                if ($selectedAssignment
+                    && ((int) $selectedAssignment->year !== (int) $year || (int) $selectedAssignment->term !== (int) $term)
+                ) {
+                    $selectedAssignment->setAttribute('prefilled_from_prior_term', true);
+                }
                 $selectedFee = TransportFee::where('student_id', $selectedStudent->id)
                     ->where('year', $year)
                     ->where('term', $term)
@@ -104,6 +110,11 @@ class StudentAssignmentController extends Controller
 
         return view('student_assignments.index', compact(
             'tab',
+            'year',
+            'term',
+            'academicYearId',
+            'academicYears',
+            'allTerms',
             'classrooms',
             'streams',
             'dropOffPoints',
@@ -149,13 +160,16 @@ class StudentAssignmentController extends Controller
                     );
                 }
             })
-            ->with(['classroom', 'stream', 'assignment.morningDropOffPoint', 'assignment.eveningDropOffPoint', 'assignment.morningTrip', 'assignment.eveningTrip'])
+            ->with(['classroom', 'stream'])
             ->orderBy('first_name')
             ->limit(20)
             ->get();
 
-        return response()->json($students->map(function (Student $student) {
-            $assignment = $student->assignment;
+        [$year, $term] = $this->resolveRequestedYearTerm($request);
+        $assignments = StudentAssignment::keyedForStudents($students->pluck('id'), $year, $term, true);
+
+        return response()->json($students->map(function (Student $student) use ($assignments) {
+            $assignment = $assignments->get($student->id);
 
             return [
                 'id' => $student->id,
@@ -201,10 +215,12 @@ class StudentAssignmentController extends Controller
 
     public function edit(StudentAssignment $student_assignment)
     {
-        return redirect()->route('transport.student-assignments.index', [
+        return redirect()->route('transport.student-assignments.index', array_filter([
             'tab' => 'student',
             'student_id' => $student_assignment->student_id,
-        ]);
+            'year' => $student_assignment->year,
+            'term' => $student_assignment->term,
+        ]));
     }
 
     public function update(Request $request, StudentAssignment $student_assignment)
@@ -231,7 +247,12 @@ class StudentAssignmentController extends Controller
     {
         $student = $student_assignment->student;
         if ($student) {
-            TransportAssignmentWriter::clear($student, true);
+            TransportAssignmentWriter::clear(
+                $student,
+                true,
+                $student_assignment->year ? (int) $student_assignment->year : null,
+                $student_assignment->term ? (int) $student_assignment->term : null
+            );
         } else {
             $student_assignment->delete();
         }
@@ -247,6 +268,8 @@ class StudentAssignmentController extends Controller
             'tab' => 'class',
             'classroom_id' => $request->input('classroom_id'),
             'stream_id' => $request->input('stream_id'),
+            'year' => $request->input('year'),
+            'term' => $request->input('term'),
         ]));
     }
 
@@ -265,6 +288,8 @@ class StudentAssignmentController extends Controller
             'assignments.*.morning_drop_off_point_id' => 'nullable|exists:drop_off_points,id',
             'assignments.*.evening_drop_off_point_id' => 'nullable|exists:drop_off_points,id',
             'assignments.*.amount' => 'nullable|numeric|min:0',
+            'year' => 'nullable|integer|min:2000|max:2100',
+            'term' => 'nullable|integer|min:1|max:3',
         ]);
 
         $saved = 0;
@@ -313,6 +338,8 @@ class StudentAssignmentController extends Controller
                     'source' => 'assignment',
                     'note' => 'Saved from class assignment',
                     'skip_invoice' => true,
+                    'year' => $request->input('year'),
+                    'term' => $request->input('term'),
                 ]);
                 $saved++;
             }
@@ -329,6 +356,8 @@ class StudentAssignmentController extends Controller
                 'tab' => 'class',
                 'classroom_id' => $request->input('classroom_id'),
                 'stream_id' => $request->input('stream_id'),
+                'year' => $request->input('year'),
+                'term' => $request->input('term'),
             ]))
             ->with('success', "Saved {$saved} student assignment(s). List prices updated. Run Post Pending Fees to update invoices.");
     }
@@ -350,6 +379,8 @@ class StudentAssignmentController extends Controller
                 'exists:trips,id',
             ],
             'amount' => 'required|numeric|min:0',
+            'year' => 'nullable|integer|min:2000|max:2100',
+            'term' => 'nullable|integer|min:1|max:3',
         ]);
 
         $student = Student::withoutGlobalScope('active')->findOrFail($validated['student_id']);
@@ -363,14 +394,30 @@ class StudentAssignmentController extends Controller
             'source' => 'assignment',
             'note' => 'Saved from student assignment',
             'skip_invoice' => true,
+            'year' => $validated['year'] ?? $request->input('year'),
+            'term' => $validated['term'] ?? $request->input('term'),
         ]);
 
         return redirect()
-            ->route('transport.student-assignments.index', [
+            ->route('transport.student-assignments.index', array_filter([
                 'tab' => 'student',
                 'student_id' => $student->id,
-            ])
+                'year' => $validated['year'] ?? $request->input('year'),
+                'term' => $validated['term'] ?? $request->input('term'),
+            ]))
             ->with('success', $student->full_name.' assigned. Amount can be 0. Run Post Pending Fees to update invoices.');
+    }
+
+    private function resolveRequestedYearTerm(Request $request): array
+    {
+        if ($request->filled('year_term') && preg_match('/^(\d+)\|(\d+)$/', (string) $request->input('year_term'), $m)) {
+            return TransportFeeService::resolveYearAndTerm((int) $m[1], (int) $m[2]);
+        }
+
+        return TransportFeeService::resolveYearAndTerm(
+            $request->filled('year') ? (int) $request->input('year') : null,
+            $request->filled('term') ? (int) $request->input('term') : null
+        );
     }
 
     private function isIncomplete(?StudentAssignment $assignment, int $ownMeansId): bool

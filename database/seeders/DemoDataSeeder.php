@@ -402,15 +402,12 @@ class DemoDataSeeder extends Seeder
             );
 
             $students->take(5)->each(function (Student $student, int $index) use ($trip, $dropPoints) {
-                StudentAssignment::firstOrCreate(
-                    ['student_id' => $student->id],
-                    [
-                        'morning_trip_id' => $trip->id,
-                        'evening_trip_id' => $trip->id,
-                        'morning_drop_off_point_id' => $dropPoints[$index % $dropPoints->count()]->id,
-                        'evening_drop_off_point_id' => $dropPoints[$index % $dropPoints->count()]->id,
-                    ]
-                );
+                $assignment = StudentAssignment::firstOrNewForTerm((int) $student->id);
+                $assignment->morning_trip_id = $trip->id;
+                $assignment->evening_trip_id = $trip->id;
+                $assignment->morning_drop_off_point_id = $dropPoints[$index % $dropPoints->count()]->id;
+                $assignment->evening_drop_off_point_id = $dropPoints[$index % $dropPoints->count()]->id;
+                $assignment->save();
             });
 
             // 12) Library: books, copies, borrowing

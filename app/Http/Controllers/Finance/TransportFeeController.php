@@ -56,6 +56,8 @@ class TransportFeeController extends Controller
                 ? collect()
                 : \App\Models\StudentAssignment::with(['morningDropOffPoint', 'eveningDropOffPoint'])
                     ->whereIn('student_id', $studentIds)
+                    ->where('year', $year)
+                    ->where('term', $term)
                     ->get()
                     ->keyBy('student_id');
 

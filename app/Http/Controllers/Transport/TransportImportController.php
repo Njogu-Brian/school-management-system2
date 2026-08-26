@@ -203,7 +203,7 @@ class TransportImportController extends Controller
                             $data = json_decode($conflictData, true);
                             
                             // Update student assignment with new drop-off point
-                            $assignment = StudentAssignment::where('student_id', $studentId)->first();
+                            $assignment = StudentAssignment::forStudent((int) $studentId, $year ?? null, $term ?? null);
                             if ($assignment && isset($data['drop_off_point_id'])) {
                                 $assignment->update([
                                     'evening_drop_off_point_id' => $data['drop_off_point_id']
@@ -376,21 +376,12 @@ class TransportImportController extends Controller
         );
 
         // Create or update student assignment
-        $assignmentData = [
-            'student_id' => $student->id,
-            'evening_trip_id' => $trip->id,
-        ];
-
+        $assignment = StudentAssignment::firstOrNewForTerm((int) $student->id, $year, $term);
+        $assignment->evening_trip_id = $trip->id;
         if ($dropOffPoint) {
-            $assignmentData['evening_drop_off_point_id'] = $dropOffPoint->id;
+            $assignment->evening_drop_off_point_id = $dropOffPoint->id;
         }
-
-        $existingAssignment = StudentAssignment::where('student_id', $student->id)->first();
-        if ($existingAssignment) {
-            $existingAssignment->update($assignmentData);
-        } else {
-            StudentAssignment::create($assignmentData);
-        }
+        $assignment->save();
     }
 
     /**

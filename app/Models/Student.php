@@ -287,7 +287,11 @@ class Student extends Model
 
     public function assignment()
     {
-        return $this->hasOne(StudentAssignment::class);
+        [$year, $term] = \App\Services\TransportFeeService::resolveYearAndTerm();
+
+        return $this->hasOne(StudentAssignment::class)
+            ->where('year', $year)
+            ->where('term', $term);
     }
     public function family()
     {

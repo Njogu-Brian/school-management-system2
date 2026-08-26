@@ -113,7 +113,7 @@ class ApiRouteController extends Controller
             $student->trip_id = $trip->id;
             $student->save();
 
-            $assignment = StudentAssignment::firstOrNew(['student_id' => $student->id]);
+            $assignment = StudentAssignment::firstOrNewForTerm((int) $student->id);
             if ($leg === 'morning' || $leg === 'both') {
                 $assignment->morning_trip_id = $trip->id;
             }
@@ -156,7 +156,7 @@ class ApiRouteController extends Controller
 
     protected function formatRouteStudent($student, int $tripId): array
     {
-        $assignment = StudentAssignment::where('student_id', $student->id)->first();
+        $assignment = StudentAssignment::forStudent((int) $student->id, null, null, true);
         $special = TransportSpecialAssignment::where('student_id', $student->id)
             ->where('trip_id', $tripId)
             ->where('status', 'active')

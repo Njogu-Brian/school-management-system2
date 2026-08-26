@@ -240,7 +240,7 @@ class TransportFeeService
             ->where('term', $term)
             ->first();
 
-        $assignment = StudentAssignment::where('student_id', $studentId)->first();
+        $assignment = StudentAssignment::forStudent($studentId, $year, $term, false);
 
         // If this student/term fee was imported (flat/agreed amount), do not overwrite amount.
         // We may still update legacy drop-off metadata, but charging amount stays the same.
@@ -359,7 +359,16 @@ class TransportFeeService
         $pointId = $student->drop_off_point_id ? (int) $student->drop_off_point_id : null;
 
         if ($pointId) {
-            $assignment = StudentAssignment::firstOrNew(['student_id' => $student->id]);
+            [$year, $term, $academicYearId] = self::resolveYearAndTerm(
+                $student->enrollment_year ? (int) $student->enrollment_year : null,
+                $student->enrollment_term ? (int) $student->enrollment_term : null
+            );
+            $assignment = StudentAssignment::firstOrNewForTerm(
+                (int) $student->id,
+                $year,
+                $term
+            );
+            $assignment->academic_year_id = $academicYearId;
             $assignment->morning_drop_off_point_id = $pointId;
             $assignment->evening_drop_off_point_id = $pointId;
             $assignment->save();
@@ -579,7 +588,7 @@ class TransportFeeService
 
                 $itemsDeleted += $deleted;
 
-                $assignment = StudentAssignment::where('student_id', $fee->student_id)->first();
+                $assignment = StudentAssignment::forStudent((int) $fee->student_id, (int) $fee->year, (int) $fee->term, false);
                 if ($assignment) {
                     if ($assignment->morning_drop_off_point_id == $fee->drop_off_point_id ||
                         $assignment->evening_drop_off_point_id == $fee->drop_off_point_id) {

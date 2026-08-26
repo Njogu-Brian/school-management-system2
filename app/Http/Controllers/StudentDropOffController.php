@@ -55,7 +55,7 @@ class StudentDropOffController extends Controller
                     $createdPoints
                 );
 
-                $assignment = StudentAssignment::firstOrNew(['student_id' => $studentId]);
+                $assignment = StudentAssignment::firstOrNewForTerm($studentId);
                 $assignment->morning_drop_off_point_id = $morning;
                 $assignment->evening_drop_off_point_id = $evening;
 

@@ -66,18 +66,12 @@ class TransportAssignmentService
         }
 
         // Priority 2: Check term-based assignment (StudentAssignment)
-        $assignment = StudentAssignment::where('student_id', $student->id)
-            ->where(function ($q) use ($direction) {
-                if ($direction === 'pickup') {
-                    $q->whereNotNull('morning_trip_id');
-                } else {
-                    $q->whereNotNull('evening_trip_id');
-                }
-            })
-            ->first();
+        $assignment = StudentAssignment::forStudent((int) $student->id, null, null, true);
+        $tripId = $assignment
+            ? ($direction === 'pickup' ? $assignment->morning_trip_id : $assignment->evening_trip_id)
+            : null;
 
-        if ($assignment) {
-            $tripId = $direction === 'pickup' ? $assignment->morning_trip_id : $assignment->evening_trip_id;
+        if ($assignment && $tripId) {
             $dropOffPointId = $direction === 'pickup' 
                 ? $assignment->morning_drop_off_point_id 
                 : $assignment->evening_drop_off_point_id;
@@ -147,11 +141,13 @@ class TransportAssignmentService
     public function getStudentsForTrip(Trip $trip, Carbon $date): \Illuminate\Database\Eloquent\Collection
     {
         // Get students from StudentAssignment (morning or evening trip)
-        $studentIds = StudentAssignment::where(function ($q) use ($trip) {
-            $q->where('morning_trip_id', $trip->id)
-              ->orWhere('evening_trip_id', $trip->id);
-        })
-        ->pluck('student_id');
+        $studentIds = StudentAssignment::query()
+            ->forTerm()
+            ->where(function ($q) use ($trip) {
+                $q->where('morning_trip_id', $trip->id)
+                  ->orWhere('evening_trip_id', $trip->id);
+            })
+            ->pluck('student_id');
 
         // Also check for special assignments
         $specialStudentIds = TransportSpecialAssignment::where('trip_id', $trip->id)

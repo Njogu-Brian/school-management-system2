@@ -152,6 +152,7 @@ class ApiFeeClearanceController extends Controller
         $isEvening = str_contains($direction, 'evening');
 
         $assignments = StudentAssignment::query()
+            ->forTerm()
             ->with(['student', 'morningDropOffPoint', 'eveningDropOffPoint'])
             ->where(function ($q) use ($trip) {
                 $q->where('morning_trip_id', $trip->id)

@@ -194,6 +194,7 @@ class TripController extends Controller
         $leg = $trip->assignmentLeg() ?? 'morning';
 
         $assigned = StudentAssignment::query()
+            ->forTerm()
             ->with([
                 'student.classroom',
                 'student.stream',
@@ -409,6 +410,7 @@ class TripController extends Controller
         }
 
         $alreadyOnTrip = StudentAssignment::query()
+            ->forTerm()
             ->where(function ($q) use ($trip) {
                 $q->where('morning_trip_id', $trip->id)->orWhere('evening_trip_id', $trip->id);
             })
@@ -435,6 +437,7 @@ class TripController extends Controller
             $query->where(function ($q) use ($pointId, $leg) {
                 $q->where('drop_off_point_id', $pointId)
                     ->orWhereHas('assignments', function ($a) use ($pointId, $leg) {
+                        $a->forTerm();
                         if ($leg === 'evening') {
                             $a->where('evening_drop_off_point_id', $pointId);
                         } else {
@@ -550,7 +553,7 @@ class TripController extends Controller
                 continue;
             }
 
-            $assignment = StudentAssignment::where('student_id', $studentId)->first();
+            $assignment = StudentAssignment::forStudent($studentId, null, null, true);
             $map = $leg === 'morning' ? $morningPoints : $eveningPoints;
             $fromRequest = false;
             $raw = null;
@@ -590,7 +593,7 @@ class TripController extends Controller
                     continue;
                 }
 
-                $assignment = StudentAssignment::firstOrNew(['student_id' => $studentId]);
+                $assignment = StudentAssignment::firstOrNewForTerm($studentId);
                 $assignment->{$column} = $trip->id;
 
                 if (array_key_exists($studentId, $morningPoints) || array_key_exists((string) $studentId, $morningPoints)) {
@@ -660,7 +663,9 @@ class TripController extends Controller
         DB::transaction(function () use ($validated, $trip, $ownMeansId, &$updated) {
             foreach ($validated['points'] as $row) {
                 $studentId = (int) $row['student_id'];
-                $assignment = StudentAssignment::where('student_id', $studentId)
+                $assignment = StudentAssignment::query()
+                    ->forTerm()
+                    ->where('student_id', $studentId)
                     ->where(function ($q) use ($trip) {
                         $q->where('morning_trip_id', $trip->id)
                             ->orWhere('evening_trip_id', $trip->id);
@@ -729,6 +734,7 @@ class TripController extends Controller
         $targetPointColumn = $fromMorning ? 'evening_drop_off_point_id' : 'morning_drop_off_point_id';
 
         $assignments = StudentAssignment::query()
+            ->forTerm()
             ->where($sourceColumn, $trip->id)
             ->with('student')
             ->get()
@@ -830,7 +836,7 @@ class TripController extends Controller
      */
     public function unassign(Request $request, Trip $trip, Student $student)
     {
-        $assignment = StudentAssignment::where('student_id', $student->id)->first();
+        $assignment = StudentAssignment::forStudent((int) $student->id);
         if ($assignment) {
             if ($assignment->morning_trip_id == $trip->id) {
                 $assignment->morning_trip_id = null;

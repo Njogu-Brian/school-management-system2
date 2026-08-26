@@ -27,6 +27,14 @@ class ApiStudentAssignmentController extends Controller
         if ($request->filled('student_id')) {
             $query->where('student_id', (int) $request->student_id);
         }
+        if ($request->filled('year') || $request->filled('term')) {
+            $query->forTerm(
+                $request->filled('year') ? (int) $request->year : null,
+                $request->filled('term') ? (int) $request->term : null
+            );
+        } else {
+            $query->forTerm();
+        }
         if ($request->filled('trip_id')) {
             $tripId = (int) $request->trip_id;
             $query->where(function ($q) use ($tripId) {
@@ -82,7 +90,7 @@ class ApiStudentAssignmentController extends Controller
             ], 422);
         }
 
-        $exists = StudentAssignment::where('student_id', $validated['student_id'])->first();
+        $exists = StudentAssignment::forStudent((int) $validated['student_id']);
         if ($exists) {
             return response()->json([
                 'success' => false,
@@ -98,13 +106,12 @@ class ApiStudentAssignmentController extends Controller
         $student = Student::findOrFail($validated['student_id']);
         $dropOffPointId = $student->drop_off_point_id;
 
-        $assignment = StudentAssignment::create([
-            'student_id' => $validated['student_id'],
-            'morning_trip_id' => $validated['morning_trip_id'] ?? null,
-            'evening_trip_id' => $validated['evening_trip_id'] ?? null,
-            'morning_drop_off_point_id' => $dropOffPointId,
-            'evening_drop_off_point_id' => $dropOffPointId,
-        ]);
+        $assignment = StudentAssignment::firstOrNewForTerm((int) $validated['student_id']);
+        $assignment->morning_trip_id = $validated['morning_trip_id'] ?? $assignment->morning_trip_id;
+        $assignment->evening_trip_id = $validated['evening_trip_id'] ?? $assignment->evening_trip_id;
+        $assignment->morning_drop_off_point_id = $dropOffPointId ?: $assignment->morning_drop_off_point_id;
+        $assignment->evening_drop_off_point_id = $dropOffPointId ?: $assignment->evening_drop_off_point_id;
+        $assignment->save();
 
         return response()->json([
             'success' => true,
@@ -179,7 +186,7 @@ class ApiStudentAssignmentController extends Controller
         $tripId = (int) $validated['trip_id'];
         $leg = $validated['leg'];
 
-        $assignment = StudentAssignment::firstOrNew(['student_id' => $student->id]);
+        $assignment = StudentAssignment::firstOrNewForTerm((int) $student->id);
         if ($leg === 'morning' || $leg === 'both') {
             $assignment->morning_trip_id = $tripId;
             $assignment->morning_drop_off_point_id = $dropOffPointId;

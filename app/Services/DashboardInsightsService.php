@@ -168,7 +168,7 @@ class DashboardInsightsService
 
             $assignedStudents = 0;
             if (class_exists(StudentAssignment::class) && Schema::hasTable('student_assignments')) {
-                $assignedStudents = StudentAssignment::query()->distinct()->count('student_id');
+                $assignedStudents = StudentAssignment::query()->forTerm()->distinct()->count('student_id');
             }
 
             $routes = 0;
@@ -582,12 +582,14 @@ class DashboardInsightsService
         };
 
         $add(StudentAssignment::query()
+            ->forTerm()
             ->selectRaw('morning_trip_id as trip_id, COUNT(DISTINCT student_id) as c')
             ->whereIn('morning_trip_id', $tripIds)
             ->groupBy('morning_trip_id')
             ->get());
 
         $add(StudentAssignment::query()
+            ->forTerm()
             ->selectRaw('evening_trip_id as trip_id, COUNT(DISTINCT student_id) as c')
             ->whereIn('evening_trip_id', $tripIds)
             ->groupBy('evening_trip_id')
@@ -595,6 +597,7 @@ class DashboardInsightsService
 
         if (Schema::hasColumn('student_assignments', 'trip_id')) {
             $add(StudentAssignment::query()
+                ->forTerm()
                 ->selectRaw('trip_id, COUNT(DISTINCT student_id) as c')
                 ->whereIn('trip_id', $tripIds)
                 ->groupBy('trip_id')
@@ -636,6 +639,7 @@ class DashboardInsightsService
 
         if (class_exists(StudentAssignment::class) && Schema::hasTable('student_assignments')) {
             $incomplete = StudentAssignment::query()
+                ->forTerm()
                 ->where(function ($q) {
                     $q->where(function ($q2) {
                         $q2->whereNotNull('morning_trip_id')->whereNull('morning_drop_off_point_id');

@@ -25,8 +25,8 @@
                 <p class="eyebrow text-muted mb-1">Transport</p>
                 <h1 class="mb-1">Assignments</h1>
                 <p class="text-muted mb-0">
-                    Assign morning pickup, evening drop-off, and both vehicle trips in one place.
-                    Stops and trips are for viewing after that.
+                    Assign morning pickup, evening drop-off, and both vehicle trips for a specific year and term.
+                    Future terms can be prepared without changing the current term.
                 </p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
@@ -47,12 +47,70 @@
             </div>
         @endif
 
+        @php
+            $yearTermQuery = array_filter([
+                'year' => $year ?? null,
+                'term' => $term ?? null,
+            ]);
+            [$currentYear, $currentTerm] = \App\Services\TransportFeeService::resolveYearAndTerm();
+            $editingFutureTerm = (int) ($year ?? $currentYear) !== (int) $currentYear
+                || (int) ($term ?? $currentTerm) !== (int) $currentTerm;
+        @endphp
+
+        <div class="settings-card mb-3">
+            <div class="card-body py-3">
+                <form method="GET" action="{{ route('transport.student-assignments.index') }}" class="row g-3 align-items-end">
+                    <input type="hidden" name="tab" value="{{ $tab }}">
+                    @if($tab === 'class')
+                        <input type="hidden" name="classroom_id" value="{{ $selectedClassroomId }}">
+                        <input type="hidden" name="stream_id" value="{{ $selectedStreamId }}">
+                        @if($incompleteOnly)<input type="hidden" name="incomplete" value="1">@endif
+                    @elseif($selectedStudent)
+                        <input type="hidden" name="student_id" value="{{ $selectedStudent->id }}">
+                    @endif
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold" for="year">Academic year</label>
+                        <select name="year" id="year" class="form-select" onchange="this.form.submit()">
+                            @forelse($academicYears as $ay)
+                                <option value="{{ $ay->year }}" @selected((int) $year === (int) $ay->year)>{{ $ay->year }}</option>
+                            @empty
+                                <option value="{{ $year }}">{{ $year }}</option>
+                            @endforelse
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold" for="term">Term</label>
+                        <select name="term" id="term" class="form-select" onchange="this.form.submit()">
+                            @php
+                                $termsForYear = ($allTerms ?? collect())->filter(fn ($t) => $t->academicYear && (int) $t->academicYear->year === (int) $year);
+                                $termNum = fn ($t) => (int) preg_replace('/[^0-9]/', '', (string) $t->name) ?: 1;
+                            @endphp
+                            @forelse($termsForYear as $t)
+                                <option value="{{ $termNum($t) }}" @selected((int) $term === $termNum($t))>{{ $t->name }}</option>
+                            @empty
+                                <option value="{{ $term }}">Term {{ $term }}</option>
+                            @endforelse
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-text mb-0">
+                            @if($editingFutureTerm)
+                                Editing a term that is not current. Saving here does not change this term’s daily trip lists until that term starts.
+                            @else
+                                Current term. Daily trip lists use these assignments.
+                            @endif
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <nav class="transport-tabs" aria-label="Assignment mode">
-            <a href="{{ route('transport.student-assignments.index', array_filter(['tab' => 'class', 'classroom_id' => $selectedClassroomId, 'stream_id' => $selectedStreamId])) }}"
+            <a href="{{ route('transport.student-assignments.index', array_filter(['tab' => 'class', 'classroom_id' => $selectedClassroomId, 'stream_id' => $selectedStreamId] + $yearTermQuery)) }}"
                class="{{ $tab === 'class' ? 'active' : '' }}">
                 <i class="bi bi-people"></i> By class
             </a>
-            <a href="{{ route('transport.student-assignments.index', ['tab' => 'student']) }}"
+            <a href="{{ route('transport.student-assignments.index', ['tab' => 'student'] + $yearTermQuery) }}"
                class="{{ $tab === 'student' ? 'active' : '' }}">
                 <i class="bi bi-person-vcard"></i> By student
             </a>
@@ -63,6 +121,8 @@
                 <div class="card-body">
                     <form method="GET" action="{{ route('transport.student-assignments.index') }}" class="row g-3 align-items-end">
                         <input type="hidden" name="tab" value="class">
+                        <input type="hidden" name="year" value="{{ $year }}">
+                        <input type="hidden" name="term" value="{{ $term }}">
                         <div class="col-md-4">
                             <label for="classroom_id" class="form-label fw-semibold">Class <span class="text-danger">*</span></label>
                             <select name="classroom_id" id="classroom_id" class="form-select" required onchange="this.form.submit()">
@@ -105,6 +165,8 @@
                     @csrf
                     <input type="hidden" name="classroom_id" value="{{ $selectedClassroomId }}">
                     <input type="hidden" name="stream_id" value="{{ $selectedStreamId }}">
+                    <input type="hidden" name="year" value="{{ $year }}">
+                    <input type="hidden" name="term" value="{{ $term }}">
 
                     <div class="settings-card mb-3">
                         <div class="card-header">
@@ -192,6 +254,9 @@
                                                 <td>
                                                     <div class="fw-semibold">{{ $student->full_name }}</div>
                                                     <small class="text-muted">{{ $student->admission_number }} @if($student->stream)· {{ $student->stream->name }}@endif</small>
+                                                    @if(!empty($assignment?->prefilled_from_prior_term))
+                                                        <div><span class="badge text-bg-light border">Copied from previous term — save to apply</span></div>
+                                                    @endif
                                                     <input type="hidden" name="assignments[{{ $student->id }}][student_id]" value="{{ $student->id }}">
                                                 </td>
                                                 <td>
@@ -264,9 +329,14 @@
                 <form method="POST" action="{{ route('transport.student-assignments.store') }}" id="individualAssignForm" class="settings-card">
                     @csrf
                     <input type="hidden" name="student_id" value="{{ $selectedStudent->id }}">
+                    <input type="hidden" name="year" value="{{ $year }}">
+                    <input type="hidden" name="term" value="{{ $term }}">
                     <div class="card-header">
                         <h5 class="mb-0">{{ $selectedStudent->full_name }}</h5>
-                        <small class="text-muted">{{ $selectedStudent->admission_number }} · {{ optional($selectedStudent->classroom)->name ?? 'No class' }}</small>
+                        <small class="text-muted">{{ $selectedStudent->admission_number }} · {{ optional($selectedStudent->classroom)->name ?? 'No class' }} · {{ $year }} Term {{ $term }}</small>
+                        @if(!empty($assignment?->prefilled_from_prior_term))
+                            <div class="mt-1"><span class="badge text-bg-light border">Values copied from a previous term. Save to keep them for this term.</span></div>
+                        @endif
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
@@ -343,6 +413,7 @@
     const points = @json($pointRates);
     const searchUrl = @json(route('transport.student-assignments.search'));
     const assignUrl = @json(route('transport.student-assignments.index'));
+    const yearTerm = { year: @json((int) $year), term: @json((int) $term) };
 
     function quote(morningId, eveningId) {
         const m = points[String(morningId)];
@@ -460,7 +531,9 @@
             resultsBox.classList.remove('d-none');
             resultsBox.querySelectorAll('button').forEach((btn) => {
                 btn.addEventListener('click', () => {
-                    window.location.href = assignUrl + '?tab=student&student_id=' + btn.dataset.id;
+                    window.location.href = assignUrl + '?tab=student&student_id=' + btn.dataset.id
+                        + '&year=' + encodeURIComponent(yearTerm.year)
+                        + '&term=' + encodeURIComponent(yearTerm.term);
                 });
             });
         }, 220);

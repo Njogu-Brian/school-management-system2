@@ -40,7 +40,25 @@ class TransportAssignmentWriter
             $eveningTripId = null;
         }
 
-        $assignment = StudentAssignment::firstOrNew(['student_id' => $student->id]);
+        $yearIn = $payload['year'] ?? null;
+        $termIn = $payload['term'] ?? null;
+        $yearIn = ($yearIn === '' || $yearIn === null) ? null : (int) $yearIn;
+        $termIn = ($termIn === '' || $termIn === null) ? null : (int) $termIn;
+        if (! $yearIn) {
+            $yearIn = null;
+        }
+        if (! $termIn) {
+            $termIn = null;
+        }
+
+        [$year, $term, $academicYearId] = TransportFeeService::resolveYearAndTerm($yearIn, $termIn);
+
+        $assignment = StudentAssignment::firstOrNew([
+            'student_id' => $student->id,
+            'year' => $year,
+            'term' => $term,
+        ]);
+        $assignment->academic_year_id = $academicYearId;
         $assignment->morning_drop_off_point_id = $morningPointId;
         $assignment->evening_drop_off_point_id = $eveningPointId;
         $assignment->morning_trip_id = $morningTripId;
@@ -52,13 +70,17 @@ class TransportAssignmentWriter
             : ($morningPointId && (int) $morningPointId !== $ownMeansId ? $morningPointId : null);
 
         $seedPoint = $seedPointId ? DropOffPoint::find($seedPointId) : null;
-        $student->drop_off_point_id = $seedPointId;
-        $student->drop_off_point = $seedPoint?->name
-            ?? (($morningPointId === $ownMeansId && $eveningPointId === $ownMeansId)
-                ? DropOffPoint::OWN_MEANS_NAME
-                : $student->drop_off_point);
-        $student->trip_id = $morningTripId ?: $eveningTripId;
-        $student->save();
+
+        [$currentYear, $currentTerm] = TransportFeeService::resolveYearAndTerm();
+        if ((int) $year === (int) $currentYear && (int) $term === (int) $currentTerm) {
+            $student->drop_off_point_id = $seedPointId;
+            $student->drop_off_point = $seedPoint?->name
+                ?? (($morningPointId === $ownMeansId && $eveningPointId === $ownMeansId)
+                    ? DropOffPoint::OWN_MEANS_NAME
+                    : $student->drop_off_point);
+            $student->trip_id = $morningTripId ?: $eveningTripId;
+            $student->save();
+        }
 
         $amount = self::parseAmount($payload['amount'] ?? null);
         $source = $payload['source'] ?? 'manual';
@@ -80,15 +102,15 @@ class TransportAssignmentWriter
                 'source' => $source,
                 'note' => $note,
                 'pricing_mode' => 'imported',
-                'year' => $student->enrollment_year ? (int) $student->enrollment_year : null,
-                'term' => $student->enrollment_term ? (int) $student->enrollment_term : null,
+                'year' => $year,
+                'term' => $term,
                 'skip_invoice' => $skipInvoice,
             ]);
         } else {
             TransportFeeService::recalculateForStudent(
                 (int) $student->id,
-                $student->enrollment_year ? (int) $student->enrollment_year : null,
-                $student->enrollment_term ? (int) $student->enrollment_term : null,
+                $year,
+                $term,
                 $skipInvoice,
                 'calculated',
                 $note
@@ -98,20 +120,23 @@ class TransportAssignmentWriter
         return $assignment;
     }
 
-    public static function clear(Student $student, bool $skipInvoice = false): void
+    public static function clear(Student $student, bool $skipInvoice = false, ?int $year = null, ?int $term = null): void
     {
-        StudentAssignment::where('student_id', $student->id)->delete();
+        [$year, $term] = TransportFeeService::resolveYearAndTerm($year, $term);
 
-        $student->trip_id = null;
-        $student->drop_off_point_id = null;
-        $student->drop_off_point_other = null;
-        $student->drop_off_point = null;
-        $student->save();
+        StudentAssignment::where('student_id', $student->id)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->delete();
 
-        [$year, $term] = TransportFeeService::resolveYearAndTerm(
-            $student->enrollment_year ? (int) $student->enrollment_year : null,
-            $student->enrollment_term ? (int) $student->enrollment_term : null
-        );
+        [$currentYear, $currentTerm] = TransportFeeService::resolveYearAndTerm();
+        if ((int) $year === (int) $currentYear && (int) $term === (int) $currentTerm) {
+            $student->trip_id = null;
+            $student->drop_off_point_id = null;
+            $student->drop_off_point_other = null;
+            $student->drop_off_point = null;
+            $student->save();
+        }
 
         TransportFeeService::upsertFee([
             'student_id' => $student->id,
