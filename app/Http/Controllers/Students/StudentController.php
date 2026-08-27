@@ -37,6 +37,7 @@ use App\Models\ActivityLog;
 use App\Services\FamilyLinkingService;
 use App\Services\PhoneNumberService;
 use App\Services\Students\StudentDuplicateDetector;
+use App\Support\KemisProfile;
 
 class StudentController extends Controller
 {
@@ -417,6 +418,22 @@ class StudentController extends Controller
                     'guardian_phone_country_code' => $guardianCode,
                     'guardian_phone_local' => extract_local_phone($p->guardian_phone, $guardianCode) ?? '',
                     'guardian_whatsapp_local' => extract_local_phone($p->guardian_whatsapp, $guardianCode) ?? '',
+                    'father_first_name' => $p->formNameParts('father')['first'],
+                    'father_middle_name' => $p->formNameParts('father')['middle'],
+                    'father_last_name' => $p->formNameParts('father')['last'],
+                    'mother_first_name' => $p->formNameParts('mother')['first'],
+                    'mother_middle_name' => $p->formNameParts('mother')['middle'],
+                    'mother_last_name' => $p->formNameParts('mother')['last'],
+                    'guardian_first_name' => $p->formNameParts('guardian')['first'],
+                    'guardian_middle_name' => $p->formNameParts('guardian')['middle'],
+                    'guardian_last_name' => $p->formNameParts('guardian')['last'],
+                    'father_id_type' => $p->father_id_type,
+                    'mother_id_type' => $p->mother_id_type,
+                    'guardian_id_type' => $p->guardian_id_type,
+                    'father_country_of_residence' => $p->father_country_of_residence,
+                    'mother_country_of_residence' => $p->mother_country_of_residence,
+                    'guardian_country_of_residence' => $p->guardian_country_of_residence,
+                    'guardian_id_number' => $p->guardian_id_number,
                 ] : null,
             ],
         ]);
@@ -477,6 +494,7 @@ class StudentController extends Controller
                 'preferred_hospital' => 'nullable|string|max:255',
                 'nemis_number' => 'nullable|string',
                 'knec_assessment_number' => 'nullable|string',
+                'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
                 'transport_fee_amount' => 'nullable|numeric|min:0',
                 // Extended demographics
                 'religion' => 'nullable|string|max:255',
@@ -489,7 +507,7 @@ class StudentController extends Controller
                 'learning_disabilities' => 'nullable|string',
                 'status' => 'nullable|in:active,inactive,graduated,transferred,expelled,suspended',
                 'admission_date' => 'nullable|date',
-            ]);
+            ] + KemisProfile::studentKemisValidationRules() + KemisProfile::parentKemisValidationRules());
 
             // Require stream if classroom has streams (primary + pivot)
             $classroomId = (int)$request->classroom_id;
@@ -547,7 +565,9 @@ class StudentController extends Controller
                     $parent = $ref->parent;
                 } else {
                     // Need parent details to create the shared parent record
-                    $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+                    $parentName = ParentInfo::resolvedSlotName($request, 'father')
+                        ?: ParentInfo::resolvedSlotName($request, 'mother')
+                        ?: ParentInfo::resolvedSlotName($request, 'guardian');
                     $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
                     if (!$parentName || !$parentPhone) {
                         return back()->withInput()->with('error', 'Select a sibling with existing parent details, or provide at least one parent/guardian name and phone.');
@@ -591,26 +611,29 @@ class StudentController extends Controller
             $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode);
 
             $parentData = [
-                'father_name' => $request->father_name,
                 'father_phone' => $fatherPhone,
                 'father_whatsapp' => $fatherWhatsapp,
                 'father_email' => $request->father_email,
                 'father_id_number' => $request->father_id_number,
-                'mother_name' => $request->mother_name,
                 'mother_phone' => $motherPhone,
                 'mother_whatsapp' => $motherWhatsapp,
                 'mother_email' => $request->mother_email,
                 'mother_id_number' => $request->mother_id_number,
-                'guardian_name' => $request->guardian_name,
                 'guardian_phone' => $guardianPhone,
                 'guardian_whatsapp' => $guardianWhatsapp,
                 'guardian_email' => $request->guardian_email,
+                'guardian_id_number' => $request->guardian_id_number,
                 'guardian_relationship' => $request->guardian_relationship,
                 'marital_status' => $request->marital_status,
                 'father_phone_country_code' => $fatherCountryCode,
                 'mother_phone_country_code' => $motherCountryCode,
                 'guardian_phone_country_code' => $guardianCountryCode,
             ];
+            foreach (['father', 'mother', 'guardian'] as $slot) {
+                $parentData = array_merge($parentData, ParentInfo::mergePersonNamesFromInput($request->all(), $slot));
+                $parentData["{$slot}_id_type"] = $request->filled("{$slot}_id_type") ? $request->input("{$slot}_id_type") : null;
+                $parentData["{$slot}_country_of_residence"] = $request->filled("{$slot}_country_of_residence") ? $request->input("{$slot}_country_of_residence") : null;
+            }
 
             $muteVal = $request->input('school_notifications_muted_parent');
             $muteVal = ($muteVal === '' || $muteVal === null) ? null : $muteVal;
@@ -641,7 +664,9 @@ class StudentController extends Controller
                 }
             } else {
                 // No sibling selected: this is a standalone student, create a new parent record.
-                $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+                $parentName = ParentInfo::resolvedSlotName($request, 'father')
+                    ?: ParentInfo::resolvedSlotName($request, 'mother')
+                    ?: ParentInfo::resolvedSlotName($request, 'guardian');
                 $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
                 if (!$parentName || !$parentPhone) {
                     return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
@@ -689,6 +714,7 @@ class StudentController extends Controller
                 'special_needs_description', 'learning_disabilities',
                 'status', 'admission_date'
             ]);
+            $studentData = $this->applyKemisStudentFields($studentData, $request);
             
             // Normalize gender to lowercase
             if (isset($studentData['gender'])) {
@@ -895,6 +921,7 @@ class StudentController extends Controller
             'preferred_hospital' => 'nullable|string|max:255',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
+            'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
             // Extended demographics
             'religion' => 'nullable|string|max:255',
             'allergies' => 'nullable|string',
@@ -912,7 +939,7 @@ class StudentController extends Controller
             'status_change_reason' => 'nullable|string',
             'is_readmission' => 'nullable|boolean',
             'school_notifications_muted_parent' => 'nullable|in:father,mother',
-        ]);
+        ] + KemisProfile::studentKemisValidationRules() + KemisProfile::parentKemisValidationRules());
             \Log::info('Student Update: Validation passed', ['validated_keys' => array_keys($validated)]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -979,6 +1006,7 @@ class StudentController extends Controller
             'status', 'admission_date', 'graduation_date', 'transfer_date',
             'transfer_to_school', 'status_change_reason', 'is_readmission'
         ]);
+        $updateData = $this->applyKemisStudentFields($updateData, $request);
 
         if (!$incomingCategoryId || $incomingCategoryId <= 0) {
             unset($updateData['category_id']);
@@ -1014,7 +1042,9 @@ class StudentController extends Controller
         );
 
         // Enforce at least one parent/guardian name+phone
-        $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+        $parentName = ParentInfo::resolvedSlotName($request, 'father')
+            ?: ParentInfo::resolvedSlotName($request, 'mother')
+            ?: ParentInfo::resolvedSlotName($request, 'guardian');
         $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
         if (!$parentName || !$parentPhone) {
             return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
@@ -1167,26 +1197,29 @@ class StudentController extends Controller
             $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode);
             
             $parentUpdateData = [
-                'father_name' => $request->father_name,
                 'father_phone' => $fatherPhone,
                 'father_whatsapp' => $fatherWhatsapp,
                 'father_email' => $request->father_email,
                 'father_id_number' => $request->father_id_number,
-                'mother_name' => $request->mother_name,
                 'mother_phone' => $motherPhone,
                 'mother_whatsapp' => $motherWhatsapp,
                 'mother_email' => $request->mother_email,
                 'mother_id_number' => $request->mother_id_number,
-                'guardian_name' => $request->guardian_name,
                 'guardian_phone' => $guardianPhone,
                 'guardian_whatsapp' => $guardianWhatsapp,
                 'guardian_email' => $request->guardian_email,
+                'guardian_id_number' => $request->guardian_id_number,
                 'guardian_relationship' => $request->guardian_relationship,
                 'marital_status' => $request->marital_status,
                 'father_phone_country_code' => $fatherCountryCode,
                 'mother_phone_country_code' => $motherCountryCode,
                 'guardian_phone_country_code' => $guardianCountryCode,
             ];
+            foreach (['father', 'mother', 'guardian'] as $slot) {
+                $parentUpdateData = array_merge($parentUpdateData, ParentInfo::mergePersonNamesFromInput($request->all(), $slot));
+                $parentUpdateData["{$slot}_id_type"] = $request->filled("{$slot}_id_type") ? $request->input("{$slot}_id_type") : null;
+                $parentUpdateData["{$slot}_country_of_residence"] = $request->filled("{$slot}_country_of_residence") ? $request->input("{$slot}_country_of_residence") : null;
+            }
             $muteVal = $request->input('school_notifications_muted_parent');
             $muteVal = ($muteVal === '' || $muteVal === null) ? null : $muteVal;
             $previewParent = $student->parent->replicate();
@@ -2826,5 +2859,34 @@ class StudentController extends Controller
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $studentData
+     * @return array<string, mixed>
+     */
+    private function applyKemisStudentFields(array $studentData, Request $request): array
+    {
+        $studentData['kcpe_kjsea_year'] = $request->filled('kcpe_kjsea_year') ? (int) $request->kcpe_kjsea_year : null;
+        foreach ([
+            'nationality', 'county_of_birth', 'sub_county_of_birth', 'location_of_birth',
+            'birth_certificate_entry_no', 'medical_condition', 'orphan_status', 'disability_type',
+        ] as $field) {
+            $studentData[$field] = $request->filled($field) ? $request->input($field) : null;
+        }
+        $studentData['religion'] = KemisProfile::normalizeReligion(
+            $request->input('religion'),
+            $request->input('religion_other')
+        );
+        $studentData['learner_interests'] = KemisProfile::normalizeLearnerInterests(
+            $request->input('learner_interests', []),
+            $request->input('learner_interests_other')
+        );
+        $studentData['has_special_needs'] = $request->boolean('has_special_needs');
+        if (! $studentData['has_special_needs']) {
+            $studentData['disability_type'] = null;
+        }
+
+        return $studentData;
     }
 }

@@ -96,10 +96,26 @@
       <input type="text" name="nemis_number" value="{{ old('nemis_number', $s->nemis_number ?? '') }}" class="form-control">
     </div>
     <div class="col-md-3">
-      <label class="form-label">KNEC Assessment No.</label>
+      <label class="form-label">KNEC Assessment No. / KCPE Index No.</label>
       <input type="text" name="knec_assessment_number" value="{{ old('knec_assessment_number', $s->knec_assessment_number ?? '') }}" class="form-control">
     </div>
+    <div class="col-md-3">
+      <label class="form-label">KCPE / KJSEA Year</label>
+      <input type="number" name="kcpe_kjsea_year" min="1990" max="{{ now()->year + 1 }}" value="{{ old('kcpe_kjsea_year', $s->kcpe_kjsea_year ?? '') }}" class="form-control" placeholder="e.g. 2024">
+      <div class="form-text">School use only. Parents do not see this on the update link.</div>
+    </div>
+  </div>
 
+  <hr class="my-4">
+
+  <h6 class="text-uppercase text-muted mb-3">KEMIS Learner &amp; Birth Details</h6>
+  <div class="row g-3">
+    @include('students.partials.kemis_learner_fields', [
+      'student' => $s,
+      'htmlPrefix' => '',
+      'oldPrefix' => '',
+      'fieldIdSuffix' => 'admin',
+    ])
   </div>
 
   <hr class="my-4">
@@ -200,14 +216,8 @@
 <hr class="my-4">
 
 {{-- SPECIAL NEEDS --}}
-<h6 class="text-uppercase text-muted mb-3">Special Needs</h6>
+<h6 class="text-uppercase text-muted mb-3">Special Needs Notes</h6>
 <div class="row g-3">
-  <div class="col-md-6">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="has_special_needs" value="1" id="has_special_needs" @checked(old('has_special_needs', $s->has_special_needs ?? false))>
-      <label class="form-check-label" for="has_special_needs">Has Special Needs</label>
-    </div>
-  </div>
   <div class="col-md-12">
     <label class="form-label">Special Needs Description</label>
     <textarea name="special_needs_description" class="form-control" rows="2">{{ old('special_needs_description', $s->special_needs_description ?? '') }}</textarea>
@@ -351,9 +361,7 @@
       <div class="form-text">Only one parent can be excluded; the other must have phone, WhatsApp, or email. Guardian is never used for automated school messages.</div>
     </div>
     {{-- Father --}}
-    <div class="col-12"><div class="fw-semibold mb-1">Father</div></div>
-    <div class="col-md-3"><label class="form-label">Name</label>
-      <input type="text" name="father_name" value="{{ old('father_name', $p->father_name ?? '') }}" class="form-control"></div>
+    @include('students.partials.kemis_parent_identity_fields', ['slot' => 'father', 'parent' => $p, 'title' => 'Father'])
     <div class="col-md-3"><label class="form-label">Phone</label>
       <div class="input-group">
         <select name="father_phone_country_code" class="form-select" style="max-width:170px">
@@ -383,8 +391,6 @@
     </div>
     <div class="col-md-3"><label class="form-label">Email</label>
       <input type="email" name="father_email" value="{{ old('father_email', $p->father_email ?? '') }}" class="form-control"></div>
-    <div class="col-md-3"><label class="form-label">ID Number</label>
-      <input type="text" name="father_id_number" value="{{ old('father_id_number', $p->father_id_number ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">ID Document (upload)</label>
       <input type="file" name="father_id_document" class="form-control" accept=".pdf,image/*">
       @if($p?->father_id_document)
@@ -394,9 +400,7 @@
     </div>
 
     {{-- Mother --}}
-    <div class="col-12 mt-2"><div class="fw-semibold mb-1">Mother</div></div>
-    <div class="col-md-3"><label class="form-label">Name</label>
-      <input type="text" name="mother_name" value="{{ old('mother_name', $p->mother_name ?? '') }}" class="form-control"></div>
+    @include('students.partials.kemis_parent_identity_fields', ['slot' => 'mother', 'parent' => $p, 'title' => 'Mother'])
     <div class="col-md-3"><label class="form-label">Phone</label>
       <div class="input-group">
         <select name="mother_phone_country_code" class="form-select" style="max-width:170px">
@@ -426,8 +430,6 @@
     </div>
     <div class="col-md-3"><label class="form-label">Email</label>
       <input type="email" name="mother_email" value="{{ old('mother_email', $p->mother_email ?? '') }}" class="form-control"></div>
-    <div class="col-md-3"><label class="form-label">ID Number</label>
-      <input type="text" name="mother_id_number" value="{{ old('mother_id_number', $p->mother_id_number ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">ID Document (upload)</label>
       <input type="file" name="mother_id_document" class="form-control" accept=".pdf,image/*">
       @if($p?->mother_id_document)
@@ -437,9 +439,7 @@
     </div>
 
     {{-- Guardian --}}
-    <div class="col-12 mt-2"><div class="fw-semibold mb-1">Guardian (optional)</div></div>
-    <div class="col-md-3"><label class="form-label">Name</label>
-      <input type="text" name="guardian_name" value="{{ old('guardian_name', $p->guardian_name ?? '') }}" class="form-control"></div>
+    @include('students.partials.kemis_parent_identity_fields', ['slot' => 'guardian', 'parent' => $p, 'title' => 'Guardian (optional)', 'showRelationship' => true])
     <div class="col-md-3"><label class="form-label">Phone</label>
       <div class="input-group">
         <select name="guardian_phone_country_code" class="form-select" style="max-width:170px">
@@ -467,8 +467,8 @@
       </div>
       <small class="text-muted">Uses same country code as phone</small>
     </div>
-  <div class="col-md-3"><label class="form-label">Relationship</label>
-    <input type="text" name="guardian_relationship" value="{{ old('guardian_relationship', $p->guardian_relationship ?? '') }}" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label">Email</label>
+      <input type="email" name="guardian_email" value="{{ old('guardian_email', $p->guardian_email ?? '') }}" class="form-control"></div>
     <div class="col-md-6">
       <label class="form-label">Residential Area <span class="text-danger">*</span></label>
       <input type="text" name="residential_area" value="{{ old('residential_area', $s->residential_area ?? '') }}" class="form-control" placeholder="Estate / Area" required>
@@ -741,14 +741,27 @@
                 el.value = val;
               };
               setVal('marital_status', p.marital_status || '');
-              setVal('father_name', p.father_name || '');
+              setVal('father_first_name', p.father_first_name || p.father_name || '');
+              setVal('father_middle_name', p.father_middle_name || '');
+              setVal('father_last_name', p.father_last_name || '');
               setVal('father_email', p.father_email || '');
               setVal('father_id_number', p.father_id_number || '');
-              setVal('mother_name', p.mother_name || '');
+              setVal('father_id_type', p.father_id_type || '');
+              setVal('father_country_of_residence', p.father_country_of_residence || '');
+              setVal('mother_first_name', p.mother_first_name || p.mother_name || '');
+              setVal('mother_middle_name', p.mother_middle_name || '');
+              setVal('mother_last_name', p.mother_last_name || '');
               setVal('mother_email', p.mother_email || '');
               setVal('mother_id_number', p.mother_id_number || '');
-              setVal('guardian_name', p.guardian_name || '');
+              setVal('mother_id_type', p.mother_id_type || '');
+              setVal('mother_country_of_residence', p.mother_country_of_residence || '');
+              setVal('guardian_first_name', p.guardian_first_name || p.guardian_name || '');
+              setVal('guardian_middle_name', p.guardian_middle_name || '');
+              setVal('guardian_last_name', p.guardian_last_name || '');
               setVal('guardian_email', p.guardian_email || '');
+              setVal('guardian_id_number', p.guardian_id_number || '');
+              setVal('guardian_id_type', p.guardian_id_type || '');
+              setVal('guardian_country_of_residence', p.guardian_country_of_residence || '');
               setVal('guardian_relationship', p.guardian_relationship || '');
 
               setVal('father_phone_country_code', p.father_phone_country_code || '+254');

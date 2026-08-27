@@ -283,6 +283,7 @@
                 
                 <form action="{{ route('family-update.submit', $link->token) }}" method="POST" enctype="multipart/form-data" novalidate id="familyUpdateForm">
                     @csrf
+                    <p class="text-muted small mb-3">Complete each child’s details as they appear on the birth certificate. Parent and guardian details are shared for siblings and only need to be filled once. Assessment numbers are completed by the school.</p>
                     @foreach($students as $stu)
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="section-header text-uppercase mb-0">Student Details</h6>
@@ -307,7 +308,7 @@
                                     <input type="text" name="students[{{ $stu->id }}][last_name]" class="form-control" value="{{ old('students.'.$stu->id.'.last_name', $stu->last_name) }}" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Gender</label>
+                                    <label class="form-label">Sex</label>
                                     <select name="students[{{ $stu->id }}][gender]" class="form-select" required>
                                         @php 
                                             $currentGender = old('students.'.$stu->id.'.gender', ucfirst(strtolower($stu->gender ?? '')));
@@ -327,6 +328,12 @@
                                     <label class="form-label">Classroom (view only)</label>
                                     <input type="text" class="form-control" value="{{ $stu->classroom->name ?? '—' }}" disabled>
                                 </div>
+                                @include('students.partials.kemis_learner_fields', [
+                                    'student' => $stu,
+                                    'htmlPrefix' => 'students['.$stu->id.']',
+                                    'oldPrefix' => 'students.'.$stu->id,
+                                    'fieldIdSuffix' => $stu->id,
+                                ])
                                 <div class="col-md-6">
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" name="students[{{ $stu->id }}][has_allergies]" value="1" id="has_allergies_{{ $stu->id }}" @checked(old('students.'.$stu->id.'.has_allergies', $stu->has_allergies))>
@@ -432,14 +439,18 @@
                         @endforeach
 
                         <h6 class="text-uppercase text-muted mb-3">Parent / Guardian</h6>
+                        @if($students->count() > 1)
+                            <p class="text-muted small">These details apply to all {{ $students->count() }} children on this form and are saved once.</p>
+                        @endif
                         <div class="row g-3 mb-4">
+                            @php $parent = $students->first()->parent ?? null; @endphp
                             <div class="col-md-6">
                                 <label class="form-label">Marital Status</label>
                                 <select name="marital_status" class="form-select">
                                     <option value="">Select</option>
-                                    <option value="married" @selected(old('marital_status', $students->first()->parent->marital_status ?? '')=='married')>Married</option>
-                                    <option value="single_parent" @selected(old('marital_status', $students->first()->parent->marital_status ?? '')=='single_parent')>Single Parent</option>
-                                    <option value="co_parenting" @selected(old('marital_status', $students->first()->parent->marital_status ?? '')=='co_parenting')>Co-parenting</option>
+                                    <option value="married" @selected(old('marital_status', $parent->marital_status ?? '')=='married')>Married</option>
+                                    <option value="single_parent" @selected(old('marital_status', $parent->marital_status ?? '')=='single_parent')>Single Parent</option>
+                                    <option value="co_parenting" @selected(old('marital_status', $parent->marital_status ?? '')=='co_parenting')>Co-parenting</option>
                                 </select>
                             </div>
                             <div class="col-12">
@@ -452,14 +463,7 @@
                                 </select>
                                 <small class="text-muted d-block mt-1">Only one parent can be excluded. The other must have at least one contact on file.</small>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Father Name</label>
-                                <input type="text" name="father_name" class="form-control" value="{{ old('father_name', $students->first()->parent->father_name ?? '') }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Father ID Number</label>
-                                <input type="text" name="father_id_number" class="form-control" value="{{ old('father_id_number', $students->first()->parent->father_id_number ?? '') }}">
-                            </div>
+                            @include('students.partials.kemis_parent_identity_fields', ['slot' => 'father', 'parent' => $parent, 'title' => 'Father'])
                                 <div class="col-md-6">
                                     <label class="form-label">Father Phone</label>
                                     @php
@@ -551,14 +555,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label">Mother Name</label>
-                                <input type="text" name="mother_name" class="form-control" value="{{ old('mother_name', $students->first()->parent->mother_name ?? '') }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Mother ID Number</label>
-                                <input type="text" name="mother_id_number" class="form-control" value="{{ old('mother_id_number', $students->first()->parent->mother_id_number ?? '') }}">
-                            </div>
+                            @include('students.partials.kemis_parent_identity_fields', ['slot' => 'mother', 'parent' => $parent, 'title' => 'Mother'])
                                 <div class="col-md-6">
                                     <label class="form-label">Mother Phone</label>
                                     @php
@@ -650,9 +647,10 @@
                                 </div>
                             </div>
 
+                            @include('students.partials.kemis_parent_identity_fields', ['slot' => 'guardian', 'parent' => $parent, 'title' => 'Guardian (if there are no parents)', 'showRelationship' => true])
                             <div class="col-md-6">
-                                <label class="form-label">Guardian Name</label>
-                                <input type="text" name="guardian_name" class="form-control" value="{{ old('guardian_name', $students->first()->parent->guardian_name ?? '') }}">
+                                <label class="form-label">Guardian Email</label>
+                                <input type="email" name="guardian_email" class="form-control" value="{{ old('guardian_email', $parent->guardian_email ?? '') }}">
                             </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Guardian Phone</label>
@@ -674,10 +672,6 @@
                                     </div>
                                     <small class="upload-hint d-block" id="guardian_phone_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
                                 </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Guardian Relationship</label>
-                                <input type="text" name="guardian_relationship" class="form-control" value="{{ old('guardian_relationship', $students->first()->parent->guardian_relationship ?? '') }}">
-                            </div>
                         </div>
 
                         <h6 class="text-uppercase text-muted mb-3">Emergency & Medical</h6>

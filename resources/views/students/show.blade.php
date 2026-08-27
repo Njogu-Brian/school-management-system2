@@ -230,7 +230,18 @@
               <div class="col-md-6"><div class="text-muted small">Category</div><div class="fw-semibold">{{ $student->category->name ?? '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Status</div><div class="fw-semibold"><span class="pill-badge pill-{{ $student->archive ? 'danger' : ($student->status === 'active' ? 'success' : 'secondary') }}">{{ $student->archive ? 'Inactive' : ucfirst($student->status ?? '—') }}</span></div></div>
               <div class="col-md-6"><div class="text-muted small">NEMIS</div><div class="fw-semibold">{{ $student->nemis_number ?? '—' }}</div></div>
-              <div class="col-md-6"><div class="text-muted small">KNEC Assessment</div><div class="fw-semibold">{{ $student->knec_assessment_number ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">KNEC Assessment / KCPE Index</div><div class="fw-semibold">{{ $student->knec_assessment_number ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">KCPE / KJSEA Year</div><div class="fw-semibold">{{ $student->kcpe_kjsea_year ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Nationality</div><div class="fw-semibold">{{ $student->nationality ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">County of Birth</div><div class="fw-semibold">{{ $student->county_of_birth ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Sub-County of Birth</div><div class="fw-semibold">{{ $student->sub_county_of_birth ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Location of Birth</div><div class="fw-semibold">{{ $student->location_of_birth ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Birth Certificate Entry No.</div><div class="fw-semibold">{{ $student->birth_certificate_entry_no ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Religion</div><div class="fw-semibold">{{ $student->religion ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Medical Condition</div><div class="fw-semibold">{{ $student->medical_condition ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Orphan Status</div><div class="fw-semibold">{{ $student->orphan_status ? (config('kemis.orphan_statuses')[$student->orphan_status] ?? ucfirst($student->orphan_status)) : '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">SNE / Disability</div><div class="fw-semibold">{{ $student->has_special_needs ? 'Yes' : 'No' }}{{ $student->disability_type ? ' — '.$student->disability_type : '' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Learner Interests</div><div class="fw-semibold">{{ is_array($student->learner_interests) && count($student->learner_interests) ? implode(', ', $student->learner_interests) : '—' }}</div></div>
               @if($student->allergies)
               <div class="col-md-6"><div class="text-muted small">Allergies</div><div class="fw-semibold">{{ $student->allergies }}</div></div>
               @endif
@@ -257,7 +268,9 @@
                 {{-- Father Section --}}
                 <div class="col-12"><h6 class="fw-bold text-uppercase text-muted small mb-2">Father</h6></div>
                 <div class="col-md-6"><div class="text-muted small">Name</div><div class="fw-semibold">{{ $p->father_name ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Type of ID</div><div class="fw-semibold">{{ $p->father_id_type ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">ID Number</div><div class="fw-semibold">{{ $p->father_id_number ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Country of Residence</div><div class="fw-semibold">{{ $p->father_country_of_residence ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">Phone</div><div class="fw-semibold">{{ $p->father_phone ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">WhatsApp</div><div class="fw-semibold">{{ $p->father_whatsapp ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ $p->father_email ?? '—' }}</div></div>
@@ -265,7 +278,9 @@
                 {{-- Mother Section --}}
                 <div class="col-12 mt-3"><h6 class="fw-bold text-uppercase text-muted small mb-2">Mother</h6></div>
                 <div class="col-md-6"><div class="text-muted small">Name</div><div class="fw-semibold">{{ $p->mother_name ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Type of ID</div><div class="fw-semibold">{{ $p->mother_id_type ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">ID Number</div><div class="fw-semibold">{{ $p->mother_id_number ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Country of Residence</div><div class="fw-semibold">{{ $p->mother_country_of_residence ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">Phone</div><div class="fw-semibold">{{ $p->mother_phone ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">WhatsApp</div><div class="fw-semibold">{{ $p->mother_whatsapp ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ $p->mother_email ?? '—' }}</div></div>
@@ -275,6 +290,9 @@
                 <div class="col-12 mt-3"><h6 class="fw-bold text-uppercase text-muted small mb-2">Guardian</h6></div>
                 <div class="col-md-6"><div class="text-muted small">Name</div><div class="fw-semibold">{{ $p->guardian_name ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">Relationship</div><div class="fw-semibold">{{ $p->guardian_relationship ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Type of ID</div><div class="fw-semibold">{{ $p->guardian_id_type ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">ID Number</div><div class="fw-semibold">{{ $p->guardian_id_number ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Country of Residence</div><div class="fw-semibold">{{ $p->guardian_country_of_residence ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">Phone</div><div class="fw-semibold">{{ $p->guardian_phone ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">WhatsApp</div><div class="fw-semibold">{{ $p->guardian_whatsapp ?? '—' }}</div></div>
                 <div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ $p->guardian_email ?? '—' }}</div></div>

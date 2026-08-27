@@ -9,6 +9,7 @@ use App\Models\FamilyUpdateAudit;
 use App\Models\Student;
 use App\Models\Document;
 use App\Models\ParentInfo;
+use App\Support\KemisProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -394,7 +395,7 @@ class FamilyUpdateController extends Controller
                 'request_keys' => array_keys($request->all()),
             ]);
             
-            $validated = $request->validate([
+            $validated = $request->validate(array_merge([
                 'residential_area' => 'nullable|string|max:255',
                 'father_name' => 'nullable|string|max:255',
                 'father_id_number' => 'nullable|string|max:255',
@@ -434,7 +435,7 @@ class FamilyUpdateController extends Controller
                 'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'school_notifications_muted_parent' => 'nullable|in:father,mother',
-            ]);
+            ], KemisProfile::parentKemisValidationRules(), KemisProfile::studentKemisValidationRules('students.*')));
             
             \Log::info('FamilyUpdate Submit: Validation passed', [
                 'validated_keys' => array_keys($validated),
@@ -558,6 +559,23 @@ class FamilyUpdateController extends Controller
                     }
                     if (array_key_exists('father_email', $validated)) {
                         $this->assignParentFieldUnlessBlanking($parentData, $parent, 'father_email', $validated['father_email'] ?? null);
+                    }
+
+                    foreach (['father', 'mother', 'guardian'] as $slot) {
+                        foreach (ParentInfo::mergePersonNamesFromInput($validated, $slot) as $field => $value) {
+                            $this->assignParentFieldUnlessBlanking($parentData, $parent, $field, $value);
+                        }
+                        foreach (["{$slot}_id_type", "{$slot}_country_of_residence"] as $field) {
+                            if (array_key_exists($field, $validated)) {
+                                $this->assignParentFieldUnlessBlanking($parentData, $parent, $field, $validated[$field] ?? null);
+                            }
+                        }
+                    }
+                    if (array_key_exists('guardian_id_number', $validated)) {
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'guardian_id_number', $validated['guardian_id_number'] ?? null);
+                    }
+                    if (array_key_exists('guardian_email', $validated)) {
+                        $this->assignParentFieldUnlessBlanking($parentData, $parent, 'guardian_email', $validated['guardian_email'] ?? null);
                     }
                     
                     // Mother fields
@@ -829,6 +847,33 @@ class FamilyUpdateController extends Controller
                 // Allergies notes
                 if (array_key_exists('allergies_notes', $stuData)) {
                     $updateData['allergies_notes'] = $stuData['allergies_notes'] ?: null;
+                }
+
+                foreach ([
+                    'nationality', 'county_of_birth', 'sub_county_of_birth', 'location_of_birth',
+                    'birth_certificate_entry_no', 'medical_condition', 'orphan_status', 'disability_type',
+                ] as $kemisField) {
+                    if (array_key_exists($kemisField, $stuData)) {
+                        $updateData[$kemisField] = $stuData[$kemisField] !== '' && $stuData[$kemisField] !== null
+                            ? $stuData[$kemisField]
+                            : null;
+                    }
+                }
+                if (array_key_exists('religion', $stuData) || array_key_exists('religion_other', $stuData)) {
+                    $updateData['religion'] = KemisProfile::normalizeReligion(
+                        $stuData['religion'] ?? null,
+                        $stuData['religion_other'] ?? null
+                    );
+                }
+                $updateData['learner_interests'] = KemisProfile::normalizeLearnerInterests(
+                    $stuData['learner_interests'] ?? [],
+                    $stuData['learner_interests_other'] ?? null
+                );
+                if (array_key_exists('has_special_needs', $stuData)) {
+                    $updateData['has_special_needs'] = (bool) $stuData['has_special_needs'];
+                    if (! $updateData['has_special_needs']) {
+                        $updateData['disability_type'] = null;
+                    }
                 }
                 
                 // Fields from top-level validated array

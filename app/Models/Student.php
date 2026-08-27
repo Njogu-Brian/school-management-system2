@@ -75,6 +75,16 @@ class Student extends Model
         'category_id',
         'nemis_number',
         'knec_assessment_number',
+        'kcpe_kjsea_year',
+        'nationality',
+        'county_of_birth',
+        'sub_county_of_birth',
+        'location_of_birth',
+        'birth_certificate_entry_no',
+        'medical_condition',
+        'learner_interests',
+        'orphan_status',
+        'disability_type',
         'archive',
         'is_alumni',
         'alumni_date',
@@ -129,6 +139,9 @@ class Student extends Model
         'archived_by'       => 'integer',
         'has_allergies'     => 'boolean',
         'is_fully_immunized'=> 'boolean',
+        'has_special_needs' => 'boolean',
+        'learner_interests' => 'array',
+        'kcpe_kjsea_year'   => 'integer',
     ];
 
     public function parent()

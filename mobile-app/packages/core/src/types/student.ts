@@ -27,6 +27,8 @@ export interface StudentRecord {
   residential_area?: string | null;
   religion?: string | null;
   nemis_number?: string | null;
+  knec_assessment_number?: string | null;
+  kcpe_kjsea_year?: number | null;
   trip_id?: number | null;
   trip_name?: string | null;
   trip_vehicle?: string | null;

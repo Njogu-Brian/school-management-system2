@@ -45,6 +45,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
   const [religion, setReligion] = useState('');
   const [nemisNumber, setNemisNumber] = useState('');
   const [knecNumber, setKnecNumber] = useState('');
+  const [kcpeKjseaYear, setKcpeKjseaYear] = useState('');
   const [preferredHospital, setPreferredHospital] = useState('');
   const [hasAllergies, setHasAllergies] = useState(false);
   const [allergiesNotes, setAllergiesNotes] = useState('');
@@ -82,6 +83,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
       setReligion(s.religion ?? '');
       setNemisNumber(s.nemis_number ?? '');
       setKnecNumber((s as { knec_assessment_number?: string }).knec_assessment_number ?? '');
+      setKcpeKjseaYear(s.kcpe_kjsea_year != null ? String(s.kcpe_kjsea_year) : '');
       setPreferredHospital(s.preferred_hospital ?? '');
       setHasAllergies(Boolean(s.has_allergies));
       setAllergiesNotes(s.allergies_notes ?? '');
@@ -131,6 +133,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
         religion: religion.trim() || null,
         nemis_number: nemisNumber.trim() || null,
         knec_assessment_number: knecNumber.trim() || null,
+        kcpe_kjsea_year: kcpeKjseaYear.trim() ? Number(kcpeKjseaYear.trim()) : null,
         preferred_hospital: preferredHospital.trim() || null,
         has_allergies: hasAllergies,
         allergies_notes: allergiesNotes.trim() || null,
@@ -200,7 +203,8 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
         <TextField label="Residential area" value={residentialArea} onChangeText={setResidentialArea} />
         <TextField label="Religion" value={religion} onChangeText={setReligion} />
         <TextField label="NEMIS number" value={nemisNumber} onChangeText={setNemisNumber} />
-        <TextField label="KNEC assessment number" value={knecNumber} onChangeText={setKnecNumber} />
+        <TextField label="KNEC assessment / KCPE index" value={knecNumber} onChangeText={setKnecNumber} />
+        <TextField label="KCPE / KJSEA year" value={kcpeKjseaYear} onChangeText={setKcpeKjseaYear} keyboardType="number-pad" />
         <TextField label="Admission date (YYYY-MM-DD)" value={admissionDate} onChangeText={setAdmissionDate} />
 
         <SectionTitle label="Health" palette={palette} typography={typography} spacing={spacing} />

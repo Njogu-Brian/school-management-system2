@@ -130,6 +130,7 @@ class ApiStudentWriteController extends Controller
             'preferred_hospital' => 'nullable|string|max:255',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
+            'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
             'religion' => 'nullable|string|max:255',
             'admission_date' => 'nullable|date',
             'confirm_duplicate' => 'sometimes|boolean',
@@ -228,7 +229,7 @@ class ApiStudentWriteController extends Controller
                     'has_allergies', 'allergies_notes', 'is_fully_immunized',
                     'emergency_contact_name',
                     'residential_area', 'preferred_hospital',
-                    'nemis_number', 'knec_assessment_number',
+                    'nemis_number', 'knec_assessment_number', 'kcpe_kjsea_year',
                     'religion',
                     'admission_date',
                 ]);
@@ -349,6 +350,7 @@ class ApiStudentWriteController extends Controller
             'preferred_hospital' => 'nullable|string|max:255',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
+            'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
             'religion' => 'nullable|string|max:255',
             'admission_date' => 'required|date',
         ]);
@@ -385,7 +387,7 @@ class ApiStudentWriteController extends Controller
                     'has_allergies', 'allergies_notes', 'is_fully_immunized',
                     'emergency_contact_name',
                     'residential_area', 'preferred_hospital',
-                    'nemis_number', 'knec_assessment_number',
+                    'nemis_number', 'knec_assessment_number', 'kcpe_kjsea_year',
                     'religion',
                     'admission_date',
                 ]);

@@ -11,17 +11,32 @@ class ParentInfo extends Model
 
     protected static array $sentenceCaseNameAttributes = [
         'father_name',
+        'father_first_name',
+        'father_middle_name',
+        'father_last_name',
         'mother_name',
+        'mother_first_name',
+        'mother_middle_name',
+        'mother_last_name',
         'guardian_name',
+        'guardian_first_name',
+        'guardian_middle_name',
+        'guardian_last_name',
         'primary_contact_person',
     ];
 
     protected $table = 'parent_info';
 
     protected $fillable = [
-        'father_name', 'father_phone', 'father_whatsapp', 'father_email', 'father_id_number',
-        'mother_name', 'mother_phone', 'mother_whatsapp', 'mother_email', 'mother_id_number',
-        'guardian_name', 'guardian_phone', 'guardian_whatsapp', 'guardian_email',
+        'father_name', 'father_first_name', 'father_middle_name', 'father_last_name',
+        'father_phone', 'father_whatsapp', 'father_email', 'father_id_number', 'father_id_type',
+        'father_country_of_residence',
+        'mother_name', 'mother_first_name', 'mother_middle_name', 'mother_last_name',
+        'mother_phone', 'mother_whatsapp', 'mother_email', 'mother_id_number', 'mother_id_type',
+        'mother_country_of_residence',
+        'guardian_name', 'guardian_first_name', 'guardian_middle_name', 'guardian_last_name',
+        'guardian_phone', 'guardian_whatsapp', 'guardian_email', 'guardian_id_number',
+        'guardian_id_type', 'guardian_country_of_residence',
         'guardian_relationship', 'marital_status',
         'father_phone_country_code', 'mother_phone_country_code', 'guardian_phone_country_code',
         'father_whatsapp_country_code', 'mother_whatsapp_country_code',
@@ -258,6 +273,72 @@ class ParentInfo extends Model
         }
 
         return filled($a['mother_phone'] ?? null) || filled($a['mother_email'] ?? null) || filled($a['mother_whatsapp'] ?? null);
+    }
+
+    public static function composeFullName(?string $first, ?string $middle, ?string $last): ?string
+    {
+        $parts = array_values(array_filter([
+            trim((string) $first),
+            trim((string) $middle),
+            trim((string) $last),
+        ], static fn ($part) => $part !== ''));
+
+        return $parts === [] ? null : implode(' ', $parts);
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return array<string, string|null>
+     */
+    public static function mergePersonNamesFromInput(array $input, string $slot): array
+    {
+        $first = trim((string) ($input["{$slot}_first_name"] ?? ''));
+        $middle = trim((string) ($input["{$slot}_middle_name"] ?? ''));
+        $last = trim((string) ($input["{$slot}_last_name"] ?? ''));
+        $legacy = trim((string) ($input["{$slot}_name"] ?? ''));
+
+        if ($first === '' && $middle === '' && $last === '') {
+            return [
+                "{$slot}_first_name" => null,
+                "{$slot}_middle_name" => null,
+                "{$slot}_last_name" => null,
+                "{$slot}_name" => $legacy !== '' ? $legacy : null,
+            ];
+        }
+
+        return [
+            "{$slot}_first_name" => $first !== '' ? $first : null,
+            "{$slot}_middle_name" => $middle !== '' ? $middle : null,
+            "{$slot}_last_name" => $last !== '' ? $last : null,
+            "{$slot}_name" => self::composeFullName($first, $middle, $last),
+        ];
+    }
+
+    public static function resolvedSlotName($input, string $slot): ?string
+    {
+        $data = is_array($input) ? $input : $input->all();
+        $merged = self::mergePersonNamesFromInput($data, $slot);
+
+        return $merged["{$slot}_name"] ?? null;
+    }
+
+    /**
+     * @return array{first: string, middle: string, last: string}
+     */
+    public function formNameParts(string $slot): array
+    {
+        $first = trim((string) ($this->{"{$slot}_first_name"} ?? ''));
+        $middle = trim((string) ($this->{"{$slot}_middle_name"} ?? ''));
+        $last = trim((string) ($this->{"{$slot}_last_name"} ?? ''));
+        if ($first !== '' || $middle !== '' || $last !== '') {
+            return ['first' => $first, 'middle' => $middle, 'last' => $last];
+        }
+
+        return [
+            'first' => trim((string) ($this->{"{$slot}_name"} ?? '')),
+            'middle' => '',
+            'last' => '',
+        ];
     }
 
     public function students()
