@@ -287,6 +287,35 @@ class ParentInfo extends Model
     }
 
     /**
+     * Split a full name into first / middle / last.
+     * 1 word → first; 2 words → first last; 3+ words → first, remaining middle, last.
+     *
+     * @return array{first: string, middle: string, last: string}
+     */
+    public static function splitFullName(?string $full): array
+    {
+        $full = trim(preg_replace('/\s+/', ' ', (string) $full) ?? '');
+        if ($full === '') {
+            return ['first' => '', 'middle' => '', 'last' => ''];
+        }
+
+        $parts = explode(' ', $full);
+        $count = count($parts);
+        if ($count === 1) {
+            return ['first' => $parts[0], 'middle' => '', 'last' => ''];
+        }
+        if ($count === 2) {
+            return ['first' => $parts[0], 'middle' => '', 'last' => $parts[1]];
+        }
+
+        return [
+            'first' => $parts[0],
+            'middle' => implode(' ', array_slice($parts, 1, -1)),
+            'last' => $parts[$count - 1],
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>  $input
      * @return array<string, string|null>
      */
@@ -298,12 +327,30 @@ class ParentInfo extends Model
         $legacy = trim((string) ($input["{$slot}_name"] ?? ''));
 
         if ($first === '' && $middle === '' && $last === '') {
+            if ($legacy !== '') {
+                $split = self::splitFullName($legacy);
+
+                return [
+                    "{$slot}_first_name" => $split['first'] !== '' ? $split['first'] : null,
+                    "{$slot}_middle_name" => $split['middle'] !== '' ? $split['middle'] : null,
+                    "{$slot}_last_name" => $split['last'] !== '' ? $split['last'] : null,
+                    "{$slot}_name" => $legacy,
+                ];
+            }
+
             return [
                 "{$slot}_first_name" => null,
                 "{$slot}_middle_name" => null,
                 "{$slot}_last_name" => null,
-                "{$slot}_name" => $legacy !== '' ? $legacy : null,
+                "{$slot}_name" => null,
             ];
+        }
+
+        if ($first !== '' && $middle === '' && $last === '' && str_contains($first, ' ')) {
+            $split = self::splitFullName($first);
+            $first = $split['first'];
+            $middle = $split['middle'];
+            $last = $split['last'];
         }
 
         return [
@@ -331,13 +378,46 @@ class ParentInfo extends Model
         $middle = trim((string) ($this->{"{$slot}_middle_name"} ?? ''));
         $last = trim((string) ($this->{"{$slot}_last_name"} ?? ''));
         if ($first !== '' || $middle !== '' || $last !== '') {
+            if ($first !== '' && $middle === '' && $last === '' && str_contains($first, ' ')) {
+                return self::splitFullName($first);
+            }
+
             return ['first' => $first, 'middle' => $middle, 'last' => $last];
         }
 
+        return self::splitFullName($this->{"{$slot}_name"} ?? '');
+    }
+
+    /**
+     * Split a stored full-name-in-first-name (or legacy name) into first/middle/last.
+     *
+     * @return array<string, string|null>|null  Attributes to save, or null if nothing to change.
+     */
+    public function splitStoredNameAttributes(string $slot): ?array
+    {
+        $first = trim((string) ($this->{"{$slot}_first_name"} ?? ''));
+        $middle = trim((string) ($this->{"{$slot}_middle_name"} ?? ''));
+        $last = trim((string) ($this->{"{$slot}_last_name"} ?? ''));
+        $legacy = trim((string) ($this->{"{$slot}_name"} ?? ''));
+
+        $source = '';
+        if ($first !== '' && $middle === '' && $last === '' && str_contains($first, ' ')) {
+            $source = $first;
+        } elseif ($first === '' && $middle === '' && $last === '' && str_contains($legacy, ' ')) {
+            $source = $legacy;
+        }
+
+        if ($source === '') {
+            return null;
+        }
+
+        $split = self::splitFullName($source);
+
         return [
-            'first' => trim((string) ($this->{"{$slot}_name"} ?? '')),
-            'middle' => '',
-            'last' => '',
+            "{$slot}_first_name" => $split['first'] !== '' ? $split['first'] : null,
+            "{$slot}_middle_name" => $split['middle'] !== '' ? $split['middle'] : null,
+            "{$slot}_last_name" => $split['last'] !== '' ? $split['last'] : null,
+            "{$slot}_name" => self::composeFullName($split['first'], $split['middle'], $split['last']),
         ];
     }
 
