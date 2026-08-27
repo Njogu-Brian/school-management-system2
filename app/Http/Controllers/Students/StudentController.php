@@ -460,7 +460,7 @@ class StudentController extends Controller
         }
         try {
             $this->validateTransportAdmission($request);
-            $request->validate([
+            KemisProfile::validateRequest($request, [
                 'first_name' => 'required|string|max:255',
                 'middle_name' => 'nullable|string|max:255',
                 'last_name' => 'required|string|max:255',
@@ -860,7 +860,7 @@ class StudentController extends Controller
 
             \Log::info('Student Update: Starting validation');
             $this->validateTransportAdmission($request);
-            $validated = $request->validate([
+            $validated = KemisProfile::validateRequest($request, [
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',

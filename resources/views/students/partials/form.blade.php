@@ -340,6 +340,7 @@
 
   {{-- PARENT / GUARDIAN --}}
   <h6 class="text-uppercase text-muted mb-3">Parent / Guardian</h6>
+  <p class="small text-muted">Complete all father details or all mother details (ID document upload is optional). Guardian is optional.</p>
   @php $p = $s->parent ?? null; @endphp
   <div class="row g-3">
     <div class="col-md-3">

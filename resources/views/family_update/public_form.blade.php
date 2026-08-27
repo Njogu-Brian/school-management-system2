@@ -141,20 +141,23 @@
         .file-upload-wrapper { position: relative; }
         .file-upload-buttons {
             display: flex;
+            flex-wrap: wrap;
             gap: 8px;
             margin-top: 8px;
         }
         .file-upload-btn {
-            flex: 1;
-            padding: 12px;
+            flex: 1 1 30%;
+            min-width: 96px;
+            padding: 12px 8px;
             border: 1.5px dashed var(--brand-border);
             border-radius: 12px;
             background: #f8fafc;
             cursor: pointer;
             text-align: center;
             transition: border-color 0.15s, background 0.15s;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--brand-text);
+            margin-bottom: 0;
         }
         .file-upload-btn:hover {
             border-color: var(--brand-primary);
@@ -168,9 +171,12 @@
         }
         .file-input-hidden {
             position: absolute;
+            left: 0;
+            top: 0;
+            width: 1px;
+            height: 1px;
             opacity: 0;
-            width: 0;
-            height: 0;
+            overflow: hidden;
         }
         .file-preview, .existing-docs {
             margin-top: 8px;
@@ -283,7 +289,7 @@
                 
                 <form action="{{ route('family-update.submit', $link->token) }}" method="POST" enctype="multipart/form-data" novalidate id="familyUpdateForm">
                     @csrf
-                    <p class="text-muted small mb-3">Complete each child’s details as they appear on the birth certificate. Parent and guardian details are shared for siblings and only need to be filled once. Assessment numbers are completed by the school.</p>
+                    <p class="text-muted small mb-3">Complete each child’s details as they appear on the birth certificate. Fields marked <span class="text-danger">*</span> are required. Parent and guardian details are shared for siblings and only need to be filled once. Fill in all father details or all mother details (ID document upload is optional). Assessment numbers are completed by the school.</p>
                     @foreach($students as $stu)
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="section-header text-uppercase mb-0">Student Details</h6>
@@ -296,19 +302,19 @@
                             <input type="hidden" name="students[{{ $stu->id }}][id]" value="{{ $stu->id }}">
                             <div class="row g-3">
                                 <div class="col-md-4">
-                                    <label class="form-label">First Name</label>
+                                    <label class="form-label">First Name <span class="text-danger">*</span></label>
                                     <input type="text" name="students[{{ $stu->id }}][first_name]" class="form-control" value="{{ old('students.'.$stu->id.'.first_name', $stu->first_name) }}" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Middle Name</label>
-                                    <input type="text" name="students[{{ $stu->id }}][middle_name]" class="form-control" value="{{ old('students.'.$stu->id.'.middle_name', $stu->middle_name) }}">
+                                    <label class="form-label">Middle Name <span class="text-danger">*</span></label>
+                                    <input type="text" name="students[{{ $stu->id }}][middle_name]" class="form-control" value="{{ old('students.'.$stu->id.'.middle_name', $stu->middle_name) }}" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Last Name</label>
+                                    <label class="form-label">Last Name <span class="text-danger">*</span></label>
                                     <input type="text" name="students[{{ $stu->id }}][last_name]" class="form-control" value="{{ old('students.'.$stu->id.'.last_name', $stu->last_name) }}" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Sex</label>
+                                    <label class="form-label">Sex <span class="text-danger">*</span></label>
                                     <select name="students[{{ $stu->id }}][gender]" class="form-select" required>
                                         @php 
                                             $currentGender = old('students.'.$stu->id.'.gender', ucfirst(strtolower($stu->gender ?? '')));
@@ -318,8 +324,8 @@
                                     </select>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Date of Birth</label>
-                                    <input type="date" name="students[{{ $stu->id }}][dob]" class="form-control" value="{{ old('students.'.$stu->id.'.dob', $stu->dob ? ($stu->dob instanceof \Carbon\Carbon ? $stu->dob->format('Y-m-d') : \Carbon\Carbon::parse($stu->dob)->format('Y-m-d')) : '') }}">
+                                    <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                                    <input type="date" name="students[{{ $stu->id }}][dob]" class="form-control" value="{{ old('students.'.$stu->id.'.dob', $stu->dob ? ($stu->dob instanceof \Carbon\Carbon ? $stu->dob->format('Y-m-d') : \Carbon\Carbon::parse($stu->dob)->format('Y-m-d')) : '') }}" required>
                                     @if($stu->dob)
                                         <small class="text-muted d-block mt-1">Current: {{ $stu->dob instanceof \Carbon\Carbon ? $stu->dob->format('M d, Y') : \Carbon\Carbon::parse($stu->dob)->format('M d, Y') }}</small>
                                     @endif
@@ -352,87 +358,69 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Passport Photo</label>
-                                    <div class="file-upload-wrapper">
-                                        <input type="file" name="students[{{ $stu->id }}][passport_photo]" id="passport_photo_{{ $stu->id }}" class="form-control file-input-hidden" accept="image/*">
-                                        <div class="file-upload-buttons">
-                                            <label for="passport_photo_{{ $stu->id }}" class="file-upload-btn" onclick="document.getElementById('passport_photo_{{ $stu->id }}').removeAttribute('capture')">
-                                                <i class="bi bi-image"></i>
-                                                <span>Choose File</span>
-                                            </label>
-                                            <label for="passport_photo_{{ $stu->id }}" class="file-upload-btn" onclick="document.getElementById('passport_photo_{{ $stu->id }}').setAttribute('capture', 'environment')">
-                                                <i class="bi bi-camera"></i>
-                                                <span>Take Photo</span>
-                                            </label>
+                                    @include('family_update.partials.media_picker', [
+                                        'name' => 'students['.$stu->id.'][passport_photo]',
+                                        'id' => 'passport_photo_'.$stu->id,
+                                        'kind' => 'image',
+                                        'hint' => 'Choose a photo from your gallery or take one now. JPG/PNG up to 4 MB.',
+                                    ])
+                                    @php
+                                        $passportDocs = $stu->documents()->where(function($q) {
+                                            $q->where('category', 'student_profile_photo')
+                                              ->orWhere('document_type', 'photo');
+                                        })->latest()->get();
+                                    @endphp
+                                    @if($passportDocs->isNotEmpty() || $stu->photo_path)
+                                        <div class="existing-docs mt-2">
+                                            <strong>Existing photos:</strong><br>
+                                            @foreach($passportDocs as $doc)
+                                                <a href="{{ $doc->file_url }}" target="_blank">
+                                                    <i class="bi bi-file-earmark-image"></i> {{ $doc->title }} ({{ $doc->created_at->format('M d, Y') }})
+                                                </a>
+                                            @endforeach
+                                            @if($stu->photo_path && !$passportDocs->where('file_path', $stu->photo_path)->first())
+                                                <a href="{{ route('family-update.files.preview', [$link->token, 'student', $stu->id, 'photo_path']) }}" target="_blank">
+                                                    <i class="bi bi-image"></i> Legacy Photo
+                                                </a>
+                                                <a href="{{ route('family-update.files.download', [$link->token, 'student', $stu->id, 'photo_path']) }}" target="_blank">
+                                                    <i class="bi bi-download"></i> Download
+                                                </a>
+                                            @endif
                                         </div>
-                                        <div id="passport_photo_preview_{{ $stu->id }}" class="file-preview" style="display:none;"></div>
-                                        @php
-                                            $passportDocs = $stu->documents()->where(function($q) {
-                                                $q->where('category', 'student_profile_photo')
-                                                  ->orWhere('document_type', 'photo');
-                                            })->latest()->get();
-                                        @endphp
-                                        @if($passportDocs->isNotEmpty() || $stu->photo_path)
-                                            <div class="existing-docs mt-2">
-                                                <strong>Existing photos:</strong><br>
-                                                @foreach($passportDocs as $doc)
-                                                    <a href="{{ $doc->file_url }}" target="_blank">
-                                                        <i class="bi bi-file-earmark-image"></i> {{ $doc->title }} ({{ $doc->created_at->format('M d, Y') }})
-                                                    </a>
-                                                @endforeach
-                                                @if($stu->photo_path && !$passportDocs->where('file_path', $stu->photo_path)->first())
-                                                    <a href="{{ route('family-update.files.preview', [$link->token, 'student', $stu->id, 'photo_path']) }}" target="_blank">
-                                                        <i class="bi bi-image"></i> Legacy Photo
-                                                    </a>
-                                                    <a href="{{ route('family-update.files.download', [$link->token, 'student', $stu->id, 'photo_path']) }}" target="_blank">
-                                                        <i class="bi bi-download"></i> Download
-                                                    </a>
-                                                @endif
-                                            </div>
-                                        @endif
-                                        <small class="upload-hint d-block mt-1">Accepted: JPG/PNG up to 4 MB.</small>
-                                    </div>
+                                    @endif
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Birth Certificate / Notification</label>
-                                    <div class="file-upload-wrapper">
-                                        <input type="file" name="students[{{ $stu->id }}][birth_certificate]" id="birth_cert_{{ $stu->id }}" class="form-control file-input-hidden" accept=".pdf,.jpg,.jpeg,.png">
-                                        <div class="file-upload-buttons">
-                                            <label for="birth_cert_{{ $stu->id }}" class="file-upload-btn" onclick="document.getElementById('birth_cert_{{ $stu->id }}').removeAttribute('capture')">
-                                                <i class="bi bi-file-earmark"></i>
-                                                <span>Choose File</span>
-                                            </label>
-                                            <label for="birth_cert_{{ $stu->id }}" class="file-upload-btn" onclick="document.getElementById('birth_cert_{{ $stu->id }}').setAttribute('capture', 'environment')">
-                                                <i class="bi bi-camera"></i>
-                                                <span>Take Photo</span>
-                                            </label>
+                                    @include('family_update.partials.media_picker', [
+                                        'name' => 'students['.$stu->id.'][birth_certificate]',
+                                        'id' => 'birth_cert_'.$stu->id,
+                                        'kind' => 'document',
+                                        'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 5 MB.',
+                                    ])
+                                    @php
+                                        $birthCertDocs = $stu->documents()->where(function($q) {
+                                            $q->where('category', 'student_birth_certificate')
+                                              ->orWhere('document_type', 'birth_certificate');
+                                        })->latest()->get();
+                                    @endphp
+                                    @if($birthCertDocs->isNotEmpty() || $stu->birth_certificate_path)
+                                        <div class="existing-docs mt-2">
+                                            <strong>Existing certificates:</strong><br>
+                                            @foreach($birthCertDocs as $doc)
+                                                <a href="{{ $doc->file_url }}" target="_blank">
+                                                    <i class="bi bi-file-earmark-pdf"></i> {{ $doc->title }} ({{ $doc->created_at->format('M d, Y') }})
+                                                </a>
+                                            @endforeach
+                                            @if($stu->birth_certificate_path && !$birthCertDocs->where('file_path', $stu->birth_certificate_path)->first())
+                                                <a href="{{ route('family-update.files.preview', [$link->token, 'student', $stu->id, 'birth_certificate_path']) }}" target="_blank">
+                                                    <i class="bi bi-file-earmark"></i> Legacy Certificate
+                                                </a>
+                                                <a href="{{ route('family-update.files.download', [$link->token, 'student', $stu->id, 'birth_certificate_path']) }}" target="_blank">
+                                                    <i class="bi bi-download"></i> Download
+                                                </a>
+                                            @endif
                                         </div>
-                                        <div id="birth_cert_preview_{{ $stu->id }}" class="file-preview" style="display:none;"></div>
-                                        @php
-                                            $birthCertDocs = $stu->documents()->where(function($q) {
-                                                $q->where('category', 'student_birth_certificate')
-                                                  ->orWhere('document_type', 'birth_certificate');
-                                            })->latest()->get();
-                                        @endphp
-                                        @if($birthCertDocs->isNotEmpty() || $stu->birth_certificate_path)
-                                            <div class="existing-docs mt-2">
-                                                <strong>Existing certificates:</strong><br>
-                                                @foreach($birthCertDocs as $doc)
-                                                    <a href="{{ $doc->file_url }}" target="_blank">
-                                                        <i class="bi bi-file-earmark-pdf"></i> {{ $doc->title }} ({{ $doc->created_at->format('M d, Y') }})
-                                                    </a>
-                                                @endforeach
-                                                @if($stu->birth_certificate_path && !$birthCertDocs->where('file_path', $stu->birth_certificate_path)->first())
-                                                    <a href="{{ route('family-update.files.preview', [$link->token, 'student', $stu->id, 'birth_certificate_path']) }}" target="_blank">
-                                                        <i class="bi bi-file-earmark"></i> Legacy Certificate
-                                                    </a>
-                                                    <a href="{{ route('family-update.files.download', [$link->token, 'student', $stu->id, 'birth_certificate_path']) }}" target="_blank">
-                                                        <i class="bi bi-download"></i> Download
-                                                    </a>
-                                                @endif
-                                            </div>
-                                        @endif
-                                        <small class="upload-hint d-block mt-1">Accepted: PDF/JPG/PNG up to 5 MB.</small>
-                                    </div>
+                                    @endif
                                 </div>
                                 </div>
                             </div>
@@ -442,6 +430,7 @@
                         @if($students->count() > 1)
                             <p class="text-muted small">These details apply to all {{ $students->count() }} children on this form and are saved once.</p>
                         @endif
+                        <div class="alert alert-info py-2 small">Complete <strong>all father details or all mother details</strong> (names, ID type, ID number, country of residence, phone, WhatsApp, and email). ID document upload is optional. Guardian is optional.</div>
                         <div class="row g-3 mb-4">
                             @php $parent = $students->first()->parent ?? null; @endphp
                             <div class="col-md-6">
@@ -510,19 +499,12 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father ID Document</label>
-                                <div class="file-upload-wrapper">
-                                    <input type="file" name="father_id_document" id="father_id_document" class="form-control file-input-hidden" accept=".pdf,.jpg,.jpeg,.png">
-                                    <div class="file-upload-buttons">
-                                        <label for="father_id_document" class="file-upload-btn" onclick="document.getElementById('father_id_document').removeAttribute('capture')">
-                                            <i class="bi bi-file-earmark"></i>
-                                            <span>Choose File</span>
-                                        </label>
-                                        <label for="father_id_document" class="file-upload-btn" onclick="document.getElementById('father_id_document').setAttribute('capture', 'environment')">
-                                            <i class="bi bi-camera"></i>
-                                            <span>Take Photo</span>
-                                        </label>
-                                    </div>
-                                    <div id="father_id_document_preview" class="file-preview" style="display:none;"></div>
+                                @include('family_update.partials.media_picker', [
+                                    'name' => 'father_id_document',
+                                    'id' => 'father_id_document',
+                                    'kind' => 'document',
+                                    'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 5 MB.',
+                                ])
                                     @php
                                         $parent = $students->first()->parent ?? null;
                                         $fatherIdDocs = $parent ? $parent->documents()->where(function($q) {
@@ -551,8 +533,6 @@
                                             @endif
                                         </div>
                                     @endif
-                                    <small class="upload-hint d-block mt-1">Accepted: PDF/JPG/PNG up to 5 MB.</small>
-                                </div>
                             </div>
 
                             @include('students.partials.kemis_parent_identity_fields', ['slot' => 'mother', 'parent' => $parent, 'title' => 'Mother'])
@@ -602,19 +582,12 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Mother ID Document</label>
-                                <div class="file-upload-wrapper">
-                                    <input type="file" name="mother_id_document" id="mother_id_document" class="form-control file-input-hidden" accept=".pdf,.jpg,.jpeg,.png">
-                                    <div class="file-upload-buttons">
-                                        <label for="mother_id_document" class="file-upload-btn" onclick="document.getElementById('mother_id_document').removeAttribute('capture')">
-                                            <i class="bi bi-file-earmark"></i>
-                                            <span>Choose File</span>
-                                        </label>
-                                        <label for="mother_id_document" class="file-upload-btn" onclick="document.getElementById('mother_id_document').setAttribute('capture', 'environment')">
-                                            <i class="bi bi-camera"></i>
-                                            <span>Take Photo</span>
-                                        </label>
-                                    </div>
-                                    <div id="mother_id_document_preview" class="file-preview" style="display:none;"></div>
+                                @include('family_update.partials.media_picker', [
+                                    'name' => 'mother_id_document',
+                                    'id' => 'mother_id_document',
+                                    'kind' => 'document',
+                                    'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 5 MB.',
+                                ])
                                     @php
                                         $parent = $students->first()->parent ?? null;
                                         $motherIdDocs = $parent ? $parent->documents()->where(function($q) {
@@ -643,8 +616,6 @@
                                             @endif
                                         </div>
                                     @endif
-                                    <small class="upload-hint d-block mt-1">Accepted: PDF/JPG/PNG up to 5 MB.</small>
-                                </div>
                             </div>
 
                             @include('students.partials.kemis_parent_identity_fields', ['slot' => 'guardian', 'parent' => $parent, 'title' => 'Guardian (if there are no parents)', 'showRelationship' => true])
@@ -677,12 +648,12 @@
                         <h6 class="text-uppercase text-muted mb-3">Emergency & Medical</h6>
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
-                                <label class="form-label">Emergency Contact Name</label>
+                                <label class="form-label">Emergency Contact Name <span class="text-danger">*</span></label>
                                 <small class="text-muted d-block mb-1">Person we call if parents/guardians cannot be reached.</small>
-                                <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name', $students->first()->emergency_contact_name ?? '') }}">
+                                <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name', $students->first()->emergency_contact_name ?? '') }}" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Emergency Contact Phone</label>
+                                <label class="form-label">Emergency Contact Phone <span class="text-danger">*</span></label>
                                 @php
                                     $emergencyPhone = old('emergency_contact_phone', $students->first()->emergency_contact_phone ?? '');
                                     $emergencyCountryCode = old('emergency_phone_country_code', '+254');
@@ -697,21 +668,21 @@
                                             <option value="{{ $code }}" @selected($emergencyCountryCode==$code)>{{ $label }}</option>
                                         @endforeach
                                     </select>
-                                    <input type="text" name="emergency_contact_phone" id="emergency_contact_phone" class="form-control phone-input" value="{{ $emergencyLocalPhone }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="emergency_phone_help">
+                                    <input type="text" name="emergency_contact_phone" id="emergency_contact_phone" class="form-control phone-input" value="{{ $emergencyLocalPhone }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="emergency_phone_help" required>
                                 </div>
                                 <small class="upload-hint d-block" id="emergency_phone_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Preferred Hospital / Medical Facility</label>
-                                <input type="text" name="preferred_hospital" class="form-control" value="{{ old('preferred_hospital', $students->first()->preferred_hospital ?? '') }}">
+                                <label class="form-label">Preferred Hospital / Medical Facility <span class="text-danger">*</span></label>
+                                <input type="text" name="preferred_hospital" class="form-control" value="{{ old('preferred_hospital', $students->first()->preferred_hospital ?? '') }}" required>
                             </div>
                         </div>
 
                         <h6 class="text-uppercase text-muted mb-3">Residential</h6>
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
-                                <label class="form-label">Residential Area</label>
-                                <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area', $students->first()->residential_area ?? '') }}">
+                                <label class="form-label">Residential Area <span class="text-danger">*</span></label>
+                                <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area', $students->first()->residential_area ?? '') }}" required>
                             </div>
                         </div>
 
@@ -781,31 +752,77 @@
         });
     });
 
-    // File preview handlers
-    function setupFilePreview(inputId, previewId) {
-        const input = document.getElementById(inputId);
-        const preview = document.getElementById(previewId);
-        
-        if (input && preview) {
-            input.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    preview.style.display = 'block';
-                    preview.innerHTML = `<i class="bi bi-file-earmark"></i> Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
-                } else {
-                    preview.style.display = 'none';
-                }
-            });
+    function fileIsAllowed(file, kind) {
+        const name = (file.name || '').toLowerCase();
+        const type = (file.type || '').toLowerCase();
+        if (kind === 'image') {
+            return type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(name);
         }
+        return type === 'application/pdf'
+            || type.startsWith('image/')
+            || /\.(pdf|jpe?g|png|webp)$/i.test(name);
     }
 
-    // Setup previews for all file inputs
-    @foreach($students as $stu)
-        setupFilePreview('passport_photo_{{ $stu->id }}', 'passport_photo_preview_{{ $stu->id }}');
-        setupFilePreview('birth_cert_{{ $stu->id }}', 'birth_cert_preview_{{ $stu->id }}');
-    @endforeach
-    setupFilePreview('father_id_document', 'father_id_document_preview');
-    setupFilePreview('mother_id_document', 'mother_id_document_preview');
+    document.querySelectorAll('[data-media-picker]').forEach(function (wrap) {
+        const canonical = wrap.querySelector('.js-media-canonical');
+        const preview = wrap.querySelector('.js-media-preview');
+        const kind = wrap.dataset.mediaPicker || 'document';
+        if (!canonical) return;
+
+        canonical.dataset.fieldName = canonical.getAttribute('name') || canonical.dataset.fieldName || '';
+
+        const filesInput = wrap.querySelector('[data-media-source="files"]');
+        if (filesInput && /Android/i.test(navigator.userAgent)) {
+            filesInput.setAttribute('accept', '*/*');
+        }
+
+        function assignPickedFile(source) {
+            const fieldName = canonical.dataset.fieldName;
+            wrap.querySelectorAll('.js-media-source').forEach(function (el) {
+                if (el !== source) el.removeAttribute('name');
+            });
+            try {
+                const dt = new DataTransfer();
+                dt.items.add(source.files[0]);
+                canonical.files = dt.files;
+                if (canonical.files && canonical.files.length) {
+                    canonical.setAttribute('name', fieldName);
+                    source.removeAttribute('name');
+                    return;
+                }
+            } catch (err) {
+                // Some mobile browsers cannot copy FileList; submit the source input instead.
+            }
+            canonical.removeAttribute('name');
+            source.setAttribute('name', fieldName);
+        }
+
+        wrap.querySelectorAll('.js-media-source').forEach(function (source) {
+            source.addEventListener('change', function () {
+                const file = source.files && source.files[0];
+                if (!file) {
+                    return;
+                }
+                if (!fileIsAllowed(file, kind)) {
+                    source.value = '';
+                    source.removeAttribute('name');
+                    canonical.value = '';
+                    canonical.setAttribute('name', canonical.dataset.fieldName);
+                    if (preview) {
+                        preview.style.display = 'block';
+                        preview.innerHTML = '<span class="text-danger">Please choose a ' + (kind === 'image' ? 'JPG or PNG photo' : 'PDF, JPG, or PNG') + '.</span>';
+                    }
+                    return;
+                }
+                assignPickedFile(source);
+                if (preview) {
+                    preview.style.display = 'block';
+                    const icon = (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) ? 'bi-file-earmark-pdf' : 'bi-file-earmark-image';
+                    preview.innerHTML = '<i class="bi ' + icon + '"></i> Selected: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+                }
+            });
+        });
+    });
     
     // Form submission handling with loading state
     const form = document.getElementById('familyUpdateForm');

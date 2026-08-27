@@ -395,8 +395,8 @@ class FamilyUpdateController extends Controller
                 'request_keys' => array_keys($request->all()),
             ]);
             
-            $validated = $request->validate(array_merge([
-                'residential_area' => 'nullable|string|max:255',
+            $validated = KemisProfile::validateRequest($request, array_merge([
+                'residential_area' => 'required|string|max:255',
                 'father_name' => 'nullable|string|max:255',
                 'father_id_number' => 'nullable|string|max:255',
                 'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
@@ -416,26 +416,26 @@ class FamilyUpdateController extends Controller
                 'guardian_phone_country_code' => 'nullable|string|max:8',
                 'guardian_relationship' => 'nullable|string|max:255',
                 'marital_status' => 'nullable|in:married,single_parent,co_parenting',
-                'emergency_contact_name' => 'nullable|string|max:255',
-                'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
+                'emergency_contact_name' => 'required|string|max:255',
+                'emergency_contact_phone' => ['required','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
                 'emergency_phone_country_code' => 'nullable|string|max:8',
-                'preferred_hospital' => 'nullable|string|max:255',
+                'preferred_hospital' => 'required|string|max:255',
                 'students' => 'required|array|min:1',
                 'students.*.id' => 'required|integer|in:' . implode(',', $studentIds),
                 'students.*.first_name' => 'required|string|max:255',
-                'students.*.middle_name' => 'nullable|string|max:255',
+                'students.*.middle_name' => 'required|string|max:255',
                 'students.*.last_name' => 'required|string|max:255',
                 'students.*.gender' => 'required|in:Male,Female',
-                'students.*.dob' => 'nullable|date',
+                'students.*.dob' => 'required|date',
                 'students.*.has_allergies' => 'nullable|boolean',
-                'students.*.allergies_notes' => 'nullable|string',
+                'students.*.allergies_notes' => 'nullable|required_if:students.*.has_allergies,1|string',
                 'students.*.is_fully_immunized' => 'nullable|boolean',
                 'students.*.passport_photo' => 'nullable|image|max:4096',
                 'students.*.birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'school_notifications_muted_parent' => 'nullable|in:father,mother',
-            ], KemisProfile::parentKemisValidationRules(), KemisProfile::studentKemisValidationRules('students.*')));
+            ], KemisProfile::parentKemisValidationRules(), KemisProfile::studentKemisValidationRules('students.*')), 'students');
             
             \Log::info('FamilyUpdate Submit: Validation passed', [
                 'validated_keys' => array_keys($validated),
