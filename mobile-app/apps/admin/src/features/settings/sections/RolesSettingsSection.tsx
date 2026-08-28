@@ -1,5 +1,5 @@
 import { useRolesSettings } from '@erp/core';
-import { EmptyState, SettingCard, SettingsSectionHeader, useTheme } from '@erp/ui';
+import { EmptyState, SettingCard, useTheme } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
@@ -32,10 +32,6 @@ export const RolesSettingsSection: React.FC = () => {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <SettingsSectionHeader
-        title="Roles & permissions"
-        subtitle="Read-only view of roles and assigned permissions. Edit on web portal."
-      />
       <SettingCard id="roles-count" label="Roles" value={String(roleCards.length)} />
       {roleCards.map((role) => {
         const expanded = expandedRoleId === role.id;

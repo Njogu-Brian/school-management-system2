@@ -3,7 +3,6 @@ import { FlatList, StyleSheet, View, type FlatListProps } from 'react-native';
 import { FilterBottomSheet } from '../filters/FilterBottomSheet';
 import { FilterTriggerButton } from '../filters/FilterTriggerButton';
 import { useTheme } from '../theme/ThemeContext';
-import { useFloatingTabBarClearance } from './PremiumTabBar';
 
 export interface RegistryListLayoutProps<T> extends Omit<
   FlatListProps<T>,
@@ -45,7 +44,6 @@ export function RegistryListLayout<T>({
   ...flatListProps
 }: RegistryListLayoutProps<T>) {
   const { palette, spacing } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
   const horizontal = stickyPaddingHorizontal ?? spacing.md;
   const flat = StyleSheet.flatten(contentContainerStyle);
   const callerPad =
@@ -80,7 +78,7 @@ export function RegistryListLayout<T>({
         contentContainerStyle={[
           { paddingHorizontal: horizontal },
           contentContainerStyle,
-          { paddingBottom: Math.max(callerPad, tabClearance) },
+          { paddingBottom: Math.max(callerPad, spacing.md) },
         ]}
         ListHeaderComponent={
           hero ? <View style={{ marginBottom: spacing.sm }}>{hero}</View> : undefined

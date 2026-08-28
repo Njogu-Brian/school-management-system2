@@ -14,6 +14,7 @@ import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useExpoOtaUpdates } from './src/hooks/useExpoOtaUpdates';
 import { AdminRootNavigator } from './src/navigation/AdminRootNavigator';
 import { AdminPushNotifications } from './src/providers/AdminPushNotifications';
 import { PersistedQueryProvider } from './src/providers/PersistedQueryProvider';
@@ -22,6 +23,11 @@ const ThemedStatusBar: React.FC = () => {
   const { isDark } = useTheme();
   return <StatusBar style={isDark ? 'light' : 'dark'} />;
 };
+
+function OtaGate(): React.JSX.Element | null {
+  useExpoOtaUpdates();
+  return null;
+}
 
 export default function App(): React.JSX.Element {
   useEffect(() => {
@@ -41,6 +47,7 @@ export default function App(): React.JSX.Element {
       <SafeAreaProvider>
         <AppThemeProvider>
           <AppErrorBoundary appName="admin">
+            <OtaGate />
             <ThemedStatusBar />
             <SchoolProvider>
               <SessionProvider>

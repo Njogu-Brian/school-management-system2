@@ -80,10 +80,10 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   const edges = edgesProp ?? defaultEdges;
   const hasBottomEdge = edges.includes('bottom');
   /**
-   * Always include system nav inset in tab clearance. SafeAreaView bottom edge
-   * alone is not enough because the floating tab bar overlays the content area.
+   * SafeAreaView already consumes insets.bottom. Only reserve capsule + cushion
+   * so content sits just above the floating tab bar (not a second safe-area).
    */
-  const tabClearance = useFloatingTabBarClearance(true);
+  const tabClearance = useFloatingTabBarClearance(false);
   const systemNavPad = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 8);
   const bottomClearance = clearFloatingTabBar
     ? tabClearance

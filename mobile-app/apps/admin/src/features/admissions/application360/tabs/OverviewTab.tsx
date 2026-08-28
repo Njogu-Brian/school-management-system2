@@ -3,7 +3,7 @@ import {
   useAdmissionActions,
   type ApplicationDetail,
 } from '@erp/core';
-import { ApplicationFieldSection, Button, useFloatingTabBarClearance, useTheme } from '@erp/ui';
+import { ApplicationFieldSection, Button, useTheme } from '@erp/ui';
 import React from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { confirmAction, showError, showSuccess } from '../../../shared/utils/feedback';
@@ -14,7 +14,6 @@ export interface OverviewTabProps {
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ application }) => {
   const { colors, spacing, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
   const { updateStatus, waitlist, reject } = useAdmissionActions(application.id);
 
   const status = application.applicationStatus;
@@ -48,7 +47,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ application }) => {
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: tabClearance }}
+      contentContainerStyle={{ paddingBottom: spacing.xl }}
     >
       <ApplicationFieldSection
         title="Application"

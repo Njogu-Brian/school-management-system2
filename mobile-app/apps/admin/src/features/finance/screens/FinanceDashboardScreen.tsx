@@ -7,7 +7,6 @@ import {
   ScreenContainer,
   WidgetGrid,
   WidgetShell,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -37,7 +36,6 @@ export const FinanceDashboardScreen: React.FC = () => {
   const canReports = useCan('reports.view');
   const navigation = useNavigation<StackNavigationProp<FinanceStackParamList>>();
   const { colors, palette, spacing, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
   const kpisQuery = useFinanceDashboardKpis({ enabled: canView });
 
   const openSection = useCallback(
@@ -79,7 +77,7 @@ export const FinanceDashboardScreen: React.FC = () => {
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         refreshControl={
           <RefreshControl
             refreshing={kpisQuery.isRefetching}

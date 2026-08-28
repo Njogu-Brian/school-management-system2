@@ -1,9 +1,19 @@
 import {
+  emptyKemisLearnerValues,
+  emptyKemisParentSlotValues,
+  formatParentSlotName,
+  kemisLearnerFromApi,
+  kemisLearnerPayload,
+  kemisParentSlotFromApi,
+  kemisParentSlotPayload,
   studentsApi,
   useClassroomStreams,
   useClassrooms,
+  useKemisOptions,
   useStudentCategories,
   useUpdateStudent,
+  type KemisLearnerValues,
+  type KemisParentSlotValues,
 } from '@erp/core';
 import type { StreamRecord } from '@erp/core';
 import {
@@ -11,6 +21,8 @@ import {
   Button,
   FilterChip,
   FilterChipRow,
+  KemisLearnerFields,
+  KemisParentIdentityFields,
   ScreenContainer,
   TextField,
   useTheme,
@@ -31,6 +43,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
   const updateMutation = useUpdateStudent(studentId);
   const classroomsQuery = useClassrooms();
   const categoriesQuery = useStudentCategories();
+  const kemisOptionsQuery = useKemisOptions();
 
   const [loading, setLoading] = useState(true);
   const [firstName, setFirstName] = useState('');
@@ -42,7 +55,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
   const [streamId, setStreamId] = useState<number | null>(null);
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [residentialArea, setResidentialArea] = useState('');
-  const [religion, setReligion] = useState('');
+  const [kemisLearner, setKemisLearner] = useState<KemisLearnerValues>(emptyKemisLearnerValues());
   const [nemisNumber, setNemisNumber] = useState('');
   const [knecNumber, setKnecNumber] = useState('');
   const [kcpeKjseaYear, setKcpeKjseaYear] = useState('');
@@ -53,19 +66,15 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
   const [admissionDate, setAdmissionDate] = useState('');
-  const [fatherName, setFatherName] = useState('');
-  const [motherName, setMotherName] = useState('');
-  const [guardianName, setGuardianName] = useState('');
-  const [fatherPhone, setFatherPhone] = useState('');
-  const [motherPhone, setMotherPhone] = useState('');
-  const [guardianPhone, setGuardianPhone] = useState('');
-  const [fatherEmail, setFatherEmail] = useState('');
-  const [motherEmail, setMotherEmail] = useState('');
-  const [guardianEmail, setGuardianEmail] = useState('');
+  const [father, setFather] = useState<KemisParentSlotValues>(emptyKemisParentSlotValues());
+  const [mother, setMother] = useState<KemisParentSlotValues>(emptyKemisParentSlotValues());
+  const [guardian, setGuardian] = useState<KemisParentSlotValues>(emptyKemisParentSlotValues());
+  const [guardianRelationship, setGuardianRelationship] = useState('');
   const [maritalStatus, setMaritalStatus] = useState('');
   const [muteParent, setMuteParent] = useState<MuteParent>('');
 
   const streamsQuery = useClassroomStreams(classroomId, { enabled: (classroomId ?? 0) > 0 });
+  const kemisOptions = kemisOptionsQuery.data;
 
   useEffect(() => {
     void studentsApi.getById(studentId).then((res) => {
@@ -80,9 +89,9 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
       setStreamId(s.stream_id ?? null);
       setCategoryId(s.category_id ?? null);
       setResidentialArea(s.residential_area ?? s.address ?? '');
-      setReligion(s.religion ?? '');
+      setKemisLearner(kemisLearnerFromApi(s as Record<string, unknown>));
       setNemisNumber(s.nemis_number ?? '');
-      setKnecNumber((s as { knec_assessment_number?: string }).knec_assessment_number ?? '');
+      setKnecNumber(s.knec_assessment_number ?? '');
       setKcpeKjseaYear(s.kcpe_kjsea_year != null ? String(s.kcpe_kjsea_year) : '');
       setPreferredHospital(s.preferred_hospital ?? '');
       setHasAllergies(Boolean(s.has_allergies));
@@ -91,18 +100,13 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
       setEmergencyName(s.emergency_contact_name ?? '');
       setEmergencyPhone(s.emergency_contact_phone ?? '');
       setAdmissionDate((s.admission_date ?? s.created_at ?? '').slice(0, 10));
-      const p = s.parent;
-      setFatherName(p?.father_name ?? '');
-      setMotherName(p?.mother_name ?? '');
-      setGuardianName(p?.guardian_name ?? '');
-      setFatherPhone(p?.father_phone ?? '');
-      setMotherPhone(p?.mother_phone ?? '');
-      setGuardianPhone(p?.guardian_phone ?? '');
-      setFatherEmail(p?.father_email ?? '');
-      setMotherEmail(p?.mother_email ?? '');
-      setGuardianEmail(p?.guardian_email ?? '');
-      setMaritalStatus((p as { marital_status?: string })?.marital_status ?? '');
-      const mute = (p as { school_notifications_muted_parent?: string })?.school_notifications_muted_parent;
+      const p = s.parent as Record<string, unknown> | null | undefined;
+      setFather(kemisParentSlotFromApi(p, 'father'));
+      setMother(kemisParentSlotFromApi(p, 'mother'));
+      setGuardian(kemisParentSlotFromApi(p, 'guardian'));
+      setGuardianRelationship(String(p?.guardian_relationship ?? ''));
+      setMaritalStatus(String(p?.marital_status ?? ''));
+      const mute = p?.school_notifications_muted_parent;
       setMuteParent(mute === 'father' || mute === 'mother' ? mute : '');
       setLoading(false);
     });
@@ -113,8 +117,9 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
       showError('Missing fields', 'Class and category are required.');
       return;
     }
-    const parentPhone = fatherPhone.trim() || motherPhone.trim() || guardianPhone.trim();
-    const parentName = fatherName.trim() || motherName.trim() || guardianName.trim();
+    const parentPhone = father.phone.trim() || mother.phone.trim() || guardian.phone.trim();
+    const parentName =
+      formatParentSlotName(father) || formatParentSlotName(mother) || formatParentSlotName(guardian);
     if (!parentName || !parentPhone) {
       showError('Parent required', 'At least one parent/guardian name and phone is required.');
       return;
@@ -130,7 +135,6 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
         stream_id: streamId,
         category_id: categoryId,
         residential_area: residentialArea.trim(),
-        religion: religion.trim() || null,
         nemis_number: nemisNumber.trim() || null,
         knec_assessment_number: knecNumber.trim() || null,
         kcpe_kjsea_year: kcpeKjseaYear.trim() ? Number(kcpeKjseaYear.trim()) : null,
@@ -141,17 +145,13 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
         emergency_contact_name: emergencyName.trim() || null,
         emergency_contact_phone: emergencyPhone.trim() || null,
         admission_date: admissionDate,
-        father_name: fatherName.trim() || null,
-        mother_name: motherName.trim() || null,
-        guardian_name: guardianName.trim() || null,
-        father_phone: fatherPhone.trim() || null,
-        mother_phone: motherPhone.trim() || null,
-        guardian_phone: guardianPhone.trim() || null,
-        father_email: fatherEmail.trim() || null,
-        mother_email: motherEmail.trim() || null,
-        guardian_email: guardianEmail.trim() || null,
+        guardian_relationship: guardianRelationship.trim() || null,
         marital_status: maritalStatus || null,
         school_notifications_muted_parent: muteParent || null,
+        ...kemisLearnerPayload(kemisLearner),
+        ...kemisParentSlotPayload('father', father),
+        ...kemisParentSlotPayload('mother', mother),
+        ...kemisParentSlotPayload('guardian', guardian),
       });
       showSuccess('Saved', 'Student profile updated.');
       navigation.goBack();
@@ -160,7 +160,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
-  if (loading) {
+  if (loading || kemisOptionsQuery.isLoading || !kemisOptions) {
     return (
       <ScreenContainer contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
@@ -201,11 +201,13 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
           ))}
         </FilterChipRow>
         <TextField label="Residential area" value={residentialArea} onChangeText={setResidentialArea} />
-        <TextField label="Religion" value={religion} onChangeText={setReligion} />
         <TextField label="NEMIS number" value={nemisNumber} onChangeText={setNemisNumber} />
         <TextField label="KNEC assessment / KCPE index" value={knecNumber} onChangeText={setKnecNumber} />
         <TextField label="KCPE / KJSEA year" value={kcpeKjseaYear} onChangeText={setKcpeKjseaYear} keyboardType="number-pad" />
         <TextField label="Admission date (YYYY-MM-DD)" value={admissionDate} onChangeText={setAdmissionDate} />
+
+        <SectionTitle label="Birth & registration (KEMIS)" palette={palette} typography={typography} spacing={spacing} />
+        <KemisLearnerFields values={kemisLearner} onChange={setKemisLearner} options={kemisOptions} />
 
         <SectionTitle label="Health" palette={palette} typography={typography} spacing={spacing} />
         <TextField label="Preferred hospital" value={preferredHospital} onChangeText={setPreferredHospital} />
@@ -225,15 +227,21 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
         <TextField label="Emergency phone" value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" />
 
         <SectionTitle label="Parents" palette={palette} typography={typography} spacing={spacing} />
-        <TextField label="Father name" value={fatherName} onChangeText={setFatherName} />
-        <TextField label="Father phone" value={fatherPhone} onChangeText={setFatherPhone} keyboardType="phone-pad" />
-        <TextField label="Father email" value={fatherEmail} onChangeText={setFatherEmail} keyboardType="email-address" autoCapitalize="none" />
-        <TextField label="Mother name" value={motherName} onChangeText={setMotherName} />
-        <TextField label="Mother phone" value={motherPhone} onChangeText={setMotherPhone} keyboardType="phone-pad" />
-        <TextField label="Mother email" value={motherEmail} onChangeText={setMotherEmail} keyboardType="email-address" autoCapitalize="none" />
-        <TextField label="Guardian name" value={guardianName} onChangeText={setGuardianName} />
-        <TextField label="Guardian phone" value={guardianPhone} onChangeText={setGuardianPhone} keyboardType="phone-pad" />
-        <TextField label="Guardian email" value={guardianEmail} onChangeText={setGuardianEmail} keyboardType="email-address" autoCapitalize="none" />
+        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+          Complete all father details or all mother details.
+        </Text>
+        <KemisParentIdentityFields slot="father" title="Father" values={father} onChange={setFather} options={kemisOptions} />
+        <KemisParentIdentityFields slot="mother" title="Mother" values={mother} onChange={setMother} options={kemisOptions} />
+        <KemisParentIdentityFields
+          slot="guardian"
+          title="Guardian (optional)"
+          values={guardian}
+          onChange={setGuardian}
+          options={kemisOptions}
+          showRelationship
+          relationship={guardianRelationship}
+          onRelationshipChange={setGuardianRelationship}
+        />
         <FilterChipRow label="Marital status">
           {(['married', 'single_parent', 'co_parenting'] as const).map((m) => (
             <FilterChip key={m} label={m.replace('_', ' ')} active={maritalStatus === m} onPress={() => setMaritalStatus(m)} />

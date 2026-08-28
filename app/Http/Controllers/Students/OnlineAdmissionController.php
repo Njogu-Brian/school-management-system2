@@ -18,6 +18,7 @@ use App\Services\FamilyLinkingService;
 use App\Services\PhoneNumberService;
 use App\Services\TransportFeeService;
 use App\Services\SMSService;
+use App\Support\KemisProfile;
 use App\Mail\GenericMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -109,53 +110,62 @@ class OnlineAdmissionController extends Controller
             $request->merge(['drop_off_point_id' => null]);
         }
 
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'dob' => 'required|date',
-            'gender' => 'required|in:Male,Female',
-            'preferred_classroom_id' => 'nullable|exists:classrooms,id',
-            'marital_status' => 'nullable|in:married,single_parent,co_parenting',
-            'father_name' => 'nullable|string|max:255',
-            'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'father_phone_country_code' => 'nullable|string|max:8',
-            'father_email' => 'nullable|email|max:255',
-            'mother_name' => 'nullable|string|max:255',
-            'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'mother_phone_country_code' => 'nullable|string|max:8',
-            'mother_email' => 'nullable|email|max:255',
-            'mother_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'guardian_name' => 'nullable|string|max:255',
-            'guardian_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'guardian_phone_country_code' => 'nullable|string|max:8',
-            'guardian_relationship' => 'nullable|string|max:255',
-            'passport_photo' => 'nullable|image|max:2048',
-            'birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            'transport_needed' => 'nullable|boolean',
-            'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
-            'drop_off_point_other' => 'nullable|string|max:255',
-            'has_allergies' => 'nullable|boolean',
-            'allergies_notes' => 'nullable|string',
-            'is_fully_immunized' => 'nullable|boolean',
-            'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
-            'residential_area' => 'required|string|max:255',
-            'preferred_hospital' => 'nullable|string|max:255',
-            'previous_school' => 'nullable|string|max:255',
-            'transfer_reason' => 'nullable|string|max:255',
-        ]);
+        $validated = KemisProfile::validateRequest($request, array_merge(
+            KemisProfile::studentKemisValidationRules(),
+            KemisProfile::parentKemisValidationRules(),
+            KemisProfile::sharedContactValidationRules(),
+            [
+                'first_name' => 'required|string|max:255',
+                'middle_name' => 'nullable|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'dob' => 'required|date',
+                'gender' => 'required|in:Male,Female',
+                'preferred_classroom_id' => 'nullable|exists:classrooms,id',
+                'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+                'father_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
+                'father_phone_country_code' => 'nullable|string|max:8',
+                'father_whatsapp' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
+                'father_email' => 'nullable|email|max:255',
+                'mother_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
+                'mother_phone_country_code' => 'nullable|string|max:8',
+                'mother_whatsapp' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
+                'mother_email' => 'nullable|email|max:255',
+                'guardian_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
+                'guardian_phone_country_code' => 'nullable|string|max:8',
+                'guardian_whatsapp' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
+                'guardian_relationship' => 'nullable|string|max:255',
+                'guardian_email' => 'nullable|email|max:255',
+                'passport_photo' => 'nullable|image|max:2048',
+                'birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'transport_needed' => 'nullable|boolean',
+                'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
+                'drop_off_point_other' => 'nullable|string|max:255',
+                'has_allergies' => 'nullable|boolean',
+                'allergies_notes' => 'nullable|string',
+                'is_fully_immunized' => 'nullable|boolean',
+                'previous_school' => 'nullable|string|max:255',
+                'transfer_reason' => 'nullable|string|max:255',
+            ]
+        ));
 
-        $data = $request->only([
-            'first_name','middle_name','last_name','dob','gender',
-            'preferred_classroom_id','transport_needed','drop_off_point_id','drop_off_point_other',
-            'has_allergies','allergies_notes','is_fully_immunized',
-            'emergency_contact_name','residential_area','preferred_hospital',
-            'marital_status','guardian_relationship','previous_school','transfer_reason',
-            'father_name','father_email','mother_name','mother_email','guardian_name','guardian_email',
-            'father_phone_country_code','mother_phone_country_code','guardian_phone_country_code'
-        ]);
+        $data = array_merge(
+            $request->only([
+                'first_name', 'middle_name', 'last_name', 'dob', 'gender',
+                'preferred_classroom_id', 'transport_needed', 'drop_off_point_id', 'drop_off_point_other',
+                'has_allergies', 'allergies_notes', 'is_fully_immunized',
+                'emergency_contact_name', 'residential_area', 'preferred_hospital',
+                'marital_status', 'guardian_relationship', 'previous_school', 'transfer_reason',
+                'father_email', 'mother_email', 'guardian_email',
+                'father_phone_country_code', 'mother_phone_country_code', 'guardian_phone_country_code',
+            ]),
+            KemisProfile::studentKemisAttributesFromInput($validated)
+        );
+
+        foreach (['father', 'mother', 'guardian'] as $slot) {
+            $data = array_merge($data, KemisProfile::parentIdentityAttributesFromInput($validated, $slot));
+        }
         
         // Normalize gender to lowercase (form uses Male/Female, but we store as lowercase)
         if (isset($data['gender'])) {
@@ -193,7 +203,9 @@ class OnlineAdmissionController extends Controller
         $data['emergency_contact_phone'] = $emergencyPhone;
 
         // Require at least one parent/guardian name + phone
-        $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+        $parentName = ParentInfo::resolvedSlotName($request, 'father')
+            ?: ParentInfo::resolvedSlotName($request, 'mother')
+            ?: ParentInfo::resolvedSlotName($request, 'guardian');
         $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
         if (!$parentName || !$parentPhone) {
             return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');

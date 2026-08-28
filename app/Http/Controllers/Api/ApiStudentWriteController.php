@@ -14,6 +14,7 @@ use App\Models\StudentCategory;
 use App\Services\FamilyLinkingService;
 use App\Services\PhoneNumberService;
 use App\Services\Students\StudentDuplicateDetector;
+use App\Support\KemisProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -86,7 +87,11 @@ class ApiStudentWriteController extends Controller
             $request->merge(['stream_id' => null]);
         }
 
-        $request->validate([
+        $request->validate(array_merge(
+            KemisProfile::studentKemisValidationRules(),
+            KemisProfile::parentKemisValidationRules(),
+            KemisProfile::sharedContactValidationRules(),
+            [
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -98,9 +103,6 @@ class ApiStudentWriteController extends Controller
             'trip_id' => 'nullable|exists:trips,id',
             'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
             'drop_off_point_other' => 'nullable|string|max:255',
-            'father_name' => 'nullable|string|max:255',
-            'mother_name' => 'nullable|string|max:255',
-            'guardian_name' => 'nullable|string|max:255',
             'father_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
             'mother_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
             'guardian_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
@@ -113,8 +115,6 @@ class ApiStudentWriteController extends Controller
             'guardian_relationship' => 'nullable|string|max:255',
             'marital_status' => 'nullable|in:married,single_parent,co_parenting',
             'school_notifications_muted_parent' => 'nullable|in:father,mother',
-            'father_id_number' => 'nullable|string|max:64',
-            'mother_id_number' => 'nullable|string|max:64',
             'father_phone_country_code' => 'nullable|string|max:8',
             'mother_phone_country_code' => 'nullable|string|max:8',
             'guardian_phone_country_code' => 'nullable|string|max:8',
@@ -124,19 +124,16 @@ class ApiStudentWriteController extends Controller
             'has_allergies' => 'nullable|boolean',
             'allergies_notes' => 'nullable|string',
             'is_fully_immunized' => 'nullable|boolean',
-            'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable', 'string', 'max:80'],
-            'residential_area' => 'nullable|string|max:255',
-            'preferred_hospital' => 'nullable|string|max:255',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
             'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
-            'religion' => 'nullable|string|max:255',
             'admission_date' => 'nullable|date',
             'confirm_duplicate' => 'sometimes|boolean',
-        ]);
+        ]));
 
-        $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+        $parentName = ParentInfo::resolvedSlotName($request, 'father')
+            ?: ParentInfo::resolvedSlotName($request, 'mother')
+            ?: ParentInfo::resolvedSlotName($request, 'guardian');
         $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
         if (! $parentName || ! $parentPhone) {
             return response()->json([
@@ -184,17 +181,12 @@ class ApiStudentWriteController extends Controller
                 $guardianCountryCode = $phone->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
 
                 $parentData = [
-                    'father_name' => $request->father_name,
                     'father_phone' => $phone->formatWithCountryCode($request->father_phone, $fatherCountryCode),
                     'father_whatsapp' => $phone->formatWithCountryCode($request->father_whatsapp, $fatherCountryCode),
                     'father_email' => $request->father_email,
-                    'father_id_number' => $request->father_id_number,
-                    'mother_name' => $request->mother_name,
                     'mother_phone' => $phone->formatWithCountryCode($request->mother_phone, $motherCountryCode),
                     'mother_whatsapp' => $phone->formatWithCountryCode($request->mother_whatsapp, $motherCountryCode),
                     'mother_email' => $request->mother_email,
-                    'mother_id_number' => $request->mother_id_number,
-                    'guardian_name' => $request->guardian_name,
                     'guardian_phone' => $phone->formatWithCountryCode($request->guardian_phone, $guardianCountryCode),
                     'guardian_whatsapp' => $phone->formatWithCountryCode($request->guardian_whatsapp, $guardianCountryCode),
                     'guardian_email' => $request->guardian_email,
@@ -204,6 +196,9 @@ class ApiStudentWriteController extends Controller
                     'mother_phone_country_code' => $motherCountryCode,
                     'guardian_phone_country_code' => $guardianCountryCode,
                 ];
+                foreach (['father', 'mother', 'guardian'] as $slot) {
+                    $parentData = array_merge($parentData, KemisProfile::parentIdentityAttributesFromInput($request->all(), $slot));
+                }
                 $linker = app(FamilyLinkingService::class);
                 $matched = $linker->findMatchingParent($parentData);
                 $parent = $matched ?: ParentInfo::create($parentData);
@@ -222,7 +217,7 @@ class ApiStudentWriteController extends Controller
                     $request->input('emergency_contact_country_code', '+254')
                 );
 
-                $studentData = $request->only([
+                $studentData = array_merge($request->only([
                     'first_name', 'middle_name', 'last_name', 'gender', 'dob',
                     'classroom_id', 'stream_id', 'category_id',
                     'trip_id', 'drop_off_point_id', 'drop_off_point_other',
@@ -230,9 +225,8 @@ class ApiStudentWriteController extends Controller
                     'emergency_contact_name',
                     'residential_area', 'preferred_hospital',
                     'nemis_number', 'knec_assessment_number', 'kcpe_kjsea_year',
-                    'religion',
                     'admission_date',
-                ]);
+                ]), KemisProfile::studentKemisAttributesFromInput($request->all()));
                 if (isset($studentData['gender'])) {
                     $studentData['gender'] = strtolower(trim((string) $studentData['gender']));
                 }
@@ -306,7 +300,11 @@ class ApiStudentWriteController extends Controller
             $request->merge(['stream_id' => null]);
         }
 
-        $request->validate([
+        $request->validate(array_merge(
+            KemisProfile::studentKemisValidationRules(),
+            KemisProfile::parentKemisValidationRules(),
+            KemisProfile::sharedContactValidationRules(),
+            [
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -318,9 +316,6 @@ class ApiStudentWriteController extends Controller
             'trip_id' => 'nullable|exists:trips,id',
             'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
             'drop_off_point_other' => 'nullable|string|max:255',
-            'father_name' => 'nullable|string|max:255',
-            'mother_name' => 'nullable|string|max:255',
-            'guardian_name' => 'nullable|string|max:255',
             'father_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
             'mother_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
             'guardian_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
@@ -333,29 +328,24 @@ class ApiStudentWriteController extends Controller
             'guardian_relationship' => 'nullable|string|max:255',
             'marital_status' => 'nullable|in:married,single_parent,co_parenting',
             'school_notifications_muted_parent' => 'nullable|in:father,mother',
-            'father_id_number' => 'nullable|string|max:64',
-            'mother_id_number' => 'nullable|string|max:64',
-            'father_phone_country_code' => 'nullable|string|max:8',
-            'mother_phone_country_code' => 'nullable|string|max:8',
-            'guardian_phone_country_code' => 'nullable|string|max:8',
             'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'photo' => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'has_allergies' => 'nullable|boolean',
             'allergies_notes' => 'nullable|string',
             'is_fully_immunized' => 'nullable|boolean',
-            'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable', 'string', 'max:80'],
-            'residential_area' => 'required|string|max:255',
-            'preferred_hospital' => 'nullable|string|max:255',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
             'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
-            'religion' => 'nullable|string|max:255',
             'admission_date' => 'required|date',
-        ]);
+            'father_phone_country_code' => 'nullable|string|max:8',
+            'mother_phone_country_code' => 'nullable|string|max:8',
+            'guardian_phone_country_code' => 'nullable|string|max:8',
+        ]));
 
-        $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+        $parentName = ParentInfo::resolvedSlotName($request, 'father')
+            ?: ParentInfo::resolvedSlotName($request, 'mother')
+            ?: ParentInfo::resolvedSlotName($request, 'guardian');
         $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
         if (! $parentName || ! $parentPhone) {
             return response()->json([
@@ -380,7 +370,7 @@ class ApiStudentWriteController extends Controller
 
         try {
             DB::transaction(function () use ($request, $student, $phone, $previousAdmissionDate) {
-                $updateData = $request->only([
+                $updateData = array_merge($request->only([
                     'first_name', 'middle_name', 'last_name', 'gender', 'dob',
                     'classroom_id', 'stream_id', 'category_id',
                     'trip_id', 'drop_off_point_id', 'drop_off_point_other',
@@ -388,9 +378,8 @@ class ApiStudentWriteController extends Controller
                     'emergency_contact_name',
                     'residential_area', 'preferred_hospital',
                     'nemis_number', 'knec_assessment_number', 'kcpe_kjsea_year',
-                    'religion',
                     'admission_date',
-                ]);
+                ]), KemisProfile::studentKemisAttributesFromInput($request->all()));
                 if (isset($updateData['gender'])) {
                     $updateData['gender'] = strtolower(trim((string) $updateData['gender']));
                 }
@@ -443,18 +432,13 @@ class ApiStudentWriteController extends Controller
                     $motherCountryCode = $phone->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
                     $guardianCountryCode = $phone->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
 
-                    $student->parent->update([
-                        'father_name' => $request->father_name,
+                    $parentUpdate = [
                         'father_phone' => $phone->formatWithCountryCode($request->father_phone, $fatherCountryCode),
                         'father_whatsapp' => $phone->formatWithCountryCode($request->father_whatsapp, $fatherCountryCode),
                         'father_email' => $request->father_email,
-                        'father_id_number' => $request->father_id_number,
-                        'mother_name' => $request->mother_name,
                         'mother_phone' => $phone->formatWithCountryCode($request->mother_phone, $motherCountryCode),
                         'mother_whatsapp' => $phone->formatWithCountryCode($request->mother_whatsapp, $motherCountryCode),
                         'mother_email' => $request->mother_email,
-                        'mother_id_number' => $request->mother_id_number,
-                        'guardian_name' => $request->guardian_name,
                         'guardian_phone' => $phone->formatWithCountryCode($request->guardian_phone, $guardianCountryCode),
                         'guardian_whatsapp' => $phone->formatWithCountryCode($request->guardian_whatsapp, $guardianCountryCode),
                         'guardian_email' => $request->guardian_email,
@@ -464,7 +448,11 @@ class ApiStudentWriteController extends Controller
                         'father_phone_country_code' => $fatherCountryCode,
                         'mother_phone_country_code' => $motherCountryCode,
                         'guardian_phone_country_code' => $guardianCountryCode,
-                    ]);
+                    ];
+                    foreach (['father', 'mother', 'guardian'] as $slot) {
+                        $parentUpdate = array_merge($parentUpdate, KemisProfile::parentIdentityAttributesFromInput($request->all(), $slot));
+                    }
+                    $student->parent->update($parentUpdate);
                     $this->handleParentIdUploads($student->parent, $request);
                 }
             });

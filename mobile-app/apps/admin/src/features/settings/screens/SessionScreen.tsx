@@ -27,7 +27,6 @@ import Constants from 'expo-constants';
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 import { formatDateTimeLabel } from '../../shared/utils/formatters';
 import { confirmAction, showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -72,9 +71,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
   const [pinDraft, setPinDraft] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
   const [pinBusy, setPinBusy] = useState(false);
-  const { palette, spacing, typography, radius, elevation, colors, isDark, toggleTheme, themeMode, setThemeMode } =
-    useTheme();
-  const { surfaceMode, setSurfaceMode } = useSurfaceModeControl();
+  const { palette, spacing, typography, radius, elevation, colors } = useTheme();
   const sessionsQuery = useActiveSessions();
   const revokeSession = useRevokeSession();
   const revokeOthers = useRevokeOtherSessions();
@@ -160,127 +157,11 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
   return (
     <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
       {onBack ? <AcademicScreenHeader title="Session & security" onBack={onBack} /> : null}
-      <Button
-        label="Sign out"
-        variant="destructive"
-        onPress={forceReauth}
-        style={{ marginBottom: spacing.md }}
-      />
-      <FinanceFieldSection
-        title="Appearance"
-        rows={[
-          {
-            label: 'Dark mode',
-            value: isDark ? 'On' : 'Off',
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.deviceRow,
-          elevation[1],
-          {
-            backgroundColor: palette.surfaceRaised,
-            borderColor: palette.borderSubtle,
-            borderRadius: radius.card,
-            padding: spacing.md,
-            marginTop: spacing.sm,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            minHeight: 48,
-          },
-        ]}
-      >
-        <Text
-          style={{
-            color: palette.textPrimary,
-            fontSize: typography.body.fontSize,
-            fontWeight: '600',
-          }}
-        >
-          Use dark theme
-        </Text>
-        <Switch value={isDark} onValueChange={() => toggleTheme()} />
-      </View>
-      <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.sm, flexWrap: 'wrap' }}>
-        {([
-          { id: 'light' as const, label: 'Light' },
-          { id: 'dark' as const, label: 'Dark' },
-          { id: 'auto' as const, label: 'Automatic' },
-        ]).map((mode) => (
-          <Pressable
-            key={mode.id}
-            onPress={() => setThemeMode(mode.id)}
-            style={{
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.sm,
-              minHeight: 48,
-              justifyContent: 'center',
-              borderRadius: radius.control,
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: themeMode === mode.id ? palette.primary : palette.borderSubtle,
-              backgroundColor: themeMode === mode.id ? palette.primaryMuted : palette.surfaceRaised,
-            }}
-          >
-            <Text
-              style={{
-                color: themeMode === mode.id ? palette.primary : palette.textSub,
-                fontWeight: '600',
-                fontSize: typography.body.fontSize,
-              }}
-            >
-              {mode.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-        Automatic uses light during the day and dark from 7:00 pm to 6:00 am.
-      </Text>
-      <View
-        style={[
-          styles.deviceRow,
-          elevation[1],
-          {
-            backgroundColor: palette.surfaceRaised,
-            borderColor: palette.borderSubtle,
-            borderRadius: radius.card,
-            padding: spacing.md,
-            marginBottom: spacing.md,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            minHeight: 48,
-            opacity: isDark ? 1 : 0.5,
-          },
-        ]}
-      >
-        <View style={{ flex: 1, marginRight: spacing.sm }}>
-          <Text
-            style={{
-              color: palette.textMain,
-              fontSize: typography.body.fontSize,
-              fontWeight: '600',
-            }}
-          >
-            AMOLED black
-          </Text>
-          <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
-            True black canvas in dark mode (saves battery on OLED)
-          </Text>
-        </View>
-        <Switch
-          value={surfaceMode === 'amoled'}
-          disabled={!isDark}
-          onValueChange={(on) => setSurfaceMode(on ? 'amoled' : 'default')}
-        />
-      </View>
 
       <Text
         style={{
           fontWeight: '700',
-          marginTop: spacing.lg,
+          marginTop: spacing.sm,
           marginBottom: spacing.sm,
           color: palette.textPrimary,
           fontSize: typography.titleSmall.fontSize,
@@ -570,6 +451,13 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
           )
         }
         style={{ marginTop: spacing.md }}
+      />
+
+      <Button
+        label="Sign out"
+        variant="destructive"
+        onPress={forceReauth}
+        style={{ marginTop: spacing.lg, marginBottom: spacing.md }}
       />
 
       <ConfirmDialog

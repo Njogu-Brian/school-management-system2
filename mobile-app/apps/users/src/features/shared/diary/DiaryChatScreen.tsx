@@ -5,7 +5,6 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -58,7 +57,6 @@ export const DiaryChatScreen: React.FC = () => {
   const route = useRoute<RouteProp<DiaryChatParams, 'DiaryChat'>>();
   const { studentId, studentName } = route.params;
   const { colors, palette, spacing, typography, radius } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
   const threadQuery = useDiaryThread(studentId);
   const sendMutation = useSendDiaryMessage(studentId);
   const [draft, setDraft] = useState('');
@@ -271,7 +269,7 @@ export const DiaryChatScreen: React.FC = () => {
               gap: spacing.sm,
               paddingHorizontal: spacing.md,
               paddingTop: spacing.sm,
-              paddingBottom: tabClearance,
+              paddingBottom: spacing.sm,
               borderTopWidth: StyleSheet.hairlineWidth,
               borderTopColor: palette.border,
               backgroundColor: palette.surface,

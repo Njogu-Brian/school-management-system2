@@ -288,4 +288,8 @@ export const queryKeys = {
     grading: () => [...queryKeys.settings.all, 'grading'] as const,
     roles: () => [...queryKeys.settings.all, 'roles'] as const,
   },
+  kemis: {
+    all: ['kemis'] as const,
+    options: () => [...queryKeys.kemis.all, 'options'] as const,
+  },
 };

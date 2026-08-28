@@ -53,4 +53,5 @@ export * from './hooks/useTransportLive';
 export * from './hooks/useParentClaim';
 export * from './hooks/useParentProfileReview';
 export * from './hooks/useParentWallet';
+export * from './hooks/useKemisOptions';
 export * from '../sync';

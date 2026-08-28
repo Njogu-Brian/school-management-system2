@@ -10,7 +10,6 @@ import {
   SkeletonListRows,
   Soft3DIcon,
   StatusBadge,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -198,7 +197,6 @@ const HOME_QUICK_ACTIONS: Array<{
 export const DriverHomeScreen: React.FC = () => {
   const { palette, spacing, typography, radius, colors } = useTheme();
   const navigation = useNavigation<Nav>();
-  const tabClearance = useFloatingTabBarClearance();
   const tripsQuery = useDriverTrips();
   const user = useCurrentUser();
   const { logout } = useAuth();
@@ -207,7 +205,7 @@ export const DriverHomeScreen: React.FC = () => {
   const meta = trips.length > 0 ? `${trips.length} trips today` : undefined;
 
   return (
-    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <DashboardHero
         variant="operations"
         greeting={timeOfDayGreeting()}

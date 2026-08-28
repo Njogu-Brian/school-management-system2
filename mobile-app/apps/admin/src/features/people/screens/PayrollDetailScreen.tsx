@@ -4,7 +4,6 @@ import {
   EmptyState,
   FinanceFieldSection,
   ScreenContainer,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -29,14 +28,13 @@ function activeMoneyRows(
 export const PayrollDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { recordId } = route.params;
   const { colors, palette, spacing, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
   const detailQuery = usePayrollRecordDetail(recordId);
 
   const record = detailQuery.data;
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader
           title="Payslip detail"
           subtitle={record?.staff_name ?? `Record #${recordId}`}

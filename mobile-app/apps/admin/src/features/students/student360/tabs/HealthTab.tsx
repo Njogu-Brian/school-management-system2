@@ -23,6 +23,7 @@ export const HealthTab: React.FC<HealthTabProps> = ({ student }) => {
   const profileRows = useMemo(
     () => [
       { label: 'Blood group', value: student.bloodGroup ?? '—' },
+      { label: 'Medical condition', value: student.medicalCondition ?? '—' },
       { label: 'Preferred hospital', value: student.preferredHospital ?? '—' },
       {
         label: 'Allergies',

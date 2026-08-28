@@ -13,7 +13,7 @@ import { ApprovalsStackNavigator } from './ApprovalsStackNavigator';
 import { CommunicationStackNavigator } from './CommunicationStackNavigator';
 import { OperationsStackNavigator } from './OperationsStackNavigator';
 import { ReportsStackNavigator } from './ReportsStackNavigator';
-import { SettingsScreen } from '../features/settings';
+import { SettingsStackNavigator } from './SettingsStackNavigator';
 import { AREA_TO_DRAWER_ROUTE } from './areaRoutes';
 import { BottomTabsNavigator } from './BottomTabsNavigator';
 import { DrawerContent } from './DrawerContent';
@@ -51,7 +51,7 @@ const DRAWER_SCREENS: Array<{
   { areaKey: 'operations', component: OperationsStackNavigator, title: 'Operations' },
   { areaKey: 'communication', component: CommunicationStackNavigator, title: 'Communication' },
   { areaKey: 'reports', component: ReportsStackNavigator, title: 'Reports' },
-  { areaKey: 'settings', component: SettingsScreen, title: 'Settings' },
+  { areaKey: 'settings', component: SettingsStackNavigator, title: 'Settings' },
 ];
 
 export const DrawerNavigator: React.FC = () => {

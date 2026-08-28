@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScrollableTabBar, type ScrollableTab } from './ScrollableTabBar';
-import { useFloatingTabBarClearance } from './PremiumTabBar';
 import { useTheme } from '../theme/ThemeContext';
 
 export type Profile360Tab<T extends string = string> = ScrollableTab<T>;
@@ -38,7 +37,6 @@ export function Profile360Layout<T extends string>({
   topBar,
 }: Profile360LayoutProps<T>) {
   const { palette, spacing, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const largeOpacity = scrollY.interpolate({
@@ -109,7 +107,7 @@ export function Profile360Layout<T extends string>({
         ) : null}
 
         <Animated.ScrollView
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
         stickyHeaderIndices={[1]}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {

@@ -251,4 +251,269 @@ class KemisProfile
     {
         return trim((string) ($data["{$slot}_{$key}"] ?? ''));
     }
+
+    /**
+     * KEMIS picklists for mobile / API clients.
+     *
+     * @return array<string, mixed>
+     */
+    public static function optionsForApi(): array
+    {
+        return [
+            'nationalities' => array_values(config('kemis.nationalities', [])),
+            'counties' => array_values(config('kemis.counties', [])),
+            'religions' => array_values(config('kemis.religions', [])),
+            'learner_interests' => array_values(config('kemis.learner_interests', [])),
+            'orphan_statuses' => config('kemis.orphan_statuses', []),
+            'disability_types' => array_values(config('kemis.disability_types', [])),
+            'id_types' => array_values(config('kemis.id_types', [])),
+            'countries_of_residence' => array_values(config('kemis.countries_of_residence', [])),
+        ];
+    }
+
+    /**
+     * Map validated / request input to student model attributes for KEMIS fields.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public static function studentKemisAttributesFromInput(array $input): array
+    {
+        $attrs = [];
+        foreach ([
+            'nationality', 'county_of_birth', 'sub_county_of_birth', 'location_of_birth',
+            'birth_certificate_entry_no', 'medical_condition', 'orphan_status', 'disability_type',
+        ] as $field) {
+            if (array_key_exists($field, $input)) {
+                $attrs[$field] = ($input[$field] !== '' && $input[$field] !== null) ? $input[$field] : null;
+            }
+        }
+
+        if (array_key_exists('religion', $input) || array_key_exists('religion_other', $input)) {
+            $attrs['religion'] = self::normalizeReligion($input['religion'] ?? null, $input['religion_other'] ?? null);
+        }
+
+        if (array_key_exists('learner_interests', $input) || array_key_exists('learner_interests_other', $input)) {
+            $attrs['learner_interests'] = self::normalizeLearnerInterests(
+                $input['learner_interests'] ?? [],
+                $input['learner_interests_other'] ?? null
+            );
+        }
+
+        if (array_key_exists('has_special_needs', $input)) {
+            $attrs['has_special_needs'] = (bool) $input['has_special_needs'];
+            if (! $attrs['has_special_needs']) {
+                $attrs['disability_type'] = null;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public static function parentIdentityAttributesFromInput(array $input, string $slot): array
+    {
+        $attrs = \App\Models\ParentInfo::mergePersonNamesFromInput($input, $slot);
+        foreach (["{$slot}_id_type", "{$slot}_id_number", "{$slot}_country_of_residence"] as $field) {
+            if (array_key_exists($field, $input)) {
+                $attrs[$field] = ($input[$field] !== '' && $input[$field] !== null) ? $input[$field] : null;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * Shared contact / residential rules used across student forms.
+     *
+     * @return array<string, mixed>
+     */
+    public static function sharedContactValidationRules(): array
+    {
+        return [
+            'residential_area' => 'required|string|max:255',
+            'emergency_contact_name' => 'required|string|max:255',
+            'emergency_contact_phone' => ['required', 'string', 'max:80', 'regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
+            'preferred_hospital' => 'required|string|max:255',
+        ];
+    }
+
+    /**
+     * Validate field-by-field so valid inputs can be saved while invalid ones are skipped.
+     *
+     * @param  list<int>  $allowedStudentIds
+     * @return array{valid: array<string, mixed>, errors: array<string, list<string>>}
+     */
+    public static function partialValidateRequest(Request $request, array $rules, string $studentScope = '', array $allowedStudentIds = []): array
+    {
+        $data = $request->all();
+        $validated = [];
+        $errors = [];
+
+        $studentWildcardRules = [];
+        $topLevelRules = [];
+        foreach ($rules as $key => $rule) {
+            if (preg_match('/^students\.\*\.(.+)$/u', $key, $matches)) {
+                $studentWildcardRules[$matches[1]] = $rule;
+            } elseif ($key === 'students') {
+                $topLevelRules[$key] = $rule;
+            } elseif (! str_starts_with($key, 'students.')) {
+                $topLevelRules[$key] = $rule;
+            }
+        }
+
+        foreach ($topLevelRules as $attribute => $rule) {
+            if ($attribute === 'students') {
+                continue;
+            }
+            if (self::isUploadRule($rule) && ! $request->hasFile($attribute)) {
+                continue;
+            }
+            $result = self::tryValidateAttribute($data, $attribute, $rule);
+            if ($result['ok']) {
+                if (! $request->hasFile($attribute)) {
+                    $validated[$attribute] = data_get($data, $attribute);
+                }
+            } else {
+                $errors[$attribute] = $result['errors'];
+            }
+        }
+
+        $studentsIn = $data['students'] ?? null;
+        if (! is_array($studentsIn) || $studentsIn === []) {
+            if (isset($topLevelRules['students'])) {
+                $validator = Validator::make($data, ['students' => $topLevelRules['students']]);
+                if ($validator->fails()) {
+                    $errors['students'] = $validator->errors()->get('students');
+                }
+            }
+        } else {
+            $validatedStudents = [];
+            foreach ($studentsIn as $idx => $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $studentValid = [];
+                if (isset($studentWildcardRules['id'])) {
+                    $idAttribute = "students.{$idx}.id";
+                    $idResult = self::tryValidateAttribute($data, $idAttribute, self::indexStudentRule($studentWildcardRules['id'], $idx));
+                    if (! $idResult['ok']) {
+                        $errors[$idAttribute] = $idResult['errors'];
+                        continue;
+                    }
+                    $studentId = (int) $idResult['value'];
+                    if ($allowedStudentIds !== [] && ! in_array($studentId, $allowedStudentIds, true)) {
+                        $errors[$idAttribute] = ['Invalid student for this link.'];
+                        continue;
+                    }
+                    $studentValid['id'] = $studentId;
+                }
+
+                foreach ($studentWildcardRules as $field => $rule) {
+                    if ($field === 'id') {
+                        continue;
+                    }
+                    $attribute = "students.{$idx}.{$field}";
+                    if (self::isUploadRule($rule) && ! $request->hasFile($attribute)) {
+                        continue;
+                    }
+                    $result = self::tryValidateAttribute($data, $attribute, self::indexStudentRule($rule, $idx));
+                    if ($result['ok']) {
+                        if (! $request->hasFile($attribute)) {
+                            $studentValid[$field] = data_get($data, $attribute);
+                        }
+                    } else {
+                        $errors[$attribute] = $result['errors'];
+                    }
+                }
+
+                if ($studentValid !== []) {
+                    $validatedStudents[] = $studentValid;
+                }
+            }
+
+            if ($validatedStudents !== []) {
+                $validated['students'] = $validatedStudents;
+            }
+        }
+
+        foreach (self::completionMessages($data, $studentScope) as $field => $message) {
+            $errors[$field] = is_array($message) ? $message : [(string) $message];
+        }
+
+        return ['valid' => $validated, 'errors' => $errors];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{ok: bool, errors?: list<string>, value?: mixed}
+     */
+    public static function tryValidateAttribute(array $data, string $attribute, $rules): array
+    {
+        $validator = Validator::make($data, [$attribute => $rules]);
+        if ($validator->fails()) {
+            return ['ok' => false, 'errors' => $validator->errors()->get($attribute)];
+        }
+
+        return ['ok' => true, 'value' => data_get($data, $attribute)];
+    }
+
+    /**
+     * @param  string|array<int, mixed>  $rule
+     * @return string|array<int, mixed>
+     */
+    public static function indexStudentRule($rule, int|string $idx)
+    {
+        if (is_array($rule)) {
+            return array_map(static fn ($part) => self::indexStudentRuleString((string) $part, $idx), $rule);
+        }
+
+        return self::indexStudentRuleString((string) $rule, $idx);
+    }
+
+    private static function indexStudentRuleString(string $rule, int|string $idx): string
+    {
+        return str_replace('students.*', "students.{$idx}", $rule);
+    }
+
+    /**
+     * @param  string|array<int, mixed>  $rule
+     */
+    public static function isUploadRule($rule): bool
+    {
+        $parts = is_array($rule) ? $rule : explode('|', $rule);
+        foreach ($parts as $part) {
+            $part = strtolower((string) $part);
+            if (str_starts_with($part, 'file') || str_starts_with($part, 'image') || str_starts_with($part, 'mimes')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function serializeAuditValue(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value instanceof \Carbon\Carbon) {
+            return $value->toDateString();
+        }
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+        if (is_array($value)) {
+            return json_encode($value);
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        return (string) $value;
+    }
 }

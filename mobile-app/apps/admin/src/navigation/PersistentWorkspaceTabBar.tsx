@@ -92,8 +92,10 @@ export function withWorkspaceTabBar<P extends object>(
   Component: React.ComponentType<P>,
 ): React.FC<P> {
   const Wrapped: React.FC<P> = (props) => (
-    <View style={styles.fill}>
-      <Component {...props} />
+    <View style={styles.fill} pointerEvents="box-none">
+      <View style={styles.fill}>
+        <Component {...props} />
+      </View>
       <DrawerWorkspaceTabBar />
     </View>
   );

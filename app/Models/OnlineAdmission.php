@@ -22,9 +22,19 @@ class OnlineAdmission extends Model
 
     protected $fillable = [
         'first_name', 'middle_name', 'last_name', 'dob', 'gender',
-        'father_name', 'mother_name', 'guardian_name', 'father_phone',
-        'mother_phone', 'guardian_phone', 'father_email', 'mother_email',
-        'guardian_email', 'father_id_number', 'mother_id_number', 'guardian_id_number',
+        'nationality', 'county_of_birth', 'sub_county_of_birth', 'location_of_birth',
+        'birth_certificate_entry_no', 'medical_condition', 'religion', 'learner_interests',
+        'orphan_status', 'has_special_needs', 'disability_type',
+        'father_name', 'mother_name', 'guardian_name',
+        'father_first_name', 'father_middle_name', 'father_last_name',
+        'mother_first_name', 'mother_middle_name', 'mother_last_name',
+        'guardian_first_name', 'guardian_middle_name', 'guardian_last_name',
+        'father_phone', 'mother_phone', 'guardian_phone',
+        'father_whatsapp', 'mother_whatsapp', 'guardian_whatsapp',
+        'father_email', 'mother_email', 'guardian_email',
+        'father_id_number', 'mother_id_number', 'guardian_id_number',
+        'father_id_type', 'mother_id_type', 'guardian_id_type',
+        'father_country_of_residence', 'mother_country_of_residence', 'guardian_country_of_residence',
         'nemis_number', 'knec_assessment_number', 'passport_photo',
         'birth_certificate', 'parent_id_card', 'form_status', 'payment_status', 'enrolled',
         'application_status', 'waitlist_position', 'reviewed_by', 'review_notes',
@@ -46,6 +56,8 @@ class OnlineAdmission extends Model
         'dob' => 'date',
         'enrolled' => 'boolean',
         'transport_needed' => 'boolean',
+        'has_special_needs' => 'boolean',
+        'learner_interests' => 'array',
     ];
 
     public function reviewedBy()

@@ -1,5 +1,5 @@
 import { useGradingSettings } from '@erp/core';
-import { EmptyState, SettingCard, SettingsSectionHeader, useTheme } from '@erp/ui';
+import { EmptyState, SettingCard, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 
@@ -56,10 +56,6 @@ export const GradingSettingsSection: React.FC = () => {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <SettingsSectionHeader
-        title="Grading"
-        subtitle="Grading schemes, bands, and exam types (read-only)."
-      />
       <SettingCard
         id="schemes-count"
         label="Grading schemes"

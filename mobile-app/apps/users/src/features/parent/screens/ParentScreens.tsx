@@ -21,7 +21,6 @@ import {
   SkeletonListRows,
   Soft3DIcon,
   StatusBadge,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -199,7 +198,6 @@ export const ParentHomeScreen: React.FC = () => {
   const { logout } = useAuth();
   const { palette, spacing, typography, colors } = useTheme();
   const navigation = useNavigation<Nav>();
-  const tabClearance = useFloatingTabBarClearance();
   const unreadQuery = useUnreadNotificationCount();
   const childrenQuery = useInfiniteStudentList({
     search: '',
@@ -225,7 +223,7 @@ export const ParentHomeScreen: React.FC = () => {
   }, [childrenCount, unreadQuery.data]);
 
   return (
-    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <DashboardHero
         variant="people"
         greeting={timeOfDayGreeting()}
@@ -603,7 +601,7 @@ export const ParentFeesScreen: React.FC = () => {
   }, [students, studentIds, s0, s1, s2, s3]);
 
   return (
-    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <View
         style={{
           backgroundColor: colors.primary,

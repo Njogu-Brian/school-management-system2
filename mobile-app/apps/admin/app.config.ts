@@ -10,7 +10,7 @@ const controlPlaneBase =
 const requireSchoolCode = process.env.EXPO_PUBLIC_REQUIRE_SCHOOL_CODE === 'true';
 /** Linked EAS project: @briannjogu/royal-kings-admin */
 const EAS_PROJECT_ID = '0d0b7844-fe28-441d-ab98-bb27890a38f3';
-const APP_VERSION = '1.0.12';
+const APP_VERSION = '1.0.13';
 /** Matches Royal Kings logo purple used in launcher assets. */
 const iconBackground = '#390754';
 
@@ -32,9 +32,8 @@ const config: ExpoConfig = {
   assetBundlePatterns: ['**/*'],
   updates: {
     url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
-    // Disabled until the first OTA bundle is published — avoids a grey hang on cold start.
-    enabled: false,
-    checkAutomatically: 'NEVER',
+    enabled: true,
+    checkAutomatically: 'ON_LOAD',
     fallbackToCacheTimeout: 0,
   },
   runtimeVersion: APP_VERSION,
@@ -50,7 +49,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.admin',
-    versionCode: 13,
+    versionCode: 14,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',

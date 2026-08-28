@@ -42,8 +42,8 @@ export const DashboardLayout: React.FC = () => {
     () => ({
       paddingHorizontal: spacing.md,
       paddingTop: spacing.sm,
-      /** ScreenContainer enforces floating-tab clearance; keep a little extra for the FAB. */
-      paddingBottom: spacing['5xl'],
+      /** ScreenContainer applies tab clearance. */
+      paddingBottom: spacing.md,
       backgroundColor: palette.background,
     }),
     [spacing, palette.background],

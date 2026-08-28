@@ -6,7 +6,6 @@ import {
   ListEmptyState,
   ScreenContainer,
   SkeletonListRows,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -30,7 +29,6 @@ function buildMonthOptions(count = 12): Array<{ key: string | null; label: strin
 
 export const PayrollRecordsScreen: React.FC<Props> = ({ navigation }) => {
   const { palette, spacing, typography, colors } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
   const [month, setMonth] = useState<string | null>(null);
   const monthOptions = useMemo(() => buildMonthOptions(12), []);
   const listQuery = usePayrollRecordsList({ month });
@@ -62,7 +60,7 @@ export const PayrollRecordsScreen: React.FC<Props> = ({ navigation }) => {
         <FlatList
           data={items}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={{ paddingBottom: tabClearance, paddingTop: spacing.sm }}
+          contentContainerStyle={{ paddingBottom: spacing.xl, paddingTop: spacing.sm }}
           refreshControl={
             <RefreshControl
               refreshing={listQuery.isFetching && !listQuery.isLoading}

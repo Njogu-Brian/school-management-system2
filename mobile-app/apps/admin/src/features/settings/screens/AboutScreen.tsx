@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { AcademicScreenHeader, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -26,6 +27,13 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
   const { colors, palette, spacing, typography, radius, elevation } = useTheme();
   const version = Constants.expoConfig?.version ?? '1.0.0';
   const build = Constants.expoConfig?.android?.versionCode ?? Constants.nativeBuildVersion ?? '—';
+  const liveUpdatesOn = Updates.isEnabled;
+  const updateSource = !liveUpdatesOn
+    ? 'Off — this install cannot receive live updates'
+    : Updates.isEmbeddedLaunch
+      ? 'Original app (no live update yet)'
+      : 'Live update applied';
+  const updateId = Updates.updateId ? Updates.updateId.slice(0, 8) : '—';
 
   const supportRows: LinkRow[] = [
     {
@@ -149,7 +157,9 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
         rows={[
           { label: 'Version', value: version },
           { label: 'Build', value: String(build) },
-          { label: 'Slug', value: Constants.expoConfig?.slug ?? 'school-erp-admin' },
+          { label: 'Live updates', value: updateSource },
+          { label: 'Update ID', value: liveUpdatesOn ? updateId : 'n/a' },
+          { label: 'Channel', value: Updates.channel ?? '—' },
         ]}
       />
 

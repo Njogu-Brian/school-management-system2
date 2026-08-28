@@ -3,7 +3,6 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import React, { useMemo } from 'react';
@@ -17,7 +16,6 @@ import { ChildAcademicProgressSection } from '../components/ChildAcademicProgres
  */
 export const ParentAcademicScreen: React.FC = () => {
   const { spacing, palette, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
   const listQuery = useInfiniteStudentList({
     search: '',
     classroomId: null,
@@ -46,7 +44,7 @@ export const ParentAcademicScreen: React.FC = () => {
           <FlatList
             data={students}
             keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}
+            contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
             ListHeaderComponent={
               <Text
                 style={{

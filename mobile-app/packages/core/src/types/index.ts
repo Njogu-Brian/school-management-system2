@@ -18,3 +18,4 @@ export * from './staff360';
 export * from './finance';
 export * from './academics';
 export * from './branding';
+export * from './kemis';

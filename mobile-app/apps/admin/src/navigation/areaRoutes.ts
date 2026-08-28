@@ -35,6 +35,7 @@ export const DRAWER_HOME_SCREEN: Partial<
   Operations: 'OperationsDashboard',
   Communication: 'CommunicationDashboard',
   Reports: 'ReportsHub',
+  Settings: 'SettingsHub',
 };
 
 export const TAB_HOME_SCREEN: Record<keyof TabsParamList, string> = {
@@ -104,17 +105,6 @@ export function navigateDrawerAreaHome(
       CommonActions.navigate({
         name: drawerRoute,
         params: { screen: homeScreen },
-        merge: false,
-      }),
-    );
-    return;
-  }
-
-  if (drawerRoute === 'Settings') {
-    navigation.dispatch(
-      CommonActions.navigate({
-        name: 'Settings',
-        params: { resetAt: Date.now() },
         merge: false,
       }),
     );

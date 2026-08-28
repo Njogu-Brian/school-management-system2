@@ -104,7 +104,7 @@ export const MarkAttendanceScreen: React.FC = () => {
    */
   const isTabRoot = route.name === 'AttendanceMain' || route.name === 'Attendance';
   const { colors, palette, spacing, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
+  const tabClearance = useFloatingTabBarClearance(false);
   const networkStatus = useNetworkStatus();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
@@ -585,9 +585,9 @@ const styles = StyleSheet.create({
   },
   statusRow: { flexDirection: 'row', gap: 6 },
   statusBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,

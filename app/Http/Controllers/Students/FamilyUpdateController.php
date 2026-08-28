@@ -355,6 +355,8 @@ class FamilyUpdateController extends Controller
                 ->with('success', 'Your details were already saved. You can close this page.');
         }
 
+        $validationErrors = [];
+
         try {
             $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->firstOrFail();
             \Log::info('FamilyUpdate Submit: Link found', [
@@ -395,7 +397,7 @@ class FamilyUpdateController extends Controller
                 'request_keys' => array_keys($request->all()),
             ]);
             
-            $validated = KemisProfile::validateRequest($request, array_merge([
+            $validationRules = array_merge([
                 'residential_area' => 'required|string|max:255',
                 'father_name' => 'nullable|string|max:255',
                 'father_id_number' => 'nullable|string|max:255',
@@ -435,35 +437,43 @@ class FamilyUpdateController extends Controller
                 'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
                 'school_notifications_muted_parent' => 'nullable|in:father,mother',
-            ], KemisProfile::parentKemisValidationRules(), KemisProfile::studentKemisValidationRules('students.*')), 'students');
-            
-            \Log::info('FamilyUpdate Submit: Validation passed', [
-                'validated_keys' => array_keys($validated),
-                'students_count' => count($validated['students'] ?? []),
-                'students_data' => array_map(function($stu) {
-                    return ['id' => $stu['id'] ?? null, 'first_name' => $stu['first_name'] ?? null];
-                }, $validated['students'] ?? []),
-            ]);
+            ], KemisProfile::parentKemisValidationRules(), KemisProfile::studentKemisValidationRules('students.*'));
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            $errorDetails = [];
-            foreach ($e->errors() as $field => $messages) {
-                $errorDetails[$field] = $messages;
+            $partialValidation = KemisProfile::partialValidateRequest($request, $validationRules, 'students', $studentIds);
+            $validated = $partialValidation['valid'];
+            $validationErrors = $partialValidation['errors'];
+
+            if (! $this->hasSavableFamilyUpdatePayload($validated, $request)) {
+                \Log::warning('FamilyUpdate Submit: Nothing valid to save', [
+                    'token' => $token,
+                    'errors' => $validationErrors,
+                    'error_count' => count($validationErrors),
+                    'input_sample' => array_slice($request->except(['_token', '_method', 'students']), 0, 5),
+                ]);
+
+                $submitLock->release();
+
+                return redirect()->route('family-update.form', $token)
+                    ->withErrors($validationErrors)
+                    ->withInput()
+                    ->with('error', 'We could not save anything yet. Please complete at least one valid field below and try again.');
             }
-            
-            \Log::error('FamilyUpdate Submit: Validation failed', [
-                'token' => $token,
-                'errors' => $errorDetails,
-                'error_count' => count($e->errors()),
-                'input_sample' => array_slice($request->except(['_token', '_method', 'students']), 0, 5),
-            ]);
-            
-            $submitLock->release();
-            return redirect()->route('family-update.form', $token)
-                ->withErrors($e->errors())
-                ->withInput()
-                ->with('error', 'Please correct the validation errors below.');
-                
+
+            if ($validationErrors !== []) {
+                \Log::warning('FamilyUpdate Submit: Partial validation skipped fields', [
+                    'token' => $token,
+                    'errors' => $validationErrors,
+                    'error_count' => count($validationErrors),
+                    'validated_keys' => array_keys($validated),
+                    'students_count' => count($validated['students'] ?? []),
+                ]);
+            } else {
+                \Log::info('FamilyUpdate Submit: Validation passed', [
+                    'validated_keys' => array_keys($validated),
+                    'students_count' => count($validated['students'] ?? []),
+                ]);
+            }
+
         } catch (\Exception $e) {
             \Log::error('FamilyUpdate Submit: Exception during validation', [
                 'token' => $token,
@@ -690,30 +700,10 @@ class FamilyUpdateController extends Controller
                     // Compare after update for audit - use the actual new value from parentData
                     foreach ($parentData as $field => $newValue) {
                         $beforeValue = $parentBeforeSnapshot[$field] ?? null;
-                        
-                        // Normalize both values for comparison
-                        $beforeNormalized = $beforeValue;
-                        if ($beforeNormalized instanceof \Carbon\Carbon) {
-                            $beforeNormalized = $beforeNormalized->toDateString();
-                        } elseif ($beforeNormalized instanceof \DateTime) {
-                            $beforeNormalized = $beforeNormalized->format('Y-m-d');
-                        } elseif ($beforeNormalized !== null) {
-                            $beforeNormalized = (string)$beforeNormalized;
-                        }
-                        
-                        $afterNormalized = $newValue;
-                        if ($afterNormalized instanceof \Carbon\Carbon) {
-                            $afterNormalized = $afterNormalized->toDateString();
-                        } elseif ($afterNormalized instanceof \DateTime) {
-                            $afterNormalized = $afterNormalized->format('Y-m-d');
-                        } elseif ($afterNormalized !== null) {
-                            $afterNormalized = (string)$afterNormalized;
-                        }
-                        
-                        // Compare normalized values - handle null cases
-                        $beforeStr = $beforeNormalized === null ? '' : (string)$beforeNormalized;
-                        $afterStr = $afterNormalized === null ? '' : (string)$afterNormalized;
-                        
+
+                        $beforeStr = KemisProfile::serializeAuditValue($beforeValue) ?? '';
+                        $afterStr = KemisProfile::serializeAuditValue($newValue) ?? '';
+
                         if ($beforeStr !== $afterStr) {
                             \Log::info('FamilyUpdate: Parent field change detected', [
                                 'field' => $field,
@@ -722,15 +712,15 @@ class FamilyUpdateController extends Controller
                                 'before_str' => $beforeStr,
                                 'after_str' => $afterStr,
                             ]);
-                            
+
                             $audits[] = [
                                 'family_id' => $family?->id,
                                 'student_id' => $stu->id,
                                 'changed_by_user_id' => $userId,
                                 'source' => $source,
                                 'field' => 'parent.' . $field,
-                                'before' => $beforeValue === null ? null : (string)$beforeValue,
-                                'after' => $newValue === null ? null : (string)$newValue,
+                                'before' => KemisProfile::serializeAuditValue($beforeValue),
+                                'after' => KemisProfile::serializeAuditValue($newValue),
                                 'created_at' => $now,
                                 'updated_at' => $now,
                             ];
@@ -799,7 +789,7 @@ class FamilyUpdateController extends Controller
             }
 
             // Update each student - reload from database to ensure fresh data
-            foreach ($validated['students'] as $stuData) {
+            foreach (($validated['students'] ?? []) as $stuData) {
                 // Reload student from database to ensure we have latest data
                 // Use withArchived to bypass global scope in case student is archived
                 $student = Student::withArchived()->find($stuData['id']);
@@ -810,11 +800,15 @@ class FamilyUpdateController extends Controller
                     continue;
                 }
                 
-                // Prepare update data - always use validated values when they exist
-                $updateData = [
-                    'first_name' => $stuData['first_name'],
-                    'last_name' => $stuData['last_name'],
-                ];
+                // Prepare update data - only include validated fields
+                $updateData = [];
+
+                if (array_key_exists('first_name', $stuData)) {
+                    $updateData['first_name'] = $stuData['first_name'];
+                }
+                if (array_key_exists('last_name', $stuData)) {
+                    $updateData['last_name'] = $stuData['last_name'];
+                }
                 
                 // Middle name
                 if (array_key_exists('middle_name', $stuData)) {
@@ -865,10 +859,12 @@ class FamilyUpdateController extends Controller
                         $stuData['religion_other'] ?? null
                     );
                 }
-                $updateData['learner_interests'] = KemisProfile::normalizeLearnerInterests(
-                    $stuData['learner_interests'] ?? [],
-                    $stuData['learner_interests_other'] ?? null
-                );
+                if (array_key_exists('learner_interests', $stuData) || array_key_exists('learner_interests_other', $stuData)) {
+                    $updateData['learner_interests'] = KemisProfile::normalizeLearnerInterests(
+                        $stuData['learner_interests'] ?? [],
+                        $stuData['learner_interests_other'] ?? null
+                    );
+                }
                 if (array_key_exists('has_special_needs', $stuData)) {
                     $updateData['has_special_needs'] = (bool) $stuData['has_special_needs'];
                     if (! $updateData['has_special_needs']) {
@@ -907,6 +903,13 @@ class FamilyUpdateController extends Controller
                     } catch (\Exception $e) {
                         // If parsing fails, keep original value
                     }
+                }
+
+                if ($updateData === []) {
+                    \Log::warning('FamilyUpdate: No savable student fields', [
+                        'student_id' => $stuData['id'] ?? null,
+                    ]);
+                    continue;
                 }
                 
                 $fieldsToCheck = array_keys($updateData);
@@ -977,30 +980,10 @@ class FamilyUpdateController extends Controller
                 foreach ($fieldsToCheck as $field) {
                     $beforeValue = $beforeSnapshot[$field] ?? null;
                     $newValue = $updateData[$field] ?? null;
-                    
-                    // Normalize both values for comparison
-                    $beforeNormalized = $beforeValue;
-                    if ($beforeNormalized instanceof \Carbon\Carbon) {
-                        $beforeNormalized = $beforeNormalized->toDateString();
-                    } elseif ($beforeNormalized instanceof \DateTime) {
-                        $beforeNormalized = $beforeNormalized->format('Y-m-d');
-                    } elseif ($beforeNormalized !== null) {
-                        $beforeNormalized = (string)$beforeNormalized;
-                    }
-                    
-                    $afterNormalized = $newValue;
-                    if ($afterNormalized instanceof \Carbon\Carbon) {
-                        $afterNormalized = $afterNormalized->toDateString();
-                    } elseif ($afterNormalized instanceof \DateTime) {
-                        $afterNormalized = $afterNormalized->format('Y-m-d');
-                    } elseif ($afterNormalized !== null) {
-                        $afterNormalized = (string)$afterNormalized;
-                    }
-                    
-                    // Compare normalized values - handle null cases
-                    $beforeStr = $beforeNormalized === null ? '' : (string)$beforeNormalized;
-                    $afterStr = $afterNormalized === null ? '' : (string)$afterNormalized;
-                    
+
+                    $beforeStr = KemisProfile::serializeAuditValue($beforeValue) ?? '';
+                    $afterStr = KemisProfile::serializeAuditValue($newValue) ?? '';
+
                     if ($beforeStr !== $afterStr) {
                         \Log::info('FamilyUpdate: Student field change detected', [
                             'field' => $field,
@@ -1009,15 +992,15 @@ class FamilyUpdateController extends Controller
                             'before_str' => $beforeStr,
                             'after_str' => $afterStr,
                         ]);
-                        
+
                         $audits[] = [
                             'family_id' => $family?->id,
                             'student_id' => $student->id,
                             'changed_by_user_id' => $userId,
                             'source' => $source,
                             'field' => 'student.' . $field,
-                            'before' => $beforeValue === null ? null : (string)$beforeValue,
-                            'after' => $newValue === null ? null : (string)$newValue,
+                            'before' => KemisProfile::serializeAuditValue($beforeValue),
+                            'after' => KemisProfile::serializeAuditValue($newValue),
                             'created_at' => $now,
                             'updated_at' => $now,
                         ];
@@ -1232,7 +1215,7 @@ class FamilyUpdateController extends Controller
             
             $submitLock->release();
             return redirect()->route('family-update.form', $token)
-                ->with('warning', 'No changes were detected. Please make sure you modified at least one field before submitting.');
+                ->with('warning', 'No changes were detected. Update any field you want to change, then tap Save my details again.');
         }
         
         // Clear cached relationships - the redirect will reload fresh data from database
@@ -1259,20 +1242,65 @@ class FamilyUpdateController extends Controller
             $link->save();
         }
         
-        $successMessage = 'Details updated successfully! ';
-        if ($auditsCreated > 0) {
-            $successMessage .= "{$auditsCreated} change(s) recorded. ";
-        }
+        $successParts = ['Thank you — your details have been saved.'];
         if ($studentsUpdated > 0) {
-            $successMessage .= "{$studentsUpdated} student(s) updated. ";
+            $successParts[] = "{$studentsUpdated} student record(s) updated.";
         }
         if ($parentsUpdated > 0) {
-            $successMessage .= "{$parentsUpdated} parent record(s) updated. ";
+            $successParts[] = 'Parent/guardian details updated.';
         }
-        $successMessage .= 'You can revisit this link anytime to update again.';
-        
-        return redirect()->route('family-update.form', $token)
+        $successParts[] = 'You can return to this link anytime to add more information.';
+        $successMessage = implode(' ', $successParts);
+
+        $redirect = redirect()->route('family-update.form', $token)
             ->with('success', $successMessage);
+
+        if (! empty($validationErrors)) {
+            $skippedCount = count($validationErrors);
+            $redirect = $redirect
+                ->withErrors($validationErrors)
+                ->with('warning', "Some details still need your attention ({$skippedCount} item(s)).");
+        }
+
+        return $redirect;
+    }
+
+    private function hasSavableFamilyUpdatePayload(array $validated, Request $request): bool
+    {
+        foreach ($validated as $key => $value) {
+            if ($key === 'students') {
+                foreach ((array) $value as $studentRow) {
+                    if (! is_array($studentRow)) {
+                        continue;
+                    }
+                    if (count($studentRow) > 1 || (count($studentRow) === 1 && ! array_key_exists('id', $studentRow))) {
+                        return true;
+                    }
+                }
+                continue;
+            }
+
+            return true;
+        }
+
+        foreach (['father_id_document', 'mother_id_document'] as $field) {
+            if ($request->hasFile($field)) {
+                return true;
+            }
+        }
+
+        $students = $request->input('students', []);
+        if (is_array($students)) {
+            foreach (array_keys($students) as $idx) {
+                foreach (['passport_photo', 'birth_certificate'] as $field) {
+                    if ($request->hasFile("students.{$idx}.{$field}")) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

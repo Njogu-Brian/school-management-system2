@@ -1,170 +1,196 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { DashboardHero } from '../dashboard/DashboardHero';
 import { AccentIcon, type AccentTone } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
-import type { SettingsSectionId, SettingsSectionTab } from './types';
 
-export interface SettingsHubLayoutProps {
-  sections: SettingsSectionTab[];
-  activeSection: SettingsSectionId;
-  onSectionChange: (id: SettingsSectionId) => void;
-  children: React.ReactNode;
-  schoolName?: string;
-  schoolSubtitle?: string;
-  /** Hero meta pill, e.g. "Read-only on mobile" */
-  meta?: string;
-  footerLinks?: Array<{ id: string; label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }>;
+export interface SettingsHubRow {
+  id: string;
+  label: string;
+  subtitle?: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  tone?: AccentTone;
+  onPress: () => void;
 }
 
-const SECTION_TONES: Record<SettingsSectionId, AccentTone> = {
-  school: 'blue',
-  academic: 'teal',
-  grading: 'violet',
-  roles: 'indigo',
-};
+export interface SettingsHubGroup {
+  title: string;
+  rows: SettingsHubRow[];
+}
 
-const FOOTER_TONES: AccentTone[] = ['cyan', 'amber', 'emerald', 'rose'];
+export interface SettingsHubLayoutProps {
+  schoolName?: string;
+  schoolSubtitle?: string;
+  meta?: string;
+  appearance?: React.ReactNode;
+  groups: SettingsHubGroup[];
+}
 
+/**
+ * iOS-style grouped settings hub. Rows push onto a stack so the app header
+ * and floating tab bar stay visible.
+ */
 export const SettingsHubLayout: React.FC<SettingsHubLayoutProps> = ({
-  sections,
-  activeSection,
-  onSectionChange,
-  children,
   schoolName = 'Settings',
   schoolSubtitle = 'Administration & configuration',
   meta = 'Read-only on mobile',
-  footerLinks = [],
+  appearance,
+  groups,
 }) => {
   const { palette, colors, spacing, typography, radius, elevation } = useTheme();
 
   return (
-    <View>
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
-        <DashboardHero
-          variant="settings"
-          title={schoolName}
-          subtitle={schoolSubtitle}
-          meta={meta}
-        />
+    <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm, gap: spacing.lg }}>
+      <View
+        style={[
+          styles.identity,
+          elevation[1],
+          {
+            backgroundColor: palette.surfaceRaised,
+            borderColor: palette.borderSubtle,
+            borderRadius: radius.card,
+            padding: spacing.md,
+          },
+        ]}
+      >
+        <AccentIcon name="business-outline" tone="blue" size={48} iconSize={22} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: palette.textMain,
+              fontSize: typography.title.fontSize,
+              lineHeight: typography.title.lineHeight,
+              fontWeight: '800',
+              letterSpacing: -0.3,
+            }}
+          >
+            {schoolName}
+          </Text>
+          <Text
+            numberOfLines={2}
+            style={{
+              color: palette.textSub,
+              fontSize: typography.caption.fontSize,
+              lineHeight: typography.caption.lineHeight,
+              marginTop: 2,
+            }}
+          >
+            {schoolSubtitle}
+          </Text>
+        </View>
+        <View
+          style={{
+            backgroundColor: palette.primaryMuted,
+            borderRadius: 999,
+            paddingHorizontal: spacing.sm,
+            paddingVertical: 4,
+          }}
+        >
+          <Text style={{ color: colors.primary, fontSize: 11, fontWeight: '700' }}>{meta}</Text>
+        </View>
+      </View>
 
-        <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
-          {sections.map((section) => {
-            const active = section.id === activeSection;
-            return (
-              <View key={section.id}>
-                <Pressable
-                  onPress={() => onSectionChange(section.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active, expanded: active }}
-                  style={({ pressed }) => [
-                    styles.card,
-                    elevation[2],
-                    {
-                      backgroundColor: active ? `${colors.primary}08` : palette.surfaceRaised,
-                      borderColor: active ? colors.primary : palette.borderSubtle,
-                      borderRadius: radius.card,
-                      paddingHorizontal: spacing.md,
-                      paddingVertical: spacing.sm,
-                      minHeight: 48,
-                      opacity: pressed ? 0.92 : 1,
-                    },
-                  ]}
-                >
-                  <View style={[styles.cardRow, { gap: spacing.sm }]}>
-                    <AccentIcon
-                      name={section.icon as keyof typeof Ionicons.glyphMap}
-                      tone={SECTION_TONES[section.id] ?? 'blue'}
-                      size={40}
-                      iconSize={18}
-                    />
-                    <Text
-                      style={{
-                        flex: 1,
-                        color: palette.textPrimary,
-                        fontSize: typography.body.fontSize,
-                        lineHeight: typography.body.lineHeight,
-                        fontWeight: active ? '700' : '600',
-                      }}
-                    >
-                      {section.label}
-                    </Text>
-                    <Ionicons
-                      name={active ? 'chevron-down' : 'chevron-forward'}
-                      size={18}
-                      color={palette.textMuted}
-                    />
-                  </View>
-                </Pressable>
+      {appearance}
 
-                {active ? (
-                  <View
-                    style={{
-                      marginTop: spacing.sm,
-                      marginBottom: spacing.xs,
-                      paddingHorizontal: spacing.xs,
-                    }}
-                  >
-                    {children}
-                  </View>
+      {groups.map((group) => (
+        <View key={group.title} style={{ gap: spacing.sm }}>
+          <Text
+            style={{
+              color: palette.textMuted,
+              fontSize: typography.overline.fontSize,
+              lineHeight: typography.overline.lineHeight,
+              fontWeight: typography.overline.fontWeight,
+              letterSpacing: typography.overline.letterSpacing,
+              textTransform: 'uppercase',
+              marginLeft: spacing.xs,
+            }}
+          >
+            {group.title}
+          </Text>
+          <View
+            style={[
+              elevation[1],
+              {
+                backgroundColor: palette.surfaceRaised,
+                borderColor: palette.borderSubtle,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderRadius: radius.card,
+                overflow: 'hidden',
+              },
+            ]}
+          >
+            {group.rows.map((row, index) => (
+              <View key={row.id}>
+                {index > 0 ? (
+                  <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.borderSubtle, marginLeft: 64 }} />
                 ) : null}
-              </View>
-            );
-          })}
-
-          {footerLinks.length > 0 ? (
-            <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
-              {footerLinks.map((link, index) => (
                 <Pressable
-                  key={link.id}
-                  onPress={link.onPress}
+                  onPress={row.onPress}
                   accessibilityRole="button"
+                  accessibilityLabel={row.label}
                   style={({ pressed }) => [
-                    styles.card,
-                    elevation[2],
+                    styles.row,
                     {
-                      backgroundColor: palette.surfaceRaised,
-                      borderColor: palette.borderSubtle,
-                      borderRadius: radius.card,
                       paddingHorizontal: spacing.md,
                       paddingVertical: spacing.sm,
-                      minHeight: 48,
-                      opacity: pressed ? 0.92 : 1,
+                      minHeight: 56,
+                      opacity: pressed ? 0.88 : 1,
+                      backgroundColor: pressed ? palette.surfaceMuted : 'transparent',
                     },
                   ]}
                 >
-                  <View style={[styles.cardRow, { gap: spacing.sm }]}>
-                    <AccentIcon
-                      name={link.icon}
-                      tone={FOOTER_TONES[index % FOOTER_TONES.length]}
-                      size={40}
-                      iconSize={18}
-                    />
+                  <AccentIcon
+                    name={row.icon}
+                    tone={row.tone ?? 'blue'}
+                    size={40}
+                    iconSize={18}
+                  />
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
                       style={{
-                        flex: 1,
-                        color: palette.textPrimary,
+                        color: palette.textMain,
                         fontSize: typography.body.fontSize,
                         lineHeight: typography.body.lineHeight,
                         fontWeight: '600',
                       }}
                     >
-                      {link.label}
+                      {row.label}
                     </Text>
-                    <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+                    {row.subtitle ? (
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: palette.textSub,
+                          fontSize: typography.caption.fontSize,
+                          marginTop: 1,
+                        }}
+                      >
+                        {row.subtitle}
+                      </Text>
+                    ) : null}
                   </View>
+                  <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
                 </Pressable>
-              ))}
-            </View>
-          ) : null}
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
+      ))}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  card: { borderWidth: StyleSheet.hairlineWidth, justifyContent: 'center' },
-  cardRow: { flexDirection: 'row', alignItems: 'center' },
+  identity: {
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
 });

@@ -1,5 +1,5 @@
 import { useSchoolSettings } from '@erp/core';
-import { EmptyState, SettingCard, SettingsSectionHeader, useTheme } from '@erp/ui';
+import { EmptyState, SettingCard, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -55,10 +55,6 @@ export const SchoolSettingsSection: React.FC = () => {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <SettingsSectionHeader
-        title="School"
-        subtitle="Identity, branding, and regional defaults (read-only on mobile)."
-      />
       {cards.map((c) => (
         <SettingCard key={c.id} id={c.id} label={c.label} value={c.value} hint={c.hint} />
       ))}

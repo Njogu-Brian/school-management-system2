@@ -18,6 +18,8 @@ export interface ApprovalDetailViewProps {
   fields: ApprovalDetailField[];
   summary?: string;
   children?: React.ReactNode;
+  /** Extra space under the last field (tab bar, absolute action bar). */
+  contentBottomInset?: number;
 }
 
 export const ApprovalDetailView: React.FC<ApprovalDetailViewProps> = ({
@@ -28,14 +30,16 @@ export const ApprovalDetailView: React.FC<ApprovalDetailViewProps> = ({
   fields,
   summary,
   children,
+  contentBottomInset,
 }) => {
   const { palette, spacing, typography, radius, shadows } = useTheme();
 
   return (
     <ScrollView
+      style={styles.flex}
       contentContainerStyle={[
         styles.content,
-        { padding: spacing.md, paddingBottom: spacing['5xl'] + spacing.xl },
+        { padding: spacing.md, paddingBottom: contentBottomInset ?? spacing.xl },
       ]}
     >
       <View
@@ -152,6 +156,7 @@ export const ApprovalDetailView: React.FC<ApprovalDetailViewProps> = ({
 };
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   content: {},
   hero: { borderWidth: StyleSheet.hairlineWidth },
   badges: { flexDirection: 'row', flexWrap: 'wrap' },

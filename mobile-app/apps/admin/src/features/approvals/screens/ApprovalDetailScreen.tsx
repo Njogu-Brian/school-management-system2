@@ -129,8 +129,9 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
   return (
     <View style={styles.flex}>
       <ScreenContainer
+        scroll={false}
+        clearFloatingTabBar={false}
         style={styles.flex}
-        contentContainerStyle={{ paddingBottom: scrollBottomPad }}
       >
         <ApprovalDetailView
           title={item.title}
@@ -139,6 +140,7 @@ export const ApprovalDetailScreen: React.FC<Props> = ({ route, navigation }) => 
           priority={item.priority}
           fields={buildApprovalDetailFields(item)}
           summary={item.summary}
+          contentBottomInset={scrollBottomPad}
         >
           {item.sourceType === 'online_admission' ? (
             <Pressable onPress={openApplication} style={{ marginTop: spacing.md }}>

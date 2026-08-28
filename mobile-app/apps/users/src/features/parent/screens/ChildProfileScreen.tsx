@@ -1,6 +1,18 @@
 import {
+  emptyKemisLearnerValues,
+  emptyKemisParentSlotValues,
+  formatLearnerInterests,
+  formatOrphanStatus,
+  formatParentSlotName,
+  kemisLearnerFromApi,
+  kemisLearnerPayload,
+  kemisParentSlotFromApi,
+  kemisParentSlotPayload,
+  useKemisOptions,
   useParentProfileReview,
   useUpdateParentProfileReview,
+  type KemisLearnerValues,
+  type KemisParentSlotValues,
   type ProfileReviewUpdatePayload,
 } from '@erp/core';
 import {
@@ -8,6 +20,8 @@ import {
   Button,
   FilterChip,
   FilterChipRow,
+  KemisLearnerFields,
+  KemisParentIdentityFields,
   ScreenContainer,
   TextField,
   useTheme,
@@ -33,6 +47,7 @@ export const ChildProfileScreen: React.FC = () => {
   const { palette, spacing, typography, radius, colors } = useTheme();
   const query = useParentProfileReview();
   const save = useUpdateParentProfileReview();
+  const kemisOptionsQuery = useKemisOptions();
 
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -43,18 +58,14 @@ export const ChildProfileScreen: React.FC = () => {
   const [hasAllergies, setHasAllergies] = useState(false);
   const [allergiesNotes, setAllergiesNotes] = useState('');
   const [immunized, setImmunized] = useState(false);
+  const [kemisLearner, setKemisLearner] = useState<KemisLearnerValues>(emptyKemisLearnerValues());
   const [residentialArea, setResidentialArea] = useState('');
   const [preferredHospital, setPreferredHospital] = useState('');
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
-  const [fatherName, setFatherName] = useState('');
-  const [fatherPhone, setFatherPhone] = useState('');
-  const [fatherEmail, setFatherEmail] = useState('');
-  const [motherName, setMotherName] = useState('');
-  const [motherPhone, setMotherPhone] = useState('');
-  const [motherEmail, setMotherEmail] = useState('');
-  const [guardianName, setGuardianName] = useState('');
-  const [guardianPhone, setGuardianPhone] = useState('');
+  const [father, setFather] = useState<KemisParentSlotValues>(emptyKemisParentSlotValues());
+  const [mother, setMother] = useState<KemisParentSlotValues>(emptyKemisParentSlotValues());
+  const [guardian, setGuardian] = useState<KemisParentSlotValues>(emptyKemisParentSlotValues());
   const [guardianRelationship, setGuardianRelationship] = useState('');
 
   const student = useMemo(
@@ -63,6 +74,7 @@ export const ChildProfileScreen: React.FC = () => {
   );
   const className = student?.class_name ?? null;
   const admission = student?.admission_number ?? null;
+  const kemisOptions = kemisOptionsQuery.data;
 
   useEffect(() => {
     if (!query.data || !student) return;
@@ -74,20 +86,16 @@ export const ChildProfileScreen: React.FC = () => {
     setHasAllergies(student.has_allergies);
     setAllergiesNotes(student.allergies_notes ?? '');
     setImmunized(student.is_fully_immunized);
+    setKemisLearner(kemisLearnerFromApi(student as Record<string, unknown>));
     setResidentialArea(student.residential_area ?? '');
     setPreferredHospital(student.preferred_hospital ?? '');
     setEmergencyName(student.emergency_contact_name ?? '');
     setEmergencyPhone(student.emergency_contact_phone ?? '');
-    const p = query.data.parent;
-    setFatherName(p.father_name ?? '');
-    setFatherPhone(p.father_phone ?? '');
-    setFatherEmail(p.father_email ?? '');
-    setMotherName(p.mother_name ?? '');
-    setMotherPhone(p.mother_phone ?? '');
-    setMotherEmail(p.mother_email ?? '');
-    setGuardianName(p.guardian_name ?? '');
-    setGuardianPhone(p.guardian_phone ?? '');
-    setGuardianRelationship(p.guardian_relationship ?? '');
+    const p = query.data.parent as Record<string, unknown>;
+    setFather(kemisParentSlotFromApi(p, 'father'));
+    setMother(kemisParentSlotFromApi(p, 'mother'));
+    setGuardian(kemisParentSlotFromApi(p, 'guardian'));
+    setGuardianRelationship(String(p.guardian_relationship ?? ''));
   }, [query.data, student]);
 
   const onSave = async () => {
@@ -100,15 +108,10 @@ export const ChildProfileScreen: React.FC = () => {
       preferred_hospital: preferredHospital.trim() || null,
       emergency_contact_name: emergencyName.trim() || null,
       emergency_contact_phone: emergencyPhone.trim() || null,
-      father_name: fatherName.trim() || null,
-      father_phone: fatherPhone.trim() || null,
-      father_email: fatherEmail.trim() || null,
-      mother_name: motherName.trim() || null,
-      mother_phone: motherPhone.trim() || null,
-      mother_email: motherEmail.trim() || null,
-      guardian_name: guardianName.trim() || null,
-      guardian_phone: guardianPhone.trim() || null,
       guardian_relationship: guardianRelationship.trim() || null,
+      ...kemisParentSlotPayload('father', father),
+      ...kemisParentSlotPayload('mother', mother),
+      ...kemisParentSlotPayload('guardian', guardian),
       students: [
         {
           id: studentId,
@@ -120,6 +123,7 @@ export const ChildProfileScreen: React.FC = () => {
           has_allergies: hasAllergies,
           allergies_notes: allergiesNotes.trim() || null,
           is_fully_immunized: immunized,
+          ...kemisLearnerPayload(kemisLearner),
         },
       ],
     };
@@ -164,7 +168,23 @@ export const ChildProfileScreen: React.FC = () => {
     paddingHorizontal: spacing.md,
   };
 
-  if (query.isLoading) {
+  const parentReadRow = (label: string, slot: KemisParentSlotValues, relationship?: string) => {
+    const name = formatParentSlotName(slot);
+    const details = [
+      name,
+      slot.id_type && slot.id_number ? `${slot.id_type}: ${slot.id_number}` : null,
+      slot.country_of_residence,
+      slot.phone,
+      slot.email,
+      relationship,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    if (!details) return null;
+    return readRow(label, details);
+  };
+
+  if (query.isLoading || kemisOptionsQuery.isLoading) {
     return (
       <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
         <AcademicScreenHeader title="Child profile" onBack={() => navigation.goBack()} />
@@ -173,7 +193,7 @@ export const ChildProfileScreen: React.FC = () => {
     );
   }
 
-  if (!student) {
+  if (!student || !kemisOptions) {
     return (
       <ScreenContainer contentContainerStyle={{ padding: spacing.md }}>
         <AcademicScreenHeader title="Child profile" onBack={() => navigation.goBack()} />
@@ -246,6 +266,28 @@ export const ChildProfileScreen: React.FC = () => {
         </View>
       )}
 
+      {sectionTitle('Birth & registration')}
+      {editing ? (
+        <KemisLearnerFields values={kemisLearner} onChange={setKemisLearner} options={kemisOptions} />
+      ) : (
+        <View style={cardStyle}>
+          {readRow('Nationality', kemisLearner.nationality)}
+          {readRow('County of birth', kemisLearner.county_of_birth)}
+          {readRow('Sub-county of birth', kemisLearner.sub_county_of_birth)}
+          {readRow('Location of birth', kemisLearner.location_of_birth)}
+          {readRow('Birth certificate entry no.', kemisLearner.birth_certificate_entry_no)}
+          {readRow('Medical condition', kemisLearner.medical_condition)}
+          {readRow('Religion', kemisLearner.religion)}
+          {readRow('Orphan status', formatOrphanStatus(kemisLearner.orphan_status, kemisOptions))}
+          {readRow('Special needs', kemisLearner.has_special_needs ? 'Yes' : 'No')}
+          {kemisLearner.has_special_needs ? readRow('Disability type', kemisLearner.disability_type) : null}
+          {readRow(
+            'Learner interests',
+            formatLearnerInterests(kemisLearner.learner_interests, kemisLearner.learner_interests_other),
+          )}
+        </View>
+      )}
+
       {sectionTitle('Household')}
       {editing ? (
         <>
@@ -270,21 +312,24 @@ export const ChildProfileScreen: React.FC = () => {
       {sectionTitle('Parents / guardians')}
       {editing ? (
         <>
-          <TextField label="Father name" value={fatherName} onChangeText={setFatherName} />
-          <TextField label="Father phone" value={fatherPhone} onChangeText={setFatherPhone} keyboardType="phone-pad" />
-          <TextField label="Father email" value={fatherEmail} onChangeText={setFatherEmail} keyboardType="email-address" />
-          <TextField label="Mother name" value={motherName} onChangeText={setMotherName} />
-          <TextField label="Mother phone" value={motherPhone} onChangeText={setMotherPhone} keyboardType="phone-pad" />
-          <TextField label="Mother email" value={motherEmail} onChangeText={setMotherEmail} keyboardType="email-address" />
-          <TextField label="Guardian name" value={guardianName} onChangeText={setGuardianName} />
-          <TextField label="Guardian phone" value={guardianPhone} onChangeText={setGuardianPhone} keyboardType="phone-pad" />
-          <TextField label="Guardian relationship" value={guardianRelationship} onChangeText={setGuardianRelationship} />
+          <KemisParentIdentityFields slot="father" title="Father" values={father} onChange={setFather} options={kemisOptions} />
+          <KemisParentIdentityFields slot="mother" title="Mother" values={mother} onChange={setMother} options={kemisOptions} />
+          <KemisParentIdentityFields
+            slot="guardian"
+            title="Guardian"
+            values={guardian}
+            onChange={setGuardian}
+            options={kemisOptions}
+            showRelationship
+            relationship={guardianRelationship}
+            onRelationshipChange={setGuardianRelationship}
+          />
         </>
       ) : (
         <View style={cardStyle}>
-          {readRow('Father', [fatherName, fatherPhone, fatherEmail].filter(Boolean).join(' · '))}
-          {readRow('Mother', [motherName, motherPhone, motherEmail].filter(Boolean).join(' · '))}
-          {readRow('Guardian', [guardianName, guardianRelationship, guardianPhone].filter(Boolean).join(' · '))}
+          {parentReadRow('Father', father)}
+          {parentReadRow('Mother', mother)}
+          {parentReadRow('Guardian', guardian, guardianRelationship)}
         </View>
       )}
 

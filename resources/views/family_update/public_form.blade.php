@@ -35,6 +35,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         :root {
             --brand-primary: {{ setting('primary_color', setting('finance_primary_color', '#390754')) }};
@@ -49,6 +50,10 @@
             --shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
         }
         * { box-sizing: border-box; }
+        html {
+            -webkit-text-size-adjust: 100%;
+            scroll-behavior: smooth;
+        }
         body {
             font-family: 'Poppins', system-ui, -apple-system, sans-serif;
             background:
@@ -56,16 +61,61 @@
                 radial-gradient(900px 320px at 100% 0%, color-mix(in srgb, var(--brand-accent) 14%, transparent), transparent),
                 var(--brand-bg);
             color: var(--brand-text);
-            min-height: 100vh;
+            min-height: 100dvh;
+            margin: 0;
+            padding:
+                max(12px, env(safe-area-inset-top))
+                max(12px, env(safe-area-inset-right))
+                max(20px, env(safe-area-inset-bottom))
+                max(12px, env(safe-area-inset-left));
+        }
+        .page-wrapper {
+            width: 100%;
+            max-width: 1180px;
+            margin: 0 auto;
         }
         .hero {
             background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
             color: #fff;
             border-radius: calc(var(--radius) + 4px);
-            padding: 28px 24px;
+            padding: 22px 20px;
             box-shadow: var(--shadow);
             position: relative;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 14px;
+        }
+        .hero__brand {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+        .hero__logo {
+            width: 52px;
+            height: 52px;
+            object-fit: contain;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.15);
+            padding: 8px;
+            flex-shrink: 0;
+        }
+        .hero__title {
+            font-size: clamp(1.15rem, 2.5vw, 1.45rem);
+            margin-bottom: 0;
+        }
+        .hero__meta {
+            font-size: 0.82rem;
+            line-height: 1.45;
+            opacity: 0.9;
+        }
+        .hero__contact span {
+            display: inline-block;
+            margin-right: 10px;
+            margin-bottom: 2px;
         }
         .hero::after {
             content: '';
@@ -81,8 +131,18 @@
             border: 1px solid var(--brand-border);
             border-radius: var(--radius);
             box-shadow: var(--shadow);
-            padding: 22px;
+            padding: clamp(14px, 2.5vw, 28px);
         }
+        .intro-note {
+            background: #f8fafc;
+            border: 1px solid var(--brand-border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 0.92rem;
+            line-height: 1.55;
+            color: var(--brand-muted);
+        }
+        .intro-note strong { color: var(--brand-text); }
         .form-section {
             border: 1px solid var(--brand-border);
             border-radius: 14px;
@@ -118,6 +178,16 @@
             border-color: var(--brand-border);
             padding: 0.7rem 0.9rem;
             min-height: 46px;
+            font-size: 16px;
+        }
+        .form-control.is-invalid, .form-select.is-invalid {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 0.15rem rgba(220, 53, 69, 0.12);
+        }
+        .field-error-hint {
+            color: #b42318;
+            font-size: 0.82rem;
+            margin-top: 6px;
         }
         .form-control:focus, .form-select:focus {
             border-color: var(--brand-primary);
@@ -200,19 +270,101 @@
             border-radius: 12px;
             border: none;
         }
+        .feedback-alert {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .feedback-alert:last-child { margin-bottom: 0; }
+        .feedback-alert__icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+            font-size: 0.9rem;
+        }
+        .alert-success .feedback-alert__icon { background: rgba(5, 150, 105, 0.15); color: #047857; }
+        .alert-warning .feedback-alert__icon { background: rgba(217, 119, 6, 0.15); color: #b45309; }
+        .alert-danger .feedback-alert__icon { background: rgba(220, 53, 69, 0.15); color: #b42318; }
+        .feedback-alert__body p:last-child { margin-bottom: 0; }
+        .feedback-error-list {
+            padding-left: 1.1rem;
+            margin-bottom: 0;
+        }
+        .feedback-error-list li { margin-bottom: 6px; }
+        .feedback-error-list li:last-child { margin-bottom: 0; }
+        .feedback-error-label { font-weight: 600; }
+        .phone-input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+        }
+        .phone-input-group .phone-flag {
+            display: none;
+        }
+        .phone-input-group .phone-code-select {
+            max-width: 140px;
+            flex: 0 0 auto;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        .phone-input-group .phone-input {
+            flex: 1 1 160px;
+            min-width: 0;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
         .sticky-actions {
             position: sticky;
             bottom: 0;
-            background: linear-gradient(180deg, transparent, var(--brand-surface) 28%);
-            padding: 16px 0 8px;
-            margin-top: 8px;
+            background: linear-gradient(180deg, transparent, var(--brand-surface) 24%);
+            padding: 16px 0 max(8px, env(safe-area-inset-bottom));
+            margin-top: 12px;
             z-index: 5;
         }
-        @media (max-width: 576px) {
-            .hero { padding: 20px 18px; border-radius: 16px; }
-            .form-shell { padding: 14px; border-radius: 14px; }
+        .student-section-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        @media (min-width: 576px) {
+            body { padding: 20px 24px 32px; }
+            .hero {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                padding: 24px 26px;
+            }
+            .hero__logo { width: 56px; height: 56px; }
+            .phone-input-group .phone-flag { display: flex; }
+        }
+        @media (min-width: 992px) {
+            .page-wrapper { max-width: 1240px; }
+            .form-section { padding: 22px; }
+        }
+        @media (max-width: 575.98px) {
+            .hero { border-radius: 14px; }
+            .form-shell { border-radius: 14px; }
             .form-section { padding: 14px; }
-            .container { padding-left: 12px; padding-right: 12px; }
+            .file-upload-btn { flex: 1 1 100%; }
+            .phone-input-group .phone-code-select {
+                max-width: 100%;
+                flex: 1 1 100%;
+                border-radius: 12px 12px 0 0;
+            }
+            .phone-input-group .phone-input {
+                flex: 1 1 100%;
+                border-radius: 0 0 12px 12px;
+            }
+            .badge-pill { align-self: flex-start; }
         }
     </style>
 </head>
@@ -223,77 +375,50 @@
     $schoolEmail = setting('school_email') ?? null;
     $schoolAddress = setting('school_address') ?? null;
 @endphp
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-xl-9 col-lg-10">
-            <div class="hero mb-3 d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center gap-3">
-                    <img src="{{ $logoUrl }}" alt="Logo" style="width:56px;height:56px;object-fit:contain;border-radius:12px;background:rgba(255,255,255,0.15);padding:8px;">
-                    <div>
+<div class="page-wrapper">
+            <div class="hero mb-3">
+                <div class="hero__brand">
+                    <img src="{{ $logoUrl }}" alt="{{ $schoolName }} logo" class="hero__logo">
+                    <div class="min-w-0">
                         <div class="fw-semibold text-uppercase small" style="letter-spacing:0.6px;">{{ $schoolName }}</div>
-                        <h4 class="mb-0">Student Details</h4>
-                        <small class="opacity-75">
-                            {{ $family ? 'Family ID: ' . $family->id : 'Student Update' }}
+                        <h1 class="hero__title">Update Student Details</h1>
+                        <div class="hero__meta">
+                            {{ $family ? 'Family reference: '.$family->id : 'Student profile update' }}
                             @if($schoolPhone || $schoolEmail || $schoolAddress)
-                                <span class="d-block mt-1">
+                                <div class="hero__contact mt-1">
                                     @if($schoolPhone)
-                                        <span class="me-2"><strong>Tel:</strong> {{ $schoolPhone }}</span>
+                                        <span><strong>Tel:</strong> {{ $schoolPhone }}</span>
                                     @endif
                                     @if($schoolEmail)
-                                        <span class="me-2"><strong>Email:</strong> {{ $schoolEmail }}</span>
+                                        <span><strong>Email:</strong> {{ $schoolEmail }}</span>
                                     @endif
                                     @if($schoolAddress)
                                         <span class="d-block"><strong>Address:</strong> {{ $schoolAddress }}</span>
                                     @endif
-                                </span>
+                                </div>
                             @endif
-                        </small>
+                        </div>
                     </div>
                 </div>
-                <span class="badge-pill">Encrypted Link</span>
+                <span class="badge-pill"><i class="bi bi-shield-lock me-1"></i> Secure link</span>
             </div>
 
-            <div class="form-shell p-4">
-                @if(session('success'))
-                    <div class="alert alert-success alert-dismissible fade show">
-                        <i class="bi bi-check-circle me-2"></i>{{ session('success') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                @endif
-                
-                @if(session('error'))
-                    <div class="alert alert-danger alert-dismissible fade show">
-                        <i class="bi bi-exclamation-triangle me-2"></i><strong>Error:</strong> {{ session('error') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                @endif
-                
-                @if(session('warning'))
-                    <div class="alert alert-warning alert-dismissible fade show">
-                        <i class="bi bi-exclamation-circle me-2"></i>{{ session('warning') }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                @endif
-                
-                @if($errors->any())
-                    <div class="alert alert-danger alert-dismissible fade show">
-                        <i class="bi bi-exclamation-triangle me-2"></i><strong>Validation Errors:</strong>
-                        <ul class="mb-0 mt-2">
-                            @foreach($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                @endif
-                
+            <div class="form-shell">
+                @include('family_update.partials.feedback')
+
                 <form action="{{ route('family-update.submit', $link->token) }}" method="POST" enctype="multipart/form-data" novalidate id="familyUpdateForm">
                     @csrf
-                    <p class="text-muted small mb-3">Complete each child’s details as they appear on the birth certificate. Fields marked <span class="text-danger">*</span> are required. Parent and guardian details are shared for siblings and only need to be filled once. Fill in all father details or all mother details (ID document upload is optional). Assessment numbers are completed by the school.</p>
+                    <div class="intro-note mb-4">
+                        <strong>How this form works</strong><br>
+                        Fill in your child’s details as they appear on the birth certificate. You can <strong>save your progress at any time</strong> — if something is still missing, we will tell you exactly what to complete next.
+                        Parent/guardian details are shared for siblings and only need to be filled once.
+                        Complete <strong>all father details or all mother details</strong> (ID upload is optional).
+                        Fields marked <span class="text-danger">*</span> are required for that section to save.
+                    </div>
                     @foreach($students as $stu)
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="section-header text-uppercase mb-0">Student Details</h6>
-                            <span class="badge bg-light text-dark">Admission #{{ $stu->admission_number }}</span>
+                        <div class="student-section-header">
+                            <h2 class="section-header text-uppercase mb-0 h6">Student Details</h2>
+                            <span class="badge bg-light text-dark border">Admission #{{ $stu->admission_number }}</span>
                         </div>
                         <div class="form-section mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -301,7 +426,7 @@
                             </div>
                             <input type="hidden" name="students[{{ $stu->id }}][id]" value="{{ $stu->id }}">
                             <div class="row g-3">
-                                <div class="col-md-4">
+                                <div class="col-12 col-sm-6 col-lg-4">
                                     <label class="form-label">First Name <span class="text-danger">*</span></label>
                                     <input type="text" name="students[{{ $stu->id }}][first_name]" class="form-control" value="{{ old('students.'.$stu->id.'.first_name', $stu->first_name) }}" required>
                                 </div>

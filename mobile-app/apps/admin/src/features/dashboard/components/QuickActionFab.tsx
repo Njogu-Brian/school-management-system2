@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import React, { useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigateToDrawer, navigateToTab } from '../../../navigation/navigateWorkspace';
 
 type Action = {
@@ -20,7 +21,8 @@ const ACTION_TONES = ['emerald', 'indigo', 'rose', 'amber', 'cyan', 'violet', 't
 export const QuickActionFab: React.FC = () => {
   const { palette, spacing, typography, radius, elevation, opacity, zIndex } = useTheme();
   const navigation = useNavigation();
-  const tabClearance = useFloatingTabBarClearance();
+  const insets = useSafeAreaInsets();
+  const tabClearance = useFloatingTabBarClearance(true);
   const [open, setOpen] = useState(false);
 
   const canAdmissions = useCan('admissions.view');
@@ -118,7 +120,6 @@ export const QuickActionFab: React.FC = () => {
       elevation[5],
       {
         right: spacing.mdLg,
-        /** Sit fully above floating premium tab bar */
         bottom: tabClearance + spacing.sm,
         borderRadius: radius.full,
         zIndex: zIndex.fab,
@@ -143,61 +144,81 @@ export const QuickActionFab: React.FC = () => {
         </LinearGradient>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable
-          style={[styles.backdrop, { backgroundColor: `rgba(0,0,0,${opacity.scrim})` }]}
-          onPress={() => setOpen(false)}
-        >
+        <View style={styles.overlay}>
+          <Pressable
+            style={[styles.backdrop, { backgroundColor: `rgba(0,0,0,${opacity.scrim})` }]}
+            onPress={() => setOpen(false)}
+            accessibilityLabel="Close quick actions"
+          />
           <View
             style={[
               styles.sheet,
               {
                 backgroundColor: palette.surfaceRaised,
-                padding: spacing.mdLg,
+                paddingTop: spacing.md,
+                paddingHorizontal: spacing.md,
+                paddingBottom: Math.max(insets.bottom, spacing.md),
                 borderTopLeftRadius: radius.sheet,
                 borderTopRightRadius: radius.sheet,
+                maxHeight: '78%',
               },
             ]}
           >
+            <View style={[styles.handle, { backgroundColor: palette.border }]} />
             <Text
               style={{
                 fontWeight: typography.title.fontWeight,
                 fontSize: typography.title.fontSize,
-                marginBottom: spacing.md,
+                marginBottom: spacing.sm,
                 color: palette.textMain,
               }}
             >
               Quick actions
             </Text>
-            {actions.map((action, index) => (
-              <Pressable
-                key={action.id}
-                onPress={() => {
-                  setOpen(false);
-                  action.onPress();
-                }}
-                style={[
-                  styles.action,
-                  {
-                    borderColor: palette.borderSubtle,
-                    paddingVertical: spacing.mdSm,
-                    gap: spacing.md,
-                  },
-                ]}
-              >
-                <AccentIcon
-                  name={action.icon}
-                  tone={ACTION_TONES[index % ACTION_TONES.length]}
-                  size={40}
-                  iconSize={18}
-                />
-                <Text style={{ color: palette.textMain, fontSize: typography.body.fontSize, fontWeight: '600', flex: 1 }}>
-                  {action.label}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color={palette.textMuted} />
-              </Pressable>
-            ))}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: spacing.sm }}
+            >
+              {actions.map((action, index) => (
+                <Pressable
+                  key={action.id}
+                  onPress={() => {
+                    setOpen(false);
+                    action.onPress();
+                  }}
+                  accessibilityRole="button"
+                  style={[
+                    styles.action,
+                    {
+                      borderColor: palette.borderSubtle,
+                      paddingVertical: spacing.mdSm,
+                      gap: spacing.md,
+                    },
+                  ]}
+                >
+                  <AccentIcon
+                    name={action.icon}
+                    tone={ACTION_TONES[index % ACTION_TONES.length]}
+                    size={40}
+                    iconSize={18}
+                  />
+                  <Text
+                    style={{
+                      color: palette.textMain,
+                      fontSize: typography.body.fontSize,
+                      fontWeight: '600',
+                      flex: 1,
+                    }}
+                  >
+                    {action.label}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={palette.textMuted} />
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </>
   );
@@ -214,8 +235,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backdrop: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { maxHeight: '70%' },
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+  sheet: {},
   action: {
     flexDirection: 'row',
     alignItems: 'center',

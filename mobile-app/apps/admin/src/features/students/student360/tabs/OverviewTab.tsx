@@ -1,9 +1,11 @@
-import { buildStudentTimeline, type StudentDetail, type StudentStatementRecord } from '@erp/core';
+import { buildStudentTimeline, type StudentDetail, type StudentStatementRecord, useKemisOptions } from '@erp/core';
 import {
   Soft3DIcon,
   StaffFieldSection,
   StudentSummaryWidgets,
   StudentTimeline,
+  formatLearnerInterests,
+  formatOrphanStatus,
   useTheme,
   type StudentSummaryWidgetData,
   type StudentTimelineEventData,
@@ -135,6 +137,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   statement,
 }) => {
   const { palette, typography, spacing, colors, radius, elevation } = useTheme();
+  const kemisOptionsQuery = useKemisOptions();
+  const kemisOptions = kemisOptionsQuery.data;
 
   const classLabel = [student.className, student.streamName].filter(Boolean).join(' · ') || 'Unassigned';
   const feeBalanceValue = feeBalance ?? statement?.closing_balance ?? student.outstandingBalance;
@@ -291,6 +295,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             { label: 'Admission date', value: formatDateLabel(student.admissionDate) },
             { label: 'Enrollment year', value: student.enrollmentYear != null ? String(student.enrollmentYear) : null },
             { label: 'NEMIS', value: student.nemisNumber },
+            { label: 'Religion', value: student.religion },
+            { label: 'Nationality', value: student.nationality },
+            { label: 'County of birth', value: student.countyOfBirth },
+            { label: 'Birth certificate entry no.', value: student.birthCertificateEntryNo },
+            {
+              label: 'Orphan status',
+              value: formatOrphanStatus(student.orphanStatus, kemisOptions),
+            },
+            {
+              label: 'Learner interests',
+              value: formatLearnerInterests(student.learnerInterests),
+            },
             { label: 'Phone', value: student.phone },
             { label: 'Email', value: student.email },
             { label: 'Address', value: student.address },

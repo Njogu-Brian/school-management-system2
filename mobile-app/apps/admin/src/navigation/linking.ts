@@ -248,7 +248,18 @@ export const linking: LinkingOptions<DrawerParamList> = {
           },
         },
       },
-      Settings: 'settings',
+      Settings: {
+        path: 'settings',
+        screens: {
+          SettingsHub: '',
+          SettingsSchool: 'school',
+          SettingsAcademic: 'academic',
+          SettingsGrading: 'grading',
+          SettingsRoles: 'roles',
+          SettingsSession: 'session',
+          SettingsAbout: 'about',
+        },
+      },
     },
   },
 };

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\ApiSeniorTeacherController;
 use App\Http\Controllers\Api\ApiAccountController;
 use App\Http\Controllers\Api\ApiNotificationPreferencesController;
 use App\Http\Controllers\Api\ApiStaffClockController;
+use App\Http\Controllers\Api\ApiKemisController;
 use App\Http\Controllers\Api\AuthApiController;
 use App\Http\Controllers\Api\ApiExamReportsController;
 use App\Http\Controllers\Api\ApiFeeClearanceController;
@@ -169,6 +170,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     });
 
     Route::get('/user', [AuthApiController::class, 'user']);
+    Route::get('/kemis/options', [ApiKemisController::class, 'options']);
     Route::post('/logout', [AuthApiController::class, 'logout']);
 
     // Parent profile review (post-claim, data-only, no file uploads)

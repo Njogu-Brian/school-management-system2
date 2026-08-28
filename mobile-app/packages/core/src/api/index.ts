@@ -46,5 +46,6 @@ export * from './diary.api';
 export * from './homework.api';
 export * from './activities.api';
 export * from './transportLive.api';
+export * from './kemis.api';
 export { transportSpecialApi } from './transportSpecial.api';
 export type { TransportSpecialAssignmentRecord as TransportSpecialApiAssignmentRecord } from './transportSpecial.api';

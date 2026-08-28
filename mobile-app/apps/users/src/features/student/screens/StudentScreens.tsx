@@ -8,7 +8,6 @@ import {
   QuickAction,
   ScreenContainer,
   SkeletonListRows,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -28,14 +27,13 @@ export const StudentHomeScreen: React.FC = () => {
   const { logout } = useAuth();
   const { spacing, colors } = useTheme();
   const navigation = useNavigation();
-  const tabClearance = useFloatingTabBarClearance();
   const studentId = user?.studentId ?? 0;
   const unreadQuery = useUnreadNotificationCount();
 
   const meta = (unreadQuery.data ?? 0) > 0 ? `${unreadQuery.data} unread notifications` : undefined;
 
   return (
-    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}>
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <DashboardHero
         variant="academics"
         greeting={timeOfDayGreeting()}

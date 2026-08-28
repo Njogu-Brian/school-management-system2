@@ -5,7 +5,6 @@ import {
   DashboardSection,
   QuickAction,
   ScreenContainer,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -80,7 +79,6 @@ export const TeacherHomeScreen: React.FC = () => {
   const { logout } = useAuth();
   const { spacing, colors } = useTheme();
   const navigation = useNavigation<Nav>();
-  const tabClearance = useFloatingTabBarClearance();
   const classroomsQuery = useClassrooms();
   const unreadQuery = useUnreadNotificationCount();
 
@@ -115,7 +113,7 @@ export const TeacherHomeScreen: React.FC = () => {
     <ScreenContainer
       scroll
       edges={['bottom']}
-      contentContainerStyle={{ padding: spacing.md, paddingBottom: tabClearance }}
+      contentContainerStyle={{ padding: spacing.md }}
     >
       <DashboardHero
         variant="academics"

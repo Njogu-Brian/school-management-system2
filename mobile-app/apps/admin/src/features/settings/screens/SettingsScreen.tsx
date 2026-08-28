@@ -4,53 +4,97 @@ import {
   ScreenContainer,
   SettingsHubLayout,
   useTheme,
-  type SettingsSectionId,
+  type ThemeMode,
 } from '@erp/ui';
-import { useRoute, type RouteProp } from '@react-navigation/native';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, ScrollView } from 'react-native';
-import { ApiDiagnosticsScreen } from '../../diagnostics';
-import type { DrawerParamList } from '../../../navigation/types';
-import { AcademicSettingsSection } from '../sections/AcademicSettingsSection';
-import { GradingSettingsSection } from '../sections/GradingSettingsSection';
-import { RolesSettingsSection } from '../sections/RolesSettingsSection';
-import { SchoolSettingsSection } from '../sections/SchoolSettingsSection';
-import { AboutScreen } from './AboutScreen';
-import { SessionScreen } from './SessionScreen';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import React, { useMemo } from 'react';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import type { SettingsStackParamList } from '../../../navigation/settingsStackTypes';
+import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 
 const area = getNavArea('settings');
 
-const ALL_SECTIONS = [
-  { id: 'school' as const, label: 'School', icon: 'business-outline' },
-  { id: 'academic' as const, label: 'Academic', icon: 'calendar-outline' },
-  { id: 'grading' as const, label: 'Grading', icon: 'ribbon-outline' },
-  { id: 'roles' as const, label: 'Roles', icon: 'shield-checkmark-outline' },
+const THEME_OPTIONS: Array<{ id: ThemeMode; label: string }> = [
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'auto', label: 'Automatic' },
 ];
 
 export const SettingsScreen: React.FC = () => {
-  const route = useRoute<RouteProp<DrawerParamList, 'Settings'>>();
-  const { spacing } = useTheme();
+  const navigation = useNavigation<StackNavigationProp<SettingsStackParamList>>();
+  const { spacing, palette, typography, radius, colors, themeMode, setThemeMode, isDark } = useTheme();
+  const { surfaceMode, setSurfaceMode } = useSurfaceModeControl();
   const canView = useCan('settings.view');
   const schoolQuery = useSchoolSettings({ enabled: canView });
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>('school');
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-  const [sessionOpen, setSessionOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
 
-  const resetHub = useCallback(() => {
-    setActiveSection('school');
-    setDiagnosticsOpen(false);
-    setSessionOpen(false);
-    setAboutOpen(false);
-  }, []);
+  const schoolName = schoolQuery.data?.school_name?.trim() || 'Settings';
+  const schoolSubtitle =
+    schoolQuery.data?.school_email?.trim() || 'Administration & configuration';
 
-  useEffect(() => {
-    if (route.params?.resetAt != null) {
-      resetHub();
-    }
-  }, [route.params?.resetAt, resetHub]);
-
-  const sections = useMemo(() => ALL_SECTIONS, []);
+  const groups = useMemo(
+    () => [
+      {
+        title: 'School configuration',
+        rows: [
+          {
+            id: 'school',
+            label: 'School',
+            subtitle: 'Name, contact, branding',
+            icon: 'business-outline' as const,
+            tone: 'blue' as const,
+            onPress: () => navigation.navigate('SettingsSchool'),
+          },
+          {
+            id: 'academic',
+            label: 'Academic',
+            subtitle: 'Years, terms, classes',
+            icon: 'calendar-outline' as const,
+            tone: 'teal' as const,
+            onPress: () => navigation.navigate('SettingsAcademic'),
+          },
+          {
+            id: 'grading',
+            label: 'Grading',
+            subtitle: 'Schemes and exam types',
+            icon: 'ribbon-outline' as const,
+            tone: 'violet' as const,
+            onPress: () => navigation.navigate('SettingsGrading'),
+          },
+          {
+            id: 'roles',
+            label: 'Roles',
+            subtitle: 'Permissions (read-only)',
+            icon: 'shield-checkmark-outline' as const,
+            tone: 'indigo' as const,
+            onPress: () => navigation.navigate('SettingsRoles'),
+          },
+        ],
+      },
+      {
+        title: 'This device',
+        rows: [
+          {
+            id: 'session',
+            label: 'Session & security',
+            subtitle: 'PIN, password, signed-in devices',
+            icon: 'lock-closed-outline' as const,
+            tone: 'cyan' as const,
+            onPress: () => navigation.navigate('SettingsSession'),
+          },
+          {
+            id: 'about',
+            label: 'About & support',
+            subtitle: 'Version, live updates, legal',
+            icon: 'information-circle-outline' as const,
+            tone: 'amber' as const,
+            onPress: () => navigation.navigate('SettingsAbout'),
+          },
+        ],
+      },
+    ],
+    [navigation],
+  );
 
   if (!canView) {
     return (
@@ -62,78 +106,117 @@ export const SettingsScreen: React.FC = () => {
     );
   }
 
-  const content = (() => {
-    switch (activeSection) {
-      case 'school':
-        return <SchoolSettingsSection />;
-      case 'academic':
-        return <AcademicSettingsSection />;
-      case 'grading':
-        return <GradingSettingsSection />;
-      case 'roles':
-        return <RolesSettingsSection />;
-      default:
-        return null;
-    }
-  })();
-
-  const schoolName = schoolQuery.data?.school_name?.trim() || 'Settings';
-  const schoolSubtitle =
-    schoolQuery.data?.school_email?.trim() || 'Administration & configuration';
-
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView
-        style={{ flex: 1 }}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: spacing.xl }}
-      >
-        <SettingsHubLayout
-          sections={sections}
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          schoolName={schoolName}
-          schoolSubtitle={schoolSubtitle}
-          meta="Read-only on mobile"
-          footerLinks={[
-            {
-              id: 'session',
-              label: 'Session & security',
-              icon: 'lock-closed-outline',
-              onPress: () => setSessionOpen(true),
-            },
-            {
-              id: 'about',
-              label: 'About & support',
-              icon: 'information-circle-outline',
-              onPress: () => setAboutOpen(true),
-            },
-            ...(__DEV__
-              ? [
-                  {
-                    id: 'diagnostics',
-                    label: 'API Health (dev)',
-                    icon: 'pulse-outline' as const,
-                    onPress: () => setDiagnosticsOpen(true),
-                  },
-                ]
-              : []),
-          ]}
-        >
-          {content}
-        </SettingsHubLayout>
-      </ScrollView>
-      <Modal visible={sessionOpen} animationType="slide" onRequestClose={() => setSessionOpen(false)}>
-        <SessionScreen onBack={() => setSessionOpen(false)} />
-      </Modal>
-      <Modal visible={aboutOpen} animationType="slide" onRequestClose={() => setAboutOpen(false)}>
-        <AboutScreen onBack={() => setAboutOpen(false)} />
-      </Modal>
-      {__DEV__ ? (
-        <Modal visible={diagnosticsOpen} animationType="slide" onRequestClose={() => setDiagnosticsOpen(false)}>
-          <ApiDiagnosticsScreen onClose={() => setDiagnosticsOpen(false)} />
-        </Modal>
-      ) : null}
+    <ScreenContainer contentContainerStyle={{ paddingBottom: spacing.md }}>
+      <SettingsHubLayout
+        schoolName={schoolName}
+        schoolSubtitle={schoolSubtitle}
+        meta="Read-only on mobile"
+        appearance={
+          <View style={{ gap: spacing.sm }}>
+            <Text
+              style={{
+                color: palette.textMuted,
+                fontSize: typography.overline.fontSize,
+                fontWeight: typography.overline.fontWeight,
+                letterSpacing: typography.overline.letterSpacing,
+                textTransform: 'uppercase',
+                marginLeft: spacing.xs,
+              }}
+            >
+              Appearance
+            </Text>
+            <View
+              style={[
+                styles.appearanceCard,
+                {
+                  backgroundColor: palette.surfaceRaised,
+                  borderColor: palette.borderSubtle,
+                  borderRadius: radius.card,
+                  padding: spacing.md,
+                },
+              ]}
+            >
+              <View style={[styles.segment, { backgroundColor: palette.surfaceMuted, borderRadius: radius.control }]}>
+                {THEME_OPTIONS.map((mode) => {
+                  const active = themeMode === mode.id;
+                  return (
+                    <Pressable
+                      key={mode.id}
+                      onPress={() => setThemeMode(mode.id)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      style={[
+                        styles.segmentItem,
+                        active
+                          ? { backgroundColor: palette.surfaceRaised, borderColor: colors.primary }
+                          : { borderColor: 'transparent' },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: active ? colors.primary : palette.textSub,
+                          fontWeight: active ? '700' : '600',
+                          fontSize: typography.caption.fontSize,
+                        }}
+                      >
+                        {mode.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text
+                style={{
+                  color: palette.textSub,
+                  fontSize: typography.caption.fontSize,
+                  marginTop: spacing.sm,
+                }}
+              >
+                Automatic uses light during the day and dark from 7:00 pm to 6:00 am.
+              </Text>
+              <View style={[styles.amoledRow, { marginTop: spacing.md, opacity: isDark ? 1 : 0.45 }]}>
+                <View style={{ flex: 1, marginRight: spacing.sm }}>
+                  <Text style={{ color: palette.textMain, fontWeight: '600' }}>AMOLED black</Text>
+                  <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+                    True black in dark mode
+                  </Text>
+                </View>
+                <Switch
+                  value={surfaceMode === 'amoled'}
+                  disabled={!isDark}
+                  onValueChange={(on) => setSurfaceMode(on ? 'amoled' : 'default')}
+                />
+              </View>
+            </View>
+          </View>
+        }
+        groups={groups}
+      />
     </ScreenContainer>
   );
 };
+
+const styles = StyleSheet.create({
+  appearanceCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  segment: {
+    flexDirection: 'row',
+    padding: 4,
+    gap: 4,
+  },
+  segmentItem: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  amoledRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+});

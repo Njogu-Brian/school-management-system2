@@ -1,4 +1,5 @@
 export * from './ScreenContainer';
+export * from './FooterDock';
 export * from './GlobalAppHeader';
 export * from './ScreenHeader';
 export * from './PremiumTabBar';

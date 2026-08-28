@@ -197,6 +197,16 @@
                     </div>
                 </div>
 
+                <h5 class="section-title"><i class="bi bi-card-checklist"></i> Birth & Registration Details</h5>
+                <div class="row g-3">
+                    @include('students.partials.kemis_learner_fields', [
+                        'student' => null,
+                        'htmlPrefix' => '',
+                        'oldPrefix' => '',
+                        'fieldIdSuffix' => 'admission',
+                    ])
+                </div>
+
                 <div class="row g-3 mt-2" id="previous-school-section" style="display:none;">
                     <div class="col-md-6">
                         <label class="form-label">Previous School Attended</label>
@@ -222,8 +232,9 @@
                 </div>
 
                 <h5 class="section-title"><i class="bi bi-person-badge"></i> Father Information</h5>
+                <div class="alert alert-info py-2 small">Complete all father details or all mother details. ID document upload is optional.</div>
                 <div class="row g-3">
-                    <div class="col-md-6"><label class="form-label">Father's Name</label><input type="text" name="father_name" class="form-control" value="{{ old('father_name') }}"></div>
+                    @include('students.partials.kemis_parent_identity_fields', ['slot' => 'father', 'parent' => null, 'title' => 'Father'])
                     <div class="col-md-6"><label class="form-label">Father's Phone</label>
                       <div class="input-group">
                         <select name="father_phone_country_code" class="form-select" style="max-width:140px">
@@ -246,13 +257,12 @@
                       <small class="text-muted">Use same country code as phone.</small>
                     </div>
                     <div class="col-md-6"><label class="form-label">Father's Email</label><input type="email" name="father_email" class="form-control" value="{{ old('father_email') }}"></div>
-                    <div class="col-md-6"><label class="form-label">Father's ID Number</label><input type="text" name="father_id_number" class="form-control" value="{{ old('father_id_number') }}"></div>
                     <div class="col-md-6"><label class="form-label">Father ID Document</label><input type="file" name="father_id_document" class="form-control" accept=".pdf,.jpg,.jpeg,.png"></div>
                 </div>
 
                 <h5 class="section-title"><i class="bi bi-person-badge"></i> Mother Information</h5>
                 <div class="row g-3">
-                    <div class="col-md-6"><label class="form-label">Mother's Name</label><input type="text" name="mother_name" class="form-control" value="{{ old('mother_name') }}"></div>
+                    @include('students.partials.kemis_parent_identity_fields', ['slot' => 'mother', 'parent' => null, 'title' => 'Mother'])
                     <div class="col-md-6"><label class="form-label">Mother's Phone</label>
                       <div class="input-group">
                         <select name="mother_phone_country_code" class="form-select" style="max-width:140px">
@@ -275,13 +285,12 @@
                       <small class="text-muted">Use same country code as phone.</small>
                     </div>
                     <div class="col-md-6"><label class="form-label">Mother's Email</label><input type="email" name="mother_email" class="form-control" value="{{ old('mother_email') }}"></div>
-                    <div class="col-md-6"><label class="form-label">Mother's ID Number</label><input type="text" name="mother_id_number" class="form-control" value="{{ old('mother_id_number') }}"></div>
                     <div class="col-md-6"><label class="form-label">Mother ID Document</label><input type="file" name="mother_id_document" class="form-control" accept=".pdf,.jpg,.jpeg,.png"></div>
                 </div>
 
                 <h5 class="section-title"><i class="bi bi-shield-check"></i> Guardian Information</h5>
                 <div class="row g-3">
-                    <div class="col-md-4"><label class="form-label">Guardian's Name</label><input type="text" name="guardian_name" class="form-control" value="{{ old('guardian_name') }}"></div>
+                    @include('students.partials.kemis_parent_identity_fields', ['slot' => 'guardian', 'parent' => null, 'title' => 'Guardian', 'showRelationship' => true])
                     <div class="col-md-4"><label class="form-label">Guardian's Phone</label>
                       <div class="input-group">
                         <select name="guardian_phone_country_code" class="form-select" style="max-width:140px">
@@ -322,17 +331,17 @@
                       <input class="form-check-input" type="checkbox" id="is_fully_immunized" name="is_fully_immunized" value="1" @checked(old('is_fully_immunized'))>
                       <label class="form-check-label" for="is_fully_immunized">Child is fully immunized</label>
                     </div>
-                    <label class="form-label mt-3">Preferred Hospital / Medical Facility</label>
-                    <input type="text" name="preferred_hospital" class="form-control" value="{{ old('preferred_hospital') }}">
+                    <label class="form-label mt-3">Preferred Hospital / Medical Facility <span class="text-danger">*</span></label>
+                    <input type="text" name="preferred_hospital" class="form-control" value="{{ old('preferred_hospital') }}" required>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label">Emergency Contact Name</label>
+                    <label class="form-label">Emergency Contact Name <span class="text-danger">*</span></label>
                     <small class="text-muted d-block mb-1">Person we call if parents/guardians cannot be reached.</small>
-                    <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name') }}">
+                    <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name') }}" required>
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label">Emergency Phone</label>
-                    <input type="text" name="emergency_contact_phone" class="form-control" value="{{ old('emergency_contact_phone') }}" placeholder="+2547XXXXXXXX">
+                    <label class="form-label">Emergency Phone <span class="text-danger">*</span></label>
+                    <input type="text" name="emergency_contact_phone" class="form-control" value="{{ old('emergency_contact_phone') }}" placeholder="+2547XXXXXXXX" required>
                   </div>
                 </div>
 
@@ -525,9 +534,15 @@
           }
 
           // Check at least one parent contact
-          const fatherName = form.querySelector('[name="father_name"]').value.trim();
-          const motherName = form.querySelector('[name="mother_name"]').value.trim();
-          const guardianName = form.querySelector('[name="guardian_name"]').value.trim();
+          function slotName(prefix) {
+            const parts = ['first_name', 'middle_name', 'last_name']
+              .map(k => (form.querySelector('[name="' + prefix + '_' + k + '"]')?.value || '').trim())
+              .filter(Boolean);
+            return parts.join(' ');
+          }
+          const fatherName = slotName('father');
+          const motherName = slotName('mother');
+          const guardianName = slotName('guardian');
           const fatherPhone = form.querySelector('[name="father_phone"]').value.trim();
           const motherPhone = form.querySelector('[name="mother_phone"]').value.trim();
           const guardianPhone = form.querySelector('[name="guardian_phone"]').value.trim();

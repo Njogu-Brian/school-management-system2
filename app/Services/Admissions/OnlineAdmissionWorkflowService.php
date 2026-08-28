@@ -154,6 +154,11 @@ class OnlineAdmissionWorkflowService
 
             $parentData = [
                 'father_name' => $admission->father_name,
+                'father_first_name' => $admission->father_first_name,
+                'father_middle_name' => $admission->father_middle_name,
+                'father_last_name' => $admission->father_last_name,
+                'father_id_type' => $admission->father_id_type,
+                'father_country_of_residence' => $admission->father_country_of_residence,
                 'father_phone' => $formatPhone($admission->father_phone, $admission->father_phone_country_code ?? '+254'),
                 'father_phone_country_code' => $admission->father_phone_country_code ?? '+254',
                 'father_whatsapp' => $formatPhone($admission->father_whatsapp, $admission->father_phone_country_code ?? '+254'),
@@ -161,6 +166,11 @@ class OnlineAdmissionWorkflowService
                 'father_id_number' => $admission->father_id_number,
                 'father_id_document' => $admission->father_id_document,
                 'mother_name' => $admission->mother_name,
+                'mother_first_name' => $admission->mother_first_name,
+                'mother_middle_name' => $admission->mother_middle_name,
+                'mother_last_name' => $admission->mother_last_name,
+                'mother_id_type' => $admission->mother_id_type,
+                'mother_country_of_residence' => $admission->mother_country_of_residence,
                 'mother_phone' => $formatPhone($admission->mother_phone, $admission->mother_phone_country_code ?? '+254'),
                 'mother_phone_country_code' => $admission->mother_phone_country_code ?? '+254',
                 'mother_whatsapp' => $formatPhone($admission->mother_whatsapp, $admission->mother_phone_country_code ?? '+254'),
@@ -168,8 +178,14 @@ class OnlineAdmissionWorkflowService
                 'mother_id_number' => $admission->mother_id_number,
                 'mother_id_document' => $admission->mother_id_document,
                 'guardian_name' => $admission->guardian_name,
+                'guardian_first_name' => $admission->guardian_first_name,
+                'guardian_middle_name' => $admission->guardian_middle_name,
+                'guardian_last_name' => $admission->guardian_last_name,
+                'guardian_id_type' => $admission->guardian_id_type,
+                'guardian_country_of_residence' => $admission->guardian_country_of_residence,
                 'guardian_phone' => $formatPhone($admission->guardian_phone, $admission->guardian_phone_country_code ?? '+254'),
                 'guardian_phone_country_code' => $admission->guardian_phone_country_code ?? '+254',
+                'guardian_whatsapp' => $formatPhone($admission->guardian_whatsapp, $admission->guardian_phone_country_code ?? '+254'),
                 'guardian_relationship' => $admission->guardian_relationship,
                 'marital_status' => $admission->marital_status,
             ];
@@ -200,7 +216,7 @@ class OnlineAdmissionWorkflowService
             $enrollmentYear = $validated['enrollment_year'] ?? null;
             $enrollmentTerm = $validated['enrollment_term'] ?? null;
 
-            $student = Student::create([
+            $student = Student::create(array_merge([
                 'admission_number' => $admissionNumber,
                 'first_name' => $admission->first_name,
                 'middle_name' => $admission->middle_name,
@@ -233,7 +249,19 @@ class OnlineAdmissionWorkflowService
                 'admission_date' => $admissionDate,
                 'enrollment_year' => $enrollmentYear,
                 'enrollment_term' => $enrollmentTerm,
-            ]);
+            ], array_filter([
+                'nationality' => $admission->nationality,
+                'county_of_birth' => $admission->county_of_birth,
+                'sub_county_of_birth' => $admission->sub_county_of_birth,
+                'location_of_birth' => $admission->location_of_birth,
+                'birth_certificate_entry_no' => $admission->birth_certificate_entry_no,
+                'medical_condition' => $admission->medical_condition,
+                'religion' => $admission->religion,
+                'learner_interests' => $admission->learner_interests,
+                'orphan_status' => $admission->orphan_status,
+                'has_special_needs' => $admission->has_special_needs,
+                'disability_type' => $admission->disability_type,
+            ], static fn ($value) => $value !== null && $value !== '')));
 
             $linker->ensureFamilyForStudentFromParent($student, $parent);
 

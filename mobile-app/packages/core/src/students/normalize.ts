@@ -73,6 +73,17 @@ export function toStudentDetail(raw: StudentRecord, gradeLevel?: number | string
     allergiesNotes: raw.allergies_notes ?? null,
     isFullyImmunized: raw.is_fully_immunized ?? null,
     bloodGroup: raw.blood_group ?? null,
+    religion: raw.religion ?? null,
+    nationality: raw.nationality ?? null,
+    countyOfBirth: raw.county_of_birth ?? null,
+    subCountyOfBirth: raw.sub_county_of_birth ?? null,
+    locationOfBirth: raw.location_of_birth ?? null,
+    birthCertificateEntryNo: raw.birth_certificate_entry_no ?? null,
+    medicalCondition: raw.medical_condition ?? null,
+    learnerInterests: raw.learner_interests ?? [],
+    orphanStatus: raw.orphan_status ?? null,
+    hasSpecialNeeds: Boolean(raw.has_special_needs),
+    disabilityType: raw.disability_type ?? null,
   };
 }
 

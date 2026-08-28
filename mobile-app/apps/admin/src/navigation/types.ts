@@ -8,6 +8,7 @@ import type { PeopleStackParamList } from './peopleStackTypes';
 import type { CommunicationStackParamList } from './communicationStackTypes';
 import type { OperationsStackParamList } from './operationsStackTypes';
 import type { ReportsStackParamList } from './reportsStackTypes';
+import type { SettingsStackParamList } from './settingsStackTypes';
 import type { StudentsStackParamList } from './studentsStackTypes';
 
 /**
@@ -32,7 +33,7 @@ export type DrawerParamList = {
   Operations: NavigatorScreenParams<OperationsStackParamList> | undefined;
   Communication: NavigatorScreenParams<CommunicationStackParamList> | undefined;
   Reports: NavigatorScreenParams<ReportsStackParamList> | undefined;
-  Settings: { resetAt?: number } | undefined;
+  Settings: NavigatorScreenParams<SettingsStackParamList> | undefined;
 };
 
 declare global {

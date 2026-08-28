@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ParentInfo;
 use App\Models\Student;
+use App\Support\KemisProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -82,23 +83,10 @@ class ApiParentProfileReviewController extends Controller
 
         $accessibleIds = $user->accessibleStudentIds();
 
-        $validated = $request->validate([
-            'residential_area' => 'nullable|string|max:255',
-            'father_name' => 'nullable|string|max:255',
-            'father_id_number' => 'nullable|string|max:255',
-            'father_phone' => ['nullable', 'string', 'max:50'],
-            'father_email' => 'nullable|email|max:255',
-            'mother_name' => 'nullable|string|max:255',
-            'mother_id_number' => 'nullable|string|max:255',
-            'mother_phone' => ['nullable', 'string', 'max:50'],
-            'mother_email' => 'nullable|email|max:255',
-            'guardian_name' => 'nullable|string|max:255',
-            'guardian_phone' => ['nullable', 'string', 'max:50'],
-            'guardian_relationship' => 'nullable|string|max:255',
-            'marital_status' => 'nullable|in:married,single_parent,co_parenting',
-            'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable', 'string', 'max:80'],
-            'preferred_hospital' => 'nullable|string|max:255',
+        $validated = KemisProfile::validateRequest($request, array_merge(
+            KemisProfile::sharedContactValidationRules(),
+            KemisProfile::parentKemisValidationRules(),
+            [
             'students' => 'sometimes|array',
             'students.*.id' => ['required', 'integer', 'in:' . (empty($accessibleIds) ? '0' : implode(',', $accessibleIds))],
             'students.*.first_name' => 'required|string|max:255',
@@ -109,18 +97,30 @@ class ApiParentProfileReviewController extends Controller
             'students.*.has_allergies' => 'nullable|boolean',
             'students.*.allergies_notes' => 'nullable|string',
             'students.*.is_fully_immunized' => 'nullable|boolean',
-        ]);
+            'father_phone' => ['nullable', 'string', 'max:50'],
+            'mother_phone' => ['nullable', 'string', 'max:50'],
+            'guardian_phone' => ['nullable', 'string', 'max:50'],
+            'father_whatsapp' => ['nullable', 'string', 'max:50'],
+            'mother_whatsapp' => ['nullable', 'string', 'max:50'],
+            'guardian_email' => 'nullable|email|max:255',
+            'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+        ],
+            KemisProfile::studentKemisValidationRules('students.*')
+        ));
 
         DB::transaction(function () use ($validated, $parent, $accessibleIds) {
             $parentData = [];
             foreach ([
-                'father_name', 'father_id_number', 'father_phone', 'father_email',
-                'mother_name', 'mother_id_number', 'mother_phone', 'mother_email',
-                'guardian_name', 'guardian_phone', 'guardian_relationship', 'marital_status',
+                'father_phone', 'father_email', 'father_whatsapp',
+                'mother_phone', 'mother_email', 'mother_whatsapp',
+                'guardian_phone', 'guardian_relationship', 'marital_status', 'guardian_email',
             ] as $field) {
                 if (array_key_exists($field, $validated)) {
                     $parentData[$field] = $validated[$field] ?: null;
                 }
+            }
+            foreach (['father', 'mother', 'guardian'] as $slot) {
+                $parentData = array_merge($parentData, KemisProfile::parentIdentityAttributesFromInput($validated, $slot));
             }
             if (!empty($parentData)) {
                 $parent->fill($parentData);
@@ -137,10 +137,10 @@ class ApiParentProfileReviewController extends Controller
                         continue;
                     }
 
-                    $updateData = [
+                    $updateData = array_merge([
                         'first_name' => $stuData['first_name'],
                         'last_name' => $stuData['last_name'],
-                    ];
+                    ], KemisProfile::studentKemisAttributesFromInput($stuData));
                     if (array_key_exists('middle_name', $stuData)) {
                         $updateData['middle_name'] = $stuData['middle_name'] ?: null;
                     }
@@ -223,16 +223,35 @@ class ApiParentProfileReviewController extends Controller
         return [
             'id' => $parent->id,
             'father_name' => $parent->father_name,
+            'father_first_name' => $parent->father_first_name,
+            'father_middle_name' => $parent->father_middle_name,
+            'father_last_name' => $parent->father_last_name,
+            'father_id_type' => $parent->father_id_type,
             'father_id_number' => $parent->father_id_number,
+            'father_country_of_residence' => $parent->father_country_of_residence,
             'father_phone' => $parent->father_phone,
+            'father_whatsapp' => $parent->father_whatsapp,
             'father_email' => $parent->father_email,
             'mother_name' => $parent->mother_name,
+            'mother_first_name' => $parent->mother_first_name,
+            'mother_middle_name' => $parent->mother_middle_name,
+            'mother_last_name' => $parent->mother_last_name,
+            'mother_id_type' => $parent->mother_id_type,
             'mother_id_number' => $parent->mother_id_number,
+            'mother_country_of_residence' => $parent->mother_country_of_residence,
             'mother_phone' => $parent->mother_phone,
+            'mother_whatsapp' => $parent->mother_whatsapp,
             'mother_email' => $parent->mother_email,
             'guardian_name' => $parent->guardian_name,
+            'guardian_first_name' => $parent->guardian_first_name,
+            'guardian_middle_name' => $parent->guardian_middle_name,
+            'guardian_last_name' => $parent->guardian_last_name,
+            'guardian_id_type' => $parent->guardian_id_type,
+            'guardian_id_number' => $parent->guardian_id_number,
+            'guardian_country_of_residence' => $parent->guardian_country_of_residence,
             'guardian_phone' => $parent->guardian_phone,
             'guardian_relationship' => $parent->guardian_relationship,
+            'guardian_email' => $parent->guardian_email,
             'marital_status' => $parent->marital_status,
         ];
     }
@@ -255,6 +274,17 @@ class ApiParentProfileReviewController extends Controller
             'preferred_hospital' => $s->preferred_hospital,
             'emergency_contact_name' => $s->emergency_contact_name,
             'emergency_contact_phone' => $s->emergency_contact_phone,
+            'nationality' => $s->nationality,
+            'county_of_birth' => $s->county_of_birth,
+            'sub_county_of_birth' => $s->sub_county_of_birth,
+            'location_of_birth' => $s->location_of_birth,
+            'birth_certificate_entry_no' => $s->birth_certificate_entry_no,
+            'medical_condition' => $s->medical_condition,
+            'religion' => $s->religion,
+            'learner_interests' => $s->learner_interests,
+            'orphan_status' => $s->orphan_status,
+            'has_special_needs' => (bool) $s->has_special_needs,
+            'disability_type' => $s->disability_type,
         ];
     }
 }

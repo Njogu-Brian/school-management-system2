@@ -26,6 +26,16 @@ export interface StudentRecord {
   address?: string | null;
   residential_area?: string | null;
   religion?: string | null;
+  nationality?: string | null;
+  county_of_birth?: string | null;
+  sub_county_of_birth?: string | null;
+  location_of_birth?: string | null;
+  birth_certificate_entry_no?: string | null;
+  medical_condition?: string | null;
+  learner_interests?: string[] | null;
+  orphan_status?: string | null;
+  has_special_needs?: boolean;
+  disability_type?: string | null;
   nemis_number?: string | null;
   knec_assessment_number?: string | null;
   kcpe_kjsea_year?: number | null;
@@ -87,14 +97,37 @@ export interface StudentGuardianRecord {
 export interface StudentParentBlock {
   father_name?: string | null;
   mother_name?: string | null;
+  father_first_name?: string | null;
+  father_middle_name?: string | null;
+  father_last_name?: string | null;
+  mother_first_name?: string | null;
+  mother_middle_name?: string | null;
+  mother_last_name?: string | null;
+  guardian_first_name?: string | null;
+  guardian_middle_name?: string | null;
+  guardian_last_name?: string | null;
+  father_id_type?: string | null;
+  mother_id_type?: string | null;
+  guardian_id_type?: string | null;
+  father_country_of_residence?: string | null;
+  mother_country_of_residence?: string | null;
+  guardian_country_of_residence?: string | null;
   father_phone?: string | null;
   mother_phone?: string | null;
+  father_whatsapp?: string | null;
+  mother_whatsapp?: string | null;
+  guardian_whatsapp?: string | null;
   father_email?: string | null;
   mother_email?: string | null;
   guardian_name?: string | null;
   guardian_phone?: string | null;
   guardian_email?: string | null;
   guardian_relationship?: string | null;
+  father_id_number?: string | null;
+  mother_id_number?: string | null;
+  guardian_id_number?: string | null;
+  marital_status?: string | null;
+  school_notifications_muted_parent?: string | null;
 }
 
 export interface ClassroomRecord {
@@ -169,6 +202,17 @@ export interface StudentDetail extends StudentSummary {
   allergiesNotes: string | null;
   isFullyImmunized: boolean | null;
   bloodGroup: string | null;
+  religion: string | null;
+  nationality: string | null;
+  countyOfBirth: string | null;
+  subCountyOfBirth: string | null;
+  locationOfBirth: string | null;
+  birthCertificateEntryNo: string | null;
+  medicalCondition: string | null;
+  learnerInterests: string[];
+  orphanStatus: string | null;
+  hasSpecialNeeds: boolean;
+  disabilityType: string | null;
 }
 
 export interface StudentGuardianContact {
@@ -183,14 +227,36 @@ export interface StudentGuardianContact {
 export interface StudentParentInfo {
   fatherName?: string | null;
   motherName?: string | null;
+  fatherFirstName?: string | null;
+  fatherMiddleName?: string | null;
+  fatherLastName?: string | null;
+  motherFirstName?: string | null;
+  motherMiddleName?: string | null;
+  motherLastName?: string | null;
+  guardianFirstName?: string | null;
+  guardianMiddleName?: string | null;
+  guardianLastName?: string | null;
+  fatherIdType?: string | null;
+  motherIdType?: string | null;
+  guardianIdType?: string | null;
+  fatherCountryOfResidence?: string | null;
+  motherCountryOfResidence?: string | null;
+  guardianCountryOfResidence?: string | null;
   fatherPhone?: string | null;
   motherPhone?: string | null;
+  fatherWhatsapp?: string | null;
+  motherWhatsapp?: string | null;
+  guardianWhatsapp?: string | null;
   fatherEmail?: string | null;
   motherEmail?: string | null;
   guardianName?: string | null;
   guardianPhone?: string | null;
   guardianEmail?: string | null;
   guardianRelationship?: string | null;
+  fatherIdNumber?: string | null;
+  motherIdNumber?: string | null;
+  guardianIdNumber?: string | null;
+  maritalStatus?: string | null;
 }
 
 export interface StudentEmergencyContact {

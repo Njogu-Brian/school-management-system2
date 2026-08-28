@@ -84,7 +84,7 @@ export const LeaveTypesScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing['3xl'] }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader
           title="Leave types"
           subtitle="Create paid/unpaid types and assign to staff"

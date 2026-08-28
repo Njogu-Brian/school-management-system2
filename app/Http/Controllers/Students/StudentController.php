@@ -460,7 +460,10 @@ class StudentController extends Controller
         }
         try {
             $this->validateTransportAdmission($request);
-            KemisProfile::validateRequest($request, [
+            KemisProfile::validateRequest($request, array_merge(
+                KemisProfile::studentKemisValidationRules(),
+                KemisProfile::parentKemisValidationRules(),
+                [
                 'first_name' => 'required|string|max:255',
                 'middle_name' => 'nullable|string|max:255',
                 'last_name' => 'required|string|max:255',
@@ -488,26 +491,23 @@ class StudentController extends Controller
                 'has_allergies' => 'nullable|boolean',
                 'allergies_notes' => 'nullable|string',
                 'is_fully_immunized' => 'nullable|boolean',
-                'emergency_contact_name' => 'nullable|string|max:255',
-                'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
-                'residential_area' => 'nullable|string|max:255',
-                'preferred_hospital' => 'nullable|string|max:255',
+                'emergency_contact_name' => 'required|string|max:255',
+                'emergency_contact_phone' => ['required','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
+                'residential_area' => 'required|string|max:255',
+                'preferred_hospital' => 'required|string|max:255',
                 'nemis_number' => 'nullable|string',
                 'knec_assessment_number' => 'nullable|string',
                 'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
                 'transport_fee_amount' => 'nullable|numeric|min:0',
-                // Extended demographics
-                'religion' => 'nullable|string|max:255',
                 'allergies' => 'nullable|string',
                 'chronic_conditions' => 'nullable|string',
                 'previous_schools' => 'nullable|string',
                 'transfer_reason' => 'nullable|string',
-                'has_special_needs' => 'nullable|boolean',
                 'special_needs_description' => 'nullable|string',
                 'learning_disabilities' => 'nullable|string',
                 'status' => 'nullable|in:active,inactive,graduated,transferred,expelled,suspended',
                 'admission_date' => 'nullable|date',
-            ] + KemisProfile::studentKemisValidationRules() + KemisProfile::parentKemisValidationRules());
+            ]));
 
             // Require stream if classroom has streams (primary + pivot)
             $classroomId = (int)$request->classroom_id;
@@ -860,7 +860,10 @@ class StudentController extends Controller
 
             \Log::info('Student Update: Starting validation');
             $this->validateTransportAdmission($request);
-            $validated = KemisProfile::validateRequest($request, [
+            $validated = KemisProfile::validateRequest($request, array_merge(
+                KemisProfile::studentKemisValidationRules(),
+                KemisProfile::parentKemisValidationRules(),
+                [
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -915,20 +918,17 @@ class StudentController extends Controller
             'has_allergies' => 'nullable|boolean',
             'allergies_notes' => 'nullable|string',
             'is_fully_immunized' => 'nullable|boolean',
-            'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
+            'emergency_contact_name' => 'required|string|max:255',
+            'emergency_contact_phone' => ['required','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
                 'residential_area' => 'required|string|max:255',
-            'preferred_hospital' => 'nullable|string|max:255',
+            'preferred_hospital' => 'required|string|max:255',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
             'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
-            // Extended demographics
-            'religion' => 'nullable|string|max:255',
             'allergies' => 'nullable|string',
             'chronic_conditions' => 'nullable|string',
             'previous_schools' => 'nullable|string',
             'transfer_reason' => 'nullable|string',
-            'has_special_needs' => 'nullable|boolean',
             'special_needs_description' => 'nullable|string',
             'learning_disabilities' => 'nullable|string',
             'status' => 'nullable|in:active,inactive,graduated,transferred,expelled,suspended',
@@ -939,7 +939,7 @@ class StudentController extends Controller
             'status_change_reason' => 'nullable|string',
             'is_readmission' => 'nullable|boolean',
             'school_notifications_muted_parent' => 'nullable|in:father,mother',
-        ] + KemisProfile::studentKemisValidationRules() + KemisProfile::parentKemisValidationRules());
+        ]));
             \Log::info('Student Update: Validation passed', ['validated_keys' => array_keys($validated)]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {

@@ -5,7 +5,7 @@ import {
   useSettingsSubjects,
   useTermsSettings,
 } from '@erp/core';
-import { EmptyState, SettingCard, SettingsSectionHeader, useTheme } from '@erp/ui';
+import { EmptyState, SettingCard, useTheme } from '@erp/ui';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
@@ -93,10 +93,6 @@ export const AcademicSettingsSection: React.FC = () => {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <SettingsSectionHeader
-        title="Academic"
-        subtitle="Calendar, classes, streams, and subjects."
-      />
       {summaryCards.map((c) => (
         <SettingCard key={c.id} id={c.id} label={c.label} value={c.value} hint={c.hint} />
       ))}

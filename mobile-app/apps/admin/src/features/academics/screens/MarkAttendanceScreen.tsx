@@ -16,6 +16,7 @@ import {
   EmptyState,
   FilterChip,
   FilterChipRow,
+  FooterDock,
   ScreenContainer,
   SkeletonListRows,
   useFloatingTabBarClearance,
@@ -99,7 +100,7 @@ function StatusButton({
 
 export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, palette, spacing, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
+  const listBottomPad = useFloatingTabBarClearance(false);
   const networkStatus = useNetworkStatus();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
@@ -333,7 +334,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     classId != null && students.length > 0 && (schoolDayOk !== false || onlyUnmarksPending);
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} clearFloatingTabBar={false}>
       <View style={{ padding: spacing.md, flex: 1 }}>
         <AcademicScreenHeader
           title="Mark attendance"
@@ -432,7 +433,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
             keyExtractor={(item) => String(item.id)}
             style={{ flex: 1 }}
             contentContainerStyle={{
-              paddingBottom: showSubmit ? spacing.md : tabClearance,
+              paddingBottom: showSubmit ? spacing.md : listBottomPad,
             }}
             renderItem={({ item }) => {
               const status = statusById[item.id] ?? 'unmarked';
@@ -480,24 +481,24 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
             }
           />
         )}
-
-        {showSubmit ? (
-          <View style={{ paddingBottom: tabClearance, paddingTop: spacing.sm }}>
-            <Button
-              label={
-                networkStatus === 'offline'
-                  ? 'Submit (queue offline)'
-                  : isDirty
-                    ? 'Submit attendance'
-                    : 'Submitted'
-              }
-              onPress={() => void submit()}
-              loading={markMutation.isPending}
-              disabled={!isDirty}
-            />
-          </View>
-        ) : null}
       </View>
+
+      {showSubmit ? (
+        <FooterDock>
+          <Button
+            label={
+              networkStatus === 'offline'
+                ? 'Submit (queue offline)'
+                : isDirty
+                  ? 'Submit attendance'
+                  : 'Submitted'
+            }
+            onPress={() => void submit()}
+            loading={markMutation.isPending}
+            disabled={!isDirty}
+          />
+        </FooterDock>
+      ) : null}
     </ScreenContainer>
   );
 };
@@ -529,9 +530,9 @@ const styles = StyleSheet.create({
   },
   statusRow: { flexDirection: 'row', gap: 6 },
   statusBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,

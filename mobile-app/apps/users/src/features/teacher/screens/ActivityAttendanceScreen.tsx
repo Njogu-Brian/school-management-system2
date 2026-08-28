@@ -8,6 +8,7 @@ import {
   AcademicScreenHeader,
   Button,
   EmptyState,
+  FooterDock,
   ScreenContainer,
   SkeletonListRows,
   useFloatingTabBarClearance,
@@ -39,7 +40,7 @@ export const ActivityAttendanceScreen: React.FC = () => {
   const route = useRoute<Route>();
   const { activityId, activityName } = route.params;
   const { colors, palette, spacing, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance();
+  const tabClearance = useFloatingTabBarClearance(false);
 
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
@@ -248,21 +249,13 @@ export const ActivityAttendanceScreen: React.FC = () => {
             }
           />
         )}
-
-        {canSubmit ? (
-          <View
-            style={{
-              paddingTop: spacing.sm,
-              paddingBottom: tabClearance,
-              backgroundColor: palette.background,
-              borderTopWidth: StyleSheet.hairlineWidth,
-              borderTopColor: palette.border,
-            }}
-          >
-            <Button label="Submit roll" onPress={() => void submit()} loading={saveMutation.isPending} />
-          </View>
-        ) : null}
       </View>
+
+      {canSubmit ? (
+        <FooterDock>
+          <Button label="Submit roll" onPress={() => void submit()} loading={saveMutation.isPending} />
+        </FooterDock>
+      ) : null}
     </ScreenContainer>
   );
 };
