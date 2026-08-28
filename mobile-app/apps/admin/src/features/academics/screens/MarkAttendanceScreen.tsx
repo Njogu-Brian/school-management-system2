@@ -12,6 +12,7 @@ import {
 } from '@erp/core';
 import {
   AcademicScreenHeader,
+  AttendanceSubmitDialog,
   Button,
   EmptyState,
   FilterChip,
@@ -19,7 +20,7 @@ import {
   FooterDock,
   ScreenContainer,
   SkeletonListRows,
-  useFloatingTabBarClearance,
+  summarizeAttendanceMarks,
   useTheme,
 } from '@erp/ui';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -100,7 +101,6 @@ function StatusButton({
 
 export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, palette, spacing, typography } = useTheme();
-  const listBottomPad = useFloatingTabBarClearance(false);
   const networkStatus = useNetworkStatus();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
@@ -118,10 +118,11 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
   const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
   const [schoolDayMessage, setSchoolDayMessage] = useState<string | null>(null);
   const [hasLocalDraft, setHasLocalDraft] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const draftKey = classId ? attendanceDraftKey(dateStr, classId, streamId) : null;
   const { draft, setDraft, loaded: draftLoaded, clearDraft } = useOfflineDraft<AttendanceDraft>(draftKey);
-  /** Keep draft out of loadStudents deps — setDraft after load was causing an infinite refetch loop. */
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const draftLoadedRef = useRef(draftLoaded);
@@ -212,17 +213,17 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     if (classId && draftLoaded) void loadStudents();
   }, [classId, streamId, dateStr, draftLoaded, loadStudents]);
 
+  useEffect(() => {
+    if (!classId) {
+      setStudents([]);
+      setStatusById({});
+      setServerSnapshot({});
+      setHasLocalDraft(false);
+    }
+  }, [classId]);
+
   const setStatus = (studentId: number, status: AttendanceMarkStatus) => {
     setStatusById((prev) => ({ ...prev, [studentId]: status }));
-    setHasLocalDraft(true);
-  };
-
-  const markAll = (status: AttendanceMarkStatus) => {
-    setStatusById((prev) => {
-      const next = { ...prev };
-      for (const s of students) next[s.id] = status;
-      return next;
-    });
     setHasLocalDraft(true);
   };
 
@@ -245,6 +246,31 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     });
   }, [statusById, draftKey, students.length, isDirty, setDraft, clearDraft, serverSnapshot]);
 
+  const changedRecords = useMemo(
+    () =>
+      students
+        .map((s) => ({
+          student_id: s.id,
+          status: (statusById[s.id] ?? 'unmarked') as AttendanceMarkStatus,
+          student_name: s.name,
+        }))
+        .filter((r) => r.status !== (serverSnapshot[r.student_id] ?? 'unmarked')),
+    [students, statusById, serverSnapshot],
+  );
+
+  const onlyUnmarksPending = useMemo(() => {
+    if (!isDirty) return false;
+    return changedRecords.every((r) => r.status === 'unmarked');
+  }, [isDirty, changedRecords]);
+
+  const canSubmit =
+    classId != null && students.length > 0 && (schoolDayOk !== false || onlyUnmarksPending);
+
+  const summary = useMemo(
+    () => summarizeAttendanceMarks(students, statusById),
+    [students, statusById],
+  );
+
   const markSubmittedLocally = async () => {
     const snap: Record<number, string> = {};
     for (const s of students) {
@@ -256,9 +282,22 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
     setHasLocalDraft(false);
   };
 
+  const openConfirm = () => {
+    if (!classId) return;
+    if (changedRecords.length === 0) {
+      showError('Nothing to submit', 'Change at least one student before submitting.');
+      return;
+    }
+    const hasNonUnmark = changedRecords.some((r) => r.status !== 'unmarked');
+    if (hasNonUnmark && schoolDayOk === false) {
+      showError('Not a school day', schoolDayMessage ?? 'Pick a valid school day.');
+      return;
+    }
+    setConfirmOpen(true);
+  };
+
   const submit = async () => {
     if (!classId) return;
-    /** Only changed rows — includes `unmarked` so previously saved marks can be cleared. */
     const records = students
       .map((s) => ({
         student_id: s.id,
@@ -267,7 +306,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       }))
       .filter((r) => r.status !== (serverSnapshot[r.student_id] ?? 'unmarked'));
     if (records.length === 0) {
-      showError('Nothing to submit', 'Change at least one student before submitting.');
+      setConfirmOpen(false);
       return;
     }
     const hasNonUnmark = records.some((r) => r.status !== 'unmarked');
@@ -287,6 +326,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       baseSnapshot: serverSnapshot,
     };
 
+    setSubmitting(true);
     try {
       const result = await queueOrExecute(
         SYNC_KINDS.ATTENDANCE_MARK,
@@ -304,6 +344,7 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       );
 
       await markSubmittedLocally();
+      setConfirmOpen(false);
 
       if (result === 'queued') {
         showSuccess('Queued for sync', 'Attendance will push to the server when you reconnect.');
@@ -313,85 +354,71 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
       }
     } catch (err) {
       showError('Could not submit', (err as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const classrooms = classroomsQuery.data ?? [];
-  const markedCount = useMemo(
-    () => students.filter((s) => (statusById[s.id] ?? 'unmarked') !== 'unmarked').length,
-    [students, statusById],
-  );
-  const onlyUnmarksPending = useMemo(() => {
-    if (!isDirty) return false;
-    return students.every((s) => {
-      const next = statusById[s.id] ?? 'unmarked';
-      const prev = serverSnapshot[s.id] ?? 'unmarked';
-      if (next === prev) return true;
-      return next === 'unmarked';
-    });
-  }, [isDirty, students, statusById, serverSnapshot]);
-  const showSubmit =
-    classId != null && students.length > 0 && (schoolDayOk !== false || onlyUnmarksPending);
+  const markedCount = summary.total;
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} clearFloatingTabBar={false}>
-      <View style={{ padding: spacing.md, flex: 1 }}>
-        <AcademicScreenHeader
-          title="Mark attendance"
-          subtitle="School-day calendar applies (same as web)"
-          onBack={() => navigation.goBack()}
-        />
-
-        {hasLocalDraft && isDirty ? (
-          <View style={[styles.warnBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
-            <Text style={{ color: colors.primary, fontSize: typography.body.fontSize }}>
-              Unsubmitted changes — saved as a draft on this device until you submit.
-            </Text>
-          </View>
-        ) : null}
-
-        <Pressable
-          onPress={() => setShowDatePicker(true)}
-          style={[styles.dateRow, { borderColor: palette.border, backgroundColor: palette.surfaceRaised }]}
-        >
-          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Date</Text>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.titleSmall.fontSize }}>{dateStr}</Text>
-          <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, fontWeight: '600' }}>Change</Text>
-        </Pressable>
-
-        {showDatePicker ? (
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            maximumDate={new Date()}
-            onChange={(_, date) => {
-              setShowDatePicker(Platform.OS === 'ios');
-              if (date) setSelectedDate(date);
-            }}
+      <View style={styles.body}>
+        <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, flexShrink: 0 }}>
+          <AcademicScreenHeader
+            title="Mark attendance"
+            subtitle="School-day calendar applies (same as web)"
+            onBack={() => navigation.goBack()}
           />
-        ) : null}
 
-        {schoolDayMessage ? (
-          <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
-            <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
-          </View>
-        ) : null}
+          {hasLocalDraft && isDirty ? (
+            <View style={[styles.warnBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
+              <Text style={{ color: colors.primary, fontSize: typography.body.fontSize }}>
+                Unsubmitted changes — saved as a draft on this device until you submit.
+              </Text>
+            </View>
+          ) : null}
 
-        <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs, marginTop: spacing.sm }}>
-          Class
-        </Text>
-        <FilterChipRow>
-          {classrooms.map((c) => (
-            <FilterChip key={c.id} label={c.name} active={classId === c.id} onPress={() => setClassId(c.id)} />
-          ))}
-        </FilterChipRow>
-
-        {streams.length > 0 ? (
-          <>
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginVertical: spacing.xs }}>
-              Stream
+          <Pressable
+            onPress={() => setShowDatePicker(true)}
+            style={[styles.dateRow, { borderColor: palette.border, backgroundColor: palette.surfaceRaised }]}
+          >
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Date</Text>
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.titleSmall.fontSize }}>
+              {dateStr}
             </Text>
-            <FilterChipRow>
+            <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, fontWeight: '600' }}>
+              Change
+            </Text>
+          </Pressable>
+
+          {showDatePicker ? (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              maximumDate={new Date()}
+              onChange={(_, date) => {
+                setShowDatePicker(Platform.OS === 'ios');
+                if (date) setSelectedDate(date);
+              }}
+            />
+          ) : null}
+
+          {schoolDayMessage ? (
+            <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
+              <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
+            </View>
+          ) : null}
+
+          <FilterChipRow label="Class">
+            {classrooms.map((c) => (
+              <FilterChip key={c.id} label={c.name} active={classId === c.id} onPress={() => setClassId(c.id)} />
+            ))}
+          </FilterChipRow>
+
+          {streams.length > 0 ? (
+            <FilterChipRow label="Stream">
               <FilterChip label="All" active={streamId == null} onPress={() => setStreamId(null)} />
               {streams.map((s) => (
                 <FilterChip
@@ -402,108 +429,119 @@ export const MarkAttendanceScreen: React.FC<Props> = ({ navigation }) => {
                 />
               ))}
             </FilterChipRow>
-          </>
-        ) : null}
+          ) : null}
 
-        {classId ? (
-          <View style={[styles.bulkRow, { marginVertical: spacing.sm }]}>
-            <Pressable onPress={() => markAll('present')}>
-              <Text style={{ color: colors.success, fontWeight: '700' }}>All Present</Text>
-            </Pressable>
-            <Pressable onPress={() => markAll('absent')}>
-              <Text style={{ color: colors.error, fontWeight: '700' }}>All Absent</Text>
-            </Pressable>
-            <Pressable onPress={() => markAll('late')}>
-              <Text style={{ color: colors.warning, fontWeight: '700' }}>All Late</Text>
-            </Pressable>
-            <Pressable onPress={() => markAll('unmarked')}>
-              <Text style={{ color: palette.textSecondary, fontWeight: '700' }}>Clear all</Text>
-            </Pressable>
-            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
-              {markedCount}/{students.length}
+          {classId && students.length > 0 ? (
+            <Text
+              style={{
+                color: palette.textMuted,
+                fontSize: typography.caption.fontSize,
+                marginBottom: spacing.sm,
+              }}
+            >
+              {markedCount}/{students.length} marked
             </Text>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
-        {loading ? (
-          <SkeletonListRows variant="avatar" count={6} />
-        ) : (
-          <FlatList
-            data={students}
-            keyExtractor={(item) => String(item.id)}
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              paddingBottom: showSubmit ? spacing.md : listBottomPad,
-            }}
-            renderItem={({ item }) => {
-              const status = statusById[item.id] ?? 'unmarked';
-              return (
-                <View
-                  style={[
-                    styles.row,
-                    { borderColor: palette.border, backgroundColor: palette.surfaceRaised },
-                  ]}
-                >
-                  <View style={{ flex: 1, marginRight: spacing.sm }}>
-                    <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{item.name}</Text>
-                    <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>{item.admission}</Text>
+        <View style={styles.listWrap}>
+          {loading ? (
+            <View style={{ paddingHorizontal: spacing.md }}>
+              <SkeletonListRows variant="avatar" count={6} />
+            </View>
+          ) : (
+            <FlatList
+              data={students}
+              keyExtractor={(item) => String(item.id)}
+              style={styles.list}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{
+                paddingHorizontal: spacing.md,
+                paddingBottom: spacing.sm,
+              }}
+              renderItem={({ item }) => {
+                const status = statusById[item.id] ?? 'unmarked';
+                return (
+                  <View
+                    style={[
+                      styles.row,
+                      { borderColor: palette.border, backgroundColor: palette.surfaceRaised },
+                    ]}
+                  >
+                    <View style={{ flex: 1, minWidth: 0, marginRight: spacing.sm }}>
+                      <Text
+                        style={{ color: palette.textPrimary, fontWeight: '600' }}
+                        numberOfLines={2}
+                      >
+                        {item.name}
+                      </Text>
+                      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                        {item.admission}
+                      </Text>
+                    </View>
+                    <View style={styles.statusRow}>
+                      {STATUS_OPTIONS.map((opt) => (
+                        <StatusButton
+                          key={opt}
+                          status={opt}
+                          active={status === opt}
+                          onPress={() => setStatus(item.id, status === opt ? 'unmarked' : opt)}
+                          colors={colors}
+                          palette={palette}
+                          typography={typography}
+                        />
+                      ))}
+                    </View>
                   </View>
-                  <View style={styles.statusRow}>
-                    {STATUS_OPTIONS.map((opt) => (
-                      <StatusButton
-                        key={opt}
-                        status={opt}
-                        active={status === opt}
-                        onPress={() => setStatus(item.id, status === opt ? 'unmarked' : opt)}
-                        colors={colors}
-                        palette={palette}
-                        typography={typography}
-                      />
-                    ))}
-                  </View>
-                </View>
-              );
-            }}
-            ListEmptyComponent={
-              classId ? (
-                <EmptyState
-                  title="No students"
-                  message="No students in this class."
-                  icon="people-outline"
-                />
-              ) : (
-                <EmptyState
-                  title="Select a class"
-                  message="Choose a class to begin marking attendance."
-                  icon="school-outline"
-                />
-              )
-            }
-          />
-        )}
+                );
+              }}
+              ListEmptyComponent={
+                classId ? (
+                  <EmptyState
+                    title="No students"
+                    message="No students in this class."
+                    icon="people-outline"
+                  />
+                ) : (
+                  <EmptyState
+                    title="Select a class"
+                    message="Choose a class to begin marking attendance."
+                    icon="school-outline"
+                  />
+                )
+              }
+            />
+          )}
+        </View>
       </View>
 
-      {showSubmit ? (
-        <FooterDock>
-          <Button
-            label={
-              networkStatus === 'offline'
-                ? 'Submit (queue offline)'
-                : isDirty
-                  ? 'Submit attendance'
-                  : 'Submitted'
-            }
-            onPress={() => void submit()}
-            loading={markMutation.isPending}
-            disabled={!isDirty}
-          />
-        </FooterDock>
-      ) : null}
+      <FooterDock>
+        <Button
+          label={networkStatus === 'offline' ? 'Submit (queue offline)' : 'Submit attendance'}
+          onPress={openConfirm}
+          disabled={!canSubmit || !isDirty || submitting}
+          loading={submitting}
+        />
+      </FooterDock>
+
+      <AttendanceSubmitDialog
+        visible={confirmOpen}
+        date={dateStr}
+        summary={summary}
+        loading={submitting}
+        onConfirm={() => void submit()}
+        onCancel={() => {
+          if (!submitting) setConfirmOpen(false);
+        }}
+      />
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
+  body: { flex: 1 },
+  listWrap: { flex: 1, minHeight: 0 },
+  list: { flex: 1 },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -519,7 +557,6 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 8,
   },
-  bulkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -528,7 +565,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  statusRow: { flexDirection: 'row', gap: 6 },
+  statusRow: { flexDirection: 'row', gap: 6, flexShrink: 0 },
   statusBtn: {
     width: 44,
     height: 44,

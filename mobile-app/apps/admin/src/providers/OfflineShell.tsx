@@ -1,4 +1,4 @@
-import { enqueueAttendanceDrafts, getAppQueryClient, useNetworkStatus, useSyncQueue } from '@erp/core';
+import { getAppQueryClient, useNetworkStatus, useSyncQueue } from '@erp/core';
 import { OfflineBanner } from '@erp/ui';
 import React, { useEffect, useRef, useState } from 'react';
 import { SyncConflictSheet } from './SyncConflictSheet';
@@ -23,7 +23,6 @@ export const OfflineShell: React.FC<{ children: React.ReactNode }> = ({ children
     if (!shouldDrain) return;
 
     void (async () => {
-      await enqueueAttendanceDrafts();
       void getAppQueryClient().invalidateQueries();
       const { processed, failed, conflicts } = await process();
       if (processed > 0 || failed > 0 || conflicts > 0) {
@@ -42,9 +41,7 @@ export const OfflineShell: React.FC<{ children: React.ReactNode }> = ({ children
       setConflictsOpen(true);
       return;
     }
-    void enqueueAttendanceDrafts()
-      .then(() => process())
-      .then(() => void refresh());
+    void process().then(() => void refresh());
     void getAppQueryClient().refetchQueries({ type: 'active' });
   };
 

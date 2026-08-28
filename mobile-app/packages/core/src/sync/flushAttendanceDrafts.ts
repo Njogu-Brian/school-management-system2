@@ -13,8 +13,8 @@ function snapshotStatus(snapshot: Record<number, string>, studentId: number): st
 
 /**
  * Move unsubmitted attendance drafts off the device into the sync queue.
- * The server cannot reach into phones — this runs the next time the teacher
- * opens the app while logged in. Callers should then drain `processSyncQueue`.
+ * Kept for manual recovery — Mark Attendance now submits only after confirm,
+ * so OfflineShell no longer calls this automatically.
  */
 export async function enqueueAttendanceDrafts(): Promise<number> {
   const keys = await listDraftKeys();

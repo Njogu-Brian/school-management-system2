@@ -1,5 +1,6 @@
 export * from './types';
 export * from './AcademicKpiCard';
+export * from './AttendanceSubmitDialog';
 export * from './AcademicTrendCard';
 export * from './AcademicScreenHeader';
 export * from './AcademicSearchBar';
