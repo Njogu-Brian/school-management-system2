@@ -42,12 +42,15 @@ class SeniorTeacherPermissionsSeeder extends Seeder
             'timetable.view',
             'timetable.edit',
             
-            // Student data for supervised classes/students
+            // Student data — view only
             'students.view',
             'students.details.view',
             
-            // Transport (view only for supervised students)
+            // Transport (assignments, not fee amounts)
             'transport.view',
+            'transport.edit',
+            'transport.vehicles',
+            'transport.trips',
             
             // Finance (view only - fee balances, cannot collect/edit/invoice/discount)
             'finance.fee_balances.view',
@@ -56,7 +59,26 @@ class SeniorTeacherPermissionsSeeder extends Seeder
             'academics.view',
             'subjects.view',
             'classrooms.view',
+            'classrooms.create',
+            'classrooms.edit',
             'exams.view',
+            'exam_types.view',
+            'curriculum_designs.view',
+            'curriculum_designs.create',
+            'curriculum_designs.edit',
+            'learning_areas.view',
+            'cbc_strands.view',
+            'cbc_substrands.view',
+            'competencies.view',
+            'schemes_of_work.view',
+            'lesson_plans.view',
+            'portfolio_assessments.view',
+            'report_cards.generate',
+            
+            // Inventory & requirements
+            'inventory.view',
+            'inventory.manage',
+            'student_requirements.view',
             
             // Supervisory specific
             'senior_teacher.supervisory_classes.view',
@@ -74,7 +96,10 @@ class SeniorTeacherPermissionsSeeder extends Seeder
         $superAdmin = Role::firstOrCreate(['name' => 'Super Admin', 'guard_name' => $guard]);
 
         // Assign permissions to Senior Teacher role
-        $seniorTeacher->syncPermissions($seniorTeacherPermissions);
+        $seniorTeacher->givePermissionTo($seniorTeacherPermissions);
+
+        $deputySeniorTeacher = Role::firstOrCreate(['name' => 'Deputy Senior Teacher', 'guard_name' => $guard]);
+        $deputySeniorTeacher->givePermissionTo($seniorTeacherPermissions);
 
         // Admin and Super Admin get all permissions
         $adminPermissions = Permission::all();

@@ -14,7 +14,9 @@
     <h1 class="h4 mb-0">Extracurricular Activities - {{ $student->full_name }}</h1>
     <div class="d-flex gap-2">
       <a href="{{ route('students.show', $student) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Student</a>
+      @if(can_edit_student_records())
       <a href="{{ route('students.activities.create', $student) }}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Activity</a>
+      @endif
     </div>
   </div>
 
@@ -53,11 +55,13 @@
               <td class="text-end">
                 <div class="btn-group btn-group-sm">
                   <a href="{{ route('students.activities.show', [$student, $activity]) }}" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
+                  @if(can_edit_student_records())
                   <a href="{{ route('students.activities.edit', [$student, $activity]) }}" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
                   <form action="{{ route('students.activities.destroy', [$student, $activity]) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this activity?')">
                     @csrf @method('DELETE')
                     <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button>
                   </form>
+                  @endif
                 </div>
               </td>
             </tr>

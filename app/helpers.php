@@ -155,6 +155,59 @@ if (!function_exists('nav_can')) {
 }
 
 /**
+ * Senior Teacher / Deputy Senior Teacher without an overlapping admin role.
+ */
+if (!function_exists('is_senior_teacher_staff')) {
+    function is_senior_teacher_staff(): bool
+    {
+        $user = Auth::user();
+
+        return $user
+            && method_exists($user, 'hasAnyRole')
+            && $user->hasAnyRole(['Senior Teacher', 'Deputy Senior Teacher'])
+            && ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Director']);
+    }
+}
+
+/**
+ * Whether the current user may create or edit student bio/admissions records.
+ * Senior teachers may view student details but not change them.
+ */
+if (!function_exists('can_edit_student_records')) {
+    function can_edit_student_records(): bool
+    {
+        $user = Auth::user();
+        if (! $user || ! method_exists($user, 'hasAnyRole')) {
+            return false;
+        }
+        if (is_senior_teacher_staff()) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
+            'Super Admin',
+            'Admin',
+            'Secretary',
+            'Teacher',
+            'teacher',
+            'Director',
+            'Academic Administrator',
+        ]);
+    }
+}
+
+/**
+ * Whether the current user may set or change billed transport amounts.
+ * Senior teachers may assign trips and drop-offs, but not amounts.
+ */
+if (!function_exists('can_edit_transport_amounts')) {
+    function can_edit_transport_amounts(): bool
+    {
+        return ! is_senior_teacher_staff();
+    }
+}
+
+/**
  * Get or create a payment link for a student (no expiry, no click limit).
  * Siblings share one family link: one link per family, parent can pay one transaction for all.
  * Students without family_id get a single-student link.

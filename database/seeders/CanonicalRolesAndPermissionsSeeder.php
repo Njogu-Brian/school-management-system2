@@ -248,7 +248,12 @@ class CanonicalRolesAndPermissionsSeeder extends Seeder
                 'exams.publish', 'exams.approve', 'report_cards.publish', 'report_cards.generate',
                 'homework.approve', 'homework.delete',
                 'curriculum_designs.view', 'curriculum_designs.create', 'curriculum_designs.edit',
-                'students.details.view',
+                'students.details.view', 'students.view',
+                'classrooms.create', 'classrooms.edit',
+                'exam_types.view',
+                'transport.view', 'transport.edit', 'transport.vehicles', 'transport.trips',
+                'inventory.view', 'inventory.manage', 'student_requirements.view',
+                'finance.fee_balances.view',
             ],
             $this->seniorTeacherExtras(),
         )));

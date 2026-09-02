@@ -14,7 +14,9 @@
     <h1 class="h4 mb-0">Academic History - {{ $student->full_name }}</h1>
     <div class="d-flex gap-2">
       <a href="{{ route('students.show', $student) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Student</a>
+      @if(can_edit_student_records())
       <a href="{{ route('students.academic-history.create', $student) }}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Entry</a>
+      @endif
     </div>
   </div>
 
@@ -67,11 +69,13 @@
               <td class="text-end">
                 <div class="btn-group btn-group-sm">
                   <a href="{{ route('students.academic-history.show', [$student, $entry]) }}" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
+                  @if(can_edit_student_records())
                   <a href="{{ route('students.academic-history.edit', [$student, $entry]) }}" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
                   <form action="{{ route('students.academic-history.destroy', [$student, $entry]) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this academic history entry?')">
                     @csrf @method('DELETE')
                     <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button>
                   </form>
+                  @endif
                 </div>
               </td>
             </tr>

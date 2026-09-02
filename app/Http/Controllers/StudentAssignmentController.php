@@ -251,7 +251,8 @@ class StudentAssignmentController extends Controller
                 $student,
                 true,
                 $student_assignment->year ? (int) $student_assignment->year : null,
-                $student_assignment->term ? (int) $student_assignment->term : null
+                $student_assignment->term ? (int) $student_assignment->term : null,
+                ! can_edit_transport_amounts()
             );
         } else {
             $student_assignment->delete();
@@ -308,7 +309,10 @@ class StudentAssignmentController extends Controller
                 $eveningPoint = TransportAssignmentWriter::nullableId($row['evening_drop_off_point_id'] ?? null);
                 $morningTrip = TransportAssignmentWriter::nullableId($row['morning_trip_id'] ?? null);
                 $eveningTrip = TransportAssignmentWriter::nullableId($row['evening_trip_id'] ?? null);
-                $amount = array_key_exists('amount', $row) ? TransportAssignmentWriter::parseAmount($row['amount']) : null;
+                $preserveFee = ! can_edit_transport_amounts();
+                $amount = $preserveFee
+                    ? null
+                    : (array_key_exists('amount', $row) ? TransportAssignmentWriter::parseAmount($row['amount']) : null);
 
                 $hasAnything = $morningPoint || $eveningPoint || $morningTrip || $eveningTrip || $amount !== null;
                 if (! $hasAnything) {
@@ -334,7 +338,8 @@ class StudentAssignmentController extends Controller
                     'evening_trip_id' => $eveningTrip,
                     'morning_drop_off_point_id' => $morningPoint,
                     'evening_drop_off_point_id' => $eveningPoint,
-                    'amount' => $row['amount'] ?? null,
+                    'amount' => $amount,
+                    'preserve_fee' => $preserveFee,
                     'source' => 'assignment',
                     'note' => 'Saved from class assignment',
                     'skip_invoice' => true,
@@ -364,6 +369,8 @@ class StudentAssignmentController extends Controller
 
     private function saveIndividual(Request $request)
     {
+        $preserveFee = ! can_edit_transport_amounts();
+
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
             'morning_drop_off_point_id' => 'required|exists:drop_off_points,id',
@@ -378,7 +385,7 @@ class StudentAssignmentController extends Controller
                 'nullable',
                 'exists:trips,id',
             ],
-            'amount' => 'required|numeric|min:0',
+            'amount' => $preserveFee ? 'nullable|numeric|min:0' : 'required|numeric|min:0',
             'year' => 'nullable|integer|min:2000|max:2100',
             'term' => 'nullable|integer|min:1|max:3',
         ]);
@@ -390,7 +397,8 @@ class StudentAssignmentController extends Controller
             'evening_trip_id' => $validated['evening_trip_id'] ?? null,
             'morning_drop_off_point_id' => $validated['morning_drop_off_point_id'],
             'evening_drop_off_point_id' => $validated['evening_drop_off_point_id'],
-            'amount' => $validated['amount'],
+            'amount' => $preserveFee ? null : $validated['amount'],
+            'preserve_fee' => $preserveFee,
             'source' => 'assignment',
             'note' => 'Saved from student assignment',
             'skip_invoice' => true,

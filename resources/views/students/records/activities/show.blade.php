@@ -15,7 +15,9 @@
     <h1 class="h4 mb-0">{{ $activity->activity_name }}</h1>
     <div class="d-flex gap-2">
       <a href="{{ route('students.activities.index', $student) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+      @if(can_edit_student_records())
       <a href="{{ route('students.activities.edit', [$student, $activity]) }}" class="btn btn-primary"><i class="bi bi-pencil"></i> Edit</a>
+      @endif
     </div>
   </div>
 

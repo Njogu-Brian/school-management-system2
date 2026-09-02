@@ -14,7 +14,9 @@
     <h1 class="h4 mb-0">Disciplinary Records - {{ $student->full_name }}</h1>
     <div class="d-flex gap-2">
       <a href="{{ route('students.show', $student) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Student</a>
+      @if(can_edit_student_records())
       <a href="{{ route('students.disciplinary-records.create', $student) }}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Record</a>
+      @endif
     </div>
   </div>
 
@@ -55,11 +57,13 @@
               <td class="text-end">
                 <div class="btn-group btn-group-sm">
                   <a href="{{ route('students.disciplinary-records.show', [$student, $record]) }}" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a>
+                  @if(can_edit_student_records())
                   <a href="{{ route('students.disciplinary-records.edit', [$student, $record]) }}" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i></a>
                   <form action="{{ route('students.disciplinary-records.destroy', [$student, $record]) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this disciplinary record?')">
                     @csrf @method('DELETE')
                     <button type="submit" class="btn btn-outline-danger"><i class="bi bi-trash"></i></button>
                   </form>
+                  @endif
                 </div>
               </td>
             </tr>

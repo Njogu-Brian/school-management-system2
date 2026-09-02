@@ -378,9 +378,9 @@ Route::middleware('auth')->group(function () {
             Route::delete('/unmark/{id}', [AttendanceController::class, 'unmark'])->name('attendance.unmark');
         });
 
-    // Attendance notifications (admin only)
+    // Attendance notifications
     Route::prefix('attendance/notifications')
-        ->middleware('role:Super Admin|Admin|Secretary')
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')
         ->group(function () {
             Route::get('/',            [AttendanceNotificationController::class, 'index'])->name('attendance.notifications.index');
             Route::get('/create',      [AttendanceNotificationController::class, 'create'])->name('attendance.notifications.create');
@@ -393,9 +393,9 @@ Route::middleware('auth')->group(function () {
             Route::post('/notify',     [AttendanceNotificationController::class, 'sendNotify'])->name('attendance.notifications.notify.send');
         });
 
-    // Attendance reason codes (admin only)
+    // Attendance reason codes
     Route::prefix('attendance/reason-codes')
-        ->middleware('role:Super Admin|Admin|Secretary')
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')
         ->group(function () {
             Route::get('/',            [AttendanceReasonCodeController::class, 'index'])->name('attendance.reason-codes.index');
             Route::get('/create',      [AttendanceReasonCodeController::class, 'create'])->name('attendance.reason-codes.create');
@@ -479,7 +479,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('academics')->as('academics.')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor|Academic Administrator|Director')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Deputy Senior Teacher|Supervisor|Academic Administrator|Director')
         ->group(function () {
 
         // Core setup
@@ -714,7 +714,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('transport')->name('transport.')
-        ->middleware('role:Super Admin|Admin|Secretary|Driver|Senior Teacher')
+        ->middleware('role:Super Admin|Admin|Secretary|Driver|Senior Teacher|Deputy Senior Teacher')
         ->group(function () {
 
             Route::get('/', [TransportController::class, 'index'])->name('index');
@@ -766,13 +766,15 @@ Route::middleware('auth')->group(function () {
             Route::post('special-assignments/{transportSpecialAssignment}/reject', [\App\Http\Controllers\Transport\TransportSpecialAssignmentController::class, 'reject'])->name('special-assignments.reject');
             Route::post('special-assignments/{transportSpecialAssignment}/cancel', [\App\Http\Controllers\Transport\TransportSpecialAssignmentController::class, 'cancel'])->name('special-assignments.cancel');
 
-            // Transport Assignment Import
-            Route::get('import', [\App\Http\Controllers\Transport\TransportImportController::class, 'importForm'])->name('import.form');
-            Route::post('import/preview', [\App\Http\Controllers\Transport\TransportImportController::class, 'preview'])->name('import.preview');
-            Route::get('import/preview', fn() => redirect()->route('transport.import.form')->with('error', 'Please upload a file to preview.'))->name('import.preview.redirect');
-            Route::post('import/process', [\App\Http\Controllers\Transport\TransportImportController::class, 'import'])->name('import.process');
-            Route::get('import/log/{id}', [\App\Http\Controllers\Transport\TransportImportController::class, 'showLog'])->name('import.log');
-            Route::get('import/template', [\App\Http\Controllers\Transport\TransportImportController::class, 'downloadTemplate'])->name('import.template');
+            // Transport Assignment Import (admin only — can sync billed amounts)
+            Route::middleware('role:Super Admin|Admin|Secretary')->group(function () {
+                Route::get('import', [\App\Http\Controllers\Transport\TransportImportController::class, 'importForm'])->name('import.form');
+                Route::post('import/preview', [\App\Http\Controllers\Transport\TransportImportController::class, 'preview'])->name('import.preview');
+                Route::get('import/preview', fn() => redirect()->route('transport.import.form')->with('error', 'Please upload a file to preview.'))->name('import.preview.redirect');
+                Route::post('import/process', [\App\Http\Controllers\Transport\TransportImportController::class, 'import'])->name('import.process');
+                Route::get('import/log/{id}', [\App\Http\Controllers\Transport\TransportImportController::class, 'showLog'])->name('import.log');
+                Route::get('import/template', [\App\Http\Controllers\Transport\TransportImportController::class, 'downloadTemplate'])->name('import.template');
+            });
 
             // Daily Transport List
             Route::get('daily-list', [\App\Http\Controllers\Transport\DailyTransportListController::class, 'index'])->name('daily-list.index');
@@ -1171,9 +1173,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Bulk stream assignment - MUST be before resource route to avoid conflicts
     Route::get('/students/bulk-assign-streams', [StudentController::class, 'bulkAssignStreams'])
-        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.bulk.assign-streams');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')->name('students.bulk.assign-streams');
     Route::post('/students/bulk-assign-streams', [StudentController::class, 'processBulkStreamAssignment'])
-        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.bulk.assign-streams.process');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')->name('students.bulk.assign-streams.process');
 
     // Archived list must be defined before the resource route to avoid being captured by /students/{student}
     Route::get('/students/archived', [StudentController::class, 'archived'])
@@ -1187,7 +1189,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Parents contact list (child, class, admission, father/mother name, phone, email, whatsapp)
     Route::get('/students/parents-contact', [StudentController::class, 'parentsContact'])
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('students.parents-contact');
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher|Deputy Senior Teacher')->name('students.parents-contact');
 
     // Parent credentials management — must be before students resource or {student}=parent-credentials → 404
     Route::get('/students/parent-credentials', [\App\Http\Controllers\Students\ParentCredentialsManageController::class, 'index'])
@@ -1213,15 +1215,15 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Enrollment by class (boys/girls) — must be before students resource
     Route::get('/students/enrollment-report', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'index'])
-        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.enrollment-report');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')->name('students.enrollment-report');
     Route::get('/students/enrollment-report/export-excel', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'exportExcel'])
-        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.enrollment-report.export-excel');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')->name('students.enrollment-report.export-excel');
     Route::get('/students/enrollment-report/export-pdf', [\App\Http\Controllers\Students\EnrollmentReportController::class, 'exportPdf'])
-        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.enrollment-report.export-pdf');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')->name('students.enrollment-report.export-pdf');
 
     // Export filtered list (must be before students resource — otherwise {student}=export)
     Route::match(['get', 'post'], '/students/export', [\App\Http\Controllers\DirectoryExportController::class, 'exportStudents'])
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher')->name('students.export');
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher|Deputy Senior Teacher')->name('students.export');
     
     // AJAX endpoint for student details
     Route::get('/students/{id}/details-ajax', [StudentController::class, 'detailsAjax'])
@@ -1229,7 +1231,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         ->name('students.details-ajax');
 
     Route::resource('students', StudentController::class)
-        ->except(['destroy'])
+        ->only(['index', 'show'])
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher|Deputy Senior Teacher');
+
+    Route::resource('students', StudentController::class)
+        ->only(['create', 'store', 'edit', 'update'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher');
 
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])
@@ -1250,7 +1256,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Helper for cascading class → streams
     Route::post('/get-streams', [StudentController::class, 'getStreams'])
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher')->name('students.getStreams');
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher|Deputy Senior Teacher')->name('students.getStreams');
 
     // API-like search (inside auth)
     Route::get('/api/students/search', [StudentController::class, 'search'])
@@ -1268,7 +1274,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Bulk assign (class/stream) + bulk archive/restore
     Route::post('/students/bulk-assign', [StudentController::class, 'bulkAssign'])
-        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.bulk.assign');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Deputy Senior Teacher')->name('students.bulk.assign');
 
     Route::post('/students/bulk-archive', [StudentController::class, 'bulkArchive'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.archive');
@@ -1281,38 +1287,41 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         ->middleware('role:Super Admin|Admin|Secretary');
 
     // Student Records (Medical, Disciplinary, Activities, Academic History)
-    Route::prefix('students/{student}')->name('students.')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {
-        Route::get('medical-records', [MedicalRecordController::class, 'index'])->name('medical-records.index');
-        Route::get('medical-records/create', [MedicalRecordController::class, 'create'])->name('medical-records.create');
-        Route::post('medical-records', [MedicalRecordController::class, 'store'])->name('medical-records.store');
-        Route::get('medical-records/{medicalRecord}', [MedicalRecordController::class, 'show'])->name('medical-records.show');
-        Route::get('medical-records/{medicalRecord}/edit', [MedicalRecordController::class, 'edit'])->name('medical-records.edit');
-        Route::put('medical-records/{medicalRecord}', [MedicalRecordController::class, 'update'])->name('medical-records.update');
-        Route::delete('medical-records/{medicalRecord}', [MedicalRecordController::class, 'destroy'])->name('medical-records.destroy');
+    Route::prefix('students/{student}')->name('students.')->group(function () {
+        $studentRecordView = 'role:Super Admin|Admin|Secretary|Teacher|Senior Teacher|Deputy Senior Teacher';
+        $studentRecordWrite = 'role:Super Admin|Admin|Secretary|Teacher';
 
-        Route::get('disciplinary-records', [DisciplinaryRecordController::class, 'index'])->name('disciplinary-records.index');
-        Route::get('disciplinary-records/create', [DisciplinaryRecordController::class, 'create'])->name('disciplinary-records.create');
-        Route::post('disciplinary-records', [DisciplinaryRecordController::class, 'store'])->name('disciplinary-records.store');
-        Route::get('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'show'])->name('disciplinary-records.show');
-        Route::get('disciplinary-records/{disciplinaryRecord}/edit', [DisciplinaryRecordController::class, 'edit'])->name('disciplinary-records.edit');
-        Route::put('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'update'])->name('disciplinary-records.update');
-        Route::delete('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'destroy'])->name('disciplinary-records.destroy');
+        Route::get('medical-records', [MedicalRecordController::class, 'index'])->middleware($studentRecordView)->name('medical-records.index');
+        Route::get('medical-records/create', [MedicalRecordController::class, 'create'])->middleware($studentRecordWrite)->name('medical-records.create');
+        Route::post('medical-records', [MedicalRecordController::class, 'store'])->middleware($studentRecordWrite)->name('medical-records.store');
+        Route::get('medical-records/{medicalRecord}', [MedicalRecordController::class, 'show'])->middleware($studentRecordView)->name('medical-records.show');
+        Route::get('medical-records/{medicalRecord}/edit', [MedicalRecordController::class, 'edit'])->middleware($studentRecordWrite)->name('medical-records.edit');
+        Route::put('medical-records/{medicalRecord}', [MedicalRecordController::class, 'update'])->middleware($studentRecordWrite)->name('medical-records.update');
+        Route::delete('medical-records/{medicalRecord}', [MedicalRecordController::class, 'destroy'])->middleware($studentRecordWrite)->name('medical-records.destroy');
 
-        Route::get('activities', [ExtracurricularActivityController::class, 'index'])->name('activities.index');
-        Route::get('activities/create', [ExtracurricularActivityController::class, 'create'])->name('activities.create');
-        Route::post('activities', [ExtracurricularActivityController::class, 'store'])->name('activities.store');
-        Route::get('activities/{activity}', [ExtracurricularActivityController::class, 'show'])->name('activities.show');
-        Route::get('activities/{activity}/edit', [ExtracurricularActivityController::class, 'edit'])->name('activities.edit');
-        Route::put('activities/{activity}', [ExtracurricularActivityController::class, 'update'])->name('activities.update');
-        Route::delete('activities/{activity}', [ExtracurricularActivityController::class, 'destroy'])->name('activities.destroy');
+        Route::get('disciplinary-records', [DisciplinaryRecordController::class, 'index'])->middleware($studentRecordView)->name('disciplinary-records.index');
+        Route::get('disciplinary-records/create', [DisciplinaryRecordController::class, 'create'])->middleware($studentRecordWrite)->name('disciplinary-records.create');
+        Route::post('disciplinary-records', [DisciplinaryRecordController::class, 'store'])->middleware($studentRecordWrite)->name('disciplinary-records.store');
+        Route::get('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'show'])->middleware($studentRecordView)->name('disciplinary-records.show');
+        Route::get('disciplinary-records/{disciplinaryRecord}/edit', [DisciplinaryRecordController::class, 'edit'])->middleware($studentRecordWrite)->name('disciplinary-records.edit');
+        Route::put('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'update'])->middleware($studentRecordWrite)->name('disciplinary-records.update');
+        Route::delete('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'destroy'])->middleware($studentRecordWrite)->name('disciplinary-records.destroy');
 
-        Route::get('academic-history', [AcademicHistoryController::class, 'index'])->name('academic-history.index');
-        Route::get('academic-history/create', [AcademicHistoryController::class, 'create'])->name('academic-history.create');
-        Route::post('academic-history', [AcademicHistoryController::class, 'store'])->name('academic-history.store');
-        Route::get('academic-history/{academicHistory}', [AcademicHistoryController::class, 'show'])->name('academic-history.show');
-        Route::get('academic-history/{academicHistory}/edit', [AcademicHistoryController::class, 'edit'])->name('academic-history.edit');
-        Route::put('academic-history/{academicHistory}', [AcademicHistoryController::class, 'update'])->name('academic-history.update');
-        Route::delete('academic-history/{academicHistory}', [AcademicHistoryController::class, 'destroy'])->name('academic-history.destroy');
+        Route::get('activities', [ExtracurricularActivityController::class, 'index'])->middleware($studentRecordView)->name('activities.index');
+        Route::get('activities/create', [ExtracurricularActivityController::class, 'create'])->middleware($studentRecordWrite)->name('activities.create');
+        Route::post('activities', [ExtracurricularActivityController::class, 'store'])->middleware($studentRecordWrite)->name('activities.store');
+        Route::get('activities/{activity}', [ExtracurricularActivityController::class, 'show'])->middleware($studentRecordView)->name('activities.show');
+        Route::get('activities/{activity}/edit', [ExtracurricularActivityController::class, 'edit'])->middleware($studentRecordWrite)->name('activities.edit');
+        Route::put('activities/{activity}', [ExtracurricularActivityController::class, 'update'])->middleware($studentRecordWrite)->name('activities.update');
+        Route::delete('activities/{activity}', [ExtracurricularActivityController::class, 'destroy'])->middleware($studentRecordWrite)->name('activities.destroy');
+
+        Route::get('academic-history', [AcademicHistoryController::class, 'index'])->middleware($studentRecordView)->name('academic-history.index');
+        Route::get('academic-history/create', [AcademicHistoryController::class, 'create'])->middleware($studentRecordWrite)->name('academic-history.create');
+        Route::post('academic-history', [AcademicHistoryController::class, 'store'])->middleware($studentRecordWrite)->name('academic-history.store');
+        Route::get('academic-history/{academicHistory}', [AcademicHistoryController::class, 'show'])->middleware($studentRecordView)->name('academic-history.show');
+        Route::get('academic-history/{academicHistory}/edit', [AcademicHistoryController::class, 'edit'])->middleware($studentRecordWrite)->name('academic-history.edit');
+        Route::put('academic-history/{academicHistory}', [AcademicHistoryController::class, 'update'])->middleware($studentRecordWrite)->name('academic-history.update');
+        Route::delete('academic-history/{academicHistory}', [AcademicHistoryController::class, 'destroy'])->middleware($studentRecordWrite)->name('academic-history.destroy');
     });
 
     /*
@@ -1459,6 +1468,13 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Finance
     |----------------------------------------------------------------------
     */
+    Route::prefix('finance')->name('finance.')->middleware('role:Super Admin|Admin|Secretary|Accountant|Finance Officer|Director|Senior Teacher|Deputy Senior Teacher')->group(function () {
+        Route::get('fee-balances', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'index'])->name('fee-balances.index');
+        Route::get('fee-balances/export', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'export'])->name('fee-balances.export');
+        Route::get('fee-balances/export-pdf', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'exportPdf'])->name('fee-balances.export-pdf');
+        Route::get('fee-balances/print', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'printPdf'])->name('fee-balances.print');
+    });
+
     Route::prefix('finance')->name('finance.')->middleware('role:Super Admin|Admin|Secretary|Accountant|Finance Officer|Director')->group(function () {
 
         // Voteheads
@@ -1743,12 +1759,6 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')
             ->name('sibling-balance-transfer.store');
         
-        // Fee Balance Report (with attendance tracking)
-        Route::get('fee-balances', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'index'])->name('fee-balances.index');
-        Route::get('fee-balances/export', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'export'])->name('fee-balances.export');
-        Route::get('fee-balances/export-pdf', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'exportPdf'])->name('fee-balances.export-pdf');
-        Route::get('fee-balances/print', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'printPdf'])->name('fee-balances.print');
-
         // Fee Clearance (Cleared / Pending) report
         Route::get('fee-clearance', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'index'])->name('fee-clearance.index');
         Route::post('fee-clearance/recompute', [\App\Http\Controllers\Finance\FeeClearanceReportController::class, 'recompute'])->name('fee-clearance.recompute');
@@ -1953,7 +1963,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Exam Analytics
     |----------------------------------------------------------------------
     */
-    Route::prefix('academics')->as('academics.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')->group(function () {
+    Route::prefix('academics')->as('academics.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Deputy Senior Teacher')->group(function () {
         Route::get('exam-analytics', [ExamAnalyticsController::class, 'index'])->name('exam-analytics.index');
         Route::get('exam-analytics/classroom/{classroom}', [ExamAnalyticsController::class, 'classroomPerformance'])->name('exam-analytics.classroom');
 
@@ -1992,16 +2002,19 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Document Management
     |----------------------------------------------------------------------
     */
-    Route::prefix('documents')->name('documents.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
-        Route::get('/', [DocumentManagementController::class, 'index'])->name('index');
-        Route::get('/create', [DocumentManagementController::class, 'create'])->name('create');
-        Route::post('/', [DocumentManagementController::class, 'store'])->name('store');
-        Route::get('/{document}', [DocumentManagementController::class, 'show'])->name('show');
-        Route::get('/{document}/download', [DocumentManagementController::class, 'download'])->name('download');
-        Route::get('/{document}/preview', [DocumentManagementController::class, 'preview'])->name('preview');
-        Route::post('/{document}/email', [DocumentManagementController::class, 'email'])->name('email');
-        Route::post('/{document}/version', [DocumentManagementController::class, 'updateVersion'])->name('version');
-        Route::delete('/{document}', [DocumentManagementController::class, 'destroy'])->name('destroy');
+    Route::prefix('documents')->name('documents.')->group(function () {
+        $documentView = 'role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Deputy Senior Teacher';
+        $documentWrite = 'role:Super Admin|Admin|Secretary|Teacher|teacher';
+
+        Route::get('/', [DocumentManagementController::class, 'index'])->middleware($documentView)->name('index');
+        Route::get('/create', [DocumentManagementController::class, 'create'])->middleware($documentWrite)->name('create');
+        Route::post('/', [DocumentManagementController::class, 'store'])->middleware($documentWrite)->name('store');
+        Route::get('/{document}', [DocumentManagementController::class, 'show'])->middleware($documentView)->name('show');
+        Route::get('/{document}/download', [DocumentManagementController::class, 'download'])->middleware($documentView)->name('download');
+        Route::get('/{document}/preview', [DocumentManagementController::class, 'preview'])->middleware($documentView)->name('preview');
+        Route::post('/{document}/email', [DocumentManagementController::class, 'email'])->middleware($documentWrite)->name('email');
+        Route::post('/{document}/version', [DocumentManagementController::class, 'updateVersion'])->middleware($documentWrite)->name('version');
+        Route::delete('/{document}', [DocumentManagementController::class, 'destroy'])->middleware($documentWrite)->name('destroy');
     });
 
     /*
@@ -2048,7 +2061,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Inventory & Requirements Management
     |----------------------------------------------------------------------
     */
-    Route::prefix('inventory')->name('inventory.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')->group(function () {
+    Route::prefix('inventory')->name('inventory.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Deputy Senior Teacher')->group(function () {
         // Inventory Items
         Route::resource('items', \App\Http\Controllers\Inventory\InventoryItemController::class);
         Route::post('items/{item}/adjust-stock', [\App\Http\Controllers\Inventory\InventoryItemController::class, 'adjustStock'])->name('items.adjust-stock');

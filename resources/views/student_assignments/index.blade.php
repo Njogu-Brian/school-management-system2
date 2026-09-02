@@ -206,8 +206,10 @@
                                     </select>
                                 </div>
                                 <div class="col-md-2">
+                                    @if(can_edit_transport_amounts())
                                     <label class="form-label fw-semibold" for="fillAmount">Amount</label>
                                     <input type="number" step="0.01" min="0" id="fillAmount" class="form-control form-control-sm" placeholder="0 allowed">
+                                    @endif
                                 </div>
                                 <div class="col-md-2 d-flex gap-2">
                                     <button type="button" class="btn btn-ghost-strong btn-sm" id="fillEmptyBtn">Fill empty</button>
@@ -294,9 +296,14 @@
                                                     </select>
                                                 </td>
                                                 <td>
+                                                    @if(can_edit_transport_amounts())
                                                     <input type="number" step="0.01" min="0" name="assignments[{{ $student->id }}][amount]" class="form-control form-control-sm js-amount"
                                                            value="{{ old('assignments.'.$student->id.'.amount', $fee?->amount) }}" placeholder="0">
                                                     <small class="text-muted js-suggested"></small>
+                                                    @else
+                                                    <span class="fw-semibold">{{ $fee?->amount !== null ? number_format((float) $fee->amount, 2) : '—' }}</span>
+                                                    <div class="form-text">Set by finance</div>
+                                                    @endif
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -381,12 +388,17 @@
                                 <div class="form-text">Not required if evening drop-off is OWN MEANS.</div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="amount">Amount (KES / term) <span class="text-danger">*</span></label>
+                                <label class="form-label fw-semibold" for="amount">Amount (KES / term)@if(can_edit_transport_amounts()) <span class="text-danger">*</span>@endif</label>
+                                @if(can_edit_transport_amounts())
                                 <input type="number" step="0.01" min="0" name="amount" id="amount" class="form-control js-amount" required
                                        value="{{ old('amount', $fee?->amount ?? 0) }}">
                                 <div class="form-text">Zero is allowed. Suggested: <span class="js-suggested">—</span>
                                     <button type="button" class="btn btn-link btn-sm p-0 js-use-suggested">Use suggested</button>
                                 </div>
+                                @else
+                                <input type="text" class="form-control" value="{{ $fee?->amount !== null ? number_format((float) $fee->amount, 2) : '—' }}" disabled>
+                                <div class="form-text">Transport amounts are set by finance. You can still change trips and pickup points.</div>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -397,7 +409,7 @@
             @else
                 <div class="settings-card">
                     <div class="card-body text-center py-5 text-muted">
-                        Search for a child, then assign morning and evening pickup/drop-off, trips, and amount.
+                        Search for a child, then assign morning and evening pickup/drop-off and trips.
                     </div>
                 </div>
             @endif

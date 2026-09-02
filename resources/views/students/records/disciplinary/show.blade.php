@@ -15,7 +15,9 @@
     <h1 class="h4 mb-0">{{ $disciplinaryRecord->incident_type }}</h1>
     <div class="d-flex gap-2">
       <a href="{{ route('students.disciplinary-records.index', $student) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+      @if(can_edit_student_records())
       <a href="{{ route('students.disciplinary-records.edit', [$student, $disciplinaryRecord]) }}" class="btn btn-primary"><i class="bi bi-pencil"></i> Edit</a>
+      @endif
     </div>
   </div>
 

@@ -21,7 +21,8 @@ class TransportAssignmentWriter
      *     amount?: mixed,
      *     source?: string,
      *     note?: string,
-     *     skip_invoice?: bool
+     *     skip_invoice?: bool,
+     *     preserve_fee?: bool
      * }  $payload
      */
     public static function save(Student $student, array $payload): StudentAssignment
@@ -87,6 +88,10 @@ class TransportAssignmentWriter
         $note = $payload['note'] ?? 'Saved from transport assignment';
         $skipInvoice = (bool) ($payload['skip_invoice'] ?? true);
 
+        if (! empty($payload['preserve_fee'])) {
+            return $assignment;
+        }
+
         if ($amount !== null) {
             $legacyPointId = $seedPointId;
             $legacyPointName = $seedPoint?->name
@@ -120,7 +125,7 @@ class TransportAssignmentWriter
         return $assignment;
     }
 
-    public static function clear(Student $student, bool $skipInvoice = false, ?int $year = null, ?int $term = null): void
+    public static function clear(Student $student, bool $skipInvoice = false, ?int $year = null, ?int $term = null, bool $preserveFee = false): void
     {
         [$year, $term] = TransportFeeService::resolveYearAndTerm($year, $term);
 
@@ -136,6 +141,10 @@ class TransportAssignmentWriter
             $student->drop_off_point_other = null;
             $student->drop_off_point = null;
             $student->save();
+        }
+
+        if ($preserveFee) {
+            return;
         }
 
         TransportFeeService::upsertFee([

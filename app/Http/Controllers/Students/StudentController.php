@@ -359,6 +359,9 @@ class StudentController extends Controller
      */
     public function create()
     {
+        if (! can_edit_student_records()) {
+            abort(403, 'Student records are view-only for this role.');
+        }
         $students   = Student::all(); // optional, not needed with modal search
         $categories = StudentCategory::orderBy('name')->get();
         $classrooms = Classroom::orderBy('name')->get();
@@ -446,6 +449,10 @@ class StudentController extends Controller
      */
     public function store(Request $request)
     {
+        if (! can_edit_student_records()) {
+            abort(403, 'Student records are view-only for this role.');
+        }
+
         // If this request came from the filters (no student payload), bail early to avoid noisy validation/logs
         if (!$request->filled('first_name') || !$request->filled('last_name')) {
             return redirect()->route('students.index');
@@ -814,6 +821,10 @@ class StudentController extends Controller
      */
     public function edit($id)
     {
+        if (! can_edit_student_records()) {
+            abort(403, 'Student records are view-only for this role.');
+        }
+
         $student      = Student::withArchived()->with(['parent','classroom','stream','category','assignment'])->findOrFail($id);
         $categories   = StudentCategory::orderBy('name')->get();
         $classrooms   = Classroom::orderBy('name')->get();
@@ -838,6 +849,10 @@ class StudentController extends Controller
      */
    public function update(Request $request, $id)
     {
+        if (! can_edit_student_records()) {
+            abort(403, 'Student records are view-only for this role.');
+        }
+
         \Log::info('Student Update: Method called', [
             'student_id' => $id,
             'method' => $request->method(),

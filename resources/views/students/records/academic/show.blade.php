@@ -15,7 +15,9 @@
     <h1 class="h4 mb-0">Academic History Entry</h1>
     <div class="d-flex gap-2">
       <a href="{{ route('students.academic-history.index', $student) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back</a>
+      @if(can_edit_student_records())
       <a href="{{ route('students.academic-history.edit', [$student, $academicHistory]) }}" class="btn btn-primary"><i class="bi bi-pencil"></i> Edit</a>
+      @endif
     </div>
   </div>
 

@@ -29,17 +29,19 @@
             }
           }
         @endphp
-        @if($showBalanceTransfer)
+        @if($showBalanceTransfer && can_edit_student_records())
           <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#siblingBalanceTransferModal">
             <i class="bi bi-arrow-left-right"></i> Transfer fee balance
           </button>
         @endif
-        @if(!$student->is_alumni && $student->classroom_id)
+        @if(!$student->is_alumni && $student->classroom_id && can_edit_student_records())
           <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#demoteStudentModal">
             <i class="bi bi-arrow-down-circle"></i> Demote
           </button>
         @endif
+        @if(can_edit_student_records())
         <a href="{{ route('students.edit', $student->id) }}" class="btn btn-settings-primary"><i class="bi bi-pencil-square"></i> Edit</a>
+        @endif
       </div>
     </div>
 
@@ -92,7 +94,9 @@
             <span class="fw-bold">Documents</span>
             <div class="d-flex gap-2">
               <a class="btn btn-sm btn-ghost-strong" href="{{ route('documents.index', ['documentable_type' => 'App\\Models\\Student', 'documentable_id' => $student->id]) }}"><i class="bi bi-folder"></i> All Documents</a>
+              @if(can_edit_student_records())
               <a class="btn btn-sm btn-ghost-strong" href="{{ route('students.edit', $student->id) }}"><i class="bi bi-upload"></i> Manage</a>
+              @endif
             </div>
           </div>
           <div class="card-body small vstack gap-2">
@@ -506,7 +510,7 @@
                   @endforeach
                 </div>
               @else
-                <p class="text-muted mb-0">No medical records yet. <a href="{{ route('students.medical-records.create', $student) }}">Add one</a></p>
+                <p class="text-muted mb-0">No medical records yet.@if(can_edit_student_records()) <a href="{{ route('students.medical-records.create', $student) }}">Add one</a>@endif</p>
               @endif
             </div>
           </div>
@@ -532,7 +536,7 @@
                 @endforeach
               </div>
             @else
-              <p class="text-muted mb-0">No disciplinary records yet. <a href="{{ route('students.disciplinary-records.create', $student) }}">Add one</a></p>
+              <p class="text-muted mb-0">No disciplinary records yet.@if(can_edit_student_records()) <a href="{{ route('students.disciplinary-records.create', $student) }}">Add one</a>@endif</p>
             @endif
           </div>
 
@@ -557,7 +561,7 @@
                 @endforeach
               </div>
             @else
-              <p class="text-muted mb-0">No activities yet. <a href="{{ route('students.activities.create', $student) }}">Add one</a></p>
+              <p class="text-muted mb-0">No activities yet.@if(can_edit_student_records()) <a href="{{ route('students.activities.create', $student) }}">Add one</a>@endif</p>
             @endif
           </div>
 
@@ -582,7 +586,7 @@
                 @endforeach
               </div>
             @else
-              <p class="text-muted mb-0">No academic history yet. <a href="{{ route('students.academic-history.create', $student) }}">Add one</a></p>
+              <p class="text-muted mb-0">No academic history yet.@if(can_edit_student_records()) <a href="{{ route('students.academic-history.create', $student) }}">Add one</a>@endif</p>
             @endif
           </div>
             <div class="tab-pane fade" id="finance" role="tabpanel">

@@ -2,6 +2,7 @@
   <a href="{{ route('students.show', $student->id) }}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-eye"></i>
   </a>
+  @if(can_edit_student_records())
   <a href="{{ route('students.edit', $student->id) }}" class="btn btn-sm btn-outline-primary">
     <i class="bi bi-pencil-square"></i>
   </a>
@@ -35,4 +36,5 @@
       </li>
     @endif
   </ul>
+  @endif
 </div>

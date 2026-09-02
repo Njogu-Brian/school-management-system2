@@ -16,12 +16,12 @@
         <p class="text-muted mb-0">Browse, filter, and manage student records.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
-        @if(Route::has('students.archived'))
+        @if(Route::has('students.archived') && can_edit_student_records())
           <a href="{{ route('students.archived') }}" class="btn btn-ghost-strong">
             <i class="bi bi-archive-fill"></i> Archived
           </a>
         @endif
-        @if(Route::has('students.alumni'))
+        @if(Route::has('students.alumni') && can_edit_student_records())
           <a href="{{ route('students.alumni') }}" class="btn btn-ghost-strong">
             <i class="bi bi-mortarboard"></i> Alumni
           </a>
@@ -36,7 +36,7 @@
             <i class="bi bi-bar-chart-steps"></i> Enrollment by Class
           </a>
         @endif
-        @if(Route::has('students.duplicate-report'))
+        @if(Route::has('students.duplicate-report') && can_edit_student_records())
           <a href="{{ route('students.duplicate-report') }}" class="btn btn-ghost-strong">
             <i class="bi bi-person-exclamation"></i> Duplicate admissions
           </a>
@@ -46,8 +46,14 @@
             <i class="bi bi-diagram-3"></i> Bulk Assign Streams
           </a>
         @endif
+        @if(Route::has('students.bulk'))
+        @if(can_edit_student_records())
         <a href="{{ route('students.bulk') }}" class="btn btn-ghost-strong"><i class="bi bi-upload"></i> Bulk Upload</a>
+        @endif
+        @endif
+        @if(can_edit_student_records())
         <a href="{{ route('students.create') }}" class="btn btn-settings-primary"><i class="bi bi-person-plus"></i> New Student</a>
+        @endif
       </div>
     </div>
 
