@@ -161,6 +161,7 @@ export const RequirementsStudentScreen: React.FC<Props> = ({ navigation, route }
                   {item.quantity_collected}/{item.quantity_required} {item.unit ?? ''}
                   {item.brand ? ` · ${item.brand}` : ''}
                   {remaining > 0 ? ` · ${remaining} remaining` : ''}
+                  {item.is_verification_only ? ' · Verify only (learner keeps)' : item.adds_to_inventory ? ' · Collect into school stock' : ''}
                 </Text>
                 {item.notes ? (
                   <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
@@ -179,7 +180,7 @@ export const RequirementsStudentScreen: React.FC<Props> = ({ navigation, route }
                       placeholder={String(remaining)}
                     />
                     <Button
-                      label="Record received"
+                      label={item.is_verification_only ? 'Verify learner has this' : 'Record received'}
                       onPress={() => void submit(item.template_id)}
                       loading={busy}
                       disabled={collectMutation.isPending}

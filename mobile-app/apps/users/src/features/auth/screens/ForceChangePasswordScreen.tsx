@@ -1,7 +1,7 @@
-import { accountApi, useAuth } from '@erp/core';
-import { Button, ScreenContainer, useTheme } from '@erp/ui';
+import { accountApi, isStrongPassword, useAuth } from '@erp/core';
+import { Button, PasswordField, ScreenContainer, useTheme } from '@erp/ui';
 import React, { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 /**
  * Shown only after a fresh sign-in when admin set must_change_password.
@@ -9,7 +9,7 @@ import { Text, TextInput, View } from 'react-native';
  */
 export const ForceChangePasswordScreen: React.FC = () => {
   const { user, refreshUser, logout, clearForcePasswordChange } = useAuth();
-  const { colors, palette, spacing, typography, radius } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -18,7 +18,11 @@ export const ForceChangePasswordScreen: React.FC = () => {
 
   const submit = async () => {
     setError(null);
-    if (!newPassword || newPassword !== confirmPassword) {
+    if (!isStrongPassword(newPassword)) {
+      setError('Password is missing a requirement listed below.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
       setError('New passwords do not match.');
       return;
     }
@@ -39,17 +43,6 @@ export const ForceChangePasswordScreen: React.FC = () => {
     }
   };
 
-  const fieldStyle = {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    color: palette.textPrimary,
-    marginBottom: spacing.sm,
-    backgroundColor: palette.surface,
-  } as const;
-
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }}>
       <Text style={{ color: palette.textPrimary, fontSize: typography.headline.fontSize, fontWeight: '800' }}>
@@ -62,41 +55,17 @@ export const ForceChangePasswordScreen: React.FC = () => {
 
       {error ? <Text style={{ color: colors.error, marginBottom: spacing.sm }}>{error}</Text> : null}
 
-      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: 4 }}>
-        Current password (optional if you were given a temporary one)
-      </Text>
-      <TextInput
-        value={currentPassword}
-        onChangeText={setCurrentPassword}
-        secureTextEntry
-        autoCapitalize="none"
-        placeholder="Current password"
-        placeholderTextColor={palette.textMuted}
-        style={fieldStyle}
-      />
-      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: 4 }}>
-        New password
-      </Text>
-      <TextInput
+      <PasswordField
+        showCurrent
+        currentValue={currentPassword}
+        onCurrentChange={setCurrentPassword}
+        currentLabel="Current password (optional if you were given a temporary one)"
         value={newPassword}
         onChangeText={setNewPassword}
-        secureTextEntry
-        autoCapitalize="none"
-        placeholder="New password"
-        placeholderTextColor={palette.textMuted}
-        style={fieldStyle}
-      />
-      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: 4 }}>
-        Confirm new password
-      </Text>
-      <TextInput
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-        autoCapitalize="none"
-        placeholder="Confirm new password"
-        placeholderTextColor={palette.textMuted}
-        style={fieldStyle}
+        confirmValue={confirmPassword}
+        onConfirmChange={setConfirmPassword}
+        showConfirm
+        username={user?.email ?? user?.phone ?? undefined}
       />
 
       <Button label={busy ? 'Saving…' : 'Save new password'} loading={busy} onPress={() => void submit()} />

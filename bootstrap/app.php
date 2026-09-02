@@ -21,6 +21,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\DirectorRoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'password.changed' => \App\Http\Middleware\EnsurePasswordChanged::class,
+        ]);
+
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsurePasswordChanged::class,
         ]);
 
         // Exempt M-PESA webhook endpoints from CSRF verification

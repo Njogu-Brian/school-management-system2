@@ -41,7 +41,12 @@
     <div class="settings-card mb-3">
       <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
-          <div class="fw-bold">Passkeys (Fingerprint / Face ID)</div>
+          <div class="fw-bold">Password</div>
+          <div class="text-muted small">Change your sign-in password for the web portal and mobile app.</div>
+        </div>
+        <a href="{{ route('password.change') }}" class="btn btn-outline-dark">Change password</a>
+      </div>
+    </div>
           <div class="text-muted small">Add a passkey so you can sign in without typing your password.</div>
         </div>
         <button type="button" class="btn btn-outline-dark" onclick="registerPasskey()">

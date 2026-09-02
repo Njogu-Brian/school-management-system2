@@ -3,11 +3,12 @@ import {
   getRememberedFirstName,
   hasPinUnlockAvailable,
   API_BASE_URL,
+  authApi,
   useAuth,
   useBiometricAuth,
   useBranding,
 } from '@erp/core';
-import { Button, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
+import { Button, ForgotPasswordForm, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -77,6 +78,7 @@ export const LoginScreen: React.FC = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const [unlockSurface, setUnlockSurface] = useState<UnlockSurface>('quick');
   const [pinAvailable, setPinAvailable] = useState(false);
   const [rememberedFirstName, setRememberedFirstNameState] = useState<string | null>(null);
@@ -282,7 +284,7 @@ export const LoginScreen: React.FC = () => {
             onSubmitEditing={handlePasswordSubmit}
           />
           <Pressable
-            style={[styles.rememberRow, { marginBottom: spacing.lg }]}
+            style={[styles.rememberRow, { marginBottom: spacing.sm }]}
             onPress={() => setRemember((v) => !v)}
           >
             <View
@@ -303,6 +305,9 @@ export const LoginScreen: React.FC = () => {
             <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: typography.body.fontSize }}>
               Keep me signed in
             </Text>
+          </Pressable>
+          <Pressable onPress={() => setShowForgot(true)} style={{ marginBottom: spacing.lg }}>
+            <Text style={{ color: colors.primaryOnDark, fontWeight: '700' }}>Forgot password?</Text>
           </Pressable>
           <Button
             label="Sign in"
@@ -644,6 +649,29 @@ export const LoginScreen: React.FC = () => {
       </ScrollView>
     </KeyboardAvoidingView>
   );
+
+  if (showForgot) {
+    return (
+      <ForgotPasswordForm
+        onBack={() => setShowForgot(false)}
+        requestOtp={async (id) => {
+          const res = await authApi.requestPasswordResetOtp(id);
+          if (!res.success) throw new Error(res.message || 'Could not send the code.');
+        }}
+        verifyOtp={async (id, code) => {
+          const res = await authApi.verifyPasswordResetOtp(id, code);
+          if (!res.success || !res.data?.token) throw new Error(res.message || 'Invalid or expired code.');
+          return res.data.token;
+        }}
+        resetPassword={async (payload) => {
+          const res = await authApi.resetPassword(payload);
+          if (!res.success) throw new Error(res.message || 'Could not reset password.');
+          showSuccess('Password reset', 'Sign in with your new password.');
+          setShowForgot(false);
+        }}
+      />
+    );
+  }
 
   return (
     <ScreenContainer edges={[]} scroll={false} clearFloatingTabBar={false} style={styles.transparent}>

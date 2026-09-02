@@ -213,7 +213,10 @@
 
             <div class="mb-3">
                 <label>Password</label>
-                <input type="password" class="form-control" name="password" required>
+                <div class="input-group">
+                    <input type="password" class="form-control" name="password" id="loginPassword" required autocomplete="current-password">
+                    <button class="btn btn-outline-secondary" type="button" id="toggleLoginPassword" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                </div>
             </div>
 
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -303,6 +306,15 @@
             if (passwordForm) passwordForm.classList.remove('d-none');
             document.querySelector('#passwordLoginForm input[name="password"]')?.focus();
         }
+
+        document.getElementById('toggleLoginPassword')?.addEventListener('click', function () {
+            const input = document.getElementById('loginPassword');
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            const icon = this.querySelector('i');
+            if (icon) icon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+        });
     </script>
 
     {{-- Announcements --}}

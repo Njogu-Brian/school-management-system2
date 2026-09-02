@@ -17,9 +17,17 @@
                 <h1>Student Requirements Tracker</h1>
                 <p>See which learners have delivered items and follow up on outstanding ones.</p>
             </div>
-            <a href="{{ route('inventory.student-requirements.collect') }}" class="btn btn-settings-primary">
-                <i class="bi bi-clipboard-check"></i> Collect / Verify
-            </a>
+            <div class="d-flex gap-2">
+                <a href="{{ route('inventory.reports.requirements') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-clipboard-data"></i> Fulfilment report
+                </a>
+                <a href="{{ route('inventory.reports.receipts') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-box-arrow-in-down"></i> What we received
+                </a>
+                <a href="{{ route('inventory.student-requirements.collect') }}" class="btn btn-settings-primary">
+                    <i class="bi bi-clipboard-check"></i> Collect / Verify
+                </a>
+            </div>
         </div>
 
         @include('partials.alerts')

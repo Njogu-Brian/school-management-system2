@@ -194,6 +194,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::post('/parent-wallet/saving-plans/{id}/pay-now', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'paySavingPlanNow']);
 
     Route::post('/password/change', [ApiAccountController::class, 'changePassword']);
+    Route::get('/users/password-change-targets', [\App\Http\Controllers\Api\ApiForcePasswordChangeController::class, 'targets']);
+    Route::post('/users/require-password-change', [\App\Http\Controllers\Api\ApiForcePasswordChangeController::class, 'requireChange']);
     Route::post('/device-tokens', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'store']);
     Route::post('/device-tokens/revoke', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'destroy']);
     Route::get('/notification-preferences', [ApiNotificationPreferencesController::class, 'show']);
@@ -405,6 +407,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/inventory/items', [\App\Http\Controllers\Api\ApiInventoryController::class, 'index']);
     Route::get('/inventory/items/{id}', [\App\Http\Controllers\Api\ApiInventoryController::class, 'show']);
     Route::post('/inventory/items/{id}/adjust', [\App\Http\Controllers\Api\ApiInventoryController::class, 'adjust']);
+    Route::get('/inventory/reports/requirements', [\App\Http\Controllers\Api\ApiInventoryReportsController::class, 'requirements']);
+    Route::get('/inventory/reports/receipts', [\App\Http\Controllers\Api\ApiInventoryReportsController::class, 'receipts']);
     Route::get('/requisitions', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'index']);
     Route::post('/requisitions', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'store']);
     Route::get('/requisitions/{id}', [\App\Http\Controllers\Api\ApiRequisitionController::class, 'show']);

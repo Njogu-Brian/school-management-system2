@@ -54,7 +54,8 @@
 </div>
 <div class="col-md-4">
   <label class="form-label" for="{{ $idFor('medical_condition') }}">Medical Condition <span class="text-danger">*</span></label>
-  <input type="text" name="{{ $nameFor('medical_condition') }}" id="{{ $idFor('medical_condition') }}" class="form-control" value="{{ $oldFor('medical_condition', $student?->medical_condition ?? '') }}" placeholder="None if not applicable" required>
+  <input type="text" name="{{ $nameFor('medical_condition') }}" id="{{ $idFor('medical_condition') }}" class="form-control" value="{{ $oldFor('medical_condition', $student?->medical_condition ?: 'None') }}" placeholder="None if the child has no condition" required>
+  <small class="text-muted">Enter None if there is no medical condition.</small>
 </div>
 <div class="col-md-4">
   <label class="form-label" for="{{ $idFor('religion') }}">Religion <span class="text-danger">*</span></label>

@@ -418,7 +418,7 @@ class AuthController extends Controller
         $request->validate([
             'identifier' => 'required|string',
             'otp_code' => 'required|digits:6',
-            'password' => 'required|min:8|confirmed',
+            'password' => ['required', 'confirmed', \App\Support\PasswordPolicy::rule()],
         ]);
 
         [$user, $staff, $normalizedIdentifier] = $this->resolveUserAndStaffByIdentifier($request->identifier);
@@ -446,7 +446,9 @@ class AuthController extends Controller
 
         // Reset password
         $user->forceFill([
-            'password' => \Hash::make($request->password)
+            'password' => \Hash::make($request->password),
+            'must_change_password' => false,
+            'password_changed_at' => now(),
         ])->save();
 
         // Clear session
@@ -466,7 +468,7 @@ class AuthController extends Controller
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',
-            'password' => 'required|min:8|confirmed',
+            'password' => ['required', 'confirmed', \App\Support\PasswordPolicy::rule()],
         ]);
 
         $status = \Illuminate\Support\Facades\Password::reset(

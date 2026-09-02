@@ -42,7 +42,7 @@ class ItemReceipt extends Model
     public function isSchoolCustody(): bool
     {
         $template = $this->studentRequirement->requirementTemplate ?? null;
-        return $template && $template->custody_type === 'school_custody';
+        return $template && $template->addsToSchoolInventory();
     }
 }
 

@@ -15,6 +15,7 @@ export * from './finance';
 export * from './academics';
 export * from './utils/downloadFile';
 export * from './utils/greeting';
+export * from './utils/passwordPolicy';
 export * from './hooks/useNetworkStatus';
 export * from './hooks/useOfflineSearch';
 export * from './hooks/useSyncQueue';

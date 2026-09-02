@@ -3,6 +3,7 @@ export * from './layout';
 export * from './filters';
 export * from './feedback';
 export * from './primitives';
+export * from './auth/ForgotPasswordForm';
 export * from './rbac';
 export * from './dashboard';
 export * from './approvals';

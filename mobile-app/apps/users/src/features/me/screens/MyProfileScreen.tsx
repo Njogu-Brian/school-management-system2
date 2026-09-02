@@ -10,7 +10,7 @@ import {
   useStaffDocuments,
   useUpdateStaff,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, PasswordField, ScreenContainer, TextField, isStrongPassword, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
@@ -179,6 +179,10 @@ export const MyProfileScreen: React.FC = () => {
   };
 
   const changePassword = async () => {
+    if (!isStrongPassword(newPassword)) {
+      showError('Password', 'Password is missing a requirement listed below.');
+      return;
+    }
     if (!newPassword || newPassword !== confirmPassword) {
       showError('Password', 'New passwords do not match.');
       return;
@@ -389,18 +393,16 @@ export const MyProfileScreen: React.FC = () => {
 
         {sectionHeader('Security')}
         <View style={groupStyle}>
-          <TextField
-            label="Current password"
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-          />
-          <TextField label="New password" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
-          <TextField
-            label="Confirm new password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
+          <PasswordField
+            showCurrent
+            currentValue={currentPassword}
+            onCurrentChange={setCurrentPassword}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            confirmValue={confirmPassword}
+            onConfirmChange={setConfirmPassword}
+            showConfirm
+            username={user?.email ?? user?.phone ?? undefined}
           />
           <Button
             label="Update password"

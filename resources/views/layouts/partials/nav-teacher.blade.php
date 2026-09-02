@@ -21,7 +21,7 @@
   $timetableActive = Request::is('academics/timetable*') || Request::is('teacher/timetable*');
   $announcementsActive = Request::is('teacher/announcements*');
   $eventsActive = Request::is('teacher/events*') || Request::is('events*');
-  $teacherInventoryActive = Request::is('inventory/student-requirements*') || Request::is('inventory/requisitions*');
+  $teacherInventoryActive = Request::is('inventory/student-requirements*') || Request::is('inventory/requisitions*') || Request::is('inventory/reports*');
   $supervisorActive = Request::is('supervisor/*') || (is_supervisor() && (Request::is('academics/lesson-plans*') || Request::is('academics/exams*') || Request::is('academics/timetable*') || Request::is('staff/leave-requests*') || Request::is('staff/attendance*')));
 @endphp
 
@@ -335,7 +335,15 @@
     </a>
     <a href="{{ route('inventory.student-requirements.index') }}"
        class="sublink {{ Request::is('inventory/student-requirements') ? 'active' : '' }}">
-      <i class="bi bi-list-task"></i> My Collections
+        <i class="bi bi-list-task"></i> My Collections
+    </a>
+    <a href="{{ route('inventory.reports.requirements') }}"
+       class="sublink {{ Request::is('inventory/reports/requirements*') ? 'active' : '' }}">
+        <i class="bi bi-clipboard-data"></i> Fulfilment report
+    </a>
+    <a href="{{ route('inventory.reports.receipts') }}"
+       class="sublink {{ Request::is('inventory/reports/receipts*') ? 'active' : '' }}">
+        <i class="bi bi-box-arrow-in-down"></i> What we received
     </a>
     <a href="{{ route('inventory.requisitions.create') }}"
        class="sublink {{ Request::is('inventory/requisitions/create') ? 'active' : '' }}">

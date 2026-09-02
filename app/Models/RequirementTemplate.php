@@ -110,6 +110,19 @@ class RequirementTemplate extends Model
     }
 
     /**
+     * Whether receipts should increase school inventory.
+     * Verification-only items stay with the learner (personal property).
+     */
+    public function addsToSchoolInventory(): bool
+    {
+        if ($this->is_verification_only) {
+            return false;
+        }
+
+        return $this->custody_type === 'school_custody' || (bool) $this->leave_with_teacher;
+    }
+
+    /**
      * Replicate requirement to other classes
      */
     public function replicateToClasses(array $classroomIds): array

@@ -431,8 +431,9 @@
                                     <input type="text" name="students[{{ $stu->id }}][first_name]" class="form-control" value="{{ old('students.'.$stu->id.'.first_name', $stu->first_name) }}" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Middle Name <span class="text-danger">*</span></label>
-                                    <input type="text" name="students[{{ $stu->id }}][middle_name]" class="form-control" value="{{ old('students.'.$stu->id.'.middle_name', $stu->middle_name) }}" required>
+                                    <label class="form-label">Middle Name</label>
+                                    <input type="text" name="students[{{ $stu->id }}][middle_name]" class="form-control" value="{{ old('students.'.$stu->id.'.middle_name', $stu->middle_name) }}" placeholder="Leave blank if none">
+                                    <small class="text-muted">Optional — leave blank if the child has no middle name.</small>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Last Name <span class="text-danger">*</span></label>
@@ -487,7 +488,7 @@
                                         'name' => 'students['.$stu->id.'][passport_photo]',
                                         'id' => 'passport_photo_'.$stu->id,
                                         'kind' => 'image',
-                                        'hint' => 'Choose a photo from your gallery or take one now. JPG/PNG up to 4 MB.',
+                                        'hint' => 'Choose a photo from your gallery or take one now. Large photos are compressed automatically (max 8 MB).',
                                     ])
                                     @php
                                         $passportDocs = $stu->documents()->where(function($q) {
@@ -520,7 +521,7 @@
                                         'name' => 'students['.$stu->id.'][birth_certificate]',
                                         'id' => 'birth_cert_'.$stu->id,
                                         'kind' => 'document',
-                                        'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 5 MB.',
+                                        'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 10 MB. Photos are compressed automatically.',
                                     ])
                                     @php
                                         $birthCertDocs = $stu->documents()->where(function($q) {
@@ -628,7 +629,7 @@
                                     'name' => 'father_id_document',
                                     'id' => 'father_id_document',
                                     'kind' => 'document',
-                                    'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 5 MB.',
+                                    'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 10 MB. Photos are compressed automatically.',
                                 ])
                                     @php
                                         $parent = $students->first()->parent ?? null;
@@ -711,7 +712,7 @@
                                     'name' => 'mother_id_document',
                                     'id' => 'mother_id_document',
                                     'kind' => 'document',
-                                    'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 5 MB.',
+                                    'hint' => 'Browse Files/Downloads for a PDF, or choose/take a photo. PDF/JPG/PNG up to 10 MB. Photos are compressed automatically.',
                                 ])
                                     @php
                                         $parent = $students->first()->parent ?? null;
@@ -888,6 +889,58 @@
             || /\.(pdf|jpe?g|png|webp)$/i.test(name);
     }
 
+    function compressImageFile(file, maxBytes) {
+        return new Promise(function (resolve) {
+            const type = (file.type || '').toLowerCase();
+            if (!type.startsWith('image/') || type.indexOf('heic') !== -1 || type.indexOf('heif') !== -1) {
+                resolve(file);
+                return;
+            }
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = function () {
+                URL.revokeObjectURL(url);
+                let width = img.width;
+                let height = img.height;
+                const maxDim = 1600;
+                if (width > maxDim || height > maxDim) {
+                    const scale = maxDim / Math.max(width, height);
+                    width = Math.round(width * scale);
+                    height = Math.round(height * scale);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    resolve(file);
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                let quality = 0.82;
+                const finish = function (blob) {
+                    if (!blob) {
+                        resolve(file);
+                        return;
+                    }
+                    if (blob.size > maxBytes && quality > 0.5) {
+                        quality -= 0.12;
+                        canvas.toBlob(finish, 'image/jpeg', quality);
+                        return;
+                    }
+                    const name = (file.name || 'photo').replace(/\.[^.]+$/, '.jpg');
+                    resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
+                };
+                canvas.toBlob(finish, 'image/jpeg', quality);
+            };
+            img.onerror = function () {
+                URL.revokeObjectURL(url);
+                resolve(file);
+            };
+            img.src = url;
+        });
+    }
+
     document.querySelectorAll('[data-media-picker]').forEach(function (wrap) {
         const canonical = wrap.querySelector('.js-media-canonical');
         const preview = wrap.querySelector('.js-media-preview');
@@ -901,25 +954,23 @@
             filesInput.setAttribute('accept', '*/*');
         }
 
-        function assignPickedFile(source) {
+        function assignCanonicalFile(file) {
             const fieldName = canonical.dataset.fieldName;
             wrap.querySelectorAll('.js-media-source').forEach(function (el) {
-                if (el !== source) el.removeAttribute('name');
+                el.removeAttribute('name');
             });
             try {
                 const dt = new DataTransfer();
-                dt.items.add(source.files[0]);
+                dt.items.add(file);
                 canonical.files = dt.files;
                 if (canonical.files && canonical.files.length) {
                     canonical.setAttribute('name', fieldName);
-                    source.removeAttribute('name');
-                    return;
+                    return true;
                 }
             } catch (err) {
                 // Some mobile browsers cannot copy FileList; submit the source input instead.
             }
-            canonical.removeAttribute('name');
-            source.setAttribute('name', fieldName);
+            return false;
         }
 
         wrap.querySelectorAll('.js-media-source').forEach(function (source) {
@@ -939,12 +990,34 @@
                     }
                     return;
                 }
-                assignPickedFile(source);
-                if (preview) {
-                    preview.style.display = 'block';
-                    const icon = (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) ? 'bi-file-earmark-pdf' : 'bi-file-earmark-image';
-                    preview.innerHTML = '<i class="bi ' + icon + '"></i> Selected: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+                const showPreview = function (readyFile) {
+                    if (preview) {
+                        preview.style.display = 'block';
+                        const icon = (readyFile.type === 'application/pdf' || /\.pdf$/i.test(readyFile.name)) ? 'bi-file-earmark-pdf' : 'bi-file-earmark-image';
+                        preview.innerHTML = '<i class="bi ' + icon + '"></i> Selected: ' + readyFile.name + ' (' + (readyFile.size / 1024).toFixed(1) + ' KB)';
+                    }
+                };
+                if ((file.type || '').startsWith('image/')) {
+                    if (preview) {
+                        preview.style.display = 'block';
+                        preview.innerHTML = '<span class="text-muted">Compressing photo…</span>';
+                    }
+                    compressImageFile(file, 3.5 * 1024 * 1024).then(function (readyFile) {
+                        if (!assignCanonicalFile(readyFile)) {
+                            source.setAttribute('name', canonical.dataset.fieldName);
+                            canonical.removeAttribute('name');
+                            showPreview(file);
+                            return;
+                        }
+                        showPreview(readyFile);
+                    });
+                    return;
                 }
+                if (!assignCanonicalFile(file)) {
+                    canonical.removeAttribute('name');
+                    source.setAttribute('name', canonical.dataset.fieldName);
+                }
+                showPreview(file);
             });
         });
     });

@@ -34,16 +34,36 @@ class FamilyUpdateFeedback
             'This field is required to complete mother details.' => 'This is needed to complete the mother’s details.',
             'The father id document field must be a file of type: pdf, jpg, jpeg, png.' => 'Father ID must be a PDF or image (JPG/PNG).',
             'The mother id document field must be a file of type: pdf, jpg, jpeg, png.' => 'Mother ID must be a PDF or image (JPG/PNG).',
-            'The father id document field must not be greater than 5120 kilobytes.' => 'Father ID file is too large (max 5 MB).',
-            'The mother id document field must not be greater than 5120 kilobytes.' => 'Mother ID file is too large (max 5 MB).',
+            'The father id document field must not be greater than 10240 kilobytes.' => 'Father ID file is too large (max 10 MB). Try a clearer, smaller photo.',
+            'The mother id document field must not be greater than 10240 kilobytes.' => 'Mother ID file is too large (max 10 MB). Try a clearer, smaller photo.',
         ];
 
         if (isset($replacements[$message])) {
             return $replacements[$message];
         }
 
+        if (preg_match('/must not be greater than (\d+) kilobytes/u', $message, $sizeMatch)) {
+            $mb = max(1, (int) round(((int) $sizeMatch[1]) / 1024));
+            if (str_contains($message, 'passport photo')) {
+                return "That photo is too large (max {$mb} MB). Use a smaller picture — the form also compresses photos automatically.";
+            }
+            if (str_contains($message, 'birth certificate') || str_contains($message, 'id document')) {
+                return "That file is too large (max {$mb} MB). Please upload a smaller PDF or photo.";
+            }
+
+            return "That file is too large (max {$mb} MB). Please choose a smaller file.";
+        }
+
         if (preg_match('/^The students\.\d+\.(.+) field is required\.$/u', $message, $matches)) {
-            return 'Please enter '.strtolower(self::baseLabel($matches[1])).'.';
+            $label = strtolower(self::baseLabel($matches[1]));
+            if ($matches[1] === 'medical_condition') {
+                return 'Please enter a medical condition, or type None if there is none.';
+            }
+            if ($matches[1] === 'middle_name') {
+                return 'Middle name is optional — you can leave it blank.';
+            }
+
+            return 'Please enter '.$label.'.';
         }
 
         if (preg_match('/^The students\.\d+\.allergies_notes field is required when students\.\d+\.has_allergies is 1\.$/u', $message)) {

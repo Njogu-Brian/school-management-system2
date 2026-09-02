@@ -2870,10 +2870,11 @@ class StudentController extends Controller
         $studentData['kcpe_kjsea_year'] = $request->filled('kcpe_kjsea_year') ? (int) $request->kcpe_kjsea_year : null;
         foreach ([
             'nationality', 'county_of_birth', 'sub_county_of_birth', 'location_of_birth',
-            'birth_certificate_entry_no', 'medical_condition', 'orphan_status', 'disability_type',
+            'birth_certificate_entry_no', 'orphan_status', 'disability_type',
         ] as $field) {
             $studentData[$field] = $request->filled($field) ? $request->input($field) : null;
         }
+        $studentData['medical_condition'] = KemisProfile::defaultMedicalCondition($request->input('medical_condition'));
         $studentData['religion'] = KemisProfile::normalizeReligion(
             $request->input('religion'),
             $request->input('religion_other')

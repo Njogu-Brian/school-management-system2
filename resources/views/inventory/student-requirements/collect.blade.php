@@ -139,11 +139,10 @@
                                                 <tr data-template-id="{{ $template->id }}">
                                                     <td>
                                                         <div class="fw-semibold">{{ $template->requirementType->name }}</div>
-                                                        @if($template->leave_with_teacher)
-                                                            <div><span class="badge bg-info">Keep at school</span></div>
-                                                        @endif
                                                         @if($template->is_verification_only)
-                                                            <div><span class="badge bg-warning">Verification only</span></div>
+                                                            <div><span class="badge bg-warning text-dark">Verify only — learner keeps</span></div>
+                                                        @elseif($template->leave_with_teacher || $template->custody_type === 'school_custody')
+                                                            <div><span class="badge bg-info">Collect — school stock</span></div>
                                                         @endif
                                                     </td>
                                                     <td>

@@ -204,6 +204,17 @@ class CommunicationService
 
     public function sendEmail($recipientType, $recipientId, $email, $subject, $htmlMessage, $attachmentPath = null)
     {
+        $email = strtolower(preg_replace('/\s+/', '', trim((string) $email)));
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Email send skipped: invalid address', [
+                'recipient_type' => $recipientType,
+                'recipient_id' => $recipientId,
+                'email' => $email,
+            ]);
+
+            return;
+        }
+
         if ($this->blockedParentSchoolNotification('email', $recipientType, $recipientId, $email, $htmlMessage, $subject)) {
             return;
         }

@@ -168,6 +168,10 @@ export const queryKeys = {
     inventoryItem: (id: number) => [...queryKeys.operations.all, 'inventory-item', id] as const,
     requirementsStudents: (search?: string) =>
       [...queryKeys.operations.all, 'requirements-students', search ?? ''] as const,
+    requirementsReport: (filters?: object) =>
+      [...queryKeys.operations.all, 'requirements-report', filters ?? {}] as const,
+    receiptsReport: (filters?: object) =>
+      [...queryKeys.operations.all, 'receipts-report', filters ?? {}] as const,
     libraryBooks: (search?: string) =>
       [...queryKeys.operations.all, 'library-books', search ?? ''] as const,
     borrowings: (filters?: { status?: string; search?: string; studentId?: number }) =>
@@ -291,5 +295,10 @@ export const queryKeys = {
   kemis: {
     all: ['kemis'] as const,
     options: () => [...queryKeys.kemis.all, 'options'] as const,
+  },
+  users: {
+    all: ['users'] as const,
+    passwordTargets: (filters?: object) =>
+      [...queryKeys.users.all, 'password-targets', filters ?? {}] as const,
   },
 };

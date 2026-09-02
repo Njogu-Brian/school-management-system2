@@ -39,7 +39,8 @@ $studentsActive = Request::is('students*')
     || Request::is('online-admissions*')
     || Request::is('families*')
     || Request::is('admin/family-update*')
-    || Request::is('parents/credentials*');
+    || Request::is('parents/credentials*')
+    || Request::is('users/require-password-change*');
 $studentRecordsActive = Request::is('students/*/medical-records*') || Request::is('students/*/disciplinary-records*') || Request::is('students/*/activities*') || Request::is('students/*/academic-history*');
 @endphp
 <a href="#studentsMenu" data-bs-toggle="collapse" aria-expanded="{{ $studentsActive ? 'true' : 'false' }}" class="{{ $studentsActive ? 'parent-active' : '' }}">
@@ -52,6 +53,9 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     @endif
     @if(Route::has('students.parent-credentials'))
     <a href="{{ route('students.parent-credentials') }}" class="{{ Request::is('students/parent-credentials*') ? 'active' : '' }}"><i class="bi bi-key"></i> Parent Credentials</a>
+    @endif
+    @if(Route::has('users.require-password-change'))
+    <a href="{{ route('users.require-password-change') }}" class="{{ Request::is('users/require-password-change*') ? 'active' : '' }}"><i class="bi bi-shield-lock"></i> Require password change</a>
     @endif
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
     <a href="{{ route('students.bulk.assign-categories') }}" class="{{ Request::is('students/bulk-assign-categories*') ? 'active' : '' }}"><i class="bi bi-tag"></i> Assign Categories</a>
@@ -940,8 +944,16 @@ class="{{ $inventoryActive ? 'parent-active' : '' }}">
         <i class="bi bi-diagram-3"></i> Requirement Assignments
     </a>
     <a href="{{ route('inventory.student-requirements.index') }}" 
-    class="sublink {{ Request::is('inventory/student-requirements*') ? 'active' : '' }}">
+    class="sublink {{ Request::is('inventory/student-requirements*') && !Request::is('inventory/reports*') ? 'active' : '' }}">
         <i class="bi bi-person-check"></i> Student Requirements
+    </a>
+    <a href="{{ route('inventory.reports.requirements') }}"
+    class="sublink {{ Request::is('inventory/reports/requirements*') ? 'active' : '' }}">
+        <i class="bi bi-clipboard-data"></i> Fulfilment report
+    </a>
+    <a href="{{ route('inventory.reports.receipts') }}"
+    class="sublink {{ Request::is('inventory/reports/receipts*') ? 'active' : '' }}">
+        <i class="bi bi-box-arrow-in-down"></i> What we received
     </a>
     <a href="{{ route('inventory.requisitions.index') }}" 
     class="sublink {{ Request::is('inventory/requisitions*') ? 'active' : '' }}">

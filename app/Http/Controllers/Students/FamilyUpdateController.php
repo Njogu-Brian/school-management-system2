@@ -396,6 +396,17 @@ class FamilyUpdateController extends Controller
                 'student_ids_expected' => $studentIds,
                 'request_keys' => array_keys($request->all()),
             ]);
+
+            $incomingStudents = $request->input('students');
+            if (is_array($incomingStudents)) {
+                foreach ($incomingStudents as $idx => $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+                    $incomingStudents[$idx]['medical_condition'] = KemisProfile::defaultMedicalCondition($row['medical_condition'] ?? null);
+                }
+                $request->merge(['students' => $incomingStudents]);
+            }
             
             $validationRules = array_merge([
                 'residential_area' => 'required|string|max:255',
@@ -425,17 +436,17 @@ class FamilyUpdateController extends Controller
                 'students' => 'required|array|min:1',
                 'students.*.id' => 'required|integer|in:' . implode(',', $studentIds),
                 'students.*.first_name' => 'required|string|max:255',
-                'students.*.middle_name' => 'required|string|max:255',
+                'students.*.middle_name' => 'nullable|string|max:255',
                 'students.*.last_name' => 'required|string|max:255',
                 'students.*.gender' => 'required|in:Male,Female',
                 'students.*.dob' => 'required|date',
                 'students.*.has_allergies' => 'nullable|boolean',
                 'students.*.allergies_notes' => 'nullable|required_if:students.*.has_allergies,1|string',
                 'students.*.is_fully_immunized' => 'nullable|boolean',
-                'students.*.passport_photo' => 'nullable|image|max:4096',
-                'students.*.birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-                'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-                'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'students.*.passport_photo' => 'nullable|image|max:8192',
+                'students.*.birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+                'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+                'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
                 'school_notifications_muted_parent' => 'nullable|in:father,mother',
             ], KemisProfile::parentKemisValidationRules(), KemisProfile::studentKemisValidationRules('students.*'));
 
@@ -460,7 +471,7 @@ class FamilyUpdateController extends Controller
             }
 
             if ($validationErrors !== []) {
-                \Log::warning('FamilyUpdate Submit: Partial validation skipped fields', [
+                \Log::info('FamilyUpdate Submit: Partial validation skipped fields', [
                     'token' => $token,
                     'errors' => $validationErrors,
                     'error_count' => count($validationErrors),
@@ -845,13 +856,16 @@ class FamilyUpdateController extends Controller
 
                 foreach ([
                     'nationality', 'county_of_birth', 'sub_county_of_birth', 'location_of_birth',
-                    'birth_certificate_entry_no', 'medical_condition', 'orphan_status', 'disability_type',
+                    'birth_certificate_entry_no', 'orphan_status', 'disability_type',
                 ] as $kemisField) {
                     if (array_key_exists($kemisField, $stuData)) {
                         $updateData[$kemisField] = $stuData[$kemisField] !== '' && $stuData[$kemisField] !== null
                             ? $stuData[$kemisField]
                             : null;
                     }
+                }
+                if (array_key_exists('medical_condition', $stuData)) {
+                    $updateData['medical_condition'] = KemisProfile::defaultMedicalCondition($stuData['medical_condition'] ?? null);
                 }
                 if (array_key_exists('religion', $stuData) || array_key_exists('religion_other', $stuData)) {
                     $updateData['religion'] = KemisProfile::normalizeReligion(
@@ -1102,7 +1116,7 @@ class FamilyUpdateController extends Controller
                     throw new \Exception('Failed to save audit records: ' . $e->getMessage(), 0, $e);
                 }
             } else {
-                \Log::warning('FamilyUpdate: No audits to insert - no changes detected', [
+                \Log::info('FamilyUpdate: No audits to insert - no changes detected', [
                     'family_id' => $family?->id,
                     'students_count' => count($validated['students'] ?? []),
                 ]);

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 
 class ApiAccountController extends Controller
 {
@@ -18,7 +17,7 @@ class ApiAccountController extends Controller
             'new_password' => [
                 'required',
                 'confirmed',
-                Password::min(8)->mixedCase()->letters()->numbers()->symbols(),
+                \App\Support\PasswordPolicy::rule(),
             ],
         ];
         if (! $forced) {

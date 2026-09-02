@@ -9,6 +9,7 @@ use App\Models\ActivityLog;
 use App\Models\Academics\Classroom;
 use App\Models\AcademicYear;
 use App\Models\Term;
+use App\Services\Inventory\RequirementCustodyService;
 use Illuminate\Http\Request;
 
 class RequirementTemplateController extends Controller
@@ -75,6 +76,13 @@ class RequirementTemplateController extends Controller
             'duplicate_to_classes.*' => 'exists:classrooms,id',
         ]);
 
+        $custody = app(RequirementCustodyService::class);
+        $validated = $custody->applyFlags(
+            $validated,
+            $request->boolean('is_verification_only'),
+            $request->boolean('leave_with_teacher')
+        );
+
         $template = RequirementTemplate::create($validated);
 
         // Duplicate to other classes if specified
@@ -123,12 +131,22 @@ class RequirementTemplateController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $template->update($validated);
+        $custody = app(RequirementCustodyService::class);
+        $template = $custody->syncTemplate(
+            $template,
+            $validated,
+            $request->boolean('is_verification_only'),
+            $request->boolean('leave_with_teacher')
+        );
 
         ActivityLog::log('update', $template, "Updated requirement template", $oldValues, $template->toArray());
 
+        $note = $template->addsToSchoolInventory()
+            ? ''
+            : ' Verification-only items stay with the learner — they are not school stock.';
+
         return redirect()->route('inventory.requirement-templates.index')
-            ->with('success', 'Requirement template updated successfully.');
+            ->with('success', 'Requirement template updated successfully.'.$note);
     }
 
     public function destroy(RequirementTemplate $template)

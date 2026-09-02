@@ -20,7 +20,7 @@
   $eventsActive = Request::is('events*');
   $transportActive = Request::is('transport*') && !Request::is('transport/special-assignments*');
   $specialAssignmentsActive = Request::is('transport/special-assignments*');
-  $requirementsActive = Request::is('inventory/student-requirements*');
+  $requirementsActive = Request::is('inventory/student-requirements*') || Request::is('inventory/reports*');
   $hrReportsActive = Request::is('hr/reports*') || Request::is('senior-teacher/reports*');
 @endphp
 
@@ -393,8 +393,14 @@
   <div class="nav-section-label">Inventory & Requirements</div>
 
   {{-- Requirements Collection --}}
-  <a href="{{ route('inventory.student-requirements.index') }}" class="{{ $requirementsActive ? 'active' : '' }}">
+  <a href="{{ route('inventory.student-requirements.index') }}" class="{{ Request::is('inventory/student-requirements*') ? 'active' : '' }}">
     <i class="bi bi-clipboard-check"></i> Requirements Collection
+  </a>
+  <a href="{{ route('inventory.reports.requirements') }}" class="{{ Request::is('inventory/reports/requirements*') ? 'active' : '' }}">
+    <i class="bi bi-clipboard-data"></i> Fulfilment report
+  </a>
+  <a href="{{ route('inventory.reports.receipts') }}" class="{{ Request::is('inventory/reports/receipts*') ? 'active' : '' }}">
+    <i class="bi bi-box-arrow-in-down"></i> What we received
   </a>
 </div>
 

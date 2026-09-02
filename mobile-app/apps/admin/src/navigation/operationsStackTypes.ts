@@ -10,6 +10,8 @@ export type OperationsStackParamList = {
   InventoryItemDetail: { itemId: number };
   RequirementsRoster: undefined;
   RequirementsStudent: { studentId: number; studentName?: string };
+  RequirementsFulfilment: undefined;
+  InventoryReceipts: undefined;
   LibraryBooks: undefined;
   LibraryCirculation: undefined;
   IssueBook: undefined;

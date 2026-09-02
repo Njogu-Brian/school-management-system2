@@ -113,8 +113,8 @@ class StudentRequirement extends Model
         $this->last_received_at = now();
         $this->updateStatus();
 
-        // If school custody, add to inventory
-        if ($this->requirementTemplate && $this->requirementTemplate->isSchoolCustody()) {
+        // Only school-custody / collect items enter inventory. Verify items stay with the learner.
+        if ($this->requirementTemplate && $this->requirementTemplate->addsToSchoolInventory()) {
             $this->addToInventory($quantity, $receivedBy, $receipt);
         }
 

@@ -740,3 +740,39 @@ export function useMedicalRecords(studentId: number, options?: { enabled?: boole
     staleTime: 60_000,
   });
 }
+
+export function useRequirementsReport(
+  filters?: { academic_year_id?: number; term_id?: number; classroom_id?: number; stream_id?: number },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.operations.requirementsReport(filters),
+    queryFn: async () => {
+      const res = await operationsApi.getRequirementsReport(filters);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load requirements report.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 30_000,
+  });
+}
+
+export function useReceiptsReport(
+  filters?: { from?: string; to?: string; category?: string },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: queryKeys.operations.receiptsReport(filters),
+    queryFn: async () => {
+      const res = await operationsApi.getReceiptsReport(filters);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load receipts report.');
+      }
+      return res.data;
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 30_000,
+  });
+}

@@ -27,6 +27,7 @@ const TRANSPORT_SECTIONS = [
 
 const LOGISTICS_SECTIONS = [
   { route: 'InventoryList' as const, label: 'Inventory', icon: 'cube-outline' as const },
+  { route: 'InventoryReceipts' as const, label: 'What we received', icon: 'download-outline' as const },
   { route: 'RequisitionsList' as const, label: 'Requisitions', icon: 'clipboard-outline' as const },
   { route: 'AssetsList' as const, label: 'Assets', icon: 'hardware-chip-outline' as const },
   { route: 'LibraryBooks' as const, label: 'Library', icon: 'library-outline' as const },
@@ -36,6 +37,7 @@ const FRONT_DESK_SECTIONS = [
   { route: 'VisitorsList' as const, label: 'Visitors', icon: 'person-outline' as const },
   { route: 'VisitorCheckIn' as const, label: 'Check in visitor', icon: 'log-in-outline' as const },
   { route: 'RequirementsRoster' as const, label: 'Requirements', icon: 'checkbox-outline' as const },
+  { route: 'RequirementsFulfilment' as const, label: 'Fulfilment report', icon: 'clipboard-outline' as const },
   { route: 'ConcernsList' as const, label: 'Concerns', icon: 'alert-circle-outline' as const },
 ];
 

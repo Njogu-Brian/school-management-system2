@@ -152,13 +152,14 @@ export const RequirementDetailScreen: React.FC = () => {
                   </Text>
                 ) : null}
                 <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 6 }}>
-                  {`${item.quantity_collected}/${item.quantity_required}${item.unit ? ` ${item.unit}` : ''} collected`}
+                  {`${item.quantity_collected}/${item.quantity_required}${item.unit ? ` ${item.unit}` : ''} ${item.is_verification_only ? 'verified' : 'collected'}`}
                   {remaining > 0 ? ` · ${remaining} remaining` : ''}
+                  {item.is_verification_only ? ' · learner keeps this' : ''}
                 </Text>
                 {remaining > 0 ? (
                   <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
                     <TextField
-                      label={`Quantity received${item.unit ? ` (${item.unit})` : ''}`}
+                      label={`Quantity ${item.is_verification_only ? 'verified' : 'received'}${item.unit ? ` (${item.unit})` : ''}`}
                       value={qtyByTemplate[item.template_id] ?? ''}
                       onChangeText={(value) =>
                         setQtyByTemplate((prev) => ({ ...prev, [item.template_id]: value }))
@@ -167,7 +168,7 @@ export const RequirementDetailScreen: React.FC = () => {
                       placeholder={String(remaining)}
                     />
                     <Button
-                      label="Record received"
+                      label={item.is_verification_only ? 'Verify learner has this' : 'Record received'}
                       onPress={() => void submit(item.template_id)}
                       loading={busy}
                       disabled={collectMutation.isPending}

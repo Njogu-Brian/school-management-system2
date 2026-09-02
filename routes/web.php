@@ -236,12 +236,16 @@ Route::get('/invoice/{invoice:hashed_id}/pay', [\App\Http\Controllers\Finance\Mp
 Route::post('/invoice/{invoice}/pay/mpesa', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processInvoicePayment'])->name('invoice.pay.mpesa');
 
 // Public family profile update (no auth)
-Route::get('/family-update/{token}', [FamilyUpdateController::class, 'publicForm'])->name('family-update.form');
-Route::post('/family-update/{token}', [FamilyUpdateController::class, 'submit'])->name('family-update.submit');
+Route::get('/family-update/{token}', [FamilyUpdateController::class, 'publicForm'])->name('family-update.form')
+    ->where('token', '[A-Za-z0-9]{32}');
+Route::post('/family-update/{token}', [FamilyUpdateController::class, 'submit'])->name('family-update.submit')
+    ->where('token', '[A-Za-z0-9]{32}');
 // Public (token-based) preview/download of legacy private uploads linked to the family/student
 Route::get('/family-update/{token}/files/{model}/{id}/{field}', [FamilyUpdateController::class, 'publicFilePreview'])
+    ->where('token', '[A-Za-z0-9]{32}')
     ->name('family-update.files.preview');
 Route::get('/family-update/{token}/files/{model}/{id}/{field}/download', [FamilyUpdateController::class, 'publicFileDownload'])
+    ->where('token', '[A-Za-z0-9]{32}')
     ->name('family-update.files.download');
 
 // Public family report card portal (no auth)
@@ -272,6 +276,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/my/profile', [StaffProfileController::class, 'update'])->name('staff.profile.update');
     // Friendly alias
     Route::redirect('/profile', '/my/profile')->name('staff.profile.alias');
+
+    Route::get('/password/change', [\App\Http\Controllers\Auth\ChangePasswordController::class, 'show'])->name('password.change');
+    Route::post('/password/change', [\App\Http\Controllers\Auth\ChangePasswordController::class, 'update'])->name('password.change.update');
 });
 
 /*
@@ -1236,6 +1243,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::post('/students/{id}/parent-credentials/require-password-change', [ParentCredentialsController::class, 'requirePasswordChange'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.parent-credentials.require-password-change');
 
+    Route::get('/users/require-password-change', [\App\Http\Controllers\Users\ForcePasswordChangeController::class, 'index'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('users.require-password-change');
+    Route::post('/users/require-password-change', [\App\Http\Controllers\Users\ForcePasswordChangeController::class, 'store'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('users.require-password-change.store');
+
     // Helper for cascading class → streams
     Route::post('/get-streams', [StudentController::class, 'getStreams'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher')->name('students.getStreams');
@@ -2061,6 +2073,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('student-requirements/load-students', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'loadStudents'])->name('student-requirements.load-students');
         Route::get('student-requirements/load-student-requirements', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'loadStudentRequirements'])->name('student-requirements.load-student-requirements');
         Route::get('student-requirements/{requirement}', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'show'])->name('student-requirements.show');
+
+        Route::get('reports/requirements', [\App\Http\Controllers\Inventory\RequirementsReportController::class, 'index'])->name('reports.requirements');
+        Route::get('reports/requirements.csv', [\App\Http\Controllers\Inventory\RequirementsReportController::class, 'csv'])->name('reports.requirements.csv');
+        Route::get('reports/receipts', [\App\Http\Controllers\Inventory\InventoryReceiptsReportController::class, 'index'])->name('reports.receipts');
+        Route::get('reports/receipts.csv', [\App\Http\Controllers\Inventory\InventoryReceiptsReportController::class, 'csv'])->name('reports.receipts.csv');
         
         // Requisitions
         Route::get('requisitions', [\App\Http\Controllers\Inventory\RequisitionController::class, 'index'])->name('requisitions.index');

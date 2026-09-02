@@ -13,3 +13,4 @@ export * from './screens/LeaveTypesScreen';
 export * from './screens/StaffAdvancesScreen';
 export * from './screens/PayrollRecordsScreen';
 export * from './screens/PayrollDetailScreen';
+export * from './screens/ForcePasswordChangeUsersScreen';

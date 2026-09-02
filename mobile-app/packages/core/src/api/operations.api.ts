@@ -87,6 +87,8 @@ export interface StudentRequirementTemplateItem {
   status: string;
   student_type?: string;
   custody_type?: string | null;
+  is_verification_only?: boolean;
+  adds_to_inventory?: boolean;
   notes?: string | null;
 }
 
@@ -110,6 +112,44 @@ export interface OperationsSummary {
   visitors?: { on_site: number };
   assets?: { active: number };
   as_of: string;
+}
+
+export interface InventoryReceiptsReport {
+  from: string;
+  to: string;
+  grand_total: number;
+  rows: Array<{
+    item_id: number;
+    name: string;
+    category?: string | null;
+    unit: string;
+    from_learners: number;
+    other_receipts: number;
+    total_received: number;
+    current_stock: number;
+  }>;
+}
+
+export interface RequirementsFulfilmentLearner {
+  student_id: number;
+  admission_number: string;
+  name: string;
+  class_name: string;
+  stream_name: string;
+  group: 'complete' | 'partial' | 'none';
+  complete_count: number;
+  total_count: number;
+  brought_items: Array<{ name: string; brought: number; expected: number; outstanding: number; unit: string; handling: string }>;
+  outstanding_items: Array<{ name: string; brought: number; expected: number; outstanding: number; unit: string; handling: string }>;
+}
+
+export interface RequirementsFulfilmentReport {
+  year?: { id: number; year: number } | null;
+  term?: { id: number; name: string } | null;
+  summary: { complete: number; partial: number; none: number; learners: number };
+  complete: RequirementsFulfilmentLearner[];
+  partial: RequirementsFulfilmentLearner[];
+  none: RequirementsFulfilmentLearner[];
 }
 
 export interface InventoryItemRecord {
@@ -425,6 +465,23 @@ export const operationsApi = {
 
   getInventoryItem(id: number): Promise<ApiResponse<InventoryItemRecord>> {
     return apiClient.get<InventoryItemRecord>(`/inventory/items/${id}`);
+  },
+
+  getRequirementsReport(params?: {
+    academic_year_id?: number;
+    term_id?: number;
+    classroom_id?: number;
+    stream_id?: number;
+  }): Promise<ApiResponse<RequirementsFulfilmentReport>> {
+    return apiClient.get('/inventory/reports/requirements', params);
+  },
+
+  getReceiptsReport(params?: {
+    from?: string;
+    to?: string;
+    category?: string;
+  }): Promise<ApiResponse<InventoryReceiptsReport>> {
+    return apiClient.get('/inventory/reports/receipts', params);
   },
 
   adjustInventoryStock(

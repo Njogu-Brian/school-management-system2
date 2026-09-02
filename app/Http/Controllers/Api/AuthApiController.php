@@ -9,11 +9,14 @@ use App\Models\Student;
 use App\Models\User;
 use App\Services\SMSService;
 use App\Services\OtpService;
+use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class AuthApiController extends Controller
 {
@@ -323,11 +326,21 @@ class AuthApiController extends Controller
             return response()->json(['success' => false, 'message' => $verify['message'] ?? 'Invalid OTP.'], 422);
         }
 
-        $resetToken = Password::broker()->createToken($user);
+        $resetToken = Str::random(64);
+        Cache::put('pwd_reset:'.$resetToken, $user->id, now()->addMinutes(20));
+
+        $laravelToken = null;
+        try {
+            $laravelToken = Password::broker()->createToken($user);
+        } catch (\Throwable $e) {
+            $laravelToken = $resetToken;
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'token' => $resetToken,
+                'legacy_token' => $laravelToken,
                 'identifier' => $identifier,
             ],
         ]);
@@ -339,7 +352,7 @@ class AuthApiController extends Controller
             'identifier' => 'required_without:email|string',
             'email' => 'nullable|string',
             'token' => 'required|string',
-            'password' => 'required|confirmed',
+            'password' => ['required', 'confirmed', PasswordPolicy::rule()],
         ]);
 
         $identifier = (string) $request->input('identifier', $request->input('email', ''));
@@ -348,9 +361,16 @@ class AuthApiController extends Controller
             return response()->json(['success' => false, 'message' => 'No account found with these details.'], 404);
         }
 
+        $cacheUserId = Cache::pull('pwd_reset:'.(string) $request->token);
+        if ($cacheUserId && (int) $cacheUserId === (int) $user->id) {
+            $this->applyResetPassword($user, (string) $request->password);
+
+            return response()->json(['success' => true, 'message' => 'Password reset successfully.']);
+        }
+
         $email = strtolower(trim((string) ($user->email ?: ($staff->work_email ?? ''))));
         if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return response()->json(['success' => false, 'message' => 'No valid email found for this account.'], 422);
+            return response()->json(['success' => false, 'message' => 'Reset code expired. Request a new OTP.'], 422);
         }
 
         $status = Password::reset(
@@ -360,8 +380,8 @@ class AuthApiController extends Controller
                 'password' => (string) $request->password,
                 'password_confirmation' => (string) $request->password_confirmation,
             ],
-            function ($user, $password) {
-                $user->forceFill(['password' => Hash::make($password)])->save();
+            function ($resetUser, $password) {
+                $this->applyResetPassword($resetUser, $password);
             }
         );
 
@@ -370,6 +390,15 @@ class AuthApiController extends Controller
         }
 
         return response()->json(['success' => true, 'message' => 'Password reset successfully.']);
+    }
+
+    protected function applyResetPassword(User $user, string $password): void
+    {
+        $user->forceFill([
+            'password' => Hash::make($password),
+            'must_change_password' => false,
+            'password_changed_at' => now(),
+        ])->save();
     }
 
     /**

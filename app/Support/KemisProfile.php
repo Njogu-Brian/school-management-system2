@@ -104,7 +104,7 @@ class KemisProfile
             $p.'sub_county_of_birth' => 'required|string|max:120',
             $p.'location_of_birth' => 'required|string|max:150',
             $p.'birth_certificate_entry_no' => 'required|string|max:80',
-            $p.'medical_condition' => 'required|string|max:255',
+            $p.'medical_condition' => 'nullable|string|max:255',
             $p.'religion' => ['required', 'string', 'max:255'],
             $p.'religion_other' => 'nullable|required_if:'.$religionPath.',Other|string|max:255',
             $p.'learner_interests' => 'nullable|array',
@@ -282,11 +282,15 @@ class KemisProfile
         $attrs = [];
         foreach ([
             'nationality', 'county_of_birth', 'sub_county_of_birth', 'location_of_birth',
-            'birth_certificate_entry_no', 'medical_condition', 'orphan_status', 'disability_type',
+            'birth_certificate_entry_no', 'orphan_status', 'disability_type',
         ] as $field) {
             if (array_key_exists($field, $input)) {
                 $attrs[$field] = ($input[$field] !== '' && $input[$field] !== null) ? $input[$field] : null;
             }
+        }
+
+        if (array_key_exists('medical_condition', $input)) {
+            $attrs['medical_condition'] = self::defaultMedicalCondition($input['medical_condition'] ?? null);
         }
 
         if (array_key_exists('religion', $input) || array_key_exists('religion_other', $input)) {
@@ -494,6 +498,17 @@ class KemisProfile
         }
 
         return false;
+    }
+
+    /**
+     * Parents leave this blank when the child has no condition.
+     * Treat empty as "None" so the form can save.
+     */
+    public static function defaultMedicalCondition(mixed $value): string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value === '' ? 'None' : $value;
     }
 
     public static function serializeAuditValue(mixed $value): ?string

@@ -65,6 +65,11 @@ export const PeopleScreen: React.FC = () => {
             icon="time-outline"
             onPress={() => navigation.navigate('StaffClock')}
           />
+          <QuickAction
+            label="Require password change"
+            icon="key-outline"
+            onPress={() => navigation.navigate('ForcePasswordChange')}
+          />
         </View>
       </DashboardSection>
 

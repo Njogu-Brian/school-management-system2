@@ -9,6 +9,8 @@ export { InventoryListScreen } from './screens/InventoryListScreen';
 export { InventoryItemDetailScreen } from './screens/InventoryItemDetailScreen';
 export { RequirementsRosterScreen } from './screens/RequirementsRosterScreen';
 export { RequirementsStudentScreen } from './screens/RequirementsStudentScreen';
+export { RequirementsFulfilmentScreen } from './screens/RequirementsFulfilmentScreen';
+export { InventoryReceiptsScreen } from './screens/InventoryReceiptsScreen';
 export { LibraryBooksScreen } from './screens/LibraryBooksScreen';
 export { LibraryCirculationScreen } from './screens/LibraryCirculationScreen';
 export { IssueBookScreen } from './screens/IssueBookScreen';

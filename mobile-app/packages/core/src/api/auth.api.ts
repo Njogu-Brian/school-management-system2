@@ -43,4 +43,24 @@ export const authApi = {
   getProfileWithToken(token: string): Promise<ApiResponse<ApiUser>> {
     return apiClient.getWithToken<ApiUser>('/user', token);
   },
+
+  requestPasswordResetOtp(identifier: string): Promise<ApiResponse<null>> {
+    return apiClient.post<null>('/password/otp', { identifier });
+  },
+
+  verifyPasswordResetOtp(
+    identifier: string,
+    code: string,
+  ): Promise<ApiResponse<{ token: string; identifier: string }>> {
+    return apiClient.post('/password/verify-otp', { identifier, code });
+  },
+
+  resetPassword(payload: {
+    identifier: string;
+    token: string;
+    password: string;
+    password_confirmation: string;
+  }): Promise<ApiResponse<null>> {
+    return apiClient.post<null>('/password/reset', payload);
+  },
 };

@@ -23,6 +23,7 @@ export * from './hooks/useStaff360';
 export * from './hooks/useFinance';
 export * from './hooks/useAcademicsWorkspace';
 export * from './hooks/useOperations';
+export * from './hooks/useUsers';
 export * from './hooks/useDocuments';
 export * from './hooks/useCommunication';
 export * from './hooks/useReports';

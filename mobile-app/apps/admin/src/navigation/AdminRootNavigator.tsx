@@ -11,6 +11,7 @@ import {
   AccessDeniedScreen,
   AuthLoadingScreen,
   BiometricEnableScreen,
+  ForceChangePasswordScreen,
   LoginScreen,
   SchoolCodeScreen,
 } from '../features/auth';
@@ -23,7 +24,7 @@ import { OfflineShell } from '../providers/OfflineShell';
  * Route guard (build plan §5.1). Resolves authentication + enrollment states.
  */
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending } = useAuth();
+  const { status, user, biometricEnrollmentPending, forcePasswordChangePending } = useAuth();
   const { mode } = useAppMode();
   const school = useSchool();
 
@@ -42,7 +43,9 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   if (!canAccessApp(user, 'admin')) {
     return <AccessDeniedScreen />;
   }
-  // Force-password gate disabled — admin can still set must_change_password via staff/parent tools.
+  if (forcePasswordChangePending || user?.mustChangePassword) {
+    return <ForceChangePasswordScreen />;
+  }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
   }

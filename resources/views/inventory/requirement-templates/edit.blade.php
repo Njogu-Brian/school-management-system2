@@ -83,12 +83,13 @@
                     <div class="col-md-4">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" value="1" name="leave_with_teacher" id="leaveWithTeacher" {{ old('leave_with_teacher', $template->leave_with_teacher) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="leaveWithTeacher">Keep items in school inventory</label>
+                            <label class="form-check-label" for="leaveWithTeacher">Collect into school inventory (school property)</label>
                         </div>
                         <div class="form-check mt-2">
                             <input class="form-check-input" type="checkbox" value="1" name="is_verification_only" id="verificationOnly" {{ old('is_verification_only', $template->is_verification_only) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="verificationOnly">Verification only</label>
+                            <label class="form-check-label" for="verificationOnly">Verify only — learner keeps it (not school stock)</label>
                         </div>
+                        <small class="text-muted d-block mt-1">Switching Collect → Verify removes earlier learner receipts from school inventory. Purchased stock is not touched.</small>
                     </div>
                     <div class="col-md-4">
                         <div class="form-check mt-4 pt-2">
@@ -153,6 +154,18 @@
         });
 
         loadTerms();
+    })();
+
+    (function () {
+        const collect = document.getElementById('leaveWithTeacher');
+        const verify = document.getElementById('verificationOnly');
+        if (!collect || !verify) return;
+        collect.addEventListener('change', function () {
+            if (collect.checked) verify.checked = false;
+        });
+        verify.addEventListener('change', function () {
+            if (verify.checked) collect.checked = false;
+        });
     })();
 </script>
 @endpush

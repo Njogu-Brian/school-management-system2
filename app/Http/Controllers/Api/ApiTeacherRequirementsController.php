@@ -131,6 +131,8 @@ class ApiTeacherRequirementsController extends Controller
                 'status' => $existing?->status ?? 'pending',
                 'student_type' => $tpl->student_type,
                 'custody_type' => $tpl->custody_type,
+                'is_verification_only' => (bool) $tpl->is_verification_only,
+                'adds_to_inventory' => $tpl->addsToSchoolInventory(),
                 'notes' => $existing instanceof StudentRequirement ? $existing->notes : null,
             ];
         });
@@ -220,9 +222,14 @@ class ApiTeacherRequirementsController extends Controller
             return $requirement;
         });
 
+        $verify = (bool) $template->is_verification_only;
+        $message = $verify
+            ? 'Verified. This item stays with the learner (not school inventory).'
+            : 'Requirement recorded.';
+
         return response()->json([
             'success' => true,
-            'message' => 'Requirement recorded.',
+            'message' => $message,
             'data' => [
                 'id' => $requirement->id,
                 'quantity_collected' => (float) $requirement->quantity_collected,
