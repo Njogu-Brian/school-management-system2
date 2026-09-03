@@ -43,6 +43,31 @@ class ApiStudentDocumentsController extends Controller
             'updated_at' => $doc->updated_at?->toIso8601String(),
         ])->values();
 
+        if ($student->parent_id) {
+            $parentDocs = Document::query()
+                ->where('documentable_type', ParentInfo::class)
+                ->where('documentable_id', $student->parent_id)
+                ->where('is_active', true)
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (Document $doc) => [
+                    'id' => $doc->id,
+                    'title' => $doc->title ?? 'Parent document',
+                    'description' => $doc->description,
+                    'category' => $doc->category,
+                    'document_type' => $doc->document_type,
+                    'file_name' => $doc->file_name,
+                    'file_type' => $doc->file_type,
+                    'file_size' => $doc->file_size,
+                    'file_url' => $doc->file_url,
+                    'download_path' => "/parent/documents/{$doc->id}/download",
+                    'version' => $doc->version,
+                    'created_at' => $doc->created_at?->toIso8601String(),
+                    'updated_at' => $doc->updated_at?->toIso8601String(),
+                ]);
+            $data = $data->concat($parentDocs)->values();
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -186,6 +211,54 @@ class ApiStudentDocumentsController extends Controller
                 'slot' => $slot,
             ],
         ], 201);
+    }
+
+    public function listParentDocuments(Request $request)
+    {
+        $user = $request->user();
+        if (! $user->parent_id) {
+            return response()->json(['success' => false, 'message' => 'Not linked to a parent record.'], 403);
+        }
+
+        $docs = Document::query()
+            ->where('documentable_type', ParentInfo::class)
+            ->where('documentable_id', $user->parent_id)
+            ->where('is_active', true)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (Document $doc) => [
+                'id' => $doc->id,
+                'title' => $doc->title ?? '',
+                'category' => $doc->category,
+                'document_type' => $doc->document_type,
+                'file_name' => $doc->file_name,
+                'download_path' => "/parent/documents/{$doc->id}/download",
+                'created_at' => $doc->created_at?->toIso8601String(),
+            ])
+            ->values();
+
+        return response()->json(['success' => true, 'data' => $docs]);
+    }
+
+    public function downloadParentDocument(Request $request, int $documentId)
+    {
+        $user = $request->user();
+        if (! $user->parent_id) {
+            abort(403);
+        }
+
+        $document = Document::query()
+            ->where('documentable_type', ParentInfo::class)
+            ->where('documentable_id', $user->parent_id)
+            ->where('is_active', true)
+            ->findOrFail($documentId);
+
+        $disk = $this->resolveDiskForPath($document->file_path);
+        if (! $disk) {
+            abort(404, 'File not found.');
+        }
+
+        return Storage::disk($disk)->download($document->file_path, $document->file_name);
     }
 
     protected function authorizeParentOrStaff($user, Student $student): void

@@ -460,6 +460,12 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('activity-fees')->group(function () {
+        Route::middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Supervisor|Director')->group(function () {
+            Route::get('/parent-requests', [\App\Http\Controllers\Activities\ParentActivityRequestController::class, 'index'])->name('activity-fees.parent-requests.index');
+            Route::post('/parent-requests/{parentRequest}/approve', [\App\Http\Controllers\Activities\ParentActivityRequestController::class, 'approve'])->name('activity-fees.parent-requests.approve');
+            Route::post('/parent-requests/{parentRequest}/reject', [\App\Http\Controllers\Activities\ParentActivityRequestController::class, 'reject'])->name('activity-fees.parent-requests.reject');
+        });
+
         Route::middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher|Supervisor')->group(function () {
             Route::get('/', [ActivityFeeController::class, 'index'])->name('activity-fees.index');
             Route::get('/{votehead}', [ActivityFeeController::class, 'show'])->name('activity-fees.show');

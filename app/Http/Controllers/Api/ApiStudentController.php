@@ -199,16 +199,27 @@ class ApiStudentController extends Controller
         $year = (int) $request->year;
         $month = (int) $request->month;
 
-        $rows = Attendance::where('student_id', $student->id)
+        $marked = Attendance::where('student_id', $student->id)
             ->whereYear('date', $year)
             ->whereMonth('date', $month)
             ->get()
-            ->map(fn ($a) => [
-                'date' => $a->date->format('Y-m-d'),
-                'status' => $a->status,
-                'is_excused' => (bool) $a->is_excused,
-            ])
-            ->values();
+            ->keyBy(fn ($a) => $a->date->format('Y-m-d'));
+
+        $calendar = app(\App\Services\StudentAttendanceCalendarService::class);
+        $cursor = \Carbon\Carbon::create($year, $month, 1)->startOfDay();
+        $end = $cursor->copy()->endOfMonth();
+        $rows = [];
+        for ($d = $cursor->copy(); $d->lte($end); $d->addDay()) {
+            $date = $d->toDateString();
+            $row = $marked->get($date);
+            $rows[] = [
+                'date' => $date,
+                'status' => $row?->status,
+                'is_excused' => (bool) ($row?->is_excused),
+                'is_school_day' => $calendar->isValidSchoolDay($d),
+                'weekday' => (int) $d->dayOfWeek,
+            ];
+        }
 
         return response()->json(['success' => true, 'data' => $rows]);
     }

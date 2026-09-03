@@ -35,6 +35,12 @@ export type Soft3DGlyphKey =
   | 'shield'
   | 'checkmark'
   | 'add'
+  | 'ballet'
+  | 'skating'
+  | 'music'
+  | 'yogurt'
+  | 'swimming'
+  | 'activities'
   | 'generic';
 
 /** Map Ionicons-style names → soft-3D glyph keys. */
@@ -85,6 +91,15 @@ export function resolveSoft3DGlyph(
     ribbon: 'school',
     'id-card': 'person',
     navigate: 'bus',
+    musical: 'music',
+    'musical-notes': 'music',
+    bicycle: 'skating',
+    nutrition: 'yogurt',
+    ice: 'yogurt',
+    water: 'swimming',
+    sparkles: 'activities',
+    trophy: 'activities',
+    fitness: 'activities',
   };
   if (map[n]) return map[n];
   if (n.includes('leave')) return 'leave';
@@ -106,8 +121,14 @@ export function resolveSoft3DGlyph(
   if (n.includes('visitor')) return 'visitor';
   if (n.includes('requisition')) return 'clipboard';
   if (n.includes('log-out') || n.includes('logout')) return 'shield';
-  if (n.includes('check')) return 'approvals';
-  return 'generic';
+    if (n.includes('check')) return 'approvals';
+    if (n.includes('ballet') || n.includes('dance')) return 'ballet';
+    if (n.includes('skat')) return 'skating';
+    if (n.includes('music') || n.includes('song') || n.includes('piano')) return 'music';
+    if (n.includes('yogurt') || n.includes('yoghurt')) return 'yogurt';
+    if (n.includes('swim')) return 'swimming';
+    if (n.includes('activit') || n.includes('sparkle') || n.includes('trophy')) return 'activities';
+    return 'generic';
 }
 
 type GlyphProps = { size: number };
@@ -187,6 +208,18 @@ export const Soft3DGlyph: React.FC<{ glyph: Soft3DGlyphKey; size: number; muted?
       return <ShieldGlyph size={size} />;
     case 'add':
       return <AddGlyph size={size} />;
+    case 'ballet':
+      return <BalletGlyph size={size} />;
+    case 'skating':
+      return <SkatingGlyph size={size} />;
+    case 'music':
+      return <MusicGlyph size={size} />;
+    case 'yogurt':
+      return <YogurtGlyph size={size} />;
+    case 'swimming':
+      return <SwimmingGlyph size={size} />;
+    case 'activities':
+      return <ActivitiesGlyph size={size} />;
     default:
       return <GenericGlyph size={size} />;
   }
@@ -503,6 +536,87 @@ function GenericGlyph({ size }: GlyphProps) {
       <Circle cx="32" cy="32" r="20" fill="#6366F1" />
       <Circle cx="32" cy="32" r="12" fill="#C4B5FD" />
       <Circle cx="32" cy="32" r="5" fill="#EEF2FF" />
+    </Shell>
+  );
+}
+
+/** Pink ballet slipper */
+function BalletGlyph({ size }: GlyphProps) {
+  return (
+    <Shell size={size}>
+      <Path d="M14 42 C18 22 28 14 38 18 C50 23 54 38 46 48 C40 54 22 54 14 42 Z" fill="#F472B6" />
+      <Path d="M20 40 C24 26 32 20 40 24 C48 28 50 38 44 46" fill="#FBCFE8" />
+      <Path d="M18 44 C28 38 42 40 50 50" stroke="#9D174D" strokeWidth={2.4} fill="none" strokeLinecap="round" />
+      <Ellipse cx="34" cy="22" rx="10" ry="3.5" fill="#fff" opacity={0.4} />
+    </Shell>
+  );
+}
+
+/** Cyan roller / ice skate */
+function SkatingGlyph({ size }: GlyphProps) {
+  return (
+    <Shell size={size}>
+      <Path d="M16 20 H40 A8 8 0 0 1 48 28 V36 H14 V24 A4 4 0 0 1 18 20 Z" fill="#22D3EE" />
+      <Path d="M16 20 H36 V28 H16 Z" fill="#A5F3FC" />
+      <Rect x="12" y="36" width="40" height="8" rx="4" fill="#0E7490" />
+      <Circle cx="20" cy="50" r="5" fill="#1E293B" />
+      <Circle cx="32" cy="50" r="5" fill="#1E293B" />
+      <Circle cx="44" cy="50" r="5" fill="#1E293B" />
+      <Circle cx="20" cy="50" r="2" fill="#94A3B8" />
+      <Circle cx="32" cy="50" r="2" fill="#94A3B8" />
+      <Circle cx="44" cy="50" r="2" fill="#94A3B8" />
+    </Shell>
+  );
+}
+
+/** Purple music notes */
+function MusicGlyph({ size }: GlyphProps) {
+  return (
+    <Shell size={size}>
+      <Path d="M28 12 H50 V20 H36 V40" stroke="#7C3AED" strokeWidth={6} fill="none" strokeLinecap="round" />
+      <Circle cx="24" cy="44" r="10" fill="#6D28D9" />
+      <Circle cx="24" cy="44" r="6" fill="#C4B5FD" />
+      <Circle cx="46" cy="36" r="8" fill="#A78BFA" />
+      <Ellipse cx="36" cy="16" rx="8" ry="3" fill="#fff" opacity={0.4} />
+    </Shell>
+  );
+}
+
+/** Cream yoghurt cup */
+function YogurtGlyph({ size }: GlyphProps) {
+  return (
+    <Shell size={size}>
+      <Path d="M18 22 H46 L42 52 H22 Z" fill="#FDE68A" />
+      <Path d="M20 28 H44 L42 48 H22 Z" fill="#FEF3C7" />
+      <Ellipse cx="32" cy="22" rx="16" ry="7" fill="#FBBF24" />
+      <Ellipse cx="32" cy="20" rx="12" ry="4" fill="#FEF9C3" />
+      <Circle cx="28" cy="36" r="3" fill="#F97316" />
+      <Circle cx="36" cy="40" r="2.5" fill="#FB7185" />
+    </Shell>
+  );
+}
+
+/** Blue swimming wave */
+function SwimmingGlyph({ size }: GlyphProps) {
+  return (
+    <Shell size={size}>
+      <Circle cx="32" cy="22" r="10" fill="#38BDF8" />
+      <Path d="M10 40 C18 32 24 48 32 40 C40 32 46 48 54 40" stroke="#0284C7" strokeWidth={5} fill="none" strokeLinecap="round" />
+      <Path d="M10 50 C18 42 24 58 32 50 C40 42 46 58 54 50" stroke="#0EA5E9" strokeWidth={4} fill="none" strokeLinecap="round" />
+    </Shell>
+  );
+}
+
+/** Trophy / clubs */
+function ActivitiesGlyph({ size }: GlyphProps) {
+  return (
+    <Shell size={size}>
+      <Path d="M20 14 H44 V28 C44 38 38 44 32 44 C26 44 20 38 20 28 Z" fill="#F59E0B" />
+      <Path d="M20 14 H44 V22 H20 Z" fill="#FCD34D" />
+      <Rect x="28" y="44" width="8" height="8" fill="#B45309" />
+      <Rect x="22" y="52" width="20" height="5" rx="2" fill="#92400E" />
+      <Path d="M14 18 H20 V28 C16 28 12 24 14 18 Z" fill="#FBBF24" />
+      <Path d="M44 18 H50 C52 24 48 28 44 28 Z" fill="#FBBF24" />
     </Shell>
   );
 }

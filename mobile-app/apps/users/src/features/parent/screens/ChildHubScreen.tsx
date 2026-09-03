@@ -28,7 +28,8 @@ type HubTile = {
     | 'Transport'
     | 'DiaryChat'
     | 'RaiseConcern'
-    | 'ChildProfile';
+    | 'ChildProfile'
+    | 'CoCurricularChild';
   /** When set, switch bottom tab so the bar highlight matches the destination area. */
   tabJump?: { tab: string; screen: string; tabHome?: string };
 };
@@ -82,6 +83,12 @@ const TILES: HubTile[] = [
     tabJump: { tab: 'ParentMoreTab', screen: 'DiaryChat', tabHome: 'MoreMenu' },
   },
   {
+    label: 'Co-curricular',
+    icon: 'sparkles-outline',
+    tone: 'amber',
+    route: 'CoCurricularChild',
+  },
+  {
     label: 'Raise concern',
     icon: 'alert-circle-outline',
     tone: 'rose',
@@ -93,7 +100,7 @@ const TILES: HubTile[] = [
 export const ChildHubScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography, radius, elevation } = useTheme();
   const studentId = route.params.studentId;
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
 
@@ -136,9 +143,10 @@ export const ChildHubScreen: React.FC = () => {
             }}
             style={[
               styles.tile,
+              elevation[2],
               {
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
+                backgroundColor: palette.surfaceRaised,
+                borderColor: palette.borderSubtle,
                 borderRadius: radius.lg,
                 padding: spacing.md,
               },

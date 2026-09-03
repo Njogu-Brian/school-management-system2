@@ -29,4 +29,6 @@ export type ParentStackParamList = {
   Transport: { studentId: number };
   LiveBusTrack: { studentId: number };
   RaiseConcern: { studentId?: number };
+  CoCurricularHub: undefined;
+  CoCurricularChild: { studentId: number };
 };

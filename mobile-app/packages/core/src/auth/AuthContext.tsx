@@ -82,6 +82,8 @@ export interface AuthContextValue {
    */
   forcePasswordChangePending: boolean;
   clearForcePasswordChange: () => void;
+  /** Keep the new password for biometric/PIN unlock after a forced change. */
+  recordPasswordForUnlock: (password: string) => void;
   login: (credentials: LoginCredentials) => Promise<void>;
   loginWithGoogleIdToken: (idToken: string) => Promise<void>;
   /** Request a login OTP for phone/email identifier. */
@@ -236,6 +238,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearForcePasswordChange = useCallback(() => {
     setForcePasswordChangePending(false);
+  }, []);
+
+  const recordPasswordForUnlock = useCallback((password: string) => {
+    if (lastCredentialsRef.current) {
+      lastCredentialsRef.current = { ...lastCredentialsRef.current, password };
+    }
   }, []);
 
   useEffect(() => {
@@ -529,6 +537,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pinEnrollmentPending,
       forcePasswordChangePending,
       clearForcePasswordChange,
+      recordPasswordForUnlock,
       login,
       loginWithGoogleIdToken,
       requestLoginOtp,
@@ -556,6 +565,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pinEnrollmentPending,
       forcePasswordChangePending,
       clearForcePasswordChange,
+      recordPasswordForUnlock,
       login,
       loginWithGoogleIdToken,
       requestLoginOtp,

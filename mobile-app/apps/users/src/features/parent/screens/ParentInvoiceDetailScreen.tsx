@@ -4,7 +4,9 @@ import {
   Button,
   FinanceFieldSection,
   ScreenContainer,
+  Soft3DIcon,
   StatusBadge,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -76,12 +78,15 @@ export const ParentInvoiceDetailScreen: React.FC = () => {
         </Pressable>
       ) : invoice ? (
         <>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, gap: spacing.sm }}>
-            <StatusBadge label={String(invoice.status)} tone={invoice.balance > 0 ? 'warning' : 'success'} />
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-              Balance {formatKes(invoice.balance)}
-            </Text>
-          </View>
+          <SurfaceCard accent={invoice.balance > 0 ? 'warning' : 'success'}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, gap: spacing.sm }}>
+              <Soft3DIcon name="receipt-outline" glyph="receipt" size={44} />
+              <StatusBadge label={String(invoice.status)} tone={invoice.balance > 0 ? 'warning' : 'success'} />
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, flex: 1 }}>
+                Balance {formatKes(invoice.balance)}
+              </Text>
+            </View>
+          </SurfaceCard>
           <FinanceFieldSection title="Summary" rows={summaryRows} />
           {itemRows.length > 0 ? (
             <View style={{ marginTop: spacing.md }}>

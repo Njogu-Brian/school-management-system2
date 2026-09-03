@@ -1,10 +1,10 @@
 import { apiClient, formatRoleLabel, timeOfDayGreeting, useAuth, useCurrentUser, useStudentReportCards, useUnreadNotificationCount } from '@erp/core';
 import {
-  AcademicScreenHeader,
   Button,
   DashboardHero,
   DashboardSection,
   EmptyState,
+  ListRowCard,
   QuickAction,
   ScreenContainer,
   SkeletonListRows,
@@ -13,7 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { navigateToTab } from '../../../navigation/navigateToTab';
 import { confirmAction } from '../../shared/utils/feedback';
 
@@ -99,7 +99,7 @@ export const StudentHomeScreen: React.FC = () => {
 
 export const StudentHomeworkScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { spacing } = useTheme();
   const studentId = user?.studentId ?? 0;
 
   const homeworkQuery = useQuery({
@@ -119,9 +119,6 @@ export const StudentHomeworkScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
-        <AcademicScreenHeader title="Homework" />
-      </View>
       {studentId <= 0 ? (
         <EmptyState
           title="Not linked"
@@ -138,23 +135,13 @@ export const StudentHomeworkScreen: React.FC = () => {
           keyExtractor={(item, i) => String(item.id ?? i)}
           contentContainerStyle={{ padding: spacing.md }}
           renderItem={({ item }) => (
-            <View
-              style={{
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
-                borderWidth: 1,
-                borderRadius: radius.md,
-                padding: spacing.md,
-                marginBottom: spacing.sm,
-              }}
-            >
-              <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
-                {String(item.title ?? item.name ?? 'Assignment')}
-              </Text>
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-                {[item.subject_name, item.due_date, item.status].filter(Boolean).map(String).join(' · ')}
-              </Text>
-            </View>
+            <ListRowCard
+              title={String(item.title ?? item.name ?? 'Assignment')}
+              subtitle={[item.subject_name, item.due_date, item.status].filter(Boolean).map(String).join(' · ')}
+              icon="book-outline"
+              glyph="book"
+              accent="info"
+            />
           )}
         />
       )}
@@ -164,7 +151,7 @@ export const StudentHomeworkScreen: React.FC = () => {
 
 export const StudentResultsScreen: React.FC = () => {
   const user = useCurrentUser();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { spacing } = useTheme();
   const studentId = user?.studentId ?? 0;
   const cards = useStudentReportCards(studentId, { enabled: studentId > 0 });
 
@@ -172,9 +159,6 @@ export const StudentResultsScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
-        <AcademicScreenHeader title="Results" />
-      </View>
       {studentId <= 0 ? (
         <EmptyState title="Not linked" message="Results need a linked student profile." icon="ribbon-outline" />
       ) : cards.isLoading ? (
@@ -187,25 +171,17 @@ export const StudentResultsScreen: React.FC = () => {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={{ padding: spacing.md }}
           renderItem={({ item }) => (
-            <View
-              style={{
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
-                borderWidth: 1,
-                borderRadius: radius.md,
-                padding: spacing.md,
-                marginBottom: spacing.sm,
-              }}
-            >
-              <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
-                {(item as { term_name?: string; title?: string }).term_name ??
-                  (item as { title?: string }).title ??
-                  `Report #${item.id}`}
-              </Text>
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-                Status: {String((item as { status?: string }).status ?? '—')}
-              </Text>
-            </View>
+            <ListRowCard
+              title={
+                (item as { term_name?: string; title?: string }).term_name ??
+                (item as { title?: string }).title ??
+                `Report #${item.id}`
+              }
+              subtitle={`Status: ${String((item as { status?: string }).status ?? '—')}`}
+              icon="ribbon-outline"
+              glyph="chart"
+              accent="info"
+            />
           )}
         />
       )}

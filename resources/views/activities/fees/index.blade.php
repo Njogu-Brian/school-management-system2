@@ -7,6 +7,7 @@
         'title' => 'Activity fees',
         'icon' => 'bi bi-trophy',
         'subtitle' => 'Optional programmes linked to voteheads. Rosters use students with a billed optional fee for the votehead in year ' . $year . ', term ' . $term . '.',
+        'actions' => '<a href="' . route('activity-fees.parent-requests.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-person-check"></i> Parent join / leave</a>',
     ])
 
     @include('finance.invoices.partials.alerts')

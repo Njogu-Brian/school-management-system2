@@ -181,7 +181,12 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::post('/parent/forced-actions/{id}/complete', [\App\Http\Controllers\Api\ApiParentForcedActionsController::class, 'complete']);
     Route::post('/parent/forced-actions', [\App\Http\Controllers\Api\ApiParentForcedActionsController::class, 'storeForParent']);
     Route::post('/parent/documents/id-card', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'storeParentIdCard']);
+    Route::get('/parent/documents', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'listParentDocuments']);
+    Route::get('/parent/documents/{documentId}/download', [\App\Http\Controllers\Api\ApiStudentDocumentsController::class, 'downloadParentDocument']);
     Route::get('/parent/transport-options', [\App\Http\Controllers\Api\ApiParentTransportController::class, 'options']);
+    Route::get('/students/{student}/co-curricular', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'show']);
+    Route::post('/students/{student}/co-curricular', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'store']);
+    Route::post('/students/{student}/co-curricular/requests/{changeRequest}/cancel', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'cancel']);
 
     // Parent family wallet (Users app)
     Route::get('/parent-wallet', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'show']);

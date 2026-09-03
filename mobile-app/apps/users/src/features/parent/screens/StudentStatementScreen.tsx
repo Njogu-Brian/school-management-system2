@@ -5,7 +5,9 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
+  Soft3DIcon,
   StatementLedger,
+  SurfaceCard,
   useTheme,
   type StatementLedgerRow,
 } from '@erp/ui';
@@ -21,7 +23,7 @@ type Nav = StackNavigationProp<ParentStackParamList>;
 export const StudentStatementScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteProp<ParentStackParamList, 'StudentStatement'>>();
-  const { palette, spacing, typography, radius, colors } = useTheme();
+  const { palette, spacing, typography, colors } = useTheme();
   const studentId = route.params.studentId;
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
   const statement = useStudentStatement(studentId);
@@ -80,20 +82,14 @@ export const StudentStatementScreen: React.FC = () => {
         />
       ) : data ? (
         <>
-          <View
-            style={{
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderWidth: 1,
-              borderRadius: radius.lg,
-              padding: spacing.lg,
-              marginBottom: spacing.md,
-            }}
-          >
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.headline.fontSize }}>
-              Balance
-            </Text>
-            <Text style={{ color: colors.primary, fontSize: 28, fontWeight: '700', marginTop: spacing.sm }}>
+          <SurfaceCard accent={balance > 0 ? 'warning' : 'success'}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm }}>
+              <Soft3DIcon name="cash-outline" glyph="cash" size={48} />
+              <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.headline.fontSize, flex: 1 }}>
+                Balance
+              </Text>
+            </View>
+            <Text style={{ color: colors.primary, fontSize: 28, fontWeight: '700' }}>
               {formatKes(balance)}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md }}>
@@ -110,7 +106,7 @@ export const StudentStatementScreen: React.FC = () => {
                 })
               }
             />
-          </View>
+          </SurfaceCard>
 
           <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
             Transactions

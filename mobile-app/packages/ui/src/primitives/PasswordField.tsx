@@ -23,8 +23,18 @@ type Props = {
   currentLabel?: string;
   username?: string;
   error?: string | null;
+  currentError?: string | null;
+  confirmError?: string | null;
   autoComplete?: 'password-new' | 'password';
 };
+
+function EyeToggle({ visible, onPress, color }: { visible: boolean; onPress: () => void; color: string }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={8} accessibilityLabel={visible ? 'Hide password' : 'Show password'}>
+      <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={20} color={color} />
+    </Pressable>
+  );
+}
 
 export const PasswordField: React.FC<Props> = ({
   label = 'New password',
@@ -39,17 +49,15 @@ export const PasswordField: React.FC<Props> = ({
   currentLabel = 'Current password',
   username,
   error,
+  currentError,
+  confirmError,
   autoComplete = 'password-new',
 }) => {
   const { colors, palette, spacing, typography } = useTheme();
-  const [visible, setVisible] = useState(false);
+  const [currentVisible, setCurrentVisible] = useState(false);
+  const [nextVisible, setNextVisible] = useState(false);
+  const [confirmVisible, setConfirmVisible] = useState(false);
   const checks = useMemo(() => passwordChecklist(value), [value]);
-
-  const eye = () => (
-    <Pressable onPress={() => setVisible((v) => !v)} hitSlop={8} accessibilityLabel={visible ? 'Hide password' : 'Show password'}>
-      <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={20} color={palette.textMuted} />
-    </Pressable>
-  );
 
   return (
     <View>
@@ -67,27 +75,32 @@ export const PasswordField: React.FC<Props> = ({
           label={currentLabel}
           value={currentValue ?? ''}
           onChangeText={onCurrentChange}
-          secureTextEntry={!visible}
+          secureTextEntry={!currentVisible}
           autoCapitalize="none"
           autoCorrect={false}
           autoComplete="password"
           textContentType="password"
-          rightSlot={eye()}
+          error={currentError}
+          rightSlot={
+            <EyeToggle visible={currentVisible} onPress={() => setCurrentVisible((v) => !v)} color={palette.textMuted} />
+          }
         />
       ) : null}
       <TextField
         label={label}
         value={value}
         onChangeText={onChangeText}
-        secureTextEntry={!visible}
+        secureTextEntry={!nextVisible}
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete={autoComplete}
         textContentType="newPassword"
         passwordRules="minlength: 8; required: upper; required: lower; required: digit;"
         importantForAutofill="yes"
-        rightSlot={eye()}
         error={error}
+        rightSlot={
+          <EyeToggle visible={nextVisible} onPress={() => setNextVisible((v) => !v)} color={palette.textMuted} />
+        }
       />
       <View style={{ marginBottom: spacing.md }}>
         {checks.map((item) => (
@@ -107,27 +120,28 @@ export const PasswordField: React.FC<Props> = ({
             const next = generatePassword();
             onChangeText(next);
             onConfirmChange?.(next);
-            setVisible(true);
+            setNextVisible(true);
+            setConfirmVisible(true);
           }}
           style={{ marginTop: spacing.xs }}
         >
-          <Text style={{ color: colors.primary, fontWeight: '700' }}>Generate a strong password</Text>
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>Suggest a strong password</Text>
         </Pressable>
-        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-          After you save, Google Password Manager can store it on this device.
-        </Text>
       </View>
       {showConfirm ? (
         <TextField
           label="Confirm new password"
           value={confirmValue ?? ''}
           onChangeText={onConfirmChange}
-          secureTextEntry={!visible}
+          secureTextEntry={!confirmVisible}
           autoCapitalize="none"
           autoCorrect={false}
           autoComplete="password-new"
           textContentType="newPassword"
-          rightSlot={eye()}
+          error={confirmError}
+          rightSlot={
+            <EyeToggle visible={confirmVisible} onPress={() => setConfirmVisible((v) => !v)} color={palette.textMuted} />
+          }
         />
       ) : null}
     </View>

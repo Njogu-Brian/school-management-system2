@@ -1,6 +1,6 @@
-import { accountApi, isStrongPassword, useAuth } from '@erp/core';
+import { accountApi, generatePassword, isStrongPassword, passwordChecklist, useAuth } from '@erp/core';
 import { Button, PasswordField, ScreenContainer, useTheme } from '@erp/ui';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 /**
@@ -8,36 +8,60 @@ import { Text, View } from 'react-native';
  * Does not block restored sessions / biometric unlock mid-day.
  */
 export const ForceChangePasswordScreen: React.FC = () => {
-  const { user, refreshUser, logout, clearForcePasswordChange } = useAuth();
+  const { user, refreshUser, logout, clearForcePasswordChange, recordPasswordForUnlock } = useAuth();
   const { colors, palette, spacing, typography } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const suggested = useMemo(() => generatePassword(), []);
+  const [newPassword, setNewPassword] = useState(suggested);
+  const [confirmPassword, setConfirmPassword] = useState(suggested);
   const [busy, setBusy] = useState(false);
+  const [currentError, setCurrentError] = useState<string | null>(null);
+  const [newError, setNewError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
     setError(null);
+    setCurrentError(null);
+    setNewError(null);
+    setConfirmError(null);
+
+    if (!currentPassword.trim()) {
+      setCurrentError('Enter the password you just used to sign in.');
+      return;
+    }
     if (!isStrongPassword(newPassword)) {
-      setError('Password is missing a requirement listed below.');
+      const missing = passwordChecklist(newPassword)
+        .filter((c) => !c.ok)
+        .map((c) => c.label)
+        .join(', ');
+      setNewError(missing ? `Still needed: ${missing}` : 'Password is missing a requirement listed below.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match.');
+      setConfirmError('The two new passwords do not match.');
       return;
     }
     setBusy(true);
     try {
       const res = await accountApi.changePassword({
-        current_password: currentPassword.trim() || undefined,
+        current_password: currentPassword.trim(),
         new_password: newPassword,
         new_password_confirmation: confirmPassword,
       });
       if (!res.success) throw new Error(res.message || 'Password change failed.');
+      recordPasswordForUnlock(newPassword);
       await refreshUser();
       clearForcePasswordChange();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not change password.');
+      const message = err instanceof Error ? err.message : 'Could not change password.';
+      if (/current password/i.test(message)) {
+        setCurrentError('That current password is incorrect.');
+      } else if (/match/i.test(message)) {
+        setConfirmError('The two new passwords do not match.');
+      } else {
+        setError(message);
+      }
     } finally {
       setBusy(false);
     }
@@ -50,7 +74,8 @@ export const ForceChangePasswordScreen: React.FC = () => {
       </Text>
       <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, marginBottom: spacing.lg }}>
         {user?.name ? `Hi ${user.name.split(/\s+/)[0]}, ` : ''}
-        your school requires a new password before you continue.
+        you signed in with a temporary password. Choose a new one before you continue. A strong password is already
+        filled in — you can keep it or type your own.
       </Text>
 
       {error ? <Text style={{ color: colors.error, marginBottom: spacing.sm }}>{error}</Text> : null}
@@ -59,12 +84,15 @@ export const ForceChangePasswordScreen: React.FC = () => {
         showCurrent
         currentValue={currentPassword}
         onCurrentChange={setCurrentPassword}
-        currentLabel="Current password (optional if you were given a temporary one)"
+        currentLabel="Current password"
+        currentError={currentError}
         value={newPassword}
         onChangeText={setNewPassword}
         confirmValue={confirmPassword}
         onConfirmChange={setConfirmPassword}
         showConfirm
+        error={newError}
+        confirmError={confirmError}
         username={user?.email ?? user?.phone ?? undefined}
       />
 

@@ -250,7 +250,7 @@ export const LoginScreen: React.FC = () => {
     <>
       {modeTabs}
       <DarkField
-        label={mode === 'otp' ? 'Phone or email' : 'Work email or phone'}
+        label={mode === 'otp' ? 'Phone or email' : 'Username'}
         value={identifier}
         onChangeText={setIdentifier}
         placeholder={mode === 'otp' ? '07XX XXX XXX' : 'you@school.edu'}

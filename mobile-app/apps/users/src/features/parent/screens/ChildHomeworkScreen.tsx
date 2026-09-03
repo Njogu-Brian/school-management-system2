@@ -11,6 +11,7 @@ import {
   SkeletonListRows,
   Soft3DIcon,
   StatusBadge,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -90,7 +91,7 @@ const AttachmentRow: React.FC<{ attachment: HomeworkAttachment }> = ({ attachmen
 };
 
 const HomeworkCard: React.FC<{ item: HomeworkAssignment; studentId: number }> = ({ item, studentId }) => {
-  const { palette, spacing, typography, radius, colors } = useTheme();
+  const { palette, spacing, typography, colors } = useTheme();
   const statusQuery = useHomeworkDiaryStatus(item.id, studentId);
   const { complete, uncomplete } = useHomeworkCompletion(item.id);
 
@@ -113,16 +114,7 @@ const HomeworkCard: React.FC<{ item: HomeworkAssignment; studentId: number }> = 
   };
 
   return (
-    <View
-      style={{
-        backgroundColor: palette.surface,
-        borderColor: palette.border,
-        borderWidth: 1,
-        borderRadius: radius.lg,
-        padding: spacing.md,
-        marginBottom: spacing.sm,
-      }}
-    >
+    <SurfaceCard accent={isDone ? 'success' : 'info'}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
         <Text style={{ color: palette.textPrimary, fontWeight: '700', flex: 1 }}>{item.title}</Text>
         {isDone ? (
@@ -168,7 +160,7 @@ const HomeworkCard: React.FC<{ item: HomeworkAssignment; studentId: number }> = 
           style={{ marginTop: spacing.sm }}
         />
       )}
-    </View>
+    </SurfaceCard>
   );
 };
 

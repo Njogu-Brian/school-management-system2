@@ -35,6 +35,7 @@ import { ParentClaimFlow } from './ParentClaimFlow';
 type AuthMode = 'password' | 'otp';
 /** Mutually exclusive unlock UI — never stack biometric + PIN + password. */
 type UnlockSurface = 'quick' | 'pin' | 'password';
+type SheetGate = 'loading' | 'welcome' | 'recommend' | 'form';
 
 type LoginAnnouncement = { id: number; title: string; content: string };
 
@@ -74,6 +75,9 @@ export const LoginScreen: React.FC = () => {
   const [unlockSurface, setUnlockSurface] = useState<UnlockSurface>('quick');
   const [pinAvailable, setPinAvailable] = useState(false);
   const [rememberedFirstName, setRememberedFirstNameState] = useState<string | null>(null);
+  const [rememberedDisplayName, setRememberedDisplayName] = useState<string | null>(null);
+  const [sheetGate, setSheetGate] = useState<SheetGate>('loading');
+  const [usernameLocked, setUsernameLocked] = useState(false);
   const [announcements, setAnnouncements] = useState<LoginAnnouncement[]>([]);
   const [showClaim, setShowClaim] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
@@ -85,13 +89,24 @@ export const LoginScreen: React.FC = () => {
   useEffect(() => {
     void (async () => {
       const [name, first] = await Promise.all([getRememberedUsername(), getRememberedFirstName()]);
-      if (name) setIdentifier(name);
+      if (name) {
+        setIdentifier(name);
+        setUsernameLocked(true);
+        setSheetGate('recommend');
+      } else {
+        setSheetGate('welcome');
+      }
       if (first) {
         setRememberedFirstNameState(first);
+        setRememberedDisplayName(first);
       } else if (name) {
         const local = name.includes('@') ? name.split('@')[0] : name;
         const pretty = local.replace(/[._-]+/g, ' ').trim().split(/\s+/)[0];
-        if (pretty) setRememberedFirstNameState(pretty.charAt(0).toUpperCase() + pretty.slice(1));
+        if (pretty) {
+          const labeled = pretty.charAt(0).toUpperCase() + pretty.slice(1);
+          setRememberedFirstNameState(labeled);
+          setRememberedDisplayName(labeled);
+        }
       }
       setPinAvailable(await hasPinUnlockAvailable());
     })();
@@ -244,14 +259,16 @@ export const LoginScreen: React.FC = () => {
     <>
       {modeTabs}
       <DarkField
-        label={mode === 'otp' ? 'Phone or email' : 'Work email or phone'}
+        label="Username"
         value={identifier}
         onChangeText={setIdentifier}
-        placeholder={mode === 'otp' ? '07XX XXX XXX' : 'you@school.edu'}
+        placeholder={mode === 'otp' ? 'Phone or email' : 'Username, email or phone'}
         icon="person-outline"
         autoCapitalize="none"
         keyboardType={mode === 'otp' ? 'phone-pad' : 'email-address'}
-        editable={!busy}
+        editable={!busy && !usernameLocked}
+        autoComplete="username"
+        textContentType="username"
       />
       {mode === 'password' ? (
         <>
@@ -264,6 +281,8 @@ export const LoginScreen: React.FC = () => {
             secureTextEntry={!showPassword}
             autoCapitalize="none"
             editable={!busy}
+            autoComplete="password"
+            textContentType="password"
             right={
               <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
                 <Ionicons
@@ -366,9 +385,13 @@ export const LoginScreen: React.FC = () => {
       >
         {showQuick || showPinOnly
           ? greeting
-          : rememberedFirstName
-            ? `${greeting}`
-            : 'Sign in to Users'}
+          : sheetGate === 'welcome'
+            ? 'Welcome'
+            : sheetGate === 'recommend'
+              ? greeting
+              : rememberedFirstName
+                ? `${greeting}`
+                : 'Sign in'}
       </Text>
       <Text
         style={{
@@ -383,9 +406,13 @@ export const LoginScreen: React.FC = () => {
             ? unlockAvailable && !isLocked
               ? `Unlock with ${typeLabel} — or use your PIN`
               : 'Unlock with your PIN — no password needed'
-            : rememberedFirstName
-              ? 'Welcome back — sign in with password or OTP'
-              : 'Password or one-time code for parents, teachers, students & drivers'}
+            : sheetGate === 'welcome'
+              ? 'Parents · Teachers · Students · Drivers — sign in or claim access'
+              : sheetGate === 'recommend'
+                ? `Continue as ${rememberedDisplayName ?? rememberedFirstName ?? 'this account'}, or use a different account`
+                : rememberedFirstName
+                  ? 'Welcome back — enter your password or request an OTP'
+                  : 'Sign in with username and password, or request an OTP'}
       </Text>
 
       {announcements.length > 0 ? (
@@ -519,8 +546,67 @@ export const LoginScreen: React.FC = () => {
             </Pressable>
           ) : null}
         </>
+      ) : sheetGate === 'welcome' ? (
+        <>
+          <Button label="Sign in" onPress={() => setSheetGate('form')} />
+          <Pressable
+            onPress={() => setShowClaim(true)}
+            disabled={busy}
+            style={{
+              marginTop: spacing.md,
+              minHeight: 48,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: radius.control,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.35)',
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: typography.button.fontSize }}>
+              Claim access
+            </Text>
+          </Pressable>
+        </>
+      ) : sheetGate === 'recommend' ? (
+        <>
+          <Text style={{ color: 'rgba(255,255,255,0.75)', marginBottom: spacing.md, lineHeight: 22 }}>
+            Do you want to sign in as {rememberedDisplayName ?? rememberedFirstName ?? 'this person'}?
+          </Text>
+          {identifier ? (
+            <Text style={{ color: 'rgba(255,255,255,0.5)', marginBottom: spacing.lg }}>{identifier}</Text>
+          ) : null}
+          <Button
+            label={`Sign in as ${rememberedDisplayName ?? rememberedFirstName ?? 'this account'}`}
+            onPress={() => {
+              setUsernameLocked(true);
+              setSheetGate('form');
+            }}
+          />
+          <Pressable
+            onPress={() => {
+              setIdentifier('');
+              setPassword('');
+              setUsernameLocked(false);
+              setSheetGate('form');
+            }}
+            style={{ marginTop: spacing.md, alignItems: 'center' }}
+          >
+            <Text style={{ color: 'rgba(255,255,255,0.75)', fontWeight: '600' }}>Use a different account</Text>
+          </Pressable>
+        </>
       ) : (
         <>
+          {usernameLocked ? (
+            <Pressable
+              onPress={() => {
+                setIdentifier('');
+                setUsernameLocked(false);
+              }}
+              style={{ marginBottom: spacing.sm, alignSelf: 'flex-end' }}
+            >
+              <Text style={{ color: colors.primaryOnDark, fontWeight: '600' }}>Use a different account</Text>
+            </Pressable>
+          ) : null}
           {credentialForm}
           {canQuickUnlock ? (
             <Pressable
@@ -535,18 +621,20 @@ export const LoginScreen: React.FC = () => {
         </>
       )}
 
-      <Pressable
-        onPress={() => setShowClaim(true)}
-        disabled={busy}
-        style={{ marginTop: spacing.lg, alignItems: 'center' }}
-      >
-        <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: typography.body.fontSize }}>
-          Use the login SMS from school, or{' '}
-          <Text style={{ color: colors.primaryOnDark ?? '#4B9FFF', fontWeight: '700' }}>
-            claim access
+      {sheetGate === 'form' || sheetGate === 'recommend' ? (
+        <Pressable
+          onPress={() => setShowClaim(true)}
+          disabled={busy}
+          style={{ marginTop: spacing.lg, alignItems: 'center' }}
+        >
+          <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: typography.body.fontSize }}>
+            New here?{' '}
+            <Text style={{ color: colors.primaryOnDark ?? '#4B9FFF', fontWeight: '700' }}>
+              Claim access
+            </Text>
           </Text>
-        </Text>
-      </Pressable>
+        </Pressable>
+      ) : null}
     </View>
   );
 

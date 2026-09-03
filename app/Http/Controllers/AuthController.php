@@ -9,6 +9,7 @@ use App\Models\Staff;
 use App\Models\Setting;
 use App\Models\Announcement;
 use App\Services\OtpService;
+use App\Services\ParentCredentialsService;
 use App\Services\SMSService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -52,39 +53,34 @@ class AuthController extends Controller
         [$user] = $this->resolveUserAndStaffByIdentifier($credentials['identifier']);
         
         if (!$user) {
-            return back()->withErrors(['identifier' => 'No account found with this email or phone number.']);
+            return back()->withErrors(['identifier' => 'No account found with this username.']);
         }
 
-        // Use the actual email from the user record for authentication
-        $authCredentials = [
-            'email' => $user->email,
-            'password' => $credentials['password']
-        ];
-
-        // Attempt authentication
-        if (Auth::attempt($authCredentials, $request->filled('remember'))) {
-            /** @var \App\Models\User $user */
-            $user = auth()->user();
-            $user->load('roles'); // Ensure roles are loaded
-
-            // Check for intended redirect first
-            $intended = $request->session()->pull('url.intended');
-            if ($intended && str_starts_with($intended, url('/'))) {
-                return redirect($intended);
-            }
-
-            if ($user->hasRole('admin') || $user->hasRole('Admin') || $user->hasRole('Super Admin')) {
-                return redirect()->route('admin.dashboard');
-            } elseif ($user->hasRole('teacher') || $user->hasRole('Teacher')) {
-                return redirect()->route('teacher.dashboard');
-            } elseif ($user->hasRole('student') || $user->hasRole('Student')) {
-                return redirect()->route('student.dashboard');
-            }
-
-            return redirect()->route('home'); // fallback
+        if (! app(ParentCredentialsService::class)->passwordIsValid($user, $credentials['password'])) {
+            return back()->withErrors(['identifier' => 'Invalid password. Please check your password and try again.']);
         }
 
-        return back()->withErrors(['identifier' => 'Invalid password. Please check your password and try again.']);
+        Auth::login($user, $request->filled('remember'));
+
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+        $user->load('roles'); // Ensure roles are loaded
+
+        // Check for intended redirect first
+        $intended = $request->session()->pull('url.intended');
+        if ($intended && str_starts_with($intended, url('/'))) {
+            return redirect($intended);
+        }
+
+        if ($user->hasRole('admin') || $user->hasRole('Admin') || $user->hasRole('Super Admin')) {
+            return redirect()->route('admin.dashboard');
+        } elseif ($user->hasRole('teacher') || $user->hasRole('Teacher')) {
+            return redirect()->route('teacher.dashboard');
+        } elseif ($user->hasRole('student') || $user->hasRole('Student')) {
+            return redirect()->route('student.dashboard');
+        }
+
+        return redirect()->route('home'); // fallback
     }
 
     /**

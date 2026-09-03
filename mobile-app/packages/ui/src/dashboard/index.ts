@@ -8,3 +8,5 @@ export * from './WidgetGrid';
 export * from './DashboardHero';
 export * from './SegmentedTabBar';
 export * from './ChartCard';
+export * from './SurfaceCard';
+export * from './ListRowCard';

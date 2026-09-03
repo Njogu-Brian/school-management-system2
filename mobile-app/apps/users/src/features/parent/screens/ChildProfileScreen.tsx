@@ -11,6 +11,7 @@ import {
   useKemisOptions,
   useParentProfileReview,
   useUpdateParentProfileReview,
+  downloadAuthenticatedFile,
   type KemisLearnerValues,
   type KemisParentSlotValues,
   type ProfileReviewUpdatePayload,
@@ -332,6 +333,28 @@ export const ChildProfileScreen: React.FC = () => {
           {parentReadRow('Guardian', guardian, guardianRelationship)}
         </View>
       )}
+
+      {sectionTitle('Family documents')}
+      <View style={cardStyle}>
+        {(query.data?.documents ?? []).length === 0 ? (
+          <Text style={{ color: palette.textMuted }}>No parent documents on file.</Text>
+        ) : (
+          (query.data?.documents ?? []).map((doc) => (
+            <Pressable
+              key={doc.id}
+              onPress={() => {
+                void downloadAuthenticatedFile(doc.download_path, doc.title ?? 'document').catch((err) =>
+                  showError('Download failed', (err as Error).message),
+                );
+              }}
+              style={styles.readRow}
+            >
+              <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{doc.title ?? doc.file_name}</Text>
+              <Text style={{ color: colors.primary, marginTop: 4 }}>View / download</Text>
+            </Pressable>
+          ))
+        )}
+      </View>
 
       {editing ? (
         <Button

@@ -9,6 +9,7 @@ use App\Models\Student;
 use App\Models\User;
 use App\Services\SMSService;
 use App\Services\OtpService;
+use App\Services\ParentCredentialsService;
 use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -34,7 +35,7 @@ class AuthApiController extends Controller
         $identifier = (string) $request->input('identifier', $request->input('email', ''));
         [$user] = $this->resolveUserAndStaff($identifier);
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$user || ! app(ParentCredentialsService::class)->passwordIsValid($user, (string) $request->password)) {
             return response()->json([
                 'success' => false,
                 'message' => 'The provided credentials are incorrect.',

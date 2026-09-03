@@ -357,6 +357,21 @@ class InvoiceService
             self::recalc($item->invoice);
             self::allocateUnallocatedPaymentsForStudent($item->invoice->student_id);
 
+            $item->loadMissing('invoice.student');
+            $student = $item->invoice?->student;
+            if ($student && ($creditNote || $debitNote)) {
+                $kind = $creditNote ? 'credit' : 'debit';
+                $amt = number_format(abs($difference), 2);
+                try {
+                    app(\App\Services\ParentAppNotifyService::class)->notifyInvoiceAdjusted(
+                        $student,
+                        ucfirst($kind).' note of Ksh '.$amt.'.'
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('Parent invoice adjustment notify failed: '.$e->getMessage());
+                }
+            }
+
             return [
                 'item' => $item->fresh(),
                 'credit_note' => $creditNote,

@@ -92,6 +92,12 @@ class TransportAssignmentWriter
             return $assignment;
         }
 
+        try {
+            app(ParentAppNotifyService::class)->notifyTransportChanged($student);
+        } catch (\Throwable $e) {
+            \Log::warning('Parent transport notify failed: '.$e->getMessage(), ['student_id' => $student->id]);
+        }
+
         if ($amount !== null) {
             $legacyPointId = $seedPointId;
             $legacyPointName = $seedPoint?->name

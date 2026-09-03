@@ -16,6 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { showError, showSuccess } from '../../shared/utils/feedback';
+import { ParentAccountProfileSection } from './ParentAccountProfileSection';
 
 /**
  * Shared profile view/edit for teacher, parent, student, and driver portals.
@@ -315,6 +316,8 @@ export const MyProfileScreen: React.FC = () => {
             <TextField label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" editable={false} />
           )}
         </View>
+
+        {user?.parentId ? <ParentAccountProfileSection /> : null}
 
         {staffId > 0 ? (
           <>

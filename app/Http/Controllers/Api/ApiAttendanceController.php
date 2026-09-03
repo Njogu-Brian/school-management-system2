@@ -184,6 +184,11 @@ class ApiAttendanceController extends Controller
 
                 if ($status === 'absent' && $isToday && $student->parent) {
                     $this->notifyParentAbsent($student);
+                    try {
+                        app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
                 }
             }
         });

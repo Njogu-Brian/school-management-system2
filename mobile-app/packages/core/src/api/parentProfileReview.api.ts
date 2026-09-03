@@ -71,6 +71,13 @@ export interface ProfileReviewData {
   review_required: boolean;
   parent: ProfileReviewParent;
   students: ProfileReviewStudent[];
+  documents?: Array<{
+    id: number;
+    title: string | null;
+    category: string | null;
+    file_name: string | null;
+    download_path: string;
+  }>;
 }
 
 export interface ProfileReviewUpdatePayload {

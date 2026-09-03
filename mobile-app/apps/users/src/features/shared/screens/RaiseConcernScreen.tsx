@@ -11,6 +11,7 @@ import {
   FilterChip,
   FilterChipRow,
   ScreenContainer,
+  SurfaceCard,
   TextField,
   useTheme,
 } from '@erp/ui';
@@ -173,30 +174,23 @@ export const RaiseConcernScreen: React.FC = () => {
             studentHits.slice(0, 20).map((s) => {
               const active = selectedStudents.some((x) => x.id === s.id);
               return (
-                <Pressable
-                  key={s.id}
-                  onPress={() =>
-                    toggleStudent({
-                      id: s.id,
-                      fullName: s.fullName,
-                      meta: [s.admissionNumber, s.className].filter(Boolean).join(' · '),
-                    })
-                  }
-                  style={{
-                    backgroundColor: active ? `${colors.primary}14` : palette.surface,
-                    borderColor: active ? colors.primary : palette.border,
-                    borderWidth: 1,
-                    borderRadius: radius.md,
-                    padding: spacing.md,
-                    marginTop: spacing.sm,
-                  }}
-                >
-                  <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{s.fullName}</Text>
-                  <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-                    {[s.admissionNumber, s.className].filter(Boolean).join(' · ')}
-                    {active ? ' · Selected' : ''}
-                  </Text>
-                </Pressable>
+                  <SurfaceCard
+                    key={s.id}
+                    onPress={() =>
+                      toggleStudent({
+                        id: s.id,
+                        fullName: s.fullName,
+                        meta: [s.admissionNumber, s.className].filter(Boolean).join(' · '),
+                      })
+                    }
+                    accent={active ? 'brand' : undefined}
+                  >
+                    <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{s.fullName}</Text>
+                    <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                      {[s.admissionNumber, s.className].filter(Boolean).join(' · ')}
+                      {active ? ' · Selected' : ''}
+                    </Text>
+                  </SurfaceCard>
               );
             })
           )}

@@ -1,17 +1,11 @@
 import {
   useAuth,
 } from '@erp/core';
-import {
-  Button,
-  ScreenContainer,
-  SearchBar,
-  Soft3DIcon,
-  useTheme,
-} from '@erp/ui';
+import { Button, ListRowCard, ScreenContainer, SearchBar, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 import { confirmAction } from '../../shared/utils/feedback';
@@ -28,8 +22,9 @@ const LINKS: Array<{
     | 'notifications-outline'
     | 'settings-outline'
     | 'alert-circle-outline'
-    | 'chatbubbles-outline';
-  glyph?: 'wallet' | 'person' | 'megaphone' | 'notifications' | 'settings' | 'generic';
+    | 'chatbubbles-outline'
+    | 'sparkles-outline';
+  glyph?: 'wallet' | 'person' | 'megaphone' | 'notifications' | 'settings' | 'activities' | 'generic';
   tone: 'cyan' | 'amber' | 'blue' | 'indigo' | 'rose' | 'emerald';
   route: keyof ParentStackParamList;
 }> = [
@@ -39,6 +34,14 @@ const LINKS: Array<{
     icon: 'person-outline',
     tone: 'cyan',
     route: 'MyProfile',
+  },
+  {
+    label: 'Co-curricular',
+    subtitle: 'Clubs, ballet, skating, music & yoghurt',
+    icon: 'sparkles-outline',
+    glyph: 'activities',
+    tone: 'amber',
+    route: 'CoCurricularHub',
   },
   {
     label: 'Diary',
@@ -88,7 +91,7 @@ const LINKS: Array<{
 export const ParentMoreScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const { logout } = useAuth();
-  const { palette, spacing, typography, radius, colors } = useTheme();
+  const { spacing, colors } = useTheme();
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -115,29 +118,15 @@ export const ParentMoreScreen: React.FC = () => {
         }}
       />
       {filtered.map((item) => (
-        <Pressable
+        <ListRowCard
           key={item.route}
+          title={item.label}
+          subtitle={item.subtitle}
+          icon={item.icon}
+          glyph={item.glyph}
+          tone={item.tone}
           onPress={() => navigation.navigate(item.route as never)}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.md,
-            marginBottom: spacing.sm,
-            padding: spacing.md,
-            borderRadius: radius.lg,
-            borderWidth: 1,
-            borderColor: palette.border,
-            backgroundColor: palette.surface,
-          }}
-        >
-          <Soft3DIcon name={item.icon} glyph={item.glyph} tone={item.tone} size={44} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{item.label}</Text>
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-              {item.subtitle}
-            </Text>
-          </View>
-        </Pressable>
+        />
       ))}
       <Button
         label="Sign out"

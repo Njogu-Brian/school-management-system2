@@ -16,11 +16,13 @@ import {
   DashboardHero,
   DashboardSection,
   EmptyState,
+  ListRowCard,
   QuickAction,
   ScreenContainer,
   SkeletonListRows,
   Soft3DIcon,
   StatusBadge,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -38,12 +40,13 @@ type ParentTabJump = { tab: string; screen: string; tabHome?: string };
 
 const QUICK_ACTIONS: Array<{
   label: string;
-  icon: 'people-outline' | 'cash-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'school-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
+  icon: 'people-outline' | 'cash-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'school-outline' | 'sparkles-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
   jump: ParentTabJump;
 }> = [
   { label: 'Children', icon: 'people-outline', jump: { tab: 'ParentChildrenTab', screen: 'ChildrenList' } },
   { label: 'Fees', icon: 'cash-outline', jump: { tab: 'ParentFeesTab', screen: 'FeesHome' } },
   { label: 'Wallets', icon: 'wallet-outline', jump: { tab: 'ParentFeesTab', screen: 'WalletHome', tabHome: 'FeesHome' } },
+  { label: 'Co-curricular', icon: 'sparkles-outline', jump: { tab: 'ParentHomeTab', screen: 'CoCurricularHub', tabHome: 'ParentHome' } },
   { label: 'Diary', icon: 'chatbubbles-outline', jump: { tab: 'ParentMoreTab', screen: 'DiaryList', tabHome: 'MoreMenu' } },
   { label: 'Academic', icon: 'school-outline', jump: { tab: 'ParentAcademicTab', screen: 'AcademicHome' } },
 ];
@@ -65,7 +68,7 @@ function FamilyFeesCard({
   studentIds: number[];
   onPressFees: () => void;
 }) {
-  const { palette, spacing, typography, radius, colors } = useTheme();
+  const { palette, spacing, typography, colors } = useTheme();
   // Hooks can't be called in a loop — support up to 4 children on the home snapshot.
   const s0 = useStudentStats(studentIds[0] ?? 0, { enabled: (studentIds[0] ?? 0) > 0 });
   const s1 = useStudentStats(studentIds[1] ?? 0, { enabled: (studentIds[1] ?? 0) > 0 });
@@ -86,16 +89,7 @@ function FamilyFeesCard({
   }, [s0, s1, s2, s3, studentIds.length]);
 
   return (
-    <View
-      style={{
-        backgroundColor: palette.surface,
-        borderColor: palette.border,
-        borderWidth: 1,
-        borderRadius: radius.lg,
-        padding: spacing.md,
-        marginBottom: spacing.sm,
-      }}
-    >
+    <SurfaceCard accent={due > 0 ? 'warning' : 'success'}>
       <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
         School fees
       </Text>
@@ -133,7 +127,7 @@ function FamilyFeesCard({
           </Text>
         </Pressable>
       </View>
-    </View>
+    </SurfaceCard>
   );
 }
 
@@ -146,7 +140,7 @@ function ChildResultsSnapshot({
   studentName: string;
   onOpen: (card: ReportCardListRecord) => void;
 }) {
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const reportCards = useStudentReportCards(studentId, { enabled: studentId > 0 });
   const published = useMemo(
     () => (reportCards.data ?? []).filter((c) => c.status === 'published').slice(0, 2),
@@ -158,17 +152,10 @@ function ChildResultsSnapshot({
   return (
     <View style={{ marginBottom: spacing.sm }}>
       {published.map((card) => (
-        <Pressable
+        <SurfaceCard
           key={card.id}
           onPress={() => onOpen(card)}
-          style={{
-            backgroundColor: palette.surface,
-            borderColor: palette.border,
-            borderWidth: 1,
-            borderRadius: radius.lg,
-            padding: spacing.md,
-            marginBottom: spacing.sm,
-          }}
+          accent={card.access_locked ? 'warning' : 'success'}
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View style={{ flex: 1, paddingRight: spacing.sm }}>
@@ -187,7 +174,7 @@ function ChildResultsSnapshot({
               tone={card.access_locked ? 'warning' : 'success'}
             />
           </View>
-        </Pressable>
+        </SurfaceCard>
       ))}
     </View>
   );
@@ -322,7 +309,7 @@ export const ParentHomeScreen: React.FC = () => {
 };
 
 export const ParentChildrenScreen: React.FC = () => {
-  const { palette, spacing, typography, radius } = useTheme();
+  const { spacing } = useTheme();
   const navigation = useNavigation<Nav>();
   const listQuery = useInfiniteStudentList({
     search: '',
@@ -352,22 +339,14 @@ export const ParentChildrenScreen: React.FC = () => {
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={{ padding: spacing.md }}
           renderItem={({ item }) => (
-            <Pressable
+            <ListRowCard
+              title={item.fullName}
+              subtitle={[item.admissionNumber, item.className].filter(Boolean).join(' · ')}
+              icon="person-outline"
+              glyph="person"
+              accent="brand"
               onPress={() => navigation.navigate('ChildHub', { studentId: item.id })}
-              style={{
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
-                borderWidth: 1,
-                borderRadius: radius.md,
-                padding: spacing.md,
-                marginBottom: spacing.sm,
-              }}
-            >
-              <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{item.fullName}</Text>
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
-                {[item.admissionNumber, item.className].filter(Boolean).join(' · ')}
-              </Text>
-            </Pressable>
+            />
           )}
         />
       )}
@@ -387,7 +366,7 @@ function ChildFeeCard({
   className?: string | null;
 }) {
   const navigation = useNavigation<Nav>();
-  const { palette, spacing, typography, radius, colors } = useTheme();
+  const { palette, spacing, typography, colors } = useTheme();
   const stats = useStudentStats(studentId);
   const [loadingLink, setLoadingLink] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -434,16 +413,7 @@ function ChildFeeCard({
   };
 
   return (
-    <View
-      style={{
-        backgroundColor: palette.surface,
-        borderColor: palette.border,
-        borderWidth: 1,
-        borderRadius: radius.lg,
-        padding: spacing.md,
-        marginBottom: spacing.md,
-      }}
-    >
+    <SurfaceCard accent={Number(balanceDue) > 0 ? 'warning' : 'success'}>
       <Pressable
         onPress={() => navigateToTab(navigation, 'ParentChildrenTab', 'ChildHub', { studentId })}
       >
@@ -547,7 +517,7 @@ function ChildFeeCard({
           ))
         )
       ) : null}
-    </View>
+    </SurfaceCard>
   );
 }
 

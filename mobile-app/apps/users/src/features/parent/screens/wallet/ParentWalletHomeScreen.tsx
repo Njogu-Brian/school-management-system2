@@ -10,6 +10,7 @@ import {
   ScreenContainer,
   SkeletonListRows,
   Soft3DIcon,
+  SurfaceCard,
   TextField,
   useTheme,
 } from '@erp/ui';
@@ -24,7 +25,7 @@ import { formatKes, formatShortDate } from '../../utils/format';
 export const ParentWalletHomeScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<ParentStackParamList>>();
   const route = useRoute<RouteProp<ParentStackParamList, 'WalletHome'>>();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const walletQuery = useParentWallet();
   const pay = useParentWalletPay();
   const user = useCurrentUser();
@@ -81,16 +82,7 @@ export const ParentWalletHomeScreen: React.FC = () => {
         />
       ) : (
         <>
-          <View
-            style={{
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderWidth: 1,
-              borderRadius: radius.lg,
-              padding: spacing.lg,
-              marginBottom: spacing.md,
-            }}
-          >
+          <SurfaceCard accent="success">
             <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
               Available balance
             </Text>
@@ -107,7 +99,7 @@ export const ParentWalletHomeScreen: React.FC = () => {
             <Text style={{ color: palette.textMuted, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
               Deposits go to due fees first; the rest stays for trips, swimming & activities.
             </Text>
-          </View>
+          </SurfaceCard>
 
           <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md, flexWrap: 'wrap' }}>
             <Button label="Top up" onPress={() => navigation.navigate('WalletTopUp')} />
@@ -119,16 +111,7 @@ export const ParentWalletHomeScreen: React.FC = () => {
           </View>
 
           {payInvoiceId ? (
-            <View
-              style={{
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
-                borderWidth: 1,
-                borderRadius: radius.lg,
-                padding: spacing.md,
-                marginBottom: spacing.md,
-              }}
-            >
+            <SurfaceCard accent="brand">
               <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
                 Pay invoice #{payInvoiceId} from wallet
               </Text>
@@ -145,7 +128,7 @@ export const ParentWalletHomeScreen: React.FC = () => {
                 onPress={() => void handlePayInvoice()}
                 style={{ marginTop: spacing.sm }}
               />
-            </View>
+            </SurfaceCard>
           ) : null}
 
           <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
@@ -155,14 +138,7 @@ export const ParentWalletHomeScreen: React.FC = () => {
             <EmptyState title="No activity yet" message="Top up to get started." icon="receipt-outline" />
           ) : (
             (wallet?.ledger ?? []).map((row) => (
-              <View
-                key={row.id}
-                style={{
-                  paddingVertical: spacing.sm,
-                  borderBottomWidth: 1,
-                  borderBottomColor: palette.border,
-                }}
-              >
+              <SurfaceCard key={row.id} accent={row.amount >= 0 ? 'success' : 'info'}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={{ color: palette.textPrimary, fontWeight: '600', textTransform: 'capitalize' }}>
                     {row.type.replace('_', ' ')}
@@ -181,7 +157,7 @@ export const ParentWalletHomeScreen: React.FC = () => {
                   Balance {formatKes(row.balance_after)}
                   {row.created_at ? ` · ${formatShortDate(row.created_at)}` : ''}
                 </Text>
-              </View>
+              </SurfaceCard>
             ))
           )}
         </>

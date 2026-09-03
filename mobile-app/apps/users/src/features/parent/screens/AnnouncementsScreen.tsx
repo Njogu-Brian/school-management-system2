@@ -4,16 +4,18 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
+  Soft3DIcon,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React, { useMemo, useState } from 'react';
-import { Pressable, Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { formatDateTime, formatShortDate } from '../utils/format';
 
 export const AnnouncementsScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const query = useAnnouncements({ perPage: 40 });
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -49,18 +51,14 @@ export const AnnouncementsScreen: React.FC = () => {
         items.map((item) => {
           const open = expandedId === item.id;
           return (
-            <Pressable
+            <SurfaceCard
               key={item.id}
               onPress={() => setExpandedId(open ? null : item.id)}
-              style={{
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
-                borderWidth: 1,
-                borderRadius: radius.lg,
-                padding: spacing.md,
-                marginBottom: spacing.sm,
-              }}
+              accent="warning"
             >
+              <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
+                <Soft3DIcon name="megaphone-outline" glyph="megaphone" size={44} />
+                <View style={{ flex: 1 }}>
               <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{item.title}</Text>
               <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
                 {formatDateTime(item.created_at)}
@@ -72,7 +70,9 @@ export const AnnouncementsScreen: React.FC = () => {
               >
                 {item.content}
               </Text>
-            </Pressable>
+                </View>
+              </View>
+            </SurfaceCard>
           );
         })
       )}

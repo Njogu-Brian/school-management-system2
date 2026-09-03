@@ -15,7 +15,7 @@
         <h1 class="mb-1">Parent Credentials</h1>
         <p class="text-muted mb-0">
           Provision logins, send credentials (one message per family), and track father &amp; mother sign-in on the same family row.
-          Temp password format: <code>admission-year</code> (e.g. RKS001-2026).
+          Temp password format: <code>admission-YY</code> (e.g. RKS001-26). Families with more than one child can use any child’s admission number.
         </p>
       </div>
       <a href="{{ route('students.parents-contact') }}" class="btn btn-ghost-strong"><i class="bi bi-telephone"></i> Parents Contact</a>

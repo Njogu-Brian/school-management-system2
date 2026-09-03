@@ -6,6 +6,7 @@ import {
   ScreenContainer,
   SkeletonListRows,
   StatusBadge,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -16,7 +17,7 @@ import { formatDateTime } from '../utils/format';
 /** Shared across every role — server scopes staff to concerns they are tagged on. */
 export const ConcernsListScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const list = useConcernsList();
 
   return (
@@ -53,17 +54,7 @@ export const ConcernsListScreen: React.FC = () => {
         />
       ) : (
         (list.data ?? []).map((item) => (
-          <View
-            key={item.id}
-            style={{
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderWidth: 1,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-              marginBottom: spacing.sm,
-            }}
-          >
+          <SurfaceCard key={item.id} accent={item.status === 'open' ? 'warning' : 'info'}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
               <Text style={{ color: palette.textPrimary, fontWeight: '700', flex: 1, textTransform: 'capitalize' }}>
                 {item.category}
@@ -80,7 +71,7 @@ export const ConcernsListScreen: React.FC = () => {
             <Text style={{ color: palette.textMuted, marginTop: spacing.xs, fontSize: typography.caption.fontSize }}>
               {formatDateTime(item.created_at)}
             </Text>
-          </View>
+          </SurfaceCard>
         ))
       )}
     </ScreenContainer>

@@ -207,8 +207,8 @@
         <form method="POST" action="{{ route('login') }}" class="text-start" id="passwordLoginForm">
             @csrf
             <div class="mb-3">
-                <label>Work Email or Phone Number</label>
-                <input type="text" class="form-control" name="identifier" value="{{ old('identifier', old('email')) }}" required autofocus>
+                <label>Username</label>
+                <input type="text" class="form-control" name="identifier" value="{{ old('identifier', old('email')) }}" required autofocus autocomplete="username">
             </div>
 
             <div class="mb-3">
@@ -237,9 +237,9 @@
             @csrf
             <input type="hidden" name="request_otp" value="1">
             <div class="mb-3">
-                <label>Work Email or Phone Number</label>
-                <input type="text" class="form-control" name="identifier" id="otpRequestIdentifier" value="{{ old('identifier', old('email')) }}" required>
-                <small class="text-muted">Enter your email or phone number, then request an OTP</small>
+                <label>Username</label>
+                <input type="text" class="form-control" name="identifier" id="otpRequestIdentifier" value="{{ old('identifier', old('email')) }}" required autocomplete="username">
+                <small class="text-muted">Enter your username, email, or phone number, then request an OTP</small>
             </div>
             <button type="submit" class="btn btn-primary w-100 mb-2">Request OTP</button>
             <button type="button" class="btn btn-outline-secondary w-100" onclick="showPasswordForm()">Use Password Instead</button>

@@ -184,6 +184,12 @@ class ApiHomeworkController extends Controller
 
         $homework->load(['classroom', 'stream', 'subject', 'teacher']);
 
+        try {
+            app(\App\Services\ParentAppNotifyService::class)->notifyHomeworkIssued($homework);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Homework created.',

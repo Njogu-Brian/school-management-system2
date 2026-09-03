@@ -149,6 +149,15 @@ class ApiDiaryController extends Controller
 
         $diary->touch();
 
+        if (in_array($entry->author_type, ['teacher', 'admin'], true)) {
+            try {
+                $preview = \Illuminate\Support\Str::limit(trim(strip_tags((string) $entry->content)), 120);
+                app(\App\Services\ParentAppNotifyService::class)->notifyDiaryComment($student, $preview, $user->id);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Message sent.',

@@ -301,4 +301,9 @@ export const queryKeys = {
     passwordTargets: (filters?: object) =>
       [...queryKeys.users.all, 'password-targets', filters ?? {}] as const,
   },
+  coCurricular: {
+    all: ['co-curricular'] as const,
+    student: (studentId: number, year?: number, term?: number) =>
+      [...queryKeys.coCurricular.all, studentId, year ?? 'default', term ?? 'default'] as const,
+  },
 };

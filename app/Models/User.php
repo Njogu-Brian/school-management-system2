@@ -246,10 +246,24 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
      */
     public function canViewStudentFeeAmounts(): bool
     {
+        if ($this->shouldScopeAsParent()) {
+            return true;
+        }
+
         return $this->hasAnyRole([
             'Super Admin',
             'super admin',
             'Super admin',
+            'Admin',
+            'admin',
+            'Director',
+            'director',
+            'Secretary',
+            'secretary',
+            'Accountant',
+            'accountant',
+            'Finance Officer',
+            'finance officer',
             'Senior Teacher',
             'senior teacher',
             'Senior teacher',

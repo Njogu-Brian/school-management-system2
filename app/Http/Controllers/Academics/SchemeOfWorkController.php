@@ -18,6 +18,7 @@ use App\Jobs\GeneratePDFJob;
 use App\Jobs\GenerateExcelJob;
 use Illuminate\Http\Request;
 use App\Support\AcademicContext;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 class SchemeOfWorkController extends Controller

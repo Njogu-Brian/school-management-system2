@@ -7,11 +7,21 @@ import { deviceApi } from '../api/device.api';
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 const PUSH_TOKEN_STORAGE_KEY = '@erp_expo_push_token';
 
+export type ForegroundPushPayload = {
+  title: string;
+  body: string;
+};
+
 /**
- * Registers Expo push tokens with the API for server-side alerts.
+ * Registers Expo push tokens with the API and shows OS banners (with sound) in the foreground.
  */
-export function usePushNotifications(enabled: boolean): void {
+export function usePushNotifications(
+  enabled: boolean,
+  onForeground?: (payload: ForegroundPushPayload) => void,
+): void {
   const registered = useRef(false);
+  const onForegroundRef = useRef(onForeground);
+  onForegroundRef.current = onForeground;
 
   useEffect(() => {
     if (!enabled) {
@@ -31,11 +41,8 @@ export function usePushNotifications(enabled: boolean): void {
       return;
     }
 
-    if (registered.current || isExpoGo) {
-      return;
-    }
-
     let cancelled = false;
+    let receivedSub: { remove: () => void } | undefined;
 
     void (async () => {
       const Notifications = await import('expo-notifications');
@@ -51,7 +58,25 @@ export function usePushNotifications(enabled: boolean): void {
         }),
       });
 
-      if (!Device.isDevice) {
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('parent-alerts', {
+          name: 'School alerts',
+          importance: Notifications.AndroidImportance.HIGH,
+          sound: 'default',
+          vibrationPattern: [0, 250, 250, 250],
+          enableVibrate: true,
+          showBadge: true,
+        });
+      }
+
+      receivedSub = Notifications.addNotificationReceivedListener((event) => {
+        const content = event.request.content;
+        const title = content.title ?? 'School alert';
+        const body = content.body ?? '';
+        onForegroundRef.current?.({ title, body });
+      });
+
+      if (!Device.isDevice || cancelled) {
         return;
       }
 
@@ -61,7 +86,7 @@ export function usePushNotifications(enabled: boolean): void {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
-      if (finalStatus !== 'granted' || cancelled) {
+      if (finalStatus !== 'granted' || cancelled || registered.current || isExpoGo) {
         return;
       }
 
@@ -85,6 +110,7 @@ export function usePushNotifications(enabled: boolean): void {
 
     return () => {
       cancelled = true;
+      receivedSub?.remove();
     };
   }, [enabled]);
 }

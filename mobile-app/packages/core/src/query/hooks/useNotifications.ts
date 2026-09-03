@@ -54,6 +54,7 @@ export function useInfiniteNotifications(options?: {
     getNextPageParam: (last) => (last.hasMore ? last.currentPage + 1 : undefined),
     enabled: options?.enabled !== false,
     staleTime: 30_000,
+    refetchInterval: options?.enabled === false ? false : 20_000,
   });
 }
 

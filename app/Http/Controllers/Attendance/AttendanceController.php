@@ -345,6 +345,11 @@ public function mark(Request $request)
 
                 if ($status === 'absent') {
                     $this->notifyWithTemplate('attendance_absent', $student, $humanDate, $statusForNotification, $reasonForNotification);
+                    try {
+                        app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student, $humanDate);
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
                 } elseif ($status === 'late') {
                     $this->notifyWithTemplate('attendance_late', $student, $humanDate, $statusForNotification, $reasonForNotification);
                 } elseif ($oldStatus === 'absent' && $status === 'present') {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\ParentCredentialsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -28,15 +29,16 @@ class ApiAccountController extends Controller
 
         $request->validate($rules);
 
+        $credentials = app(ParentCredentialsService::class);
         if (! $forced) {
-            if (! Hash::check((string) $request->input('current_password'), (string) $user->password)) {
+            if (! $credentials->passwordIsValid($user, (string) $request->input('current_password'))) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Your current password is incorrect.',
                 ], 422);
             }
         } elseif ($request->filled('current_password')) {
-            if (! Hash::check((string) $request->input('current_password'), (string) $user->password)) {
+            if (! $credentials->passwordIsValid($user, (string) $request->input('current_password'))) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Your current password is incorrect.',

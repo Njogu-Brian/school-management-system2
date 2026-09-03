@@ -37,7 +37,7 @@ export const TeacherReportCardsHubScreen: React.FC = () => {
   );
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['top', 'bottom']}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
         <AcademicScreenHeader
           title="Report forms"

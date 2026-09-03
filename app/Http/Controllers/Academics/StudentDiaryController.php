@@ -237,13 +237,28 @@ class StudentDiaryController extends Controller
 
         $attachments = $this->storeAttachments($request);
 
-        $diary->entries()->create([
+        $authorType = $this->determineAuthorType(Auth::user());
+        $entry = $diary->entries()->create([
             'author_id' => Auth::id(),
-            'author_type' => $this->determineAuthorType(Auth::user()),
+            'author_type' => $authorType,
             'parent_entry_id' => $data['parent_entry_id'] ?? null,
             'content' => $data['content'],
             'attachments' => $attachments,
         ]);
+
+        $diary->loadMissing('student');
+        if (in_array($authorType, ['teacher', 'admin'], true) && $diary->student) {
+            try {
+                $preview = \Illuminate\Support\Str::limit(trim(strip_tags((string) $entry->content)), 120);
+                app(\App\Services\ParentAppNotifyService::class)->notifyDiaryComment(
+                    $diary->student,
+                    $preview,
+                    Auth::id()
+                );
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
 
         return back()->with('success', 'Diary entry added successfully.');
     }

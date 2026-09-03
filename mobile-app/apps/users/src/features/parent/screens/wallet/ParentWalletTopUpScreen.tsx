@@ -3,6 +3,8 @@ import {
   AcademicScreenHeader,
   Button,
   ScreenContainer,
+  Soft3DIcon,
+  SurfaceCard,
   TextField,
   useTheme,
 } from '@erp/ui';
@@ -41,9 +43,11 @@ export const ParentWalletTopUpScreen: React.FC = () => {
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
       <AcademicScreenHeader title="Top up wallet" onBack={() => navigation.goBack()} />
-      <Text style={{ color: palette.textSecondary, marginBottom: spacing.md, fontSize: typography.body.fontSize }}>
-        Deposit via the school paybill STK. Due fees are paid first; any remainder stays in your wallet.
-      </Text>
+      <SurfaceCard accent="success">
+        <Soft3DIcon name="wallet-outline" glyph="wallet" size={48} />
+        <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, marginBottom: spacing.md, fontSize: typography.body.fontSize }}>
+          Deposit via the school paybill STK. Due fees are paid first; any remainder stays in your wallet.
+        </Text>
       <TextField
         label="M-Pesa phone"
         value={phone}
@@ -59,6 +63,7 @@ export const ParentWalletTopUpScreen: React.FC = () => {
         placeholder="1000"
       />
       <Button label="Send STK prompt" loading={topUp.isPending} onPress={() => void submit()} />
+      </SurfaceCard>
     </ScreenContainer>
   );
 };

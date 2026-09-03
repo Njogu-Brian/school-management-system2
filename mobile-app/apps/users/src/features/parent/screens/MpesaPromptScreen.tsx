@@ -4,6 +4,8 @@ import {
   Button,
   EmptyState,
   ScreenContainer,
+  Soft3DIcon,
+  SurfaceCard,
   TextField,
   useTheme,
 } from '@erp/ui';
@@ -17,7 +19,7 @@ import { formatKes } from '../utils/format';
 export const MpesaPromptScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<ParentStackParamList, 'MpesaPrompt'>>();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const studentId = route.params.studentId;
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
   const stats = useStudentStats(studentId, { enabled: studentId > 0 });
@@ -84,16 +86,10 @@ export const MpesaPromptScreen: React.FC = () => {
         onBack={() => navigation.goBack()}
       />
 
-      <View
-        style={{
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderWidth: 1,
-          borderRadius: radius.lg,
-          padding: spacing.md,
-          marginBottom: spacing.md,
-        }}
-      >
+      <SurfaceCard accent="warning">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <Soft3DIcon name="cash-outline" glyph="cash" size={44} />
+          <View style={{ flex: 1 }}>
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Balance due</Text>
         <Text style={{ color: palette.textPrimary, fontSize: 22, fontWeight: '700', marginTop: 4 }}>
           {formatKes(stats.data?.fees_due ?? stats.data?.fees_balance)}
@@ -103,7 +99,9 @@ export const MpesaPromptScreen: React.FC = () => {
             Upcoming {formatKes(stats.data?.fees_upcoming)}
           </Text>
         ) : null}
-      </View>
+          </View>
+        </View>
+      </SurfaceCard>
 
       <TextField
         label="M-Pesa phone"

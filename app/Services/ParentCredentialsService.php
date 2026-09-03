@@ -65,6 +65,77 @@ class ParentCredentialsService
         ];
     }
 
+    public function activeAcademicYearValue(): string
+    {
+        $year = AcademicYear::query()->where('is_active', true)->value('year');
+        if (! $year) {
+            return (string) now()->year;
+        }
+
+        return trim((string) $year);
+    }
+
+    /**
+     * Two-digit year used in temporary passwords, e.g. 2026 → 26.
+     */
+    public function academicYearSuffix(?string $year = null): string
+    {
+        $year = $year ?? $this->activeAcademicYearValue();
+        if (preg_match('/(\d{4})/', $year, $m)) {
+            return substr($m[1], -2);
+        }
+        if (preg_match('/(\d{2})/', $year, $m)) {
+            return $m[1];
+        }
+
+        return substr((string) now()->year, -2);
+    }
+
+    public function formulaPasswordForAdmission(string $admissionNumber): string
+    {
+        return trim($admissionNumber).'-'.$this->academicYearSuffix();
+    }
+
+    /**
+     * Accept both RKS001-26 and RKS001-2026 while the account still has a temporary password.
+     *
+     * @return list<string>
+     */
+    public function formulaPasswordCandidatesForAdmission(string $admissionNumber): array
+    {
+        $adm = trim($admissionNumber);
+        if ($adm === '') {
+            return [];
+        }
+
+        $full = $this->activeAcademicYearValue();
+        $yy = $this->academicYearSuffix($full);
+        $yyyy = preg_match('/(\d{4})/', $full, $m) ? $m[1] : (string) now()->year;
+
+        return array_values(array_unique([
+            $adm.'-'.$yy,
+            $adm.'-'.$yyyy,
+        ]));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function childrenAdmissionNumbers(ParentInfo $parent): array
+    {
+        return Student::query()
+            ->where('parent_id', $parent->id)
+            ->whereNotNull('admission_number')
+            ->where('admission_number', '!=', '')
+            ->orderBy('id')
+            ->pluck('admission_number')
+            ->map(fn ($n) => trim((string) $n))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function formulaPassword(ParentInfo $parent, ?Student $preferredChild = null): string
     {
         $child = $preferredChild && (int) $preferredChild->parent_id === (int) $parent->id
@@ -75,12 +146,104 @@ class ParentCredentialsService
             throw new \RuntimeException('No child admission number available for temporary password.');
         }
 
-        $year = AcademicYear::query()->where('is_active', true)->value('year');
-        if (! $year) {
-            $year = (string) now()->year;
+        return $this->formulaPasswordForAdmission((string) $child->admission_number);
+    }
+
+    /**
+     * While must_change_password is set, any child's admission-year password is valid.
+     */
+    public function matchesAnyTemporaryPassword(User $user, string $plain): bool
+    {
+        if (! $user->must_change_password || ! $user->parent_id) {
+            return false;
         }
 
-        return trim((string) $child->admission_number).'-'.trim((string) $year);
+        $parent = ParentInfo::query()->find($user->parent_id);
+        if (! $parent) {
+            return false;
+        }
+
+        $given = mb_strtolower(trim($plain));
+        if ($given === '') {
+            return false;
+        }
+
+        foreach ($this->childrenAdmissionNumbers($parent) as $admission) {
+            foreach ($this->formulaPasswordCandidatesForAdmission($admission) as $candidate) {
+                $needle = mb_strtolower($candidate);
+                if (strlen($needle) === strlen($given) && hash_equals($needle, $given)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public function passwordIsValid(User $user, string $plain): bool
+    {
+        if ($user->password && Hash::check($plain, (string) $user->password)) {
+            return true;
+        }
+
+        return $this->matchesAnyTemporaryPassword($user, $plain);
+    }
+
+    /**
+     * Reset every non-staff parent login to the admission-year temporary password.
+     *
+     * @return array{ok:int,fail:int,skipped:int,errors:list<string>}
+     */
+    public function resetAllParentTempPasswords(bool $dryRun = false): array
+    {
+        $ok = 0;
+        $fail = 0;
+        $skipped = 0;
+        $errors = [];
+
+        $users = User::query()
+            ->whereNotNull('parent_id')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($users as $user) {
+            if ($user->hasElevatedStaffRole()) {
+                $skipped++;
+
+                continue;
+            }
+
+            $parent = ParentInfo::query()->find($user->parent_id);
+            if (! $parent) {
+                $fail++;
+                $errors[] = "User #{$user->id} has no parent record.";
+
+                continue;
+            }
+
+            try {
+                $password = $this->formulaPassword($parent);
+                if (! $dryRun) {
+                    $user->update([
+                        'password' => Hash::make($password),
+                        'must_change_password' => true,
+                    ]);
+                    $this->ensureForcedAction(
+                        $user,
+                        $parent,
+                        ParentForcedAction::TYPE_CHANGE_PASSWORD,
+                        'Change your password',
+                        10
+                    );
+                }
+                $ok++;
+            } catch (\Throwable $e) {
+                $fail++;
+                $errors[] = "User #{$user->id} ({$user->email}): ".$e->getMessage();
+            }
+        }
+
+        return compact('ok', 'fail', 'skipped', 'errors');
     }
 
     public function pickPasswordChild(ParentInfo $parent): ?Student

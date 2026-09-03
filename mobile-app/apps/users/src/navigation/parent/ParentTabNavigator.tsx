@@ -29,6 +29,8 @@ import { ParentAcademicScreen } from '../../features/parent/screens/ParentAcadem
 import { ParentMoreScreen } from '../../features/parent/screens/ParentMoreScreen';
 import { StudentStatementScreen } from '../../features/parent/screens/StudentStatementScreen';
 import { TransportScreen } from '../../features/parent/screens/TransportScreen';
+import { CoCurricularHubScreen } from '../../features/parent/screens/CoCurricularHubScreen';
+import { CoCurricularChildScreen } from '../../features/parent/screens/CoCurricularChildScreen';
 import { SettingsScreen } from '../../features/settings/screens/SettingsScreen';
 import { MyProfileScreen } from '../../features/me/screens/MyProfileScreen';
 import { UsersAppHeaderChrome } from '../UsersAppHeaderChrome';
@@ -54,6 +56,8 @@ const parentSharedScreens = () => (
     <Stack.Screen name="WalletSavingPlans" component={ParentWalletSavingPlansScreen} />
     <Stack.Screen name="WalletSavingPlanForm" component={ParentWalletSavingPlanFormScreen} />
     <Stack.Screen name="MpesaPrompt" component={MpesaPromptScreen} />
+    <Stack.Screen name="CoCurricularHub" component={CoCurricularHubScreen} />
+    <Stack.Screen name="CoCurricularChild" component={CoCurricularChildScreen} />
   </>
 );
 

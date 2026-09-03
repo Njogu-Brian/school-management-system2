@@ -23,8 +23,8 @@ function Assert-UsersVersion {
   $text = Get-Content $gradle -Raw
   if ($text -notmatch 'versionCode\s+(\d+)') { throw 'Users versionCode not found in android/app/build.gradle' }
   $code = [int]$Matches[1]
-  Write-Host "Users native versionCode = $code (Play production is 6; need >= 7)"
-  if ($code -lt 7) { throw "Users versionCode $code would conflict with Play Console" }
+  Write-Host "Users native versionCode = $code (Play last used 7; need >= 8)"
+  if ($code -lt 8) { throw "Users versionCode $code would conflict with Play Console" }
 }
 
 function Assert-AdminVersion {
@@ -32,8 +32,8 @@ function Assert-AdminVersion {
   $text = Get-Content $cfg -Raw
   if ($text -notmatch 'versionCode:\s*(\d+)') { throw 'Admin versionCode not found in app.config.ts' }
   $code = [int]$Matches[1]
-  Write-Host "Admin app.config versionCode = $code (Play active is 12; need >= 13)"
-  if ($code -lt 13) { throw "Admin versionCode $code would conflict with Play Console" }
+  Write-Host "Admin app.config versionCode = $code (Play last used 14; need >= 15)"
+  if ($code -lt 15) { throw "Admin versionCode $code would conflict with Play Console" }
 }
 
 function Invoke-AppBuild([string]$Name) {

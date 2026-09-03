@@ -69,14 +69,23 @@ export const NotificationsListScreen: React.FC = () => {
     }
     if (item.deep_link?.includes('invoices') && studentId > 0 && invoiceId > 0) {
       navigation.navigate('InvoiceDetail', { studentId, invoiceId });
+      return;
+    }
+    if (type === 'co_curricular' && studentId > 0) {
+      navigation.navigate('CoCurricularChild', { studentId });
+      return;
+    }
+    if (item.deep_link?.includes('co-curricular') && studentId > 0) {
+      navigation.navigate('CoCurricularChild', { studentId });
+      return;
     }
   };
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['top', 'bottom']}>
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl, flexGrow: 1 }}
+        contentContainerStyle={{ padding: spacing.md, flexGrow: 1 }}
         ListHeaderComponent={
           <View style={{ marginBottom: spacing.sm }}>
             <AcademicScreenHeader
@@ -138,12 +147,14 @@ export const NotificationsListScreen: React.FC = () => {
             style={[
               styles.row,
               {
-                borderColor: palette.border,
-                backgroundColor: palette.surface,
-                borderRadius: radius.lg,
+                borderColor: item.is_read ? palette.borderSubtle : colors.primary,
+                backgroundColor: palette.surfaceRaised,
+                borderRadius: radius.card,
                 padding: spacing.md,
                 marginBottom: spacing.sm,
-                opacity: item.is_read ? 0.85 : 1,
+                borderLeftWidth: 4,
+                borderLeftColor: item.is_read ? palette.borderSubtle : colors.primary,
+                opacity: item.is_read ? 0.9 : 1,
               },
             ]}
           >

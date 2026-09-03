@@ -6,6 +6,7 @@ import {
   ScreenContainer,
   SkeletonListRows,
   StatusBadge,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -49,7 +50,7 @@ export const LiveBusTrackScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<Route>();
   const studentId = route.params.studentId;
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const student = useStudentDetail(studentId, { enabled: studentId > 0 });
   const liveQuery = useLiveBusForStudent(studentId, {
     enabled: studentId > 0,
@@ -114,41 +115,31 @@ export const LiveBusTrackScreen: React.FC = () => {
 
           <Text style={{ color: palette.textSecondary, marginBottom: spacing.md }}>{statusInfo.detail}</Text>
 
-          <View
-            style={{
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderWidth: 1,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-              marginBottom: spacing.md,
-              gap: spacing.sm,
-            }}
-          >
+          <SurfaceCard accent={statusInfo.tone === 'success' ? 'success' : statusInfo.tone === 'warning' ? 'warning' : 'info'}>
             <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
               {live?.trip_name ?? 'School bus'}
             </Text>
             {live?.direction ? (
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
                 Direction: {live.direction}
               </Text>
             ) : null}
             {live?.vehicle_registration ? (
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
                 Vehicle: {live.vehicle_registration}
               </Text>
             ) : null}
             {live?.driver_name ? (
-              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
                 Driver: {live.driver_name}
               </Text>
             ) : null}
             {hasCoords ? (
-              <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+              <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
                 {live!.latitude!.toFixed(5)}, {live!.longitude!.toFixed(5)}
               </Text>
             ) : null}
-          </View>
+          </SurfaceCard>
 
           <Button
             label="Open in Google Maps"

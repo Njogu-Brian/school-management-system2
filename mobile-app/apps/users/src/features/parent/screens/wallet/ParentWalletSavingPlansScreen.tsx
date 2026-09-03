@@ -5,6 +5,7 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
+  SurfaceCard,
   TextField,
   useTheme,
 } from '@erp/ui';
@@ -20,7 +21,7 @@ const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const ParentWalletSavingPlansScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<ParentStackParamList>>();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography } = useTheme();
   const plansQuery = useParentWalletSavingPlans();
   const remove = useDeleteSavingPlan();
   const payNow = usePaySavingPlanNow();
@@ -53,17 +54,7 @@ export const ParentWalletSavingPlansScreen: React.FC = () => {
         />
       ) : (
         (plansQuery.data ?? []).map((plan) => (
-          <View
-            key={plan.id}
-            style={{
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderWidth: 1,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-              marginBottom: spacing.sm,
-            }}
-          >
+          <SurfaceCard key={plan.id} accent={plan.active ? 'success' : 'warning'}>
             <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
               {plan.label || 'Weekly save'} · {formatKes(plan.amount)}
             </Text>
@@ -101,7 +92,7 @@ export const ParentWalletSavingPlansScreen: React.FC = () => {
                 <Text style={{ color: palette.textSecondary, marginTop: spacing.sm }}>Delete</Text>
               </Pressable>
             </View>
-          </View>
+          </SurfaceCard>
         ))
       )}
     </ScreenContainer>

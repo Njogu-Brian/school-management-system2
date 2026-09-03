@@ -49,12 +49,26 @@ class ApiParentProfileReviewController extends Controller
             ->map(fn (Student $s) => $this->formatStudent($s))
             ->values();
 
+        $documents = $parent->documents()
+            ->where('is_active', true)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($doc) => [
+                'id' => $doc->id,
+                'title' => $doc->title ?? $doc->file_name,
+                'category' => $doc->category,
+                'file_name' => $doc->file_name,
+                'download_path' => "/parent/documents/{$doc->id}/download",
+            ])
+            ->values();
+
         return response()->json([
             'success' => true,
             'data' => [
                 'review_required' => (bool) ($user->parent_profile_review_required ?? false),
                 'parent' => $this->formatParent($parent),
                 'students' => $students,
+                'documents' => $documents,
             ],
         ]);
     }

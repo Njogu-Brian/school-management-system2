@@ -9,6 +9,7 @@ export * from './parentClaim.api';
 export * from './parentProfileReview.api';
 export * from './parentWallet.api';
 export * from './parentTransport.api';
+export * from './parentCoCurricular.api';
 export * from './dashboard.api';
 export * from './admissions.api';
 export * from './approvals.api';

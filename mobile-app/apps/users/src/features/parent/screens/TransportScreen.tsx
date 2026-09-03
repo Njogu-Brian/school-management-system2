@@ -12,6 +12,8 @@ import {
   FilterChipRow,
   ScreenContainer,
   SkeletonListRows,
+  Soft3DIcon,
+  SurfaceCard,
   TextField,
   useTheme,
 } from '@erp/ui';
@@ -182,19 +184,13 @@ export const TransportScreen: React.FC = () => {
         <EmptyState title="Missing student" message="Select a child first." icon="bus-outline" />
       ) : (
         <>
-          <View
-            style={{
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderWidth: 1,
-              borderRadius: radius.lg,
-              padding: spacing.md,
-              marginBottom: spacing.md,
-            }}
-          >
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
-              Current assignment
-            </Text>
+          <SurfaceCard accent="info">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm }}>
+              <Soft3DIcon name="bus-outline" glyph="bus" size={44} />
+              <Text style={{ color: palette.textPrimary, fontWeight: '700', flex: 1 }}>
+                Current assignment
+              </Text>
+            </View>
             {detail.isLoading ? (
               <SkeletonListRows variant="compact" count={2} />
             ) : (
@@ -225,7 +221,7 @@ export const TransportScreen: React.FC = () => {
                 ) : null}
               </>
             )}
-          </View>
+          </SurfaceCard>
 
           <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
             Change requests
@@ -238,17 +234,7 @@ export const TransportScreen: React.FC = () => {
             </Text>
           ) : (
             (assignmentsQuery.data ?? []).map((row) => (
-              <View
-                key={row.id}
-                style={{
-                  backgroundColor: palette.surface,
-                  borderColor: palette.border,
-                  borderWidth: 1,
-                  borderRadius: radius.md,
-                  padding: spacing.md,
-                  marginBottom: spacing.sm,
-                }}
-              >
+              <SurfaceCard key={row.id} accent={row.status === 'pending' ? 'warning' : 'success'}>
                 <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>
                   {row.transport_mode.replace('_', ' ')} · {row.status}
                 </Text>
@@ -264,7 +250,7 @@ export const TransportScreen: React.FC = () => {
                     {row.reason}
                   </Text>
                 ) : null}
-              </View>
+              </SurfaceCard>
             ))
           )}
 

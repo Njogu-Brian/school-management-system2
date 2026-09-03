@@ -48,4 +48,8 @@ export const documentsApi = {
     if (slot) form.append('slot', slot);
     return apiClient.postMultipart('/parent/documents/id-card', form);
   },
+
+  listParentDocuments(): Promise<ApiResponse<DocumentListRecord[]>> {
+    return apiClient.get('/parent/documents');
+  },
 };

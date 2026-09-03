@@ -115,6 +115,8 @@ class ExpoPushService
                     'title' => $title,
                     'body' => $body,
                     'sound' => 'default',
+                    'channelId' => 'parent-alerts',
+                    'priority' => 'high',
                     'data' => $data,
                 ];
             }

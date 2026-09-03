@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\ParentForcedAction;
+use App\Services\ParentCredentialsService;
 use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -33,12 +34,13 @@ class ChangePasswordController extends Controller
 
         $validated = $request->validate($rules);
 
+        $credentials = app(ParentCredentialsService::class);
         if (! $forced) {
-            if (! Hash::check((string) $request->input('current_password'), (string) $user->password)) {
+            if (! $credentials->passwordIsValid($user, (string) $request->input('current_password'))) {
                 return back()->withErrors(['current_password' => 'Your current password is incorrect.']);
             }
         } elseif ($request->filled('current_password')) {
-            if (! Hash::check((string) $request->input('current_password'), (string) $user->password)) {
+            if (! $credentials->passwordIsValid($user, (string) $request->input('current_password'))) {
                 return back()->withErrors(['current_password' => 'Your current password is incorrect.']);
             }
         }

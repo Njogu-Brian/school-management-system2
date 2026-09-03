@@ -4,7 +4,9 @@ import {
   Button,
   FinanceFieldSection,
   ScreenContainer,
+  Soft3DIcon,
   StatusBadge,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -68,15 +70,18 @@ export const ParentPaymentDetailScreen: React.FC = () => {
         </Pressable>
       ) : payment ? (
         <>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, gap: spacing.sm }}>
-            <StatusBadge
-              label={String(payment.status)}
-              tone={payment.reversed ? 'danger' : 'success'}
-            />
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-              {formatKes(payment.amount)}
-            </Text>
-          </View>
+          <SurfaceCard accent={payment.reversed ? 'danger' : 'success'}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.sm }}>
+              <Soft3DIcon name="receipt-outline" glyph="receipt" size={44} />
+              <StatusBadge
+                label={String(payment.status)}
+                tone={payment.reversed ? 'danger' : 'success'}
+              />
+              <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, flex: 1 }}>
+                {formatKes(payment.amount)}
+              </Text>
+            </View>
+          </SurfaceCard>
           <FinanceFieldSection title="Summary" rows={summaryRows} />
           {allocationRows.length > 0 ? (
             <View style={{ marginTop: spacing.md }}>

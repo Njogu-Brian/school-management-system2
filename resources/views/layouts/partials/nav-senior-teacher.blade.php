@@ -484,8 +484,12 @@
   </a>
   <div class="collapse {{ $activityFeesActive ? 'show' : '' }}" id="activityFeesMenuSt">
     <a href="{{ route('activity-fees.index') }}"
-       class="sublink {{ Request::is('activity-fees*') ? 'active' : '' }}">
+       class="sublink {{ Request::is('activity-fees') && !Request::is('activity-fees/*') ? 'active' : '' }}">
       <i class="bi bi-people"></i> Rosters & attendance
+    </a>
+    <a href="{{ route('activity-fees.parent-requests.index') }}"
+       class="sublink {{ Request::is('activity-fees/parent-requests*') ? 'active' : '' }}">
+      <i class="bi bi-person-check"></i> Parent join / leave
     </a>
   </div>
 

@@ -3,8 +3,10 @@ import {
   AcademicScreenHeader,
   Button,
   EmptyState,
+  ListRowCard,
   ScreenContainer,
   Soft3DIcon,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -21,7 +23,7 @@ export const ParentReportCardDetailScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<ParentStackParamList>>();
   const route = useRoute<RouteProp<ParentStackParamList, 'ReportCardDetail'>>();
   const { reportCardId, studentId } = route.params;
-  const { colors, palette, spacing, typography, radius } = useTheme();
+  const { colors, palette, spacing, typography } = useTheme();
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
   const detailQuery = useReportCardDetail(reportCardId);
   const [mode, setMode] = useState<Mode>('choice');
@@ -66,57 +68,49 @@ export const ParentReportCardDetailScreen: React.FC = () => {
     return (
       <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader title="Report form" subtitle={studentName} onBack={() => navigation.goBack()} />
-        <View
-          style={{
-            alignItems: 'center',
-            backgroundColor: palette.surface,
-            borderColor: palette.border,
-            borderWidth: 1,
-            borderRadius: radius.lg,
-            padding: spacing.lg,
-            marginBottom: spacing.md,
-          }}
-        >
-          <Soft3DIcon name="lock-closed-outline" tone="amber" size={56} />
-          <Text
-            style={{
-              color: palette.textPrimary,
-              fontWeight: '700',
-              fontSize: typography.headline.fontSize,
-              marginTop: spacing.md,
-              textAlign: 'center',
-            }}
-          >
-            Fees required
-          </Text>
-          <Text
-            style={{
-              color: palette.textSecondary,
-              marginTop: spacing.sm,
-              textAlign: 'center',
-              fontSize: typography.body.fontSize,
-            }}
-          >
-            {card?.fee_lock_message ??
-              'Clear outstanding school fees for this report term before you can view or download the report form.'}
-          </Text>
-          {card?.display_term_label ? (
-            <Text style={{ color: palette.textMuted, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
-              {card.display_term_label}
+        <SurfaceCard accent="warning">
+          <View style={{ alignItems: 'center' }}>
+            <Soft3DIcon name="lock-closed-outline" tone="amber" size={56} />
+            <Text
+              style={{
+                color: palette.textPrimary,
+                fontWeight: '700',
+                fontSize: typography.headline.fontSize,
+                marginTop: spacing.md,
+                textAlign: 'center',
+              }}
+            >
+              Fees required
             </Text>
-          ) : null}
-          <Text
-            style={{
-              color: colors.primary,
-              fontSize: 28,
-              fontWeight: '800',
-              marginTop: spacing.md,
-            }}
-          >
-            {formatKes(feeBalance)}
-          </Text>
-          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>Outstanding balance</Text>
-        </View>
+            <Text
+              style={{
+                color: palette.textSecondary,
+                marginTop: spacing.sm,
+                textAlign: 'center',
+                fontSize: typography.body.fontSize,
+              }}
+            >
+              {card?.fee_lock_message ??
+                'Clear outstanding school fees for this report term before you can view or download the report form.'}
+            </Text>
+            {card?.display_term_label ? (
+              <Text style={{ color: palette.textMuted, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
+                {card.display_term_label}
+              </Text>
+            ) : null}
+            <Text
+              style={{
+                color: colors.primary,
+                fontSize: 28,
+                fontWeight: '800',
+                marginTop: spacing.md,
+              }}
+            >
+              {formatKes(feeBalance)}
+            </Text>
+            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>Outstanding balance</Text>
+          </View>
+        </SurfaceCard>
         <Button
           label="Pay with M-Pesa"
           onPress={() =>
@@ -144,7 +138,7 @@ export const ParentReportCardDetailScreen: React.FC = () => {
 
   if (mode === 'view' && viewUrl) {
     return (
-      <View style={{ flex: 1, backgroundColor: palette.background }}>
+      <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['top', 'bottom']}>
         <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
           <AcademicScreenHeader
             title="Report form"
@@ -177,7 +171,7 @@ export const ParentReportCardDetailScreen: React.FC = () => {
             setSupportMultipleWindows={false}
           />
         </View>
-      </View>
+      </ScreenContainer>
     );
   }
 
@@ -189,57 +183,28 @@ export const ParentReportCardDetailScreen: React.FC = () => {
           'Choose how you want to open this report.'}
       </Text>
 
-      <Pressable
-        onPress={() => void downloadPdf()}
-        disabled={!pdfUrl}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.md,
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderWidth: 1,
-          borderRadius: radius.lg,
-          padding: spacing.md,
-          marginBottom: spacing.sm,
-          opacity: pdfUrl ? 1 : 0.5,
-        }}
-      >
-        <Soft3DIcon name="download-outline" tone="emerald" size={48} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>Download PDF</Text>
-          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-            Save or share the official report form as a PDF
-          </Text>
-        </View>
-      </Pressable>
-
-      <Pressable
-        onPress={() => {
-          if (!viewUrl) return;
-          setMode('view');
-        }}
-        disabled={!viewUrl}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.md,
-          backgroundColor: palette.surface,
-          borderColor: palette.border,
-          borderWidth: 1,
-          borderRadius: radius.lg,
-          padding: spacing.md,
-          opacity: viewUrl ? 1 : 0.5,
-        }}
-      >
-        <Soft3DIcon name="document-text-outline" tone="indigo" size={48} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>View report form</Text>
-          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-            Continue to open the full report in the app
-          </Text>
-        </View>
-      </Pressable>
+      <ListRowCard
+        title="Download PDF"
+        subtitle="Save or share the official report form as a PDF"
+        icon="download-outline"
+        glyph="receipt"
+        accent="success"
+        onPress={pdfUrl ? () => void downloadPdf() : undefined}
+      />
+      <ListRowCard
+        title="View report form"
+        subtitle="Continue to open the full report in the app"
+        icon="document-text-outline"
+        glyph="book"
+        accent="info"
+        onPress={
+          viewUrl
+            ? () => {
+                setMode('view');
+              }
+            : undefined
+        }
+      />
 
       {!pdfUrl && !viewUrl ? (
         <EmptyState
