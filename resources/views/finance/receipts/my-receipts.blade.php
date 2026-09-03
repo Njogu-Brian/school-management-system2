@@ -64,10 +64,15 @@
                                 <div>
                                     <strong>{{ $payment->receipt_number }}</strong>
                                     <span class="text-muted ms-2">– {{ $payment->student->first_name ?? '' }} {{ $payment->student->last_name ?? '' }}</span>
+                                    <div class="small text-muted mt-1">
+                                        Paid {{ $payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : '' }}
+                                        @if($payment->balance_after !== null)
+                                            · Balance as at this payment KES {{ number_format($payment->balance_after, 2) }}
+                                        @endif
+                                    </div>
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="badge bg-light text-dark">KES {{ number_format($payment->amount, 2) }}</span>
-                                    <span class="text-muted small">{{ $payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : '' }}</span>
                                     <i class="bi bi-box-arrow-up-right small"></i>
                                 </div>
                             </div>

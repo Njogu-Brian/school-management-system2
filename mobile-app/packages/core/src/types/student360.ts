@@ -17,8 +17,10 @@ export interface StudentStatsRecord {
 /** `GET /students/{id}/attendance-calendar` day row */
 export interface AttendanceCalendarDay {
   date: string;
-  status: string;
+  status: string | null;
   is_excused?: boolean;
+  is_school_day?: boolean;
+  weekday?: number;
 }
 
 export interface AttendanceSummary {
@@ -38,10 +40,27 @@ export interface AttendanceTrendPoint {
   late: number;
 }
 
+export interface StatementAdjustmentRecord {
+  kind?: string | null;
+  type?: string | null;
+  date?: string | null;
+  description: string;
+  debit?: number;
+  credit?: number;
+}
+
+export interface StatementChildRecord {
+  description: string;
+  votehead?: string | null;
+  debit: number;
+  credit?: number;
+}
+
 export interface StatementTransactionRecord {
   id: number;
   date: string;
   type: 'invoice' | 'payment' | string;
+  kind?: string | null;
   /** Real invoice or payment id (statement row ids are offset). */
   entity_id?: number | null;
   entity_type?: 'invoice' | 'payment' | string | null;
@@ -53,6 +72,9 @@ export interface StatementTransactionRecord {
   debit: number;
   credit: number;
   balance: number;
+  balance_after?: number;
+  children?: StatementChildRecord[];
+  adjustments?: StatementAdjustmentRecord[];
 }
 
 /** `GET /students/search?q=` — includes siblings for finance assign/share. */

@@ -22,6 +22,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(\App\Services\CommunicationService::class);
+        $this->app->singleton(\App\Services\StudentFeeLedgerService::class);
     }
 
     public function boot(): void

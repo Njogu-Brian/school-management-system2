@@ -114,7 +114,13 @@
                     <tbody>
                         @php($runningBalance = 0)
                         @forelse($detailedTransactions as $transaction)
-                            @php($runningBalance += (($transaction['debit'] ?? 0) - ($transaction['credit'] ?? 0)))
+                            @php
+                                if (array_key_exists('balance', $transaction) && ($transaction['kind'] ?? null)) {
+                                    $runningBalance = (float) $transaction['balance'];
+                                } else {
+                                    $runningBalance += (($transaction['debit'] ?? 0) - ($transaction['credit'] ?? 0));
+                                }
+                            @endphp
                             <tr>
                                 <td>{{ \Carbon\Carbon::parse($transaction['date'])->format('d M Y') }}</td>
                                 <td>
@@ -123,7 +129,7 @@
                                 </td>
                                 <td><span class="badge bg-secondary">{{ $transaction['type'] ?? 'Entry' }}</span></td>
                                 <td>{{ $transaction['votehead'] ?? 'N/A' }}</td>
-                                <td>{{ $transaction['narration'] ?? $transaction['description'] ?? 'N/A' }}</td>
+                                <td style="white-space: pre-wrap;">{{ $transaction['narration'] ?? $transaction['description'] ?? 'N/A' }}</td>
                                 <td><code>{{ $transaction['reference'] ?? 'N/A' }}</code></td>
                                 <td class="text-end">{{ ($transaction['debit'] ?? 0) > 0 ? 'Ksh ' . number_format($transaction['debit'], 2) : '—' }}</td>
                                 <td class="text-end">{{ ($transaction['credit'] ?? 0) > 0 ? 'Ksh ' . number_format($transaction['credit'], 2) : '—' }}</td>

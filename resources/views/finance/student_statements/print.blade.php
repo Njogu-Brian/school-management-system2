@@ -21,8 +21,13 @@
     $runningBalance = ($hasBalanceBroughtForwardInInvoices ?? false) ? 0 : ($balanceBroughtForward ?? 0);
     $transactionsWithBalance = [];
     foreach ($detailedTransactions ?? [] as $txn) {
-        $runningBalance += ($txn['debit'] ?? 0) - ($txn['credit'] ?? 0);
+        if (array_key_exists('balance', $txn) && ($txn['kind'] ?? null)) {
+            $runningBalance = (float) $txn['balance'];
+        } else {
+            $runningBalance += ($txn['debit'] ?? 0) - ($txn['credit'] ?? 0);
+        }
         $txn['running_balance'] = $runningBalance;
+        $txn['narration'] = $txn['narration'] ?? $txn['description'] ?? 'N/A';
         $transactionsWithBalance[] = $txn;
     }
     
@@ -180,6 +185,7 @@
         
         .transactions-table .narration-col {
             width: 44%;
+            white-space: pre-wrap;
         }
         
         .transactions-table .amount-col {
@@ -352,12 +358,12 @@
                     <td colspan="{{ ($showStudentColumn ?? false) ? 6 : 5 }}">{{ $groupKey }}</td>
                 </tr>
                 @foreach($groupTransactions as $txn)
-                    <tr>
+                    <tr @if(($txn['kind'] ?? '') === 'term_close') class="section-header" @endif>
                         <td>{{ \Carbon\Carbon::parse($txn['date'])->format('d-M-Y') }}</td>
                         @if($showStudentColumn ?? false)
                             <td>{{ $txn['student_name'] ?? 'N/A' }}</td>
                         @endif
-                        <td>{{ $txn['narration'] ?? 'N/A' }}</td>
+                        <td class="narration-col">{{ $txn['narration'] ?? $txn['description'] ?? 'N/A' }}</td>
                         <td class="amount-col">{{ $txn['debit'] > 0 ? number_format($txn['debit'], 2) : '-' }}</td>
                         <td class="amount-col">{{ $txn['credit'] > 0 ? number_format($txn['credit'], 2) : '-' }}</td>
                         <td class="balance-col">{{ number_format($txn['running_balance'], 2) }}</td>

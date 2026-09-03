@@ -100,48 +100,25 @@
             <th>Invoice Number</th>
             <th>Term</th>
             <th>Votehead</th>
-            <th class="text-right">Item Amount</th>
+            <th class="text-right">Amount</th>
             <th class="text-right">Discount</th>
-            <th class="text-right">Amount Paid</th>
-            <th class="text-right">Balance Remaining</th>
         </tr>
     </thead>
     <tbody>
         @foreach($allocations as $index => $itemData)
         @php
-            $type = is_array($itemData) ? ($itemData['type'] ?? 'paid') : 'paid';
             $invoice = is_array($itemData) ? ($itemData['invoice'] ?? null) : null;
             $votehead = is_array($itemData) ? ($itemData['votehead'] ?? null) : null;
             $itemAmount = is_array($itemData) ? ($itemData['item_amount'] ?? 0) : 0;
             $discountAmount = is_array($itemData) ? ($itemData['discount_amount'] ?? 0) : 0;
-            $allocatedAmount = is_array($itemData) ? ($itemData['allocated_amount'] ?? 0) : 0;
-            $balanceAfter = is_array($itemData) ? ($itemData['balance_after'] ?? 0) : 0;
-            $isPaid = $type === 'paid' && $allocatedAmount > 0;
         @endphp
-        <tr style="{{ $isPaid ? '' : 'background-color: #fff3cd;' }}">
+        <tr>
             <td>{{ $loop->iteration }}</td>
             <td>{{ $invoice->invoice_number ?? 'N/A' }}</td>
             <td style="font-size: 8px;">{{ optional($invoice->term)->name ?? '—' }}</td>
-            <td>
-                {{ $votehead->name ?? 'N/A' }}
-                @if(!$isPaid)
-                    <span style="color: #856404; font-size: 8px;">(Unpaid)</span>
-                @endif
-            </td>
+            <td>{{ $votehead->name ?? 'N/A' }}</td>
             <td class="text-right">Ksh {{ number_format($itemAmount, 2) }}</td>
             <td class="text-right">@if($discountAmount > 0)Ksh {{ number_format($discountAmount, 2) }}@else-@endif</td>
-            <td class="text-right">
-                @if($isPaid)
-                    <strong>Ksh {{ number_format($allocatedAmount, 2) }}</strong>
-                @else
-                    <span style="color: #856404;">-</span>
-                @endif
-            </td>
-            <td class="text-right">
-                <strong style="{{ $balanceAfter > 0 ? 'color: #dc3545;' : 'color: #28a745;' }}">
-                    Ksh {{ number_format($balanceAfter, 2) }}
-                </strong>
-            </td>
         </tr>
         @endforeach
     </tbody>
@@ -152,11 +129,10 @@
 <div class="total-section">
     @php
         $amountPaid = $total_amount ?? $payment->amount;
-        $totalOutstandingBalance = $total_outstanding_balance ?? 0;
+        $studentBalance = (float) ($total_outstanding_balance ?? $total_balance_after ?? 0);
         $totalInvoices = $total_invoices ?? 0;
-        $balanceAfterReceiptLines = $total_balance_after ?? null;
-        $receiptBalance = $balanceAfterReceiptLines !== null ? (float) $balanceAfterReceiptLines : (float) $totalOutstandingBalance;
-        $hasTotalOutstanding = $receiptBalance > 0;
+        $hasBalanceDue = $studentBalance > 0.009;
+        $hasCredit = $studentBalance < -0.009;
     @endphp
     <div class="total-row">
         <span>Total Invoices (this receipt):</span>
@@ -169,21 +145,21 @@
     <div class="payment-info">
         Payment Method: {{ $payment_method ?? 'Cash' }}@if($reference ?? $payment->reference ?? null), Reference: {{ $reference ?? $payment->reference }}@endif
     </div>
-    @php $carriedForward = $payment->unallocated_amount ?? 0; @endphp
-    @if($carriedForward > 0)
+    @php $creditOnAccount = $payment->unallocated_amount ?? 0; @endphp
+    @if($creditOnAccount > 0.009 || $hasCredit)
     <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 5px; margin-top: 5px;">
-        <span><strong>Carried Forward:</strong></span>
-        <span style="color: {{ $brandSuccess }};"><strong>(Ksh {{ number_format($carriedForward, 2) }})</strong></span>
+        <span><strong>Credit on account:</strong></span>
+        <span style="color: {{ $brandSuccess }};"><strong>(Ksh {{ number_format($hasCredit ? abs($studentBalance) : $creditOnAccount, 2) }})</strong></span>
     </div>
     @endif
-    @if($hasTotalOutstanding)
+    @if($hasBalanceDue)
     <div class="total-row grand-total" style="border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; color: {{ $brandDanger }};">
-        <span style="font-size: 12px; font-weight: bold;">Balance (shown above):</span>
-        <span style="font-size: 12px; font-weight: bold;">Ksh {{ number_format($receiptBalance, 2) }}</span>
+        <span style="font-size: 12px; font-weight: bold;">Balance as at this payment:</span>
+        <span style="font-size: 12px; font-weight: bold;">Ksh {{ number_format($studentBalance, 2) }}</span>
     </div>
     @else
     <div class="total-row grand-total" style="border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; color: {{ $brandSuccess }};">
-        <span style="font-size: 12px; font-weight: bold;">Balance:</span>
+        <span style="font-size: 12px; font-weight: bold;">Balance as at this payment:</span>
         <span style="font-size: 12px; font-weight: bold;">Ksh 0.00</span>
     </div>
     @endif

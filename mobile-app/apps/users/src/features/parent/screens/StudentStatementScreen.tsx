@@ -44,6 +44,9 @@ export const StudentStatementScreen: React.FC = () => {
         invoice_id: t.invoice_id ?? (t.entity_type === 'invoice' ? t.entity_id : null),
         payment_id: t.payment_id ?? (t.entity_type === 'payment' ? t.entity_id : null),
         entity_type: t.entity_type,
+        kind: t.kind,
+        children: t.children,
+        adjustments: t.adjustments,
       })),
     [data?.transactions],
   );

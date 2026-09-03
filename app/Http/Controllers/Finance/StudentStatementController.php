@@ -18,6 +18,7 @@ use App\Models\StatementLink;
 use App\Models\Votehead;
 use App\Services\InvoiceService;
 use App\Services\LegacyStatementRecalcService;
+use App\Services\StudentFeeStatementService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -669,6 +670,19 @@ class StudentStatementController extends Controller
         $comparisonPreviewId = $request->get('comparison_preview_id');
         $voteheads = Votehead::where('is_active', true)->orderBy('name')->get();
 
+        if ($year >= 2026) {
+            $overlay = $this->modernStatementOverlay($student, $year, $term);
+            $detailedTransactions = $overlay['detailedTransactions'];
+            $totalCharges = $overlay['totalCharges'];
+            $totalPayments = $overlay['totalPayments'];
+            $totalDiscounts = $overlay['totalDiscounts'];
+            $totalCreditNotes = $overlay['totalCreditNotes'];
+            $totalDebitNotes = $overlay['totalDebitNotes'];
+            $balance = $overlay['finalBalance'];
+            $invoiceBalance = $overlay['finalBalance'];
+            $hasBalanceBroughtForwardInInvoices = true;
+        }
+
         $statementLink = self::getOrCreateStatementLink('student', $student->id, $year, $term, auth()->id());
         $publicStatementUrl = $statementLink->getUrl();
 
@@ -1280,6 +1294,20 @@ class StudentStatementController extends Controller
                 : \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
             $finalBalance = $invoiceBalance + $balanceBroughtForward;
         }
+
+        if ($year >= 2026) {
+            $overlay = $this->modernStatementOverlay($student, $year, $term);
+            $detailedTransactions = $overlay['detailedTransactions'];
+            $totalCharges = $overlay['totalCharges'];
+            $totalPayments = $overlay['totalPayments'];
+            $totalDiscounts = $overlay['totalDiscounts'];
+            $totalCreditNotes = $overlay['totalCreditNotes'];
+            $totalDebitNotes = $overlay['totalDebitNotes'];
+            $totalDebit = $overlay['totalDebit'];
+            $totalCredit = $overlay['totalCredit'];
+            $finalBalance = $overlay['finalBalance'];
+            $hasBalanceBroughtForwardInInvoices = true;
+        }
         
         // Get terms for display
         $terms = \App\Support\AcademicContext::allTermsForSelect();
@@ -1407,6 +1435,32 @@ class StudentStatementController extends Controller
                 fputcsv($file, ['Term:', "Term {$term}"]);
             }
             fputcsv($file, []);
+
+            if ($year >= 2026) {
+                $overlay = $this->modernStatementOverlay($student, $year, $term);
+                fputcsv($file, ['Date', 'Type', 'Reference', 'Description', 'Debit', 'Credit', 'Balance']);
+                foreach ($overlay['detailedTransactions'] as $row) {
+                    fputcsv($file, [
+                        Carbon::parse($row['date'])->format('Y-m-d'),
+                        $row['type'] ?? '',
+                        $row['reference'] ?? '',
+                        str_replace("\n", ' | ', (string) ($row['narration'] ?? $row['description'] ?? '')),
+                        number_format((float) $row['debit'], 2),
+                        number_format((float) $row['credit'], 2),
+                        number_format((float) $row['balance'], 2),
+                    ]);
+                }
+                fputcsv($file, []);
+                fputcsv($file, ['SUMMARY']);
+                fputcsv($file, ['Total Charges:', number_format($overlay['totalCharges'], 2)]);
+                fputcsv($file, ['Total Payments:', number_format($overlay['totalPayments'], 2)]);
+                fputcsv($file, ['Total Discounts:', number_format($overlay['totalDiscounts'], 2)]);
+                fputcsv($file, ['Credit Notes:', number_format($overlay['totalCreditNotes'], 2)]);
+                fputcsv($file, ['Debit Notes:', number_format($overlay['totalDebitNotes'], 2)]);
+                fputcsv($file, ['Balance:', number_format($overlay['finalBalance'], 2)]);
+                fclose($file);
+                return;
+            }
             
             // Invoices
             fputcsv($file, ['INVOICES']);
@@ -1851,6 +1905,31 @@ class StudentStatementController extends Controller
         }
 
         return compact('name', 'email', 'phone', 'website', 'address', 'logoBase64');
+    }
+
+    private function modernStatementOverlay(Student $student, int $year, $term): array
+    {
+        $pack = app(StudentFeeStatementService::class)->forStudent($student, $year, $term ?: null);
+        $rows = collect($pack['transactions'])->map(function (array $row) use ($student) {
+            $row['narration'] = $row['narration'] ?? $row['description'];
+            $row['student_name'] = $student->full_name;
+            $row['admission_number'] = $student->admission_number;
+            $row['grade'] = optional($student->classroom)->name ?? '';
+
+            return $row;
+        });
+
+        return [
+            'detailedTransactions' => $rows,
+            'totalCharges' => $pack['total_charges'],
+            'totalPayments' => $pack['total_payments'],
+            'totalDiscounts' => $pack['total_discounts'],
+            'totalCreditNotes' => $pack['total_credit_notes'],
+            'totalDebitNotes' => $pack['total_debit_notes'],
+            'totalDebit' => $rows->sum('debit'),
+            'totalCredit' => $rows->sum('credit'),
+            'finalBalance' => $pack['closing_balance'],
+        ];
     }
 }
 

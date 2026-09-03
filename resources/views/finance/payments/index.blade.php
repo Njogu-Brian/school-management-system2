@@ -193,6 +193,7 @@
                             <th>Student</th>
                             <th>Payment Date</th>
                             <th class="text-end">Amount</th>
+                            <th class="text-end">Balance then</th>
                             <th class="text-end">Allocated</th>
                             <th class="text-end">Unallocated</th>
                             <th>Payment Method</th>
@@ -230,6 +231,15 @@
                                     </del>
                                 @else
                                     <strong>Ksh {{ number_format($payment->amount, 2) }}</strong>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                @if($payment->balance_after !== null)
+                                    <span class="{{ (float) $payment->balance_after > 0.009 ? 'text-danger' : 'text-success' }}">
+                                        Ksh {{ number_format($payment->balance_after, 2) }}
+                                    </span>
+                                @else
+                                    <span class="text-muted">—</span>
                                 @endif
                             </td>
                             <td class="text-end">
@@ -294,7 +304,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="10">
+                            <td colspan="12">
                                 <div class="finance-empty-state">
                                     <div class="finance-empty-state-icon">
                                         <i class="bi bi-cash-stack"></i>
@@ -312,8 +322,9 @@
                     @if($payments->isNotEmpty())
                     <tfoot class="table-light">
                         <tr>
-                            <th colspan="3" class="text-end">Totals:</th>
+                            <th colspan="4" class="text-end">Totals:</th>
                             <th class="text-end">Ksh {{ number_format($payments->sum('amount'), 2) }}</th>
+                            <th></th>
                             <th class="text-end">Ksh {{ number_format($payments->sum('allocated_amount'), 2) }}</th>
                             <th class="text-end">Ksh {{ number_format($payments->sum(function($p) { return $p->unallocated_amount ?? ($p->amount - ($p->allocated_amount ?? 0)); }), 2) }}</th>
                             <th colspan="4"></th>

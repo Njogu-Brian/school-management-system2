@@ -138,7 +138,7 @@
                                     <th>Votehead</th>
                                     <th class="text-end">Item Amount</th>
                                     <th class="text-end">Allocated</th>
-                                    <th class="text-end">Remaining</th>
+                                    <th class="text-end">Invoice balance</th>
                                     <th>Date</th>
                                 </tr>
                             </thead>
@@ -164,7 +164,7 @@
                                         <strong class="text-success">Ksh {{ number_format($allocation->amount, 2) }}</strong>
                                     </td>
                                     <td class="text-end">
-                                        Ksh {{ number_format(($item->amount ?? 0) - ($allocation->amount ?? 0), 2) }}
+                                        Ksh {{ number_format(optional($invoice)->balance ?? 0, 2) }}
                                     </td>
                                     <td>{{ $allocation->allocated_at ? \Carbon\Carbon::parse($allocation->allocated_at)->format('d M Y') : 'N/A' }}</td>
                                 </tr>

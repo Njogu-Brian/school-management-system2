@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\Student;
 use App\Models\Term;
 use App\Services\StudentBalanceService;
+use App\Services\StudentFeeStatementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -28,6 +29,55 @@ class ApiStudentStatementController extends Controller
             ? (int) $request->input('academic_year_id')
             : null;
         $detailed = $request->boolean('detailed', true);
+
+        if ($academicYearId) {
+            $ay = AcademicYear::find($academicYearId);
+            if ($ay) {
+                $year = (int) $ay->year;
+            }
+        }
+
+        $years = AcademicYear::orderByDesc('year')->get(['id', 'year', 'is_active']);
+        $terms = Term::query()
+            ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
+            ->orderBy('opening_date')
+            ->get(['id', 'name', 'academic_year_id', 'opening_date', 'closing_date', 'is_current']);
+
+        $fullName = trim(($student->first_name ?? '').' '.($student->middle_name ?? '').' '.($student->last_name ?? ''));
+        $studentPayload = [
+            'id' => $student->id,
+            'full_name' => $fullName,
+            'admission_number' => $student->admission_number ?? '',
+            'class_name' => ($student->classroom->name ?? '').($student->stream ? ' '.$student->stream->name : ''),
+        ];
+
+        if ($year >= 2026) {
+            $pack = app(StudentFeeStatementService::class)->forStudent($student, $year, $termId);
+            $transactions = $this->mapLedgerTransactions($pack['transactions'], $detailed);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'student' => $studentPayload,
+                    'year' => $year,
+                    'term_id' => $termId,
+                    'academic_year_id' => $academicYearId,
+                    'detailed' => $detailed,
+                    'filters' => [
+                        'available_years' => $years,
+                        'available_terms' => $terms,
+                    ],
+                    'opening_balance' => $pack['opening_balance'],
+                    'total_invoiced' => $pack['total_charges'],
+                    'total_paid' => $pack['total_payments'],
+                    'total_discounts' => $pack['total_discounts'],
+                    'total_credit_notes' => $pack['total_credit_notes'],
+                    'total_debit_notes' => $pack['total_debit_notes'],
+                    'closing_balance' => $pack['closing_balance'],
+                    'transactions' => array_values($transactions),
+                ],
+            ]);
+        }
 
         $invoicesQuery = Invoice::where('student_id', $student->id)
             ->whereNull('reversed_at')
@@ -91,23 +141,10 @@ class ApiStudentStatementController extends Controller
             ? $this->buildDetailedTransactions($student, $year, $invoices, $payments)
             : $this->buildSummaryTransactions($invoices, $payments);
 
-        $fullName = trim(($student->first_name ?? '').' '.($student->middle_name ?? '').' '.($student->last_name ?? ''));
-
-        $years = AcademicYear::orderByDesc('year')->get(['id', 'year', 'is_active']);
-        $terms = Term::query()
-            ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
-            ->orderBy('opening_date')
-            ->get(['id', 'name', 'academic_year_id', 'opening_date', 'closing_date', 'is_current']);
-
         return response()->json([
             'success' => true,
             'data' => [
-                'student' => [
-                    'id' => $student->id,
-                    'full_name' => $fullName,
-                    'admission_number' => $student->admission_number ?? '',
-                    'class_name' => ($student->classroom->name ?? '').($student->stream ? ' '.$student->stream->name : ''),
-                ],
+                'student' => $studentPayload,
                 'year' => $year,
                 'term_id' => $termId,
                 'academic_year_id' => $academicYearId,
@@ -373,6 +410,50 @@ class ApiStudentStatementController extends Controller
         unset($row);
 
         return $transactions;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    protected function mapLedgerTransactions(array $rows, bool $detailed): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            $mapped = [
+                'id' => $row['id'],
+                'entity_type' => $row['entity_type'] ?? $row['kind'] ?? null,
+                'entity_id' => $row['entity_id'] ?? $row['model_id'] ?? null,
+                'invoice_id' => $row['invoice_id'] ?? null,
+                'payment_id' => $row['payment_id'] ?? null,
+                'date' => Carbon::parse($row['date'])->format('Y-m-d'),
+                'type' => $row['type'] ?? $row['kind'],
+                'kind' => $row['kind'] ?? null,
+                'reference' => $row['reference'] ?? '',
+                'description' => $row['description'] ?? '',
+                'votehead' => $row['votehead'] ?? null,
+                'debit' => (float) ($row['debit'] ?? 0),
+                'credit' => (float) ($row['credit'] ?? 0),
+                'balance' => (float) ($row['balance'] ?? 0),
+                'balance_after' => (float) ($row['balance_after'] ?? $row['balance'] ?? 0),
+            ];
+            if ($detailed) {
+                $mapped['children'] = $row['children'] ?? [];
+                $mapped['adjustments'] = collect($row['adjustments'] ?? [])->map(function ($adj) {
+                    return [
+                        'kind' => $adj['kind'] ?? null,
+                        'type' => $adj['type'] ?? null,
+                        'date' => ! empty($adj['date']) ? Carbon::parse($adj['date'])->format('Y-m-d') : null,
+                        'description' => $adj['description'] ?? '',
+                        'debit' => (float) ($adj['debit'] ?? 0),
+                        'credit' => (float) ($adj['credit'] ?? 0),
+                    ];
+                })->values()->all();
+            }
+            $out[] = $mapped;
+        }
+
+        return $out;
     }
 
     protected function authorizeStudentAccess(Request $request, Student $student): void

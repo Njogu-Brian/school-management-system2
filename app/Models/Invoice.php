@@ -103,56 +103,22 @@ class Invoice extends Model
     }
 
     /**
-     * Calculate and update invoice totals
+     * Recalculate this invoice's charge total, then sync the student's fee ledger.
+     *
+     * Paid amount and balance come from charges vs payments (oldest invoice first),
+     * not from votehead payment allocations.
      */
     public function recalculate(): void
     {
+        $studentId = (int) $this->student_id;
         $this->refresh();
-        
-        // Calculate total from active items (amount - discount_amount)
-        // Note: Credit/debit notes modify item amounts directly, so they're already included
-        $this->total = $this->items()
-            ->where('status', 'active')
-            ->get()
-            ->sum(function($item) {
-                return $item->amount - ($item->discount_amount ?? 0);
-            });
-        
-        // Subtract invoice-level discount
-        $this->total = max(0, $this->total - ($this->discount_amount ?? 0));
-        
-        // Calculate paid amount from allocations (exclude reversed payments)
-        $this->paid_amount = $this->items()
-            ->join('payment_allocations', 'invoice_items.id', '=', 'payment_allocations.invoice_item_id')
-            ->join('payments', 'payment_allocations.payment_id', '=', 'payments.id')
-            ->where('invoice_items.invoice_id', $this->id)
-            ->where('payments.reversed', false)
-            ->sum('payment_allocations.amount');
-        
-        // Calculate balance (total already has discounts and credit/debit adjustments in item amounts)
-        $this->balance = $this->total - $this->paid_amount;
-        
-        // Ensure balance is never negative
-        if ($this->balance < 0) {
-            $this->balance = 0;
+        $this->total = app(\App\Services\StudentFeeLedgerService::class)->invoiceChargeTotal($this);
+        $this->saveQuietly();
+
+        if ($studentId > 0 && ! \App\Services\StudentFeeLedgerService::isSyncing($studentId)) {
+            app(\App\Services\StudentFeeLedgerService::class)->syncStudent($studentId);
+            $this->refresh();
         }
-        
-        // Update status
-        // Note: invoices can be "cleared" by adjustments (e.g. credit notes / item reductions)
-        // even when no payments exist. Treat any zero balance invoice as paid.
-        if ($this->balance <= 0) {
-            $this->status = 'paid';
-        } elseif ($this->paid_amount > 0) {
-            $this->status = 'partial';
-        } else {
-            $this->status = 'unpaid';
-        }
-        
-        $this->save();
-        
-        // Auto-update payment statuses and auto-allocate unallocated payments
-        $this->updatePaymentStatuses();
-        $this->autoAllocateUnallocatedPayments();
 
         try {
             app(\App\Services\FeeClearanceRecomputeService::class)->recomputeForInvoice($this);
@@ -163,7 +129,6 @@ class Invoice extends Model
             ]);
         }
 
-        // Keep fee payment plans aligned with invoice balance adjustments (family plans included).
         try {
             app(\App\Services\PaymentPlanSyncService::class)->syncPlansForInvoice($this);
         } catch (\Throwable $e) {
@@ -182,39 +147,25 @@ class Invoice extends Model
      */
     public function fillTotalsFromLoadedRelations(): void
     {
-        if (!$this->relationLoaded('items')) {
+        if (!$this->student_id) {
             return;
         }
 
-        $activeItems = $this->items->filter(fn ($item) => ($item->status ?? 'active') === 'active');
-        $total = (float) $activeItems->sum(fn ($item) => (float) $item->amount - (float) ($item->discount_amount ?? 0));
-        $total = max(0, $total - (float) ($this->discount_amount ?? 0));
-
-        $paid = 0.0;
-        foreach ($activeItems as $item) {
-            if (!$item->relationLoaded('allocations')) {
-                continue;
-            }
-            foreach ($item->allocations as $a) {
-                if ($a->payment && !$a->payment->reversed) {
-                    $paid += (float) $a->amount;
-                }
-            }
+        $snapshot = app(\App\Services\StudentFeeLedgerService::class)->snapshot((int) $this->student_id);
+        $row = $snapshot['invoices'][$this->id] ?? null;
+        if (!$row) {
+            $total = app(\App\Services\StudentFeeLedgerService::class)->invoiceChargeTotal($this);
+            $this->setAttribute('total', $total);
+            $this->setAttribute('paid_amount', 0);
+            $this->setAttribute('balance', $total);
+            $this->setAttribute('status', $total > 0.009 ? 'unpaid' : 'paid');
+            return;
         }
 
-        $balance = max(0, $total - $paid);
-
-        $this->setAttribute('total', $total);
-        $this->setAttribute('paid_amount', $paid);
-        $this->setAttribute('balance', $balance);
-
-        if ($balance <= 0 && $paid > 0) {
-            $this->setAttribute('status', 'paid');
-        } elseif ($paid > 0) {
-            $this->setAttribute('status', 'partial');
-        } else {
-            $this->setAttribute('status', 'unpaid');
-        }
+        $this->setAttribute('total', $row['total']);
+        $this->setAttribute('paid_amount', $row['paid_amount']);
+        $this->setAttribute('balance', $row['balance']);
+        $this->setAttribute('status', $row['status']);
     }
     
     /**

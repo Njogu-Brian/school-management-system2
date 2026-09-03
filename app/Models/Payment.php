@@ -27,6 +27,8 @@ class Payment extends Model
         'amount',
         'allocated_amount',
         'unallocated_amount',
+        'balance_before',
+        'balance_after',
         'payment_method', // Keep for backward compatibility
         'payment_method_id',
         'payment_channel',
@@ -50,6 +52,8 @@ class Payment extends Model
         'amount' => 'decimal:2',
         'allocated_amount' => 'decimal:2',
         'unallocated_amount' => 'decimal:2',
+        'balance_before' => 'decimal:2',
+        'balance_after' => 'decimal:2',
         'payment_date' => 'datetime',
         'receipt_date' => 'datetime',
         'reversed' => 'boolean',
@@ -95,6 +99,33 @@ class Payment extends Model
             if (!$payment->receipt_date) {
                 $payment->receipt_date = now();
             }
+        });
+
+        static::created(function (Payment $payment) {
+            try {
+                app(\App\Services\ParentAppNotifyService::class)->notifyPaymentReceived($payment);
+            } catch (\Throwable $e) {
+                \Log::warning('Parent payment notify failed: '.$e->getMessage(), ['payment_id' => $payment->id]);
+            }
+        });
+
+        static::saved(function (Payment $payment) {
+            $studentId = (int) $payment->student_id;
+            if ($studentId <= 0 || \App\Services\StudentFeeLedgerService::isSyncing($studentId)) {
+                return;
+            }
+            if (! \App\Services\StudentFeeLedgerService::isFeePayment($payment) && ! $payment->reversed) {
+                return;
+            }
+            app(\App\Services\StudentFeeLedgerService::class)->syncStudent($studentId);
+        });
+
+        static::deleted(function (Payment $payment) {
+            $studentId = (int) $payment->student_id;
+            if ($studentId <= 0 || \App\Services\StudentFeeLedgerService::isSyncing($studentId)) {
+                return;
+            }
+            app(\App\Services\StudentFeeLedgerService::class)->syncStudent($studentId);
         });
     }
 
@@ -237,11 +268,16 @@ class Payment extends Model
      */
     public function updateAllocationTotals(): void
     {
+        $studentId = (int) $this->student_id;
+        if ($studentId > 0) {
+            app(\App\Services\StudentFeeLedgerService::class)->syncStudent($studentId);
+            $this->refresh();
+            return;
+        }
+
         $this->allocated_amount = $this->calculateAllocatedAmount();
         $this->unallocated_amount = $this->calculateUnallocatedAmount();
         $this->save();
-        
-        // Auto-update status
         $this->updateStatus();
     }
     

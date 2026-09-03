@@ -165,30 +165,16 @@
                     <tbody>
                         @forelse($invoices as $inv)
                         @php
-                            // Recalculate invoice to ensure totals are up to date
                             if (!$inv->relationLoaded('items') || $inv->items->isEmpty()) {
                                 $inv->load('items');
                             }
-                            
-                            // Calculate subtotal (before discounts) - sum of all item amounts
+
                             $subtotal = $inv->items->sum('amount') ?? 0;
-                            
-                            // Calculate total discounts
                             $itemDiscounts = $inv->items->sum('discount_amount') ?? 0;
                             $invoiceDiscount = $inv->discount_amount ?? 0;
                             $totalDiscount = $itemDiscounts + $invoiceDiscount;
-                            
-                            // Total after discounts (should match $inv->total if calculated correctly)
                             $totalAfterDiscount = $subtotal - $totalDiscount;
-                            
-                            // Use the invoice's calculated balance (which should be total - paid)
-                            // If balance seems wrong, recalculate
-                            if (abs($inv->balance - ($totalAfterDiscount - ($inv->paid_amount ?? 0))) > 0.01) {
-                                $inv->recalculate();
-                                $inv->refresh();
-                            }
-                            
-                            $balance = $inv->balance ?? ($totalAfterDiscount - ($inv->paid_amount ?? 0));
+                            $balance = $inv->balance ?? 0;
                         @endphp
                         <tr>
                             <td>
@@ -301,7 +287,7 @@
                     @endphp
                     <tfoot class="table-light">
                         <tr>
-                            <th colspan="4" class="text-end">Totals:</th>
+                            <th colspan="5" class="text-end">Totals:</th>
                             <th class="text-end">Ksh {{ number_format($totalSubtotal, 2) }}</th>
                             <th class="text-end">
                                 @if($totalDiscounts > 0)

@@ -26,29 +26,9 @@ class StudentBalanceService
         
         // getBalanceBroughtForward() returns 0 when student already has BBF on invoice (single source of truth)
         $balanceBroughtForward = self::getBalanceBroughtForward($studentModel);
-        $query = Invoice::where('student_id', $studentModel->id)
-            ->where('status', '!=', 'reversed');
-        if ($dueOnly) {
-            $today = now()->toDateString();
-            $query->where(function ($q) use ($today) {
-                // Explicit due date in past/today is always due.
-                $q->whereDate('due_date', '<=', $today)
-                    // If due date is missing, treat it as due only when term has started
-                    // (or when no term is attached / opening date missing for legacy invoices).
-                    ->orWhere(function ($sub) use ($today) {
-                        $sub->whereNull('due_date')
-                            ->where(function ($termFilter) use ($today) {
-                                $termFilter->whereNull('term_id')
-                                    ->orWhereHas('term', function ($termQuery) use ($today) {
-                                        $termQuery->whereNull('opening_date')
-                                            ->orWhereDate('opening_date', '<=', $today);
-                                    });
-                            });
-                    });
-            });
-        }
-        $invoiceBalance = $query->sum('balance');
-        return $invoiceBalance + $balanceBroughtForward; // can be negative (overpayment)
+        $ledger = app(StudentFeeLedgerService::class)->snapshot((int) $studentModel->id, $dueOnly);
+
+        return $ledger['balance'] + $balanceBroughtForward;
     }
 
     /**
@@ -353,25 +333,29 @@ class StudentBalanceService
             $q->where('name', 'like', '%swim%')->orWhere('code', 'like', '%SWIM%');
         })->pluck('id')->toArray();
 
-        // Sum unpaid portion of invoice items (excluding swimming) for unpaid/partial invoices
-        $invoiceQuery = function ($q) use ($dueOnly) {
-            $q->whereIn('status', ['unpaid', 'partial'])
-                ->where('status', '!=', 'reversed');
-            if ($dueOnly) {
-                $q->where(function ($sub) {
-                    $sub->whereNull('due_date')
+        $invoices = Invoice::whereIn('status', ['unpaid', 'partial'])
+            ->where('status', '!=', 'reversed')
+            ->when($dueOnly, function ($query) {
+                $query->where(function ($q) {
+                    $q->whereNull('due_date')
                         ->orWhereDate('due_date', '<=', now()->toDateString());
                 });
+            })
+            ->with(['items' => fn ($q) => $q->where('status', 'active')])
+            ->get();
+
+        $invoiceOutstanding = (float) $invoices->sum(function (Invoice $invoice) use ($swimmingVoteheadIds) {
+            $balance = (float) $invoice->balance;
+            if ($balance <= 0 || empty($swimmingVoteheadIds) || $invoice->total <= 0) {
+                return max(0, $balance);
             }
-        };
-        $invoiceOutstanding = \App\Models\InvoiceItem::whereHas('invoice', $invoiceQuery)
-            ->where('status', 'active')
-            ->when(!empty($swimmingVoteheadIds), fn ($q) => $q->whereNotIn('votehead_id', $swimmingVoteheadIds))
-            ->get()
-            ->sum(function ($item) {
-                $allocated = $item->allocations()->sum('amount');
-                return max(0, (float) $item->amount - (float) ($item->discount_amount ?? 0) - (float) $allocated);
-            });
+            $swim = (float) $invoice->items
+                ->whereIn('votehead_id', $swimmingVoteheadIds)
+                ->sum(fn ($item) => (float) $item->amount - (float) ($item->discount_amount ?? 0));
+            $feeShare = max(0.0, ((float) $invoice->total - $swim) / (float) $invoice->total);
+
+            return max(0.0, $balance * $feeShare);
+        });
 
         // Balance brought forward from legacy (same logic as getTotalOutstandingFees)
         $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();

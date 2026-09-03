@@ -7,6 +7,7 @@ export interface StatementLedgerRow {
   id: number;
   date: string;
   type: string;
+  kind?: string | null;
   reference: string;
   description: string;
   votehead?: string | null;
@@ -16,6 +17,8 @@ export interface StatementLedgerRow {
   invoice_id?: number | null;
   payment_id?: number | null;
   entity_type?: string | null;
+  children?: Array<{ description: string; votehead?: string | null; debit: number; credit?: number }>;
+  adjustments?: Array<{ description: string; date?: string | null; type?: string | null }>;
 }
 
 export interface StatementLedgerProps {
@@ -89,6 +92,24 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
                   {row.votehead}
                 </Text>
               ) : null}
+              {(row.children ?? []).map((child, childIndex) => (
+                <Text
+                  key={`child-${childIndex}`}
+                  style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2, marginLeft: spacing.sm }}
+                >
+                  {child.description}: {formatAmount(child.debit)}
+                  {(child.credit ?? 0) > 0 ? ` (discount ${formatAmount(child.credit ?? 0)})` : ''}
+                </Text>
+              ))}
+              {(row.adjustments ?? []).map((adj, adjIndex) => (
+                <Text
+                  key={`adj-${adjIndex}`}
+                  style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: 2, marginLeft: spacing.sm }}
+                >
+                  {adj.description}
+                  {adj.date ? ` — ${adj.date}` : ''}
+                </Text>
+              ))}
               {canOpen ? (
                 <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginTop: 4, fontWeight: '600' }}>
                   Tap for breakdown
@@ -107,7 +128,8 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
                 </Text>
               ) : null}
               <Text style={{ color: palette.textSub, fontSize: typography.caption.fontSize, marginTop: spacing.xs }}>
-                Bal {formatAmount(row.balance)}
+                {row.kind === 'payment' ? 'Bal as at payment ' : 'Bal '}
+                {formatAmount(row.balance)}
               </Text>
             </View>
           </Row>

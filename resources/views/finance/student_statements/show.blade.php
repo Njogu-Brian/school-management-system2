@@ -237,45 +237,51 @@
                     </thead>
                     <tbody>
                         @php
-                            // Calculate starting balance
                             $runningBalance = 0;
                             $finalBalance = 0;
+                            $useLedgerBalance = $year >= 2026;
                             
-                            // For legacy years, start from the first term's starting balance
-                            // For 2026+, start from balance brought forward
                             if ($year < 2026) {
-                                // Get starting balance from first term of the year
                                 $firstTerm = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
                                     ->where('academic_year', $year)
                                     ->orderBy('term_number')
                                     ->first();
                                 $runningBalance = $firstTerm->starting_balance ?? 0;
-                            } else {
-                                // For 2026+, start from balance brought forward only if not already in invoices
+                            } elseif (! $useLedgerBalance) {
                                 $runningBalance = ($hasBalanceBroughtForwardInInvoices ?? false) ? 0 : ($balanceBroughtForward ?? 0);
                             }
                         @endphp
                         
                         @forelse($detailedTransactions ?? collect() as $transaction)
                             @php
-                                $runningBalance += $transaction['debit'] - $transaction['credit'];
+                                $transactionKind = $transaction['kind'] ?? null;
+                                if ($useLedgerBalance && array_key_exists('balance', $transaction)) {
+                                    $runningBalance = (float) $transaction['balance'];
+                                } else {
+                                    $runningBalance += $transaction['debit'] - $transaction['credit'];
+                                }
                                 $finalBalance = $runningBalance;
                                 $transactionId = $transaction['model_id'] ?? null;
                                 $transactionType = $transaction['type'] ?? 'Unknown';
                                 $isReversal = $transaction['is_reversal'] ?? false;
                                 $paymentChannel = null;
                                 
-                                // Get payment channel for payment transactions
                                 if($transactionType == 'Payment' && isset($transaction['payment_id'])) {
                                     $payment = \App\Models\Payment::find($transaction['payment_id']);
                                     $paymentChannel = $payment ? $payment->payment_channel : null;
                                 }
+                                $rowStyle = $isReversal ? 'background-color: #fff3cd;' : '';
+                                if ($transactionKind === 'term_close') {
+                                    $rowStyle = 'background-color: #f1f5f9; font-weight: 600;';
+                                }
                             @endphp
-                            <tr style="{{ $isReversal ? 'background-color: #fff3cd;' : '' }}">
+                            <tr style="{{ $rowStyle }}">
                                 <td>{{ \Carbon\Carbon::parse($transaction['date'])->format('d M Y') }}</td>
                                 <td>
-                                    @if($transactionType == 'Invoice Item')
+                                    @if($transactionType == 'Invoice Item' || $transactionType == 'Invoice')
                                         <span class="badge bg-primary">Invoice</span>
+                                    @elseif($transactionType == 'Term Close')
+                                        <span class="badge bg-dark">Term closed</span>
                                     @elseif($transactionType == 'Payment')
                                         <span class="badge bg-success">
                                             Payment
@@ -311,7 +317,7 @@
                                     <strong>{{ $transaction['votehead'] ?? 'N/A' }}</strong>
                                 </td>
                                 <td>
-                                    @if($transactionType == 'Invoice Item' && isset($transaction['invoice_item_id']))
+                                    @if(($transactionType == 'Invoice Item' || $transactionType == 'Invoice') && isset($transaction['invoice_item_id']))
                                         <span class="editable-amount" 
                                               data-item-id="{{ $transaction['invoice_item_id'] }}"
                                               data-current-amount="{{ $transaction['debit'] }}"
@@ -322,6 +328,31 @@
                                         </span>
                                     @else
                                         {{ $transaction['description'] }}
+                                    @endif
+                                    @if(!empty($transaction['children']))
+                                        <ul class="mb-0 mt-1 ps-3 small text-muted">
+                                            @foreach($transaction['children'] as $child)
+                                                <li>
+                                                    {{ $child['description'] }}:
+                                                    Ksh {{ number_format($child['debit'] ?? 0, 2) }}
+                                                    @if(($child['credit'] ?? 0) > 0.009)
+                                                        <span class="text-info">(discount Ksh {{ number_format($child['credit'], 2) }})</span>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
+                                    @if(!empty($transaction['adjustments']))
+                                        <ul class="mb-0 mt-1 ps-3 small">
+                                            @foreach($transaction['adjustments'] as $adj)
+                                                <li>
+                                                    {{ $adj['description'] }}
+                                                    @if(!empty($adj['date']))
+                                                        <span class="text-muted">— {{ \Carbon\Carbon::parse($adj['date'])->format('d M Y') }}</span>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ul>
                                     @endif
                                 </td>
                                 <td>
@@ -344,7 +375,7 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
-                                        @if($transactionType == 'Invoice Item' && isset($transaction['invoice_id']))
+                                        @if(($transactionType == 'Invoice Item' || $transactionType == 'Invoice') && isset($transaction['invoice_id']))
                                             <a href="{{ route('finance.invoices.show', $transaction['invoice_id']) }}" class="btn btn-sm btn-outline-primary" title="View Invoice">
                                                 <i class="bi bi-eye"></i>
                                             </a>

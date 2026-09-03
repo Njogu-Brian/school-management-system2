@@ -44,11 +44,10 @@ class ReceiptService
             throw new \RuntimeException('Student record not found for payment #'.$payment->id);
         }
 
-        // Get payment allocations for this specific payment
-        $paymentAllocations = $payment->allocations;
+        $ledger = app(StudentFeeLedgerService::class)->snapshot((int) $student->id);
+        $asAt = $this->balanceAsAtPayment($payment);
 
-        // Keep receipt context scoped to the payment's term(s) to avoid mixing charges
-        // from different terms in a single receipt.
+        $paymentAllocations = $payment->allocations;
         $contextTermIds = $paymentAllocations
             ->map(function ($allocation) {
                 return optional(optional($allocation->invoiceItem)->invoice)->term_id;
@@ -61,112 +60,52 @@ class ReceiptService
             $contextTermIds = collect([$payment->invoice->term_id]);
         }
 
-        // Get unpaid invoice items for the student, scoped to receipt context term(s) where possible.
-        $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($student, $contextTermIds) {
-            $q->where('student_id', $student->id)
-                ->where('status', '!=', 'reversed');
-
-            if ($contextTermIds->isNotEmpty()) {
-                $q->whereIn('term_id', $contextTermIds->all());
-            }
-        })
-            ->where('status', 'active')
-            ->with(['invoice.term', 'votehead', 'allocations'])
-            ->get()
-            ->filter(function ($item) {
-                return $item->getBalance() > 0; // Only unpaid items
-            });
-
-        // Build comprehensive receipt items showing:
-        // 1. Items that received payment (with allocation details)
-        // 2. All other unpaid items (with their balances)
-        $receiptItems = collect();
-
-        // First, add items that received payment from this payment
-        foreach ($paymentAllocations as $allocation) {
-            $item = $allocation->invoiceItem;
-            $itemAmount = $item->amount ?? 0;
-            $discountAmount = $item->discount_amount ?? 0;
-            $allocatedAmount = $allocation->amount;
-            $balanceBefore = $item->getBalance() + $allocatedAmount; // Balance before this payment
-            $balanceAfter = $item->getBalance(); // Balance after this payment
-
-            $receiptItems->push([
-                'type' => 'paid',
-                'allocation' => $allocation,
-                'invoice' => $item->invoice ?? null,
-                'votehead' => $item->votehead ?? null,
-                'item_amount' => $itemAmount,
-                'discount_amount' => $discountAmount,
-                'allocated_amount' => $allocatedAmount,
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter,
-            ]);
-        }
-
-        // Then, add all other unpaid items that didn't receive payment
-        $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
-        foreach ($allUnpaidItems as $item) {
-            // Skip if already included in paid items
-            if (in_array($item->id, $paidItemIds)) {
-                continue;
-            }
-
-            $itemAmount = $item->amount ?? 0;
-            $discountAmount = $item->discount_amount ?? 0;
-            $balance = $item->getBalance();
-
-            $receiptItems->push([
-                'type' => 'unpaid',
-                'allocation' => null,
-                'invoice' => $item->invoice ?? null,
-                'votehead' => $item->votehead ?? null,
-                'item_amount' => $itemAmount,
-                'discount_amount' => $discountAmount,
-                'allocated_amount' => 0,
-                'balance_before' => $balance,
-                'balance_after' => $balance,
-            ]);
-        }
-
-        // Calculate totals
-        $totalBalanceBefore = $receiptItems->sum('balance_before');
-        $totalBalanceAfter = $receiptItems->sum('balance_after');
-
-        // Calculate TOTAL outstanding balance including balance brought forward
-        $totalOutstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
-
-        // Calculate total invoices for receipt display in the same term context
         $invoices = \App\Models\Invoice::where('student_id', $student->id)
             ->where('status', '!=', 'reversed')
             ->when($contextTermIds->isNotEmpty(), function ($q) use ($contextTermIds) {
                 $q->whereIn('term_id', $contextTermIds->all());
-            }, function ($q) use ($payment) {
+            }, function ($q) use ($payment, $ledger) {
                 if ($payment->invoice_id) {
                     $q->where('id', $payment->invoice_id);
+                } elseif (!empty($ledger['invoices'])) {
+                    $openIds = collect($ledger['invoices'])
+                        ->filter(fn ($row) => ($row['balance'] ?? 0) > 0.009 || ($row['paid_amount'] ?? 0) > 0.009)
+                        ->keys();
+                    if ($openIds->isNotEmpty()) {
+                        $q->whereIn('id', $openIds->all());
+                    }
                 }
             })
-            // Eager load items and term+academicYear on the query. Do not use loadMissing('term.*') here:
-            // Invoice has a legacy `term` column that shadows the term() BelongsTo; Eloquent's
-            // loadMissing plucks by relation name and receives ints, breaking nested loads.
-            ->with(['items', 'term.academicYear'])
+            ->with(['items.votehead', 'term.academicYear'])
             ->get();
 
-        $totalInvoices = $invoices->sum('total');
+        $receiptItems = collect();
+        foreach ($invoices as $invoice) {
+            foreach ($invoice->items->where('status', 'active') as $item) {
+                $receiptItems->push([
+                    'type' => 'charge',
+                    'allocation' => null,
+                    'invoice' => $invoice,
+                    'votehead' => $item->votehead,
+                    'item_amount' => (float) ($item->amount ?? 0),
+                    'discount_amount' => (float) ($item->discount_amount ?? 0),
+                    'allocated_amount' => 0,
+                    'balance_before' => 0,
+                    'balance_after' => 0,
+                ]);
+            }
+        }
 
-        // NOTE:
-        // `Invoice` has a legacy `term` column that conflicts with the `term()` relation.
-        // Using `pluck('term')` can return the column value (often an int) instead of the
-        // loaded `Term` model, which then breaks `$term->academicYear`.
+        $totalInvoices = (float) $invoices->sum(function ($invoice) use ($ledger) {
+            return (float) ($ledger['invoices'][$invoice->id]['total'] ?? $invoice->total);
+        });
+
         $termLabels = $invoices
             ->map(function ($invoice) {
-                /** @var mixed $term */
                 $term = $invoice->relationLoaded('term') ? $invoice->getRelation('term') : null;
-
                 if (!is_object($term) || !method_exists($term, 'academicYear')) {
                     return null;
                 }
-
                 $year = $term->academicYear?->year;
                 $name = $term->name ?? '';
 
@@ -178,11 +117,9 @@ class ReceiptService
         $receiptTermLabel = $termLabels->isEmpty() ? null : $termLabels->implode(', ');
         $invoiceNumbersSummary = $invoices->pluck('invoice_number')->filter()->unique()->sort()->implode(', ');
 
-        // Use receiptItems instead of allocations for template
-        $allocations = $receiptItems;
-        // Show this payment's actual receipt number (systematic: base for first, base-01, base-02 for siblings)
         $displayReceiptNumber = $payment->receipt_number;
         $receiptDate = $payment->receipt_date ?? $payment->payment_date;
+        $studentBalance = (float) $asAt['balance_after'];
 
         return [
             'payment' => $payment,
@@ -191,12 +128,13 @@ class ReceiptService
             'receipt_number' => $displayReceiptNumber,
             'date' => $receiptDate ? $receiptDate->format('d/m/Y') : now()->format('d/m/Y'),
             'student' => $student,
-            'allocations' => $allocations,
+            'allocations' => $receiptItems,
             'total_amount' => $payment->amount,
-            'total_balance_before' => $totalBalanceBefore,
-            'total_balance_after' => $totalBalanceAfter,
-            'total_outstanding_balance' => $totalOutstandingBalance, // Global (e.g. Pay Now); receipt Balance row uses total_balance_after
-            'total_invoices' => $totalInvoices, // Invoices in this receipt's term context only
+            'total_balance_before' => (float) $asAt['balance_before'],
+            'total_balance_after' => $studentBalance,
+            'total_outstanding_balance' => $studentBalance,
+            'balance_as_at_payment' => $studentBalance,
+            'total_invoices' => $totalInvoices,
             'receipt_term_label' => $receiptTermLabel,
             'invoice_numbers_summary' => $invoiceNumbersSummary ?: null,
             'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
@@ -205,6 +143,27 @@ class ReceiptService
             'receipt_header' => $receiptHeader,
             'receipt_footer' => $receiptFooter,
         ];
+    }
+
+    /**
+     * Balance frozen on this receipt. Later payments must not change it.
+     */
+    private function balanceAsAtPayment(Payment $payment): array
+    {
+        $computed = app(StudentFeeStatementService::class)->balanceAfterPayment($payment);
+        if ($payment->balance_after === null && \Illuminate\Support\Facades\Schema::hasColumn('payments', 'balance_after')) {
+            Payment::withoutEvents(function () use ($payment, $computed) {
+                Payment::where('id', $payment->id)->whereNull('balance_after')->update([
+                    'balance_before' => $computed['balance_before'],
+                    'balance_after' => $computed['balance_after'],
+                    'updated_at' => now(),
+                ]);
+            });
+            $payment->balance_before = $computed['balance_before'];
+            $payment->balance_after = $computed['balance_after'];
+        }
+
+        return $computed;
     }
 
     /**

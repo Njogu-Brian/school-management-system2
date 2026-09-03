@@ -254,12 +254,18 @@ export const StatementsScreen: React.FC<Props> = ({ navigation }) => {
                     id: t.id,
                     date: t.date,
                     type: t.type,
+                    kind: t.kind,
                     reference: t.reference,
                     description: t.description,
                     votehead: t.votehead,
                     debit: t.debit,
                     credit: t.credit,
                     balance: t.balance,
+                    invoice_id: t.invoice_id,
+                    payment_id: t.payment_id,
+                    entity_type: t.entity_type,
+                    children: t.children,
+                    adjustments: t.adjustments,
                   }))}
                   formatAmount={formatKes}
                 />
