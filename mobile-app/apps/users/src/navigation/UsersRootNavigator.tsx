@@ -63,9 +63,10 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
     return <BiometricEnableScreen />;
   }
   // Profile + required document uploads after first password change / provision.
-  if (user?.parentProfileReviewRequired) {
-    return <ParentProfileReviewScreen />;
-  }
+  // TODO: re-enable once parent profile review flow is fully tested
+  // if (user?.parentProfileReviewRequired) {
+  //   return <ParentProfileReviewScreen />;
+  // }
   return (
     <OfflineShell>
       <AppModeProvider>
