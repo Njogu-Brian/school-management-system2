@@ -1,7 +1,8 @@
 import type { KemisOptions, KemisParentSlotValues, ParentSlot } from '@erp/core';
 import React from 'react';
 import { Text, View } from 'react-native';
-import { TextField, useTheme } from '../primitives';
+import { TextField } from '../primitives';
+import { useTheme } from '../theme';
 import { OptionSelectField } from './OptionSelectField';
 
 export interface KemisParentIdentityFieldsProps {

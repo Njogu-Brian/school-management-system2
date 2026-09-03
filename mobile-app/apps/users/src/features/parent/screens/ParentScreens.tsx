@@ -641,7 +641,7 @@ export const ParentFeesScreen: React.FC = () => {
             backgroundColor: palette.surface,
           }}
         >
-          <Soft3DIcon name="receipt-outline" glyph="receipt" tone="sky" size={40} />
+          <Soft3DIcon name="receipt-outline" glyph="receipt" tone="cyan" size={40} />
           <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.sm }}>Statements</Text>
           <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
             History per child
