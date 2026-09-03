@@ -40,7 +40,11 @@ export const ForceChangePasswordScreen: React.FC = () => {
   };
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }}>
+    <ScreenContainer
+      scroll
+      clearFloatingTabBar={false}
+      contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }}
+    >
       <Text style={{ color: palette.textPrimary, fontSize: typography.headline.fontSize, fontWeight: '800' }}>
         Change your password
       </Text>

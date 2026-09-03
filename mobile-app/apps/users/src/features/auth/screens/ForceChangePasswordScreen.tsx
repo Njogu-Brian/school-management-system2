@@ -1,6 +1,6 @@
-import { accountApi, generatePassword, isStrongPassword, passwordChecklist, useAuth } from '@erp/core';
+import { accountApi, isStrongPassword, passwordChecklist, useAuth } from '@erp/core';
 import { Button, PasswordField, ScreenContainer, useTheme } from '@erp/ui';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 
 /**
@@ -11,9 +11,8 @@ export const ForceChangePasswordScreen: React.FC = () => {
   const { user, refreshUser, logout, clearForcePasswordChange, recordPasswordForUnlock } = useAuth();
   const { colors, palette, spacing, typography } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
-  const suggested = useMemo(() => generatePassword(), []);
-  const [newPassword, setNewPassword] = useState(suggested);
-  const [confirmPassword, setConfirmPassword] = useState(suggested);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [currentError, setCurrentError] = useState<string | null>(null);
   const [newError, setNewError] = useState<string | null>(null);
@@ -68,14 +67,18 @@ export const ForceChangePasswordScreen: React.FC = () => {
   };
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }}>
+    <ScreenContainer
+      scroll
+      clearFloatingTabBar={false}
+      contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }}
+    >
       <Text style={{ color: palette.textPrimary, fontSize: typography.headline.fontSize, fontWeight: '800' }}>
         Change your password
       </Text>
       <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, marginBottom: spacing.lg }}>
         {user?.name ? `Hi ${user.name.split(/\s+/)[0]}, ` : ''}
-        you signed in with a temporary password. Choose a new one before you continue. A strong password is already
-        filled in — you can keep it or type your own.
+        you signed in with a temporary password. Choose a new one before you continue. Use “Suggest a strong password”
+        or type your own.
       </Text>
 
       {error ? <Text style={{ color: colors.error, marginBottom: spacing.sm }}>{error}</Text> : null}
@@ -91,6 +94,7 @@ export const ForceChangePasswordScreen: React.FC = () => {
         confirmValue={confirmPassword}
         onConfirmChange={setConfirmPassword}
         showConfirm
+        disableAutofill
         error={newError}
         confirmError={confirmError}
         username={user?.email ?? user?.phone ?? undefined}

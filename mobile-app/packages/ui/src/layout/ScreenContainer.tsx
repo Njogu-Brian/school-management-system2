@@ -123,20 +123,32 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
     </View>
   );
 
-  return (
+  /**
+   * Android already uses `windowSoftInputMode=adjustResize`. Wrapping that in
+   * KeyboardAvoidingView `behavior="height"` shrinks the screen, which remounts
+   * secure TextInputs, drops focus, hides the keyboard, then expands again —
+   * the password fields appear to buzz on/off. iOS still needs padding.
+   */
+  const screen = (
     <SafeAreaView
       edges={resolvedEdges}
       style={[styles.flex, { backgroundColor: palette.background }, style]}
     >
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={keyboardVerticalOffset ?? (Platform.OS === 'ios' ? insets.top : 0)}
-      >
-        {body}
-      </KeyboardAvoidingView>
+      {Platform.OS === 'ios' ? (
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior="padding"
+          keyboardVerticalOffset={keyboardVerticalOffset ?? insets.top}
+        >
+          {body}
+        </KeyboardAvoidingView>
+      ) : (
+        body
+      )}
     </SafeAreaView>
   );
+
+  return screen;
 };
 
 const styles = StyleSheet.create({

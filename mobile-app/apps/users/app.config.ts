@@ -51,7 +51,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.users',
-    versionCode: 8,
+    versionCode: 10,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',

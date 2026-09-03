@@ -26,6 +26,8 @@ type Props = {
   currentError?: string | null;
   confirmError?: string | null;
   autoComplete?: 'password-new' | 'password';
+  /** Skip OS password-manager overlays that fight prefilled / focused fields. */
+  disableAutofill?: boolean;
 };
 
 function EyeToggle({ visible, onPress, color }: { visible: boolean; onPress: () => void; color: string }) {
@@ -52,6 +54,7 @@ export const PasswordField: React.FC<Props> = ({
   currentError,
   confirmError,
   autoComplete = 'password-new',
+  disableAutofill = false,
 }) => {
   const { colors, palette, spacing, typography } = useTheme();
   const [currentVisible, setCurrentVisible] = useState(false);
@@ -66,8 +69,9 @@ export const PasswordField: React.FC<Props> = ({
           label="Account"
           value={username}
           editable={false}
-          autoComplete="username"
-          textContentType="username"
+          autoComplete={disableAutofill ? 'off' : 'username'}
+          textContentType={disableAutofill ? 'none' : 'username'}
+          importantForAutofill={disableAutofill ? 'no' : undefined}
         />
       ) : null}
       {showCurrent ? (
@@ -78,8 +82,9 @@ export const PasswordField: React.FC<Props> = ({
           secureTextEntry={!currentVisible}
           autoCapitalize="none"
           autoCorrect={false}
-          autoComplete="password"
-          textContentType="password"
+          autoComplete={disableAutofill ? 'off' : 'password'}
+          textContentType={disableAutofill ? 'none' : 'password'}
+          importantForAutofill={disableAutofill ? 'no' : undefined}
           error={currentError}
           rightSlot={
             <EyeToggle visible={currentVisible} onPress={() => setCurrentVisible((v) => !v)} color={palette.textMuted} />
@@ -93,10 +98,10 @@ export const PasswordField: React.FC<Props> = ({
         secureTextEntry={!nextVisible}
         autoCapitalize="none"
         autoCorrect={false}
-        autoComplete={autoComplete}
-        textContentType="newPassword"
-        passwordRules="minlength: 8; required: upper; required: lower; required: digit;"
-        importantForAutofill="yes"
+        autoComplete={disableAutofill ? 'off' : autoComplete}
+        textContentType={disableAutofill ? 'none' : 'newPassword'}
+        passwordRules={disableAutofill ? undefined : 'minlength: 8; required: upper; required: lower; required: digit;'}
+        importantForAutofill={disableAutofill ? 'no' : 'yes'}
         error={error}
         rightSlot={
           <EyeToggle visible={nextVisible} onPress={() => setNextVisible((v) => !v)} color={palette.textMuted} />
@@ -136,8 +141,9 @@ export const PasswordField: React.FC<Props> = ({
           secureTextEntry={!confirmVisible}
           autoCapitalize="none"
           autoCorrect={false}
-          autoComplete="password-new"
-          textContentType="newPassword"
+          autoComplete={disableAutofill ? 'off' : 'password-new'}
+          textContentType={disableAutofill ? 'none' : 'newPassword'}
+          importantForAutofill={disableAutofill ? 'no' : undefined}
           error={confirmError}
           rightSlot={
             <EyeToggle visible={confirmVisible} onPress={() => setConfirmVisible((v) => !v)} color={palette.textMuted} />
