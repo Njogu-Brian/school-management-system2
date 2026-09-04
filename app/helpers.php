@@ -989,7 +989,7 @@ if (!function_exists('personalize_message_for_parent_recipient')) {
         $slot = is_array($parentMeta) ? ($parentMeta['slot'] ?? null) : null;
 
         $extra = parent_recipient_placeholder_extra($name, $parent, $slot);
-        $extra['app_link'] = trim((string) config('app.mobile_app_download_url', '')) ?: url('/');
+        $extra['app_link'] = trim((string) config('app.mobile_app_download_url', ''));
 
         if (
             $parent

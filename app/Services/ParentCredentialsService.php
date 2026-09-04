@@ -425,7 +425,6 @@ class ParentCredentialsService
             'login' => $username,
             'password' => $password,
             'parent_password' => $password,
-            'app_link' => $this->appDownloadUrl(),
         ];
     }
 
@@ -470,8 +469,11 @@ class ParentCredentialsService
         $primary = $accounts[0]['user'];
 
         foreach ($accounts as $account) {
-            $user = $account['user'];
-            if ($resetPassword && ! $user->hasElevatedStaffRole()) {
+            $user = $account['user']->loadMissing(['staff', 'roles']);
+            if ($user->staff || $user->hasElevatedStaffRole()) {
+                continue;
+            }
+            if ($resetPassword) {
                 $user->update([
                     'password' => Hash::make($password),
                     'must_change_password' => false,
@@ -499,6 +501,58 @@ class ParentCredentialsService
             'shared_via' => $sharedVia,
             'stage' => $this->stageForUser($primary),
         ];
+    }
+
+    /**
+     * Send credentials to every family with an active child (staff parent logins skipped).
+     *
+     * @param  list<string>  $channels
+     * @return array{ok:int,fail:int,skipped:int,errors:list<string>}
+     */
+    public function shareToAllParents(array $channels, bool $dryRun = false): array
+    {
+        $parentIds = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereNotNull('parent_id')
+            ->distinct()
+            ->orderBy('parent_id')
+            ->pluck('parent_id');
+
+        $ok = 0;
+        $fail = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($parentIds as $pid) {
+            $parent = ParentInfo::query()->find($pid);
+            if (! $parent) {
+                $fail++;
+                $errors[] = "Parent #{$pid} not found.";
+
+                continue;
+            }
+
+            if ($dryRun) {
+                $ok++;
+
+                continue;
+            }
+
+            try {
+                $result = $this->provisionAndShare($parent, $channels, null, false);
+                if ($result['shared_via'] === []) {
+                    $skipped++;
+                } else {
+                    $ok++;
+                }
+            } catch (\Throwable $e) {
+                $fail++;
+                $errors[] = "Parent #{$pid}: ".$e->getMessage();
+            }
+        }
+
+        return compact('ok', 'fail', 'skipped', 'errors');
     }
 
     /**
@@ -619,7 +673,6 @@ class ParentCredentialsService
             'login' => $username,
             'password' => $password,
             'parent_password' => $password,
-            'app_link' => $this->appDownloadUrl(),
             'parent_name' => $user->name ?: $this->resolveDisplayName($parent),
         ];
 
@@ -633,6 +686,9 @@ class ParentCredentialsService
             };
             $tpl = CommunicationTemplate::query()->where('code', $code)->first();
             $body = $tpl?->content ?: $this->defaultCredentialsBody($channel);
+            if (preg_match('/app_link|https?:\/\//i', (string) $body)) {
+                $body = $this->defaultCredentialsBody($channel);
+            }
             $title = $tpl?->subject ?: ($tpl?->title ?: 'Parent app login');
             $personalized = replace_placeholders($body, $child, $extras);
             $title = replace_placeholders($title, $child, $extras);
@@ -712,6 +768,7 @@ class ParentCredentialsService
 
         if (in_array('whatsapp', $channels, true) && $phone) {
             try {
+                WhatsAppBulkRateLimiter::waitBeforeSend('global');
                 $phoneService = app(PhoneNumberService::class);
                 $waPhone = $phoneService->formatWithCountryCode($phone, '+254');
                 $this->comm->sendWhatsApp('parent', $parent->id, $waPhone, $body, $title);
@@ -1393,9 +1450,9 @@ class ParentCredentialsService
     protected function defaultCredentialsBody(string $channel): string
     {
         if ($channel === 'email') {
-            return "Dear {{parent_name}},\n\nYour {{school_name}} parent app login:\n\nUsername: {{username}}\nPassword: {{password}}\n\nApp: {{app_link}}\n\nYou can also sign in with any child's admission number and the year, for example RKS001-2026.\n\n{{school_name}}";
+            return "Dear {{parent_name}},\n\nYour {{school_name}} parent app login:\n\nUsername: {{username}}\nPassword: {{password}}\n\nYou can also sign in with any child's admission number and the year, for example RKS001-2026.\n\n{{school_name}}";
         }
 
-        return "{{school_name}} parent app\nUsername: {{username}}\nPassword: {{password}}\n{{app_link}}";
+        return "{{school_name}} parent app\nUsername: {{username}}\nPassword: {{password}}";
     }
 }
