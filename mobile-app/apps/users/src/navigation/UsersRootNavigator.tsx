@@ -21,14 +21,20 @@ import {
   BiometricEnableScreen,
   ForceChangePasswordScreen,
   LoginScreen,
-  ParentProfileReviewScreen,
+  PinEnableScreen,
   SchoolCodeScreen,
 } from '../features/auth';
 import { OfflineShell } from '../providers/OfflineShell';
 import { RoleBasedNavigator } from './RoleBasedNavigator';
 
 const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
-  const { status, user, biometricEnrollmentPending, forcePasswordChangePending } = useAuth();
+  const {
+    status,
+    user,
+    biometricEnrollmentPending,
+    pinEnrollmentPending,
+    forcePasswordChangePending,
+  } = useAuth();
   const school = useSchool();
 
   if (school.status === 'initializing') {
@@ -62,11 +68,11 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
   }
-  // Profile + required document uploads after first password change / provision.
-  // TODO: re-enable once parent profile review flow is fully tested
-  // if (user?.parentProfileReviewRequired) {
-  //   return <ParentProfileReviewScreen />;
-  // }
+  // After first password login (or skipping biometrics), offer a digit PIN unlock.
+  // PIN keypad has no soft keyboard — avoids the password-field flicker on Android.
+  if (pinEnrollmentPending) {
+    return <PinEnableScreen />;
+  }
   return (
     <OfflineShell>
       <AppModeProvider>

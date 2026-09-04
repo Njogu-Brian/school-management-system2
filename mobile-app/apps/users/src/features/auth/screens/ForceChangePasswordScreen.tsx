@@ -1,11 +1,21 @@
 import { accountApi, isStrongPassword, passwordChecklist, useAuth } from '@erp/core';
-import { Button, PasswordField, ScreenContainer, useTheme } from '@erp/ui';
+import { Button, PasswordField, useTheme } from '@erp/ui';
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 /**
  * Shown only after a fresh sign-in when admin set must_change_password.
- * Does not block restored sessions / biometric unlock mid-day.
+ *
+ * Android: no ScrollView. With adjustPan the window slides instead of resizing,
+ * so secureTextEntry fields stop remounting / flickering.
  */
 export const ForceChangePasswordScreen: React.FC = () => {
   const { user, refreshUser, logout, clearForcePasswordChange, recordPasswordForUnlock } = useAuth();
@@ -66,19 +76,15 @@ export const ForceChangePasswordScreen: React.FC = () => {
     }
   };
 
-  return (
-    <ScreenContainer
-      scroll
-      clearFloatingTabBar={false}
-      contentContainerStyle={{ padding: spacing.lg, paddingTop: spacing.xl }}
-    >
+  const form = (
+    <View style={{ padding: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xl }}>
       <Text style={{ color: palette.textPrimary, fontSize: typography.headline.fontSize, fontWeight: '800' }}>
         Change your password
       </Text>
       <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, marginBottom: spacing.lg }}>
         {user?.name ? `Hi ${user.name.split(/\s+/)[0]}, ` : ''}
-        you signed in with a temporary password. Choose a new one before you continue. Use “Suggest a strong password”
-        or type your own.
+        you signed in with a temporary password. Choose a new one before you continue. After this you can set a PIN
+        for faster unlock next time.
       </Text>
 
       {error ? <Text style={{ color: colors.error, marginBottom: spacing.sm }}>{error}</Text> : null}
@@ -97,13 +103,36 @@ export const ForceChangePasswordScreen: React.FC = () => {
         disableAutofill
         error={newError}
         confirmError={confirmError}
-        username={user?.email ?? user?.phone ?? undefined}
       />
 
       <Button label={busy ? 'Saving…' : 'Save new password'} loading={busy} onPress={() => void submit()} />
       <View style={{ marginTop: spacing.md }}>
         <Button label="Sign out" variant="ghost" onPress={() => void logout()} />
       </View>
-    </ScreenContainer>
+    </View>
+  );
+
+  return (
+    <SafeAreaView edges={['top', 'bottom']} style={[styles.flex, { backgroundColor: palette.background }]}>
+      {Platform.OS === 'ios' ? (
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={styles.grow}
+            showsVerticalScrollIndicator={false}
+          >
+            {form}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={styles.flex}>{form}</View>
+      )}
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  grow: { flexGrow: 1 },
+});
