@@ -29,13 +29,22 @@ class ApiReportCardController extends Controller
         $this->assertUserCanAccessStudent($user, $student);
 
         $perPage = (int) $request->input('per_page', 15);
+        // Academic order for parents: newest year first, then Term 1 → Term 2 → Term 3
+        // via opening_date. Do not use report_cards.id — publish order often puts Term 2 above Term 1.
         $query = ReportCard::query()
             ->with(['term', 'academicYear', 'classroom'])
-            ->where('student_id', $studentId)
-            ->orderByDesc('id');
+            ->where('report_cards.student_id', $studentId)
+            ->leftJoin('academic_years', 'academic_years.id', '=', 'report_cards.academic_year_id')
+            ->leftJoin('terms', 'terms.id', '=', 'report_cards.term_id')
+            ->orderByDesc('academic_years.year')
+            ->orderByRaw('CASE WHEN terms.opening_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('terms.opening_date')
+            ->orderBy('terms.name')
+            ->orderBy('report_cards.id')
+            ->select('report_cards.*');
 
         if ($this->isParentAppViewer($user)) {
-            $query->whereNotNull('published_at');
+            $query->whereNotNull('report_cards.published_at');
         }
 
         $paginated = $query->paginate($perPage);

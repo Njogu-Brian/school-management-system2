@@ -77,20 +77,29 @@ class AssessmentReadFacade
 
         $reportCardQuery = ReportCard::query()
             ->with(['term', 'overallPerformanceLevel'])
-            ->where('student_id', $student->id);
+            ->where('report_cards.student_id', $student->id);
 
         if (! empty($filters['academic_year_id'])) {
-            $reportCardQuery->where('academic_year_id', (int) $filters['academic_year_id']);
+            $reportCardQuery->where('report_cards.academic_year_id', (int) $filters['academic_year_id']);
         }
         if (! empty($filters['term_id'])) {
-            $reportCardQuery->where('term_id', (int) $filters['term_id']);
+            $reportCardQuery->where('report_cards.term_id', (int) $filters['term_id']);
         }
         if ($restrictToPublishedForGuardians) {
-            $reportCardQuery->whereNotNull('published_at');
+            $reportCardQuery->whereNotNull('report_cards.published_at');
         }
 
-        $reportCards = $reportCardQuery->orderByDesc('id')->get();
-        $latestCard = $reportCards->first();
+        $reportCards = $reportCardQuery
+            ->leftJoin('academic_years', 'academic_years.id', '=', 'report_cards.academic_year_id')
+            ->leftJoin('terms', 'terms.id', '=', 'report_cards.term_id')
+            ->orderByDesc('academic_years.year')
+            ->orderByRaw('CASE WHEN terms.opening_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('terms.opening_date')
+            ->orderBy('terms.name')
+            ->orderBy('report_cards.id')
+            ->select('report_cards.*')
+            ->get();
+        $latestCard = $reportCards->sortByDesc('id')->first() ?? $reportCards->first();
 
         $countsByType[AssessmentTypeResolver::TYPE_REPORT_CARD_TERM] = $reportCards->count();
 

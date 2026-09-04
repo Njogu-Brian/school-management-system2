@@ -177,7 +177,8 @@ class ParentCoCurricularService
         ?ParentActivityChangeRequest $pending,
     ): array {
         $enrolled = $enrolledIds->has($votehead->id);
-        $amount = $this->amountFor($student, $votehead, $year, $term);
+        // amountFor(student, votehead, term, year) — term before year
+        $amount = $this->amountFor($student, $votehead, $term, $year);
         $billed = $enrolled ? (float) $enrolledIds->get($votehead->id) : null;
 
         return [
