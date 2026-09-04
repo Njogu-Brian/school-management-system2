@@ -62,8 +62,9 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
     return <AccessDeniedScreen />;
   }
   // Temp credentials / admin reset — force password change before continuing.
-  // TODO: re-enable when ForceChangePasswordScreen flicker is fixed; keep must_change_password
-  // flags on the server so the next login after re-enable still requires a password change.
+  // Hidden for now (password fields flicker on Android). Screen still exists under
+  // features/auth/ForceChangePasswordScreen. When re-enabling: uncomment below and
+  // set must_change_password=true for the accounts that must change on next login.
   // if (forcePasswordChangePending || user?.mustChangePassword) {
   //   return <ForceChangePasswordScreen />;
   // }
