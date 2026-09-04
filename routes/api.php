@@ -48,7 +48,7 @@ Route::prefix('integrations/biotime')->group(function () {
 | Parent account claim (first-time self-service signup) — public
 |--------------------------------------------------------------------------
 */
-Route::prefix('parent-claim')->group(function () {
+Route::prefix('parent-claim')->middleware('parent.claim.enabled')->group(function () {
     $claim = \App\Http\Controllers\Api\ApiParentClaimController::class;
     Route::post('/otp/request', [$claim, 'requestOtp']);
     Route::post('/otp/verify', [$claim, 'verifyOtp']);

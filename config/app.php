@@ -92,6 +92,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Parent “Claim access” (OTP self-signup)
+    |--------------------------------------------------------------------------
+    |
+    | When false, the existing mobile app still shows Claim access, but every
+    | /api/parent-claim call is rejected. Parents should sign in with phone or
+    | email and the admission-year password. Set PARENT_CLAIM_ENABLED=true to
+    | turn the flow back on without an app release.
+    |
+    */
+    'parent_claim_enabled' => filter_var(env('PARENT_CLAIM_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

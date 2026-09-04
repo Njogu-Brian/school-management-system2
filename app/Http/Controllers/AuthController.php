@@ -51,12 +51,26 @@ class AuthController extends Controller
         ]);
 
         [$user] = $this->resolveUserAndStaffByIdentifier($credentials['identifier']);
+        $password = $credentials['password'];
+        $ids = app(\App\Services\LoginIdentifierService::class);
+        $parentCredentials = app(ParentCredentialsService::class);
+
+        if (! $user) {
+            $match = $ids->findParentSlotByContact($credentials['identifier']);
+            if ($match && $parentCredentials->plainMatchesFormula($match['parent'], $password)) {
+                try {
+                    $user = $parentCredentials->ensureParentUserForSlot($match['parent'], $match['slot']);
+                } catch (\Throwable $e) {
+                    $user = null;
+                }
+            }
+        }
         
         if (!$user) {
             return back()->withErrors(['identifier' => 'No account found with this username.']);
         }
 
-        if (! app(ParentCredentialsService::class)->passwordIsValid($user, $credentials['password'])) {
+        if (! $parentCredentials->passwordIsValid($user, $password)) {
             return back()->withErrors(['identifier' => 'Invalid password. Please check your password and try again.']);
         }
 

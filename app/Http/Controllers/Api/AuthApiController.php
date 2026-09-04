@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\SMSService;
 use App\Services\OtpService;
 use App\Services\ParentCredentialsService;
+use App\Services\LoginIdentifierService;
 use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -33,9 +34,23 @@ class AuthApiController extends Controller
         ]);
 
         $identifier = (string) $request->input('identifier', $request->input('email', ''));
-        [$user] = $this->resolveUserAndStaff($identifier);
+        $password = (string) $request->password;
+        $ids = app(LoginIdentifierService::class);
+        $credentials = app(ParentCredentialsService::class);
+        [$user] = $ids->findUserAndStaff($identifier);
 
-        if (!$user || ! app(ParentCredentialsService::class)->passwordIsValid($user, (string) $request->password)) {
+        if (! $user) {
+            $match = $ids->findParentSlotByContact($identifier);
+            if ($match && $credentials->plainMatchesFormula($match['parent'], $password)) {
+                try {
+                    $user = $credentials->ensureParentUserForSlot($match['parent'], $match['slot']);
+                } catch (\Throwable $e) {
+                    $user = null;
+                }
+            }
+        }
+
+        if (!$user || ! $credentials->passwordIsValid($user, $password)) {
             return response()->json([
                 'success' => false,
                 'message' => 'The provided credentials are incorrect.',
@@ -543,54 +558,7 @@ class AuthApiController extends Controller
 
     protected function resolveUserAndStaff(string $identifier): array
     {
-        $raw = trim($identifier);
-        $email = strtolower($raw);
-        $user = null;
-        $staff = null;
-
-        if (filter_var($raw, FILTER_VALIDATE_EMAIL)) {
-            $user = User::whereRaw('LOWER(TRIM(email)) = ?', [$email])->first();
-            if (!$user) {
-                $staff = Staff::whereNotNull('work_email')
-                    ->whereRaw('LOWER(TRIM(work_email)) = ?', [$email])
-                    ->first();
-                if ($staff && $staff->user_id) {
-                    $user = User::find($staff->user_id);
-                }
-            }
-        } else {
-            $normalized = $this->normalizePhone($raw);
-            $digits = ltrim($normalized, '+');
-            $variants = array_unique(array_filter([
-                $raw,
-                $normalized,
-                $digits,
-                str_starts_with($digits, '254') ? '0' . substr($digits, 3) : null,
-            ]));
-
-            $staff = Staff::whereNotNull('phone_number')
-                ->whereIn('phone_number', $variants)
-                ->first();
-
-            if (!$staff) {
-                $staff = Staff::whereNotNull('phone_number')
-                    ->where(function ($q) use ($digits, $normalized) {
-                        $q->where('phone_number', 'like', '%' . $digits . '%')
-                            ->orWhere('phone_number', 'like', '%' . $normalized . '%');
-                    })
-                    ->first();
-            }
-
-            if ($staff && $staff->user_id) {
-                $user = User::find($staff->user_id);
-            }
-        }
-
-        if ($user && !$staff) {
-            $staff = Staff::where('user_id', $user->id)->first();
-        }
-
-        return [$user, $staff];
+        return app(LoginIdentifierService::class)->findUserAndStaff($identifier);
     }
 
     protected function resolvePhoneForUser(User $user, ?Staff $staff): ?string
@@ -608,13 +576,6 @@ class AuthApiController extends Controller
 
     protected function normalizePhone(string $phone): string
     {
-        $phone = preg_replace('/[^0-9+]/', '', $phone);
-        if (!str_starts_with($phone, '+')) {
-            if (str_starts_with($phone, '0')) {
-                return '+254' . substr($phone, 1);
-            }
-            return '+' . $phone;
-        }
-        return $phone;
+        return app(LoginIdentifierService::class)->normalizePhone($phone);
     }
 }

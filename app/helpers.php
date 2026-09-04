@@ -988,7 +988,30 @@ if (!function_exists('personalize_message_for_parent_recipient')) {
         $parent = ($entity instanceof \App\Models\Student) ? $entity->parent : null;
         $slot = is_array($parentMeta) ? ($parentMeta['slot'] ?? null) : null;
 
-        return replace_placeholders($message, $entity, parent_recipient_placeholder_extra($name, $parent, $slot));
+        $extra = parent_recipient_placeholder_extra($name, $parent, $slot);
+        $extra['app_link'] = trim((string) config('app.mobile_app_download_url', '')) ?: url('/');
+
+        if (
+            $parent
+            && $slot
+            && $entity instanceof \App\Models\Student
+            && preg_match('/\{\{?(username|password|login|parent_password)\}?\}/i', $message)
+        ) {
+            try {
+                $extra = array_merge(
+                    $extra,
+                    app(\App\Services\ParentCredentialsService::class)->placeholderExtrasForSlot($parent, $slot, $entity)
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Could not fill parent credential placeholders', [
+                    'parent_info_id' => $parent->id,
+                    'slot' => $slot,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return replace_placeholders($message, $entity, $extra);
     }
 }
 

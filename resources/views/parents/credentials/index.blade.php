@@ -2,6 +2,12 @@
 
 @push('styles')
     @include('settings.partials.styles')
+    <style>
+      .cred-child-table { margin: 0; }
+      .cred-child-table td, .cred-child-table th { vertical-align: middle; }
+      .cred-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; user-select: all; }
+      .cred-user-list { display: flex; flex-direction: column; gap: 0.2rem; }
+    </style>
 @endpush
 
 @section('content')
@@ -14,8 +20,8 @@
         <div class="crumb">Students</div>
         <h1 class="mb-1">Parent Credentials</h1>
         <p class="text-muted mb-0">
-          Provision logins, send credentials (one message per family), and track father &amp; mother sign-in on the same family row.
-          Temp password format: <code>admission-YY</code> (e.g. RKS001-26). Families with more than one child can use any child’s admission number.
+          Username is the parent phone number (email only if there is no phone). Father and mother each have their own username.
+          Password is the child’s admission number and full year, e.g. <code>RKS001-2026</code>. Siblings can use any child’s password.
         </p>
       </div>
       <a href="{{ route('students.parents-contact') }}" class="btn btn-ghost-strong"><i class="bi bi-telephone"></i> Parents Contact</a>
@@ -24,7 +30,7 @@
     @include('students.partials.alerts')
 
     @if(session('parent_temp_password'))
-      <div class="alert alert-info">Temporary password (share securely if delivery failed): <strong>{{ session('parent_temp_password') }}</strong></div>
+      <div class="alert alert-info">Password to share: <strong class="cred-mono">{{ session('parent_temp_password') }}</strong></div>
     @endif
 
     <div class="row g-2 mb-3">
@@ -68,14 +74,14 @@
       <div class="settings-card mb-3">
         <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
           <div>
-            <h5 class="mb-0">Families</h5>
-            <p class="text-muted small mb-0">{{ count($rows) }} families shown (siblings counted once).</p>
+            <h5 class="mb-0">Children</h5>
+            <p class="text-muted small mb-0">{{ collect($rows)->sum('children_count') }} child row(s) in {{ count($rows) }} families.</p>
           </div>
           <div class="d-flex flex-wrap gap-2 align-items-center">
             <label class="form-check-label small me-1"><input type="checkbox" name="channels[]" value="sms" class="form-check-input" checked> SMS</label>
             <label class="form-check-label small me-1"><input type="checkbox" name="channels[]" value="whatsapp" class="form-check-input"> WhatsApp</label>
             <label class="form-check-label small me-2"><input type="checkbox" name="channels[]" value="email" class="form-check-input"> Email</label>
-            <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Send credentials to selected families? One message each.')">
+            <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Send credentials to selected families? Father and mother each get their own username.')">
               Bulk send selected
             </button>
           </div>
@@ -87,75 +93,98 @@
                 <tr>
                   <th style="width:2rem"><input type="checkbox" id="checkAll"></th>
                   <th>Family</th>
-                  <th>Child (password)</th>
-                  <th>Father / Mother sign-in</th>
-                  <th>Family stage</th>
+                  <th>Child</th>
+                  <th>Username</th>
+                  <th>Password</th>
+                  <th>Stage</th>
                   <th style="min-width:14rem">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 @forelse($rows as $row)
-                  <tr>
-                    <td>
-                      <input type="checkbox" name="parent_info_ids[]" value="{{ $row['parent_info_id'] }}" class="row-check">
-                    </td>
-                    <td>
-                      <div class="fw-semibold">{{ $row['family_name'] }}</div>
-                      <div class="text-muted small">{{ $row['children_count'] }} child(ren)</div>
-                    </td>
-                    <td>
-                      <div>{{ $row['child_name'] ?? '—' }}</div>
-                      <code class="small">{{ $row['child_admission'] ?? '—' }}</code>
-                    </td>
-                    <td class="small">
-                      @forelse(($row['accounts'] ?? []) as $account)
-                        <div class="mb-2 {{ !$loop->last ? 'pb-2 border-bottom' : '' }}">
-                          <div class="fw-semibold">
-                            {{ $account['label'] }}
-                            @if($account['name'])
-                              <span class="fw-normal">· {{ $account['name'] }}</span>
-                            @endif
-                          </div>
-                          <div class="text-muted">
-                            @if($account['login'])
-                              Login: {{ $account['login'] }}
-                            @elseif($account['contact'])
-                              Contact: {{ $account['contact'] }}
-                            @else
-                              No contact
-                            @endif
-                          </div>
-                          <div>
-                            <span class="badge text-bg-light border">{{ $stages[$account['stage']] ?? $account['stage'] }}</span>
-                            @if($account['first_app_login_at'])
-                              · Logged in {{ \Illuminate\Support\Carbon::parse($account['first_app_login_at'])->format('Y-m-d H:i') }}
-                            @elseif($account['user_id'])
-                              · <span class="text-muted">Never logged in</span>
-                            @else
-                              · <span class="text-muted">No app account</span>
-                            @endif
-                          </div>
-                          @if($account['credentials_sent_at'])
-                            <div class="text-muted">Sent {{ \Illuminate\Support\Carbon::parse($account['credentials_sent_at'])->format('Y-m-d H:i') }}</div>
+                  @php
+                    $children = $row['children'] ?? [];
+                    if ($children === []) {
+                        $children = [[
+                            'id' => null,
+                            'name' => $row['child_name'] ?? '—',
+                            'admission_number' => $row['child_admission'] ?? null,
+                            'password' => null,
+                            'class_name' => null,
+                        ]];
+                    }
+                    $usernames = collect($row['accounts'] ?? [])->map(function ($account) {
+                        $username = $account['username'] ?? $account['login'] ?? $account['contact'] ?? null;
+                        return [
+                            'label' => $account['label'] ?? 'Parent',
+                            'name' => $account['name'] ?? null,
+                            'username' => $username,
+                        ];
+                    })->all();
+                  @endphp
+                  @foreach($children as $index => $child)
+                    <tr>
+                      @if($index === 0)
+                        <td rowspan="{{ count($children) }}">
+                          <input type="checkbox" name="parent_info_ids[]" value="{{ $row['parent_info_id'] }}" class="row-check">
+                        </td>
+                        <td rowspan="{{ count($children) }}">
+                          <div class="fw-semibold">{{ $row['family_name'] }}</div>
+                          <div class="text-muted small">{{ $row['children_count'] }} child(ren)</div>
+                        </td>
+                      @endif
+                      <td>
+                        <div class="fw-semibold">{{ $child['name'] ?: '—' }}</div>
+                        <div class="text-muted small">
+                          {{ $child['admission_number'] ?? 'No admission' }}
+                          @if(!empty($child['class_name']))
+                            · {{ $child['class_name'] }}
                           @endif
                         </div>
-                      @empty
-                        <span class="text-muted">No father/mother contacts on file</span>
-                      @endforelse
-                    </td>
-                    <td>
-                      <span class="badge text-bg-secondary">{{ $stages[$row['stage']] ?? $row['stage'] }}</span>
-                    </td>
-                    <td>
-                      <div class="d-flex flex-wrap gap-1">
-                        <button form="send-{{ $row['parent_info_id'] }}" class="btn btn-sm btn-outline-primary" type="submit">Send</button>
-                        <button form="reset-{{ $row['parent_info_id'] }}" class="btn btn-sm btn-outline-warning" type="submit">Reset pwd</button>
-                        <button form="pin-{{ $row['parent_info_id'] }}" class="btn btn-sm btn-outline-secondary" type="submit">PIN help</button>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td>
+                        @if($usernames === [])
+                          <span class="text-muted">No parent phone or email</span>
+                        @else
+                          <div class="cred-user-list">
+                            @foreach($usernames as $login)
+                              <div>
+                                <span class="text-muted">{{ $login['label'] }}@if($login['name']) · {{ $login['name'] }}@endif</span>
+                                <div>
+                                  @if($login['username'])
+                                    <code class="cred-mono">{{ $login['username'] }}</code>
+                                  @else
+                                    <span class="text-muted">No username</span>
+                                  @endif
+                                </div>
+                              </div>
+                            @endforeach
+                          </div>
+                        @endif
+                      </td>
+                      <td>
+                        @if(!empty($child['password']))
+                          <code class="cred-mono">{{ $child['password'] }}</code>
+                        @else
+                          <span class="text-muted">—</span>
+                        @endif
+                      </td>
+                      @if($index === 0)
+                        <td rowspan="{{ count($children) }}">
+                          <span class="badge text-bg-secondary">{{ $stages[$row['stage']] ?? $row['stage'] }}</span>
+                        </td>
+                        <td rowspan="{{ count($children) }}">
+                          <div class="d-flex flex-wrap gap-1">
+                            <button form="send-{{ $row['parent_info_id'] }}" class="btn btn-sm btn-outline-primary" type="submit">Send</button>
+                            <button form="reset-{{ $row['parent_info_id'] }}" class="btn btn-sm btn-outline-warning" type="submit">Reset pwd</button>
+                            <button form="pin-{{ $row['parent_info_id'] }}" class="btn btn-sm btn-outline-secondary" type="submit">PIN help</button>
+                          </div>
+                        </td>
+                      @endif
+                    </tr>
+                  @endforeach
                 @empty
-                  <tr><td colspan="6" class="text-center text-muted py-4">No families match.</td></tr>
+                  <tr><td colspan="7" class="text-center text-muted py-4">No families match.</td></tr>
                 @endforelse
               </tbody>
             </table>

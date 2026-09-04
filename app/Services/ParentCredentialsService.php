@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AcademicYear;
+use App\Models\CommunicationTemplate;
 use App\Models\ParentForcedAction;
 use App\Models\ParentInfo;
 use App\Models\Student;
@@ -76,28 +77,33 @@ class ParentCredentialsService
     }
 
     /**
-     * Two-digit year used in temporary passwords, e.g. 2026 → 26.
+     * Four-digit year used in parent passwords, e.g. 2026.
      */
-    public function academicYearSuffix(?string $year = null): string
+    public function academicYearFull(?string $year = null): string
     {
         $year = $year ?? $this->activeAcademicYearValue();
         if (preg_match('/(\d{4})/', $year, $m)) {
-            return substr($m[1], -2);
-        }
-        if (preg_match('/(\d{2})/', $year, $m)) {
             return $m[1];
         }
 
-        return substr((string) now()->year, -2);
+        return (string) now()->year;
+    }
+
+    /**
+     * Two-digit year (legacy), e.g. 2026 → 26. Still accepted at login.
+     */
+    public function academicYearSuffix(?string $year = null): string
+    {
+        return substr($this->academicYearFull($year), -2);
     }
 
     public function formulaPasswordForAdmission(string $admissionNumber): string
     {
-        return trim($admissionNumber).'-'.$this->academicYearSuffix();
+        return trim($admissionNumber).'-'.$this->academicYearFull();
     }
 
     /**
-     * Accept both RKS001-26 and RKS001-2026 while the account still has a temporary password.
+     * Accept both RKS001-2026 (current) and RKS001-26 (legacy).
      *
      * @return list<string>
      */
@@ -108,13 +114,12 @@ class ParentCredentialsService
             return [];
         }
 
-        $full = $this->activeAcademicYearValue();
-        $yy = $this->academicYearSuffix($full);
-        $yyyy = preg_match('/(\d{4})/', $full, $m) ? $m[1] : (string) now()->year;
+        $yyyy = $this->academicYearFull();
+        $yy = substr($yyyy, -2);
 
         return array_values(array_unique([
-            $adm.'-'.$yy,
             $adm.'-'.$yyyy,
+            $adm.'-'.$yy,
         ]));
     }
 
@@ -123,10 +128,31 @@ class ParentCredentialsService
      */
     public function childrenAdmissionNumbers(ParentInfo $parent): array
     {
-        return Student::query()
+        $direct = Student::query()
             ->where('parent_id', $parent->id)
+            ->where('archive', 0);
+        $directIds = $direct->pluck('id');
+        $familyIds = Student::query()
+            ->where('parent_id', $parent->id)
+            ->whereNotNull('family_id')
+            ->pluck('family_id')
+            ->unique()
+            ->filter();
+
+        $query = Student::query()
+            ->where('archive', 0)
             ->whereNotNull('admission_number')
-            ->where('admission_number', '!=', '')
+            ->where('admission_number', '!=', '');
+
+        if ($familyIds->isNotEmpty()) {
+            $query->where(function ($q) use ($directIds, $familyIds) {
+                $q->whereIn('id', $directIds)->orWhereIn('family_id', $familyIds);
+            });
+        } else {
+            $query->where('parent_id', $parent->id);
+        }
+
+        return $query
             ->orderBy('id')
             ->pluck('admission_number')
             ->map(fn ($n) => trim((string) $n))
@@ -143,18 +169,19 @@ class ParentCredentialsService
             : $this->pickPasswordChild($parent);
 
         if (! $child || ! filled($child->admission_number)) {
-            throw new \RuntimeException('No child admission number available for temporary password.');
+            throw new \RuntimeException('No child admission number available for the parent password.');
         }
 
         return $this->formulaPasswordForAdmission((string) $child->admission_number);
     }
 
     /**
-     * While must_change_password is set, any child's admission-year password is valid.
+     * Any child's admission-year password is valid for a parent account
+     * (siblings share the family login; father and mother keep distinct usernames).
      */
     public function matchesAnyTemporaryPassword(User $user, string $plain): bool
     {
-        if (! $user->must_change_password || ! $user->parent_id) {
+        if (! $user->parent_id || $user->hasElevatedStaffRole()) {
             return false;
         }
 
@@ -203,11 +230,13 @@ class ParentCredentialsService
 
         $users = User::query()
             ->whereNotNull('parent_id')
+            ->with(['roles', 'staff'])
             ->orderBy('id')
             ->get();
 
         foreach ($users as $user) {
-            if ($user->hasElevatedStaffRole()) {
+            // Staff (and staff who are also parents) already have working logins — do not overwrite.
+            if ($user->staff || $user->hasElevatedStaffRole()) {
                 $skipped++;
 
                 continue;
@@ -226,15 +255,9 @@ class ParentCredentialsService
                 if (! $dryRun) {
                     $user->update([
                         'password' => Hash::make($password),
-                        'must_change_password' => true,
+                        'must_change_password' => false,
                     ]);
-                    $this->ensureForcedAction(
-                        $user,
-                        $parent,
-                        ParentForcedAction::TYPE_CHANGE_PASSWORD,
-                        'Change your password',
-                        10
-                    );
+                    $this->clearPasswordChangeAction($parent, $user);
                 }
                 $ok++;
             } catch (\Throwable $e) {
@@ -257,50 +280,80 @@ class ParentCredentialsService
 
     /**
      * Ensure a Parent user exists for this family (create if missing).
+     * When father and mother both have contacts, the first slot (father, then mother) is returned.
      */
     public function ensureParentUser(ParentInfo $parent): User
     {
-        $existing = User::query()
-            ->with('roles')
-            ->where('parent_id', $parent->id)
-            ->orderBy('id')
-            ->get()
-            ->first(fn (User $u) => ! $u->hasElevatedStaffRole());
-        if ($existing) {
-            return $existing;
-        }
-
-        $name = $this->resolveDisplayName($parent);
-        $phone = $this->resolvePhone($parent);
-        $email = $this->resolveEmail($parent);
-
-        if (! $phone && ! $email) {
+        $accounts = $this->ensureParentUsers($parent);
+        if ($accounts === []) {
             throw new \RuntimeException('Parent has no phone or email to create a login.');
         }
 
-        // Prefer unique email login; synthesize from phone if needed.
-        $loginEmail = $email;
-        if (! $loginEmail && $phone) {
-            $digits = preg_replace('/\D+/', '', $phone);
-            $loginEmail = 'parent'.$digits.'@parents.local';
-        }
+        return $accounts[0]['user'];
+    }
 
-        if ($loginEmail && User::where('email', $loginEmail)->exists()) {
-            $collision = User::where('email', $loginEmail)->first();
-            if ($collision && ! $collision->parent_id) {
-                $collision->parent_id = $parent->id;
-                $collision->phone_number = $collision->phone_number ?: $phone;
-                $collision->parent_profile_review_required = true;
-                $collision->save();
-                $this->assignParentRoleIfEligible($collision);
-                $this->seedOnboardingActions($collision, $parent);
-
-                return $collision;
+    /**
+     * Distinct father / mother / guardian logins. Username prefers phone over email.
+     *
+     * @return list<array{slot:string,user:User}>
+     */
+    public function ensureParentUsers(ParentInfo $parent): array
+    {
+        $accounts = [];
+        foreach ($this->contactSlots($parent) as $slot) {
+            try {
+                $accounts[] = [
+                    'slot' => $slot,
+                    'user' => $this->ensureParentUserForSlot($parent, $slot),
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('Could not provision parent slot login', [
+                    'parent_info_id' => $parent->id,
+                    'slot' => $slot,
+                    'error' => $e->getMessage(),
+                ]);
             }
-            $loginEmail = 'parent'.$parent->id.'.'.Str::lower(Str::random(4)).'@parents.local';
         }
 
-        $password = $this->formulaPassword($parent);
+        return $accounts;
+    }
+
+    public function ensureParentUserForSlot(ParentInfo $parent, string $slot, ?Student $preferredChild = null): User
+    {
+        $contact = $this->slotContact($parent, $slot);
+        $phone = $contact['phone'];
+        $email = $contact['email'];
+        $name = $contact['name'] !== '' ? $contact['name'] : $this->resolveDisplayName($parent);
+
+        if (! $phone && ! $email) {
+            throw new \RuntimeException('This parent has no phone or email to create a login.');
+        }
+
+        $existing = $this->findUserForSlot($parent, $slot, $phone, $email);
+        if ($existing) {
+            $dirty = false;
+            if (! $existing->parent_id) {
+                $existing->parent_id = $parent->id;
+                $dirty = true;
+            }
+            if ($phone && empty($existing->phone_number)) {
+                $existing->phone_number = $phone;
+                $dirty = true;
+            }
+            if ($name !== '' && (empty($existing->name) || $existing->name === $existing->email)) {
+                $existing->name = $name;
+                $dirty = true;
+            }
+            if ($dirty) {
+                $existing->save();
+            }
+            $this->assignParentRoleIfEligible($existing);
+
+            return $existing;
+        }
+
+        $loginEmail = $this->uniqueLoginEmail($parent, $email, $phone);
+        $password = $this->formulaPassword($parent, $preferredChild);
 
         $user = new User();
         $user->name = $name;
@@ -308,7 +361,7 @@ class ParentCredentialsService
         $user->phone_number = $phone;
         $user->password = Hash::make($password);
         $user->parent_id = $parent->id;
-        $user->must_change_password = true;
+        $user->must_change_password = false;
         $user->parent_profile_review_required = true;
         $user->save();
 
@@ -319,10 +372,87 @@ class ParentCredentialsService
     }
 
     /**
-     * Provision (if needed), set formula password, share via selected channels — one message per family.
+     * Username shown to the parent: phone when available, otherwise a real email.
+     */
+    public function loginUsername(User $user): string
+    {
+        $ids = app(LoginIdentifierService::class);
+        if (filled($user->phone_number)) {
+            return $ids->displayPhone((string) $user->phone_number);
+        }
+
+        $email = strtolower(trim((string) ($user->email ?? '')));
+        if ($email !== '' && ! $this->isPlaceholderEmail($email)) {
+            return $email;
+        }
+
+        return (string) ($user->phone_number ?: $user->email ?: '');
+    }
+
+    public function displayUsername(?string $phone, ?string $email): ?string
+    {
+        if (filled($phone)) {
+            return app(LoginIdentifierService::class)->displayPhone((string) $phone);
+        }
+        $email = strtolower(trim((string) $email));
+        if ($email !== '' && ! $this->isPlaceholderEmail($email)) {
+            return $email;
+        }
+
+        return null;
+    }
+
+    public function appDownloadUrl(): string
+    {
+        $url = trim((string) config('app.mobile_app_download_url', ''));
+
+        return $url !== '' ? $url : url('/');
+    }
+
+    /**
+     * Placeholders for Send Communication templates (per father/mother slot).
+     *
+     * @return array<string, string>
+     */
+    public function placeholderExtrasForSlot(ParentInfo $parent, string $slot, ?Student $child = null): array
+    {
+        $user = $this->ensureParentUserForSlot($parent, $slot, $child);
+        $password = $this->formulaPassword($parent, $child);
+        $username = $this->loginUsername($user);
+
+        return [
+            'username' => $username,
+            'login' => $username,
+            'password' => $password,
+            'parent_password' => $password,
+            'app_link' => $this->appDownloadUrl(),
+        ];
+    }
+
+    public function plainMatchesFormula(ParentInfo $parent, string $plain): bool
+    {
+        $given = mb_strtolower(trim($plain));
+        if ($given === '') {
+            return false;
+        }
+
+        foreach ($this->childrenAdmissionNumbers($parent) as $admission) {
+            foreach ($this->formulaPasswordCandidatesForAdmission($admission) as $candidate) {
+                $needle = mb_strtolower($candidate);
+                if (strlen($needle) === strlen($given) && hash_equals($needle, $given)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Provision father and mother logins, set formula password, share via selected channels.
      *
      * @param  list<string>  $channels  sms|whatsapp|email
-     * @return array{user: User, temporary_password: string, shared_via: list<string>, stage: string}
+     * @return array{user: User, temporary_password: string, password: string, shared_via: list<string>, stage: string}
      */
     public function provisionAndShare(
         ParentInfo $parent,
@@ -330,44 +460,49 @@ class ParentCredentialsService
         ?Student $preferredChild = null,
         bool $resetPassword = true,
     ): array {
-        $user = $this->ensureParentUser($parent);
+        $accounts = $this->ensureParentUsers($parent);
+        if ($accounts === []) {
+            throw new \RuntimeException('Parent has no phone or email to create a login.');
+        }
+
         $password = $this->formulaPassword($parent, $preferredChild);
+        $sharedVia = [];
+        $primary = $accounts[0]['user'];
 
-        if ($resetPassword) {
-            $user->update([
-                'password' => Hash::make($password),
-                'must_change_password' => true,
-            ]);
-            $this->ensureForcedAction(
-                $user,
-                $parent,
-                ParentForcedAction::TYPE_CHANGE_PASSWORD,
-                'Change your password',
-                10
-            );
+        foreach ($accounts as $account) {
+            $user = $account['user'];
+            if ($resetPassword && ! $user->hasElevatedStaffRole()) {
+                $user->update([
+                    'password' => Hash::make($password),
+                    'must_change_password' => false,
+                ]);
+                $this->clearPasswordChangeAction($parent, $user);
+            }
+
+            $via = $this->shareCredentials($user->fresh(), $parent, $password, $channels, $account['slot']);
+            $sharedVia = array_values(array_unique(array_merge($sharedVia, $via)));
+
+            if ($via !== [] && Schema::hasColumn('users', 'credentials_sent_at')) {
+                $user->forceFill([
+                    'credentials_sent_at' => now(),
+                    'credentials_sent_via' => implode(',', $via),
+                ])->saveQuietly();
+            }
         }
 
-        $sharedVia = $this->shareCredentials($user->fresh(), $parent, $password, $channels);
-
-        if ($sharedVia !== [] && Schema::hasColumn('users', 'credentials_sent_at')) {
-            $user->forceFill([
-                'credentials_sent_at' => now(),
-                'credentials_sent_via' => implode(',', $sharedVia),
-            ])->saveQuietly();
-        }
-
-        $user = $user->fresh();
+        $primary = $primary->fresh();
 
         return [
-            'user' => $user,
+            'user' => $primary,
             'temporary_password' => $password,
+            'password' => $password,
             'shared_via' => $sharedVia,
-            'stage' => $this->stageForUser($user),
+            'stage' => $this->stageForUser($primary),
         ];
     }
 
     /**
-     * @return array{user: User, temporary_password: string, shared_via: list<string>}
+     * @return array{user: User, temporary_password: string, password: string, shared_via: list<string>}
      */
     public function resetPassword(
         Student $student,
@@ -398,20 +533,17 @@ class ParentCredentialsService
             }
         }
 
+        $forceChange = $passwordOption === 'custom' || $passwordOption === 'random';
         $user->update([
             'password' => Hash::make($newPassword),
-            'must_change_password' => true,
+            'must_change_password' => $forceChange,
         ]);
+        if (! $forceChange) {
+            $this->clearPasswordChangeAction($parent, $user);
+        }
 
-        $this->ensureForcedAction(
-            $user,
-            $parent,
-            ParentForcedAction::TYPE_CHANGE_PASSWORD,
-            'Change your password',
-            10
-        );
-
-        $sharedVia = $share ? $this->shareCredentials($user->fresh(), $parent, $newPassword, $channels) : [];
+        $slot = $this->slotForUser($parent, $user);
+        $sharedVia = $share ? $this->shareCredentials($user->fresh(), $parent, $newPassword, $channels, $slot) : [];
 
         if ($sharedVia !== [] && Schema::hasColumn('users', 'credentials_sent_at')) {
             $user->forceFill([
@@ -423,6 +555,7 @@ class ParentCredentialsService
         return [
             'user' => $user->fresh(),
             'temporary_password' => $newPassword,
+            'password' => $newPassword,
             'shared_via' => $sharedVia,
         ];
     }
@@ -476,19 +609,43 @@ class ParentCredentialsService
         ParentInfo $parent,
         string $password,
         array $channels = ['sms', 'email', 'whatsapp'],
+        ?string $slot = null,
     ): array {
-        $schoolName = DB::table('settings')->where('key', 'school_name')->value('value')
-            ?? config('app.name', 'School');
-        $login = $user->email && ! str_ends_with((string) $user->email, '@parents.local')
-            ? $user->email
-            : ($user->phone_number ?: 'your registered phone');
-        $body = "{$schoolName}: Parent app login: {$login}. Temporary password: {$password}. Change it after signing in.";
+        $slot = $slot ?: $this->slotForUser($parent, $user);
+        $child = $this->pickPasswordChild($parent);
+        $username = $this->loginUsername($user);
+        $extras = [
+            'username' => $username,
+            'login' => $username,
+            'password' => $password,
+            'parent_password' => $password,
+            'app_link' => $this->appDownloadUrl(),
+            'parent_name' => $user->name ?: $this->resolveDisplayName($parent),
+        ];
 
-        return $this->deliverMessage($parent, $user, $body, 'Parent login credentials', $channels);
+        $shared = [];
+        $channels = array_values(array_unique(array_map('strtolower', $channels)));
+        foreach ($channels as $channel) {
+            $code = match ($channel) {
+                'email' => 'parent_app_credentials_email',
+                'whatsapp' => 'parent_app_credentials_whatsapp',
+                default => 'parent_app_credentials_sms',
+            };
+            $tpl = CommunicationTemplate::query()->where('code', $code)->first();
+            $body = $tpl?->content ?: $this->defaultCredentialsBody($channel);
+            $title = $tpl?->subject ?: ($tpl?->title ?: 'Parent app login');
+            $personalized = replace_placeholders($body, $child, $extras);
+            $title = replace_placeholders($title, $child, $extras);
+
+            $via = $this->deliverMessage($parent, $user, $personalized, $title, [$channel], $slot);
+            $shared = array_values(array_unique(array_merge($shared, $via)));
+        }
+
+        return $shared;
     }
 
     /**
-     * One delivery attempt per channel for the family (no per-sibling fan-out).
+     * One delivery attempt per channel for this parent slot (father and mother get their own username).
      *
      * @param  list<string>  $channels
      * @return list<string>
@@ -499,20 +656,26 @@ class ParentCredentialsService
         string $body,
         string $title,
         array $channels,
+        ?string $slot = null,
     ): array {
         $shared = [];
         $channels = array_values(array_unique(array_map('strtolower', $channels)));
+        $contact = $slot ? $this->slotContact($parent, $slot) : [
+            'phone' => $this->resolvePhone($parent),
+            'email' => $this->resolveEmail($parent),
+            'name' => $this->resolveDisplayName($parent),
+        ];
 
         $email = $user?->email;
-        if ($email && str_ends_with($email, '@parents.local')) {
-            $email = $this->resolveEmail($parent);
+        if ($email && $this->isPlaceholderEmail($email)) {
+            $email = $contact['email'] ?? $this->resolveEmail($parent);
         } elseif (! $email) {
-            $email = $this->resolveEmail($parent);
+            $email = $contact['email'] ?? $this->resolveEmail($parent);
         }
 
-        $phone = $user?->phone_number ?: $this->resolvePhone($parent);
+        $phone = $user?->phone_number ?: ($contact['phone'] ?? $this->resolvePhone($parent));
 
-        if (in_array('email', $channels, true) && $email && ! str_ends_with($email, '@parents.local')) {
+        if (in_array('email', $channels, true) && $email && ! $this->isPlaceholderEmail($email)) {
             try {
                 $this->comm->sendEmail(
                     'parent',
@@ -698,6 +861,15 @@ class ParentCredentialsService
             ->orderBy('id')
             ->get()
             ->groupBy('parent_id');
+        $childrenByParent = Student::query()
+            ->whereIn('parent_id', $parentIds)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->with(['classroom:id,name'])
+            ->orderBy('admission_number')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('parent_id');
 
         $rows = [];
         foreach ($parents as $parent) {
@@ -710,6 +882,7 @@ class ParentCredentialsService
             }
 
             $child = $this->pickPasswordChild($parent);
+            $kids = $childrenByParent->get($parent->id, collect());
             $primary = collect($accounts)->first(fn (array $a) => $a['user'] !== null);
             $anyLogin = collect($accounts)
                 ->map(fn (array $a) => $this->loginAtForUser($a['user']))
@@ -731,9 +904,20 @@ class ParentCredentialsService
                 'email' => $this->resolveEmail($parent),
                 'child_admission' => $child?->admission_number,
                 'child_name' => $child ? trim($child->first_name.' '.$child->last_name) : null,
-                'children_count' => Student::where('parent_id', $parent->id)->where('archive', 0)->count(),
+                'children_count' => $kids->count(),
+                'children' => $kids->map(function (Student $s) {
+                    $admission = trim((string) ($s->admission_number ?? ''));
+
+                    return [
+                        'id' => (int) $s->id,
+                        'name' => trim($s->first_name.' '.$s->last_name),
+                        'admission_number' => $admission !== '' ? $admission : null,
+                        'password' => $admission !== '' ? $this->formulaPasswordForAdmission($admission) : null,
+                        'class_name' => $s->classroom?->name,
+                    ];
+                })->values()->all(),
                 'user_id' => $primaryUser?->id,
-                'login' => $primaryUser?->email ?: ($primaryUser?->phone_number ?? null),
+                'login' => $primaryUser ? ($this->loginUsername($primaryUser) ?: ($primaryUser->phone_number ?: $primaryUser->email)) : null,
                 'stage' => $rowStage,
                 'credentials_sent_at' => $anySent,
                 'credentials_sent_via' => $primaryUser?->credentials_sent_via,
@@ -749,8 +933,9 @@ class ParentCredentialsService
                         'label' => $a['label'],
                         'name' => $a['name'],
                         'contact' => $a['contact'],
+                        'username' => $a['username'] ?? ($user ? $this->loginUsername($user) : $a['contact']),
                         'user_id' => $user?->id,
-                        'login' => $user?->email ?: $user?->phone_number,
+                        'login' => $a['username'] ?? ($user ? ($this->loginUsername($user) ?: ($user->phone_number ?: $user->email)) : $a['contact']),
                         'stage' => $user ? $this->stageForUser($user) : self::STAGE_NOT_PROVISIONED,
                         'credentials_sent_at' => $user?->credentials_sent_at,
                         'first_app_login_at' => $loginAt,
@@ -839,12 +1024,16 @@ class ParentCredentialsService
                 $usedIds[$match->id] = true;
             }
 
-            $contact = $slot['emails'][0] ?? ($slot['phones'][0] ?? null);
+            $contact = $slot['phones'][0] ?? ($slot['emails'][0] ?? null);
+            $username = $match
+                ? ($this->loginUsername($match) ?: $this->displayUsername($slot['phones'][0] ?? null, $slot['emails'][0] ?? null))
+                : $this->displayUsername($slot['phones'][0] ?? null, $slot['emails'][0] ?? null);
             $accounts[] = [
                 'slot' => $slot['slot'],
                 'label' => $slot['label'],
                 'name' => $slot['name'] ?: ($match?->name),
                 'contact' => $contact,
+                'username' => $username,
                 'user' => $match,
             ];
         }
@@ -863,7 +1052,8 @@ class ParentCredentialsService
                 'slot' => 'other',
                 'label' => 'Parent',
                 'name' => $user->name,
-                'contact' => $user->email ?: $user->phone_number,
+                'contact' => $user->phone_number ?: $user->email,
+                'username' => $this->loginUsername($user) ?: ($user->phone_number ?: $user->email),
                 'user' => $user,
             ];
         }
@@ -909,7 +1099,7 @@ class ParentCredentialsService
     protected function userMatchesSlot(User $user, array $emails, array $phones): bool
     {
         $userEmail = strtolower(trim((string) ($user->email ?? '')));
-        if ($userEmail !== '' && ! str_ends_with($userEmail, '@parents.local')) {
+        if ($userEmail !== '' && ! $this->isPlaceholderEmail($userEmail)) {
             foreach ($emails as $email) {
                 if ($userEmail === strtolower(trim($email))) {
                     return true;
@@ -934,13 +1124,6 @@ class ParentCredentialsService
         $this->ensureForcedAction(
             $user,
             $parent,
-            ParentForcedAction::TYPE_CHANGE_PASSWORD,
-            'Change your password',
-            10
-        );
-        $this->ensureForcedAction(
-            $user,
-            $parent,
             ParentForcedAction::TYPE_PROFILE_REVIEW,
             'Update family profile & upload documents',
             20,
@@ -952,6 +1135,22 @@ class ParentCredentialsService
                 ],
             ]
         );
+    }
+
+    public function clearPasswordChangeAction(ParentInfo $parent, ?User $user = null): void
+    {
+        ParentForcedAction::query()
+            ->where('parent_info_id', $parent->id)
+            ->where('type', ParentForcedAction::TYPE_CHANGE_PASSWORD)
+            ->where('status', ParentForcedAction::STATUS_PENDING)
+            ->when($user, fn ($q) => $q->where(function ($inner) use ($user) {
+                $inner->where('user_id', $user->id)->orWhereNull('user_id');
+            }))
+            ->update(['status' => ParentForcedAction::STATUS_COMPLETED]);
+
+        if ($user && Schema::hasColumn('users', 'must_change_password')) {
+            $user->forceFill(['must_change_password' => false])->saveQuietly();
+        }
     }
 
     public function ensureForcedAction(
@@ -1054,5 +1253,149 @@ class ParentCredentialsService
         }
 
         return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function contactSlots(ParentInfo $parent): array
+    {
+        $slots = [];
+        if ($this->slotHasUsableLogin($parent, 'father')) {
+            $slots[] = 'father';
+        }
+        if ($this->slotHasUsableLogin($parent, 'mother')) {
+            $slots[] = 'mother';
+        }
+        if ($slots === [] && $this->slotHasUsableLogin($parent, 'guardian')) {
+            $slots[] = 'guardian';
+        }
+
+        return $slots;
+    }
+
+    /**
+     * @return array{name:string,phone:?string,email:?string}
+     */
+    public function slotContact(ParentInfo $parent, string $slot): array
+    {
+        $ids = app(LoginIdentifierService::class);
+
+        $rawPhone = match ($slot) {
+            'father' => $parent->father_phone ?: $parent->father_whatsapp,
+            'mother' => $parent->mother_phone ?: $parent->mother_whatsapp,
+            default => $parent->guardian_phone ?: $parent->guardian_whatsapp,
+        };
+        $rawEmail = match ($slot) {
+            'father' => $parent->father_email,
+            'mother' => $parent->mother_email,
+            default => $parent->guardian_email,
+        };
+        $name = match ($slot) {
+            'father' => trim((string) ($parent->father_name ?? '')),
+            'mother' => trim((string) ($parent->mother_name ?? '')),
+            default => trim((string) ($parent->guardian_name ?? '')),
+        };
+
+        $phone = filled($rawPhone) ? $ids->normalizePhone((string) $rawPhone) : null;
+        $email = filled($rawEmail) && filter_var(trim((string) $rawEmail), FILTER_VALIDATE_EMAIL)
+            ? strtolower(trim((string) $rawEmail))
+            : null;
+
+        return ['name' => $name, 'phone' => $phone, 'email' => $email];
+    }
+
+    protected function slotHasUsableLogin(ParentInfo $parent, string $slot): bool
+    {
+        $contact = $this->slotContact($parent, $slot);
+
+        return filled($contact['phone']) || filled($contact['email']);
+    }
+
+    protected function findUserForSlot(ParentInfo $parent, string $slot, ?string $phone, ?string $email): ?User
+    {
+        $users = User::query()
+            ->with('roles')
+            ->where('parent_id', $parent->id)
+            ->orderBy('id')
+            ->get();
+
+        $emails = array_filter([(string) $email]);
+        $phones = array_filter([(string) $phone]);
+        $match = $users->first(fn (User $u) => $this->userMatchesSlot($u, $emails, $phones));
+        if ($match) {
+            return $match;
+        }
+
+        $ids = app(LoginIdentifierService::class);
+        if ($phone) {
+            $byPhone = User::query()->whereIn('phone_number', $ids->phoneVariants($phone))->first();
+            if ($byPhone && (! $byPhone->parent_id || (int) $byPhone->parent_id === (int) $parent->id)) {
+                return $byPhone;
+            }
+        }
+        if ($email) {
+            $byEmail = User::whereRaw('LOWER(TRIM(email)) = ?', [strtolower($email)])->first();
+            if ($byEmail && (! $byEmail->parent_id || (int) $byEmail->parent_id === (int) $parent->id)) {
+                return $byEmail;
+            }
+        }
+
+        return null;
+    }
+
+    public function slotForUser(ParentInfo $parent, User $user): ?string
+    {
+        foreach ($this->contactSlots($parent) as $slot) {
+            $contact = $this->slotContact($parent, $slot);
+            if ($this->userMatchesSlot($user, array_filter([(string) $contact['email']]), array_filter([(string) $contact['phone']]))) {
+                return $slot;
+            }
+        }
+
+        return $this->contactSlots($parent)[0] ?? null;
+    }
+
+    protected function uniqueLoginEmail(ParentInfo $parent, ?string $email, ?string $phone): string
+    {
+        $loginEmail = $email;
+        if (! $loginEmail && $phone) {
+            $digits = preg_replace('/\D+/', '', $phone) ?: 'unknown';
+            $loginEmail = 'parent'.$digits.'@parents.local';
+        }
+        if (! $loginEmail) {
+            $loginEmail = 'parent'.$parent->id.'.'.Str::lower(Str::random(4)).'@parents.local';
+        }
+
+        $collision = User::where('email', $loginEmail)->first();
+        if (! $collision) {
+            return $loginEmail;
+        }
+
+        $digits = preg_replace('/\D+/', '', (string) $phone) ?: (string) $parent->id;
+        do {
+            $loginEmail = 'parent'.$digits.'.'.Str::lower(Str::random(4)).'@parents.local';
+        } while (User::where('email', $loginEmail)->exists());
+
+        return $loginEmail;
+    }
+
+    protected function isPlaceholderEmail(?string $email): bool
+    {
+        $email = strtolower(trim((string) $email));
+        if ($email === '') {
+            return true;
+        }
+
+        return str_ends_with($email, '@parents.local') || str_ends_with($email, '@noemail.local');
+    }
+
+    protected function defaultCredentialsBody(string $channel): string
+    {
+        if ($channel === 'email') {
+            return "Dear {{parent_name}},\n\nYour {{school_name}} parent app login:\n\nUsername: {{username}}\nPassword: {{password}}\n\nApp: {{app_link}}\n\nYou can also sign in with any child's admission number and the year, for example RKS001-2026.\n\n{{school_name}}";
+        }
+
+        return "{{school_name}} parent app\nUsername: {{username}}\nPassword: {{password}}\n{{app_link}}";
     }
 }

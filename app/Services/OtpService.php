@@ -22,6 +22,7 @@ class OtpService
      * @param string $identifier Email or phone number
      * @param string $purpose Purpose of OTP (login, password_reset, etc.)
      * @param string|null $ipAddress IP address of requester
+     * @param string|null $channel phone|email when the caller already knows
      * @return array ['success' => bool, 'otp' => string|null, 'message' => string]
      */
     /**
@@ -29,28 +30,14 @@ class OtpService
      */
     protected function normalizePhone(string $phone): string
     {
-        // Remove all non-numeric characters except +
-        $phone = preg_replace('/[^0-9+]/', '', $phone);
-        
-        // Ensure it starts with + (for international format)
-        if (!str_starts_with($phone, '+')) {
-            // If it starts with 0, replace with country code
-            if (str_starts_with($phone, '0')) {
-                $phone = '+254' . substr($phone, 1);
-            } else {
-                // Assume it's already in international format without +
-                $phone = '+' . $phone;
-            }
-        }
-        
-        return $phone;
+        return app(LoginIdentifierService::class)->normalizePhone($phone);
     }
 
-    public function generateAndSend(string $identifier, string $purpose = 'login', ?string $ipAddress = null): array
+    public function generateAndSend(string $identifier, string $purpose = 'login', ?string $ipAddress = null, ?string $channel = null): array
     {
         try {
-            // Normalize phone number if it's a phone
-            $isPhone = preg_match('/^\+?[0-9]{10,15}$/', str_replace([' ', '-', '(', ')'], '', $identifier));
+            $ids = app(LoginIdentifierService::class);
+            $isPhone = $ids->isLikelyPhone($identifier, $channel);
             if ($isPhone) {
                 $identifier = $this->normalizePhone($identifier);
             }
@@ -143,7 +130,7 @@ class OtpService
     public function verify(string $identifier, string $otpCode, string $purpose = 'login'): array
     {
         // Normalize phone number if it's a phone
-        $isPhone = preg_match('/^\+?[0-9]{10,15}$/', str_replace([' ', '-', '(', ')'], '', $identifier));
+        $isPhone = app(LoginIdentifierService::class)->isLikelyPhone($identifier);
         if ($isPhone) {
             $identifier = $this->normalizePhone($identifier);
         }
