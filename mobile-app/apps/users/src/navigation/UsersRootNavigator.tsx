@@ -19,7 +19,7 @@ import {
   AccessDeniedScreen,
   AuthLoadingScreen,
   BiometricEnableScreen,
-  ForceChangePasswordScreen,
+  // ForceChangePasswordScreen — kept in features/auth; re-enable gate below when ready
   LoginScreen,
   PinEnableScreen,
   SchoolCodeScreen,
@@ -33,7 +33,7 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
     user,
     biometricEnrollmentPending,
     pinEnrollmentPending,
-    forcePasswordChangePending,
+    // forcePasswordChangePending — kept for when ForceChangePasswordScreen is re-enabled
   } = useAuth();
   const school = useSchool();
 
@@ -62,9 +62,11 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
     return <AccessDeniedScreen />;
   }
   // Temp credentials / admin reset — force password change before continuing.
-  if (forcePasswordChangePending || user?.mustChangePassword) {
-    return <ForceChangePasswordScreen />;
-  }
+  // TODO: re-enable when ForceChangePasswordScreen flicker is fixed; keep must_change_password
+  // flags on the server so the next login after re-enable still requires a password change.
+  // if (forcePasswordChangePending || user?.mustChangePassword) {
+  //   return <ForceChangePasswordScreen />;
+  // }
   if (biometricEnrollmentPending) {
     return <BiometricEnableScreen />;
   }
