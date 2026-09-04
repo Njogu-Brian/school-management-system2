@@ -63,6 +63,22 @@ export function useStudentRequirements(studentId: number, options?: { enabled?: 
   });
 }
 
+/** Parent view: expected requirements and what has already been brought. */
+export function useParentStudentRequirements(studentId: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: [...queryKeys.operations.studentRequirements(studentId), 'parent'] as const,
+    queryFn: async () => {
+      const res = await operationsApi.getParentStudentRequirements(studentId);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load requirements.');
+      }
+      return res.data;
+    },
+    enabled: (options?.enabled !== false) && studentId > 0,
+    staleTime: 45_000,
+  });
+}
+
 export function useCollectStudentRequirement() {
   const qc = useQueryClient();
   return useMutation({

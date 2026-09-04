@@ -29,7 +29,8 @@ type HubTile = {
     | 'DiaryChat'
     | 'RaiseConcern'
     | 'ChildProfile'
-    | 'CoCurricularChild';
+    | 'CoCurricularChild'
+    | 'ChildRequirements';
   /** When set, switch bottom tab so the bar highlight matches the destination area. */
   tabJump?: { tab: string; screen: string; tabHome?: string };
 };
@@ -87,6 +88,12 @@ const TILES: HubTile[] = [
     icon: 'sparkles-outline',
     tone: 'amber',
     route: 'CoCurricularChild',
+  },
+  {
+    label: 'Requirements',
+    icon: 'clipboard-outline',
+    tone: 'indigo',
+    route: 'ChildRequirements',
   },
   {
     label: 'Raise concern',

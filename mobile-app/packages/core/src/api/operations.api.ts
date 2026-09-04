@@ -84,12 +84,14 @@ export interface StudentRequirementTemplateItem {
   unit?: string | null;
   quantity_required: number;
   quantity_collected: number;
+  quantity_outstanding?: number;
   status: string;
   student_type?: string;
   custody_type?: string | null;
   is_verification_only?: boolean;
   adds_to_inventory?: boolean;
   notes?: string | null;
+  last_received_at?: string | null;
 }
 
 export interface StudentRequirementsPayload {
@@ -101,6 +103,12 @@ export interface StudentRequirementsPayload {
     is_new_joiner?: boolean;
   };
   current_term?: { id: number; name: string } | null;
+  summary?: {
+    total: number;
+    brought: number;
+    complete: number;
+    outstanding: number;
+  };
   items: StudentRequirementTemplateItem[];
 }
 
@@ -442,6 +450,15 @@ export const operationsApi = {
   ): Promise<ApiResponse<StudentRequirementsPayload>> {
     return apiClient.get<StudentRequirementsPayload>(
       `/teacher/requirements/students/${studentId}/templates`,
+    );
+  },
+
+  /** Parent read-only checklist of expected vs brought items. */
+  getParentStudentRequirements(
+    studentId: number,
+  ): Promise<ApiResponse<StudentRequirementsPayload>> {
+    return apiClient.get<StudentRequirementsPayload>(
+      `/students/${studentId}/requirements`,
     );
   },
 

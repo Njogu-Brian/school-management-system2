@@ -187,6 +187,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/students/{student}/co-curricular', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'show']);
     Route::post('/students/{student}/co-curricular', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'store']);
     Route::post('/students/{student}/co-curricular/requests/{changeRequest}/cancel', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'cancel']);
+    Route::get('/students/{student}/requirements', [\App\Http\Controllers\Api\ApiParentRequirementsController::class, 'show']);
 
     // Parent family wallet (Users app)
     Route::get('/parent-wallet', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'show']);

@@ -31,4 +31,5 @@ export type ParentStackParamList = {
   RaiseConcern: { studentId?: number };
   CoCurricularHub: undefined;
   CoCurricularChild: { studentId: number };
+  ChildRequirements: { studentId: number };
 };
