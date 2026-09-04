@@ -148,7 +148,7 @@ class AssessmentReadFacade
         bool $restrictToPublishedForGuardians,
     ): Collection {
         $query = ExamMark::query()
-            ->with(['exam.examType', 'subject', 'performanceLevel'])
+            ->with(['exam.examType', 'exam.term', 'subject', 'performanceLevel'])
             ->where('student_id', $student->id);
 
         if (! empty($filters['subject_id'])) {
@@ -182,7 +182,10 @@ class AssessmentReadFacade
             );
 
             $assessedOn = AssessmentHistoryItem::formatAssessedOn(
-                $exam?->ends_on ?? $exam?->starts_on ?? $mark->updated_at
+                $exam?->ends_on
+                    ?? $exam?->starts_on
+                    ?? $exam?->term?->opening_date
+                    ?? $mark->updated_at
             );
 
             $status = (string) ($mark->status ?? 'draft');

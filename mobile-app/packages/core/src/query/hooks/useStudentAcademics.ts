@@ -58,7 +58,18 @@ export function useStudentReportCards(studentId: number, options?: { enabled?: b
       if (!res.success || !res.data) {
         throw new Error(res.message || 'Failed to load report cards.');
       }
-      return res.data.data;
+      const rows = [...(res.data.data ?? [])];
+      // Academic order: year (newest first) then Term 1 → Term 2 → Term 3
+      rows.sort((a, b) => {
+        const yearA = Number(a.academic_year_name) || 0;
+        const yearB = Number(b.academic_year_name) || 0;
+        if (yearA !== yearB) return yearB - yearA;
+        const termA = Number(String(a.term_name ?? '').replace(/\D+/g, '')) || a.term_id || 0;
+        const termB = Number(String(b.term_name ?? '').replace(/\D+/g, '')) || b.term_id || 0;
+        if (termA !== termB) return termA - termB;
+        return (a.id ?? 0) - (b.id ?? 0);
+      });
+      return rows;
     },
     enabled: options?.enabled !== false && studentId > 0,
     staleTime: 60_000,
