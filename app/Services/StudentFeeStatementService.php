@@ -208,7 +208,7 @@ class StudentFeeStatementService
             ->where(function ($q) {
                 $q->whereNull('receipt_number')->orWhere('receipt_number', 'not like', 'SWIM-%');
             })
-            ->with('paymentMethod')
+            ->with(['paymentMethod', 'allocations.invoiceItem.invoice.term.academicYear'])
             ->orderBy('payment_date')
             ->orderBy('id')
             ->get()
@@ -370,13 +370,18 @@ class StudentFeeStatementService
 
         foreach ($payments as $payment) {
             $method = $payment->paymentMethod->name ?? $payment->payment_method ?? 'Payment';
+            $coverage = \App\Services\Finance\PaymentTermCoverage::forPayment($payment);
+            $description = 'Payment received — '.$method.' '.$this->money((float) $payment->amount);
+            if (! empty($coverage['is_cross_term'])) {
+                $description .= ' — cross-term ('.$coverage['summary_label'].')';
+            }
             $events[] = [
                 'kind' => 'payment',
-                'type' => 'Payment',
+                'type' => ! empty($coverage['is_cross_term']) ? 'Cross-term payment' : 'Payment',
                 'date' => $payment->payment_date ?? $payment->created_at,
                 'debit' => 0,
                 'credit' => (float) $payment->amount,
-                'description' => 'Payment received — '.$method.' '.$this->money((float) $payment->amount),
+                'description' => $description,
                 'reference' => $payment->receipt_number ?? $payment->transaction_code,
                 'votehead' => $method,
                 'payment_id' => $payment->id,

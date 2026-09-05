@@ -121,6 +121,7 @@
                         'total_outstanding_balance' => $total_outstanding_balance ?? ($totalOutstandingBalance ?? 0),
                         'total_invoices' => $total_invoices ?? ($totalInvoices ?? 0),
                         'receipt_term_label' => $receipt_term_label ?? null,
+                        'term_coverage' => $term_coverage ?? null,
                         'invoice_numbers_summary' => $invoice_numbers_summary ?? null,
                         'payment_method' => $payment_method ?? ($payment->paymentMethod->name ?? $payment->payment_method ?? 'Cash'),
                         'transaction_code' => $transaction_code ?? $payment->transaction_code,

@@ -17,6 +17,7 @@
         $actualUnallocatedAmount = $payment->reversed
             ? (float) $payment->amount
             : max(0, (float) $payment->amount - $actualAllocatedAmount);
+        $termCoverage = $payment->reversed ? ['is_cross_term' => false, 'terms' => [], 'term_count' => 0, 'summary_label' => ''] : $payment->termCoverage();
     @endphp
 
     <div class="row">
@@ -24,7 +25,14 @@
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Payment Information</h5>
-                    <span class="finance-badge badge-paid">{{ $payment->receipt_number ?? $payment->transaction_code }}</span>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        @if(!empty($termCoverage['is_cross_term']))
+                            <span class="badge" style="background: var(--brand-primary, #3a1a59); color: #fff;" title="{{ $termCoverage['summary_label'] }}">
+                                Cross-term · {{ $termCoverage['term_count'] }} terms
+                            </span>
+                        @endif
+                        <span class="finance-badge badge-paid">{{ $payment->receipt_number ?? $payment->transaction_code }}</span>
+                    </div>
                 </div>
                 <div class="finance-card-body p-4">
                     <div class="row">
@@ -98,6 +106,43 @@
                 </div>
             </div>
 
+            @if(!empty($termCoverage['is_cross_term']))
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header">
+                    <h5 class="mb-0"><i class="bi bi-layers me-2"></i>Cross-term allocation</h5>
+                </div>
+                <div class="finance-card-body p-4">
+                    <p class="text-muted small mb-3 mb-md-2">This payment was applied to more than one term (for example previous-term balance and a later invoice).</p>
+                    <div class="table-responsive">
+                        <table class="finance-table align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Term</th>
+                                    <th>Applied as</th>
+                                    <th>Invoice(s)</th>
+                                    <th class="text-end">Amount applied</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($termCoverage['terms'] as $termRow)
+                                <tr>
+                                    <td><strong>{{ $termRow['label'] }}</strong></td>
+                                    <td>
+                                        <span class="badge bg-{{ $termRow['role'] === 'current' ? 'success' : ($termRow['role'] === 'previous' ? 'warning text-dark' : 'secondary') }}">
+                                            {{ $termRow['role_label'] }}
+                                        </span>
+                                    </td>
+                                    <td>{{ implode(', ', $termRow['invoice_numbers'] ?? []) ?: '—' }}</td>
+                                    <td class="text-end"><strong>Ksh {{ number_format($termRow['amount'], 2) }}</strong></td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <!-- Payment Allocations -->
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header d-flex justify-content-between align-items-center">
@@ -135,6 +180,7 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>Invoice</th>
+                                    <th>Term</th>
                                     <th>Votehead</th>
                                     <th class="text-end">Item Amount</th>
                                     <th class="text-end">Allocated</th>
@@ -147,6 +193,10 @@
                                 @php
                                     $item = $allocation->invoiceItem ?? null;
                                     $invoice = $item->invoice ?? null;
+                                    $allocTerm = $invoice?->term;
+                                    $allocTermLabel = $allocTerm
+                                        ? trim(($allocTerm->name ?? '').($allocTerm->academicYear?->year ? ' ('.$allocTerm->academicYear->year.')' : ''))
+                                        : null;
                                 @endphp
                                 <tr>
                                     <td>
@@ -156,6 +206,13 @@
                                             </a>
                                         @else
                                             N/A
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($allocTermLabel)
+                                            <span class="badge bg-light text-dark border">{{ $allocTermLabel }}</span>
+                                        @else
+                                            <span class="text-muted">—</span>
                                         @endif
                                     </td>
                                     <td>{{ $item->votehead->name ?? 'N/A' }}</td>

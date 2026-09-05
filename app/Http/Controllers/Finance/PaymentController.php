@@ -46,7 +46,8 @@ class PaymentController extends Controller
         $query = Payment::with([
                 'student' => fn ($q) => $q->withoutGlobalScopes()->with(['classroom', 'stream']),
                 'paymentMethod',
-                'invoice',
+                'invoice.term.academicYear',
+                'allocations.invoiceItem.invoice.term.academicYear',
             ])
             // Exclude swimming payments - they are managed separately in Swimming Management
             ->where('receipt_number', 'not like', 'SWIM-%')
@@ -1106,7 +1107,7 @@ class PaymentController extends Controller
 
     public function show(Payment $payment)
     {
-        $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
+        $payment->load(['student', 'invoice.term.academicYear', 'paymentMethod', 'allocations.invoiceItem.votehead', 'allocations.invoiceItem.invoice.term.academicYear']);
         
         // Check if this payment is part of a shared transaction
         $sharedInfo = $this->getSharedTransactionInfo($payment);

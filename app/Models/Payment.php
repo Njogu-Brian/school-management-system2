@@ -424,4 +424,14 @@ class Payment extends Model
 
         return $icons[$this->payment_channel] ?? '<i class="fas fa-receipt text-secondary"></i>';
     }
+
+    /**
+     * How this payment was applied across academic terms.
+     *
+     * @return array{is_cross_term: bool, term_count: int, summary_label: string, terms: array<int, array<string, mixed>>}
+     */
+    public function termCoverage(): array
+    {
+        return \App\Services\Finance\PaymentTermCoverage::forPayment($this);
+    }
 }

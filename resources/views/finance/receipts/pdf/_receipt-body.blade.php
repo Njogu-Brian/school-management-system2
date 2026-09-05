@@ -45,7 +45,11 @@
 
 <!-- Receipt Title -->
 <div class="receipt-title">
-    Payment Receipt
+    @if(!empty($term_coverage['is_cross_term']))
+        Cross-Term Payment Receipt
+    @else
+        Payment Receipt
+    @endif
 </div>
 
 <!-- Receipt Details -->
@@ -79,7 +83,7 @@
     @endif
     @if(!empty($receipt_term_label ?? null))
     <tr>
-        <td class="detail-label">Term (invoice):</td>
+        <td class="detail-label">{{ !empty($term_coverage['is_cross_term']) ? 'Terms covered:' : 'Term (invoice):' }}</td>
         <td class="detail-value" colspan="3">{{ $receipt_term_label }}</td>
     </tr>
     @endif
@@ -90,6 +94,30 @@
     </tr>
     @endif
 </table>
+
+@if(!empty($term_coverage['is_cross_term']) && !empty($term_coverage['terms']))
+<div style="margin: 10px 0 12px; padding: 8px 10px; border: 1.5px solid {{ $brandPrimary }}; border-radius: 6px; background: #f7f4fb;">
+    <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: {{ $brandPrimary }}; margin-bottom: 6px;">
+        Cross-term payment · this receipt covers {{ (int) $term_coverage['term_count'] }} terms
+    </div>
+    <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+        @foreach($term_coverage['terms'] as $termRow)
+        <tr>
+            <td style="padding: 3px 0; color: #333;">
+                <strong>{{ $termRow['label'] }}</strong>
+                <span style="color: #666;"> — {{ $termRow['role_label'] }}</span>
+                @if(!empty($termRow['invoice_numbers']))
+                    <span style="color: #888;"> · {{ implode(', ', $termRow['invoice_numbers']) }}</span>
+                @endif
+            </td>
+            <td style="padding: 3px 0; text-align: right; font-weight: 700; white-space: nowrap;">
+                Ksh {{ number_format($termRow['amount'], 2) }}
+            </td>
+        </tr>
+        @endforeach
+    </table>
+</div>
+@endif
 
 <!-- Payment Allocations and Unpaid Voteheads -->
 @if(isset($allocations) && $allocations->isNotEmpty())

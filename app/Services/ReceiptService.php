@@ -100,6 +100,7 @@ class ReceiptService
             return (float) ($ledger['invoices'][$invoice->id]['total'] ?? $invoice->total);
         });
 
+        $termCoverage = \App\Services\Finance\PaymentTermCoverage::forPayment($payment);
         $termLabels = $invoices
             ->map(function ($invoice) {
                 $term = $invoice->relationLoaded('term') ? $invoice->getRelation('term') : null;
@@ -114,7 +115,9 @@ class ReceiptService
             ->filter()
             ->unique()
             ->values();
-        $receiptTermLabel = $termLabels->isEmpty() ? null : $termLabels->implode(', ');
+        $receiptTermLabel = $termCoverage['summary_label'] !== ''
+            ? $termCoverage['summary_label']
+            : ($termLabels->isEmpty() ? null : $termLabels->implode(', '));
         $invoiceNumbersSummary = $invoices->pluck('invoice_number')->filter()->unique()->sort()->implode(', ');
 
         $displayReceiptNumber = $payment->receipt_number;
@@ -136,6 +139,7 @@ class ReceiptService
             'balance_as_at_payment' => $studentBalance,
             'total_invoices' => $totalInvoices,
             'receipt_term_label' => $receiptTermLabel,
+            'term_coverage' => $termCoverage,
             'invoice_numbers_summary' => $invoiceNumbersSummary ?: null,
             'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
             'transaction_code' => $payment->transaction_code,

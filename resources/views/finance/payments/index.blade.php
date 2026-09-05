@@ -216,6 +216,13 @@
                                 @else
                                     <strong>{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
                                 @endif
+                                @php $rowCoverage = $payment->reversed ? null : $payment->termCoverage(); @endphp
+                                @if(!empty($rowCoverage['is_cross_term']))
+                                    <div class="mt-1">
+                                        <span class="badge" style="background:#3a1a59;color:#fff;font-weight:600;">Cross-term</span>
+                                        <div class="small text-muted">{{ $rowCoverage['summary_label'] }}</div>
+                                    </div>
+                                @endif
                             </td>
                             <td>
                                 {{ $payment->student->full_name ?? 'N/A' }}
