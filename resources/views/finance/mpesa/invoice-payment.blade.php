@@ -174,7 +174,7 @@
                             <span class="input-group-text">KES</span>
                         </div>
                         <input type="number" class="form-control form-control-lg" id="payment_amount" 
-                               name="amount" step="10" min="1" max="{{ $mpesaStkMaxKes }}"
+                               name="amount" step="1" min="1" max="{{ $mpesaStkMaxKes }}"
                                value="" placeholder="Enter amount" required>
                     </div>
                     <small class="form-text text-muted">

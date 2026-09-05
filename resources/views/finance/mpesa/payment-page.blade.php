@@ -210,7 +210,7 @@
                     <p class="small text-muted mb-0">You may pay more than the balance; extra is credited. M-PESA limit KES {{ number_format($mpesaStkMaxKes) }} per transaction.</p>
                 @endif
 
-                <form id="paymentForm">
+                <form id="paymentForm" novalidate>
                     <input type="hidden" name="share_with_siblings" id="share_with_siblings" value="1">
                     <div class="form-check form-switch mt-3 mb-2">
                         <input class="form-check-input" type="checkbox" id="shareToggle" style="min-width: 3rem; min-height: 1.5rem;" checked>
@@ -222,7 +222,7 @@
                         <label class="form-label" for="family_payment_amount">Amount to pay (KES)</label>
                         <div class="input-group input-group-lg mb-2">
                             <span class="input-group-text">KES</span>
-                            <input type="number" class="form-control" id="family_payment_amount" inputmode="numeric" step="10" min="1" placeholder="Enter amount" autocomplete="off">
+                            <input type="number" class="form-control" id="family_payment_amount" inputmode="numeric" step="1" min="1" placeholder="Enter amount" autocomplete="off">
                         </div>
                         <div class="mb-3">
                             <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullFamilyBtn">Pay full family balance</button>
@@ -246,7 +246,7 @@
                         <label class="form-label mt-3">Amount (KES)</label>
                         <div class="input-group input-group-lg">
                             <span class="input-group-text">KES</span>
-                            <input type="number" class="form-control" id="payment_amount" name="amount" step="0.01" min="1" placeholder="0.00">
+                            <input type="number" class="form-control" id="payment_amount" name="amount" step="1" min="1" placeholder="0">
                         </div>
                         <div class="mt-2">
                             <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullBtn">Pay full balance</button>
@@ -281,7 +281,7 @@
                     <div class="value">KES {{ number_format($feeBalance, 2) }}</div>
                     <small class="text-muted">Pay in full, in part, or more (overpayment is credited). M-PESA limit KES {{ number_format($mpesaStkMaxKes) }} per transaction.</small>
                 </div>
-                <form id="paymentForm">
+                <form id="paymentForm" novalidate>
                     <input type="hidden" name="payment_type" value="single">
                     @if($isFamilyLink ?? false)
                         <input type="hidden" id="family_single_student_id" name="family_single_student_id" value="{{ $student->id }}">
@@ -289,7 +289,7 @@
                     <label class="form-label">Amount (KES)</label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text">KES</span>
-                        <input type="number" class="form-control" id="payment_amount" name="amount" step="10" min="1" max="{{ $mpesaStkMaxKes }}" value="" placeholder="Enter amount" inputmode="numeric" autocomplete="off" required>
+                        <input type="number" class="form-control" id="payment_amount" name="amount" step="1" min="1" max="{{ $mpesaStkMaxKes }}" value="" placeholder="Enter amount" inputmode="numeric" autocomplete="off" required>
                     </div>
                     <div class="mt-2">
                         <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullBtn">Pay full balance</button>
@@ -462,7 +462,7 @@
                 var list = '';
                 familyStudents.forEach(function(s) {
                     var bal = parseFloat(s.fee_balance) || 0;
-                    list += '<div class="sibling-amount-row"><label class="flex-grow-1 small mb-0">' + s.full_name + ' <span class="text-muted">(bal. KES ' + (bal).toLocaleString('en-KE', {minimumFractionDigits: 2}) + ')</span></label><div class="input-group input-group-sm" style="max-width: 140px;"><span class="input-group-text">KES</span><input type="number" class="form-control sibling-amount" step="10" min="0" data-student-id="' + s.id + '" data-balance="' + bal + '" value="" placeholder="0"></div></div>';
+                    list += '<div class="sibling-amount-row"><label class="flex-grow-1 small mb-0">' + s.full_name + ' <span class="text-muted">(bal. KES ' + (bal).toLocaleString('en-KE', {minimumFractionDigits: 2}) + ')</span></label><div class="input-group input-group-sm" style="max-width: 140px;"><span class="input-group-text">KES</span><input type="number" class="form-control sibling-amount" step="1" min="0" data-student-id="' + s.id + '" data-balance="' + bal + '" value="" placeholder="0"></div></div>';
                 });
                 $('#siblingAllocationsList').html(list);
                 $(document).off('input', '.sibling-amount').on('input', '.sibling-amount', refreshSiblingTotal);

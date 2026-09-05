@@ -239,6 +239,9 @@ class PaymentWebhookController extends Controller
                             }
                         }
 
+                        \App\Services\Finance\FamilyPaymentSplitter::applyToPaymentTransaction($transaction);
+                        $transaction->refresh();
+
                         // Shared payment: create one payment per sibling allocation, allocate, receipt, notify each
                         if ($transaction->is_shared && !empty($transaction->shared_allocations)) {
                             $firstPaymentId = null;

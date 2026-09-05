@@ -601,6 +601,11 @@ class MpesaGateway implements PaymentGatewayInterface
 
         $transaction = \App\Models\PaymentTransaction::create($transactionData);
 
+        if (!$isSwimming) {
+            \App\Services\Finance\FamilyPaymentSplitter::applyToPaymentTransaction($transaction);
+            $transaction->refresh();
+        }
+
         try {
             $result = $this->initiatePayment($transaction, [
                 'phone_number' => $phoneNumber,
@@ -671,6 +676,9 @@ class MpesaGateway implements PaymentGatewayInterface
             'phone_number' => $phoneNumber,
             'account_reference' => $accountReference,
         ]);
+
+        \App\Services\Finance\FamilyPaymentSplitter::applyToPaymentTransaction($transaction);
+        $transaction->refresh();
 
         try {
             $result = $this->initiatePayment($transaction, [

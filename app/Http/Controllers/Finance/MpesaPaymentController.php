@@ -883,6 +883,10 @@ class MpesaPaymentController extends Controller
                 'phone_number' => $request->phone_number,
                 'account_reference' => $accountRef,
             ]);
+            if (!$isSwimmingLink) {
+                \App\Services\Finance\FamilyPaymentSplitter::applyToPaymentTransaction($transaction);
+                $transaction->refresh();
+            }
             try {
                 $result = $this->mpesaGateway->initiatePayment($transaction, ['phone_number' => $request->phone_number]);
                 if ($result['success']) {
@@ -1435,6 +1439,9 @@ class MpesaPaymentController extends Controller
                 DB::commit();
                 return;
             }
+
+            \App\Services\Finance\FamilyPaymentSplitter::applyToPaymentTransaction($transaction);
+            $transaction->refresh();
 
             // Parent family wallet top-up / saving STK — credit wallet, do not create fee Payment
             if (in_array($transaction->purpose, ['wallet_topup', 'wallet_saving'], true) && $transaction->parent_wallet_id) {

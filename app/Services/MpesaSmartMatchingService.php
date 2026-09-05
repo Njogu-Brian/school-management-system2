@@ -6,7 +6,6 @@ use App\Models\Student;
 use App\Models\Invoice;
 use App\Models\MpesaC2BTransaction;
 use App\Models\ParentInfo;
-use App\Services\StudentBalanceService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -73,9 +72,21 @@ class MpesaSmartMatchingService
         if (!empty($suggestions) && $suggestions[0]['confidence'] >= 80) {
             $top = $suggestions[0];
             $siblingIds = $top['siblings'] ?? [];
-            if (count($siblingIds) >= 2 && in_array($top['match_type'] ?? '', ['parent_sibling', 'reference_sibling'])) {
-                // Sibling payment: smart share based on fee balances
-                $smartAllocations = $this->computeSmartSiblingAllocations((float) $transaction->trans_amount, $siblingIds);
+            $amount = (float) $transaction->trans_amount;
+            $familySplit = null;
+
+            if (count($siblingIds) < 2 && !empty($top['student_id'])) {
+                $familySplit = \App\Services\Finance\FamilyPaymentSplitter::allocationsForStudent((int) $top['student_id'], $amount);
+                if ($familySplit) {
+                    $siblingIds = array_column($familySplit, 'student_id');
+                    $top['match_type'] = 'family_balance_split';
+                    $top['reason'] = ($top['reason'] ?? 'Matched student') . ' — amount covers sibling balances, split across family';
+                }
+            }
+
+            $isSiblingMatch = count($siblingIds) >= 2 && in_array($top['match_type'] ?? '', ['parent_sibling', 'reference_sibling', 'family_balance_split'], true);
+            if ($isSiblingMatch) {
+                $smartAllocations = $familySplit ?: $this->computeSmartSiblingAllocations($amount, $siblingIds);
                 if (!empty($smartAllocations)) {
                     $transaction->autoMatchSiblings($siblingIds, $smartAllocations, $top['confidence'], $top['reason']);
                     Log::info('Auto-matched C2B transaction to siblings', [
@@ -391,8 +402,7 @@ class MpesaSmartMatchingService
             return [];
         }
 
-        // Per family: which child names we matched (student_id per name)
-        $familyMatches = [];
+        $familyStudents = [];
         foreach ($childNames as $childName) {
             $childNameLower = strtolower(trim($childName));
             if (strlen($childNameLower) < 2) {
@@ -413,53 +423,43 @@ class MpesaSmartMatchingService
 
             foreach ($students as $s) {
                 $familyId = $s->family_id;
-                if (!$familyId) continue;
-                if (!isset($familyMatches[$familyId])) {
-                    $familyMatches[$familyId] = [];
+                if (!$familyId) {
+                    continue;
                 }
-                if (!isset($familyMatches[$familyId][$childName])) {
-                    $familyMatches[$familyId][$childName] = [];
+                if (!isset($familyStudents[$familyId])) {
+                    $familyStudents[$familyId] = [];
                 }
-                $existingIds = array_map(fn ($st) => $st->id, $familyMatches[$familyId][$childName]);
-                if (!in_array($s->id, $existingIds, true)) {
-                    $familyMatches[$familyId][$childName][] = $s;
-                }
+                $familyStudents[$familyId][$s->id] = $s;
             }
         }
 
         $matches = [];
-        foreach ($familyMatches as $familyId => $nameToStudents) {
-            if (count($nameToStudents) < 2) {
+        foreach ($familyStudents as $familyId => $byId) {
+            if (count($byId) < 2) {
                 continue;
             }
-            $siblingIds = [];
+            $siblingIds = array_map('intval', array_keys($byId));
             $children = [];
-            foreach ($nameToStudents as $students) {
-                $s = $students[0];
-                if (!in_array($s->id, $siblingIds)) {
-                    $siblingIds[] = $s->id;
-                    $children[] = [
-                        'student_id' => $s->id,
-                        'student_name' => $s->first_name . ' ' . $s->last_name,
-                        'admission_number' => $s->admission_number,
-                        'classroom_name' => $s->classroom ? $s->classroom->name : null,
-                    ];
-                }
+            foreach ($byId as $s) {
+                $children[] = [
+                    'student_id' => $s->id,
+                    'student_name' => $s->first_name . ' ' . $s->last_name,
+                    'admission_number' => $s->admission_number,
+                    'classroom_name' => $s->classroom ? $s->classroom->name : null,
+                ];
             }
-            if (count($children) >= 2) {
-                $confidence = count($children) >= count($childNames) ? 85 : 75;
-                foreach ($children as $child) {
-                    $matches[] = [
-                        'student_id' => $child['student_id'],
-                        'student_name' => $child['student_name'],
-                        'admission_number' => $child['admission_number'],
-                        'classroom_name' => $child['classroom_name'],
-                        'confidence' => $confidence,
-                        'reason' => 'Reference matches sibling names: ' . $ref,
-                        'match_type' => 'reference_sibling',
-                        'siblings' => $siblingIds,
-                    ];
-                }
+            $confidence = count($children) >= count($childNames) ? 85 : 75;
+            foreach ($children as $child) {
+                $matches[] = [
+                    'student_id' => $child['student_id'],
+                    'student_name' => $child['student_name'],
+                    'admission_number' => $child['admission_number'],
+                    'classroom_name' => $child['classroom_name'],
+                    'confidence' => $confidence,
+                    'reason' => 'Reference matches sibling names: ' . $ref,
+                    'match_type' => 'reference_sibling',
+                    'siblings' => $siblingIds,
+                ];
             }
         }
 
@@ -473,54 +473,7 @@ class MpesaSmartMatchingService
      */
     public function computeSmartSiblingAllocations(float $totalAmount, array $siblingIds): array
     {
-        $siblingIds = array_values(array_unique(array_filter(array_map('intval', $siblingIds))));
-        if (empty($siblingIds) || $totalAmount <= 0) {
-            return [];
-        }
-
-        $balances = [];
-        foreach ($siblingIds as $id) {
-            $balances[$id] = max(0, StudentBalanceService::getTotalOutstandingBalance($id));
-        }
-
-        $n = count($siblingIds);
-        $equalShare = $totalAmount / $n;
-        $allocations = array_fill_keys($siblingIds, 0.0);
-        $remainder = 0.0;
-
-        foreach ($siblingIds as $id) {
-            $balance = $balances[$id];
-            if ($balance < $equalShare) {
-                $allocations[$id] = round(min($balance, $equalShare), 2);
-                $remainder += ($equalShare - $allocations[$id]);
-            } else {
-                $allocations[$id] = round($equalShare, 2);
-            }
-        }
-
-        // Distribute remainder to siblings who still have room (balance > allocation)
-        if ($remainder > 0.01) {
-            $candidates = array_values(array_filter($siblingIds, function ($id) use ($balances, $allocations) {
-                return ($balances[$id] ?? 0) > ($allocations[$id] ?? 0);
-            }));
-            if (!empty($candidates)) {
-                foreach ($candidates as $id) {
-                    if ($remainder <= 0.01) break;
-                    $room = ($balances[$id] ?? 0) - ($allocations[$id] ?? 0);
-                    $add = min($room, $remainder);
-                    $allocations[$id] = round(($allocations[$id] ?? 0) + $add, 2);
-                    $remainder = round($remainder - $add, 2);
-                }
-            }
-            if ($remainder > 0.01) {
-                $allocations[$siblingIds[0]] = round(($allocations[$siblingIds[0]] ?? 0) + $remainder, 2);
-            }
-        }
-
-        return array_values(array_filter(array_map(function ($id) use ($allocations) {
-            $amt = (float) ($allocations[$id] ?? 0);
-            return $amt > 0 ? ['student_id' => $id, 'amount' => $amt] : null;
-        }, $siblingIds)));
+        return \App\Services\Finance\FamilyPaymentSplitter::allocationsForSiblings($siblingIds, $totalAmount);
     }
 
     /**
@@ -533,8 +486,9 @@ class MpesaSmartMatchingService
             return [];
         }
         
-        // Try splitting by common delimiters
-        $delimiters = ['/', ',', '|', '&', ' and ', ' AND '];
+        // Try splitting by common delimiters. Space is last so "Philip Njenga"
+        // stays one name unless it also matches multiple siblings in a family.
+        $delimiters = ['/', ',', '|', '&', ' and ', ' AND ', ' '];
         
         foreach ($delimiters as $delimiter) {
             if (stripos($reference, $delimiter) !== false) {
