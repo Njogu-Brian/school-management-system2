@@ -2,7 +2,9 @@
 
 namespace App\Services\Finance;
 
+use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\Term;
 
 /**
  * Groups a payment's allocations by academic term so cross-term receipts
@@ -80,39 +82,50 @@ class PaymentTermCoverage
      */
     public static function forPayment(Payment $payment): array
     {
-        $payment->loadMissing([
-            'allocations.invoiceItem.invoice.term.academicYear',
-            'invoice.term.academicYear',
-        ]);
+        // Do not nested-eager-load invoice.term: invoices.term is an integer column,
+        // so loadMissing()/pluck('term') returns ints and crashes.
+        $payment->loadMissing(['allocations.invoiceItem.invoice']);
+
+        $termIds = [];
+        foreach ($payment->allocations as $allocation) {
+            $termId = (int) ($allocation->invoiceItem?->invoice?->term_id ?? 0);
+            if ($termId > 0) {
+                $termIds[$termId] = true;
+            }
+        }
+
+        $linkedInvoice = null;
+        try {
+            $linkedInvoice = $payment->invoice;
+        } catch (\Throwable $e) {
+            $linkedInvoice = null;
+        }
+        $fallbackTermId = (int) ($linkedInvoice?->term_id ?? 0);
+        if ($fallbackTermId > 0) {
+            $termIds[$fallbackTermId] = true;
+        }
+
+        $termsById = empty($termIds)
+            ? collect()
+            : Term::with('academicYear')->whereIn('id', array_keys($termIds))->get()->keyBy('id');
 
         $rows = [];
         foreach ($payment->allocations as $allocation) {
             $invoice = $allocation->invoiceItem?->invoice;
-            $term = $invoice?->term;
             $termId = (int) ($invoice?->term_id ?? 0);
             if ($termId <= 0) {
                 continue;
             }
-            $rows[] = [
-                'term_id' => $termId,
-                'term_name' => $term?->name,
-                'year' => $term?->academicYear?->year,
-                'opening_date' => optional($term?->opening_date)->toDateString(),
-                'amount' => (float) $allocation->amount,
-                'invoice_number' => $invoice?->invoice_number,
-            ];
+            $term = $termsById->get($termId);
+            $rows[] = self::rowFromInvoice($invoice, $term, (float) $allocation->amount);
         }
 
-        if ($rows === [] && $payment->invoice?->term_id) {
-            $term = $payment->invoice->term;
-            $rows[] = [
-                'term_id' => (int) $payment->invoice->term_id,
-                'term_name' => $term?->name,
-                'year' => $term?->academicYear?->year,
-                'opening_date' => optional($term?->opening_date)->toDateString(),
-                'amount' => (float) ($payment->allocated_amount ?? $payment->amount),
-                'invoice_number' => $payment->invoice->invoice_number,
-            ];
+        if ($rows === [] && $linkedInvoice && $fallbackTermId > 0) {
+            $rows[] = self::rowFromInvoice(
+                $linkedInvoice,
+                $termsById->get($fallbackTermId),
+                (float) ($payment->allocated_amount ?? $payment->amount)
+            );
         }
 
         $current = function_exists('get_current_term_model') ? get_current_term_model() : null;
@@ -122,6 +135,20 @@ class PaymentTermCoverage
             $current?->id ? (int) $current->id : null,
             optional($current?->opening_date)->toDateString()
         );
+    }
+
+    private static function rowFromInvoice(?Invoice $invoice, mixed $term, float $amount): array
+    {
+        $termModel = is_object($term) ? $term : null;
+
+        return [
+            'term_id' => (int) ($invoice?->term_id ?? 0),
+            'term_name' => $termModel?->name,
+            'year' => $termModel?->academicYear?->year,
+            'opening_date' => optional($termModel?->opening_date)->toDateString(),
+            'amount' => $amount,
+            'invoice_number' => $invoice?->invoice_number,
+        ];
     }
 
     /**
