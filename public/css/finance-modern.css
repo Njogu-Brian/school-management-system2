@@ -375,8 +375,8 @@
     color: white;
 }
 
-.badge-partial {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+.badge-reversed {
+    background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%);
     color: white;
 }
 

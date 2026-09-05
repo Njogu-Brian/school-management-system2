@@ -117,7 +117,7 @@ class StudentFeeLedgerService
     {
         $invoices = Invoice::query()
             ->where('student_id', $studentId)
-            ->where('status', '!=', 'reversed')
+            ->notReversed()
             ->with(['items' => function ($q) {
                 $q->where('status', 'active');
             }, 'term'])

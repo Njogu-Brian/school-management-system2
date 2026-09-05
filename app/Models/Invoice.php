@@ -29,6 +29,8 @@ class Invoice extends Model
         'due_date',
         'issued_date',
         'reversed_at',
+        'reversed_by',
+        'reversal_reason',
         'posting_run_id',
         'posted_by',
         'posted_at',
@@ -75,6 +77,24 @@ class Invoice extends Model
     public function postedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'posted_by');
+    }
+
+    public function reversedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reversed_by');
+    }
+
+    public function isReversed(): bool
+    {
+        return $this->reversed_at !== null || ($this->status ?? '') === 'reversed';
+    }
+
+    public function scopeNotReversed($query)
+    {
+        return $query->whereNull('reversed_at')
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '<>', 'reversed');
+            });
     }
 
     public function items(): HasMany

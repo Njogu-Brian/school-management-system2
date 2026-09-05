@@ -4,8 +4,9 @@
 <div class="finance-page">
   <div class="finance-shell">
     @php
+        $invoiceIsReversed = $invoice->isReversed();
         $payNowBtn = '';
-        if ($invoice->balance > 0) {
+        if (!$invoiceIsReversed && $invoice->balance > 0) {
             $payNowBtn = '<a href="' . route('finance.mpesa.prompt-payment.form', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) . '" class="btn btn-finance btn-success"><i class="bi bi-phone"></i> Prompt Parent to Pay (M-PESA)</a>';
             $payNowBtn .= '<a href="' . route('finance.mpesa.links.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) . '" class="btn btn-finance btn-primary"><i class="bi bi-link-45deg"></i> Generate Payment Link</a>';
             try {
@@ -25,8 +26,8 @@
     @include('finance.partials.header', [
         'title' => 'Invoice: ' . $invoice->invoice_number,
         'icon' => 'bi bi-file-text',
-        'subtitle' => $invoice->student?->full_name ? 'For ' . $invoice->student->full_name : 'Invoice details',
-        'actions' => $payNowBtn . '<a href="' . route('finance.invoices.print_single', $invoice) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'invoice\', [' . $invoice->id . '], {channel:\'sms\', message:\'Please find your invoice link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+        'subtitle' => ($invoice->student?->full_name ? 'For ' . $invoice->student->full_name : 'Invoice details') . ($invoiceIsReversed ? ' · Reversed' : ''),
+        'actions' => $payNowBtn . '<a href="' . route('finance.invoices.print_single', $invoice) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a>' . ($invoiceIsReversed ? '' : '<button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'invoice\', [' . $invoice->id . '], {channel:\'sms\', message:\'Please find your invoice link below.\'})"><i class="bi bi-send"></i> Send Now</button>') . '<a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
     @php
@@ -36,6 +37,25 @@
     <div class="finance-card finance-animate mb-4 mt-4 shadow-sm rounded-4 border-0">
         <div class="finance-card-body p-4">
     @includeIf('finance.invoices.partials.alerts')
+
+    @if($invoiceIsReversed)
+    <div class="alert alert-secondary d-flex align-items-start gap-3 mb-4" role="alert">
+        <i class="bi bi-arrow-counterclockwise fs-4"></i>
+        <div>
+            <strong>This invoice has been reversed.</strong>
+            It no longer charges the student. Allocated payments were unallocated
+            @if($invoice->reversed_at)
+                on {{ $invoice->reversed_at->format('d M Y H:i') }}
+            @endif
+            @if($invoice->reversedBy)
+                by {{ $invoice->reversedBy->name }}
+            @endif.
+            @if($invoice->reversal_reason)
+                <div class="mt-1">Reason: {{ $invoice->reversal_reason }}</div>
+            @endif
+        </div>
+    </div>
+    @endif
 
     <!-- Invoice Header -->
     <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
@@ -113,7 +133,7 @@
             <div class="finance-card finance-animate h-100 shadow-sm rounded-4 border-0">
                 <div class="finance-card-body text-center p-4">
                     <h6 class="finance-muted mb-2">Status</h6>
-                    <span class="finance-badge badge-{{ $invoice->status === 'paid' ? 'paid' : ($invoice->status === 'partial' ? 'partial' : 'unpaid') }} fs-6">
+                    <span class="finance-badge badge-{{ $invoice->status === 'paid' ? 'paid' : ($invoice->status === 'partial' ? 'partial' : ($invoice->status === 'reversed' ? 'reversed' : 'unpaid')) }} fs-6">
                         {{ ucfirst($invoice->status) }}
                     </span>
                 </div>
@@ -202,13 +222,16 @@
     <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
         <div class="finance-card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Invoice Items, Discounts & Adjustments</h5>
-            @if($invoice->balance > 0)
+            @if(!$invoiceIsReversed && $invoice->balance > 0)
             <a href="{{ route('finance.payments.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) }}" class="btn btn-sm btn-finance btn-finance-primary">
                 <i class="bi bi-cash-stack"></i> Record Payment
             </a>
             @endif
         </div>
         <div class="finance-card-body border-bottom">
+            @if($invoiceIsReversed)
+            <span class="text-muted">Line items are shown for history. This invoice cannot be edited.</span>
+            @else
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <span class="text-muted"><i class="bi bi-plus-circle"></i> Add a custom line item (for example Uniform, Activity Fee, etc). It updates invoice totals, allocations and student statements.</span>
                 <form action="{{ route('finance.invoices.custom-items.store', $invoice) }}" method="POST" class="d-flex align-items-center gap-2">
@@ -220,6 +243,7 @@
                     <button type="submit" class="btn btn-sm btn-finance btn-finance-primary"><i class="bi bi-plus-lg"></i> Add Custom Item</button>
                 </form>
             </div>
+            @endif
         </div>
         <div class="finance-card-body p-0">
             <div class="table-responsive px-3 pb-3">
@@ -400,6 +424,9 @@
                                 @endif
                             </td>
                             <td>
+                                @if($invoiceIsReversed)
+                                <span class="text-muted">—</span>
+                                @else
                                 <div class="edit-actions-view{{ $item->id }}">
                                     @if($isManagedCustomItem)
                                     <button type="button" 
@@ -432,6 +459,7 @@
                                         <i class="bi bi-x"></i> Cancel
                                     </button>
                                 </div>
+                                @endif
                             </td>
                         </tr>
                         
@@ -681,6 +709,54 @@
     </div>
 
     {{-- Credit/Debit Notes are now shown as line items in the invoice items table above --}}
+
+    @if(!$invoiceIsReversed)
+    @can('reverse', $invoice)
+    @php
+        $allocatedPaymentsForReverse = ($paymentsForHistory ?? collect())->filter(fn ($p) => ! $p->reversed);
+    @endphp
+    <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0" id="reverseInvoice">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle text-danger"></i>
+            <h5 class="mb-0">Reverse invoice</h5>
+        </div>
+        <div class="finance-card-body p-4">
+            <p class="mb-3">
+                Use this when the invoice was generated by mistake instead of issuing a credit note or discount.
+                The invoice will be fully reversed and will no longer charge the student. You can then post a correct invoice for the same term if needed.
+            </p>
+            @if($allocatedPaymentsForReverse->isNotEmpty())
+            <div class="alert alert-warning">
+                <strong>{{ $allocatedPaymentsForReverse->count() }} payment(s)</strong> are allocated to this invoice.
+                Those allocations will be removed. A payment that was only allocated here will also be reversed.
+                A payment that also covers other invoices will stay active as unallocated credit (or remain on those other invoices).
+                <ul class="mb-0 mt-2">
+                    @foreach($allocatedPaymentsForReverse as $payment)
+                    <li>
+                        {{ $payment->receipt_number ?? $payment->transaction_code }}
+                        — Ksh {{ number_format($payment->amount, 2) }}
+                    </li>
+                    @endforeach
+                </ul>
+            </div>
+            @endif
+            <form action="{{ route('finance.invoices.reverse', $invoice) }}" method="POST" onsubmit="return confirm('Reverse this invoice? Allocated payments will be unallocated. Payments that were only allocated to this invoice will be reversed. This cannot be undone.');">
+                @csrf
+                <div class="mb-3">
+                    <label for="invoice_reversal_reason" class="form-label">Reversal reason <span class="text-danger">*</span></label>
+                    <textarea name="reversal_reason" id="invoice_reversal_reason" class="form-control" rows="2" maxlength="500" required placeholder="e.g. Invoice posted accidentally; credit note / discount should have been used instead.">{{ old('reversal_reason') }}</textarea>
+                    @error('reversal_reason')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
+                </div>
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reverse invoice
+                </button>
+            </form>
+        </div>
+    </div>
+    @endcan
+    @endif
 
     <!-- Payment History (payments that have allocations to this invoice's items) -->
     @php

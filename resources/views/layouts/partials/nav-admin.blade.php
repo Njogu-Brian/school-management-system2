@@ -429,7 +429,16 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     </div>
     
     {{-- Invoicing --}}
-    <a href="{{ route('finance.invoices.index') }}" class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
+    @php
+        $invoicesActive = Request::is('finance/invoices*');
+        $invoicesReversedActive = $invoicesActive && request('status') === 'reversed';
+        $invoicesAllActive = $invoicesActive && request('status') !== 'reversed' && !Request::is('finance/invoices/*');
+    @endphp
+    <a href="#invoicesMenu" data-bs-toggle="collapse" aria-expanded="{{ $invoicesActive ? 'true' : 'false' }}" class="{{ $invoicesActive ? 'parent-active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
+    <div class="collapse {{ $invoicesActive ? 'show' : '' }}" id="invoicesMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.invoices.index') }}" class="sublink {{ $invoicesAllActive ? 'active' : '' }}"><i class="bi bi-list-ul"></i> All invoices</a>
+        <a href="{{ route('finance.invoices.index', ['status' => 'reversed']) }}" class="sublink {{ $invoicesReversedActive ? 'active' : '' }}"><i class="bi bi-arrow-counterclockwise"></i> Reversed invoices</a>
+    </div>
     <a href="{{ route('finance.journals.index') }}" class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') || Request::is('finance/student-credit-debit-notes*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
     
     {{-- Billing Configuration --}}

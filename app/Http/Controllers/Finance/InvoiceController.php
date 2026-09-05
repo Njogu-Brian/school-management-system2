@@ -13,6 +13,7 @@ use App\Services\InvoiceService;
 use App\Services\UniformFeeService;
 use App\Services\InvoiceFooterPlaceholderService;
 use App\Services\Finance\InvoicePdfPriorBalanceService;
+use App\Services\Finance\InvoiceReversalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
@@ -29,6 +30,7 @@ class InvoiceController extends Controller
         $includeOrphans = (bool) $request->boolean('include_orphans', false);
 
         $q = Invoice::with(['student.classroom','student.stream', 'items', 'term', 'academicYear'])
+            ->when($request->input('status') !== 'reversed', fn (Builder $qq) => $qq->notReversed())
             ->when(!$includeOrphans, function (Builder $qq) {
                 // Hide broken/orphan invoices from the normal list:
                 // - invoices without a student
@@ -307,6 +309,7 @@ class InvoiceController extends Controller
             'student.stream',
             'term',
             'academicYear',
+            'reversedBy',
             'items.votehead',
             'items.allocations.payment',
             'creditNotes.issuedBy',
@@ -328,6 +331,29 @@ class InvoiceController extends Controller
         return view('finance.invoices.show', compact('invoice', 'appliedDiscounts', 'paymentsForHistory'));
     }
 
+    public function reverse(Request $request, Invoice $invoice)
+    {
+        $this->authorize('reverse', $invoice);
+
+        $validated = $request->validate([
+            'reversal_reason' => 'required|string|max:500',
+        ]);
+
+        try {
+            $result = app(InvoiceReversalService::class)->reverse(
+                $invoice,
+                $validated['reversal_reason'],
+                $request->user()
+            );
+
+            return redirect()
+                ->route('finance.invoices.show', $invoice)
+                ->with('success', $result['message']);
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
     public function importForm()
     {
         return view('finance.invoices.import');
@@ -341,6 +367,10 @@ class InvoiceController extends Controller
 
     public function updateItem(Request $request, Invoice $invoice, InvoiceItem $item)
     {
+        if ($response = $this->rejectIfReversed($request, $invoice)) {
+            return $response;
+        }
+
         // Always treat as JSON if X-Requested-With header is present
         $isAjax = $request->expectsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest';
         $isManagedCustomItem = UniformFeeService::isManagedCustomItem($item);
@@ -436,6 +466,10 @@ class InvoiceController extends Controller
      */
     public function storeCustomItem(Request $request, Invoice $invoice)
     {
+        if ($response = $this->rejectIfReversed($request, $invoice)) {
+            return $response;
+        }
+
         $request->validate([
             'votehead_name' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0',
@@ -458,6 +492,10 @@ class InvoiceController extends Controller
      */
     public function removeLegacyUniformItem(Invoice $invoice)
     {
+        if ($invoice->isReversed()) {
+            return back()->with('error', 'This invoice has been reversed and cannot be modified.');
+        }
+
         try {
             UniformFeeService::removeLegacyUniformItem($invoice);
             return back()->with('success', 'Uniform line removed from invoice.');
@@ -472,6 +510,10 @@ class InvoiceController extends Controller
      */
     public function removeCustomItem(Invoice $invoice, InvoiceItem $item)
     {
+        if ($invoice->isReversed()) {
+            return back()->with('error', 'This invoice has been reversed and cannot be modified.');
+        }
+
         if ((int) $item->invoice_id !== (int) $invoice->id) {
             return back()->with('error', 'Invalid invoice item for this invoice.');
         }
@@ -542,13 +584,25 @@ class InvoiceController extends Controller
         return view('finance.invoices.history', compact('invoice', 'auditLogs', 'paymentsForHistory'));
     }
 
+    private function rejectIfReversed(Request $request, Invoice $invoice)
+    {
+        if (! $invoice->isReversed()) {
+            return null;
+        }
+
+        $message = 'This invoice has been reversed and cannot be modified.';
+        if ($request->expectsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+            return response()->json(['success' => false, 'message' => $message], 403);
+        }
+
+        return back()->with('error', $message);
+    }
+
     private function filteredInvoicesQuery(Request $request): Builder
     {
         return Invoice::query()
             ->with(['student.classroom', 'student.stream', 'student.family', 'items.votehead', 'term', 'academicYear'])
-            ->where(function ($q) {
-                $q->whereNull('status')->orWhere('status', '<>', 'reversed');
-            })
+            ->when($request->input('status') !== 'reversed', fn ($q) => $q->notReversed())
             ->when($request->filled('year'), fn ($q) => $q->where('year', $request->year))
             ->when($request->filled('term'), fn ($q) => $q->where('term', $request->term))
             ->when($request->filled('student_id'), fn ($q) => $q->where('student_id', $request->student_id))

@@ -24,11 +24,17 @@ class InvoiceService
             ->where('name', 'like', "%Term {$term}%")
             ->first();
         
-        // First, try to find existing invoice (including soft deleted ones)
+        // First, try to find an active invoice (including soft deleted ones that were not reversed)
         $invoice = Invoice::withTrashed()
             ->where('student_id', $studentId)
             ->where('year', $year)
             ->where('term', $term)
+            ->where(function ($q) {
+                $q->whereNull('reversed_at')
+                    ->where(function ($q2) {
+                        $q2->whereNull('status')->orWhere('status', '<>', 'reversed');
+                    });
+            })
             ->first();
         
         // Resolve due_date from the term's opening date (academic days).
@@ -100,6 +106,7 @@ class InvoiceService
                 $invoice = Invoice::where('student_id', $studentId)
                     ->where('year', $year)
                     ->where('term', $term)
+                    ->notReversed()
                     ->first();
                 
                 if ($invoice) {

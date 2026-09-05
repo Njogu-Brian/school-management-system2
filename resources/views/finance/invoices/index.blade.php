@@ -73,6 +73,7 @@
                     <option value="unpaid" {{ request('status') == 'unpaid' ? 'selected' : '' }}>Unpaid</option>
                     <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial</option>
                     <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                    <option value="reversed" {{ request('status') == 'reversed' ? 'selected' : '' }}>Reversed</option>
                 </select>
             </div>
             <div class="col-md-6 col-lg-3 d-flex align-items-end">
@@ -224,7 +225,7 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="finance-badge badge-{{ $inv->status === 'paid' ? 'paid' : ($inv->status === 'partial' ? 'partial' : 'unpaid') }}">
+                                <span class="finance-badge badge-{{ $inv->status === 'paid' ? 'paid' : ($inv->status === 'partial' ? 'partial' : ($inv->status === 'reversed' ? 'reversed' : 'unpaid')) }}">
                                     {{ ucfirst($inv->status) }}
                                 </span>
                                 @if($inv->isOverdue())
@@ -251,11 +252,20 @@
                                        onclick="window.open('{{ route('finance.invoices.print_single', $inv) }}', 'InvoiceWindow', 'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'); return false;">
                                         <i class="bi bi-printer"></i>
                                     </a>
+                                    @if(!$inv->isReversed())
                                     <button type="button" class="btn btn-sm btn-outline-success"
                                         title="Send"
                                         onclick="openSendDocument('invoice', [{{ $inv->id }}])">
                                         <i class="bi bi-send"></i>
                                     </button>
+                                    @can('reverse', $inv)
+                                    <a href="{{ route('finance.invoices.show', $inv) }}#reverseInvoice"
+                                       class="btn btn-sm btn-outline-danger"
+                                       title="Reverse invoice">
+                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                    </a>
+                                    @endcan
+                                    @endif
                                 </div>
                             </td>
                         </tr>

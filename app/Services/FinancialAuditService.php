@@ -3,12 +3,27 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
+use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\BankStatementTransaction;
 use App\Models\MpesaC2BTransaction;
 
 class FinancialAuditService
 {
+    /**
+     * Log invoice reversal
+     */
+    public static function logInvoiceReversal(Invoice $invoice, array $oldValues = null): void
+    {
+        AuditLog::log('invoice_reversed', $invoice, $oldValues, [
+            'reversed_by' => auth()->id(),
+            'reversed_at' => now()->toDateTimeString(),
+            'invoice_number' => $invoice->invoice_number,
+            'student_id' => $invoice->student_id,
+            'reversal_reason' => $invoice->reversal_reason,
+        ], ['financial', 'invoice', 'reversal']);
+    }
+
     /**
      * Log payment reversal
      */
