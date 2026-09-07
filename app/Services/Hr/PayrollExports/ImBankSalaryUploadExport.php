@@ -26,7 +26,7 @@ final class ImBankSalaryUploadExport
         $this->writeHeader($sheet, $period, $periodLabel, $rows);
         $this->writeDataRows($sheet, $rows['items'], $description);
 
-        $filename = sprintf('Salary Upload IMBank %s.xls', $periodLabel);
+        $filename = sprintf('Salary Upload %s.xls', $periodLabel);
         $path = sprintf('payroll/exports/%d/%s', $period->id, $this->safeFilename($filename));
 
         Storage::disk($disk)->makeDirectory(dirname($path));
@@ -47,7 +47,7 @@ final class ImBankSalaryUploadExport
                 'total_amount' => $rows['total_amount'],
                 'excluded_mpesa_count' => $rows['excluded_mpesa_count'],
                 'excluded_mpesa_total' => $rows['excluded_mpesa_total'],
-                'template_source' => (string) (config('payroll_exports.imbank_template_path') ?: 'generated'),
+                'template_source' => (string) config('payroll_exports.imbank_template_path'),
                 'payment_description' => $description,
             ],
         );
@@ -56,34 +56,11 @@ final class ImBankSalaryUploadExport
     private function loadOrCreateSpreadsheet(): Spreadsheet
     {
         $templatePath = (string) config('payroll_exports.imbank_template_path');
-        if ($templatePath && is_file($templatePath)) {
-            return \PhpOffice\PhpSpreadsheet\IOFactory::load($templatePath);
+        if (! $templatePath || ! is_file($templatePath)) {
+            throw new \RuntimeException('The I&M Bank salary upload template is not installed.');
         }
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-
-        $sheet->setCellValue('A1', 'I&M Bank Salary Upload');
-        $sheet->setCellValue('A2', 'Batch Title');
-        $sheet->setCellValue('A4', 'Value Date');
-        $sheet->setCellValue('F4', 'Total Amount');
-        $sheet->setCellValue('F5', 'Record Count');
-
-        $headers = [
-            'A8' => 'Employee Number',
-            'B8' => 'Employee Name',
-            'C8' => 'Account Number',
-            'D8' => 'Bank Name/Code',
-            'E8' => 'Amount',
-            'F8' => 'Payment Description',
-            'G8' => 'Payment Mode',
-            'H8' => 'Branch Name/Code',
-        ];
-        foreach ($headers as $cell => $label) {
-            $sheet->setCellValue($cell, $label);
-        }
-
-        return $spreadsheet;
+        return \PhpOffice\PhpSpreadsheet\IOFactory::load($templatePath);
     }
 
     /**
@@ -91,10 +68,10 @@ final class ImBankSalaryUploadExport
      */
     private function writeHeader(Worksheet $sheet, PayrollPeriod $period, string $periodLabel, array $rows): void
     {
-        $sheet->setCellValue('D2', "SALARY {$periodLabel}");
-        $sheet->setCellValue('D4', optional($period->pay_date)->format('d-M-Y') ?? now()->format('d-M-Y'));
-        $sheet->setCellValue('G4', number_format($rows['total_amount'], 2, '.', ','));
-        $sheet->setCellValue('G5', (string) $rows['record_count']);
+        $sheet->setCellValue('D2', sprintf('Salary Upload %s.xls', $periodLabel));
+        $sheet->setCellValue('D4', now()->format('d-M-Y'));
+        $sheet->setCellValue('D5', 'Beneficiary');
+        $sheet->setCellValue('D6', null);
     }
 
     /**
@@ -109,7 +86,7 @@ final class ImBankSalaryUploadExport
             $sheet->setCellValue("B{$r}", (string) ($item['employee_name'] ?? ''));
             $sheet->setCellValueExplicit("C{$r}", (string) ($item['account_number'] ?? ''), DataType::TYPE_STRING);
             $sheet->setCellValue("D{$r}", (string) ($item['bank_name_or_code'] ?? ''));
-            $sheet->setCellValue("E{$r}", number_format((float) ($item['amount'] ?? 0), 2, '.', ','));
+            $sheet->setCellValue("E{$r}", (float) ($item['amount'] ?? 0));
             $sheet->setCellValue("F{$r}", $description);
             $sheet->setCellValue("G{$r}", (string) ($item['payment_mode'] ?? 'PesaLink'));
             $sheet->setCellValue("H{$r}", (string) ($item['branch_name_or_code'] ?? ''));
