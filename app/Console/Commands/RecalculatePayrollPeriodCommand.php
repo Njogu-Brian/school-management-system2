@@ -223,10 +223,12 @@ class RecalculatePayrollPeriodCommand extends Command
             $ruleset,
         );
         $record->nssf_deduction = $deductions['nssf'];
+        $record->employer_nssf_contribution = $deductions['nssf'];
         $record->nhif_deduction = $deductions['nhif'];
         $record->shif_deduction = $deductions['shif'];
         $record->paye_deduction = $deductions['paye'];
         $record->housing_levy_deduction = $deductions['housing_levy'];
+        $record->employer_housing_levy_contribution = $deductions['housing_levy'];
 
         $advanceDeduction = 0;
         foreach ($member->activeAdvances()->get() as $advance) {

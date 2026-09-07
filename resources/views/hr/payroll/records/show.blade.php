@@ -116,6 +116,10 @@
                                 <div class="h6 mb-0">Ksh {{ number_format($record->nssf_deduction, 2) }}</div>
                             </div>
                             <div class="col-md-4 mb-2">
+                                <label class="text-muted small">Employer NSSF</label>
+                                <div class="h6 mb-0">Ksh {{ number_format($record->employer_nssf_contribution ?? 0, 2) }}</div>
+                            </div>
+                            <div class="col-md-4 mb-2">
                                 <label class="text-muted small">NHIF</label>
                                 <div class="h6 mb-0">Ksh {{ number_format($record->nhif_deduction, 2) }}</div>
                             </div>
@@ -130,6 +134,10 @@
                             <div class="col-md-4 mb-2">
                                 <label class="text-muted small">Housing Levy</label>
                                 <div class="h6 mb-0">Ksh {{ number_format($record->housing_levy_deduction ?? 0, 2) }}</div>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label class="text-muted small">Employer Housing Levy</label>
+                                <div class="h6 mb-0">Ksh {{ number_format($record->employer_housing_levy_contribution ?? 0, 2) }}</div>
                             </div>
                             <div class="col-md-4 mb-2">
                                 <label class="text-muted small">Other Deductions</label>
@@ -154,6 +162,10 @@
                             <div class="col-md-6 mb-2">
                                 <label class="text-muted small">Net Salary</label>
                                 <div class="h3 text-primary mb-0">Ksh {{ number_format($record->net_salary, 2) }}</div>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label class="text-muted small">Total Required for This Staff</label>
+                                <div class="h5 text-success mb-0">Ksh {{ number_format($record->amountRequired(), 2) }}</div>
                             </div>
                         </div>
 
@@ -211,6 +223,17 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                                 <div class="form-text">Overrides the calculated gross amount for this draft.</div>
+                            </div>
+
+                            <div class="col-12">
+                                <input type="hidden" name="use_suggested_statutory_deductions" value="0">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="1" name="use_suggested_statutory_deductions" id="use_suggested_statutory_deductions" checked>
+                                    <label class="form-check-label" for="use_suggested_statutory_deductions">
+                                        Calculate statutory deductions from the gross salary
+                                    </label>
+                                </div>
+                                <div class="form-text">Clear this to keep or enter your own statutory deduction amounts.</div>
                             </div>
 
                             @foreach([

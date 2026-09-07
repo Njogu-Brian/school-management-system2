@@ -168,6 +168,41 @@
             </div>
         </div>
 
+        <div class="row mb-3 g-3">
+            <div class="col-6 col-md-3">
+                <div class="settings-card stat-card secondary">
+                    <div class="card-body">
+                        <p class="mb-1 text-muted small">Employee Statutory</p>
+                        <h3 class="mb-0">Ksh {{ number_format($period->total_employee_statutory ?? 0, 2) }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="settings-card stat-card warning">
+                    <div class="card-body">
+                        <p class="mb-1 text-muted small">Employer Statutory</p>
+                        <h3 class="mb-0">Ksh {{ number_format($period->total_employer_statutory ?? 0, 2) }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="settings-card stat-card danger">
+                    <div class="card-body">
+                        <p class="mb-1 text-muted small">Loan Repayments</p>
+                        <h3 class="mb-0">Ksh {{ number_format($period->total_loan_repayments ?? 0, 2) }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="settings-card stat-card success">
+                    <div class="card-body">
+                        <p class="mb-1 text-muted small">Total Amount Required</p>
+                        <h3 class="mb-0">Ksh {{ number_format($period->total_amount_required ?? 0, 2) }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="settings-card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>

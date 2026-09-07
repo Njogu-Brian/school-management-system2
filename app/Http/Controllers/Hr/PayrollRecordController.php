@@ -8,6 +8,7 @@ use App\Models\PayrollRecord;
 use App\Models\PayrollPeriod;
 use App\Models\SalaryHistory;
 use App\Models\StaffAdvance;
+use App\Services\PayrollCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -50,7 +51,7 @@ class PayrollRecordController extends Controller
     /**
      * Update payroll record (adjustments)
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, $id, PayrollCalculationService $payrollCalc)
     {
         $record = PayrollRecord::with('payrollPeriod')->findOrFail($id);
 
@@ -71,14 +72,32 @@ class PayrollRecordController extends Controller
             'custom_deductions_total' => 'nullable|numeric|min:0',
             'adjustments_notes' => 'nullable|string|max:2000',
             'notes' => 'nullable|string|max:2000',
+            'use_suggested_statutory_deductions' => 'nullable|boolean',
         ]);
 
         if (array_key_exists('gross_salary', $validated)) {
             $record->gross_salary_override = $validated['gross_salary'];
         }
-        foreach (['nssf_deduction', 'nhif_deduction', 'shif_deduction', 'paye_deduction', 'housing_levy_deduction', 'other_deductions'] as $field) {
-            if (array_key_exists($field, $validated)) {
-                $record->{$field} = $validated[$field] ?? 0;
+        $useSuggestedStatutory = (bool) ($validated['use_suggested_statutory_deductions'] ?? false);
+        if ($useSuggestedStatutory && $record->gross_salary_override !== null) {
+            $suggested = $payrollCalc->calculateAllDeductions(
+                (float) $record->gross_salary_override,
+                $record->staff?->statutoryExemptionCodes() ?? [],
+                $record->payrollPeriod->statutoryRuleset,
+            );
+            $record->nssf_deduction = $suggested['nssf'];
+            $record->nhif_deduction = $suggested['nhif'];
+            $record->shif_deduction = $suggested['shif'];
+            $record->paye_deduction = $suggested['paye'];
+            $record->housing_levy_deduction = $suggested['housing_levy'];
+            $record->employer_nssf_contribution = $suggested['nssf'];
+            $record->employer_housing_levy_contribution = $suggested['housing_levy'];
+        }
+        if (! $useSuggestedStatutory) {
+            foreach (['nssf_deduction', 'nhif_deduction', 'shif_deduction', 'paye_deduction', 'housing_levy_deduction', 'other_deductions'] as $field) {
+                if (array_key_exists($field, $validated)) {
+                    $record->{$field} = $validated[$field] ?? 0;
+                }
             }
         }
         $record->bonus = $validated['bonus'] ?? 0;

@@ -22,6 +22,10 @@ class PayrollPeriod extends Model
         'total_gross',
         'total_deductions',
         'total_net',
+        'total_employee_statutory',
+        'total_employer_statutory',
+        'total_loan_repayments',
+        'total_amount_required',
         'staff_count',
         'processed_at',
         'processed_by',
@@ -41,6 +45,10 @@ class PayrollPeriod extends Model
         'total_gross' => 'decimal:2',
         'total_deductions' => 'decimal:2',
         'total_net' => 'decimal:2',
+        'total_employee_statutory' => 'decimal:2',
+        'total_employer_statutory' => 'decimal:2',
+        'total_loan_repayments' => 'decimal:2',
+        'total_amount_required' => 'decimal:2',
         'staff_count' => 'integer',
         'processed_at' => 'datetime',
         'paid_at' => 'datetime',
@@ -86,6 +94,22 @@ class PayrollPeriod extends Model
         $this->total_gross = $records->sum('gross_salary');
         $this->total_deductions = $records->sum('total_deductions');
         $this->total_net = $records->sum('net_salary');
+        $this->total_employee_statutory = $records->sum(fn (PayrollRecord $record) =>
+            (float) $record->nssf_deduction
+            + (float) $record->nhif_deduction
+            + (float) $record->shif_deduction
+            + (float) $record->paye_deduction
+            + (float) $record->housing_levy_deduction
+        );
+        $this->total_employer_statutory = $records->sum(fn (PayrollRecord $record) =>
+            (float) $record->employer_nssf_contribution
+            + (float) $record->employer_housing_levy_contribution
+        );
+        $this->total_loan_repayments = $records->sum('advance_deduction');
+        $this->total_amount_required = (float) $this->total_net
+            + (float) $this->total_employee_statutory
+            + (float) $this->total_employer_statutory
+            + (float) $this->total_loan_repayments;
         $this->staff_count = $records->count();
 
         return $this;

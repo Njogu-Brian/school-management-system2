@@ -24,10 +24,12 @@ class PayrollRecord extends Model
         'gross_salary',
         'gross_salary_override',
         'nssf_deduction',
+        'employer_nssf_contribution',
         'nhif_deduction',
         'shif_deduction',
         'paye_deduction',
         'housing_levy_deduction',
+        'employer_housing_levy_contribution',
         'other_deductions',
         'deductions_breakdown',
         'total_deductions',
@@ -57,10 +59,12 @@ class PayrollRecord extends Model
         'gross_salary' => 'decimal:2',
         'gross_salary_override' => 'decimal:2',
         'nssf_deduction' => 'decimal:2',
+        'employer_nssf_contribution' => 'decimal:2',
         'nhif_deduction' => 'decimal:2',
         'shif_deduction' => 'decimal:2',
         'paye_deduction' => 'decimal:2',
         'housing_levy_deduction' => 'decimal:2',
+        'employer_housing_levy_contribution' => 'decimal:2',
         'other_deductions' => 'decimal:2',
         'deductions_breakdown' => 'array',
         'total_deductions' => 'decimal:2',
@@ -156,6 +160,33 @@ class PayrollRecord extends Model
         $this->net_salary = $this->gross_salary - $this->total_deductions;
 
         return $this;
+    }
+
+    public function statutoryPaymentsTotal(): float
+    {
+        return round(
+            (float) $this->nssf_deduction
+            + (float) $this->nhif_deduction
+            + (float) $this->shif_deduction
+            + (float) $this->paye_deduction
+            + (float) $this->housing_levy_deduction
+            + (float) $this->employer_nssf_contribution
+            + (float) $this->employer_housing_levy_contribution,
+            2,
+        );
+    }
+
+    public function loanRepaymentsTotal(): float
+    {
+        return round((float) $this->advance_deduction, 2);
+    }
+
+    public function amountRequired(): float
+    {
+        return round(
+            (float) $this->net_salary + $this->statutoryPaymentsTotal() + $this->loanRepaymentsTotal(),
+            2,
+        );
     }
 
     /**

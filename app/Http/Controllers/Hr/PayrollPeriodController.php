@@ -173,10 +173,12 @@ class PayrollPeriodController extends Controller
                     $period->statutoryRuleset,
                 );
                 $record->nssf_deduction = $deductions['nssf'];
+                $record->employer_nssf_contribution = $deductions['nssf'];
                 $record->nhif_deduction = $deductions['nhif']; // legacy
                 $record->shif_deduction = $deductions['shif'];
                 $record->paye_deduction = $deductions['paye'];
                 $record->housing_levy_deduction = $deductions['housing_levy'];
+                $record->employer_housing_levy_contribution = $deductions['housing_levy'];
                 $record->other_deductions = $salaryStructure->other_deductions ?? 0;
                 $record->deductions_breakdown = $salaryStructure->deductions_breakdown ?? null;
 
