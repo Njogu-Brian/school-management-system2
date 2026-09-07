@@ -161,6 +161,9 @@ class PayrollPeriodController extends Controller
                     $record->allowances_breakdown = null;
                 }
 
+                $record->gross_salary_override = null;
+                $record->applyEmploymentProration($member, $period);
+
                 // Calculate deductions
                 $record->calculateTotals(); // Calculate gross first
                 $statutoryExemptions = $member->statutoryExemptionCodes();
@@ -232,7 +235,7 @@ class PayrollPeriodController extends Controller
                 // Recalculate totals with all deductions
                 $record->calculateTotals();
 
-                $record->status = 'approved';
+                $record->status = 'draft';
                 $record->save();
 
                 // Create salary history entry
@@ -267,13 +270,30 @@ class PayrollPeriodController extends Controller
             }
 
             return redirect()->route('hr.payroll.periods.show', $period->id)
-                ->with('success', 'Payroll processed successfully for ' . $period->staff_count . ' staff members.');
+                ->with('success', 'Payroll generated as drafts for ' . $period->staff_count . ' staff members. Review and approve the records before payment.');
         } catch (\Exception $e) {
             DB::rollBack();
             $period->status = 'draft';
             $period->save();
             return back()->with('error', 'Failed to process payroll: ' . $e->getMessage());
         }
+    }
+
+    /** Approve all draft records after payroll review. */
+    public function approve($id)
+    {
+        $period = PayrollPeriod::with('payrollRecords')->findOrFail($id);
+
+        if ($period->isLocked() || $period->payrollRecords->where('status', 'draft')->isEmpty()) {
+            return back()->with('error', 'There are no editable draft records to approve.');
+        }
+
+        $period->payrollRecords()->where('status', 'draft')->update(['status' => 'approved']);
+        $period->load('payrollRecords');
+        $period->calculateTotals();
+        $period->save();
+
+        return back()->with('success', 'Payroll drafts approved successfully.');
     }
 
     /**
@@ -312,8 +332,8 @@ class PayrollPeriodController extends Controller
     {
         $period = PayrollPeriod::findOrFail($id);
 
-        if ($period->status !== 'completed') {
-            return back()->with('error', 'Only completed payroll periods can be locked.');
+        if ($period->status !== 'completed' || $period->payrollRecords()->where('status', 'draft')->exists()) {
+            return back()->with('error', 'Approve all payroll drafts before locking the period.');
         }
 
         $period->status = 'locked';
@@ -326,7 +346,7 @@ class PayrollPeriodController extends Controller
     {
         $period = PayrollPeriod::findOrFail($id);
 
-        if ($period->status !== 'completed' && $period->status !== 'locked') {
+        if (($period->status !== 'completed' && $period->status !== 'locked') || $period->payrollRecords()->where('status', 'draft')->exists()) {
             return back()->with('error', 'Only completed payroll periods can be marked as paid.');
         }
 

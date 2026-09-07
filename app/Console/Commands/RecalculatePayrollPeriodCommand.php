@@ -206,6 +206,9 @@ class RecalculatePayrollPeriodCommand extends Command
             $record->deductions_breakdown = null;
         }
 
+        $record->gross_salary_override = null;
+        $record->applyEmploymentProration($member, $period);
+
         // Bonus is a manual slip adjustment — keep it.
         $record->bonus = (float) ($record->bonus ?? 0);
 
@@ -276,9 +279,7 @@ class RecalculatePayrollPeriodCommand extends Command
         $record->custom_deductions_breakdown = $customDeductionsBreakdown;
         $record->calculateTotals();
 
-        if ($record->status === 'draft') {
-            $record->status = 'approved';
-        }
+        // Keep draft records editable until the payroll manager approves them.
     }
 
     private function reverseAppliedDeductions(PayrollRecord $record): void

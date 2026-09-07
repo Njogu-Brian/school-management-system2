@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class PayrollRecord extends Model
 {
@@ -21,6 +22,7 @@ class PayrollRecord extends Model
         'other_allowances',
         'allowances_breakdown',
         'gross_salary',
+        'gross_salary_override',
         'nssf_deduction',
         'nhif_deduction',
         'shif_deduction',
@@ -53,6 +55,7 @@ class PayrollRecord extends Model
         'other_allowances' => 'decimal:2',
         'allowances_breakdown' => 'array',
         'gross_salary' => 'decimal:2',
+        'gross_salary_override' => 'decimal:2',
         'nssf_deduction' => 'decimal:2',
         'nhif_deduction' => 'decimal:2',
         'shif_deduction' => 'decimal:2',
@@ -111,7 +114,7 @@ class PayrollRecord extends Model
     public function calculateTotals()
     {
         // Calculate gross salary
-        $this->gross_salary = $this->basic_salary 
+        $calculatedGross = $this->basic_salary
             + $this->housing_allowance 
             + $this->transport_allowance 
             + $this->medical_allowance 
@@ -121,9 +124,13 @@ class PayrollRecord extends Model
         // Add custom allowances
         if ($this->allowances_breakdown && is_array($this->allowances_breakdown)) {
             foreach ($this->allowances_breakdown as $amount) {
-                $this->gross_salary += (float) $amount;
+                $calculatedGross += (float) $amount;
             }
         }
+
+        $this->gross_salary = $this->gross_salary_override !== null
+            ? $this->gross_salary_override
+            : $calculatedGross;
 
         // Calculate total deductions
         $this->total_deductions = $this->nssf_deduction 
@@ -149,6 +156,46 @@ class PayrollRecord extends Model
         $this->net_salary = $this->gross_salary - $this->total_deductions;
 
         return $this;
+    }
+
+    /**
+     * Prorate monthly earnings for the part of the period covered by employment.
+     */
+    public function applyEmploymentProration(Staff $staff, PayrollPeriod $period): void
+    {
+        $periodStart = Carbon::parse($period->start_date)->startOfDay();
+        $periodEnd = Carbon::parse($period->end_date)->startOfDay();
+        $employmentStart = $staff->hire_date
+            ? Carbon::parse($staff->hire_date)->startOfDay()->max($periodStart)
+            : $periodStart;
+        $employmentEnd = $staff->termination_date
+            ? Carbon::parse($staff->termination_date)->startOfDay()->min($periodEnd)
+            : $periodEnd;
+        $daysInPeriod = $periodStart->diffInDays($periodEnd) + 1;
+        $daysWorked = $employmentStart->lte($employmentEnd)
+            ? $employmentStart->diffInDays($employmentEnd) + 1
+            : 0;
+        $factor = $daysInPeriod > 0 ? $daysWorked / $daysInPeriod : 0;
+
+        $this->days_in_period = $daysInPeriod;
+        $this->days_worked = $daysWorked;
+
+        foreach ([
+            'basic_salary',
+            'housing_allowance',
+            'transport_allowance',
+            'medical_allowance',
+            'other_allowances',
+            'other_deductions',
+        ] as $field) {
+            $this->{$field} = round((float) $this->{$field} * $factor, 2);
+        }
+
+        if (is_array($this->allowances_breakdown)) {
+            $this->allowances_breakdown = collect($this->allowances_breakdown)
+                ->map(fn ($amount) => round((float) $amount * $factor, 2))
+                ->all();
+        }
     }
 
     /**

@@ -99,6 +99,12 @@
                                 <label class="text-muted small">Gross Salary</label>
                                 <div class="h4 text-success mb-0">Ksh {{ number_format($record->gross_salary, 2) }}</div>
                             </div>
+                            @if($record->days_in_period)
+                                <div class="col-md-6 mb-2">
+                                    <label class="text-muted small">Paid Days</label>
+                                    <div class="h6 mb-0">{{ $record->days_worked }} of {{ $record->days_in_period }} days</div>
+                                </div>
+                            @endif
                         </div>
 
                         <div class="divider"></div>
@@ -197,6 +203,32 @@
                         <form action="{{ route('hr.payroll.records.update', $record->id) }}" method="POST" class="row g-3">
                             @csrf
                             @method('PUT')
+
+                            <div class="col-12">
+                                <label class="form-label">Gross Salary (Ksh)</label>
+                                <input type="number" name="gross_salary" step="0.01" min="0" class="form-control @error('gross_salary') is-invalid @enderror" value="{{ old('gross_salary', $record->gross_salary) }}">
+                                @error('gross_salary')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text">Overrides the calculated gross amount for this draft.</div>
+                            </div>
+
+                            @foreach([
+                                'nssf_deduction' => 'NSSF',
+                                'nhif_deduction' => 'NHIF',
+                                'shif_deduction' => 'SHIF',
+                                'paye_deduction' => 'PAYE',
+                                'housing_levy_deduction' => 'Housing Levy',
+                                'other_deductions' => 'Other Deductions',
+                            ] as $field => $label)
+                            <div class="col-12">
+                                <label class="form-label">{{ $label }} (Ksh)</label>
+                                <input type="number" name="{{ $field }}" step="0.01" min="0" class="form-control @error($field) is-invalid @enderror" value="{{ old($field, $record->{$field}) }}">
+                                @error($field)
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            @endforeach
 
                             <div class="col-12">
                                 <label class="form-label">Bonus (Ksh)</label>

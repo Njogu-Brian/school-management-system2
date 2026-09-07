@@ -59,6 +59,13 @@ class PayrollRecordController extends Controller
         }
 
         $validated = $request->validate([
+            'gross_salary' => 'nullable|numeric|min:0',
+            'nssf_deduction' => 'nullable|numeric|min:0',
+            'nhif_deduction' => 'nullable|numeric|min:0',
+            'shif_deduction' => 'nullable|numeric|min:0',
+            'paye_deduction' => 'nullable|numeric|min:0',
+            'housing_levy_deduction' => 'nullable|numeric|min:0',
+            'other_deductions' => 'nullable|numeric|min:0',
             'bonus' => 'nullable|numeric|min:0',
             'advance_deduction' => 'nullable|numeric|min:0',
             'custom_deductions_total' => 'nullable|numeric|min:0',
@@ -66,6 +73,14 @@ class PayrollRecordController extends Controller
             'notes' => 'nullable|string|max:2000',
         ]);
 
+        if (array_key_exists('gross_salary', $validated)) {
+            $record->gross_salary_override = $validated['gross_salary'];
+        }
+        foreach (['nssf_deduction', 'nhif_deduction', 'shif_deduction', 'paye_deduction', 'housing_levy_deduction', 'other_deductions'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $record->{$field} = $validated[$field] ?? 0;
+            }
+        }
         $record->bonus = $validated['bonus'] ?? 0;
         $record->advance_deduction = $validated['advance_deduction'] ?? 0;
         $record->custom_deductions_total = $validated['custom_deductions_total'] ?? 0;

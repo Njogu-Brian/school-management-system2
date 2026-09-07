@@ -48,6 +48,15 @@
                     </form>
                 @endif
 
+                @if($period->status === 'completed' && $period->payrollRecords->where('status', 'draft')->count() > 0)
+                    <form action="{{ route('hr.payroll.periods.approve', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Approve all draft payroll records for this period?')">
+                        @csrf
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check2-circle"></i> Approve Drafts
+                        </button>
+                    </form>
+                @endif
+
                 @if(in_array($period->status, ['completed', 'processing']) && $period->payrollRecords->count() > 0)
                     <form action="{{ route('hr.payroll.periods.recalculate', $period->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Recalculate this period? Earnings, statutory deductions, advances, and custom deductions will be refreshed from the current setup. Manual bonuses and cancelled slips are kept. Paid slips are unchanged.')">
                         @csrf
@@ -209,7 +218,9 @@
                     <h5 class="mb-0">Payroll Records ({{ $period->payrollRecords->count() }})</h5>
                     <p class="text-muted small mb-0">Snapshot of generated records</p>
                 </div>
-                <span class="pill-badge pill-info">Read-only</span>
+                <span class="pill-badge {{ $period->payrollRecords->where('status', 'draft')->count() > 0 ? 'pill-warning' : 'pill-info' }}">
+                    {{ $period->payrollRecords->where('status', 'draft')->count() > 0 ? 'Review required' : 'Approved' }}
+                </span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
