@@ -193,10 +193,7 @@
                                 @php
                                     $item = $allocation->invoiceItem ?? null;
                                     $invoice = $item->invoice ?? null;
-                                    $allocTerm = $invoice?->term;
-                                    $allocTermLabel = $allocTerm
-                                        ? trim(($allocTerm->name ?? '').($allocTerm->academicYear?->year ? ' ('.$allocTerm->academicYear->year.')' : ''))
-                                        : null;
+                                    $allocTermLabel = $invoice?->termDisplayLabel();
                                 @endphp
                                 <tr>
                                     <td>

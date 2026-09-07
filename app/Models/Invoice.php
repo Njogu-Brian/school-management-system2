@@ -69,6 +69,60 @@ class Invoice extends Model
         return $this->belongsTo(Term::class);
     }
 
+    /**
+     * Term relationship model.
+     *
+     * Do not use $this->term for the relationship: invoices.term is an integer
+     * column (1/2/3), so Eloquent returns that int instead of the Term model.
+     */
+    public function academicTerm(): ?Term
+    {
+        if ($this->relationLoaded('term')) {
+            $loaded = $this->getRelation('term');
+            if ($loaded instanceof Term) {
+                return $loaded;
+            }
+        }
+
+        $id = (int) ($this->term_id ?? 0);
+        if ($id <= 0) {
+            return null;
+        }
+
+        $term = Term::query()->with('academicYear')->find($id);
+        if ($term instanceof Term) {
+            $this->setRelation('term', $term);
+        }
+
+        return $term instanceof Term ? $term : null;
+    }
+
+    /**
+     * Human-readable term label, e.g. "Term 2 (2026)".
+     */
+    public function termDisplayLabel(): string
+    {
+        $term = $this->academicTerm();
+        if ($term) {
+            $year = $term->academicYear?->year ?? $this->year;
+            $name = trim((string) ($term->name ?? ''));
+            if ($name === '') {
+                $name = 'Term';
+            }
+
+            return trim($name.($year ? ' ('.$year.')' : ''));
+        }
+
+        $number = $this->getAttribute('term');
+        if (is_numeric($number) && (int) $number > 0) {
+            $year = $this->year ? ' ('.$this->year.')' : '';
+
+            return 'Term '.(int) $number.$year;
+        }
+
+        return '';
+    }
+
     public function postingRun(): BelongsTo
     {
         return $this->belongsTo(FeePostingRun::class);
