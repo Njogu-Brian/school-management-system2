@@ -177,8 +177,8 @@ class ParentWalletService
 
             $method = PaymentMethod::query()
                 ->where(function ($q) {
-                    $q->where('slug', 'wallet')
-                        ->orWhere('code', 'wallet')
+                    $q->where('code', 'wallet')
+                        ->orWhere('code', 'WALLET')
                         ->orWhere('name', 'like', '%Wallet%');
                 })
                 ->first();
