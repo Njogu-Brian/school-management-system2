@@ -83,7 +83,7 @@ class ApiParentWalletController extends Controller
 
         $amount = (float) $validated['amount'];
         $purpose = ! empty($validated['saving_plan_id']) ? 'wallet_saving' : 'wallet_topup';
-        $accountReference = 'WALLET-'.$wallet->parent_info_id;
+        $accountReference = 'WALLET-'.$student->admission_number;
         $reference = PaymentTransaction::generateReference();
 
         $transaction = PaymentTransaction::create([

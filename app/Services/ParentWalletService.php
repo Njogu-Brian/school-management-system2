@@ -62,7 +62,10 @@ class ParentWalletService
                 'created_by' => $createdBy,
             ]);
 
-            $applied = $this->allocateDueFeesForFamily($wallet->fresh(), $createdBy);
+            $paymentTransactionId = $referenceType === \App\Models\PaymentTransaction::class
+                ? $referenceId
+                : null;
+            $applied = $this->allocateDueFeesForFamily($wallet->fresh(), $createdBy, $paymentTransactionId);
 
             return [
                 'wallet' => $wallet->fresh(),
@@ -76,7 +79,11 @@ class ParentWalletService
     /**
      * Apply wallet balance to due invoices across children (oldest due first).
      */
-    public function allocateDueFeesForFamily(ParentWallet $wallet, ?int $createdBy = null): float
+    public function allocateDueFeesForFamily(
+        ParentWallet $wallet,
+        ?int $createdBy = null,
+        ?int $paymentTransactionId = null
+    ): float
     {
         $students = Student::where('parent_id', $wallet->parent_info_id)
             ->where('archive', 0)
@@ -102,7 +109,15 @@ class ParentWalletService
                 continue;
             }
 
-            $appliedTotal += $this->payStudentFeesFromWallet($wallet, $student, $toApply, null, $createdBy, true);
+            $appliedTotal += $this->payStudentFeesFromWallet(
+                $wallet,
+                $student,
+                $toApply,
+                null,
+                $createdBy,
+                true,
+                $paymentTransactionId
+            );
         }
 
         return round($appliedTotal, 2);
@@ -138,7 +153,8 @@ class ParentWalletService
         float $amount,
         ?Invoice $invoice = null,
         ?int $createdBy = null,
-        bool $dueOnly = false
+        bool $dueOnly = false,
+        ?int $paymentTransactionId = null
     ): float {
         if ((int) $student->parent_id !== (int) $wallet->parent_info_id) {
             throw new \InvalidArgumentException('Student does not belong to this family wallet.');
@@ -150,7 +166,8 @@ class ParentWalletService
             $amount,
             $invoice,
             $createdBy,
-            $dueOnly
+            $dueOnly,
+            $paymentTransactionId
         );
 
         return (float) $payment->amount;
@@ -162,9 +179,10 @@ class ParentWalletService
         float $amount,
         ?Invoice $invoice,
         ?int $createdBy,
-        bool $dueOnly
+        bool $dueOnly,
+        ?int $paymentTransactionId = null
     ): Payment {
-        return DB::transaction(function () use ($wallet, $student, $amount, $invoice, $createdBy, $dueOnly) {
+        return DB::transaction(function () use ($wallet, $student, $amount, $invoice, $createdBy, $dueOnly, $paymentTransactionId) {
             $amount = round($amount, 2);
             if ($amount <= 0) {
                 throw new \InvalidArgumentException('Amount must be greater than zero.');
@@ -191,13 +209,12 @@ class ParentWalletService
                 'payment_method_id' => $method?->id,
                 'payment_method' => 'wallet',
                 'payment_channel' => 'parent_wallet',
-                'transaction_code' => 'WALLET-'.strtoupper(uniqid()),
+                'payment_transaction_id' => $paymentTransactionId,
+                'transaction_code' => 'WALLET-'.$student->admission_number.'-'.($paymentTransactionId ?? strtoupper(uniqid())),
                 'payer_name' => optional(ParentInfo::find($wallet->parent_info_id))->primary_contact_name
                     ?? 'Parent wallet',
                 'payer_type' => 'parent',
-                'narration' => $dueOnly
-                    ? 'Wallet auto-apply to due fees'
-                    : 'Payment from parent wallet',
+                'narration' => 'WALLET-'.$student->admission_number,
                 'payment_date' => now(),
                 'receipt_date' => now(),
                 'status' => 'approved',
@@ -238,6 +255,15 @@ class ParentWalletService
                     'error' => $e->getMessage(),
                 ]);
                 throw $e;
+            }
+
+            try {
+                app(\App\Services\ReceiptService::class)->generateReceipt($payment->fresh(), ['save' => true]);
+            } catch (\Throwable $e) {
+                Log::error('Parent wallet receipt generation failed', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             return $payment->fresh();
