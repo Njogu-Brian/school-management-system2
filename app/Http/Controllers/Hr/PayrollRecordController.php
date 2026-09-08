@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Hr;
 
+use App\Exports\PayrollRecordsExport;
 use App\Http\Controllers\Controller;
 use App\Models\CustomDeduction;
 use App\Models\PayrollRecord;
@@ -9,8 +10,11 @@ use App\Models\PayrollPeriod;
 use App\Models\SalaryHistory;
 use App\Models\StaffAdvance;
 use App\Services\PayrollCalculationService;
+use App\Services\ReceiptService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class PayrollRecordController extends Controller
 {
@@ -18,6 +22,49 @@ class PayrollRecordController extends Controller
      * Display payroll records for a period
      */
     public function index(Request $request)
+    {
+        $records = $this->filteredRecordsQuery($request)
+            ->orderBy('created_at', 'desc')
+            ->paginate(20)
+            ->withQueryString();
+        $periods = PayrollPeriod::orderBy('year', 'desc')->orderBy('month', 'desc')->get();
+
+        return view('hr.payroll.records.index', compact('records', 'periods'));
+    }
+
+    /**
+     * Export the filtered payroll records to Excel.
+     */
+    public function exportExcel(Request $request)
+    {
+        $records = $this->filteredRecordsQuery($request)->orderBy('created_at', 'desc')->get();
+        $filename = 'payroll-records-'.now()->format('Ymd_His').'.xlsx';
+
+        return Excel::download(new PayrollRecordsExport($records), $filename);
+    }
+
+    /**
+     * Export the filtered payroll records to a branded PDF report.
+     */
+    public function exportPdf(Request $request, ReceiptService $receiptService)
+    {
+        $records = $this->filteredRecordsQuery($request)->orderBy('created_at', 'desc')->get();
+
+        $pdf = Pdf::loadView('hr.payroll.records.pdf', [
+            'records' => $records,
+            'branding' => $receiptService->getDocumentBranding(),
+            'filtersSummary' => $this->filtersSummary($request),
+            'printedBy' => optional($request->user())->name ?? 'System',
+            'printedAt' => now(),
+        ])->setPaper('a4', 'landscape');
+
+        return $pdf->download('payroll-records-'.now()->format('Ymd_His').'.pdf');
+    }
+
+    /**
+     * Shared filter query for the records index and exports.
+     */
+    private function filteredRecordsQuery(Request $request)
     {
         $query = PayrollRecord::with(['staff', 'payrollPeriod', 'salaryStructure']);
 
@@ -33,10 +80,23 @@ class PayrollRecordController extends Controller
             $query->where('status', $request->status);
         }
 
-        $records = $query->orderBy('created_at', 'desc')->paginate(20);
-        $periods = PayrollPeriod::orderBy('year', 'desc')->orderBy('month', 'desc')->get();
+        return $query;
+    }
 
-        return view('hr.payroll.records.index', compact('records', 'periods'));
+    private function filtersSummary(Request $request): string
+    {
+        $parts = [];
+
+        if ($request->filled('payroll_period_id')) {
+            $period = PayrollPeriod::find($request->payroll_period_id);
+            $parts[] = 'Period: '.($period->period_name ?? '#'.$request->payroll_period_id);
+        }
+
+        if ($request->filled('status')) {
+            $parts[] = 'Status: '.ucfirst($request->string('status'));
+        }
+
+        return implode(' | ', $parts) ?: 'All records';
     }
 
     /**

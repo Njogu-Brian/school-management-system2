@@ -945,6 +945,8 @@ Route::middleware('auth')->group(function () {
                 Route::post('/imports/budget/commit', [\App\Http\Controllers\Hr\PayrollImportsController::class, 'budgetCommit'])->name('imports.budget.commit');
                 
                 // Payroll Records
+                Route::get('/records/export-excel', [\App\Http\Controllers\Hr\PayrollRecordController::class, 'exportExcel'])->name('records.export-excel');
+                Route::get('/records/export-pdf', [\App\Http\Controllers\Hr\PayrollRecordController::class, 'exportPdf'])->name('records.export-pdf');
                 Route::resource('records', \App\Http\Controllers\Hr\PayrollRecordController::class);
                 Route::post('/records/{id}/cancel', [\App\Http\Controllers\Hr\PayrollRecordController::class, 'cancel'])->name('records.cancel');
                 Route::get('/records/{id}/payslip', [\App\Http\Controllers\Hr\PayslipController::class, 'show'])->name('records.payslip');

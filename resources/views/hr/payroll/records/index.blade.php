@@ -14,9 +14,17 @@
                 <h1 class="mb-1">Payroll Records</h1>
                 <p class="text-muted mb-0">View and manage payroll records.</p>
             </div>
-            @if($records->total())
-                <span class="pill-badge pill-secondary">{{ $records->total() }} records</span>
-            @endif
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                @if($records->total())
+                    <span class="pill-badge pill-secondary">{{ $records->total() }} records</span>
+                @endif
+                <a href="{{ route('hr.payroll.records.export-excel', request()->query()) }}" class="btn btn-ghost-strong btn-sm">
+                    <i class="bi bi-file-earmark-excel"></i> Export Excel
+                </a>
+                <a href="{{ route('hr.payroll.records.export-pdf', request()->query()) }}" class="btn btn-ghost-strong btn-sm">
+                    <i class="bi bi-file-earmark-pdf"></i> Export PDF
+                </a>
+            </div>
         </div>
 
         @include('partials.alerts')
