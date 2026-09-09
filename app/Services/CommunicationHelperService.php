@@ -109,9 +109,9 @@ class CommunicationHelperService
                 });
         }
 
-        // All staff
+        // All active staff (exclude archived)
         if ($target === 'staff') {
-            Staff::all()->each(function ($st) use (&$out, $type) {
+            Staff::active()->each(function ($st) use (&$out, $type) {
                 $contact = match ($type) {
                     'email' => $st->work_email,
                     'whatsapp' => $st->phone_number,

@@ -139,12 +139,9 @@
                     <a href="{{ route('students.show', $s->id) }}" class="btn btn-ghost-strong btn-sm">
                       <i class="bi bi-eye"></i>
                     </a>
-                    <form action="{{ route('students.restore', $s->id) }}" method="POST" class="d-inline">
-                      @csrf
-                      <button type="submit" class="btn btn-success btn-sm">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
-                      </button>
-                    </form>
+                    <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#restoreStudentModal{{ $s->id }}">
+                      <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -189,5 +186,52 @@
         ['archived_only' => 1]
     ),
 ])
+
+{{-- Restore modals: reason is required and is stored with the restoration date --}}
+@foreach($students as $s)
+<div class="modal fade" id="restoreStudentModal{{ $s->id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form action="{{ route('students.restore', $s->id) }}" method="POST">
+        @csrf
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title mb-0">Restore {{ $s->full_name }}</h5>
+            <small class="text-muted">{{ $s->admission_number }} · Archived {{ $s->archived_at?->format('M d, Y') ?? '—' }}{{ $s->archived_reason ? ' · '.$s->archived_reason : '' }}</small>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Reason for restoration <span class="text-danger">*</span></label>
+            <select name="reason" class="form-select" required>
+              <option value="">Select reason…</option>
+              <option value="Returned to school">Returned to school</option>
+              <option value="Fees settled">Fees settled</option>
+              <option value="Archived in error">Archived in error</option>
+              <option value="Readmission">Readmission</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Notes (optional)</label>
+            <textarea name="restored_notes" class="form-control" rows="2" placeholder="Any extra detail about this restoration…"></textarea>
+          </div>
+          <p class="text-muted small mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            The reason, date and person restoring are recorded in the student's archive history.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Confirm Restore
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+@endforeach
 
 @endsection

@@ -49,7 +49,7 @@
                         <label for="driver_id" class="form-label fw-semibold">Driver</label>
                         <select name="driver_id" id="driver_id" class="form-select">
                             <option value="">Select Driver (Optional)</option>
-                            @foreach (\App\Models\Staff::whereHas('user.roles', function($q) { $q->where('name', 'Driver'); })->with('user')->get() as $staff)
+                            @foreach (\App\Models\Staff::active()->whereHas('user.roles', function($q) { $q->where('name', 'Driver'); })->with('user')->get() as $staff)
                                 <option value="{{ $staff->id }}" {{ old('driver_id') == $staff->id ? 'selected' : '' }}>
                                     {{ $staff->user->name ?? $staff->first_name . ' ' . $staff->last_name }}
                                 </option>

@@ -1101,7 +1101,19 @@ if (!function_exists('get_subordinate_staff_ids')) {
             $ids = array_merge($ids, $pivotIds);
         }
 
-        return array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            return [];
+        }
+
+        // Drop archived subordinates from operational lists (rosters, pickers, team views).
+        return \App\Models\Staff::query()
+            ->whereIn('id', $ids)
+            ->where('status', 'active')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
     }
 }
 

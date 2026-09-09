@@ -181,7 +181,7 @@
                 : []);
             @endphp
             <select name="supervisor_ids[]" class="form-select" multiple size="4">
-              @foreach(\App\Models\Staff::orderBy('first_name')->get() as $sp)
+              @foreach(($supervisors ?? \App\Models\Staff::active()->orderBy('first_name')->orderBy('last_name')->get()) as $sp)
                 @if(!isset($staff) || $sp->id != $staff->id)
                   <option value="{{ $sp->id }}" @selected(in_array($sp->id, $selectedSupervisorIds, true))>{{ $sp->full_name }}</option>
                 @endif

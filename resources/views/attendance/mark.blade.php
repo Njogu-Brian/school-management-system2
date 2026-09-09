@@ -216,7 +216,7 @@
                         @if(!($dateAllowsMarking ?? true))
                           <small class="text-muted d-block mt-1">{{ ($dateBlockReason ?? '') === 'future' ? 'Future date.' : 'Not a school day.' }}</small>
                         @else
-                          <small class="text-muted d-block mt-1">Not enrolled on this date.</small>
+                          <small class="text-muted d-block mt-1">Not markable on this date (not enrolled yet or archived).</small>
                         @endif
                       @elseif($canUnmark ?? false)
                         <small class="text-muted d-block mt-1">Click same button again to unmark</small>

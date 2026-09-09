@@ -804,7 +804,7 @@ class StudentController extends Controller
                 return redirect()->route('students.create')->with('success', 'Student created. You can add another now.');
             }
 
-            return redirect()->route('students.index')->with('success', 'Student created successfully.');
+            return redirect()->route('students.index')->with('success', 'Student created successfully. You can review the record or add another student.');
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
@@ -1548,8 +1548,19 @@ class StudentController extends Controller
     public function restore($id, Request $request)
     {
         $student = Student::withArchived()->findOrFail($id);
+
+        $request->validate([
+            'reason' => 'required|string|max:255',
+            'restored_notes' => 'nullable|string|max:1000',
+        ]);
+
         try {
-            $this->restoreService->restore($student, $request->input('reason'), auth()->id());
+            $this->restoreService->restore(
+                $student,
+                $request->input('reason'),
+                auth()->id(),
+                $request->input('restored_notes')
+            );
             return redirect()->route('students.index')->with('success', 'Student restored successfully.');
         } catch (\Throwable $e) {
             Log::error('Restore failed: '.$e->getMessage(), ['student_id' => $student->id]);
@@ -2161,7 +2172,14 @@ class StudentController extends Controller
             $parentCredentials = app(\App\Services\ParentCredentialsService::class)->listForStudent($student);
         }
 
-        return view('students.show', compact('student', 'communicationHistory', 'communicationUpcoming', 'parentCredentials'));
+        $archiveAudits = \App\Models\ArchiveAudit::with('actor')
+            ->where('student_id', $student->id)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
+
+        return view('students.show', compact('student', 'communicationHistory', 'communicationUpcoming', 'parentCredentials', 'archiveAudits'));
     }
 
     public function getStreams(Request $request)
@@ -2356,15 +2374,33 @@ class StudentController extends Controller
 
     public function bulkRestore(Request $request)
     {
-        $request->validate(['student_ids'=>'required|array']);
+        $request->validate([
+            'student_ids' => 'required|array',
+            'reason' => 'nullable|string|max:255',
+            'restored_notes' => 'nullable|string|max:1000',
+        ]);
         $ids = $request->input('student_ids');
-        Student::withArchived()->whereIn('id', $ids)->update(['archive' => 0]);
-        // Restore families for any restored students that had archived_family_id set
-        $familyArchiveService = app(\App\Services\FamilyArchiveService::class);
-        foreach (Student::whereIn('id', $ids)->get() as $student) {
-            $familyArchiveService->onStudentRestored($student);
+        $reason = $request->input('reason') ?: 'Bulk restore';
+        $notes = $request->input('restored_notes');
+        $restoredCount = 0;
+
+        foreach (Student::withArchived()->whereIn('id', $ids)->get() as $student) {
+            try {
+                $result = $this->restoreService->restore(
+                    $student,
+                    $reason,
+                    auth()->id(),
+                    $notes
+                );
+                if (! ($result['skipped'] ?? false)) {
+                    $restoredCount++;
+                }
+            } catch (\Throwable $e) {
+                Log::error('Bulk restore failed for student: '.$e->getMessage(), ['student_id' => $student->id]);
+            }
         }
-        return back()->with('success','Selected students restored.');
+
+        return back()->with('success', "Successfully restored {$restoredCount} student(s).");
     }
 
     /**

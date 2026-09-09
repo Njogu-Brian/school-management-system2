@@ -12,8 +12,12 @@ class RestoreStudentService
 {
     /**
     * Restore an archived student and soft-deleted related records.
+    *
+    * Records the restoration reason, notes, actor and timestamp both on the
+    * student record (restored_* fields) and in the archive_audits trail, so
+    * the period spent archived remains traceable (e.g. for attendance rules).
     */
-    public function restore(Student $student, ?string $reason = null, ?int $actorId = null): array
+    public function restore(Student $student, ?string $reason = null, ?int $actorId = null, ?string $notes = null): array
     {
         if (!$student->archive) {
             return ['skipped' => true, 'message' => 'Student is already active'];
@@ -40,7 +44,7 @@ class RestoreStudentService
             'payment_allocations' => 0,
         ];
 
-        DB::transaction(function () use ($student, $reason, $actorId, &$counts) {
+        DB::transaction(function () use ($student, $reason, $actorId, $notes, &$counts) {
             // Restore attendance
             $counts['attendance'] = \App\Models\Attendance::withTrashed()
                 ->where('student_id', $student->id)
@@ -94,12 +98,17 @@ class RestoreStudentService
                 $counts['payments']++;
             }
 
-            // Reactivate student
+            // Reactivate student and record the restoration details.
+            // archived_* metadata is intentionally preserved on the audit trail
+            // (archive_audits) and cleared here so the student reads as active.
             $student->archive = 0;
             $student->archived_at = null;
             $student->archived_reason = null;
             $student->archived_notes = null;
             $student->archived_by = null;
+            $student->restored_at = now();
+            $student->restored_reason = $reason;
+            $student->restored_by = $actorId;
             $student->save();
 
             // Reactivate profile update links for this student (student-only links)
@@ -115,6 +124,7 @@ class RestoreStudentService
                 'actor_id' => $actorId,
                 'action' => 'restore',
                 'reason' => $reason,
+                'notes' => $notes,
                 'counts' => $counts,
             ]);
         });

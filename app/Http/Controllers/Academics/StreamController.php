@@ -66,7 +66,16 @@ class StreamController extends Controller
         }
 
         $teacherRoleNames = ['Teacher', 'teacher', 'Senior Teacher', 'senior teacher', 'Supervisor', 'supervisor'];
+        $assignedStaffIds = collect($classTeacherMap)->pluck('id')
+            ->merge(collect($assistantMap)->pluck('id'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
         $staffTeachers = Staff::with('user')
+            ->where(function ($q) use ($assignedStaffIds) {
+                $q->where('status', 'active')->orWhereIn('id', $assignedStaffIds);
+            })
             ->whereHas('user.roles', fn ($q) => $q->whereIn('name', $teacherRoleNames))
             ->orderBy('first_name')
             ->orderBy('last_name')

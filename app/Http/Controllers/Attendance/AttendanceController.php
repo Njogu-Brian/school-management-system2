@@ -164,6 +164,14 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy('student_id');
 
+        // Hide students who cannot be marked on the selected date (enrolment
+        // date not yet reached, or archived on that date). Students who already
+        // have an attendance record for the date stay visible so the record can
+        // be reviewed or cleared.
+        $students = $students
+            ->filter(fn ($s) => ($studentAttendanceEligibility[$s->id] ?? false) || $attendanceRecords->has($s->id))
+            ->values();
+
         // Marked/Unmarked filter: restrict list to marked or unmarked students only
         if ($markedFilter === 'marked') {
             $students = $students->filter(fn ($s) => $attendanceRecords->has($s->id));
@@ -287,7 +295,7 @@ public function mark(Request $request)
 
         $studentRow = Student::find($studentId);
         if (! $studentRow || ! $this->attendanceCalendar->canMarkAttendanceForDate($studentRow, $date)) {
-            return back()->with('error', 'Invalid attendance: one or more students cannot be marked for this date (not enrolled on this date or not a school day).');
+            return back()->with('error', 'Invalid attendance: one or more students cannot be marked for this date (not enrolled yet, archived on this date, or not a school day).');
         }
 
         $attendance = Attendance::firstOrNew([

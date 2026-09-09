@@ -34,8 +34,12 @@ class PaymentAllocationService
             $totalAllocated = 0;
             
             foreach ($allocations as $allocation) {
-                $invoiceItem = InvoiceItem::findOrFail($allocation['invoice_item_id']);
+                $invoiceItem = InvoiceItem::with('invoice')->findOrFail($allocation['invoice_item_id']);
                 $amount = (float)$allocation['amount'];
+
+                if ($invoiceItem->invoice && $invoiceItem->invoice->isReversed()) {
+                    throw new \Exception('Cannot allocate to a reversed invoice.');
+                }
                 
                 // Validate allocation doesn't exceed payment
                 if ($currentAllocated + $totalAllocated + $amount > (float) $payment->amount + 0.01) {
@@ -98,6 +102,9 @@ class PaymentAllocationService
         if (strpos($payment->receipt_number ?? '', 'SWIM-') === 0) {
             $payment->update(['allocated_amount' => $payment->amount, 'unallocated_amount' => 0]);
             return $payment->fresh();
+        }
+        if ($invoice->isReversed()) {
+            throw new \Exception('Cannot allocate to a reversed invoice.');
         }
         $alreadyAllocated = (float) $payment->allocations()->sum('amount');
         $remaining = (float) $payment->amount - $alreadyAllocated;
@@ -163,9 +170,10 @@ class PaymentAllocationService
             return $payment->fresh();
         }
         
-        // Get unpaid invoice items for student
+        // Get unpaid invoice items for student (never allocate onto reversed invoices —
+        // their line items often remain status=active after reversal).
         $invoiceItems = InvoiceItem::whereHas('invoice', function ($q) use ($studentId) {
-            $q->where('student_id', $studentId);
+            $q->where('student_id', $studentId)->notReversed();
         })
         ->where('status', 'active')
         ->with(['invoice', 'votehead'])

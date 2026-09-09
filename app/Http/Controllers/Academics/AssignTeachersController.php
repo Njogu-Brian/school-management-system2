@@ -17,7 +17,16 @@ class AssignTeachersController extends Controller
         $classrooms = Classroom::with(['primaryStreams', 'streams'])->orderBy('name')->get();
 
         $teacherRoleNames = ['Teacher', 'teacher', 'Senior Teacher', 'senior teacher', 'Supervisor', 'supervisor'];
+        $assignedStaffIds = DB::table('class_teacher_assignments')->pluck('staff_id')
+            ->merge(DB::table('assistant_class_teacher_assignments')->pluck('staff_id'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
         $staffTeachers = Staff::with('user')
+            ->where(function ($q) use ($assignedStaffIds) {
+                $q->where('status', 'active')->orWhereIn('id', $assignedStaffIds);
+            })
             ->whereHas('user.roles', fn ($q) => $q->whereIn('name', $teacherRoleNames))
             ->orderBy('first_name')
             ->orderBy('last_name')

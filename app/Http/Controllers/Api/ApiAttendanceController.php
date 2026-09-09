@@ -159,7 +159,7 @@ class ApiAttendanceController extends Controller
                 if ($status !== 'unmarked' && ! $this->attendanceCalendar->canMarkAttendanceForDate($student, $date)) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'One or more students cannot be marked for this date (not enrolled on this date).',
+                        'message' => 'One or more students cannot be marked for this date (not enrolled yet or archived on this date).',
                     ], 422);
                 }
 

@@ -232,4 +232,14 @@ class Staff extends Model
             ->map(fn ($code) => strtolower($code))
             ->toArray();
     }
+
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    public function isArchived(): bool
+    {
+        return ($this->status ?? '') === 'archived';
+    }
 }

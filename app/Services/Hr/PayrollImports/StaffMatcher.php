@@ -15,26 +15,26 @@ final class StaffMatcher
 
         $bank = trim((string) ($row['bank_account'] ?? ''));
         if ($bank !== '') {
-            $candidates = Staff::query()->where('bank_account', $bank)->get();
+            $candidates = Staff::query()->active()->where('bank_account', $bank)->get();
             return $this->result('bank_account', $bank, $candidates);
         }
 
         $id = trim((string) ($row['id_number'] ?? ''));
         if ($id !== '') {
-            $candidates = Staff::query()->where('id_number', $id)->get();
+            $candidates = Staff::query()->active()->where('id_number', $id)->get();
             return $this->result('id_number', $id, $candidates);
         }
 
         $kra = strtoupper(trim((string) ($row['kra_pin'] ?? '')));
         if ($kra !== '') {
-            $candidates = Staff::query()->whereRaw('UPPER(kra_pin) = ?', [$kra])->get();
+            $candidates = Staff::query()->active()->whereRaw('UPPER(kra_pin) = ?', [$kra])->get();
             return $this->result('kra_pin', $kra, $candidates);
         }
 
         $name = trim((string) ($row['name'] ?? ''));
         if ($name !== '') {
             // Name match is inherently risky; only auto-match if exactly 1 candidate.
-            $q = Staff::query()->whereRaw("CONCAT(first_name,' ',last_name) LIKE ?", ['%' . $name . '%']);
+            $q = Staff::query()->active()->whereRaw("CONCAT(first_name,' ',last_name) LIKE ?", ['%' . $name . '%']);
             $candidates = $q->limit(5)->get();
             return $this->result('name', $name, $candidates, allowSingleOnly: true);
         }

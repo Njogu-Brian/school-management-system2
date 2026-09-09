@@ -292,6 +292,7 @@ class TeacherAssignmentService
     public function getTeachingStaff(): Collection
     {
         return Staff::with('user')
+            ->active()
             ->whereHas('user.roles', fn ($q) => $q->whereIn('name', self::TEACHER_ROLE_NAMES))
             ->orderBy('first_name')
             ->orderBy('last_name')

@@ -11,6 +11,7 @@ class ArchiveAudit extends Model
         'actor_id',
         'action',
         'reason',
+        'notes',
         'counts',
     ];
 
