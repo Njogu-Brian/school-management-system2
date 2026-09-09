@@ -10,6 +10,7 @@ return new class extends Migration {
         if (!Schema::hasTable('announcements')) {
             Schema::create('announcements', function (Blueprint $table) {
                 $table->id();
+                $table->string('title')->nullable();
                 $table->text('content');
                 $table->boolean('active')->default(true);
                 $table->timestamp('expires_at')->nullable();
@@ -17,6 +18,9 @@ return new class extends Migration {
             });
         } else {
             Schema::table('announcements', function (Blueprint $table) {
+                if (!Schema::hasColumn('announcements', 'title')) {
+                    $table->string('title')->nullable()->after('id');
+                }
                 if (!Schema::hasColumn('announcements', 'active')) {
                     $table->boolean('active')->default(true);
                 }

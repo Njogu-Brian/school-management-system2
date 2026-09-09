@@ -17,11 +17,13 @@ return new class extends Migration
 
         Schema::create('payment_links', function (Blueprint $table) {
             $table->id();
-            $table->string('token', 20)->unique()->index();
-            $table->string('hashed_id', 20)->unique()->index();
-            $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
-            $table->foreignId('invoice_id')->nullable()->constrained('invoices')->onDelete('set null');
-            $table->foreignId('family_id')->nullable()->constrained('families')->onDelete('set null');
+            $table->string('token', 20)->unique();
+            $table->string('hashed_id', 20)->unique();
+            // Parent tables (students, invoices, families, payments) are created in later
+            // migrations, so keep unsigned IDs here and add FKs only when those tables exist.
+            $table->unsignedBigInteger('student_id');
+            $table->unsignedBigInteger('invoice_id')->nullable();
+            $table->unsignedBigInteger('family_id')->nullable();
             $table->decimal('amount', 10, 2);
             $table->string('currency', 3)->default('KES');
             $table->string('description')->nullable();
@@ -29,20 +31,34 @@ return new class extends Migration
             $table->enum('status', ['active', 'used', 'expired', 'cancelled'])->default('active');
             $table->timestamp('expires_at')->nullable();
             $table->timestamp('used_at')->nullable();
-            $table->foreignId('payment_id')->nullable()->constrained('payments')->onDelete('set null');
-            $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
+            $table->unsignedBigInteger('payment_id')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
             $table->integer('max_uses')->default(1);
             $table->integer('use_count')->default(0);
             $table->json('metadata')->nullable();
             $table->timestamps();
             $table->softDeletes();
 
-            // Indexes
             $table->index('student_id');
             $table->index('invoice_id');
             $table->index('status');
             $table->index('expires_at');
         });
+
+        $foreigns = [
+            ['student_id', 'students', 'cascade'],
+            ['invoice_id', 'invoices', 'set null'],
+            ['family_id', 'families', 'set null'],
+            ['payment_id', 'payments', 'set null'],
+            ['created_by', 'users', 'set null'],
+        ];
+        foreach ($foreigns as [$column, $parent, $onDelete]) {
+            if (Schema::hasTable($parent)) {
+                Schema::table('payment_links', function (Blueprint $table) use ($column, $parent, $onDelete) {
+                    $table->foreign($column)->references('id')->on($parent)->onDelete($onDelete);
+                });
+            }
+        }
     }
 
     /**

@@ -419,15 +419,10 @@ class Comprehensive2025Seeder extends Seeder
                         'category_id' => $category->id,
                         'status' => 'active',
                         'admission_date' => Carbon::parse("{$academicYear->year}-01-15")->subMonths(rand(0, 8)),
-                        'home_address' => 'Nairobi, Kenya',
-                        'home_city' => 'Nairobi',
-                        'home_county' => 'Nairobi',
-                        'home_postal_code' => '00100',
-                        'language_preference' => 'English',
-                        'blood_group' => 'O+',
+                        'residential_area' => 'Nairobi',
                         'allergies' => 'None',
-                        'emergency_medical_contact_name' => 'Parent/Guardian',
-                        'emergency_medical_contact_phone' => '07' . rand(10, 99) . rand(100000, 999999),
+                        'emergency_contact_name' => 'Parent/Guardian',
+                        'emergency_contact_phone' => '07' . rand(10, 99) . rand(100000, 999999),
                         'has_special_needs' => false,
                     ]
                 );
@@ -828,7 +823,6 @@ class Comprehensive2025Seeder extends Seeder
                     'classroom_id' => $classrooms->first()->id,
                 ],
                 [
-                    'type' => 'cat',
                     'exam_type_id' => $examTypes->firstWhere('code', 'OPN')?->id,
                     'modality' => 'physical',
                     'stream_id' => null,

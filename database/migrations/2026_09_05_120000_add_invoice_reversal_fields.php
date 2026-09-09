@@ -40,6 +40,22 @@ return new class extends Migration
               AND INDEX_NAME = 'invoices_student_year_term_unique'
         ");
         if ($oldUnique && (int) $oldUnique->c > 0) {
+            // MariaDB/MySQL may be using this composite unique as the student_id FK index.
+            $hasStudentIdIndex = DB::selectOne("
+                SELECT COUNT(1) AS c
+                FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'invoices'
+                  AND COLUMN_NAME = 'student_id'
+                  AND INDEX_NAME <> 'invoices_student_year_term_unique'
+                  AND SEQ_IN_INDEX = 1
+            ");
+            if (! $hasStudentIdIndex || (int) $hasStudentIdIndex->c === 0) {
+                Schema::table('invoices', function (Blueprint $table) {
+                    $table->index('student_id', 'invoices_student_id_index');
+                });
+            }
+
             Schema::table('invoices', function (Blueprint $table) {
                 $table->dropUnique('invoices_student_year_term_unique');
             });
