@@ -23,8 +23,7 @@ class ApiAcademicsController extends Controller
     {
         $perPage = (int) $request->input('per_page', 30);
         $query = Exam::query()->with(['classroom', 'subject', 'term'])
-            ->orderByDesc('starts_on')
-            ->orderByDesc('id');
+            ->inAcademicOrder();
 
         $user = $request->user();
         if ($user && $user->hasTeacherLikeRole()
@@ -77,8 +76,7 @@ class ApiAcademicsController extends Controller
     {
         $query = ExamSession::query()
             ->with(['examType', 'classroom', 'term'])
-            ->orderByDesc('starts_on')
-            ->orderByDesc('id');
+            ->inAcademicOrder();
 
         if ($request->filled('academic_year_id')) {
             $query->where('academic_year_id', (int) $request->input('academic_year_id'));
@@ -463,8 +461,7 @@ class ApiAcademicsController extends Controller
                     $subQ->whereNull('stream_id')->orWhere('stream_id', $streamId);
                 });
             })
-            ->orderBy('starts_on')
-            ->orderBy('id')
+            ->inAcademicOrder()
             ->get();
 
         $exams = $examCandidates->filter(function (Exam $exam) use ($user, $classroomId, $streamId) {

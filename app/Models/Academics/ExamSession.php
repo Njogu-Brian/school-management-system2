@@ -3,6 +3,7 @@
 namespace App\Models\Academics;
 
 use App\Models\AcademicYear;
+use App\Models\Concerns\OrdersByAcademicCalendar;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ExamSession extends Model
 {
+    use OrdersByAcademicCalendar;
+
     protected $fillable = [
         'exam_type_id',
         'academic_year_id',

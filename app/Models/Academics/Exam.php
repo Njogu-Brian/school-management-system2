@@ -8,10 +8,13 @@ use App\Models\Term;
 use App\Models\AcademicYear;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Subject;
+use App\Models\Concerns\OrdersByAcademicCalendar;
 use Carbon\Carbon;
 
 class Exam extends Model
 {
+    use OrdersByAcademicCalendar;
+
     protected $fillable = [
         'name',
         'modality',

@@ -157,11 +157,36 @@ function titleCaseWords(value: string): string {
     .join(' ');
 }
 
+function termNumberFromTitle(title: string): number {
+  const lower = title.toLowerCase();
+  const termMatch =
+    lower.match(/\bterm\s*[-_]?\s*([1-3])\b/) ||
+    lower.match(/\bt\s*([1-3])\b/) ||
+    lower.match(/\b([1-3])\s*(?:st|nd|rd|th)?\s*term\b/);
+  const n = Number(termMatch?.[1] ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 9;
+}
+
+/** Academic calendar order: year, then Term 1 → Term 2, not mark-entry / id order. */
+export function compareByAcademicOrder(a: AssessmentHistoryItem, b: AssessmentHistoryItem): number {
+  const yearA = a.academicYearId ?? 0;
+  const yearB = b.academicYearId ?? 0;
+  if (yearA !== yearB) return yearA - yearB;
+
+  const termA = termNumberFromTitle(`${a.title} ${a.typeLabel ?? ''}`);
+  const termB = termNumberFromTitle(`${b.title} ${b.typeLabel ?? ''}`);
+  if (termA !== termB) return termA - termB;
+
+  const dateCmp = (a.assessedOn ?? '').localeCompare(b.assessedOn ?? '');
+  if (dateCmp !== 0) return dateCmp;
+  return a.id.localeCompare(b.id);
+}
+
 /** Term-over-term and scored events for sparkline / list trend */
 export function buildPerformanceTrend(items: AssessmentHistoryItem[]): PerformanceTrendPoint[] {
   const reportCards = items
     .filter((i) => i.displayCategory === 'report_card' && i.scorePercent != null)
-    .sort((a, b) => (a.assessedOn ?? '').localeCompare(b.assessedOn ?? ''));
+    .sort(compareByAcademicOrder);
 
   if (reportCards.length >= 2) {
     return reportCards.map((rc) => ({
@@ -174,7 +199,7 @@ export function buildPerformanceTrend(items: AssessmentHistoryItem[]): Performan
 
   const scored = items
     .filter((i) => i.displayCategory !== 'report_card' && i.scorePercent != null)
-    .sort((a, b) => (a.assessedOn ?? '').localeCompare(b.assessedOn ?? ''))
+    .sort(compareByAcademicOrder)
     .slice(-12);
 
   return scored.map((row) => ({
@@ -221,7 +246,7 @@ export function buildSubjectProgress(items: AssessmentHistoryItem[]): SubjectPro
 
   const series: SubjectProgressSeries[] = [];
   for (const [subjectId, rows] of bySubject) {
-    const sorted = [...rows].sort((a, b) => (a.assessedOn ?? '').localeCompare(b.assessedOn ?? ''));
+    const sorted = [...rows].sort(compareByAcademicOrder);
     // Prefer formal exams (mid/end/opener) when available so markers stay readable.
     const examRows = sorted.filter((r) => r.displayCategory === 'exam');
     const source = examRows.length > 0 ? examRows : sorted;
