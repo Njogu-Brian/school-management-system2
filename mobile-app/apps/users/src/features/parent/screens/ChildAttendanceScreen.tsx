@@ -17,7 +17,7 @@ import {
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, RefreshControl, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -81,7 +81,24 @@ export const ChildAttendanceScreen: React.FC = () => {
   const late = days.filter((d) => (d.status ?? '').toLowerCase() === 'late').length;
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScreenContainer
+      scroll
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+      scrollProps={{
+        refreshControl: (
+          <RefreshControl
+            refreshing={calendar.isRefetching || history.isRefetching || trend.isRefetching}
+            onRefresh={() => {
+              void calendar.refetch();
+              void history.refetch();
+              void trend.refetch();
+              void detail.refetch();
+            }}
+            colors={[colors.primary]}
+          />
+        ),
+      }}
+    >
       <AcademicScreenHeader
         title="Attendance"
         subtitle={detail.data?.fullName ?? undefined}

@@ -40,7 +40,6 @@ import { RequirementsHubScreen } from '../../features/teacher/screens/Requiremen
 import { TeacherAcademicsHubScreen } from '../../features/teacher/screens/TeacherAcademicsHubScreen';
 import { TeacherClassesScreen } from '../../features/teacher/screens/TeacherClassesScreen';
 import { TeacherHomeScreen } from '../../features/teacher/screens/TeacherHomeScreen';
-import { TeacherMoreHubScreen } from '../../features/teacher/screens/TeacherMoreHubScreen';
 import { TeacherTransportScreen } from '../../features/teacher/screens/TeacherTransportScreen';
 import { TeacherReportCardDetailScreen } from '../../features/teacher/screens/TeacherReportCardDetailScreen';
 import { TeacherReportCardsHubScreen } from '../../features/teacher/screens/TeacherReportCardsHubScreen';
@@ -58,7 +57,6 @@ const teacherTabBar = createUsersTabBar({
   Classes: { label: 'Classes', icon: 'school-outline', iconFocused: 'school', tone: 'indigo' },
   Attendance: { label: 'Attendance', icon: 'checkbox-outline', iconFocused: 'checkbox', tone: 'emerald' },
   Activities: { label: 'Activities', icon: 'sparkles-outline', iconFocused: 'sparkles', tone: 'cyan' },
-  More: { label: 'More', icon: 'grid-outline', iconFocused: 'grid', tone: 'amber' },
 });
 
 function teacherSharedScreens() {
@@ -186,22 +184,6 @@ function TeacherActivitiesStack() {
   );
 }
 
-function TeacherMoreStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen
-        name="MoreMain"
-        component={TeacherMoreHubScreen}
-        options={{
-          headerShown: true,
-          header: () => <UsersAppHeaderChrome title="More" />,
-        }}
-      />
-      {teacherSharedScreens()}
-    </Stack.Navigator>
-  );
-}
-
 /** Tabs wrap stacks so the bottom bar stays visible on detail screens. */
 export const TeacherNavigator: React.FC = () => (
   <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={teacherTabBar}>
@@ -209,6 +191,5 @@ export const TeacherNavigator: React.FC = () => (
     <Tab.Screen name="Classes" component={TeacherClassesStack} options={{ tabBarLabel: 'Classes' }} />
     <Tab.Screen name="Attendance" component={TeacherAttendanceStack} options={{ tabBarLabel: 'Attendance' }} />
     <Tab.Screen name="Activities" component={TeacherActivitiesStack} options={{ tabBarLabel: 'Activities' }} />
-    <Tab.Screen name="More" component={TeacherMoreStack} options={{ tabBarLabel: 'More' }} />
   </Tab.Navigator>
 );
