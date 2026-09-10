@@ -2,6 +2,7 @@ import {
   formatRoleLabel,
   TEACHER_HOME_ACCOUNT_ACTIONS,
   TEACHER_HOME_CORE_ACTIONS,
+  TEACHER_HOME_MORE_ACTIONS,
   timeOfDayGreeting,
   useAuth,
   useClassrooms,
@@ -22,8 +23,9 @@ import {
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import React, { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, RefreshControl, Text, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { navigateToTab } from '../../../navigation/navigateToTab';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
@@ -64,13 +66,16 @@ export const TeacherHomeScreen: React.FC = () => {
   const { logout } = useAuth();
   const { palette, spacing, typography, colors } = useTheme();
   const navigation = useNavigation<Nav>();
+  const queryClient = useQueryClient();
   const classroomsQuery = useClassrooms();
   const unreadQuery = useUnreadNotificationCount();
+  const [manualRefreshing, setManualRefreshing] = useState(false);
 
   const classTeacherCount = user?.classTeacherClassroomIds?.length ?? 0;
   const teachingClassCount = classroomsQuery.data?.length ?? 0;
   const roleLabel = formatRoleLabel(user?.roleName ?? user?.role, 'Teacher');
   const unread = unreadQuery.data ?? 0;
+  const refreshing = manualRefreshing || classroomsQuery.isRefetching || unreadQuery.isRefetching;
 
   const meta = useMemo(() => {
     const parts: string[] = [];
@@ -90,8 +95,41 @@ export const TeacherHomeScreen: React.FC = () => {
     );
   };
 
+  const onRefresh = async () => {
+    setManualRefreshing(true);
+    try {
+      await Promise.all([
+        classroomsQuery.refetch(),
+        unreadQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+        queryClient.invalidateQueries({ queryKey: ['assignments'] }),
+        queryClient.invalidateQueries({ queryKey: ['diaries'] }),
+      ]);
+    } finally {
+      setManualRefreshing(false);
+    }
+  };
+
   return (
-    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
+    <ScreenContainer
+      scroll
+      edges={['bottom']}
+      contentContainerStyle={{ padding: spacing.md }}
+      scrollProps={{
+        refreshControl: (
+          <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} colors={[colors.primary]} />
+        ),
+      }}
+    >
+      {refreshing ? (
+        <View style={{ alignItems: 'center', marginBottom: spacing.sm }}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+            Refreshing…
+          </Text>
+        </View>
+      ) : null}
+
       <DashboardHero
         variant="academics"
         greeting={timeOfDayGreeting()}
@@ -146,7 +184,7 @@ export const TeacherHomeScreen: React.FC = () => {
           <SurfaceCard
             accent="warning"
             onPress={() =>
-              navigateToTab(navigation, 'More', 'Notifications', undefined, 'MoreMain')
+              navigateToTab(navigation, 'Home', 'Notifications', undefined, 'HomeMain')
             }
           >
             <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
@@ -158,6 +196,10 @@ export const TeacherHomeScreen: React.FC = () => {
 
       <DashboardSection title="Daily work" subtitle="Core teaching tasks">
         <ActionGrid actions={TEACHER_HOME_CORE_ACTIONS} unread={unread} onPress={goTo} />
+      </DashboardSection>
+
+      <DashboardSection title="More tools" subtitle="Self-service and school tools">
+        <ActionGrid actions={TEACHER_HOME_MORE_ACTIONS} onPress={goTo} />
       </DashboardSection>
 
       <DashboardSection title="Account">
