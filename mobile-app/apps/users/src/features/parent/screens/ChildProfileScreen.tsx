@@ -355,6 +355,10 @@ export const ChildProfileScreen: React.FC = () => {
 
       {sectionTitle('Family documents')}
       {sectionHint('Tap a document to view or download.')}
+      <View style={cardStyle}>
+        {(query.data?.documents ?? []).length === 0 ? (
+          <Text style={{ color: palette.textMuted }}>No parent documents on file.</Text>
+        ) : (
           (query.data?.documents ?? []).map((doc) => (
             <Pressable
               key={doc.id}

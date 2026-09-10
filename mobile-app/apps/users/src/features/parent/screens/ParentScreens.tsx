@@ -34,7 +34,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { FlatList, Linking, Pressable, RefreshControl, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, Text, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { navigateToTab } from '../../../navigation/navigateToTab';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { showError, showSuccess, confirmAction } from '../../shared/utils/feedback';
@@ -181,6 +182,7 @@ export const ParentHomeScreen: React.FC = () => {
   const { logout } = useAuth();
   const { palette, spacing, typography, colors } = useTheme();
   const navigation = useNavigation<Nav>();
+  const queryClient = useQueryClient();
   const unreadQuery = useUnreadNotificationCount();
   const childrenQuery = useInfiniteStudentList({
     search: '',
@@ -201,11 +203,24 @@ export const ParentHomeScreen: React.FC = () => {
     [selectedId, children],
   );
   const unread = unreadQuery.data ?? 0;
-  const refreshing = childrenQuery.isRefetching || unreadQuery.isRefetching;
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const refreshing = manualRefreshing || childrenQuery.isRefetching || unreadQuery.isRefetching;
 
-  const onRefreshHome = () => {
-    void childrenQuery.refetch();
-    void unreadQuery.refetch();
+  const onRefreshHome = async () => {
+    setManualRefreshing(true);
+    try {
+      await Promise.all([
+        childrenQuery.refetch(),
+        unreadQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: ['finance'] }),
+        queryClient.invalidateQueries({ queryKey: ['attendance'] }),
+        queryClient.invalidateQueries({ queryKey: ['parent-wallet'] }),
+        queryClient.invalidateQueries({ queryKey: ['diaries'] }),
+        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+      ]);
+    } finally {
+      setManualRefreshing(false);
+    }
   };
 
   const meta = useMemo(() => {
@@ -222,10 +237,19 @@ export const ParentHomeScreen: React.FC = () => {
       contentContainerStyle={{ padding: spacing.md }}
       scrollProps={{
         refreshControl: (
-          <RefreshControl refreshing={refreshing} onRefresh={onRefreshHome} colors={[colors.primary]} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => void onRefreshHome()} colors={[colors.primary]} />
         ),
       }}
     >
+      {refreshing ? (
+        <View style={{ alignItems: 'center', marginBottom: spacing.sm }}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
+            Refreshing…
+          </Text>
+        </View>
+      ) : null}
+
       <DashboardHero
         variant="people"
         greeting={timeOfDayGreeting()}
