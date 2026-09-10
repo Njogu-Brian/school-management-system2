@@ -13,6 +13,10 @@ class PermissionSeeder extends Seeder
         $data = [
             ['name' => 'communication.send_email'],
             ['name' => 'communication.send_sms'],
+            ['name' => 'communication.send_whatsapp'],
+            ['name' => 'communication.email.add'],
+            ['name' => 'communication.sms.add'],
+            ['name' => 'communication.whatsapp.add'],
             ['name' => 'communication.logs'],
             ['name' => 'communication.email_template'],
             ['name' => 'communication.sms_template'],

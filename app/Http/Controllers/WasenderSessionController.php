@@ -9,7 +9,7 @@ class WasenderSessionController extends Controller
 {
     public function index(WhatsAppService $wa)
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
 
         $connection = null;
         $error = null;
@@ -38,7 +38,7 @@ class WasenderSessionController extends Controller
 
     public function store(Request $request, WhatsAppService $wa)
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
 
         return redirect()
             ->route('communication.wasender.sessions')
@@ -47,28 +47,28 @@ class WasenderSessionController extends Controller
 
     public function connect($id, WhatsAppService $wa)
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
 
         return back()->with('error', 'QR session connect is not used with Meta WhatsApp Cloud API.');
     }
 
     public function restart($id, WhatsAppService $wa)
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
 
         return back()->with('error', 'Session restart is not used with Meta WhatsApp Cloud API.');
     }
 
     public function destroy($id, WhatsAppService $wa)
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
 
         return back()->with('error', 'Session delete is not used with Meta WhatsApp Cloud API.');
     }
 
     public function updateSettings(Request $request, $id, WhatsAppService $wa)
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
 
         return back()->with('error', 'Session settings are not used with Meta WhatsApp Cloud API.');
     }

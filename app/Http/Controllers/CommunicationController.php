@@ -556,7 +556,7 @@ class CommunicationController extends Controller
     /* ========== WHATSAPP ========== */
     public function createWhatsApp()
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
 
         // Allow reusing SMS templates for WhatsApp to avoid duplication
         $templates = CommunicationTemplate::whereIn('type', ['whatsapp', 'sms'])->get();
@@ -574,7 +574,7 @@ class CommunicationController extends Controller
 
     public function sendWhatsApp(Request $request, WhatsAppService $whatsAppService)
     {
-        abort_unless(can_access("communication", "sms", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
 
         $data = $request->validate([
             'template_id'    => 'nullable|exists:communication_templates,id',
@@ -948,7 +948,7 @@ class CommunicationController extends Controller
      */
     public function whatsappProgress(Request $request)
     {
-        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
         
         $trackingId = $request->query('tracking_id');
         if (!$trackingId) {
@@ -972,7 +972,7 @@ class CommunicationController extends Controller
      */
     public function retryFailedWhatsApp(Request $request)
     {
-        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+        abort_unless(can_access('communication', 'whatsapp', 'add'), 403);
         
         $trackingId = $request->input('tracking_id');
         if (!$trackingId) {
