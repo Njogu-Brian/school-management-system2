@@ -40,6 +40,7 @@ class ApiTeacherTransportController extends Controller
             ->where('is_alumni', false);
 
         if ($this->isTeacherOnly($user)) {
+            // Includes subject/stream assignments AND class-teacher (homeroom) children.
             $user->applyTeacherStudentFilter($query);
         } else {
             if ($request->filled('classroom_id')) {
@@ -375,6 +376,14 @@ class ApiTeacherTransportController extends Controller
         if (! $this->isTeacherOnly($user)) {
             return true;
         }
-        return $user->canTeacherAccessClassroom((int) $student->classroom_id);
+
+        // Same scope as the roster list (subject + stream + class-teacher/homeroom assignments).
+        $query = Student::query()
+            ->where('id', $student->id)
+            ->where('archive', 0)
+            ->where('is_alumni', false);
+        $user->applyTeacherStudentFilter($query);
+
+        return $query->exists();
     }
 }

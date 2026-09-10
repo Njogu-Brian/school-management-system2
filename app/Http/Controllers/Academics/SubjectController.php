@@ -72,7 +72,7 @@ class SubjectController extends Controller
     public function create()
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))->get();
+        $teachers = Staff::where('status', 'active')->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))->get();
         $years = \App\Support\AcademicContext::years();
         $terms = \App\Support\AcademicContext::allTermsForSelect();
 
@@ -132,13 +132,19 @@ class SubjectController extends Controller
     public function edit(Subject $subject)
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))->get();
-        $years = \App\Support\AcademicContext::years();
-        $terms = \App\Support\AcademicContext::allTermsForSelect();
-
         $classroomAssignments = $subject->classroomSubjects()
             ->with(['classroom', 'teacher'])
             ->get();
+        // Active staff only, plus any currently assigned teacher who is archived
+        // so existing assignments remain visible and changeable.
+        $assignedStaffIds = $classroomAssignments->pluck('staff_id')->filter()->all();
+        $teachers = Staff::where(function ($q) use ($assignedStaffIds) {
+                $q->where('status', 'active')->orWhereIn('id', $assignedStaffIds);
+            })
+            ->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))
+            ->get();
+        $years = \App\Support\AcademicContext::years();
+        $terms = \App\Support\AcademicContext::allTermsForSelect();
 
         return view('academics.subjects.edit', compact(
             'subject',
@@ -401,7 +407,7 @@ class SubjectController extends Controller
         // Also get subject levels as fallback
         $subjectLevels = Subject::select('level')->whereNotNull('level')->distinct()->orderBy('level')->pluck('level');
         
-        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))
+        $teachers = Staff::where('status', 'active')->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher', 'Senior Teacher', 'Supervisor', 'supervisor']))
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get();

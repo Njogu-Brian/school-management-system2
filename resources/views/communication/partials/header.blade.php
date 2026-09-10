@@ -1,16 +1,11 @@
-{{-- Communication Header Partial --}}
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
-    <div>
-        <div class="crumb">Communication</div>
-        <h1><i class="{{ $icon ?? 'bi bi-chat-dots' }} me-2"></i> {{ $title ?? 'Communication' }}</h1>
-        @if(isset($subtitle))
-            <p class="mb-0">{{ $subtitle }}</p>
-        @endif
-    </div>
+<x-page-header
+    eyebrow="Communication"
+    :title="$title ?? 'Communication'"
+    :description="$subtitle ?? null"
+    :icon="$icon ?? 'bi bi-chat-dots'"
+    class="mb-3">
     @if(isset($actions))
-        <div class="mt-2 mt-md-0">
-            {!! $actions !!}
-        </div>
+        <x-slot:actions>{!! $actions !!}</x-slot:actions>
     @endif
-</div>
+</x-page-header>
 

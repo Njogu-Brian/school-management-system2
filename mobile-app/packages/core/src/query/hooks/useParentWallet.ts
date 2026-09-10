@@ -13,11 +13,13 @@ export function useParentWallet(options?: { enabled?: boolean }) {
       return res.data;
     },
     enabled: options?.enabled !== false,
-    staleTime: 30_000,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    placeholderData: (prev) => prev,
     retry: (count, error) => {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('404') || msg.toLowerCase().includes('could not be found')) return false;
-      return count < 2;
+      return count < 1;
     },
   });
 }

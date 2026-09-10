@@ -10,6 +10,7 @@ import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
 
+/** Category B/C/D — secondary, rare/admin, and settings (core daily work lives on Home). */
 export const TeacherMoreHubScreen: React.FC = () => {
   const user = useCurrentUser();
   const { logout } = useAuth();
@@ -22,43 +23,40 @@ export const TeacherMoreHubScreen: React.FC = () => {
   const items = useMemo(() => {
     const base: Array<{
       title: string;
+      subtitle: string;
       route: keyof TeacherStackParamList;
       icon:
         | 'time-outline'
         | 'calendar-outline'
         | 'wallet-outline'
         | 'person-outline'
-        | 'bus-outline'
         | 'notifications-outline'
         | 'settings-outline'
         | 'checkmark-circle-outline'
         | 'megaphone-outline'
-        | 'chatbubbles-outline'
         | 'list-outline'
         | 'alert-circle-outline'
         | 'book-outline'
         | 'cash-outline'
         | 'clipboard-outline';
     }> = [
-      { title: 'Academics', route: 'Academics', icon: 'book-outline' },
-      { title: 'Collect requirements', route: 'RequirementsHub', icon: 'clipboard-outline' },
-      { title: 'My attendance', route: 'StaffClock', icon: 'time-outline' },
-      { title: 'My leave', route: 'MyLeaveList', icon: 'list-outline' },
-      { title: 'Apply for leave', route: 'LeaveApply', icon: 'calendar-outline' },
-      { title: 'Salary advances', route: 'MyAdvances', icon: 'cash-outline' },
-      { title: 'My payslips', route: 'MyPayslips', icon: 'wallet-outline' },
-      { title: 'My profile', route: 'MyProfile', icon: 'person-outline' },
-      { title: 'Transport pickup', route: 'TeacherTransportHub', icon: 'bus-outline' },
-      { title: 'Student diary', route: 'DiaryList', icon: 'chatbubbles-outline' },
-      { title: 'Announcements', route: 'Announcements', icon: 'megaphone-outline' },
-      { title: 'Notifications', route: 'Notifications', icon: 'notifications-outline' },
-      { title: 'Raise a concern', route: 'RaiseConcern', icon: 'alert-circle-outline' },
-      { title: 'Concerns', route: 'ConcernsList', icon: 'alert-circle-outline' },
-      { title: 'Settings', route: 'Settings', icon: 'settings-outline' },
+      { title: 'Academics hub', subtitle: 'All academic tools', route: 'Academics', icon: 'book-outline' },
+      { title: 'Collect requirements', subtitle: 'Class requirements', route: 'RequirementsHub', icon: 'clipboard-outline' },
+      { title: 'My attendance', subtitle: 'Staff clock in/out', route: 'StaffClock', icon: 'time-outline' },
+      { title: 'My leave', subtitle: 'Leave history', route: 'MyLeaveList', icon: 'list-outline' },
+      { title: 'Apply for leave', subtitle: 'New leave request', route: 'LeaveApply', icon: 'calendar-outline' },
+      { title: 'Salary advances', subtitle: 'Request or track', route: 'MyAdvances', icon: 'cash-outline' },
+      { title: 'My payslips', subtitle: 'Payroll documents', route: 'MyPayslips', icon: 'wallet-outline' },
+      { title: 'Announcements', subtitle: 'School notices', route: 'Announcements', icon: 'megaphone-outline' },
+      { title: 'Raise a concern', subtitle: 'Flag an issue', route: 'RaiseConcern', icon: 'alert-circle-outline' },
+      { title: 'Concerns', subtitle: 'Your concern list', route: 'ConcernsList', icon: 'alert-circle-outline' },
+      { title: 'My profile', subtitle: 'Account details', route: 'MyProfile', icon: 'person-outline' },
+      { title: 'Settings', subtitle: 'Theme and security', route: 'Settings', icon: 'settings-outline' },
     ];
     if (isSenior) {
       base.unshift({
         title: 'Lesson plan review',
+        subtitle: 'Approve supervised plans',
         route: 'LessonPlanReview',
         icon: 'checkmark-circle-outline',
       });
@@ -71,6 +69,9 @@ export const TeacherMoreHubScreen: React.FC = () => {
       <View style={{ marginBottom: spacing.md }}>
         <AppModeSwitch />
       </View>
+      <Text style={{ color: palette.textMuted, marginBottom: spacing.md, fontSize: typography.caption.fontSize }}>
+        Daily teaching tools are on Home. This menu holds secondary and self-service items.
+      </Text>
       {items.map((item) => (
         <Pressable
           key={`${item.route}-${item.title}`}
@@ -85,12 +86,16 @@ export const TeacherMoreHubScreen: React.FC = () => {
             borderRadius: radius.lg,
             padding: spacing.md,
             marginBottom: spacing.sm,
+            minHeight: 56,
           }}
         >
           <Soft3DIcon name={item.icon} size={44} />
-          <Text style={{ color: palette.textPrimary, fontWeight: '600', flex: 1, fontSize: typography.body.fontSize }}>
-            {item.title}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: palette.textPrimary, fontWeight: '600', fontSize: typography.body.fontSize }}>
+              {item.title}
+            </Text>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>{item.subtitle}</Text>
+          </View>
         </Pressable>
       ))}
       <Button

@@ -1,24 +1,18 @@
 @extends('layouts.app')
 
 @section('content')
-    @include('finance.partials.header', [
-        'title' => 'Voteheads',
-        'icon' => 'bi bi-list-ul',
-        'subtitle' => 'Manage fee categories and voteheads',
-        'actions' => '<a href="' . route('finance.voteheads.import') . '" class="btn btn-outline-primary"><i class="bi bi-upload"></i> Import Voteheads</a><a href="' . route('finance.voteheads.create') . '" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Votehead</a>'
-    ])
+    <div class="ds-pilot finance-pilot">
+    <x-page-header eyebrow="Finance" title="Voteheads" description="Manage fee categories and voteheads" class="finance-hero mb-3">
+        <x-slot:actions>
+            <a href="{{ route('finance.voteheads.import') }}" class="btn btn-secondary"><i class="bi bi-upload" aria-hidden="true"></i> Import Voteheads</a>
+            <a href="{{ route('finance.voteheads.create') }}" class="btn btn-primary"><i class="bi bi-plus-circle" aria-hidden="true"></i> Add Votehead</a>
+        </x-slot:actions>
+    </x-page-header>
 
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
+    <x-feedback.flash />
 
-    <div class="finance-card finance-animate">
-        <div class="card-body">
-        <div class="table-responsive">
-                <table class="finance-table">
+    <x-card class="finance-card finance-animate" flush>
+        <x-data.table caption="Voteheads" class="finance-table">
                     <thead>
                     <tr>
                         <th>Name</th>
@@ -71,12 +65,12 @@
                                         <a href="{{ route('finance.voteheads.edit', $votehead) }}" class="btn btn-outline-secondary">
                                             <i class="bi bi-pencil"></i>
                                     </a>
-                                        <form action="{{ route('finance.voteheads.destroy', $votehead) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this votehead?');">
+                                        <form id="delete-votehead-{{ $votehead->id }}" action="{{ route('finance.voteheads.destroy', $votehead) }}" method="POST">
                                         @csrf @method('DELETE')
-                                            <button type="submit" class="btn btn-outline-danger">
-                                                <i class="bi bi-trash"></i>
-                                        </button>
                                     </form>
+                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirm-delete-votehead-{{ $votehead->id }}">
+                                        <i class="bi bi-trash" aria-hidden="true"></i><span class="visually-hidden">Delete {{ $votehead->name }}</span>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -92,9 +86,16 @@
                         </tr>
                     @endforelse
                 </tbody>
-            </table>
-            </div>
-        </div>
+        </x-data.table>
+    </x-card>
+    @foreach($voteheads as $votehead)
+        <x-feedback.confirmation-modal
+            id="confirm-delete-votehead-{{ $votehead->id }}"
+            title="Delete votehead?"
+            :message="'This will delete ' . $votehead->name . '. This action cannot be undone.'"
+            confirm-label="Delete votehead"
+            form="delete-votehead-{{ $votehead->id }}" />
+    @endforeach
     </div>
 </div>
 @endsection

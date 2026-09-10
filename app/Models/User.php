@@ -120,10 +120,20 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
 
     /**
      * Whether list/dashboard APIs should restrict this user to their linked children.
-     * Elevated staff who also have Parent role or parent_id keep full staff scope.
+     *
+     * Elevated staff who also have Parent role / parent_id keep full staff scope in Work mode.
+     * When the Users app sends X-App-Mode: home, dual-role accounts are forced to guardian scope.
+     *
+     * @param  string|null  $appMode  Optional `home`|`work` from the X-App-Mode header.
      */
-    public function shouldScopeAsParent(): bool
+    public function shouldScopeAsParent(?string $appMode = null): bool
     {
+        $mode = $appMode !== null ? strtolower(trim($appMode)) : null;
+
+        if ($mode === 'home' && $this->isLinkedParentAccount()) {
+            return true;
+        }
+
         if ($this->hasElevatedStaffRole()) {
             return false;
         }
@@ -334,6 +344,11 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         }
         $assigned = array_map('intval', $this->getAssignedClassroomIds());
         if (in_array($cid, $assigned, true)) {
+            return true;
+        }
+        // Explicit class-teacher / assistant homeroom (also covered by getAssignedClassroomIds,
+        // kept here as a direct guarantee for transport/attendance write paths).
+        if (in_array($cid, array_map('intval', $this->getClassTeacherClassroomIds()), true)) {
             return true;
         }
         if ($this->isDeputySeniorTeacherUser()) {

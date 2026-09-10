@@ -144,6 +144,76 @@ class ApiStaffClockController extends Controller
     }
 
     /**
+     * Month calendar for the authenticated staff member (parent child-attendance style).
+     */
+    public function calendar(Request $request)
+    {
+        if ($response = $this->ensureStaffProfileLinked($request)) {
+            return $response;
+        }
+
+        $validated = $request->validate([
+            'year' => 'required|integer|min:2000|max:2100',
+            'month' => 'required|integer|min:1|max:12',
+        ]);
+
+        $staffId = (int) $request->user()->staff->id;
+        $year = (int) $validated['year'];
+        $month = (int) $validated['month'];
+        $start = Carbon::create($year, $month, 1)->startOfDay();
+        $end = $start->copy()->endOfMonth();
+
+        $byDate = StaffAttendance::where('staff_id', $staffId)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->get()
+            ->keyBy(fn (StaffAttendance $row) => Carbon::parse($row->date)->toDateString());
+
+        $days = [];
+        $cursor = $start->copy();
+        while ($cursor->lte($end)) {
+            $dateStr = $cursor->toDateString();
+            $dow = $cursor->dayOfWeek;
+            $isWeekend = $dow === Carbon::SATURDAY || $dow === Carbon::SUNDAY;
+            $record = $byDate->get($dateStr);
+
+            $days[] = [
+                'date' => $dateStr,
+                'weekday' => $dow,
+                'is_school_day' => ! $isWeekend,
+                'status' => $record?->status,
+                'check_in_time' => $record?->check_in_time
+                    ? Carbon::parse($record->check_in_time)->format('H:i:s')
+                    : null,
+                'check_out_time' => $record?->check_out_time
+                    ? Carbon::parse($record->check_out_time)->format('H:i:s')
+                    : null,
+            ];
+            $cursor->addDay();
+        }
+
+        $present = collect($days)->filter(fn ($d) => strtolower((string) ($d['status'] ?? '')) === 'present')->count();
+        $absent = collect($days)->filter(fn ($d) => strtolower((string) ($d['status'] ?? '')) === 'absent')->count();
+        $late = collect($days)->filter(fn ($d) => in_array(strtolower((string) ($d['status'] ?? '')), ['late', 'half_day'], true))->count();
+        $marked = $present + $absent + $late;
+        $percentage = $marked > 0 ? (int) round(($present / $marked) * 100) : null;
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'year' => $year,
+                'month' => $month,
+                'days' => $days,
+                'summary' => [
+                    'present' => $present,
+                    'absent' => $absent,
+                    'late' => $late,
+                    'percentage' => $percentage,
+                ],
+            ],
+        ]);
+    }
+
+    /**
      * Staff roster for clock history (admins: all active staff; supervisors: subordinates).
      */
     public function clockRoster(Request $request)
@@ -161,7 +231,7 @@ class ApiStaffClockController extends Controller
             return response()->json(['success' => false, 'message' => 'You do not have permission to view team clock history.'], 403);
         }
 
-        $query = Staff::query()->where('employment_status', 'active')->orderBy('first_name')->orderBy('last_name');
+        $query = Staff::query()->where('status', 'active')->where('employment_status', 'active')->orderBy('first_name')->orderBy('last_name');
 
         if (! $isAdmin) {
             $query->whereIn('id', $subordinateIds);

@@ -1,5 +1,5 @@
 {{-- Role-appropriate dashboard links --}}
-@include('layouts.partials.nav-section', ['label' => 'Main'])
+@include('layouts.partials.nav-section', ['label' => 'Dashboard'])
 @foreach(\App\Support\NavAccess::dashboardLinks() as $dashLink)
 <li>
     <a href="{{ route($dashLink['route']) }}"
@@ -32,7 +32,7 @@
 @endif
 
 <!-- Students -->
-@include('layouts.partials.nav-section', ['label' => 'Management'])
+@include('layouts.partials.nav-section', ['label' => 'Students'])
 @if(nav_can('students'))
 @php 
 $studentsActive = Request::is('students*')
@@ -107,6 +107,7 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
 
 <!-- Attendance -->
 @if(nav_can('attendance'))
+@include('layouts.partials.nav-section', ['label' => 'Attendance'])
 @php $isAttendanceActive = Request::is('attendance*'); @endphp
 <a href="#attendanceMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isAttendanceActive ? 'true' : 'false' }}"
@@ -147,6 +148,7 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
 
 {{-- Academics --}}
 @if(nav_can('academics'))
+@include('layouts.partials.nav-section', ['label' => 'Academics'])
 @php
     $academicsActive = Request::is('academics/classrooms*')
         || Request::is('academics/streams*')
@@ -382,7 +384,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         
 
 <!-- Finance -->
-@include('layouts.partials.nav-section', ['label' => 'Operations'])
+@include('layouts.partials.nav-section', ['label' => 'Finance'])
 @if(nav_can('finance'))
 {{-- Finance --}}
 @php
@@ -394,7 +396,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     {{-- ============================================ --}}
     {{-- INVOICE & BILLING RELATED --}}
     {{-- ============================================ --}}
-    <span class="small text-muted text-uppercase px-3 d-block mt-2 mb-1 fw-bold">Invoice & Billing</span>
+    <span class="small text-muted text-uppercase px-3 d-block mt-2 mb-1 fw-bold">Student Billing</span>
     
     {{-- Fee Setup --}}
     <a href="{{ route('finance.voteheads.index') }}" class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Voteheads</a>
@@ -531,7 +533,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
             || Request::is('finance/fiscal-periods*')
             || Request::is('finance/budgets*');
     @endphp
-    <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Expenses</span>
+    <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Accounting</span>
     <a href="#expensesMenu" data-bs-toggle="collapse" aria-expanded="{{ $expensesActive ? 'true' : 'false' }}" class="{{ $expensesActive ? 'parent-active' : '' }}"><i class="bi bi-wallet2"></i> Expense Management</a>
     <div class="collapse {{ $expensesActive ? 'show' : '' }}" id="expensesMenu" style="padding-left: 20px;">
         <a href="{{ route('finance.expenses.index') }}" class="sublink {{ Request::is('finance/expenses*') && !Request::is('finance/expenses/create') && !Request::is('finance/expenses/reports*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> All Expenses</a>
@@ -620,6 +622,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 
 <!-- Transport -->
 @if(nav_can('transport'))
+@include('layouts.partials.nav-section', ['label' => 'Transport'])
 @php $isTransportActive = Request::is('transport*') || Request::is('driver*'); @endphp
 <a href="#transportMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isTransportActive ? 'true' : 'false' }}"
@@ -691,6 +694,7 @@ class="{{ $isTransportActive ? 'parent-active' : '' }}">
 
 <!-- Communication -->
 @if(nav_can('communication'))
+@include('layouts.partials.nav-section', ['label' => 'Communication'])
 @php $isCommunicationActive = Request::is('communication*') || Request::is('announcements*'); @endphp
 <a href="#communicationMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isCommunicationActive ? 'true' : 'false' }}"
@@ -698,6 +702,9 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
 <i class="bi bi-chat-dots"></i><span> Communication</span>
 </a>
 <div class="collapse {{ $isCommunicationActive ? 'show' : '' }}" id="communicationMenu">
+    <a href="{{ route('communication.compose') }}" class="sublink {{ Request::is('communication/compose*') ? 'active' : '' }}">
+    <i class="bi bi-pencil-square"></i> Compose
+    </a>
     <a href="{{ route('communication.send.email') }}" 
     class="sublink {{ Request::is('communication/send-email*') ? 'active' : '' }}">
     <i class="bi bi-envelope"></i> Send Email
@@ -771,6 +778,7 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
 
 <!-- HR -->
 @if(nav_can('hr'))
+@include('layouts.partials.nav-section', ['label' => 'Staff'])
 @php
   $hrActive = Request::is('staff*')
     || Request::is('hr/access-lookups*')
@@ -908,6 +916,7 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
 @endif
 
 <!-- School Operations -->
+@include('layouts.partials.nav-section', ['label' => 'Operations'])
 @php
   $opsActive = Request::is('operations/*');
 @endphp
@@ -1052,7 +1061,7 @@ class="{{ $posActive ? 'parent-active' : '' }}">
 @endif
 
 <!-- Settings -->
-@include('layouts.partials.nav-section', ['label' => 'System'])
+@include('layouts.partials.nav-section', ['label' => 'Settings'])
 @if(nav_can('settings'))
 @php $isSettingsActive = Request::is('settings*'); @endphp
 @php 

@@ -1,10 +1,12 @@
 import {
+  useParentAbsenceHistory,
   useStudentAttendanceCalendar,
   useStudentAttendanceTrend,
   useStudentDetail,
 } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   EmptyState,
   FilterChip,
   FilterChipRow,
@@ -13,13 +15,19 @@ import {
   useTheme,
 } from '@erp/ui';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function statusColor(status: string | null | undefined, isSchoolDay: boolean, colors: { success: string; error: string; warning: string }, muted: string): string {
+function statusColor(
+  status: string | null | undefined,
+  isSchoolDay: boolean,
+  colors: { success: string; error: string; warning: string },
+  muted: string,
+): string {
   const s = (status ?? '').toLowerCase();
   if (s === 'present') return colors.success;
   if (s === 'absent') return colors.error;
@@ -37,11 +45,12 @@ function statusLabel(status: string | null | undefined): string {
 }
 
 export const ChildAttendanceScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<ParentStackParamList>>();
   const route = useRoute<RouteProp<ParentStackParamList, 'ChildAttendance'>>();
   const { palette, spacing, typography, radius, colors } = useTheme();
   const studentId = route.params.studentId;
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
+  const history = useParentAbsenceHistory(studentId, { enabled: studentId > 0 });
 
   const now = useMemo(() => new Date(), []);
   const [year, setYear] = useState(now.getFullYear());
@@ -79,6 +88,12 @@ export const ChildAttendanceScreen: React.FC = () => {
         onBack={() => navigation.goBack()}
       />
 
+      <Button
+        label="Report absence"
+        onPress={() => navigation.navigate('ReportAbsence', { studentId })}
+        style={{ marginBottom: spacing.md }}
+      />
+
       <View
         style={{
           backgroundColor: palette.surface,
@@ -110,6 +125,8 @@ export const ChildAttendanceScreen: React.FC = () => {
           title="Could not load attendance"
           message={calendar.error instanceof Error ? calendar.error.message : 'Try again later.'}
           icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void calendar.refetch()}
         />
       ) : (
         <View
@@ -167,7 +184,11 @@ export const ChildAttendanceScreen: React.FC = () => {
                       borderRadius: 10,
                       alignItems: 'center',
                       justifyContent: 'center',
-                      backgroundColor: school ? (marked ? `${bg}22` : palette.surfaceRaised ?? palette.surface) : `${palette.textMuted}18`,
+                      backgroundColor: school
+                        ? marked
+                          ? `${bg}22`
+                          : palette.surfaceRaised ?? palette.surface
+                        : `${palette.textMuted}18`,
                       borderWidth: isSelected ? 2 : marked ? 1 : 0,
                       borderColor: isSelected ? colors.primary : marked ? bg : 'transparent',
                       opacity: school ? 1 : 0.45,
@@ -191,7 +212,15 @@ export const ChildAttendanceScreen: React.FC = () => {
             })}
           </View>
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.md, paddingHorizontal: spacing.xs }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: spacing.md,
+              marginTop: spacing.md,
+              paddingHorizontal: spacing.xs,
+            }}
+          >
             {[
               { label: 'Present', color: colors.success },
               { label: 'Absent', color: colors.error },
@@ -215,10 +244,15 @@ export const ChildAttendanceScreen: React.FC = () => {
             borderWidth: 1,
             borderRadius: radius.lg,
             padding: spacing.md,
+            marginBottom: spacing.md,
           }}
         >
           <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
-            {new Date(selected.date).toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {new Date(selected.date).toLocaleDateString('en-KE', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+            })}
           </Text>
           <Text style={{ color: palette.textSecondary, marginTop: 4 }}>
             {!selected.is_school_day
@@ -229,6 +263,42 @@ export const ChildAttendanceScreen: React.FC = () => {
           </Text>
         </View>
       ) : null}
+
+      <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
+        Reported absences
+      </Text>
+      {history.isLoading ? (
+        <SkeletonListRows count={2} />
+      ) : history.isError ? (
+        <EmptyState
+          title="Could not load history"
+          message={history.error instanceof Error ? history.error.message : 'Try again.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void history.refetch()}
+        />
+      ) : (history.data ?? []).length === 0 ? (
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+          No parent-reported absences yet.
+        </Text>
+      ) : (
+        (history.data ?? []).slice(0, 12).map((row) => (
+          <View
+            key={row.id}
+            style={{
+              paddingVertical: spacing.sm,
+              borderBottomWidth: 1,
+              borderBottomColor: palette.border,
+            }}
+          >
+            <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{row.date}</Text>
+            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+              {row.excuse_notes || row.reason || 'Excused absence'}
+              {row.reason_code ? ` · ${row.reason_code}` : ''}
+            </Text>
+          </View>
+        ))
+      )}
     </ScreenContainer>
   );
 };

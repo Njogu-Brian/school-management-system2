@@ -12,20 +12,18 @@ import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
 
+/** Secondary items — core school-life functions live on Home (Phase 7B). */
 const LINKS: Array<{
   label: string;
   subtitle: string;
   icon:
     | 'person-outline'
-    | 'wallet-outline'
     | 'megaphone-outline'
-    | 'notifications-outline'
     | 'settings-outline'
     | 'alert-circle-outline'
-    | 'chatbubbles-outline'
     | 'sparkles-outline';
-  glyph?: 'wallet' | 'person' | 'megaphone' | 'notifications' | 'settings' | 'activities' | 'generic';
-  tone: 'cyan' | 'amber' | 'blue' | 'indigo' | 'rose' | 'emerald';
+  glyph?: 'person' | 'megaphone' | 'settings' | 'activities' | 'generic';
+  tone: 'cyan' | 'amber' | 'indigo' | 'rose';
   route: keyof ParentStackParamList;
 }> = [
   {
@@ -44,33 +42,11 @@ const LINKS: Array<{
     route: 'CoCurricularHub',
   },
   {
-    label: 'Diary',
-    subtitle: 'Messages with teachers',
-    icon: 'chatbubbles-outline',
-    tone: 'blue',
-    route: 'DiaryList',
-  },
-  {
-    label: 'Wallets',
-    subtitle: 'Balance, top up & saving plans',
-    icon: 'wallet-outline',
-    glyph: 'wallet',
-    tone: 'emerald',
-    route: 'WalletHome',
-  },
-  {
     label: 'Announcements',
     subtitle: 'School notices and updates',
     icon: 'megaphone-outline',
     tone: 'amber',
     route: 'Announcements',
-  },
-  {
-    label: 'Notifications',
-    subtitle: 'Alerts and reminders',
-    icon: 'notifications-outline',
-    tone: 'blue',
-    route: 'Notifications',
   },
   {
     label: 'Concerns',

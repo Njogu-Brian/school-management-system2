@@ -1,24 +1,45 @@
-import { useAppMode } from '@erp/core';
+import {
+  clearSelectedChildId,
+  invalidateQueriesForAppMode,
+  useAppMode,
+  useCurrentUser,
+  type AppMode,
+} from '@erp/core';
 import { useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import React, { useCallback } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 /**
- * Staff | Parent segmented switch for dual-identity users (staff who are also parents).
- * Renders nothing for single-identity users.
+ * Home | Work segmented switch for dual-identity users.
+ * Clears mode-scoped React Query caches and remounts the role shell via mode change.
  */
 export const AppModeSwitch: React.FC<{ style?: object }> = ({ style }) => {
   const { mode, canSwitch, setMode } = useAppMode();
+  const user = useCurrentUser();
+  const queryClient = useQueryClient();
   const { palette, colors, spacing, typography, radius } = useTheme();
+
+  const switchMode = useCallback(
+    async (next: AppMode) => {
+      if (next === mode) return;
+      invalidateQueriesForAppMode(queryClient, next);
+      if (next === 'work' && user?.id) {
+        await clearSelectedChildId(user.id);
+      }
+      await setMode(next);
+    },
+    [mode, queryClient, setMode, user?.id],
+  );
 
   if (!canSwitch) {
     return null;
   }
 
-  const options: Array<{ key: 'work' | 'home'; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
-    { key: 'work', label: 'Staff', icon: 'briefcase-outline' },
-    { key: 'home', label: 'Parent', icon: 'home-outline' },
+  const options: Array<{ key: AppMode; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+    { key: 'home', label: 'Home', icon: 'home-outline' },
+    { key: 'work', label: 'Work', icon: 'briefcase-outline' },
   ];
 
   return (
@@ -34,13 +55,17 @@ export const AppModeSwitch: React.FC<{ style?: object }> = ({ style }) => {
         },
         style,
       ]}
+      accessibilityRole="tablist"
+      accessibilityLabel={`App mode. Currently ${mode === 'home' ? 'Home' : 'Work'}`}
     >
       {options.map((opt) => {
         const active = mode === opt.key;
         return (
           <Pressable
             key={opt.key}
-            onPress={() => void setMode(opt.key)}
+            onPress={() => void switchMode(opt.key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
             style={{
               flex: 1,
               flexDirection: 'row',
@@ -50,6 +75,7 @@ export const AppModeSwitch: React.FC<{ style?: object }> = ({ style }) => {
               paddingVertical: spacing.sm,
               borderRadius: radius.md,
               backgroundColor: active ? colors.primary : 'transparent',
+              minHeight: 44,
             }}
           >
             <Ionicons name={opt.icon} size={16} color={active ? '#fff' : palette.textSecondary} />

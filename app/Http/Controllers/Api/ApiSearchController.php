@@ -190,6 +190,7 @@ class ApiSearchController extends Controller
     private function searchStaff(string $like, int $page, int $limit): array
     {
         return Staff::query()
+            ->where('status', 'active')
             ->where(function ($q) use ($like) {
                 $q->where('first_name', 'like', $like)
                     ->orWhere('last_name', 'like', $like)

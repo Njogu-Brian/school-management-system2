@@ -17,7 +17,7 @@ import {
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../../navigation/parent/parentStackTypes';
 import { showError, showSuccess } from '../../../shared/utils/feedback';
 import { formatKes, formatShortDate } from '../../utils/format';
@@ -41,6 +41,7 @@ export const ParentWalletHomeScreen: React.FC = () => {
   }, [payInvoiceId]);
 
   const wallet = walletQuery.data;
+  const showInitialLoading = walletQuery.isLoading && !wallet;
 
   const handlePayInvoice = async () => {
     if (!payInvoiceId) return;
@@ -60,7 +61,18 @@ export const ParentWalletHomeScreen: React.FC = () => {
   };
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScreenContainer
+      scroll
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+      scrollProps={{
+        refreshControl: (
+          <RefreshControl
+            refreshing={walletQuery.isRefetching}
+            onRefresh={() => void walletQuery.refetch()}
+          />
+        ),
+      }}
+    >
       <AcademicScreenHeader
         title="Family wallet"
         subtitle={user?.name ?? 'Shared balance for your children'}
@@ -70,9 +82,12 @@ export const ParentWalletHomeScreen: React.FC = () => {
         <Soft3DIcon name="wallet-outline" glyph="wallet" tone="emerald" size={56} />
       </View>
 
-      {walletQuery.isLoading ? (
-        <SkeletonListRows count={4} />
-      ) : walletQuery.isError ? (
+      {showInitialLoading ? (
+        <View style={{ paddingVertical: spacing.lg, alignItems: 'center' }}>
+          <ActivityIndicator />
+          <Text style={{ color: palette.textMuted, marginTop: spacing.sm }}>Loading wallet…</Text>
+        </View>
+      ) : walletQuery.isError && !wallet ? (
         <EmptyState
           title="Could not load wallet"
           message={(walletQuery.error as Error)?.message}

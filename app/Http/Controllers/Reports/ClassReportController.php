@@ -26,7 +26,7 @@ class ClassReportController extends Controller
     public function create()
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $staff = Staff::orderBy('first_name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
         return view('reports.class_reports.create', compact('classrooms', 'staff'));
     }

@@ -37,7 +37,8 @@ class AppChannelNotifyService
         }
 
         try {
-            Notification::send($collection, new CustomAppMessageNotification($title, $body, $data));
+            // Immediate in-app history (do not wait on the queue worker).
+            Notification::sendNow($collection, new CustomAppMessageNotification($title, $body, $data));
         } catch (\Throwable $e) {
             Log::warning('App channel database notify failed: '.$e->getMessage());
         }
@@ -51,7 +52,16 @@ class AppChannelNotifyService
 
         $pushed = 0;
         if ($tokens !== []) {
-            $this->push->sendToTokens($tokens, $title, $body, array_merge(['type' => 'custom_app_message'], $data));
+            $channelId = is_string($data['push_channel'] ?? null) && $data['push_channel'] !== ''
+                ? $data['push_channel']
+                : 'teacher-alerts';
+            $this->push->sendToTokens(
+                $tokens,
+                $title,
+                $body,
+                array_merge(['type' => 'custom_app_message'], $data),
+                ['channelId' => $channelId, 'sound' => 'default', 'priority' => 'high']
+            );
             $pushed = count($tokens);
         }
 

@@ -91,7 +91,8 @@ export interface CreateHomeworkPayload {
   classroom_id: number;
   stream_id?: number | null;
   subject_id: number;
-  target_scope?: 'class' | 'stream';
+  target_scope?: 'class' | 'stream' | 'students';
+  student_ids?: number[];
   max_score?: number;
   allow_late_submission?: boolean;
   files?: HomeworkFileInput[];
@@ -108,6 +109,9 @@ function buildHomeworkFormData(payload: CreateHomeworkPayload): FormData {
   if (payload.stream_id != null) form.append('stream_id', String(payload.stream_id));
   form.append('subject_id', String(payload.subject_id));
   if (payload.target_scope) form.append('target_scope', payload.target_scope);
+  (payload.student_ids ?? []).forEach((id) => {
+    form.append('student_ids[]', String(id));
+  });
   if (payload.max_score != null) form.append('max_score', String(payload.max_score));
   if (payload.allow_late_submission != null) {
     form.append('allow_late_submission', payload.allow_late_submission ? '1' : '0');

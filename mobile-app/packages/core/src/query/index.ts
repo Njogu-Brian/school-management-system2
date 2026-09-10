@@ -1,4 +1,5 @@
 export * from './queryKeys';
+export * from './modeCache';
 export * from './persistConfig';
 export * from './queryClient';
 export * from './widgetQueryState';
@@ -55,5 +56,6 @@ export * from './hooks/useParentClaim';
 export * from './hooks/useParentProfileReview';
 export * from './hooks/useParentWallet';
 export * from './hooks/useParentCoCurricular';
+export * from './hooks/useParentAbsence';
 export * from './hooks/useKemisOptions';
 export * from '../sync';

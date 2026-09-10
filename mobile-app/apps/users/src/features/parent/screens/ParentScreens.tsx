@@ -1,5 +1,8 @@
 import {
+  buildParentHomeNavParams,
   formatRoleLabel,
+  PARENT_HOME_CHILD_ACTIONS,
+  PARENT_HOME_CORE_ACTIONS,
   timeOfDayGreeting,
   useAuth,
   useCurrentUser,
@@ -9,6 +12,7 @@ import {
   useStudentStats,
   useUnreadNotificationCount,
   useStudentReportCards,
+  type ParentHomeActionDef,
   type ReportCardListRecord,
 } from '@erp/core';
 import {
@@ -16,6 +20,8 @@ import {
   DashboardHero,
   DashboardSection,
   EmptyState,
+  FilterChip,
+  FilterChipRow,
   ListRowCard,
   QuickAction,
   ScreenContainer,
@@ -28,38 +34,15 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
-import { FlatList, Linking, Pressable, Text, View } from 'react-native';
+import { FlatList, Linking, Pressable, RefreshControl, Text, View } from 'react-native';
 import { navigateToTab } from '../../../navigation/navigateToTab';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { showError, showSuccess, confirmAction } from '../../shared/utils/feedback';
+import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
+import { useSelectedChild } from '../hooks/useSelectedChild';
 import { formatKes, formatShortDate } from '../utils/format';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
-
-type ParentTabJump = { tab: string; screen: string; tabHome?: string };
-
-const QUICK_ACTIONS: Array<{
-  label: string;
-  icon: 'people-outline' | 'cash-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'school-outline' | 'sparkles-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
-  jump: ParentTabJump;
-}> = [
-  { label: 'Children', icon: 'people-outline', jump: { tab: 'ParentChildrenTab', screen: 'ChildrenList' } },
-  { label: 'Fees', icon: 'cash-outline', jump: { tab: 'ParentFeesTab', screen: 'FeesHome' } },
-  { label: 'Wallets', icon: 'wallet-outline', jump: { tab: 'ParentFeesTab', screen: 'WalletHome', tabHome: 'FeesHome' } },
-  { label: 'Co-curricular', icon: 'sparkles-outline', jump: { tab: 'ParentHomeTab', screen: 'CoCurricularHub', tabHome: 'ParentHome' } },
-  { label: 'Diary', icon: 'chatbubbles-outline', jump: { tab: 'ParentMoreTab', screen: 'DiaryList', tabHome: 'MoreMenu' } },
-  { label: 'Academic', icon: 'school-outline', jump: { tab: 'ParentAcademicTab', screen: 'AcademicHome' } },
-];
-
-const SCHOOL_ACTIONS: Array<{
-  label: string;
-  icon: 'people-outline' | 'wallet-outline' | 'chatbubbles-outline' | 'megaphone-outline' | 'notifications-outline' | 'alert-circle-outline';
-  jump: ParentTabJump;
-}> = [
-  { label: 'Announcements', icon: 'megaphone-outline', jump: { tab: 'ParentMoreTab', screen: 'Announcements', tabHome: 'MoreMenu' } },
-  { label: 'Notifications', icon: 'notifications-outline', jump: { tab: 'ParentMoreTab', screen: 'Notifications', tabHome: 'MoreMenu' } },
-  { label: 'Raise concern', icon: 'alert-circle-outline', jump: { tab: 'ParentMoreTab', screen: 'ConcernsList', tabHome: 'MoreMenu' } },
-];
 
 function FamilyFeesCard({
   studentIds,
@@ -89,44 +72,31 @@ function FamilyFeesCard({
   }, [s0, s1, s2, s3, studentIds.length]);
 
   return (
-    <SurfaceCard accent={due > 0 ? 'warning' : 'success'}>
+    <SurfaceCard accent={due > 0 ? 'warning' : 'success'} onPress={onPressFees}>
       <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
         School fees
       </Text>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
-        <Pressable
-          onPress={onPressFees}
-          accessibilityRole="button"
-          accessibilityLabel="View or pay current due fees"
-          style={{ flex: 1 }}
-        >
+        <View style={{ flex: 1 }}>
           <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
             Current due
           </Text>
           <Text style={{ color: colors.primary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
             {loading ? '…' : formatKes(due)}
           </Text>
-          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-            Tap to view / pay
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onPressFees}
-          accessibilityRole="button"
-          accessibilityLabel="View upcoming fees"
-          style={{ flex: 1 }}
-        >
+        </View>
+        <View style={{ flex: 1 }}>
           <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
             Upcoming
           </Text>
           <Text style={{ color: palette.textPrimary, fontSize: 22, fontWeight: '700', marginTop: 2 }}>
             {loading ? '…' : formatKes(upcoming)}
           </Text>
-          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-            Tap to view
-          </Text>
-        </Pressable>
+        </View>
       </View>
+      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: spacing.sm }}>
+        Invoices · statements · wallet · payments
+      </Text>
     </SurfaceCard>
   );
 }
@@ -135,10 +105,12 @@ function ChildResultsSnapshot({
   studentId,
   studentName,
   onOpen,
+  onOpenAll,
 }: {
   studentId: number;
   studentName: string;
   onOpen: (card: ReportCardListRecord) => void;
+  onOpenAll: () => void;
 }) {
   const { palette, spacing, typography } = useTheme();
   const reportCards = useStudentReportCards(studentId, { enabled: studentId > 0 });
@@ -147,7 +119,21 @@ function ChildResultsSnapshot({
     [reportCards.data],
   );
 
-  if (reportCards.isLoading || published.length === 0) return null;
+  if (reportCards.isLoading) {
+    return <SkeletonListRows count={1} />;
+  }
+
+  if (published.length === 0) {
+    return (
+      <EmptyState
+        title="No published results yet"
+        message="When the school publishes report cards for this child, they will appear here."
+        icon="school-outline"
+        actionLabel="Open academics"
+        onAction={onOpenAll}
+      />
+    );
+  }
 
   return (
     <View style={{ marginBottom: spacing.sm }}>
@@ -176,8 +162,18 @@ function ChildResultsSnapshot({
           </View>
         </SurfaceCard>
       ))}
+      <Button label="All results" variant="secondary" onPress={onOpenAll} />
     </View>
   );
+}
+
+function runHomeAction(navigation: Nav, action: ParentHomeActionDef, studentId: number | null) {
+  const params = buildParentHomeNavParams(action, studentId);
+  if (params === null) {
+    showError('Select a child', 'Choose a child before opening this section.');
+    return;
+  }
+  navigateToTab(navigation, action.jump.tab, action.jump.screen, params, action.jump.tabHome);
 }
 
 export const ParentHomeScreen: React.FC = () => {
@@ -191,7 +187,7 @@ export const ParentHomeScreen: React.FC = () => {
     classroomId: null,
     streamId: null,
     status: 'active',
-    perPage: 8,
+    perPage: 40,
   });
 
   const children = useMemo(
@@ -199,102 +195,188 @@ export const ParentHomeScreen: React.FC = () => {
     [childrenQuery.data],
   );
   const childrenCount = childrenQuery.data?.pages[0]?.total ?? children.length;
-  const studentIds = useMemo(() => children.map((c) => c.id).slice(0, 4), [children]);
+  const { selectedId, selectedChild, selectChild, ready: childReady } = useSelectedChild(children);
+  const feeStudentIds = useMemo(
+    () => (selectedId ? [selectedId] : children.map((c) => c.id).slice(0, 4)),
+    [selectedId, children],
+  );
+  const unread = unreadQuery.data ?? 0;
+  const refreshing = childrenQuery.isRefetching || unreadQuery.isRefetching;
+
+  const onRefreshHome = () => {
+    void childrenQuery.refetch();
+    void unreadQuery.refetch();
+  };
 
   const meta = useMemo(() => {
     const parts: string[] = [];
     if (childrenCount > 0) parts.push(`${childrenCount} ${childrenCount === 1 ? 'child' : 'children'}`);
-    const unread = unreadQuery.data ?? 0;
     if (unread > 0) parts.push(`${unread} unread`);
     return parts.join(' · ') || undefined;
-  }, [childrenCount, unreadQuery.data]);
+  }, [childrenCount, unread]);
 
   return (
-    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
+    <ScreenContainer
+      scroll
+      edges={['bottom']}
+      contentContainerStyle={{ padding: spacing.md }}
+      scrollProps={{
+        refreshControl: (
+          <RefreshControl refreshing={refreshing} onRefresh={onRefreshHome} colors={[colors.primary]} />
+        ),
+      }}
+    >
       <DashboardHero
         variant="people"
         greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Parent'}
         roleLabel={formatRoleLabel(user?.roleName ?? user?.role, 'Parent')}
         title="Home"
-        subtitle="Track fees, attendance, and school updates for your children"
+        subtitle="School life for your child — attendance, results, fees, and messages"
         meta={meta}
       />
 
-      <DashboardSection title="Fees snapshot">
-        {childrenQuery.isLoading ? (
-          <SkeletonListRows count={1} />
-        ) : studentIds.length === 0 ? (
-          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
-            Link a child to see due and upcoming fees.
-          </Text>
-        ) : (
-          <FamilyFeesCard
-            studentIds={studentIds}
-            onPressFees={() => navigateToTab(navigation, 'ParentFeesTab', 'FeesHome')}
-          />
-        )}
-      </DashboardSection>
+      <View style={{ marginBottom: spacing.md }}>
+        <AppModeSwitch />
+      </View>
 
-      <DashboardSection title="Current results">
-        {childrenQuery.isLoading ? (
-          <SkeletonListRows count={2} />
-        ) : children.length === 0 ? (
-          <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
-            Published report cards will appear here.
-          </Text>
-        ) : (
-          <>
-            {children.slice(0, 4).map((child) => (
+      {childrenQuery.isLoading || !childReady ? (
+        <SkeletonListRows count={4} />
+      ) : childrenQuery.isError ? (
+        <EmptyState
+          title="Could not load children"
+          message={childrenQuery.error instanceof Error ? childrenQuery.error.message : 'Please try again.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void childrenQuery.refetch()}
+        />
+      ) : children.length === 0 ? (
+        <EmptyState
+          title="No children linked"
+          message="Children linked to your parent account will appear here."
+          icon="people-outline"
+        />
+      ) : (
+        <>
+          <DashboardSection title={children.length > 1 ? 'Selected child' : 'Your child'}>
+            {children.length > 1 ? (
+              <FilterChipRow>
+                {children.map((child) => (
+                  <FilterChip
+                    key={child.id}
+                    label={child.fullName}
+                    active={child.id === selectedId}
+                    onPress={() => void selectChild(child.id)}
+                  />
+                ))}
+              </FilterChipRow>
+            ) : null}
+            {selectedChild ? (
+              <SurfaceCard
+                accent="brand"
+                onPress={() =>
+                  navigateToTab(
+                    navigation,
+                    'ParentChildrenTab',
+                    'ChildHub',
+                    { studentId: selectedChild.id },
+                    'ChildrenList',
+                  )
+                }
+              >
+                <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{selectedChild.fullName}</Text>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+                  {[selectedChild.admissionNumber, selectedChild.className].filter(Boolean).join(' · ') ||
+                    'Tap for child hub'}
+                </Text>
+              </SurfaceCard>
+            ) : null}
+          </DashboardSection>
+
+          {unread > 0 ? (
+            <DashboardSection title="Alerts">
+              <SurfaceCard
+                accent="warning"
+                onPress={() =>
+                  navigateToTab(navigation, 'ParentHomeTab', 'Notifications', undefined, 'ParentHome')
+                }
+              >
+                <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
+                  {unread} unread notification{unread === 1 ? '' : 's'}
+                </Text>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+                  Tap to open notifications
+                </Text>
+              </SurfaceCard>
+            </DashboardSection>
+          ) : null}
+
+          <DashboardSection title="School fees">
+            <FamilyFeesCard
+              studentIds={feeStudentIds}
+              onPressFees={() => navigateToTab(navigation, 'ParentFeesTab', 'FeesHome')}
+            />
+          </DashboardSection>
+
+          <DashboardSection title="Results">
+            {selectedId && selectedChild ? (
               <ChildResultsSnapshot
-                key={child.id}
-                studentId={child.id}
-                studentName={child.fullName}
+                studentId={selectedId}
+                studentName={selectedChild.fullName}
                 onOpen={(card) =>
                   navigateToTab(navigation, 'ParentAcademicTab', 'ReportCardDetail', {
-                    studentId: child.id,
+                    studentId: selectedId,
                     reportCardId: card.id,
                   })
                 }
+                onOpenAll={() =>
+                  navigateToTab(
+                    navigation,
+                    'ParentAcademicTab',
+                    'ChildResults',
+                    { studentId: selectedId },
+                    'AcademicHome',
+                  )
+                }
               />
-            ))}
-            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-              Tap a published report card to view it, or open Academic for the full list.
-            </Text>
-            <Button
-              label="View all results"
-              variant="secondary"
-              onPress={() => navigateToTab(navigation, 'ParentAcademicTab', 'AcademicHome')}
-            />
-          </>
-        )}
-      </DashboardSection>
+            ) : (
+              <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+                Select a child to see results.
+              </Text>
+            )}
+          </DashboardSection>
 
-      <DashboardSection title="Children & fees">
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          {QUICK_ACTIONS.map((item) => (
-            <QuickAction
-              key={item.label}
-              label={item.label}
-              icon={item.icon}
-              onPress={() => navigateToTab(navigation, item.jump.tab, item.jump.screen, undefined, item.jump.tabHome)}
-            />
-          ))}
-        </View>
-      </DashboardSection>
+          <DashboardSection title="School life">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+              {PARENT_HOME_CORE_ACTIONS.map((action) => (
+                <QuickAction
+                  key={action.id}
+                  label={
+                    action.id === 'notifications' && unread > 0
+                      ? `Notifications (${unread})`
+                      : action.label
+                  }
+                  icon={action.icon}
+                  onPress={() => runHomeAction(navigation, action, selectedId)}
+                />
+              ))}
+            </View>
+          </DashboardSection>
 
-      <DashboardSection title="School">
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          {SCHOOL_ACTIONS.map((item) => (
-            <QuickAction
-              key={item.label}
-              label={item.label}
-              icon={item.icon}
-              onPress={() => navigateToTab(navigation, item.jump.tab, item.jump.screen, undefined, item.jump.tabHome)}
-            />
-          ))}
-        </View>
-      </DashboardSection>
+          <DashboardSection title="Child & account">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+              {PARENT_HOME_CHILD_ACTIONS.map((action) => (
+                <QuickAction
+                  key={action.id}
+                  label={action.label}
+                  icon={action.icon}
+                  onPress={() => runHomeAction(navigation, action, selectedId)}
+                />
+              ))}
+            </View>
+          </DashboardSection>
+        </>
+      )}
 
       <Button
         label="Sign out"
@@ -581,7 +663,7 @@ export const ParentFeesScreen: React.FC = () => {
         }}
       >
         <Text style={{ color: 'rgba(255,255,255,0.85)', fontWeight: '600', fontSize: typography.caption.fontSize }}>
-          Family balance due
+          School fees · family balance due
         </Text>
         <Text style={{ color: '#fff', fontSize: 32, fontWeight: '800', marginTop: 4 }}>
           {loadingTotals ? '…' : formatKes(totalDue)}
@@ -623,7 +705,7 @@ export const ParentFeesScreen: React.FC = () => {
           <Soft3DIcon name="wallet-outline" glyph="wallet" tone="emerald" size={40} />
           <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.sm }}>Wallet</Text>
           <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-            Top up & pay invoices
+            Balance, top up & pay
           </Text>
         </Pressable>
         <Pressable
@@ -644,13 +726,18 @@ export const ParentFeesScreen: React.FC = () => {
           <Soft3DIcon name="receipt-outline" glyph="receipt" tone="cyan" size={40} />
           <Text style={{ color: palette.textPrimary, fontWeight: '700', marginTop: spacing.sm }}>Statements</Text>
           <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-            History per child
+            Ledger per child
           </Text>
         </Pressable>
       </View>
 
+      <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.md }}>
+        School fees includes invoices, statements, payments, and wallet for your linked children. Amounts come
+        from each child fee record — not a combined invented balance.
+      </Text>
+
       <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm, fontSize: typography.title.fontSize }}>
-        By child
+        By child · invoices & payments
       </Text>
 
       {listQuery.isLoading ? (

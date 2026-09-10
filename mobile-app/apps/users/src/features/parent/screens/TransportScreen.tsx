@@ -10,6 +10,7 @@ import {
   EmptyState,
   FilterChip,
   FilterChipRow,
+  OptionSelectField,
   ScreenContainer,
   SkeletonListRows,
   Soft3DIcon,
@@ -20,65 +21,14 @@ import {
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { RefreshControl, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { goBackInStack } from '../../../navigation/navigateToTab';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
-type TransportMode = 'vehicle' | 'trip' | 'own_means';
 type ChangeDuration = 'temporary' | 'permanent';
-
-function OptionPicker({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: Array<{ id: number; label: string }>;
-  value: number | null;
-  onChange: (id: number | null) => void;
-}) {
-  const { palette, spacing, typography, radius } = useTheme();
-  return (
-    <View style={{ marginBottom: spacing.md }}>
-      <Text style={{ color: palette.textSecondary, fontWeight: '600', marginBottom: spacing.xs }}>{label}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {options.map((opt) => {
-            const active = value === opt.id;
-            return (
-              <Pressable
-                key={opt.id}
-                onPress={() => onChange(active ? null : opt.id)}
-                style={{
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.sm,
-                  borderRadius: radius.full,
-                  borderWidth: 1,
-                  borderColor: active ? palette.primary : palette.border,
-                  backgroundColor: active ? palette.primaryMuted : palette.surface,
-                  maxWidth: 220,
-                }}
-              >
-                <Text
-                  numberOfLines={2}
-                  style={{
-                    color: active ? palette.primary : palette.textPrimary,
-                    fontWeight: active ? '700' : '500',
-                    fontSize: typography.caption.fontSize,
-                  }}
-                >
-                  {opt.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
+type Leg = 'morning' | 'evening' | 'both';
+type ChangeKind = 'drop_off' | 'own_means';
 
 export const TransportScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -88,14 +38,13 @@ export const TransportScreen: React.FC = () => {
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [mode, setMode] = useState<TransportMode>('own_means');
   const [changeDuration, setChangeDuration] = useState<ChangeDuration>('temporary');
+  const [leg, setLeg] = useState<Leg>('evening');
+  const [changeKind, setChangeKind] = useState<ChangeKind>('drop_off');
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
-  const [tripId, setTripId] = useState<number | null>(null);
   const [dropOffPointId, setDropOffPointId] = useState<number | null>(null);
-  const [vehicleId, setVehicleId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const optionsQuery = useQuery({
@@ -119,6 +68,24 @@ export const TransportScreen: React.FC = () => {
     staleTime: 60_000,
   });
 
+  const dropOffOptions = useMemo(() => {
+    const points = optionsQuery.data?.drop_off_points ?? [];
+    return [...points]
+      .map((p) => ({ id: p.id, label: p.label }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+  }, [optionsQuery.data]);
+
+  const dropOffLabels = useMemo(() => dropOffOptions.map((o) => o.label), [dropOffOptions]);
+  const selectedDropOffLabel =
+    dropOffOptions.find((o) => o.id === dropOffPointId)?.label ?? '';
+
+  const resolveTripIdForLeg = (): number | null => {
+    const d = detail.data;
+    if (leg === 'morning') return d?.transportMorning?.tripId ?? d?.tripId ?? null;
+    if (leg === 'evening') return d?.transportEvening?.tripId ?? d?.tripId ?? null;
+    return d?.transportMorning?.tripId ?? d?.transportEvening?.tripId ?? d?.tripId ?? null;
+  };
+
   const submit = async () => {
     if (!reason.trim()) {
       showError('Reason required', 'Tell the school why you need a transport change.');
@@ -132,33 +99,40 @@ export const TransportScreen: React.FC = () => {
       showError('End date required', 'Temporary changes need an end date (YYYY-MM-DD).');
       return;
     }
-    if (mode === 'trip' && !tripId) {
-      showError('Trip required', 'Select the trip you want for this child.');
+    if (changeKind === 'drop_off' && !dropOffPointId) {
+      showError('Drop-off required', 'Select a drop-off point.');
       return;
     }
-    if (mode === 'vehicle' && !vehicleId) {
-      showError('Vehicle required', 'Select a vehicle for this request.');
+
+    const tripId = changeKind === 'drop_off' ? resolveTripIdForLeg() : null;
+    if (changeKind === 'drop_off' && !tripId) {
+      showError(
+        'No current trip',
+        'This child has no trip assigned for that time of day. Choose Own means, or ask the school to set transport first.',
+      );
       return;
     }
+
+    const legLabel = leg === 'both' ? 'Morning & evening' : leg === 'morning' ? 'Morning' : 'Evening';
+    const reasonWithLeg = `[${legLabel}] ${reason.trim()}`;
+
     setSubmitting(true);
     try {
       const res = await transportSpecialApi.create({
         student_id: studentId,
-        transport_mode: mode,
-        trip_id: mode === 'trip' ? tripId : null,
-        vehicle_id: mode === 'vehicle' ? vehicleId : null,
-        drop_off_point_id: mode === 'own_means' ? null : dropOffPointId,
+        transport_mode: changeKind === 'own_means' ? 'own_means' : 'trip',
+        trip_id: changeKind === 'drop_off' ? tripId : null,
+        vehicle_id: null,
+        drop_off_point_id: changeKind === 'drop_off' ? dropOffPointId : null,
         start_date: startDate.trim(),
         end_date: changeDuration === 'temporary' ? endDate.trim() : null,
-        reason: reason.trim(),
+        reason: reasonWithLeg,
         activate: false,
       });
       if (!res.success) throw new Error(res.message || 'Request failed.');
       showSuccess('Request submitted', 'School admin will review before it becomes active.');
       setReason('');
       setEndDate('');
-      setTripId(null);
-      setVehicleId(null);
       setDropOffPointId(null);
       void assignmentsQuery.refetch();
     } catch (err) {
@@ -171,9 +145,25 @@ export const TransportScreen: React.FC = () => {
   const d = detail.data;
   const morning = d?.transportMorning;
   const evening = d?.transportEvening;
+  const refreshing = detail.isRefetching || optionsQuery.isRefetching || assignmentsQuery.isRefetching;
 
   return (
-    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScreenContainer
+      scroll
+      contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+      scrollProps={{
+        refreshControl: (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void detail.refetch();
+              void optionsQuery.refetch();
+              void assignmentsQuery.refetch();
+            }}
+          />
+        ),
+      }}
+    >
       <AcademicScreenHeader
         title="Transport"
         subtitle={d?.fullName ?? undefined}
@@ -208,17 +198,6 @@ export const TransportScreen: React.FC = () => {
                     Evening · {[evening.tripName, evening.vehicle, evening.dropOffPoint].filter(Boolean).join(' · ')}
                   </Text>
                 ) : null}
-                {!morning?.tripName && !evening?.tripName ? (
-                  <>
-                    <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
-                      Trip: {d?.tripName ?? (d?.tripId ? `#${d.tripId}` : '—')}
-                      {d?.tripVehicle ? ` · ${d.tripVehicle}` : ''}
-                    </Text>
-                    <Text style={{ color: palette.textSecondary, marginTop: 4, fontSize: typography.caption.fontSize }}>
-                      Drop-off: {d?.dropOffPointName ?? d?.dropOffPointOther ?? (d?.dropOffPointId ? `#${d.dropOffPointId}` : '—')}
-                    </Text>
-                  </>
-                ) : null}
               </>
             )}
           </SurfaceCard>
@@ -239,7 +218,8 @@ export const TransportScreen: React.FC = () => {
                   {row.transport_mode.replace('_', ' ')} · {row.status}
                 </Text>
                 <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 4 }}>
-                  {[row.trip_name, row.vehicle_number, row.drop_off_point].filter(Boolean).join(' · ') || 'Details pending'}
+                  {[row.trip_name, row.vehicle_number, row.drop_off_point].filter(Boolean).join(' · ') ||
+                    'Details pending'}
                 </Text>
                 <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginTop: 4 }}>
                   {row.start_date}
@@ -254,87 +234,106 @@ export const TransportScreen: React.FC = () => {
             ))
           )}
 
-          <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm, marginTop: spacing.sm }}>
-            Request a change
-          </Text>
-          <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm, fontSize: typography.caption.fontSize }}>
-            Choose the new arrangement. School admin must approve before it becomes active.
-          </Text>
+          <View
+            style={{
+              backgroundColor: palette.surface,
+              borderColor: palette.border,
+              borderWidth: 1,
+              borderRadius: radius.lg,
+              padding: spacing.md,
+              marginTop: spacing.sm,
+              marginBottom: spacing.md,
+            }}
+          >
+            <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.xs }}>
+              Request a change
+            </Text>
+            <Text style={{ color: palette.textSecondary, marginBottom: spacing.md, fontSize: typography.caption.fontSize }}>
+              Choose morning or evening, then pick a new drop-off point. School admin must approve before it becomes
+              active.
+            </Text>
 
-          <FilterChipRow label="Duration">
-            {(
-              [
-                { id: 'temporary', label: 'Temporary' },
-                { id: 'permanent', label: 'Permanent' },
-              ] as const
-            ).map((opt) => (
+            <FilterChipRow label="Applies to">
+              {(
+                [
+                  { id: 'morning', label: 'Morning' },
+                  { id: 'evening', label: 'Evening' },
+                  { id: 'both', label: 'Both' },
+                ] as const
+              ).map((opt) => (
+                <FilterChip
+                  key={opt.id}
+                  label={opt.label}
+                  active={leg === opt.id}
+                  onPress={() => setLeg(opt.id)}
+                />
+              ))}
+            </FilterChipRow>
+
+            <FilterChipRow label="Duration">
+              {(
+                [
+                  { id: 'temporary', label: 'Temporary' },
+                  { id: 'permanent', label: 'Permanent' },
+                ] as const
+              ).map((opt) => (
+                <FilterChip
+                  key={opt.id}
+                  label={opt.label}
+                  active={changeDuration === opt.id}
+                  onPress={() => setChangeDuration(opt.id)}
+                />
+              ))}
+            </FilterChipRow>
+
+            <FilterChipRow label="Change type">
               <FilterChip
-                key={opt.id}
-                label={opt.label}
-                active={changeDuration === opt.id}
-                onPress={() => setChangeDuration(opt.id)}
+                label="New drop-off"
+                active={changeKind === 'drop_off'}
+                onPress={() => setChangeKind('drop_off')}
               />
-            ))}
-          </FilterChipRow>
-
-          <FilterChipRow label="Mode">
-            {(
-              [
-                { id: 'own_means', label: 'Own means' },
-                { id: 'trip', label: 'School trip' },
-                { id: 'vehicle', label: 'Vehicle' },
-              ] as const
-            ).map((opt) => (
               <FilterChip
-                key={opt.id}
-                label={opt.label}
-                active={mode === opt.id}
+                label="Own means"
+                active={changeKind === 'own_means'}
                 onPress={() => {
-                  setMode(opt.id);
-                  setTripId(null);
-                  setVehicleId(null);
+                  setChangeKind('own_means');
+                  setDropOffPointId(null);
                 }}
               />
-            ))}
-          </FilterChipRow>
+            </FilterChipRow>
 
-          {mode === 'trip' ? (
-            <OptionPicker
-              label="Select trip"
-              options={(optionsQuery.data?.trips ?? []).map((t) => ({ id: t.id, label: t.label }))}
-              value={tripId}
-              onChange={setTripId}
-            />
-          ) : null}
-          {mode === 'vehicle' ? (
-            <OptionPicker
-              label="Select vehicle"
-              options={(optionsQuery.data?.vehicles ?? []).map((v) => ({ id: v.id, label: v.label }))}
-              value={vehicleId}
-              onChange={setVehicleId}
-            />
-          ) : null}
-          {mode !== 'own_means' ? (
-            <OptionPicker
-              label="Drop-off point (optional)"
-              options={(optionsQuery.data?.drop_off_points ?? []).map((p) => ({ id: p.id, label: p.label }))}
-              value={dropOffPointId}
-              onChange={setDropOffPointId}
-            />
-          ) : null}
+            {changeKind === 'drop_off' ? (
+              optionsQuery.isLoading ? (
+                <SkeletonListRows variant="compact" count={1} />
+              ) : (
+                <OptionSelectField
+                  label="Drop-off point"
+                  value={selectedDropOffLabel}
+                  options={dropOffLabels}
+                  searchable
+                  required
+                  placeholder="Select drop-off (A–Z)"
+                  onChange={(label) => {
+                    const match = dropOffOptions.find((o) => o.label === label);
+                    setDropOffPointId(match?.id ?? null);
+                  }}
+                />
+              )
+            ) : null}
 
-          <TextField label="Start date (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} />
-          {changeDuration === 'temporary' ? (
-            <TextField label="End date (YYYY-MM-DD)" value={endDate} onChangeText={setEndDate} />
-          ) : null}
-          <TextField label="Reason" value={reason} onChangeText={setReason} multiline />
+            <TextField label="Start date (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} />
+            {changeDuration === 'temporary' ? (
+              <TextField label="End date (YYYY-MM-DD)" value={endDate} onChangeText={setEndDate} />
+            ) : null}
+            <TextField label="Reason" value={reason} onChangeText={setReason} multiline />
 
-          <Button
-            label={submitting ? 'Submitting…' : 'Submit change request'}
-            onPress={() => void submit()}
-            disabled={submitting}
-            style={{ marginTop: spacing.sm }}
-          />
+            <Button
+              label={submitting ? 'Submitting…' : 'Submit change request'}
+              onPress={() => void submit()}
+              disabled={submitting}
+              style={{ marginTop: spacing.sm }}
+            />
+          </View>
         </>
       )}
     </ScreenContainer>

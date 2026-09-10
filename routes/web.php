@@ -1399,6 +1399,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     */
     Route::prefix('communication')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
         // Senders
+        Route::get('compose', [CommunicationController::class, 'compose'])->name('communication.compose');
         Route::get('send-email', [CommunicationController::class, 'createEmail'])->name('communication.send.email');
         Route::post('send-email',[CommunicationController::class, 'sendEmail'])->name('communication.send.email.submit');
 

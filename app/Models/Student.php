@@ -156,7 +156,13 @@ class Student extends Model
 
     public function diary()
     {
-        return $this->hasOne(StudentDiary::class);
+        return $this->hasOne(\App\Models\Academics\StudentDiary::class)
+            ->where('channel', \App\Models\Academics\StudentDiary::CHANNEL_TEACHER_PARENT);
+    }
+
+    public function diaries()
+    {
+        return $this->hasMany(\App\Models\Academics\StudentDiary::class);
     }
 
     public function attendances()

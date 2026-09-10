@@ -30,6 +30,27 @@ export interface StaffClockHistoryItem {
   check_out_distance_meters: number | null;
 }
 
+export interface StaffAttendanceCalendarDay {
+  date: string;
+  weekday: number;
+  is_school_day: boolean;
+  status: string | null;
+  check_in_time: string | null;
+  check_out_time: string | null;
+}
+
+export interface StaffAttendanceCalendar {
+  year: number;
+  month: number;
+  days: StaffAttendanceCalendarDay[];
+  summary: {
+    present: number;
+    absent: number;
+    late: number;
+    percentage: number | null;
+  };
+}
+
 export interface StaffClockRosterItem {
   id: number;
   staff_id: string;
@@ -61,6 +82,10 @@ export const staffClockApi = {
 
   getClockHistory(limit = 90): Promise<ApiResponse<StaffClockHistoryItem[]>> {
     return apiClient.get<StaffClockHistoryItem[]>('/staff-attendance/me/history', { limit });
+  },
+
+  getMyCalendar(year: number, month: number): Promise<ApiResponse<StaffAttendanceCalendar>> {
+    return apiClient.get<StaffAttendanceCalendar>('/staff-attendance/me/calendar', { year, month });
   },
 
   getClockRoster(): Promise<ApiResponse<StaffClockRosterItem[]>> {

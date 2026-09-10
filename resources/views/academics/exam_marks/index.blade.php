@@ -13,7 +13,7 @@
         <h1 class="mb-1">Exam Marks</h1>
         <p class="text-muted mb-0">Browse marks by exam and drill into bulk entry.</p>
       </div>
-      <a href="{{ route('academics.exam-marks.bulk.form') }}" class="btn btn-settings-primary"><i class="bi bi-pencil-square me-1"></i> Bulk Entry</a>
+      <a href="{{ route('academics.exam-marks.bulk.form') }}" class="btn btn-settings-primary"><i class="bi bi-pencil-square me-1"></i> Marks Entry</a>
     </div>
 
     @includeIf('partials.alerts')

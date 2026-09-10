@@ -1,8 +1,11 @@
 import type { ApiResponse, PaginatedResponse } from '../types/api';
 import { apiClient } from './client';
 
+export type DiaryChannel = 'teacher_parent' | 'admin_parent';
+
 export interface DiaryThreadSummary {
   id: number;
+  channel?: DiaryChannel;
   student_id: number;
   student_name?: string | null;
   admission_number?: string | null;
@@ -34,6 +37,7 @@ export interface DiaryEntryRecord {
 
 export interface DiaryThreadDetail {
   id: number;
+  channel?: DiaryChannel;
   student_id: number;
   student_name?: string | null;
   class_name?: string | null;
@@ -44,24 +48,30 @@ export const diaryApi = {
   list(params?: {
     student_id?: number;
     search?: string;
+    channel?: DiaryChannel;
     page?: number;
     per_page?: number;
   }): Promise<ApiResponse<PaginatedResponse<DiaryThreadSummary>>> {
     return apiClient.get('/diaries', params);
   },
 
-  getForStudent(studentId: number): Promise<ApiResponse<DiaryThreadDetail>> {
-    return apiClient.get(`/diaries/students/${studentId}`);
+  getForStudent(
+    studentId: number,
+    channel: DiaryChannel = 'teacher_parent',
+  ): Promise<ApiResponse<DiaryThreadDetail>> {
+    return apiClient.get(`/diaries/students/${studentId}`, { channel });
   },
 
   sendMessage(
     studentId: number,
-    payload: { content: string; parent_entry_id?: number },
+    payload: { content: string; parent_entry_id?: number; channel?: DiaryChannel },
     attachments?: { uri: string; name: string; type: string }[],
   ): Promise<ApiResponse<DiaryEntryRecord>> {
+    const channel = payload.channel ?? 'teacher_parent';
     if (attachments && attachments.length > 0) {
       const form = new FormData();
       form.append('content', payload.content);
+      form.append('channel', channel);
       if (payload.parent_entry_id != null) {
         form.append('parent_entry_id', String(payload.parent_entry_id));
       }
@@ -74,6 +84,6 @@ export const diaryApi = {
       });
       return apiClient.postMultipart(`/diaries/students/${studentId}/entries`, form);
     }
-    return apiClient.post(`/diaries/students/${studentId}/entries`, payload);
+    return apiClient.post(`/diaries/students/${studentId}/entries`, { ...payload, channel });
   },
 };

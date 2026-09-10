@@ -6,3 +6,4 @@ export * from './biometricStorage';
 export * from './pinStorage';
 export * from './themeStorage';
 export * from './appModeStorage';
+export * from './selectedChildStorage';

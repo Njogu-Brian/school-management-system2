@@ -188,13 +188,17 @@ export interface StudentDetail extends StudentSummary {
   dropOffPointOther: string | null;
   transportSummary: string | null;
   transportMorning: {
+    tripId: number | null;
     tripName: string | null;
     vehicle: string | null;
+    dropOffPointId: number | null;
     dropOffPoint: string | null;
   } | null;
   transportEvening: {
+    tripId: number | null;
     tripName: string | null;
     vehicle: string | null;
+    dropOffPointId: number | null;
     dropOffPoint: string | null;
   } | null;
   preferredHospital: string | null;

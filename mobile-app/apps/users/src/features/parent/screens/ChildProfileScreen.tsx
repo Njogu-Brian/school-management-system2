@@ -141,16 +141,20 @@ export const ChildProfileScreen: React.FC = () => {
   const sectionTitle = (title: string) => (
     <Text
       style={{
-        color: palette.textSecondary,
-        fontWeight: '700',
-        fontSize: typography.caption.fontSize,
-        textTransform: 'uppercase',
-        letterSpacing: 0.4,
+        color: palette.textPrimary,
+        fontWeight: '800',
+        fontSize: typography.body.fontSize,
         marginTop: spacing.lg,
         marginBottom: spacing.sm,
       }}
     >
       {title}
+    </Text>
+  );
+
+  const sectionHint = (text: string) => (
+    <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+      {text}
     </Text>
   );
 
@@ -167,6 +171,15 @@ export const ChildProfileScreen: React.FC = () => {
     borderWidth: 1,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  };
+
+  const editCardStyle = {
+    ...cardStyle,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.xs,
   };
 
   const parentReadRow = (label: string, slot: KemisParentSlotValues, relationship?: string) => {
@@ -228,8 +241,9 @@ export const ChildProfileScreen: React.FC = () => {
       </View>
 
       {sectionTitle('Child')}
+      {sectionHint('Basic learner details for school records.')}
       {editing ? (
-        <>
+        <View style={editCardStyle}>
           <TextField label="First name" value={firstName} onChangeText={setFirstName} />
           <TextField label="Middle name" value={middleName} onChangeText={setMiddleName} />
           <TextField label="Last name" value={lastName} onChangeText={setLastName} />
@@ -255,7 +269,7 @@ export const ChildProfileScreen: React.FC = () => {
             <FilterChip label="No" active={!immunized} onPress={() => setImmunized(false)} />
             <FilterChip label="Yes" active={immunized} onPress={() => setImmunized(true)} />
           </FilterChipRow>
-        </>
+        </View>
       ) : (
         <View style={cardStyle}>
           {readRow('Name', [firstName, middleName, lastName].filter(Boolean).join(' '))}
@@ -268,8 +282,11 @@ export const ChildProfileScreen: React.FC = () => {
       )}
 
       {sectionTitle('Birth & registration')}
+      {sectionHint('Nationality, birth place, and learner registration details.')}
       {editing ? (
-        <KemisLearnerFields values={kemisLearner} onChange={setKemisLearner} options={kemisOptions} />
+        <View style={editCardStyle}>
+          <KemisLearnerFields values={kemisLearner} onChange={setKemisLearner} options={kemisOptions} />
+        </View>
       ) : (
         <View style={cardStyle}>
           {readRow('Nationality', kemisLearner.nationality)}
@@ -290,8 +307,9 @@ export const ChildProfileScreen: React.FC = () => {
       )}
 
       {sectionTitle('Household')}
+      {sectionHint('Where the child lives and who to call in an emergency.')}
       {editing ? (
-        <>
+        <View style={editCardStyle}>
           <TextField label="Residential area" value={residentialArea} onChangeText={setResidentialArea} />
           <TextField label="Preferred hospital" value={preferredHospital} onChangeText={setPreferredHospital} />
           <TextField label="Emergency contact name" value={emergencyName} onChangeText={setEmergencyName} />
@@ -301,7 +319,7 @@ export const ChildProfileScreen: React.FC = () => {
             onChangeText={setEmergencyPhone}
             keyboardType="phone-pad"
           />
-        </>
+        </View>
       ) : (
         <View style={cardStyle}>
           {readRow('Residential area', residentialArea)}
@@ -311,8 +329,9 @@ export const ChildProfileScreen: React.FC = () => {
       )}
 
       {sectionTitle('Parents / guardians')}
+      {sectionHint('Father, mother, and guardian details for school contact.')}
       {editing ? (
-        <>
+        <View style={editCardStyle}>
           <KemisParentIdentityFields slot="father" title="Father" values={father} onChange={setFather} options={kemisOptions} />
           <KemisParentIdentityFields slot="mother" title="Mother" values={mother} onChange={setMother} options={kemisOptions} />
           <KemisParentIdentityFields
@@ -325,7 +344,7 @@ export const ChildProfileScreen: React.FC = () => {
             relationship={guardianRelationship}
             onRelationshipChange={setGuardianRelationship}
           />
-        </>
+        </View>
       ) : (
         <View style={cardStyle}>
           {parentReadRow('Father', father)}
@@ -335,10 +354,7 @@ export const ChildProfileScreen: React.FC = () => {
       )}
 
       {sectionTitle('Family documents')}
-      <View style={cardStyle}>
-        {(query.data?.documents ?? []).length === 0 ? (
-          <Text style={{ color: palette.textMuted }}>No parent documents on file.</Text>
-        ) : (
+      {sectionHint('Tap a document to view or download.')}
           (query.data?.documents ?? []).map((doc) => (
             <Pressable
               key={doc.id}

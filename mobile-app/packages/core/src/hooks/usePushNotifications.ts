@@ -59,13 +59,23 @@ export function usePushNotifications(
       });
 
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('parent-alerts', {
-          name: 'School alerts',
+        const channelBase = {
           importance: Notifications.AndroidImportance.HIGH,
-          sound: 'default',
+          sound: 'default' as const,
           vibrationPattern: [0, 250, 250, 250],
           enableVibrate: true,
           showBadge: true,
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        };
+        await Notifications.setNotificationChannelAsync('teacher-alerts', {
+          name: 'Teacher alerts',
+          description: 'Clock-in and attendance reminders',
+          ...channelBase,
+        });
+        await Notifications.setNotificationChannelAsync('parent-alerts', {
+          name: 'School alerts',
+          description: 'School and family alerts',
+          ...channelBase,
         });
       }
 

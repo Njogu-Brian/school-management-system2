@@ -187,6 +187,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/students/{student}/co-curricular', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'show']);
     Route::post('/students/{student}/co-curricular', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'store']);
     Route::post('/students/{student}/co-curricular/requests/{changeRequest}/cancel', [\App\Http\Controllers\Api\ApiParentCoCurricularController::class, 'cancel']);
+    Route::get('/attendance/reason-codes', [\App\Http\Controllers\Api\ApiParentAttendanceController::class, 'reasonCodes']);
+    Route::get('/students/{student}/attendance-absence', [\App\Http\Controllers\Api\ApiParentAttendanceController::class, 'history']);
+    Route::post('/students/{student}/attendance-absence', [\App\Http\Controllers\Api\ApiParentAttendanceController::class, 'store']);
     Route::get('/students/{student}/requirements', [\App\Http\Controllers\Api\ApiParentRequirementsController::class, 'show']);
 
     // Parent family wallet (Users app)
@@ -212,6 +215,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::put('/staff-attendance/geofence', [ApiStaffClockController::class, 'updateGeofence']);
     Route::get('/staff-attendance/me/today', [ApiStaffClockController::class, 'today']);
     Route::get('/staff-attendance/me/history', [ApiStaffClockController::class, 'history']);
+    Route::get('/staff-attendance/me/calendar', [ApiStaffClockController::class, 'calendar']);
     Route::get('/staff-attendance/clock-roster', [ApiStaffClockController::class, 'clockRoster']);
     Route::get('/staff-attendance/staff/history', [ApiStaffClockController::class, 'staffHistory']);
     Route::post('/staff-attendance/clock-in', [ApiStaffClockController::class, 'clockIn']);

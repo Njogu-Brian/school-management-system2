@@ -13,16 +13,12 @@
     @if ($student->archive)
       <li>
         <button class="dropdown-item restore-btn"
+                type="button"
                 data-student-id="{{ $student->id }}"
                 data-student-name="{{ $student->full_name }}">
           <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
         </button>
       </li>
-      @push('archive-forms')
-        <form id="restore-form-{{ $student->id }}" action="{{ route('students.restore', $student->id) }}" method="POST" class="d-none">
-          @csrf
-        </form>
-      @endpush
     @else
       <li>
         <button class="dropdown-item archive-btn"

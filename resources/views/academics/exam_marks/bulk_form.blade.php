@@ -10,8 +10,8 @@
     <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
       <div>
         <div class="crumb">Academics · Exams</div>
-        <h1 class="mb-1">Enter Marks — Smart Context</h1>
-        <p class="text-muted mb-0">Choose exam type, class, and optional stream to load learners with all active exams in one table.</p>
+        <h1 class="mb-1">Marks Entry</h1>
+        <p class="text-muted mb-0">Choose exam type, class, and optional stream to enter marks in one matrix.</p>
       </div>
       <a href="{{ route('academics.exam-marks.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
     </div>

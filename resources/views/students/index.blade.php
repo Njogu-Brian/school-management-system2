@@ -5,17 +5,15 @@
 @endpush
 
 @section('content')
-<div class="settings-page">
+<div class="settings-page ds-pilot">
   <div class="settings-shell">
-    @include('students.partials.breadcrumbs', ['trail' => ['List' => null]])
+    <x-nav.breadcrumb :items="[
+      'Home' => Route::has('dashboard') ? route('dashboard') : (Route::has('home') ? route('home') : url('/')),
+      'Students' => null,
+    ]" class="mb-3" />
 
-    <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">
-      <div>
-        <div class="crumb">Students</div>
-        <h1 class="mb-1">Students</h1>
-        <p class="text-muted mb-0">Browse, filter, and manage student records.</p>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
+    <x-page-header eyebrow="Students" title="Students" description="Browse, filter, and manage student records." class="mb-3">
+      <x-slot:actions>
         @if(Route::has('students.archived') && can_edit_student_records())
           <a href="{{ route('students.archived') }}" class="btn btn-ghost-strong">
             <i class="bi bi-archive-fill"></i> Archived
@@ -52,22 +50,15 @@
         @endif
         @endif
         @if(can_edit_student_records())
-        <a href="{{ route('students.create') }}" class="btn btn-settings-primary"><i class="bi bi-person-plus"></i> New Student</a>
+        <a href="{{ route('students.create') }}" class="btn btn-settings-primary"><i class="bi bi-person-plus" aria-hidden="true"></i> New Student</a>
         @endif
-      </div>
-    </div>
+      </x-slot:actions>
+    </x-page-header>
 
-    @include('students.partials.alerts')
+    <x-feedback.flash />
 
-    <div class="settings-card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div>
-          <h5 class="mb-0">Filters</h5>
-          <p class="text-muted small mb-0">Search, class, stream, and pagination.</p>
-        </div>
-        <span class="pill-badge pill-secondary">Live query</span>
-      </div>
-      <div class="card-body">
+    <x-card title="Filters" subtitle="Search, class, stream, and pagination." class="mb-3">
+      <x-slot:header><x-badge>Live query</x-badge></x-slot:header>
         <form class="row g-2" method="GET" action="{{ route('students.index') }}">
           <div class="col-md-3">
             <label class="form-label">Admission #</label>
@@ -119,13 +110,12 @@
             @endif
           </div>
         </form>
-      </div>
-    </div>
+    </x-card>
 
     <form action="#" method="POST" id="bulkForm">
       @csrf
-      <div class="settings-card">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <x-card class="mb-0">
+        <x-slot:header>
           <div class="d-flex gap-2">
             <div class="btn-group">
               <button type="button" class="btn btn-ghost-strong dropdown-toggle" data-bs-toggle="dropdown">
@@ -137,10 +127,10 @@
                 <li><hr class="dropdown-divider"></li>
                 @endif
                 @if(Route::has('students.bulk.archive'))
-                <li><button formaction="{{ route('students.bulk.archive') }}" class="dropdown-item" onclick="return confirm('Archive selected students?')"><i class="bi bi-archive"></i> Archive</button></li>
+                <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#confirm-bulk-archive"><i class="bi bi-archive"></i> Archive</button></li>
                 @endif
                 @if(Route::has('students.bulk.restore'))
-                <li><button formaction="{{ route('students.bulk.restore') }}" class="dropdown-item" onclick="return confirm('Restore selected students?')"><i class="bi bi-arrow-counterclockwise"></i> Restore</button></li>
+                <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#confirm-bulk-restore"><i class="bi bi-arrow-counterclockwise"></i> Restore</button></li>
                 @endif
               </ul>
             </div>
@@ -148,7 +138,7 @@
           @if($students->total())
           <span class="input-chip">{{ $students->total() }} total</span>
           @endif
-        </div>
+        </x-slot:header>
 
         <div class="table-responsive">
           <table class="table table-modern align-middle mb-0">
@@ -239,8 +229,23 @@
           </div>
           {{ $students->withQueryString()->links() }}
         </div>
-      </div>
+      </x-card>
     </form>
+    <x-feedback.confirmation-modal
+      id="confirm-bulk-archive"
+      title="Archive selected students?"
+      message="Selected students will be archived and removed from the active list."
+      confirm-label="Archive students"
+      form="bulkForm"
+      formaction="{{ route('students.bulk.archive') }}" />
+    <x-feedback.confirmation-modal
+      id="confirm-bulk-restore"
+      title="Restore selected students?"
+      message="Selected students will be restored to the active list."
+      confirm-label="Restore students"
+      variant="primary"
+      form="bulkForm"
+      formaction="{{ route('students.bulk.restore') }}" />
   </div>
 </div>
 
@@ -285,6 +290,48 @@
 
 {{-- Hidden archive/restore forms (to avoid nested forms) --}}
 @stack('archive-forms')
+
+{{-- Restore modal --}}
+<div class="modal fade" id="restoreModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="restoreConfirmForm" class="modal-content settings-card mb-0" method="POST">
+      @csrf
+      <div class="modal-header">
+        <h5 class="modal-title">Restore Student</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body vstack gap-3">
+        <div>
+          <label class="form-label">Student</label>
+          <div class="fw-semibold restore-student-name">—</div>
+        </div>
+        <div>
+          <label class="form-label">Reason for restoration <span class="text-danger">*</span></label>
+          <select name="reason" class="form-select" required>
+            <option value="">Select reason…</option>
+            <option value="Returned to school">Returned to school</option>
+            <option value="Fees settled">Fees settled</option>
+            <option value="Archived in error">Archived in error</option>
+            <option value="Readmission">Readmission</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Notes (optional)</label>
+          <textarea name="restored_notes" class="form-control" rows="2" placeholder="Any extra detail about this restoration…"></textarea>
+        </div>
+        <div class="text-muted small mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          The reason, date and person restoring are recorded in the student's archive history.
+        </div>
+      </div>
+      <div class="card-footer d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-success" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Restore</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 {{-- Archive modal --}}
 <div class="modal fade" id="archiveModal" tabindex="-1" aria-hidden="true">
@@ -360,11 +407,21 @@
       modal.show();
     });
   });
-  // Restore buttons
+  // Restore buttons open the restore modal (reason is required)
+  const restoreModal = document.getElementById('restoreModal');
+  const restoreForm = document.getElementById('restoreConfirmForm');
   document.querySelectorAll('.restore-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const studentId = btn.getAttribute('data-student-id');
-      document.getElementById('restore-form-' + studentId)?.submit();
+      const name = btn.getAttribute('data-student-name');
+      restoreForm.action = "{{ url('students') }}/" + studentId + "/restore";
+      restoreModal.querySelector('.restore-student-name').innerText = name;
+      restoreModal.querySelector('select[name="reason"]').value = '';
+      restoreModal.querySelector('textarea[name="restored_notes"]').value = '';
+      const modal = bootstrap.Modal.getOrCreateInstance(restoreModal);
+      modal.show();
     });
   });
 </script>

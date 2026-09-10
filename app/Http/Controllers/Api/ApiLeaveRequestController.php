@@ -237,6 +237,8 @@ class ApiLeaveRequestController extends Controller
             'leave_type_id' => 'required|exists:leave_types,id',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after_or_equal:start_date',
+            'start_time' => 'nullable|date_format:H:i',
+            'end_time' => 'nullable|date_format:H:i',
             'reason' => 'nullable|string|max:1000',
         ];
 
@@ -245,6 +247,31 @@ class ApiLeaveRequestController extends Controller
         }
 
         $validated = $request->validate($rules);
+
+        $startTime = isset($validated['start_time']) ? $validated['start_time'] : null;
+        $endTime = isset($validated['end_time']) ? $validated['end_time'] : null;
+
+        // Times are optional together: if either is set, both are required and must be ordered.
+        if (($startTime !== null && $endTime === null) || ($startTime === null && $endTime !== null)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Provide both start time and end time, or leave both blank for a full-day request.',
+            ], 422);
+        }
+
+        $startDate = Carbon::parse($validated['start_date'])->startOfDay();
+        $endDate = Carbon::parse($validated['end_date'])->startOfDay();
+
+        if ($startTime !== null && $endTime !== null) {
+            $startAt = Carbon::parse($validated['start_date'].' '.$startTime);
+            $endAt = Carbon::parse($validated['end_date'].' '.$endTime);
+            if ($endAt->lte($startAt)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'End date/time must be after start date/time.',
+                ], 422);
+            }
+        }
 
         $staffId = $validated['staff_id'] ?? $user->staff?->id;
         if (! $staffId) {
@@ -260,8 +287,6 @@ class ApiLeaveRequestController extends Controller
             }
         }
 
-        $startDate = Carbon::parse($validated['start_date']);
-        $endDate = Carbon::parse($validated['end_date']);
         $daysRequested = $this->calculateWorkingDays($startDate, $endDate);
 
         $currentYear = AcademicYear::where('is_active', true)->first();
@@ -282,6 +307,8 @@ class ApiLeaveRequestController extends Controller
             'leave_type_id' => $validated['leave_type_id'],
             'start_date' => $startDate,
             'end_date' => $endDate,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
             'days_requested' => $daysRequested,
             'reason' => $validated['reason'] ?? null,
             'status' => 'pending',
@@ -392,6 +419,13 @@ class ApiLeaveRequestController extends Controller
 
     protected function formatLeave(LeaveRequest $lr): array
     {
+        $startTime = $lr->start_time
+            ? Carbon::parse($lr->start_time)->format('H:i')
+            : null;
+        $endTime = $lr->end_time
+            ? Carbon::parse($lr->end_time)->format('H:i')
+            : null;
+
         return [
             'id' => $lr->id,
             'staff_id' => $lr->staff_id,
@@ -401,6 +435,8 @@ class ApiLeaveRequestController extends Controller
             'leave_type_id' => $lr->leave_type_id,
             'start_date' => $lr->start_date->format('Y-m-d'),
             'end_date' => $lr->end_date->format('Y-m-d'),
+            'start_time' => $startTime,
+            'end_time' => $endTime,
             'days' => $lr->days_requested,
             'days_count' => $lr->days_requested,
             'reason' => $lr->reason,

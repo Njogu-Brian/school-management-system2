@@ -4,6 +4,7 @@ import React from 'react';
 import { NotificationsListScreen } from '../../features/notifications/screens/NotificationsListScreen';
 import { AnnouncementsScreen } from '../../features/parent/screens/AnnouncementsScreen';
 import { ChildAttendanceScreen } from '../../features/parent/screens/ChildAttendanceScreen';
+import { ReportAbsenceScreen } from '../../features/parent/screens/ReportAbsenceScreen';
 import { ChildHomeworkScreen } from '../../features/parent/screens/ChildHomeworkScreen';
 import { ChildHubScreen } from '../../features/parent/screens/ChildHubScreen';
 import { ChildProfileScreen } from '../../features/parent/screens/ChildProfileScreen';
@@ -26,7 +27,6 @@ import {
   ParentHomeScreen,
 } from '../../features/parent/screens/ParentScreens';
 import { ParentAcademicScreen } from '../../features/parent/screens/ParentAcademicScreen';
-import { ParentMoreScreen } from '../../features/parent/screens/ParentMoreScreen';
 import { StudentStatementScreen } from '../../features/parent/screens/StudentStatementScreen';
 import { TransportScreen } from '../../features/parent/screens/TransportScreen';
 import { CoCurricularHubScreen } from '../../features/parent/screens/CoCurricularHubScreen';
@@ -60,6 +60,8 @@ const parentSharedScreens = () => (
     <Stack.Screen name="CoCurricularHub" component={CoCurricularHubScreen} />
     <Stack.Screen name="CoCurricularChild" component={CoCurricularChildScreen} />
     <Stack.Screen name="ChildRequirements" component={ChildRequirementsScreen} />
+    <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
+    <Stack.Screen name="DiaryList" component={DiaryListScreen} />
   </>
 );
 
@@ -70,24 +72,18 @@ const ParentHomeStack = () => (
       component={ParentHomeScreen}
       options={{
         headerShown: true,
-        header: ({ navigation }) => (
-          <UsersAppHeaderChrome
-            title="Home"
-          />
-        ),
+        header: () => <UsersAppHeaderChrome title="Home" />,
       }}
     />
-    {/* Domain roots (Children / Fees / Academic) live on their own tabs — jump via navigateToTab. */}
     <Stack.Screen name="ChildHub" component={ChildHubScreen} />
     <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
     <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
     <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
+    <Stack.Screen name="ReportAbsence" component={ReportAbsenceScreen} />
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
-    <Stack.Screen name="DiaryList" component={DiaryListScreen} />
     <Stack.Screen name="DiaryChat" component={DiaryChatScreen} />
-    <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
     <Stack.Screen name="Transport" component={TransportScreen} />
     <Stack.Screen name="LiveBusTrack" component={LiveBusTrackScreen} />
     {parentSharedScreens()}
@@ -101,17 +97,14 @@ const ParentChildrenStack = () => (
       component={ParentChildrenScreen}
       options={{
         headerShown: true,
-        header: ({ navigation }) => (
-          <UsersAppHeaderChrome
-            title="Children"
-          />
-        ),
+        header: () => <UsersAppHeaderChrome title="Children" />,
       }}
     />
     <Stack.Screen name="ChildHub" component={ChildHubScreen} />
     <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
     <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
     <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
+    <Stack.Screen name="ReportAbsence" component={ReportAbsenceScreen} />
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
     <Stack.Screen name="StudentDetail" component={StudentDetailScreen} />
     <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
@@ -129,11 +122,7 @@ const ParentFeesStack = () => (
       component={ParentFeesScreen}
       options={{
         headerShown: true,
-        header: ({ navigation }) => (
-          <UsersAppHeaderChrome
-            title="Fees"
-          />
-        ),
+        header: () => <UsersAppHeaderChrome title="School fees" />,
       }}
     />
     <Stack.Screen name="StudentStatement" component={StudentStatementScreen} />
@@ -151,21 +140,8 @@ const ParentAcademicStack = () => (
     <Stack.Screen name="ChildProfile" component={ChildProfileScreen} />
     <Stack.Screen name="ChildResults" component={ChildResultsScreen} />
     <Stack.Screen name="ChildAttendance" component={ChildAttendanceScreen} />
+    <Stack.Screen name="ReportAbsence" component={ReportAbsenceScreen} />
     <Stack.Screen name="ChildHomework" component={ChildHomeworkScreen} />
-    {parentSharedScreens()}
-  </Stack.Navigator>
-);
-
-const ParentMoreStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen
-      name="MoreMenu"
-      component={ParentMoreScreen}
-      options={{ headerShown: true, header: () => <UsersAppHeaderChrome title="More" /> }}
-    />
-    <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
-    <Stack.Screen name="DiaryList" component={DiaryListScreen} />
-    <Stack.Screen name="DiaryChat" component={DiaryChatScreen} />
     {parentSharedScreens()}
   </Stack.Navigator>
 );
@@ -175,7 +151,6 @@ const parentTabBar = createUsersTabBar({
   ParentChildrenTab: { label: 'Children', icon: 'people-outline', iconFocused: 'people', tone: 'indigo' },
   ParentFeesTab: { label: 'Fees', icon: 'cash-outline', iconFocused: 'cash', tone: 'emerald' },
   ParentAcademicTab: { label: 'Academic', icon: 'school-outline', iconFocused: 'school', tone: 'violet' },
-  ParentMoreTab: { label: 'More', icon: 'grid-outline', iconFocused: 'grid', tone: 'amber' },
 });
 
 export const ParentTabNavigator: React.FC = () => {
@@ -193,7 +168,6 @@ export const ParentTabNavigator: React.FC = () => {
         component={ParentAcademicStack}
         options={{ tabBarLabel: 'Academic' }}
       />
-      <Tab.Screen name="ParentMoreTab" component={ParentMoreStack} options={{ tabBarLabel: 'More' }} />
     </Tab.Navigator>
   );
 };

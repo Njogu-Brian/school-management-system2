@@ -553,16 +553,22 @@
 </div>
 
 <div class="card-footer d-flex justify-content-end gap-2">
+  <button type="button" class="btn btn-ghost-strong me-auto" data-wizard-previous hidden>
+    <i class="bi bi-arrow-left" aria-hidden="true"></i> Previous
+  </button>
   <a href="{{ $mode==='edit' && $s ? route('students.show',$s->id) : route('students.index') }}" class="btn btn-outline-secondary">Cancel</a>
   @if($mode==='create')
-    <button type="submit" name="save_add_another" value="1" class="btn btn-secondary">
-      <i class="bi bi-plus-circle"></i> Save & Add Another
-    </button>
+    <x-button type="submit" name="save_add_another" value="1" variant="secondary" data-wizard-save-another hidden>
+      <i class="bi bi-plus-circle" aria-hidden="true"></i> Save &amp; Add Another
+    </x-button>
   @endif
-  <button type="submit" class="btn btn-{{ $mode==='edit' ? 'primary' : 'success' }}">
-    <i class="bi bi-{{ $mode==='edit' ? 'save' : 'check-lg' }}"></i>
+  <x-button type="button" variant="secondary" data-wizard-next>
+    Continue <i class="bi bi-arrow-right" aria-hidden="true"></i>
+  </x-button>
+  <x-button type="submit" variant="primary" data-wizard-submit hidden>
+    <i class="bi bi-{{ $mode==='edit' ? 'save' : 'check-lg' }}" aria-hidden="true"></i>
     {{ $mode==='edit' ? 'Update' : 'Submit Admission' }}
-  </button>
+  </x-button>
 </div>
 
 {{-- Family search modal --}}

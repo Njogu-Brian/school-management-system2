@@ -206,6 +206,8 @@ export const queryKeys = {
     all: ['staff-clock'] as const,
     today: () => [...queryKeys.staffClock.all, 'today'] as const,
     history: () => [...queryKeys.staffClock.all, 'history'] as const,
+    calendar: (year: number, month: number) =>
+      [...queryKeys.staffClock.all, 'calendar', year, month] as const,
     geofence: () => [...queryKeys.staffClock.all, 'geofence'] as const,
     roster: () => [...queryKeys.staffClock.all, 'roster'] as const,
     memberHistory: (staffId: number) => [...queryKeys.staffClock.all, 'member-history', staffId] as const,

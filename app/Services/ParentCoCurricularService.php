@@ -8,7 +8,6 @@ use App\Models\FeeStructure;
 use App\Models\OptionalFee;
 use App\Models\ParentActivityChangeRequest;
 use App\Models\Student;
-use App\Models\User;
 use App\Models\Votehead;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -472,22 +471,26 @@ class ParentCoCurricularService
 
     protected function notifyAdminsOfRequest(ParentActivityChangeRequest $request): void
     {
-        $admins = User::query()
-            ->whereHas('roles', function ($q) {
-                $q->whereIn('name', ['Super Admin', 'Admin', 'Secretary', 'Senior Teacher', 'Director']);
-            })
-            ->get();
-        if ($admins->isEmpty()) {
+        $request->loadMissing(['student.classroom', 'votehead']);
+        $student = $request->student;
+        if (! $student) {
             return;
         }
 
-        $child = $request->student?->full_name ?? 'a child';
+        // Relationship-scoped: class teacher(s), explicit senior classroom assignments, office roles.
+        // Do NOT fan out to every Senior Teacher / all staff by role name alone.
+        $recipients = app(ParentAbsenceService::class)->resolveStaffRecipients($student);
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $child = $student->full_name ?? 'a child';
         $activity = $request->votehead?->name ?? 'an activity';
         $verb = $request->action === 'leave' ? 'leave' : 'join';
         $title = 'Activity change to confirm';
         $body = "{$child} — parent asked to {$verb} {$activity} (Term {$request->term} {$request->year}).";
 
-        $this->appChannel->notifyUsers($admins, $title, $body, [
+        $this->appChannel->notifyUsers($recipients, $title, $body, [
             'type' => 'parent_activity_request',
             'request_id' => $request->id,
             'student_id' => $request->student_id,

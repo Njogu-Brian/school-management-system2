@@ -19,17 +19,19 @@ class ApiStudentController extends Controller
     {
         $perPage = (int) $request->input('per_page', 20);
         $user = $request->user();
+        $appMode = strtolower((string) $request->header('X-App-Mode', ''));
+        $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
 
         $query = Student::with(['parent', 'classroom', 'stream', 'category'])
             ->where('archive', 0)
             ->where('is_alumni', false);
 
-        // Teachers and Senior Teachers only see students from their assigned classes/streams
-        if ($user && $user->hasTeacherLikeRole()) {
+        // Teachers only see assigned classes in Work mode. Home mode uses guardian scope only.
+        if ($user && $user->hasTeacherLikeRole() && ! $scopeAsParent) {
             $user->applyTeacherStudentFilter($query);
         }
 
-        if ($user && $user->shouldScopeAsParent()) {
+        if ($scopeAsParent) {
             $ids = $user->accessibleStudentIds();
             if ($ids === []) {
                 $query->whereRaw('1 = 0');
@@ -84,9 +86,11 @@ class ApiStudentController extends Controller
             'assignments.eveningDropOffPoint',
         ])->findOrFail($id);
         $user = $request->user();
+        $appMode = strtolower((string) $request->header('X-App-Mode', ''));
+        $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
 
-        // Teachers can only view students from their assigned classes
-        if ($user && $user->hasTeacherLikeRole()) {
+        // Teachers can only view students from their assigned classes (Work mode).
+        if ($user && $user->hasTeacherLikeRole() && ! $scopeAsParent) {
             $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (!$query->exists()) {
@@ -94,7 +98,7 @@ class ApiStudentController extends Controller
             }
         }
 
-        if ($user && $user->shouldScopeAsParent()) {
+        if ($scopeAsParent) {
             if (! $user->canAccessStudent((int) $id)) {
                 abort(403, 'You do not have access to this student.');
             }
@@ -118,7 +122,10 @@ class ApiStudentController extends Controller
     {
         $student = Student::findOrFail($id);
         $user = $request->user();
-        if ($user && $user->hasTeacherLikeRole()) {
+        $appMode = strtolower((string) $request->header('X-App-Mode', ''));
+        $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
+
+        if ($user && $user->hasTeacherLikeRole() && ! $scopeAsParent) {
             $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {
@@ -126,7 +133,7 @@ class ApiStudentController extends Controller
             }
         }
 
-        if ($user && $user->shouldScopeAsParent()) {
+        if ($scopeAsParent) {
             if (! $user->canAccessStudent($id)) {
                 abort(403, 'You do not have access to this student.');
             }
@@ -182,7 +189,10 @@ class ApiStudentController extends Controller
 
         $student = Student::findOrFail($id);
         $user = $request->user();
-        if ($user && $user->hasTeacherLikeRole()) {
+        $appMode = strtolower((string) $request->header('X-App-Mode', ''));
+        $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
+
+        if ($user && $user->hasTeacherLikeRole() && ! $scopeAsParent) {
             $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
             $user->applyTeacherStudentFilter($query);
             if (! $query->exists()) {
@@ -190,7 +200,7 @@ class ApiStudentController extends Controller
             }
         }
 
-        if ($user && $user->shouldScopeAsParent()) {
+        if ($scopeAsParent) {
             if (! $user->canAccessStudent($id)) {
                 abort(403, 'You do not have access to this student.');
             }

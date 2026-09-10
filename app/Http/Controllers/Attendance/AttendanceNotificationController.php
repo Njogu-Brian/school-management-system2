@@ -24,7 +24,7 @@ class AttendanceNotificationController extends Controller
 
     public function create()
     {
-        $staff = \App\Models\Staff::all();
+        $staff = \App\Models\Staff::where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
         $classrooms = \App\Models\Academics\Classroom::pluck('name', 'id');
         return view('attendance_notifications.create', compact('staff', 'classrooms'));
     }
@@ -45,7 +45,13 @@ class AttendanceNotificationController extends Controller
     public function edit($id)
     {
         $recipient = AttendanceRecipient::findOrFail($id);
-        $staff = \App\Models\Staff::all();
+        // Keep the currently assigned staff member selectable even if archived.
+        $staff = \App\Models\Staff::where(function ($q) use ($recipient) {
+                $q->where('status', 'active')->orWhere('id', $recipient->staff_id);
+            })
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
         $classrooms = \App\Models\Academics\Classroom::pluck('name', 'id');
         return view('attendance_notifications.edit', compact('recipient', 'staff', 'classrooms'));
     }

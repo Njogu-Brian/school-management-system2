@@ -25,7 +25,7 @@ class FixedAssetController extends Controller
 
     public function create()
     {
-        $staff = Staff::orderBy('first_name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
         return view('operations.assets.create', compact('staff'));
     }

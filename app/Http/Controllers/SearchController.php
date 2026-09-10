@@ -111,6 +111,7 @@ class SearchController extends Controller
 
         return Staff::query()
             ->with('position')
+            ->where('status', 'active')
             ->where(function ($q) use ($like) {
                 $q->where('first_name', 'like', $like)
                     ->orWhere('last_name', 'like', $like)

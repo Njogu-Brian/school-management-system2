@@ -97,8 +97,9 @@ class ExpoPushService
      *
      * @param  array<int, string>  $tokens
      * @param  array<string, mixed>  $data  Optional data payload delivered with the notification.
+     * @param  array{channelId?: string, sound?: string, priority?: string}  $options
      */
-    public function sendToTokens(array $tokens, string $title, string $body, array $data = []): void
+    public function sendToTokens(array $tokens, string $title, string $body, array $data = [], array $options = []): void
     {
         $tokens = array_values(array_filter(array_unique($tokens), fn ($t) => is_string($t) && $t !== ''));
         if ($tokens === []) {
@@ -107,6 +108,18 @@ class ExpoPushService
         $title = Str::limit($title, 100);
         $body = Str::limit($body, 160);
 
+        $channelId = is_string($options['channelId'] ?? null) && $options['channelId'] !== ''
+            ? $options['channelId']
+            : (is_string($data['push_channel'] ?? null) && $data['push_channel'] !== ''
+                ? $data['push_channel']
+                : 'teacher-alerts');
+        $sound = is_string($options['sound'] ?? null) && $options['sound'] !== ''
+            ? $options['sound']
+            : 'default';
+        $priority = is_string($options['priority'] ?? null) && $options['priority'] !== ''
+            ? $options['priority']
+            : 'high';
+
         foreach (array_chunk($tokens, self::CHUNK) as $chunk) {
             $messages = [];
             foreach ($chunk as $token) {
@@ -114,9 +127,10 @@ class ExpoPushService
                     'to' => $token,
                     'title' => $title,
                     'body' => $body,
-                    'sound' => 'default',
-                    'channelId' => 'parent-alerts',
-                    'priority' => 'high',
+                    'sound' => $sound,
+                    'channelId' => $channelId,
+                    'priority' => $priority,
+                    // Android heads-up + vibration come from the app notification channel settings.
                     'data' => $data,
                 ];
             }

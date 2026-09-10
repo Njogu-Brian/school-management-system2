@@ -49,7 +49,7 @@ class ExtraCurricularActivityController extends Controller
     public function create()
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $staff = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
+        $staff = Staff::where('status', 'active')->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
         $years = \App\Support\AcademicContext::years();
         $terms = \App\Support\AcademicContext::allTermsForSelect();
 
@@ -101,7 +101,13 @@ class ExtraCurricularActivityController extends Controller
     public function edit(ExtraCurricularActivity $extra_curricular_activity)
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $staff = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
+        // Active staff only, plus currently assigned staff who may be archived.
+        $assignedStaffIds = $extra_curricular_activity->staff_ids ?? [];
+        $staff = Staff::where(function ($q) use ($assignedStaffIds) {
+                $q->where('status', 'active')->orWhereIn('id', $assignedStaffIds);
+            })
+            ->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))
+            ->get();
         $years = \App\Support\AcademicContext::years();
         $terms = \App\Support\AcademicContext::allTermsForSelect();
 

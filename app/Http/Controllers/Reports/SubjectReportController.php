@@ -28,7 +28,7 @@ class SubjectReportController extends Controller
     {
         $classrooms = Classroom::orderBy('name')->get();
         $subjects = Subject::orderBy('name')->get();
-        $staff = Staff::orderBy('first_name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
         return view('reports.subject_reports.create', compact('classrooms', 'subjects', 'staff'));
     }

@@ -1,71 +1,56 @@
-import { formatRoleLabel, timeOfDayGreeting, useAuth, useClassrooms, useCurrentUser, useUnreadNotificationCount } from '@erp/core';
+import {
+  formatRoleLabel,
+  TEACHER_HOME_ACCOUNT_ACTIONS,
+  TEACHER_HOME_CORE_ACTIONS,
+  timeOfDayGreeting,
+  useAuth,
+  useClassrooms,
+  useCurrentUser,
+  useUnreadNotificationCount,
+  type TeacherHomeActionDef,
+} from '@erp/core';
 import {
   Button,
   DashboardHero,
   DashboardSection,
+  EmptyState,
   QuickAction,
   ScreenContainer,
+  SkeletonListRows,
+  SurfaceCard,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { navigateToTab } from '../../../navigation/navigateToTab';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
+import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
 
-type Action = {
-  label: string;
-  icon: React.ComponentProps<typeof QuickAction>['icon'];
-  route: keyof TeacherStackParamList | 'Classes';
-  /** Prefer jumping to the matching bottom tab so the bar highlight stays in sync. */
-  tabJump?: { tab: string; screen: string; tabHome?: string };
-};
-
-const CLASS_TEACHER: Action[] = [
-  { label: 'Mark attendance', icon: 'checkbox-outline', route: 'MarkAttendance', tabJump: { tab: 'Attendance', screen: 'AttendanceMain' } },
-  { label: 'Collect requirements', icon: 'clipboard-outline', route: 'RequirementsHub', tabJump: { tab: 'More', screen: 'RequirementsHub', tabHome: 'MoreMain' } },
-  { label: 'My students', icon: 'people-outline', route: 'Classes', tabJump: { tab: 'Classes', screen: 'ClassesMain' } },
-  { label: 'Transport', icon: 'bus-outline', route: 'TeacherTransportHub', tabJump: { tab: 'More', screen: 'TeacherTransportHub', tabHome: 'MoreMain' } },
-];
-
-const TEACHING: Action[] = [
-  { label: 'Enter marks', icon: 'create-outline', route: 'MarksHub', tabJump: { tab: 'More', screen: 'MarksHub', tabHome: 'MoreMain' } },
-  { label: 'Student diary', icon: 'chatbubbles-outline', route: 'DiaryList', tabJump: { tab: 'More', screen: 'DiaryList', tabHome: 'MoreMain' } },
-  { label: 'Homework', icon: 'book-outline', route: 'AssignmentsHub', tabJump: { tab: 'More', screen: 'AssignmentsHub', tabHome: 'MoreMain' } },
-  { label: 'Lesson plans', icon: 'document-text-outline', route: 'LessonPlansHub', tabJump: { tab: 'More', screen: 'LessonPlansHub', tabHome: 'MoreMain' } },
-];
-
-const SELF_SERVICE: Action[] = [
-  { label: 'My attendance', icon: 'time-outline', route: 'StaffClock', tabJump: { tab: 'More', screen: 'StaffClock', tabHome: 'MoreMain' } },
-  { label: 'My leave', icon: 'calendar-outline', route: 'MyLeaveList', tabJump: { tab: 'More', screen: 'MyLeaveList', tabHome: 'MoreMain' } },
-  { label: 'Advances', icon: 'cash-outline', route: 'MyAdvances', tabJump: { tab: 'More', screen: 'MyAdvances', tabHome: 'MoreMain' } },
-  { label: 'Payslips', icon: 'wallet-outline', route: 'MyPayslips', tabJump: { tab: 'More', screen: 'MyPayslips', tabHome: 'MoreMain' } },
-];
-
-const SCHOOL: Action[] = [
-  { label: 'Announcements', icon: 'megaphone-outline', route: 'Announcements', tabJump: { tab: 'More', screen: 'Announcements', tabHome: 'MoreMain' } },
-  { label: 'Notifications', icon: 'notifications-outline', route: 'Notifications', tabJump: { tab: 'More', screen: 'Notifications', tabHome: 'MoreMain' } },
-  { label: 'Raise concern', icon: 'alert-circle-outline', route: 'RaiseConcern', tabJump: { tab: 'More', screen: 'RaiseConcern', tabHome: 'MoreMain' } },
-];
-
 function ActionGrid({
   actions,
+  unread,
   onPress,
 }: {
-  actions: Action[];
-  onPress: (action: Action) => void;
+  actions: TeacherHomeActionDef[];
+  unread?: number;
+  onPress: (action: TeacherHomeActionDef) => void;
 }) {
   const { spacing } = useTheme();
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
       {actions.map((action) => (
         <QuickAction
-          key={action.route}
-          label={action.label}
+          key={action.id}
+          label={
+            action.id === 'notifications' && unread && unread > 0
+              ? `Notifications (${unread})`
+              : action.label
+          }
           icon={action.icon}
           onPress={() => onPress(action)}
         />
@@ -77,7 +62,7 @@ function ActionGrid({
 export const TeacherHomeScreen: React.FC = () => {
   const user = useCurrentUser();
   const { logout } = useAuth();
-  const { spacing, colors } = useTheme();
+  const { palette, spacing, typography, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const classroomsQuery = useClassrooms();
   const unreadQuery = useUnreadNotificationCount();
@@ -85,60 +70,98 @@ export const TeacherHomeScreen: React.FC = () => {
   const classTeacherCount = user?.classTeacherClassroomIds?.length ?? 0;
   const teachingClassCount = classroomsQuery.data?.length ?? 0;
   const roleLabel = formatRoleLabel(user?.roleName ?? user?.role, 'Teacher');
+  const unread = unreadQuery.data ?? 0;
 
   const meta = useMemo(() => {
     const parts: string[] = [];
-    if (classTeacherCount > 0) parts.push(`Class teacher of ${classTeacherCount}`);
-    if (teachingClassCount > 0) parts.push(`${teachingClassCount} classes in scope`);
-    const unread = unreadQuery.data ?? 0;
+    if (classTeacherCount > 0) parts.push(`Class teacher · ${classTeacherCount}`);
+    if (teachingClassCount > 0) parts.push(`${teachingClassCount} classes`);
     if (unread > 0) parts.push(`${unread} unread`);
     return parts.join(' · ') || undefined;
-  }, [classTeacherCount, teachingClassCount, unreadQuery.data]);
+  }, [classTeacherCount, teachingClassCount, unread]);
 
-  const goTo = (action: Action) => {
-    if (action.tabJump) {
-      navigateToTab(
-        navigation,
-        action.tabJump.tab,
-        action.tabJump.screen,
-        undefined,
-        action.tabJump.tabHome,
-      );
-      return;
-    }
-    navigation.navigate(action.route as never);
+  const goTo = (action: TeacherHomeActionDef) => {
+    navigateToTab(
+      navigation,
+      action.jump.tab,
+      action.jump.screen,
+      undefined,
+      action.jump.tabHome,
+    );
   };
 
   return (
-    <ScreenContainer
-      scroll
-      edges={['bottom']}
-      contentContainerStyle={{ padding: spacing.md }}
-    >
+    <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>
       <DashboardHero
         variant="academics"
         greeting={timeOfDayGreeting()}
         userName={user?.name ?? 'Teacher'}
         roleLabel={roleLabel}
         title="Home"
-        subtitle="Today's capture, teaching, and self-service in one place"
+        subtitle="Today's teaching work — attendance, homework, marks, and messages"
         meta={meta}
       />
 
-      <DashboardSection title="Class teacher" subtitle="Attendance, students, and transport for your homeroom">
-        <ActionGrid actions={CLASS_TEACHER} onPress={goTo} />
+      <View style={{ marginBottom: spacing.md }}>
+        <AppModeSwitch />
+      </View>
+
+      {classroomsQuery.isLoading ? (
+        <SkeletonListRows count={2} />
+      ) : classroomsQuery.isError ? (
+        <EmptyState
+          title="Could not load classes"
+          message={classroomsQuery.error instanceof Error ? classroomsQuery.error.message : 'Try again.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void classroomsQuery.refetch()}
+        />
+      ) : (
+        <DashboardSection title="Your classes today">
+          {(classroomsQuery.data ?? []).length === 0 ? (
+            <EmptyState
+              title="No classes in scope"
+              message="Assigned classes will appear here when the school links you to classrooms."
+              icon="people-outline"
+            />
+          ) : (
+            (classroomsQuery.data ?? []).slice(0, 4).map((c) => (
+              <SurfaceCard
+                key={c.id}
+                accent="brand"
+                onPress={() => navigateToTab(navigation, 'Classes', 'ClassesMain')}
+              >
+                <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{c.name}</Text>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+                  Tap to open classes
+                </Text>
+              </SurfaceCard>
+            ))
+          )}
+        </DashboardSection>
+      )}
+
+      {unread > 0 ? (
+        <DashboardSection title="Alerts">
+          <SurfaceCard
+            accent="warning"
+            onPress={() =>
+              navigateToTab(navigation, 'More', 'Notifications', undefined, 'MoreMain')
+            }
+          >
+            <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
+              {unread} unread notification{unread === 1 ? '' : 's'}
+            </Text>
+          </SurfaceCard>
+        </DashboardSection>
+      ) : null}
+
+      <DashboardSection title="Daily work" subtitle="Core teaching tasks">
+        <ActionGrid actions={TEACHER_HOME_CORE_ACTIONS} unread={unread} onPress={goTo} />
       </DashboardSection>
 
-      <DashboardSection title="Teaching" subtitle="Subjects you teach">
-        <ActionGrid actions={TEACHING} onPress={goTo} />
-      </DashboardSection>
-
-      <DashboardSection title="Self-service" subtitle="HR and payroll shortcuts">
-        <ActionGrid actions={SELF_SERVICE} onPress={goTo} />
-      </DashboardSection>
-
-      <DashboardSection title="School">
-        <ActionGrid actions={SCHOOL} onPress={goTo} />
+      <DashboardSection title="Account">
+        <ActionGrid actions={TEACHER_HOME_ACCOUNT_ACTIONS} onPress={goTo} />
       </DashboardSection>
 
       <Button

@@ -38,6 +38,19 @@ export function useStaffClockHistory(options?: { enabled?: boolean }) {
   });
 }
 
+export function useStaffAttendanceCalendar(year: number, month: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.staffClock.calendar(year, month),
+    queryFn: async () => {
+      const res = await staffClockApi.getMyCalendar(year, month);
+      if (!res.success || !res.data) throw new Error(res.message || 'Failed to load attendance calendar.');
+      return res.data;
+    },
+    enabled: options?.enabled !== false && year > 0 && month >= 1 && month <= 12,
+    staleTime: 30_000,
+  });
+}
+
 export function useStaffGeofence(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.staffClock.geofence(),

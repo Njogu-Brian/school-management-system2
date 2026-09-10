@@ -56,15 +56,19 @@ export function toStudentDetail(raw: StudentRecord, gradeLevel?: number | string
     transportSummary: raw.transport?.summary ?? null,
     transportMorning: raw.transport?.morning
       ? {
+          tripId: raw.transport.morning.trip_id ?? null,
           tripName: raw.transport.morning.trip_name ?? null,
           vehicle: raw.transport.morning.vehicle ?? null,
+          dropOffPointId: raw.transport.morning.drop_off_point_id ?? null,
           dropOffPoint: raw.transport.morning.drop_off_point ?? null,
         }
       : null,
     transportEvening: raw.transport?.evening
       ? {
+          tripId: raw.transport.evening.trip_id ?? null,
           tripName: raw.transport.evening.trip_name ?? null,
           vehicle: raw.transport.evening.vehicle ?? null,
+          dropOffPointId: raw.transport.evening.drop_off_point_id ?? null,
           dropOffPoint: raw.transport.evening.drop_off_point ?? null,
         }
       : null,

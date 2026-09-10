@@ -74,7 +74,11 @@ export const MyLeaveListScreen: React.FC = () => {
                   {item.leave_type_name ?? item.leave_type ?? 'Leave'}
                 </Text>
                 <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-                  {item.start_date} → {item.end_date}
+                  {item.start_date}
+                  {item.start_time ? ` ${item.start_time}` : ''}
+                  {' → '}
+                  {item.end_date}
+                  {item.end_time ? ` ${item.end_time}` : ''}
                   {item.days != null || item.days_count != null
                     ? ` · ${item.days ?? item.days_count} day(s)`
                     : ''}

@@ -4,11 +4,13 @@ namespace App\Models\Academics;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Student;
-use App\Models\User;
 
 class StudentDiary extends Model
 {
-    protected $fillable = ['student_id'];
+    public const CHANNEL_TEACHER_PARENT = 'teacher_parent';
+    public const CHANNEL_ADMIN_PARENT = 'admin_parent';
+
+    protected $fillable = ['student_id', 'channel'];
 
     public function student()
     {
@@ -25,9 +27,6 @@ class StudentDiary extends Model
         return $this->hasOne(DiaryEntry::class)->latestOfMany();
     }
 
-    /**
-     * Get unread entries count for a specific user
-     */
     public function unreadCountForUser($userId)
     {
         return $this->entries()
@@ -35,5 +34,14 @@ class StudentDiary extends Model
             ->where('is_read', false)
             ->count();
     }
-}
 
+    public static function normalizeChannel(?string $channel): string
+    {
+        $channel = $channel ?: self::CHANNEL_TEACHER_PARENT;
+        if (! in_array($channel, [self::CHANNEL_TEACHER_PARENT, self::CHANNEL_ADMIN_PARENT], true)) {
+            return self::CHANNEL_TEACHER_PARENT;
+        }
+
+        return $channel;
+    }
+}

@@ -179,16 +179,25 @@ class ParentAppNotifyService
             return;
         }
 
-        $query = Student::query()
-            ->where('classroom_id', $homework->classroom_id)
-            ->where('archive', 0)
-            ->where('is_alumni', false);
-        if ($homework->stream_id) {
-            $query->where('stream_id', $homework->stream_id);
+        if ($homework->target_scope === 'students') {
+            $homework->loadMissing('students');
+            $students = $homework->students
+                ->where('archive', 0)
+                ->filter(fn ($s) => ! ($s->is_alumni ?? false))
+                ->values();
+        } else {
+            $query = Student::query()
+                ->where('classroom_id', $homework->classroom_id)
+                ->where('archive', 0)
+                ->where('is_alumni', false);
+            if ($homework->stream_id) {
+                $query->where('stream_id', $homework->stream_id);
+            }
+            $students = $query->get();
         }
 
         $users = collect();
-        foreach ($query->get() as $student) {
+        foreach ($students as $student) {
             $users = $users->merge($this->parentUsersForStudent($student));
         }
         $users = $users->unique('id')->values();

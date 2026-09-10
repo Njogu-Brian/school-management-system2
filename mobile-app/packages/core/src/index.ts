@@ -10,6 +10,8 @@ export * from './query';
 export * from './admissions';
 export * from './approvals';
 export * from './students';
+export * from './parent';
+export * from './teacher';
 export * from './staff';
 export * from './finance';
 export * from './academics';

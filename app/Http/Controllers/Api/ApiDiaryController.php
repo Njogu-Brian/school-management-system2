@@ -12,7 +12,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Mobile digital diary — WhatsApp-style thread per student (parents ↔ teachers ↔ admin).
+ * Mobile digital diary — channel-scoped threads per student:
+ * - teacher_parent: Teacher ↔ Parent
+ * - admin_parent: Admin ↔ Parent (not visible to teachers)
  */
 class ApiDiaryController extends Controller
 {
@@ -20,13 +22,18 @@ class ApiDiaryController extends Controller
     {
         $user = Auth::user();
         $perPage = min((int) $request->input('per_page', 30), 100);
+        $channel = StudentDiary::normalizeChannel($request->input('channel'));
 
-        $query = StudentDiary::with(['student.classroom', 'latestEntry.author']);
+        $this->assertCanListChannel($user, $channel);
+
+        $query = StudentDiary::with(['student.classroom', 'latestEntry.author'])
+            ->where('channel', $channel);
 
         if ($user->shouldScopeAsParent()) {
             $childIds = $user->accessibleStudentIds();
             $query->whereIn('student_id', $childIds);
-        } elseif ($user->hasAnyRole(['Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher'])) {
+        } elseif ($this->isTeacherRole($user)) {
+            // Teachers never see admin_parent (assertCanListChannel already blocks).
             $assigned = array_unique(array_merge(
                 $user->getAssignedClassroomIds(),
                 $user->getSupervisedClassroomIds()
@@ -36,7 +43,7 @@ class ApiDiaryController extends Controller
             } else {
                 $query->whereHas('student', fn ($q) => $q->whereIn('classroom_id', $assigned));
             }
-        } elseif (!$user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Academic Administrator'])) {
+        } elseif (! $this->isAdminRole($user)) {
             return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
 
@@ -60,6 +67,7 @@ class ApiDiaryController extends Controller
 
             return [
                 'id' => $diary->id,
+                'channel' => $diary->channel ?? StudentDiary::CHANNEL_TEACHER_PARENT,
                 'student_id' => $diary->student_id,
                 'student_name' => $student?->full_name ?? trim(($student->first_name ?? '').' '.($student->last_name ?? '')),
                 'admission_number' => $student?->admission_number,
@@ -91,10 +99,15 @@ class ApiDiaryController extends Controller
     public function showForStudent(Request $request, int $studentId): JsonResponse
     {
         $user = Auth::user();
+        $channel = StudentDiary::normalizeChannel($request->input('channel'));
         $student = Student::with('classroom')->findOrFail($studentId);
-        $this->authorizeStudentAccess($user, $student);
+        $this->authorizeStudentChannelAccess($user, $student, $channel);
 
-        $diary = $student->diary()->firstOrCreate([]);
+        $diary = StudentDiary::query()->firstOrCreate(
+            ['student_id' => $student->id, 'channel' => $channel],
+            ['channel' => $channel]
+        );
+
         $entries = $diary->entries()
             ->with(['author.staff', 'author.parentProfile'])
             ->orderBy('created_at')
@@ -110,6 +123,7 @@ class ApiDiaryController extends Controller
             'success' => true,
             'data' => [
                 'id' => $diary->id,
+                'channel' => $diary->channel,
                 'student_id' => $student->id,
                 'student_name' => $student->full_name ?? trim($student->first_name.' '.$student->last_name),
                 'class_name' => $student->classroom?->name,
@@ -121,18 +135,23 @@ class ApiDiaryController extends Controller
     public function storeEntry(Request $request, int $studentId): JsonResponse
     {
         $user = Auth::user();
+        $channel = StudentDiary::normalizeChannel($request->input('channel'));
         $student = Student::findOrFail($studentId);
-        $this->authorizeStudentAccess($user, $student);
+        $this->authorizeStudentChannelAccess($user, $student, $channel);
 
         $data = $request->validate([
             'content' => 'required|string|max:5000',
             'parent_entry_id' => 'nullable|exists:diary_entries,id',
+            'channel' => 'nullable|in:teacher_parent,admin_parent',
             'attachments.*' => 'file|max:10240',
         ]);
 
-        $diary = $student->diary()->firstOrCreate([]);
+        $diary = StudentDiary::query()->firstOrCreate(
+            ['student_id' => $student->id, 'channel' => $channel],
+            ['channel' => $channel]
+        );
 
-        if (!empty($data['parent_entry_id'])) {
+        if (! empty($data['parent_entry_id'])) {
             DiaryEntry::where('student_diary_id', $diary->id)
                 ->findOrFail($data['parent_entry_id']);
         }
@@ -165,9 +184,28 @@ class ApiDiaryController extends Controller
         ], 201);
     }
 
-    protected function authorizeStudentAccess($user, Student $student): void
+    protected function assertCanListChannel($user, string $channel): void
     {
-        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Academic Administrator'])) {
+        if ($channel === StudentDiary::CHANNEL_ADMIN_PARENT && $this->isTeacherRole($user) && ! $this->isAdminRole($user)) {
+            abort(403, 'Teachers cannot access school/admin parent conversations.');
+        }
+    }
+
+    protected function authorizeStudentChannelAccess($user, Student $student, string $channel): void
+    {
+        if ($channel === StudentDiary::CHANNEL_ADMIN_PARENT) {
+            if ($this->isAdminRole($user)) {
+                return;
+            }
+            if ($user->shouldScopeAsParent() && $user->canAccessStudent($student->id)) {
+                return;
+            }
+            abort(403, 'You do not have access to this school/admin conversation.');
+        }
+
+        // teacher_parent
+        if ($this->isAdminRole($user)) {
+            // Administrative oversight of teacher–parent threads is intentional for office roles.
             return;
         }
 
@@ -177,12 +215,12 @@ class ApiDiaryController extends Controller
             return;
         }
 
-        if ($user->hasAnyRole(['Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher'])) {
+        if ($this->isTeacherRole($user)) {
             $assigned = array_unique(array_merge(
                 $user->getAssignedClassroomIds(),
                 $user->getSupervisedClassroomIds()
             ));
-            if (in_array($student->classroom_id, $assigned, true)) {
+            if (in_array((int) $student->classroom_id, array_map('intval', $assigned), true)) {
                 return;
             }
         }
@@ -190,12 +228,22 @@ class ApiDiaryController extends Controller
         abort(403, 'You do not have access to this diary.');
     }
 
+    protected function isAdminRole($user): bool
+    {
+        return $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Academic Administrator', 'Director']);
+    }
+
+    protected function isTeacherRole($user): bool
+    {
+        return $user->hasAnyRole(['Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher']);
+    }
+
     protected function determineAuthorType($user): string
     {
-        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Academic Administrator'])) {
+        if ($this->isAdminRole($user)) {
             return 'admin';
         }
-        if ($user->hasAnyRole(['Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher'])) {
+        if ($this->isTeacherRole($user)) {
             return 'teacher';
         }
         if ($user->shouldScopeAsParent()) {
@@ -207,7 +255,7 @@ class ApiDiaryController extends Controller
 
     protected function storeAttachments(Request $request): ?array
     {
-        if (!$request->hasFile('attachments')) {
+        if (! $request->hasFile('attachments')) {
             return null;
         }
 

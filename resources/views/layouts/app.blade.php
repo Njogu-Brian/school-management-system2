@@ -93,6 +93,7 @@
     @if(request()->is('finance*') || request()->is('voteheads*'))
         @include('finance.partials.styles')
     @endif
+    <link rel="stylesheet" href="{{ asset('css/design-system.css') }}">
 
     <style>
         :root {
@@ -639,9 +640,9 @@
             } catch (e) {}
         })();
     </script>
-    <button class="sidebar-toggle d-lg-none" id="sidebarToggle"> <i class="bi bi-list"></i></button>
+    <button class="sidebar-toggle d-lg-none" id="sidebarToggle" type="button" aria-label="Open navigation" aria-controls="primary-sidebar" aria-expanded="false"> <i class="bi bi-list" aria-hidden="true"></i></button>
 
-    <div class="sidebar">
+    <div class="sidebar" id="primary-sidebar">
         <div class="brand">
             <img src="{{ $logoUrl }}" alt="{{ $appName }} Logo">
             <h5>{{ $appName }}</h5>
@@ -653,7 +654,7 @@
 
         <div class="sidebar-footer">
             <a href="#" onclick="event.preventDefault();document.getElementById('logout-form').submit();" class="text-danger" title="Logout">
-                <i class="bi bi-box-arrow-right"></i> Logout
+                <i class="bi bi-box-arrow-right" aria-hidden="true"></i> Logout
             </a>
             <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar">
                 <i class="bi bi-chevron-left"></i>
@@ -774,7 +775,25 @@
                     btn.addEventListener("click", function (e) {
                         e.preventDefault();
                         sidebar.classList.toggle("active");
-                        document.body.classList.toggle('sidebar-open', sidebar.classList.contains('active'));
+                        const isOpen = sidebar.classList.contains('active');
+                        document.body.classList.toggle('sidebar-open', isOpen);
+                        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                    });
+                });
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape' && sidebar.classList.contains('active')) {
+                        sidebar.classList.remove('active');
+                        document.body.classList.remove('sidebar-open');
+                        toggles.forEach(btn => btn.setAttribute('aria-expanded', 'false'));
+                    }
+                });
+                sidebar.querySelectorAll('a[href]').forEach(link => {
+                    link.addEventListener('click', function () {
+                        if (window.matchMedia('(max-width: 991.98px)').matches) {
+                            sidebar.classList.remove('active');
+                            document.body.classList.remove('sidebar-open');
+                            toggles.forEach(btn => btn.setAttribute('aria-expanded', 'false'));
+                        }
                     });
                 });
             }

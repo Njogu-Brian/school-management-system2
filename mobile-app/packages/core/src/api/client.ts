@@ -20,6 +20,8 @@ class ApiClient {
   private onUnauthorized: UnauthorizedCallback | null = null;
   /** Prevents recursive 401 → refresh → 401 loops when refresh itself fails. */
   private handlingUnauthorized = false;
+  /** Users-app Home/Work shell; sent as X-App-Mode for server-side scoping. */
+  private appMode: 'home' | 'work' | null = null;
 
   constructor() {
     const baseURL = API_BASE_URL;
@@ -51,6 +53,18 @@ class ApiClient {
     if (__DEV__) {
       console.log(`[API] baseURL → ${next}`);
     }
+  }
+
+  /** Tell the API which shell the user is in (Home vs Work). */
+  setAppMode(mode: 'home' | 'work' | null): void {
+    this.appMode = mode;
+    if (__DEV__) {
+      console.log(`[API] appMode → ${mode ?? 'unset'}`);
+    }
+  }
+
+  getAppMode(): 'home' | 'work' | null {
+    return this.appMode;
   }
 
   /** Register a handler invoked when the server rejects a request with 401. */
@@ -96,6 +110,9 @@ class ApiClient {
             : (headers as Record<string, string>).Authorization);
         if (token && headers && !hasAuth) {
           headers.Authorization = `Bearer ${token}`;
+        }
+        if (this.appMode && headers) {
+          headers['X-App-Mode'] = this.appMode;
         }
         this.logRequest(config);
         return config;

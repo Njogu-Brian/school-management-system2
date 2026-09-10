@@ -5,18 +5,12 @@
 @endpush
 
 @section('content')
-<div class="settings-page">
+<div class="settings-page ds-pilot">
     <div class="settings-shell">
-        <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
-            <div>
-                <div class="crumb">Settings / System</div>
-                <h1>System Settings</h1>
-                <p>Align your school's identity, regional defaults, modules, and finance theme.</p>
-                <div class="d-flex flex-wrap gap-2 mt-3">
-                    <span class="settings-chip"><i class="bi bi-shield-check"></i> Admin access only</span>
-                </div>
-            </div>
-            <div class="d-flex flex-column align-items-end gap-2">
+        <x-page-header eyebrow="Settings / System" title="System Settings" description="Align your school's identity, regional defaults, modules, and finance theme.">
+            <x-slot:actions>
+              <div class="d-flex flex-column align-items-end gap-2">
+                <x-badge variant="info"><i class="bi bi-shield-check" aria-hidden="true"></i> Admin access only</x-badge>
                 <a href="{{ route('settings.academic.index') }}" class="btn btn-ghost-strong btn-sm text-nowrap">
                     <i class="bi bi-calendar3"></i> Academic Calendar
                 </a>
@@ -26,8 +20,9 @@
                 <a href="{{ route('settings.academic-reports.index') }}" class="btn btn-ghost-strong btn-sm text-nowrap">
                     <i class="bi bi-card-text"></i> Academic &amp; Reports
                 </a>
-            </div>
-        </div>
+              </div>
+            </x-slot:actions>
+        </x-page-header>
 
         <ul class="nav nav-pills settings-tabs" id="settingsTab" role="tablist">
             <li class="nav-item" role="presentation">

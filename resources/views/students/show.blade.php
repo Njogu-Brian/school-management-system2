@@ -391,6 +391,45 @@
     </div>
     @endif
 
+    @if(isset($archiveAudits) && $archiveAudits->isNotEmpty())
+    <div class="settings-card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-bold">Archive &amp; Restore History</span>
+        <span class="pill-badge pill-secondary">{{ $archiveAudits->count() }} event(s)</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-modern align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Date</th>
+                <th>Action</th>
+                <th>Reason</th>
+                <th>Notes</th>
+                <th>By</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach($archiveAudits as $audit)
+              <tr>
+                <td>{{ $audit->created_at?->format('M d, Y H:i') ?? '—' }}</td>
+                <td>
+                  <span class="pill-badge pill-{{ $audit->action === 'restore' ? 'success' : 'danger' }} pill-sm text-capitalize">
+                    {{ $audit->action }}
+                  </span>
+                </td>
+                <td>{{ $audit->reason ?? '—' }}</td>
+                <td>{{ $audit->notes ?? '—' }}</td>
+                <td>{{ $audit->actor->name ?? '—' }}</td>
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    @endif
+
     <div class="row g-3 mt-2">
       <div class="col-12">
         <div class="settings-card mb-4">

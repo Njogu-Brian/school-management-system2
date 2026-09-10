@@ -30,7 +30,7 @@ class AssessmentController extends Controller
         $classrooms = Classroom::orderBy('name')->get();
         $subjects = Subject::orderBy('name')->get();
         $students = Student::orderBy('first_name')->get();
-        $staff = Staff::orderBy('first_name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
         return view('academics.assessments.create', compact('classrooms', 'subjects', 'students', 'staff'));
     }

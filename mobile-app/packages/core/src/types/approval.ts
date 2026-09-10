@@ -52,6 +52,8 @@ export interface LeaveRequestRecord {
   leave_type_id?: number;
   start_date: string;
   end_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
   days?: number;
   days_count?: number;
   reason?: string | null;

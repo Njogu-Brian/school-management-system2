@@ -23,6 +23,37 @@ use Illuminate\Support\Facades\Storage;
 class CommunicationController extends Controller
 {
     /**
+     * Shared compose shell for SMS, email, and WhatsApp.
+     * Provider-specific forms remain responsible for their own validation and delivery.
+     */
+    public function compose(Request $request)
+    {
+        $requestedChannel = $request->query('channel', 'sms');
+        $channels = array_values(array_filter([
+            can_access('communication', 'sms', 'add') ? 'sms' : null,
+            can_access('communication', 'email', 'add') ? 'email' : null,
+            can_access('communication', 'sms', 'add') ? 'whatsapp' : null,
+        ]));
+        abort_if(empty($channels), 403);
+        $channel = in_array($requestedChannel, $channels, true) ? $requestedChannel : $channels[0];
+
+        $templates = CommunicationTemplate::whereIn('type', $channel === 'whatsapp' ? ['whatsapp', 'sms'] : [$channel])->get();
+        $classes = Classroom::with('streams')->get();
+        $systemPlaceholders = $this->getSystemPlaceholders();
+        $customPlaceholders = \App\Models\CustomPlaceholder::all();
+        $students = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
+            ->get();
+
+        return view('communication.compose', compact(
+            'channel', 'channels', 'templates', 'classes', 'students',
+            'systemPlaceholders', 'customPlaceholders'
+        ));
+    }
+
+    /**
      * Normalize a phone and ensure it is a Kenyan MSISDN (country code 254).
      * Returns null if invalid/non-Kenyan.
      */

@@ -26,7 +26,7 @@ class VisitorLogController extends Controller
 
     public function create()
     {
-        $staff = Staff::orderBy('first_name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
         return view('operations.visitors.create', compact('staff'));
     }

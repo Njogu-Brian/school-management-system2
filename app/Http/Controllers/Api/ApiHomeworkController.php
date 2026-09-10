@@ -119,7 +119,9 @@ class ApiHomeworkController extends Controller
             'classroom_id' => 'required|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
             'subject_id' => 'required|exists:subjects,id',
-            'target_scope' => 'nullable|in:class,stream',
+            'target_scope' => 'nullable|in:class,stream,students',
+            'student_ids' => 'nullable|array|required_if:target_scope,students|min:1',
+            'student_ids.*' => 'integer|exists:students,id',
             'max_score' => 'nullable|integer|min:1|max:1000',
             'allow_late_submission' => 'nullable|boolean',
             'links' => 'nullable|array',
@@ -161,6 +163,28 @@ class ApiHomeworkController extends Controller
         }
 
         $scope = $request->input('target_scope', $request->filled('stream_id') ? 'stream' : 'class');
+        if (! in_array($scope, ['class', 'stream', 'students'], true)) {
+            $scope = 'class';
+        }
+
+        $studentIds = [];
+        if ($scope === 'students') {
+            $studentIds = array_values(array_unique(array_map('intval', $request->input('student_ids', []))));
+            if ($studentIds === []) {
+                return response()->json(['success' => false, 'message' => 'Select at least one student.'], 422);
+            }
+            $validCount = Student::query()
+                ->whereIn('id', $studentIds)
+                ->where('classroom_id', $classId)
+                ->where('archive', 0)
+                ->count();
+            if ($validCount !== count($studentIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'One or more selected students are not in this class or are not accessible.',
+                ], 403);
+            }
+        }
 
         $homework = Homework::create([
             'assigned_by' => $user->id,
@@ -171,10 +195,14 @@ class ApiHomeworkController extends Controller
             'title' => $request->title,
             'instructions' => $request->instructions,
             'due_date' => $request->due_date,
-            'target_scope' => $scope === 'stream' ? 'stream' : 'class',
+            'target_scope' => $scope,
             'max_score' => $request->max_score,
             'allow_late_submission' => $request->boolean('allow_late_submission', true),
         ]);
+
+        if ($scope === 'students' && $studentIds !== []) {
+            $homework->students()->sync($studentIds);
+        }
 
         $attachments = $this->buildAttachmentsFromRequest($request, $homework->id);
         if ($attachments !== []) {
@@ -182,7 +210,7 @@ class ApiHomeworkController extends Controller
             $homework->save();
         }
 
-        $homework->load(['classroom', 'stream', 'subject', 'teacher']);
+        $homework->load(['classroom', 'stream', 'subject', 'teacher', 'students']);
 
         try {
             app(\App\Services\ParentAppNotifyService::class)->notifyHomeworkIssued($homework);

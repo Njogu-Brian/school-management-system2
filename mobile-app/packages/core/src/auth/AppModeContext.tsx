@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import type { User } from '../types';
+import { apiClient } from '../api/client';
 import { getAppMode, setAppMode as persistAppMode, type AppMode } from '../storage/appModeStorage';
 import { useCurrentUser } from './hooks';
 
@@ -69,8 +70,15 @@ export const AppModeProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const canSwitch = userHasDualIdentity(user);
   const mode = resolveEffectiveMode(user, persisted);
 
+  // Sync before children render so the first students/finance fetch sends X-App-Mode.
+  // (useEffect alone races with React Query mounts and can briefly load unscoped lists.)
+  if (ready && apiClient.getAppMode() !== mode) {
+    apiClient.setAppMode(mode);
+  }
+
   const setMode = useCallback(async (next: AppMode) => {
     setPersisted(next);
+    apiClient.setAppMode(next);
     await persistAppMode(next);
   }, []);
 

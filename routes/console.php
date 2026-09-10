@@ -59,11 +59,26 @@ Schedule::command('parent-wallet:send-saving-reminders')
     ->name('parent-wallet-saving-reminders')
     ->withoutOverlapping();
 
-Schedule::command('reminders:teacher-clock-attendance')
+Schedule::command('reminders:teacher-clock-in')
+    ->dailyAt('08:00')
+    ->weekdays()
+    ->name('reminders-teacher-clock-in')
+    ->withoutOverlapping();
+
+Schedule::command('reminders:class-teacher-attendance')
     ->dailyAt('09:00')
     ->weekdays()
-    ->name('reminders-teacher-clock-attendance')
+    ->name('reminders-class-teacher-attendance')
     ->withoutOverlapping();
+
+Schedule::command('reminders:class-teacher-unmarked-attendance')
+    ->dailyAt('14:00')
+    ->weekdays()
+    ->name('reminders-class-teacher-unmarked-attendance')
+    ->withoutOverlapping();
+
+// Legacy combined reminder kept off the schedule; prefer the scoped 8am/9am/2pm jobs above.
+// Schedule::command('reminders:teacher-clock-attendance')->dailyAt('09:00')->weekdays();
 
 Schedule::command('reminders:lesson-plans-upcoming --window=60')
     ->hourly()

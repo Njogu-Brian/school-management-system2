@@ -208,7 +208,7 @@ class TimetableController extends Controller
             : collect();
 
         $subjects = \App\Models\Academics\Subject::active()->orderBy('name')->get();
-        $teachers = \App\Models\Staff::orderBy('first_name')->get();
+        $teachers = \App\Models\Staff::where('status', 'active')->orderBy('first_name')->get();
 
         return view('academics.timetable.run_editor', compact('run', 'streams', 'stream', 'periods', 'slots', 'locks', 'subjects', 'teachers'));
     }
@@ -380,7 +380,7 @@ class TimetableController extends Controller
     {
         $streams = \App\Models\Academics\Stream::with('classroom')->orderBy('name')->get();
         $periods = TimetableLayoutPeriod::orderBy('day')->orderBy('sort_order')->get();
-        $teachers = \App\Models\Staff::orderBy('first_name')->get();
+        $teachers = \App\Models\Staff::where('status', 'active')->orderBy('first_name')->get();
         $subjects = \App\Models\Academics\Subject::active()->orderBy('name')->get();
 
         $overrides = TimetableSlotOverride::query()
@@ -570,11 +570,12 @@ class TimetableController extends Controller
             // Supervisors can see their subordinates as teachers
             $subordinateIds = get_subordinate_staff_ids();
             $teachers = Staff::whereIn('id', $subordinateIds)
+                ->where('status', 'active')
                 ->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))
                 ->get();
         } else {
             $classrooms = Classroom::orderBy('name')->get();
-            $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
+            $teachers = Staff::where('status', 'active')->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
         }
         
         $years = \App\Support\AcademicContext::years();

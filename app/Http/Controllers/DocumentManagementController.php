@@ -63,7 +63,7 @@ class DocumentManagementController extends Controller
         $documentableId = $request->get('id');
 
         $students = Student::orderBy('first_name')->get();
-        $staff = Staff::orderBy('first_name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
         $categories = $this->defaultCategories;
         $types = $this->defaultTypes;

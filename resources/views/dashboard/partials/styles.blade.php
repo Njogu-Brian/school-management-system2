@@ -139,6 +139,9 @@
     font-weight: 700;
     margin: 8px 0 10px;
   }
+  .dashboard-secondary-links { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .dashboard-secondary-links a { color: var(--dash-primary); font-size: 13px; font-weight: 600; text-decoration: none; }
+  .dashboard-secondary-links a:hover { text-decoration: underline; }
   .dash-filters .form-select, .dash-filters .form-control { min-height: 38px; }
   .erp-kpi { min-height: 108px; }
   .erp-kpi-value { font-size: 1.35rem; font-weight: 700; color: var(--dash-text); letter-spacing: -0.02em; }

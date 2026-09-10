@@ -34,11 +34,21 @@
       </a>
     @endif
     @if($student->archive && !$student->is_alumni)
-      <form action="{{ route('students.restore', $student->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to restore this student?');">
+      <form action="{{ route('students.restore', $student->id) }}" method="POST" class="d-inline">
         @csrf
-        <button type="submit" class="btn btn-sm btn-success">
-          <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
-        </button>
+        <div class="input-group input-group-sm">
+          <select name="reason" class="form-select form-select-sm" required>
+            <option value="">Restore reason…</option>
+            <option value="Returned to school">Returned to school</option>
+            <option value="Fees settled">Fees settled</option>
+            <option value="Archived in error">Archived in error</option>
+            <option value="Readmission">Readmission</option>
+            <option value="Other">Other</option>
+          </select>
+          <button type="submit" class="btn btn-sm btn-success">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
+          </button>
+        </div>
       </form>
     @endif
   </div>

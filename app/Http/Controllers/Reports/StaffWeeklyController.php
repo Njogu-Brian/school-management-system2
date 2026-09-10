@@ -24,7 +24,7 @@ class StaffWeeklyController extends Controller
 
     public function create()
     {
-        $staff = Staff::orderBy('first_name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
         return view('reports.staff_weekly.create', compact('staff'));
     }

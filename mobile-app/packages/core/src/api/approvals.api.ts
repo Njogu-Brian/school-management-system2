@@ -80,6 +80,8 @@ export const approvalsApi = {
     leave_type_id: number;
     start_date: string;
     end_date: string;
+    start_time?: string;
+    end_time?: string;
     reason?: string;
   }): Promise<ApiResponse<LeaveRequestRecord>> {
     return apiClient.post<LeaveRequestRecord>('/leave-requests', payload);

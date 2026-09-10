@@ -28,7 +28,7 @@ class HostelController extends Controller
 
     public function create()
     {
-        $wardens = Staff::whereHas('user', function ($q) {
+        $wardens = Staff::where('status', 'active')->whereHas('user', function ($q) {
             $q->whereHas('roles', function ($r) {
                 $r->whereIn('name', ['Super Admin', 'Admin', 'Teacher']);
             });
@@ -63,7 +63,13 @@ class HostelController extends Controller
 
     public function edit(Hostel $hostel)
     {
-        $wardens = Staff::all();
+        // Active staff only, plus the currently assigned warden if archived.
+        $wardens = Staff::where(function ($q) use ($hostel) {
+                $q->where('status', 'active')->orWhere('id', $hostel->warden_id);
+            })
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
         return view('hostel.hostels.edit', compact('hostel', 'wardens'));
     }
 

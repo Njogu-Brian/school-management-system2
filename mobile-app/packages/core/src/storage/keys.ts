@@ -21,6 +21,8 @@ export const ASYNC_KEYS = {
   APP_MODE: '@erp_app_mode',
   /** Persisted control-plane school selection (code → tenant API URL). */
   SCHOOL_CONTEXT: '@erp_school_context',
+  /** Parent Home selected child id (suffixed with user id at runtime). */
+  SELECTED_CHILD_ID: '@erp_selected_child_id',
 } as const;
 
 export const BIOMETRIC_SECURE_KEYS = {

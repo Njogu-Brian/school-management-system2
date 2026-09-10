@@ -81,7 +81,7 @@ const TILES: HubTile[] = [
     icon: 'chatbubbles-outline',
     tone: 'violet',
     route: 'DiaryChat',
-    tabJump: { tab: 'ParentMoreTab', screen: 'DiaryChat', tabHome: 'MoreMenu' },
+    tabJump: { tab: 'ParentHomeTab', screen: 'DiaryChat', tabHome: 'ParentHome' },
   },
   {
     label: 'Co-curricular',
@@ -100,7 +100,7 @@ const TILES: HubTile[] = [
     icon: 'alert-circle-outline',
     tone: 'rose',
     route: 'RaiseConcern',
-    tabJump: { tab: 'ParentMoreTab', screen: 'RaiseConcern', tabHome: 'MoreMenu' },
+    tabJump: { tab: 'ParentHomeTab', screen: 'RaiseConcern', tabHome: 'ParentHome' },
   },
 ];
 

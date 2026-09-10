@@ -29,8 +29,9 @@ class ApiParentWalletController extends Controller
         $wallet = $this->walletService->getOrCreate((int) $user->parent_id);
 
         $ledger = $wallet->ledgerEntries()
+            ->select(['id', 'type', 'amount', 'balance_after', 'meta', 'created_at'])
             ->orderByDesc('id')
-            ->limit(30)
+            ->limit(15)
             ->get()
             ->map(fn ($row) => [
                 'id' => $row->id,

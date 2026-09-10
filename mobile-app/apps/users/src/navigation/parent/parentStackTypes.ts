@@ -6,6 +6,7 @@ export type ParentStackParamList = {
   ChildResults: { studentId: number };
   ReportCardDetail: { studentId: number; reportCardId: number };
   ChildAttendance: { studentId: number };
+  ReportAbsence: { studentId: number };
   ChildHomework: { studentId: number };
   FeesHome: undefined;
   AcademicHome: undefined;
@@ -19,7 +20,7 @@ export type ParentStackParamList = {
   StudentStatement: { studentId: number };
   MpesaPrompt: { studentId: number; amount?: number };
   DiaryList: undefined;
-  DiaryChat: { studentId: number };
+  DiaryChat: { studentId: number; channel?: 'teacher_parent' | 'admin_parent' };
   Announcements: undefined;
   Notifications: undefined;
   Settings: undefined;

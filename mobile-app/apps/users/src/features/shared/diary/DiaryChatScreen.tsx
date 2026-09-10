@@ -1,8 +1,10 @@
-import { useDiaryThread, useSendDiaryMessage, type DiaryEntryRecord } from '@erp/core';
+import { useDiaryThread, useSendDiaryMessage, type DiaryChannel, type DiaryEntryRecord } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
   EmptyState,
+  FilterChip,
+  FilterChipRow,
   ScreenContainer,
   SkeletonListRows,
   useTheme,
@@ -28,7 +30,7 @@ import { showError, showSuccess } from '../utils/feedback';
 type AttachmentDraft = { uri: string; name: string; type: string };
 
 type DiaryChatParams = {
-  DiaryChat: { studentId: number; studentName?: string };
+  DiaryChat: { studentId: number; studentName?: string; channel?: DiaryChannel };
 };
 
 function formatMessageTime(value?: string | null): string {
@@ -56,15 +58,17 @@ export const DiaryChatScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<DiaryChatParams, 'DiaryChat'>>();
   const { studentId, studentName } = route.params;
+  const [channel, setChannel] = useState<DiaryChannel>(route.params.channel ?? 'teacher_parent');
   const { colors, palette, spacing, typography, radius } = useTheme();
-  const threadQuery = useDiaryThread(studentId);
-  const sendMutation = useSendDiaryMessage(studentId);
+  const threadQuery = useDiaryThread(studentId, { channel });
+  const sendMutation = useSendDiaryMessage(studentId, channel);
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const listRef = useRef<FlatList>(null);
 
   const entries = useMemo(() => threadQuery.data?.entries ?? [], [threadQuery.data]);
   const title = threadQuery.data?.student_name ?? studentName ?? `Student #${studentId}`;
+  const channelLabel = channel === 'admin_parent' ? 'Admin only' : 'Class teacher / admin';
 
   useEffect(() => {
     if (entries.length === 0) return;
@@ -81,14 +85,14 @@ export const DiaryChatScreen: React.FC = () => {
       if (result.canceled || !result.assets?.length) return;
       setAttachments((prev) => [
         ...prev,
-        ...result.assets.map((asset) => ({
-          uri: asset.uri,
-          name: asset.name || 'attachment',
-          type: asset.mimeType || 'application/octet-stream',
+        ...result.assets.map((a) => ({
+          uri: a.uri,
+          name: a.name ?? 'file',
+          type: a.mimeType ?? 'application/octet-stream',
         })),
       ]);
     } catch (err) {
-      showError('Attachment failed', err instanceof Error ? err.message : 'Could not pick file.');
+      showError('Attachment failed', err instanceof Error ? err.message : 'Could not attach file.');
     }
   };
 
@@ -98,36 +102,49 @@ export const DiaryChatScreen: React.FC = () => {
     try {
       await sendMutation.mutateAsync({
         content: content || '(attachment)',
-        attachments: attachments.length > 0 ? attachments : undefined,
+        attachments: attachments.length ? attachments : undefined,
       });
       setDraft('');
       setAttachments([]);
-      showSuccess('Sent', 'Message posted to diary.');
+      showSuccess('Sent');
     } catch (err) {
-      showError('Send failed', err instanceof Error ? err.message : 'Could not send message.');
+      showError('Send failed', err instanceof Error ? err.message : 'Could not send.');
     }
   };
 
-  const canSend = draft.trim().length > 0 || attachments.length > 0;
-
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
+    <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['top', 'bottom']}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
         <AcademicScreenHeader
           title={title}
-          subtitle={threadQuery.data?.class_name ?? 'Diary conversation'}
+          subtitle={`${channelLabel} conversation`}
           onBack={() => navigation.goBack()}
         />
+        <FilterChipRow label="Send to">
+          <FilterChip
+            label="Class teacher / admin"
+            active={channel === 'teacher_parent'}
+            onPress={() => setChannel('teacher_parent')}
+          />
+          <FilterChip
+            label="Admin only"
+            active={channel === 'admin_parent'}
+            onPress={() => setChannel('admin_parent')}
+          />
+        </FilterChipRow>
+        <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+          {channel === 'admin_parent'
+            ? 'Admin only — teachers cannot read this thread.'
+            : 'Class teacher / admin — your class teacher and authorized school staff see this thread.'}
+        </Text>
       </View>
 
-      {threadQuery.isLoading && entries.length === 0 ? (
-        <View style={{ padding: spacing.md }}>
-          <SkeletonListRows variant="compact" count={4} />
-        </View>
+      {threadQuery.isLoading ? (
+        <SkeletonListRows count={6} />
       ) : threadQuery.isError ? (
         <EmptyState
-          title="Could not load thread"
-          message={(threadQuery.error as Error)?.message ?? 'Something went wrong.'}
+          title="Could not load conversation"
+          message={threadQuery.error instanceof Error ? threadQuery.error.message : 'Try again.'}
           icon="alert-circle-outline"
           actionLabel="Retry"
           onAction={() => void threadQuery.refetch()}
@@ -136,23 +153,18 @@ export const DiaryChatScreen: React.FC = () => {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+          keyboardVerticalOffset={88}
         >
           <FlatList
             ref={listRef}
             data={entries}
             keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={{
-              paddingHorizontal: spacing.md,
-              paddingBottom: spacing.md,
-              flexGrow: 1,
-              justifyContent: entries.length === 0 ? 'center' : 'flex-end',
-            }}
+            contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.lg, flexGrow: 1 }}
             ListEmptyComponent={
               <EmptyState
                 title="No messages yet"
-                message="Write the first diary note for this student."
-                icon="chatbubble-ellipses-outline"
+                message={`Start the ${channelLabel.toLowerCase()} conversation.`}
+                icon="chatbubbles-outline"
               />
             }
             renderItem={({ item }) => {
@@ -164,62 +176,32 @@ export const DiaryChatScreen: React.FC = () => {
                     styles.bubble,
                     {
                       alignSelf: mine ? 'flex-end' : 'flex-start',
-                      backgroundColor: mine ? colors.primary : palette.surface,
-                      borderColor: mine ? colors.primary : palette.border,
+                      backgroundColor: mine ? colors.primary : palette.surfaceRaised,
+                      borderColor: palette.borderSubtle,
                       borderRadius: radius.lg,
-                      borderBottomRightRadius: mine ? 4 : radius.lg,
-                      borderBottomLeftRadius: mine ? radius.lg : 4,
-                      paddingHorizontal: spacing.md,
-                      paddingVertical: spacing.sm,
+                      maxWidth: '86%',
                       marginBottom: spacing.sm,
-                      maxWidth: '88%',
+                      padding: spacing.sm,
                     },
                   ]}
                 >
-                  {!mine && item.author_name ? (
-                    <Text
-                      style={{
-                        color: colors.primary,
-                        fontSize: typography.caption.fontSize,
-                        fontWeight: '700',
-                        marginBottom: 2,
-                      }}
-                    >
-                      {item.author_name}
+                  {!mine ? (
+                    <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: 2 }}>
+                      {item.author_name ?? item.author_type}
                     </Text>
                   ) : null}
-                  {item.content && item.content !== '(attachment)' ? (
-                    <Text style={{ color: mine ? '#fff' : palette.textPrimary }}>{item.content}</Text>
-                  ) : null}
-                  {files.length > 0 ? (
-                    <View style={{ marginTop: item.content && item.content !== '(attachment)' ? spacing.xs : 0, gap: 4 }}>
-                      {files.map((file) => (
-                        <Pressable
-                          key={file}
-                          onPress={() => {
-                            if (file.startsWith('http')) void Linking.openURL(file);
-                          }}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                        >
-                          <Ionicons name="document-attach-outline" size={14} color={mine ? '#ffffffcc' : colors.primary} />
-                          <Text
-                            style={{
-                              color: mine ? '#ffffffcc' : palette.textSecondary,
-                              fontSize: typography.caption.fontSize,
-                              textDecorationLine: file.startsWith('http') ? 'underline' : 'none',
-                            }}
-                            numberOfLines={2}
-                          >
-                            {attachmentLabel(file)}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
+                  <Text style={{ color: mine ? '#fff' : palette.textPrimary }}>{item.content}</Text>
+                  {files.map((f) => (
+                    <Pressable key={f} onPress={() => void Linking.openURL(f)} style={{ marginTop: 6 }}>
+                      <Text style={{ color: mine ? '#E0F2FE' : colors.primary, textDecorationLine: 'underline' }}>
+                        {attachmentLabel(f)}
+                      </Text>
+                    </Pressable>
+                  ))}
                   <Text
                     style={{
-                      color: mine ? '#ffffff99' : palette.textMuted,
-                      fontSize: 11,
+                      color: mine ? 'rgba(255,255,255,0.75)' : palette.textMuted,
+                      fontSize: typography.caption.fontSize,
                       marginTop: 4,
                       alignSelf: 'flex-end',
                     }}
@@ -232,32 +214,11 @@ export const DiaryChatScreen: React.FC = () => {
           />
 
           {attachments.length > 0 ? (
-            <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xs, gap: 4 }}>
-              {attachments.map((file) => (
-                <View
-                  key={file.uri}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    backgroundColor: palette.surfaceRaised ?? palette.surface,
-                    borderRadius: radius.md,
-                    borderWidth: StyleSheet.hairlineWidth,
-                    borderColor: palette.border,
-                    padding: spacing.sm,
-                  }}
-                >
-                  <Ionicons name="document-outline" size={18} color={colors.primary} />
-                  <Text style={{ color: palette.textSecondary, flex: 1, marginHorizontal: spacing.sm }} numberOfLines={1}>
-                    {file.name}
-                  </Text>
-                  <Pressable
-                    onPress={() => setAttachments((prev) => prev.filter((a) => a.uri !== file.uri))}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="close-circle" size={20} color={palette.textMuted} />
-                  </Pressable>
-                </View>
+            <View style={{ paddingHorizontal: spacing.md, gap: spacing.xs }}>
+              {attachments.map((a) => (
+                <Text key={a.uri} style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                  {a.name}
+                </Text>
               ))}
             </View>
           ) : null}
@@ -267,47 +228,34 @@ export const DiaryChatScreen: React.FC = () => {
               flexDirection: 'row',
               alignItems: 'flex-end',
               gap: spacing.sm,
-              paddingHorizontal: spacing.md,
-              paddingTop: spacing.sm,
-              paddingBottom: spacing.sm,
+              padding: spacing.md,
               borderTopWidth: StyleSheet.hairlineWidth,
               borderTopColor: palette.border,
-              backgroundColor: palette.surface,
             }}
           >
-            <Pressable
-              onPress={() => void pickAttachment()}
-              style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
-              accessibilityLabel="Attach file"
-            >
+            <Pressable onPress={() => void pickAttachment()} hitSlop={8} accessibilityLabel="Attach file">
               <Ionicons name="attach" size={24} color={colors.primary} />
             </Pressable>
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder="Write a diary note…"
+              placeholder={`Message ${channelLabel.toLowerCase()}…`}
               placeholderTextColor={palette.textMuted}
               multiline
               style={{
                 flex: 1,
-                minHeight: 40,
+                minHeight: 44,
                 maxHeight: 120,
                 borderWidth: 1,
                 borderColor: palette.border,
-                borderRadius: radius.lg,
-                paddingHorizontal: spacing.md,
-                paddingVertical: Platform.OS === 'ios' ? spacing.sm : spacing.xs,
+                borderRadius: radius.md,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: spacing.sm,
                 color: palette.textPrimary,
-                backgroundColor: palette.surfaceRaised,
+                backgroundColor: palette.surface,
               }}
             />
-            <Button
-              label="Send"
-              onPress={() => void send()}
-              loading={sendMutation.isPending}
-              disabled={!canSend}
-              style={{ minWidth: 72 }}
-            />
+            <Button label="Send" onPress={() => void send()} loading={sendMutation.isPending} />
           </View>
         </KeyboardAvoidingView>
       )}
@@ -316,5 +264,7 @@ export const DiaryChatScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  bubble: { borderWidth: StyleSheet.hairlineWidth },
+  bubble: {
+    borderWidth: StyleSheet.hairlineWidth,
+  },
 });

@@ -5,82 +5,68 @@
 @endpush
 
 @section('content')
-<div class="dashboard-page">
+<div class="dashboard-page ds-pilot">
   <div class="dashboard-shell">
-    <div class="dash-hero d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
-      <div>
-        <span class="crumb">{{ $schoolName ?? 'Dashboard' }}</span>
-        <h2 class="mb-1">{{ $greeting ?? 'Welcome' }}, {{ auth()->user()->name }}</h2>
-        <p class="mb-0">School operations command centre.</p>
-        <div class="d-flex flex-wrap gap-2 mt-2">
+    <x-page-header eyebrow="{{ $schoolName ?? 'Dashboard' }}" title="{{ ($greeting ?? 'Welcome') . ', ' . auth()->user()->name }}" description="School operations command centre." class="dash-hero mb-3">
+      <x-slot:actions>
+        <div class="d-flex flex-wrap gap-2">
           @if(!empty($selectedYear))<span class="dash-chip">{{ $selectedYear->year ?? $selectedYear->name }}</span>@endif
           @if(!empty($selectedTerm))<span class="dash-chip">{{ $selectedTerm->name }}</span>@endif
         </div>
-      </div>
-    </div>
+      </x-slot:actions>
+    </x-page-header>
 
-    @includeWhen(session('success') || session('error'),'dashboard.partials.flash')
+    <x-feedback.flash />
     @include('dashboard.partials.filters')
 
-    <div class="dash-section-label">Urgent</div>
-    @include('dashboard.partials.alerts')
-
     <div class="dash-section-label">Today at a glance</div>
-    <div class="dash-card card card-body mb-3">
-      @include('dashboard.partials.quick_actions')
-    </div>
-    @include('dashboard.partials.kpis')
-
-    <div class="dash-section-label">Financial position</div>
     <div class="row g-3 mb-3">
-      <div class="col-lg-7">@include('dashboard.partials.finance_donut')</div>
-      <div class="col-lg-5">@include('dashboard.partials.invoice_table')</div>
+      <div class="col-6 col-xl-3">
+        <x-data.stat-card label="Active students" :value="format_number($kpis['students'] ?? 0)" trend="{{ ($kpis['attendance_pct'] ?? null) !== null ? format_number($kpis['attendance_pct'], 1) . '% present today' : 'Current scope' }}" icon="bi bi-people" />
+      </div>
+      <div class="col-6 col-xl-3">
+        <x-data.stat-card label="Attendance today" :value="($kpis['attendance_pct'] ?? null) !== null ? format_number($kpis['attendance_pct'], 1) . '%' : '—'" trend="{{ format_number($kpis['absent_today'] ?? 0) }} absent · {{ format_number($kpis['unmarked_today'] ?? 0) }} unmarked" icon="bi bi-clipboard-check" />
+      </div>
+      @if(in_array($role ?? 'admin', ['admin', 'finance']))
+        <div class="col-6 col-xl-3">
+          <x-data.stat-card label="Collected" :value="format_money($kpis['fees_collected'] ?? 0)" trend="{{ ($kpis['collection_rate'] ?? null) !== null ? format_number($kpis['collection_rate'], 1) . '% of invoiced' : 'Selected period' }}" icon="bi bi-cash-coin" />
+        </div>
+        <div class="col-6 col-xl-3">
+          <x-data.stat-card label="Outstanding" :value="format_money($kpis['fees_outstanding'] ?? 0)" trend="{{ format_number($kpis['owing_students'] ?? 0) }} students owing" icon="bi bi-wallet2" />
+        </div>
+      @else
+        <div class="col-6 col-xl-3">
+          <x-data.stat-card label="Active staff" :value="format_number($kpis['staff_active'] ?? 0)" trend="{{ format_number($kpis['teachers_on_leave'] ?? 0) }} on leave today" icon="bi bi-person-badge" />
+        </div>
+        <div class="col-6 col-xl-3">
+          <x-data.stat-card label="Pending approvals" :value="format_number($kpis['pending_approvals'] ?? 0)" trend="Needs review" icon="bi bi-check2-square" />
+        </div>
+      @endif
     </div>
 
-    <div class="dash-section-label">Attendance</div>
+    <div class="dash-section-label">Priority work</div>
     <div class="row g-3 mb-3">
-      <div class="col-lg-7">@include('dashboard.partials.attendance_chart')</div>
-      <div class="col-lg-5">@include('dashboard.partials.absence_table')</div>
-    </div>
-
-    <div class="dash-section-label">Academic activity</div>
-    <div class="row g-3 mb-3">
-      <div class="col-lg-7">@include('dashboard.partials.exam_performance')</div>
-      <div class="col-lg-5">@include('dashboard.partials.upcoming')</div>
-    </div>
-
-    <div class="row g-3 mb-3">
-      <div class="col-lg-4">
-        <div class="dash-section-label">Staff</div>
-        <div class="dash-card card">
-          <div class="card-body">
-            <div class="fs-4 fw-semibold">{{ number_format($kpis['staff_active'] ?? 0) }}</div>
-            <div class="dash-muted small">Active staff · {{ number_format($kpis['teachers_on_leave'] ?? 0) }} on leave today</div>
-            @if(Route::has('staff.leave-requests.index'))
-              <a href="{{ route('staff.leave-requests.index') }}" class="btn btn-outline-primary btn-sm mt-2">Leave requests</a>
-            @endif
-          </div>
+      <div class="col-lg-7">@include('dashboard.partials.alerts')</div>
+      <div class="col-lg-5">
+        <div class="dash-card card h-100">
+          <div class="card-header"><strong>Quick actions</strong></div>
+          <div class="card-body">@include('dashboard.partials.quick_actions')</div>
         </div>
       </div>
-      <div class="col-lg-8">
-        <div class="dash-section-label">Transport</div>
-        @include('dashboard.partials.today_trips')
-      </div>
     </div>
 
-    <div class="dash-section-label">Overview</div>
-    <div class="row g-3 mb-3">
-      <div class="col-xl-8">@include('dashboard.partials.overview')</div>
-      <div class="col-xl-4">@include('dashboard.partials.recent_admissions')</div>
-    </div>
-
-    <div class="dash-section-label">Recent activity</div>
+    <div class="dash-section-label">Operational summaries</div>
     <div class="row g-3">
-      <div class="col-lg-7">@include('dashboard.partials.activity')</div>
-      <div class="col-lg-5">
-        @include('dashboard.partials.announcements')
-        @include('dashboard.partials.behaviour_widget')
-      </div>
+      @if(in_array($role ?? 'admin', ['admin', 'finance']))
+        <div class="col-lg-6">@include('dashboard.partials.finance_donut')</div>
+      @endif
+      <div class="col-lg-6">@include('dashboard.partials.attendance_chart')</div>
+    </div>
+    <div class="dashboard-secondary-links mt-3">
+      <span class="dash-muted small">More detail:</span>
+      @if(Route::has('finance.fee-balances.index') && in_array($role ?? 'admin', ['admin', 'finance']))<a href="{{ route('finance.fee-balances.index') }}">Fee balances</a>@endif
+      @if(Route::has('attendance.records'))<a href="{{ route('attendance.records') }}">Attendance reports</a>@endif
+      @if(Route::has('reports.class-reports.index'))<a href="{{ route('reports.class-reports.index') }}">Class reports</a>@endif
     </div>
   </div>
 </div>

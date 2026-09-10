@@ -38,7 +38,7 @@ export type TeacherStackParamList = {
   LessonPlanReview: undefined;
   LessonPlanReviewDetail: { lessonPlanId: number; topic?: string };
   DiaryList: undefined;
-  DiaryChat: { studentId: number; studentName?: string };
+  DiaryChat: { studentId: number; studentName?: string; channel?: 'teacher_parent' | 'admin_parent' };
   Announcements: undefined;
   Notifications: undefined;
   Settings: undefined;

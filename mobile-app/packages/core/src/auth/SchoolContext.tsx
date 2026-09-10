@@ -9,6 +9,7 @@ import React, {
 import { apiClient } from '../api/client';
 import { resolveSchoolCode } from '../api/schools.api';
 import {
+  DEFAULT_TENANT_API_BASE_URL,
   LEGACY_ANCHOR_SCHOOL,
   REQUIRE_SCHOOL_CODE,
 } from '../config/env';
@@ -48,8 +49,22 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const stored = await getSchoolContext();
         if (cancelled) return;
         if (stored) {
-          apiClient.setBaseURL(stored.apiBaseUrl);
-          setSchool(stored);
+          // Dev Wi‑Fi IPs change often; don't keep a stale host from AsyncStorage.
+          let next = stored;
+          if (
+            __DEV__ &&
+            DEFAULT_TENANT_API_BASE_URL &&
+            stored.apiBaseUrl.replace(/\/$/, '') !==
+              DEFAULT_TENANT_API_BASE_URL.replace(/\/$/, '')
+          ) {
+            next = {
+              ...stored,
+              apiBaseUrl: DEFAULT_TENANT_API_BASE_URL.replace(/\/$/, ''),
+            };
+            await saveSchoolContext(next);
+          }
+          apiClient.setBaseURL(next.apiBaseUrl);
+          setSchool(next);
           setStatus('ready');
           return;
         }

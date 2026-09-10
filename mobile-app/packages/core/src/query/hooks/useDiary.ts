@@ -1,11 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { diaryApi } from '../../api/diary.api';
+import { diaryApi, type DiaryChannel } from '../../api/diary.api';
 
-export function useDiaryThreads(options?: { enabled?: boolean; search?: string }) {
+export function useDiaryThreads(options?: {
+  enabled?: boolean;
+  search?: string;
+  channel?: DiaryChannel;
+}) {
+  const channel = options?.channel ?? 'teacher_parent';
   return useQuery({
-    queryKey: ['diaries', 'list', options?.search ?? ''] as const,
+    queryKey: ['diaries', 'list', channel, options?.search ?? ''] as const,
     queryFn: async () => {
-      const res = await diaryApi.list({ search: options?.search, per_page: 50 });
+      const res = await diaryApi.list({
+        search: options?.search,
+        channel,
+        per_page: 50,
+      });
       if (!res.success || !res.data) throw new Error(res.message || 'Failed to load diaries.');
       return res.data.data ?? [];
     },
@@ -14,11 +23,15 @@ export function useDiaryThreads(options?: { enabled?: boolean; search?: string }
   });
 }
 
-export function useDiaryThread(studentId: number, options?: { enabled?: boolean }) {
+export function useDiaryThread(
+  studentId: number,
+  options?: { enabled?: boolean; channel?: DiaryChannel },
+) {
+  const channel = options?.channel ?? 'teacher_parent';
   return useQuery({
-    queryKey: ['diaries', 'student', studentId] as const,
+    queryKey: ['diaries', 'student', studentId, channel] as const,
     queryFn: async () => {
-      const res = await diaryApi.getForStudent(studentId);
+      const res = await diaryApi.getForStudent(studentId, channel);
       if (!res.success || !res.data) throw new Error(res.message || 'Failed to load diary.');
       return res.data;
     },
@@ -27,7 +40,7 @@ export function useDiaryThread(studentId: number, options?: { enabled?: boolean 
   });
 }
 
-export function useSendDiaryMessage(studentId: number) {
+export function useSendDiaryMessage(studentId: number, channel: DiaryChannel = 'teacher_parent') {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
@@ -36,7 +49,7 @@ export function useSendDiaryMessage(studentId: number) {
     }) => {
       const res = await diaryApi.sendMessage(
         studentId,
-        { content: input.content },
+        { content: input.content, channel },
         input.attachments,
       );
       if (!res.success || !res.data) throw new Error(res.message || 'Failed to send message.');

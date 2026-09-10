@@ -85,7 +85,7 @@ class StaffController extends Controller
 
     public function create()
     {
-        $supervisors   = Staff::all();
+        $supervisors   = Staff::where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
         $categories    = StaffCategory::all();
         $departments   = Department::all();
         $jobTitles     = JobTitle::all();
@@ -366,7 +366,15 @@ class StaffController extends Controller
     public function edit($id)
     {
         $staff        = Staff::with('meta', 'user.roles', 'statutoryExemptions', 'supervisors')->findOrFail($id);
-        $supervisors  = Staff::where('id', '!=', $id)->get();
+        // Active staff only, plus this staff member's current supervisors if archived.
+        $currentSupervisorIds = $staff->supervisors->pluck('id')->all();
+        $supervisors  = Staff::where(function ($q) use ($currentSupervisorIds) {
+                $q->where('status', 'active')->orWhereIn('id', $currentSupervisorIds);
+            })
+            ->where('id', '!=', $id)
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
         $categories   = StaffCategory::all();
         $departments  = Department::all();
         $jobTitles    = JobTitle::all();
@@ -726,7 +734,7 @@ class StaffController extends Controller
             'departments' => Department::orderBy('name')->get(),
             'jobTitles'   => JobTitle::orderBy('name')->get(),
             'categories'  => StaffCategory::orderBy('name')->get(),
-            'supervisors' => \App\Models\Staff::orderBy('first_name')->get(['id','staff_id','first_name','last_name']),
+            'supervisors' => \App\Models\Staff::where('status', 'active')->orderBy('first_name')->get(['id','staff_id','first_name','last_name']),
             'roles'       => Role::orderBy('name')->get(),
         ]);
     }
