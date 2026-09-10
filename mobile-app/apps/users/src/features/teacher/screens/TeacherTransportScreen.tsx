@@ -188,7 +188,7 @@ export const TeacherTransportScreen: React.FC = () => {
             <AcademicScreenHeader
               title="Transport"
               subtitle={`Assigned classes · ${date}`}
-              onBack={() => goBackInStack(navigation, 'MoreMain')}
+              onBack={() => goBackInStack(navigation, 'HomeMain')}
             />
             <TextField
               label="Search"

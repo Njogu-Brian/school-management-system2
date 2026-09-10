@@ -37,7 +37,7 @@ export const MarksHubScreen: React.FC = () => {
             <AcademicScreenHeader
               title="Marks entry"
               subtitle="Subjects you teach — bulk matrix or per-exam entry"
-              onBack={() => goBackInStack(navigation, 'MoreMain')}
+              onBack={() => goBackInStack(navigation, 'HomeMain')}
             />
             <Pressable
               onPress={() => navigation.navigate('MarksMatrixSetup')}

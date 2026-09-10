@@ -32,7 +32,7 @@ class CommunicationController extends Controller
         $channels = array_values(array_filter([
             can_access('communication', 'sms', 'add') ? 'sms' : null,
             can_access('communication', 'email', 'add') ? 'email' : null,
-            can_access('communication', 'sms', 'add') ? 'whatsapp' : null,
+            can_access('communication', 'whatsapp', 'add') ? 'whatsapp' : null,
         ]));
         abort_if(empty($channels), 403);
         $channel = in_array($requestedChannel, $channels, true) ? $requestedChannel : $channels[0];

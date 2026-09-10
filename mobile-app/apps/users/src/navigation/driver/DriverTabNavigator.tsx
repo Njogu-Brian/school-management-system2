@@ -99,7 +99,7 @@ const DriverAccountStack = () => (
 const driverTabBar = createUsersTabBar({
   DriverHomeTab: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
   DriverRoutesTab: { label: 'Routes', icon: 'map-outline', iconFocused: 'map', tone: 'indigo' },
-  DriverAccountTab: { label: 'More', icon: 'grid-outline', iconFocused: 'grid', tone: 'cyan' },
+  DriverAccountTab: { label: 'Account', icon: 'person-outline', iconFocused: 'person', tone: 'cyan' },
 });
 
 export const DriverTabNavigator: React.FC = () => {

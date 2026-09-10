@@ -10,7 +10,6 @@ import {
   StudentHomeScreen,
   StudentResultsScreen,
 } from '../../features/student/screens/StudentScreens';
-import { StudentMoreScreen } from '../../features/student/screens/StudentMoreScreen';
 import { UsersAppHeaderChrome } from '../UsersAppHeaderChrome';
 import { createUsersTabBar } from '../UsersPremiumTabBar';
 import type { StudentStackParamList } from './studentStackTypes';
@@ -83,17 +82,6 @@ const StudentResultsStack = () => (
   </Stack.Navigator>
 );
 
-const StudentMoreStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen
-      name="StudentMoreMenu"
-      component={StudentMoreScreen}
-      options={{ headerShown: true, header: () => <UsersAppHeaderChrome title="More" /> }}
-    />
-    {studentSharedScreens()}
-  </Stack.Navigator>
-);
-
 const studentTabBar = createUsersTabBar({
   StudentHomeTab: { label: 'Home', icon: 'home-outline', iconFocused: 'home', tone: 'blue' },
   StudentHomeworkTab: {
@@ -103,7 +91,6 @@ const studentTabBar = createUsersTabBar({
     tone: 'indigo',
   },
   StudentResultsTab: { label: 'Results', icon: 'ribbon-outline', iconFocused: 'ribbon', tone: 'emerald' },
-  StudentMoreTab: { label: 'More', icon: 'grid-outline', iconFocused: 'grid', tone: 'amber' },
 });
 
 export const StudentTabNavigator: React.FC = () => {
@@ -120,7 +107,6 @@ export const StudentTabNavigator: React.FC = () => {
         component={StudentResultsStack}
         options={{ tabBarLabel: 'Results' }}
       />
-      <Tab.Screen name="StudentMoreTab" component={StudentMoreStack} options={{ tabBarLabel: 'More' }} />
     </Tab.Navigator>
   );
 };

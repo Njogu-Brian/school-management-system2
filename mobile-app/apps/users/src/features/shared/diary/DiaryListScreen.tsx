@@ -18,6 +18,7 @@ type DiaryNav = StackNavigationProp<{
   DiaryList: undefined;
   DiaryChat: { studentId: number; studentName?: string };
   MoreMain: undefined;
+  HomeMain: undefined;
 }>;
 
 export const DiaryListScreen: React.FC = () => {
@@ -39,7 +40,7 @@ export const DiaryListScreen: React.FC = () => {
             <AcademicScreenHeader
               title="Student diary"
               subtitle="Parent–teacher message threads"
-              onBack={() => goBackInStack(navigation, 'MoreMain')}
+              onBack={() => goBackInStack(navigation, 'HomeMain')}
             />
             <TextField
               label="Search"

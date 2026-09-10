@@ -68,4 +68,37 @@ class DiaryChannelAuthorizationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true);
     }
+
+    public function test_teacher_cannot_list_admin_parent_channel(): void
+    {
+        $classroom = $this->createClassroom();
+        $this->createStudent(['classroom_id' => $classroom->id, 'archive' => 0]);
+        $teacher = $this->createTeacher();
+        $teacher->classrooms()->syncWithoutDetaching([$classroom->id]);
+
+        Sanctum::actingAs($teacher);
+        $this->getJson('/api/diaries?channel=admin_parent')
+            ->assertForbidden();
+    }
+
+    public function test_dual_role_teacher_parent_can_open_admin_parent_in_home_mode(): void
+    {
+        $parent = ParentInfo::factory()->create();
+        $student = $this->createStudent(['parent_id' => $parent->id, 'archive' => 0]);
+        $teacher = $this->createTeacher();
+        $teacher->parent_id = $parent->id;
+        $teacher->save();
+        $teacher->assignRole('Parent');
+
+        StudentDiary::query()->firstOrCreate(
+            ['student_id' => $student->id, 'channel' => StudentDiary::CHANNEL_ADMIN_PARENT],
+            ['channel' => StudentDiary::CHANNEL_ADMIN_PARENT]
+        );
+
+        Sanctum::actingAs($teacher);
+        $this->withHeader('X-App-Mode', 'home')
+            ->getJson("/api/diaries/students/{$student->id}?channel=admin_parent")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+    }
 }

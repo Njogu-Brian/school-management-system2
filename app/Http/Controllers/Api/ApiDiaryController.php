@@ -14,7 +14,9 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Mobile digital diary — channel-scoped threads per student:
  * - teacher_parent: Teacher ↔ Parent
- * - admin_parent: Admin ↔ Parent (not visible to teachers)
+ * - admin_parent: Admin ↔ Parent (not visible to teachers in Work mode)
+ *
+ * Dual-role accounts honor X-App-Mode: home → guardian scope (same as ApiStudentController).
  */
 class ApiDiaryController extends Controller
 {
@@ -23,15 +25,17 @@ class ApiDiaryController extends Controller
         $user = Auth::user();
         $perPage = min((int) $request->input('per_page', 30), 100);
         $channel = StudentDiary::normalizeChannel($request->input('channel'));
+        $appMode = $this->resolveAppMode($request);
+        $scopeAsParent = $user->shouldScopeAsParent($appMode);
 
-        $this->assertCanListChannel($user, $channel);
+        $this->assertCanListChannel($user, $channel, $scopeAsParent);
 
         $query = StudentDiary::with(['student.classroom', 'latestEntry.author'])
             ->where('channel', $channel);
 
-        if ($user->shouldScopeAsParent()) {
+        if ($scopeAsParent) {
             $childIds = $user->accessibleStudentIds();
-            $query->whereIn('student_id', $childIds);
+            $query->whereIn('student_id', $childIds === [] ? [-1] : $childIds);
         } elseif ($this->isTeacherRole($user)) {
             // Teachers never see admin_parent (assertCanListChannel already blocks).
             $assigned = array_unique(array_merge(
@@ -101,7 +105,8 @@ class ApiDiaryController extends Controller
         $user = Auth::user();
         $channel = StudentDiary::normalizeChannel($request->input('channel'));
         $student = Student::with('classroom')->findOrFail($studentId);
-        $this->authorizeStudentChannelAccess($user, $student, $channel);
+        $appMode = $this->resolveAppMode($request);
+        $this->authorizeStudentChannelAccess($user, $student, $channel, $appMode);
 
         $diary = StudentDiary::query()->firstOrCreate(
             ['student_id' => $student->id, 'channel' => $channel],
@@ -137,7 +142,8 @@ class ApiDiaryController extends Controller
         $user = Auth::user();
         $channel = StudentDiary::normalizeChannel($request->input('channel'));
         $student = Student::findOrFail($studentId);
-        $this->authorizeStudentChannelAccess($user, $student, $channel);
+        $appMode = $this->resolveAppMode($request);
+        $this->authorizeStudentChannelAccess($user, $student, $channel, $appMode);
 
         $data = $request->validate([
             'content' => 'required|string|max:5000',
@@ -160,7 +166,7 @@ class ApiDiaryController extends Controller
 
         $entry = $diary->entries()->create([
             'author_id' => $user->id,
-            'author_type' => $this->determineAuthorType($user),
+            'author_type' => $this->determineAuthorType($user, $appMode),
             'parent_entry_id' => $data['parent_entry_id'] ?? null,
             'content' => $data['content'],
             'attachments' => $attachments,
@@ -184,32 +190,63 @@ class ApiDiaryController extends Controller
         ], 201);
     }
 
-    protected function assertCanListChannel($user, string $channel): void
+    /**
+     * @return 'home'|null  Normalized app shell mode for shouldScopeAsParent().
+     */
+    protected function resolveAppMode(Request $request): ?string
     {
-        if ($channel === StudentDiary::CHANNEL_ADMIN_PARENT && $this->isTeacherRole($user) && ! $this->isAdminRole($user)) {
+        $appMode = strtolower((string) $request->header('X-App-Mode', ''));
+
+        return $appMode === 'home' ? 'home' : null;
+    }
+
+    /**
+     * Teachers in Work mode cannot list admin↔parent threads.
+     * Dual-role accounts in Home mode (guardian scope) may list their children's admin threads.
+     */
+    protected function assertCanListChannel($user, string $channel, bool $scopeAsParent): void
+    {
+        if ($channel !== StudentDiary::CHANNEL_ADMIN_PARENT) {
+            return;
+        }
+
+        if ($this->isAdminRole($user) || $scopeAsParent) {
+            return;
+        }
+
+        if ($this->isTeacherRole($user)) {
             abort(403, 'Teachers cannot access school/admin parent conversations.');
         }
     }
 
-    protected function authorizeStudentChannelAccess($user, Student $student, string $channel): void
+    protected function authorizeStudentChannelAccess($user, Student $student, string $channel, ?string $appMode = null): void
     {
+        $scopeAsParent = $user->shouldScopeAsParent($appMode);
+
         if ($channel === StudentDiary::CHANNEL_ADMIN_PARENT) {
+            // Explicit teacher Work-mode rejection (matches assertCanListChannel).
+            if ($this->isTeacherRole($user) && ! $this->isAdminRole($user) && ! $scopeAsParent) {
+                abort(403, 'Teachers cannot access school/admin parent conversations.');
+            }
+
             if ($this->isAdminRole($user)) {
                 return;
             }
-            if ($user->shouldScopeAsParent() && $user->canAccessStudent($student->id)) {
+
+            if ($scopeAsParent && $user->canAccessStudent($student->id)) {
                 return;
             }
+
             abort(403, 'You do not have access to this school/admin conversation.');
         }
 
         // teacher_parent
-        if ($this->isAdminRole($user)) {
+        if ($this->isAdminRole($user) && ! $scopeAsParent) {
             // Administrative oversight of teacher–parent threads is intentional for office roles.
             return;
         }
 
-        if ($user->shouldScopeAsParent()) {
+        if ($scopeAsParent) {
             abort_unless($user->canAccessStudent($student->id), 403, 'You do not have access to this student.');
 
             return;
@@ -238,16 +275,16 @@ class ApiDiaryController extends Controller
         return $user->hasAnyRole(['Teacher', 'teacher', 'Senior Teacher', 'Deputy Senior Teacher']);
     }
 
-    protected function determineAuthorType($user): string
+    protected function determineAuthorType($user, ?string $appMode = null): string
     {
+        if ($user->shouldScopeAsParent($appMode)) {
+            return 'parent';
+        }
         if ($this->isAdminRole($user)) {
             return 'admin';
         }
         if ($this->isTeacherRole($user)) {
             return 'teacher';
-        }
-        if ($user->shouldScopeAsParent()) {
-            return 'parent';
         }
 
         return 'user';

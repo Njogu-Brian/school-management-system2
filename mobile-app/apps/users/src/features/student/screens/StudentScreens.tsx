@@ -82,6 +82,21 @@ export const StudentHomeScreen: React.FC = () => {
             icon="alert-circle-outline"
             onPress={() => navigation.navigate('RaiseConcern' as never)}
           />
+          <QuickAction
+            label="My concerns"
+            icon="list-outline"
+            onPress={() => navigation.navigate('ConcernsList' as never)}
+          />
+          <QuickAction
+            label="My profile"
+            icon="person-outline"
+            onPress={() => navigation.navigate('MyProfile' as never)}
+          />
+          <QuickAction
+            label="Settings"
+            icon="settings-outline"
+            onPress={() => navigation.navigate('Settings' as never)}
+          />
         </View>
       </DashboardSection>
 

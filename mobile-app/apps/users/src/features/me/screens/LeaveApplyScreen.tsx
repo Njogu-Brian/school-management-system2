@@ -52,6 +52,9 @@ export const LeaveApplyScreen: React.FC = () => {
   const [leaveTypeId, setLeaveTypeId] = useState<number | null>(null);
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
+  // Default school-day window (typical Kenya school hours). Times are wall-clock
+  // values the staff member chooses — not converted across timezones — because
+  // leave is approved against the school calendar, not the device TZ.
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('17:00');
   const [includeTimes, setIncludeTimes] = useState(false);
