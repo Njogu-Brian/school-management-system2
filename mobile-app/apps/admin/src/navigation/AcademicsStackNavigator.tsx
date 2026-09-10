@@ -23,6 +23,8 @@ import {
   ReportCardsScreen,
   MarkAttendanceScreen,
 } from '../features/academics';
+import { SpeedTestsScreen } from '../features/academics/screens/SpeedTestsScreen';
+import { SpeedTestDetailScreen } from '../features/academics/screens/SpeedTestDetailScreen';
 import type { AcademicsStackParamList } from './academicsStackTypes';
 
 const Stack = createStackNavigator<AcademicsStackParamList>();
@@ -50,5 +52,7 @@ export const AcademicsStackNavigator: React.FC = () => (
     <Stack.Screen name="CbcStrands" component={CbcStrandsScreen} />
     <Stack.Screen name="CbcSubstrand" component={CbcSubstrandScreen} />
     <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
+    <Stack.Screen name="SpeedTests" component={SpeedTestsScreen} />
+    <Stack.Screen name="SpeedTestDetail" component={SpeedTestDetailScreen} />
   </Stack.Navigator>
 );

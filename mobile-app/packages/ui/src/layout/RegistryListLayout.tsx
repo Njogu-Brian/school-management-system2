@@ -3,6 +3,7 @@ import { FlatList, StyleSheet, View, type FlatListProps } from 'react-native';
 import { FilterBottomSheet } from '../filters/FilterBottomSheet';
 import { FilterTriggerButton } from '../filters/FilterTriggerButton';
 import { useTheme } from '../theme/ThemeContext';
+import { useListRefreshControl } from './ScreenContainer';
 
 export interface RegistryListLayoutProps<T> extends Omit<
   FlatListProps<T>,
@@ -41,9 +42,11 @@ export function RegistryListLayout<T>({
   showFilterTrigger = true,
   stickyPaddingHorizontal,
   contentContainerStyle,
+  refreshControl,
   ...flatListProps
 }: RegistryListLayoutProps<T>) {
-  const { palette, spacing } = useTheme();
+  const { palette, spacing, colors } = useTheme();
+  const autoRefresh = useListRefreshControl(colors.primary);
   const horizontal = stickyPaddingHorizontal ?? spacing.md;
   const flat = StyleSheet.flatten(contentContainerStyle);
   const callerPad =
@@ -75,6 +78,7 @@ export function RegistryListLayout<T>({
 
       <FlatList
         {...flatListProps}
+        refreshControl={refreshControl ?? autoRefresh}
         contentContainerStyle={[
           { paddingHorizontal: horizontal },
           contentContainerStyle,

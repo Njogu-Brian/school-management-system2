@@ -43,7 +43,27 @@ class AssessmentReadFacade
             $items = $items->filter(fn (AssessmentHistoryItem $item) => in_array($item->type, $typeFilter, true));
         }
 
-        $items = $items->sortByDesc(fn (AssessmentHistoryItem $item) => $item->sortTimestamp())->values();
+        $items = $items->sort(function (AssessmentHistoryItem $a, AssessmentHistoryItem $b) {
+            $yearA = (string) ($a->academicYearLabel ?? '');
+            $yearB = (string) ($b->academicYearLabel ?? '');
+            if ($yearA !== $yearB) {
+                return strnatcasecmp($yearB, $yearA);
+            }
+
+            $openA = (string) ($a->termOpeningDate ?? '');
+            $openB = (string) ($b->termOpeningDate ?? '');
+            if ($openA !== '' && $openB !== '' && $openA !== $openB) {
+                return strcmp($openA, $openB);
+            }
+
+            $termA = (int) ($a->termId ?? 0);
+            $termB = (int) ($b->termId ?? 0);
+            if ($termA !== $termB && $termA > 0 && $termB > 0) {
+                return $termA <=> $termB;
+            }
+
+            return $a->sortTimestamp() <=> $b->sortTimestamp();
+        })->values();
 
         return $this->paginateCollection($items, $filters);
     }
@@ -148,7 +168,7 @@ class AssessmentReadFacade
         bool $restrictToPublishedForGuardians,
     ): Collection {
         $query = ExamMark::query()
-            ->with(['exam.examType', 'exam.term', 'subject', 'performanceLevel'])
+            ->with(['exam.examType', 'exam.term', 'exam.academicYear', 'subject', 'performanceLevel'])
             ->where('student_id', $student->id);
 
         if (! empty($filters['subject_id'])) {
@@ -215,6 +235,11 @@ class AssessmentReadFacade
                 status: $status,
                 legacySource: ['table' => 'exam_marks', 'id' => (int) $mark->id],
                 remark: $mark->remark ?? $mark->subject_remark,
+                termName: $exam?->term?->name,
+                termOpeningDate: AssessmentHistoryItem::formatAssessedOn($exam?->term?->opening_date),
+                academicYearLabel: $exam?->academicYear?->year !== null
+                    ? (string) $exam->academicYear->year
+                    : null,
             );
         });
     }
@@ -246,28 +271,32 @@ class AssessmentReadFacade
             });
         }
 
-        return $query->orderByDesc('assessment_date')->get()->map(function (Assessment $row) {
+        $items = $query->orderByDesc('assessment_date')->get()->map(function (Assessment $row) {
             $typeInfo = $this->typeResolver->resolveForWeeklyAssessment($row);
             $score = $row->score !== null ? (float) $row->score : null;
             $max = $row->out_of !== null ? (float) $row->out_of : null;
             $percent = $row->score_percent !== null
                 ? (float) $row->score_percent
                 : AssessmentHistoryItem::buildScorePercent($score, $max);
+            $assessedOn = AssessmentHistoryItem::formatAssessedOn(
+                $row->assessment_date ?? $row->week_ending
+            );
+            $term = $this->resolveTermForDate($assessedOn);
 
             return new AssessmentHistoryItem(
                 id: 'assessment:' . $row->id,
                 type: $typeInfo['type'],
                 typeLabel: $typeInfo['type_label'],
-                title: $row->assessment_type
-                    ? (string) $row->assessment_type
-                    : 'Weekly Assessment',
+                title: $row->academic_group
+                    ? (string) $row->academic_group
+                    : ($row->assessment_type
+                        ? (string) $row->assessment_type
+                        : 'Weekly Assessment'),
                 subjectId: $row->subject_id ? (int) $row->subject_id : null,
                 subjectName: $row->subject?->name,
-                academicYearId: null,
-                termId: null,
-                assessedOn: AssessmentHistoryItem::formatAssessedOn(
-                    $row->assessment_date ?? $row->week_ending
-                ),
+                academicYearId: $term?->academic_year_id ? (int) $term->academic_year_id : null,
+                termId: $term?->id ? (int) $term->id : null,
+                assessedOn: $assessedOn,
                 scoreRaw: $score,
                 scoreMax: $max,
                 scoreDisplay: AssessmentHistoryItem::buildScoreDisplay($score, $max),
@@ -277,8 +306,24 @@ class AssessmentReadFacade
                 status: 'published',
                 legacySource: ['table' => 'assessments', 'id' => (int) $row->id],
                 remark: $row->remarks,
+                termName: $term?->name,
+                termOpeningDate: AssessmentHistoryItem::formatAssessedOn($term?->opening_date),
+                academicYearLabel: $term?->academicYear?->year !== null
+                    ? (string) $term->academicYear->year
+                    : null,
             );
         });
+
+        if (! empty($filters['academic_year_id'])) {
+            $yearId = (int) $filters['academic_year_id'];
+            $items = $items->filter(fn (AssessmentHistoryItem $item) => (int) $item->academicYearId === $yearId);
+        }
+        if (! empty($filters['term_id'])) {
+            $termId = (int) $filters['term_id'];
+            $items = $items->filter(fn (AssessmentHistoryItem $item) => (int) $item->termId === $termId);
+        }
+
+        return $items->values();
     }
 
     /**
@@ -348,7 +393,7 @@ class AssessmentReadFacade
         bool $restrictToPublishedForGuardians,
     ): Collection {
         $query = ReportCard::query()
-            ->with(['term', 'overallPerformanceLevel'])
+            ->with(['term', 'academicYear', 'overallPerformanceLevel'])
             ->where('student_id', $student->id);
 
         if (! empty($filters['academic_year_id'])) {
@@ -404,6 +449,11 @@ class AssessmentReadFacade
                 status: $card->published_at ? 'published' : 'draft',
                 legacySource: ['table' => 'report_cards', 'id' => (int) $card->id],
                 remark: $card->teacher_remark,
+                termName: $card->term?->name,
+                termOpeningDate: AssessmentHistoryItem::formatAssessedOn($card->term?->opening_date),
+                academicYearLabel: $card->academicYear?->year !== null
+                    ? (string) $card->academicYear->year
+                    : null,
             );
         });
     }
@@ -527,6 +577,26 @@ class AssessmentReadFacade
         $term = Term::query()->where('is_current', true)->first();
 
         return $term?->id;
+    }
+
+    protected function resolveTermForDate(?string $date): ?Term
+    {
+        if ($date) {
+            $matched = Term::query()
+                ->with('academicYear')
+                ->whereDate('opening_date', '<=', $date)
+                ->where(function ($q) use ($date) {
+                    $q->whereNull('closing_date')
+                        ->orWhereDate('closing_date', '>=', $date);
+                })
+                ->orderByDesc('opening_date')
+                ->first();
+            if ($matched) {
+                return $matched;
+            }
+        }
+
+        return Term::query()->with('academicYear')->where('is_current', true)->first();
     }
 
     /**

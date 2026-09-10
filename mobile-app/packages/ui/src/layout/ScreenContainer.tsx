@@ -2,6 +2,7 @@ import React, { createContext, useContext, useMemo } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   ScrollViewProps,
   StyleProp,
@@ -35,6 +36,41 @@ export const ScreenContainerDefaultsProvider: React.FC<{
   </ScreenContainerDefaultsContext.Provider>
 );
 
+export interface ScreenRefreshValue {
+  onRefresh?: () => void | Promise<void>;
+  refreshing?: boolean;
+}
+
+const ScreenRefreshContext = createContext<ScreenRefreshValue>({});
+
+/** App-wide pull-to-refresh. Wrap the tree so every ScreenContainer / list can refresh. */
+export const ScreenRefreshProvider: React.FC<ScreenRefreshValue & { children: React.ReactNode }> = ({
+  onRefresh,
+  refreshing,
+  children,
+}) => (
+  <ScreenRefreshContext.Provider value={{ onRefresh, refreshing }}>{children}</ScreenRefreshContext.Provider>
+);
+
+export function useScreenRefresh(): ScreenRefreshValue {
+  return useContext(ScreenRefreshContext);
+}
+
+export function useListRefreshControl(tintColor: string) {
+  const { onRefresh, refreshing } = useScreenRefresh();
+  if (!onRefresh) return undefined;
+  return (
+    <RefreshControl
+      refreshing={Boolean(refreshing)}
+      onRefresh={() => {
+        void onRefresh();
+      }}
+      colors={[tintColor]}
+      tintColor={tintColor}
+    />
+  );
+}
+
 export interface ScreenContainerProps {
   children: React.ReactNode;
   /** Wrap content in a ScrollView. Pass `false` for screens that own a FlatList. */
@@ -46,6 +82,8 @@ export interface ScreenContainerProps {
   keyboardVerticalOffset?: number;
   /** Extra bottom inset so floating tab bar + system nav do not cover actions (default true). */
   clearFloatingTabBar?: boolean;
+  onRefresh?: () => void | Promise<void>;
+  refreshing?: boolean;
 }
 
 function minPaddingBottom(
@@ -73,8 +111,13 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   edges: edgesProp,
   keyboardVerticalOffset,
   clearFloatingTabBar = true,
+  onRefresh: onRefreshProp,
+  refreshing: refreshingProp,
 }) => {
-  const { palette } = useTheme();
+  const { palette, colors } = useTheme();
+  const refreshCtx = useScreenRefresh();
+  const onRefresh = onRefreshProp ?? refreshCtx.onRefresh;
+  const refreshing = refreshingProp ?? refreshCtx.refreshing ?? false;
   const insets = useSafeAreaInsets();
   const defaultEdges = useContext(ScreenContainerDefaultsContext) ?? DEFAULT_EDGES;
   const edges = edgesProp ?? defaultEdges;
@@ -97,6 +140,19 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
     return [...edges, 'bottom' as const];
   }, [edges]);
 
+  const refreshControl = onRefresh
+    ? (
+        <RefreshControl
+          refreshing={Boolean(refreshing)}
+          onRefresh={() => {
+            void onRefresh();
+          }}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      )
+    : scrollProps?.refreshControl;
+
   const body = scroll ? (
     <ScrollView
       style={styles.flex}
@@ -108,6 +164,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
       ]}
       showsVerticalScrollIndicator={false}
       {...scrollProps}
+      refreshControl={refreshControl}
     >
       {children}
     </ScrollView>

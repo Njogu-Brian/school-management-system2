@@ -22,6 +22,9 @@ import {
   AssignmentsHubScreen,
 } from '../../features/teacher/screens/AssignmentsHubScreen';
 import { CreateAssignmentScreen } from '../../features/teacher/screens/CreateAssignmentScreen';
+import { SpeedTestsHubScreen } from '../../features/teacher/screens/SpeedTestsHubScreen';
+import { CreateSpeedTestScreen } from '../../features/teacher/screens/CreateSpeedTestScreen';
+import { SpeedTestMarksScreen } from '../../features/teacher/screens/SpeedTestMarksScreen';
 import { LessonPlanDetailScreen } from '../../features/teacher/screens/LessonPlanDetailScreen';
 import { CreateLessonPlanScreen } from '../../features/teacher/screens/CreateLessonPlanScreen';
 import { LessonPlanReviewDetailScreen } from '../../features/teacher/screens/LessonPlanReviewDetailScreen';
@@ -94,6 +97,9 @@ function teacherSharedScreens() {
       <Stack.Screen name="AssignmentsHub" component={AssignmentsHubScreen} />
       <Stack.Screen name="CreateAssignment" component={CreateAssignmentScreen} />
       <Stack.Screen name="AssignmentDetail" component={AssignmentDetailScreen} />
+      <Stack.Screen name="SpeedTestsHub" component={SpeedTestsHubScreen} />
+      <Stack.Screen name="CreateSpeedTest" component={CreateSpeedTestScreen} />
+      <Stack.Screen name="SpeedTestMarks" component={SpeedTestMarksScreen} />
       <Stack.Screen name="MyAdvances" component={MyAdvancesScreen} />
       <Stack.Screen name="ConcernsList" component={ConcernsListScreen} />
       <Stack.Screen name="RaiseConcern" component={RaiseConcernScreen} />

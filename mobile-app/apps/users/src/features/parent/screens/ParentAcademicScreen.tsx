@@ -3,6 +3,7 @@ import {
   EmptyState,
   ScreenContainer,
   SkeletonListRows,
+  useListRefreshControl,
   useTheme,
 } from '@erp/ui';
 import React, { useMemo } from 'react';
@@ -15,7 +16,7 @@ import { ChildAcademicProgressSection } from '../components/ChildAcademicProgres
  * content never sits under the phone status bar / notch.
  */
 export const ParentAcademicScreen: React.FC = () => {
-  const { spacing, palette, typography } = useTheme();
+  const { spacing, palette, typography, colors } = useTheme();
   const listQuery = useInfiniteStudentList({
     search: '',
     classroomId: null,
@@ -27,6 +28,7 @@ export const ParentAcademicScreen: React.FC = () => {
     () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [listQuery.data],
   );
+  const refreshControl = useListRefreshControl(colors.primary);
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.background }}>
@@ -44,6 +46,7 @@ export const ParentAcademicScreen: React.FC = () => {
           <FlatList
             data={students}
             keyExtractor={(item) => String(item.id)}
+            refreshControl={refreshControl}
             contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
             ListHeaderComponent={
               <Text

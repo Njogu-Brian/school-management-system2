@@ -73,6 +73,9 @@ export function normalizeAssessmentHistoryRow(row: AssessmentHistoryRecord): Ass
     status: row.status,
     remark: row.remark,
     legacySource: row.legacy_source,
+    termName: row.term_name ?? null,
+    termOpeningDate: row.term_opening_date ?? null,
+    academicYearLabel: row.academic_year_label != null ? String(row.academic_year_label) : null,
   };
 }
 
@@ -164,50 +167,164 @@ function termNumberFromTitle(title: string): number {
     lower.match(/\bt\s*([1-3])\b/) ||
     lower.match(/\b([1-3])\s*(?:st|nd|rd|th)?\s*term\b/);
   const n = Number(termMatch?.[1] ?? 0);
-  return Number.isFinite(n) && n > 0 ? n : 9;
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/** Academic calendar order: year, then Term 1 → Term 2, not mark-entry / id order. */
-export function compareByAcademicOrder(a: AssessmentHistoryItem, b: AssessmentHistoryItem): number {
-  const yearA = a.academicYearId ?? 0;
-  const yearB = b.academicYearId ?? 0;
-  if (yearA !== yearB) return yearA - yearB;
+export type SittingKind = 'opener' | 'mid' | 'cat' | 'speed' | 'end' | 'exam' | 'report' | 'other';
 
-  const termA = termNumberFromTitle(`${a.title} ${a.typeLabel ?? ''}`);
-  const termB = termNumberFromTitle(`${b.title} ${b.typeLabel ?? ''}`);
+export function sittingKind(row: AssessmentHistoryItem): SittingKind {
+  if (row.displayCategory === 'report_card') return 'report';
+  const t = `${row.title} ${row.typeLabel}`.toLowerCase();
+  if (row.displayCategory === 'quiz' || /\bspeed/.test(t)) return 'speed';
+  if (row.displayCategory === 'cat' || /\bcat\b/.test(t)) return 'cat';
+  if (/\bopener\b/.test(t) || /\bopening\b/.test(t)) return 'opener';
+  if (/\bmid[\s_-]*term\b/.test(t) || /\bmidterm\b/.test(t) || /\bmid\b/.test(t)) return 'mid';
+  if (
+    /\bend[\s_-]*of[\s_-]*term\b/.test(t) ||
+    /\bend[\s_-]*term\b/.test(t) ||
+    /\bendterm\b/.test(t) ||
+    /\bfinal\b/.test(t)
+  ) {
+    return 'end';
+  }
+  if (row.displayCategory === 'exam') return 'exam';
+  return 'other';
+}
+
+function sittingSortOrder(kind: SittingKind): number {
+  const order: Record<SittingKind, number> = {
+    opener: 1,
+    mid: 2,
+    cat: 3,
+    speed: 4,
+    end: 5,
+    exam: 6,
+    report: 7,
+    other: 8,
+  };
+  return order[kind] ?? 9;
+}
+
+function termNumberForRow(row: AssessmentHistoryItem): number {
+  const fromName = termNumberFromTitle(`${row.termName ?? ''} ${row.title} ${row.typeLabel ?? ''}`);
+  if (fromName > 0) return fromName;
+  return 9;
+}
+
+function yearKey(row: AssessmentHistoryItem): string {
+  if (row.academicYearLabel) return String(row.academicYearLabel);
+  if (row.academicYearId != null) return `id:${row.academicYearId}`;
+  return '0';
+}
+
+/** Academic calendar order: year, Term 1 → Term 2, sitting, not mark-entry / id order. */
+export function compareByAcademicOrder(a: AssessmentHistoryItem, b: AssessmentHistoryItem): number {
+  const yearCmp = yearKey(a).localeCompare(yearKey(b), undefined, { numeric: true });
+  if (yearCmp !== 0) return yearCmp;
+
+  const openA = a.termOpeningDate ?? '';
+  const openB = b.termOpeningDate ?? '';
+  if (openA && openB && openA !== openB) return openA.localeCompare(openB);
+
+  const termA = termNumberForRow(a);
+  const termB = termNumberForRow(b);
   if (termA !== termB) return termA - termB;
+
+  const sitCmp = sittingSortOrder(sittingKind(a)) - sittingSortOrder(sittingKind(b));
+  if (sitCmp !== 0) return sitCmp;
 
   const dateCmp = (a.assessedOn ?? '').localeCompare(b.assessedOn ?? '');
   if (dateCmp !== 0) return dateCmp;
   return a.id.localeCompare(b.id);
 }
 
-/** Term-over-term and scored events for sparkline / list trend */
+export function sittingLabel(row: AssessmentHistoryItem): string {
+  const labeled = assessmentChartLabel(row);
+  const term = termNumberForRow(row);
+  const termBit = term >= 1 && term <= 3 ? ` Term ${term}` : '';
+  if (labeled && labeled !== 'Score') {
+    if (termBit && !/\bterm\s*[1-3]\b/i.test(labeled)) {
+      return `${labeled}${termBit}`;
+    }
+    return labeled;
+  }
+  const kind = sittingKind(row);
+  if (kind === 'opener') return `Opener${termBit}`;
+  if (kind === 'mid') return `Mid${termBit}`;
+  if (kind === 'end') return `End${termBit}`;
+  if (kind === 'cat') return `CAT${termBit}`;
+  if (kind === 'speed') return `Speed test${termBit}`;
+  return row.termName ?? labeled;
+}
+
+export function sittingGroupKey(row: AssessmentHistoryItem): string {
+  return [
+    yearKey(row),
+    String(row.termId ?? termNumberForRow(row)),
+    sittingKind(row),
+  ].join('|');
+}
+
+function averagePercent(rows: AssessmentHistoryItem[]): number | null {
+  const scored = rows.map((r) => r.scorePercent).filter((n): n is number => n != null);
+  if (scored.length === 0) return null;
+  return Math.round((scored.reduce((s, n) => s + n, 0) / scored.length) * 10) / 10;
+}
+
+/** Term-over-term sittings (oldest → newest) for sparkline / list trend */
 export function buildPerformanceTrend(items: AssessmentHistoryItem[]): PerformanceTrendPoint[] {
+  const examLike = items.filter(
+    (i) =>
+      i.scorePercent != null &&
+      (i.displayCategory === 'exam' || i.displayCategory === 'cat' || i.displayCategory === 'quiz'),
+  );
+
+  const grouped = new Map<string, AssessmentHistoryItem[]>();
+  for (const row of examLike) {
+    const key = sittingGroupKey(row);
+    const list = grouped.get(key) ?? [];
+    list.push(row);
+    grouped.set(key, list);
+  }
+
+  const sittingPoints = [...grouped.entries()]
+    .map(([, rows]) => {
+      const sorted = [...rows].sort(compareByAcademicOrder);
+      const head = sorted[0];
+      const percentage = averagePercent(sorted);
+      if (!head || percentage == null) return null;
+      return {
+        sortRow: head,
+        point: {
+          label: sittingLabel(head),
+          percentage,
+          assessedOn: head.assessedOn,
+          kind: 'assessment' as const,
+        },
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null)
+    .sort((a, b) => compareByAcademicOrder(a.sortRow, b.sortRow))
+    .map((x) => x.point);
+
+  if (sittingPoints.length >= 1) {
+    return sittingPoints;
+  }
+
   const reportCards = items
     .filter((i) => i.displayCategory === 'report_card' && i.scorePercent != null)
     .sort(compareByAcademicOrder);
 
-  if (reportCards.length >= 2) {
+  if (reportCards.length >= 1) {
     return reportCards.map((rc) => ({
-      label: assessmentChartLabel(rc) || 'Term',
+      label: assessmentChartLabel(rc) || rc.termName || 'Term',
       percentage: rc.scorePercent as number,
       assessedOn: rc.assessedOn,
       kind: 'report_card' as const,
     }));
   }
 
-  const scored = items
-    .filter((i) => i.displayCategory !== 'report_card' && i.scorePercent != null)
-    .sort(compareByAcademicOrder)
-    .slice(-12);
-
-  return scored.map((row) => ({
-    label: assessmentChartLabel(row),
-    percentage: row.scorePercent as number,
-    assessedOn: row.assessedOn,
-    kind: 'assessment' as const,
-  }));
+  return [];
 }
 
 export function computeTrendDelta(points: PerformanceTrendPoint[]): number | null {
@@ -247,11 +364,12 @@ export function buildSubjectProgress(items: AssessmentHistoryItem[]): SubjectPro
   const series: SubjectProgressSeries[] = [];
   for (const [subjectId, rows] of bySubject) {
     const sorted = [...rows].sort(compareByAcademicOrder);
-    // Prefer formal exams (mid/end/opener) when available so markers stay readable.
-    const examRows = sorted.filter((r) => r.displayCategory === 'exam');
+    const examRows = sorted.filter(
+      (r) => r.displayCategory === 'exam' || r.displayCategory === 'cat' || r.displayCategory === 'quiz',
+    );
     const source = examRows.length > 0 ? examRows : sorted;
-    const points: PerformanceTrendPoint[] = source.slice(-12).map((row) => ({
-      label: assessmentChartLabel(row),
+    const points: PerformanceTrendPoint[] = source.map((row) => ({
+      label: sittingLabel(row),
       percentage: row.scorePercent as number,
       assessedOn: row.assessedOn,
       kind: 'assessment' as const,

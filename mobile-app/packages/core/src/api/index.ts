@@ -15,7 +15,7 @@ export * from './dashboard.api';
 export * from './admissions.api';
 export * from './approvals.api';
 export * from './students.api';
-export * from './academics.api';
+export * from './speedTests.api';
 export * from './settings.api';
 export * from './staff.api';
 export * from './payroll.api';

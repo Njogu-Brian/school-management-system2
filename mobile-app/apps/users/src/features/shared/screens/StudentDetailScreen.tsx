@@ -34,7 +34,7 @@ import {
   type StudentSummaryWidgetData,
 } from '@erp/ui';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 type DetailParams = { studentId: number };
@@ -212,6 +212,11 @@ const AcademicsTab: React.FC<{ studentId: number; studentName?: string; isStaff?
   const navigation = useNavigation<LooseNav>();
   const summaryQuery = useStudentAcademicSummary(studentId);
   const historyQuery = useStudentAssessmentHistory(studentId, { category: 'all' });
+  useEffect(() => {
+    if (historyQuery.hasNextPage && !historyQuery.isFetchingNextPage) {
+      void historyQuery.fetchNextPage();
+    }
+  }, [historyQuery.hasNextPage, historyQuery.isFetchingNextPage, historyQuery.fetchNextPage]);
   const historyItems = useMemo(
     () => historyQuery.data?.pages.flatMap((p) => p.rows) ?? [],
     [historyQuery.data],

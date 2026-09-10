@@ -1,8 +1,8 @@
 import {
   useClassroomSubjects,
+  useClassrooms,
   useCreateHomework,
   useInfiniteStudentList,
-  useSettingsClasses,
   type HomeworkFileInput,
 } from '@erp/core';
 import {
@@ -18,7 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
 type LocalFile = HomeworkFileInput & { kind: 'photo' | 'video' | 'document' };
@@ -29,7 +29,7 @@ type Step = 'form' | 'review';
 export const CreateAssignmentScreen: React.FC = () => {
   const navigation = useNavigation();
   const { palette, spacing, typography, colors, radius } = useTheme();
-  const classesQuery = useSettingsClasses();
+  const classesQuery = useClassrooms();
   const createMutation = useCreateHomework();
 
   const [title, setTitle] = useState('');
@@ -143,7 +143,7 @@ export const CreateAssignmentScreen: React.FC = () => {
       return 'Title, due date, class, and subject are required.';
     }
     if (targetMode === 'students' && selectedStudentIds.length === 0) {
-      return 'Select at least one student, or choose all students in class.';
+      return 'Select at least one student, or choose entire class.';
     }
     const parsedScore = maxScore.trim() ? Number(maxScore.trim()) : undefined;
     if (parsedScore != null && (!Number.isFinite(parsedScore) || parsedScore <= 0)) {
@@ -186,8 +186,7 @@ export const CreateAssignmentScreen: React.FC = () => {
   const subjectName = (subjectsQuery.data ?? []).find((s) => s.id === subjectId)?.name ?? '—';
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+    <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader title="Create homework" onBack={() => navigation.goBack()} />
 
         {step === 'review' ? (
@@ -201,7 +200,7 @@ export const CreateAssignmentScreen: React.FC = () => {
             <Text style={{ color: palette.textSecondary }}>
               Target:{' '}
               {targetMode === 'class'
-                ? 'All students in class'
+                ? 'Entire class'
                 : `${selectedStudentIds.length} selected student(s)`}
             </Text>
             <Button label="Publish" loading={createMutation.isPending} onPress={() => void submit()} />
@@ -221,8 +220,8 @@ export const CreateAssignmentScreen: React.FC = () => {
               onChangeText={setMaxScore}
               keyboardType="number-pad"
             />
-            <FilterChipRow label="Class">
-              {(classesQuery.data ?? []).slice(0, 30).map((c) => (
+            <FilterChipRow label="Class" wrap>
+              {(classesQuery.data ?? []).map((c) => (
                 <FilterChip
                   key={c.id}
                   label={c.name}
@@ -231,10 +230,20 @@ export const CreateAssignmentScreen: React.FC = () => {
                 />
               ))}
             </FilterChipRow>
-            <FilterChipRow label="Subject you teach">
+            {classesQuery.isLoading ? (
+              <Text style={{ color: palette.textMuted, marginBottom: spacing.sm, fontSize: typography.caption.fontSize }}>
+                Loading classes…
+              </Text>
+            ) : null}
+            {classesQuery.isError || ((classesQuery.data ?? []).length === 0 && !classesQuery.isLoading) ? (
+              <Text style={{ color: palette.textSecondary, marginBottom: spacing.sm, fontSize: typography.caption.fontSize }}>
+                No classes available. Pull to refresh, or confirm you are assigned to a class.
+              </Text>
+            ) : null}
+            <FilterChipRow label="Subject you teach" wrap>
               {!classroomId
                 ? null
-                : (subjectsQuery.data ?? []).slice(0, 40).map((s) => (
+                : (subjectsQuery.data ?? []).map((s) => (
                     <FilterChip
                       key={s.id}
                       label={s.name}
@@ -246,7 +255,7 @@ export const CreateAssignmentScreen: React.FC = () => {
 
             <FilterChipRow label="Target students">
               <FilterChip
-                label="All in class"
+                label="Entire class"
                 active={targetMode === 'class'}
                 onPress={() => setTargetMode('class')}
               />
@@ -379,7 +388,6 @@ export const CreateAssignmentScreen: React.FC = () => {
             />
           </>
         )}
-      </ScrollView>
     </ScreenContainer>
   );
 };

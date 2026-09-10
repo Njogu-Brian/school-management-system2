@@ -25,7 +25,7 @@ import {
   type ReportCardHistoryItemData,
   useTheme,
 } from '@erp/ui';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { formatDateLabel, formatPercent } from '../utils/formatters';
 
@@ -44,6 +44,11 @@ export const AcademicsTab: React.FC<AcademicsTabProps> = ({ studentId, onOpenRep
     category,
     subjectId,
   });
+  useEffect(() => {
+    if (historyQuery.hasNextPage && !historyQuery.isFetchingNextPage) {
+      void historyQuery.fetchNextPage();
+    }
+  }, [historyQuery.hasNextPage, historyQuery.isFetchingNextPage, historyQuery.fetchNextPage]);
   const reportCardsQuery = useStudentReportCards(studentId);
 
   const latestRcId = summaryQuery.data?.latestReportCardId;

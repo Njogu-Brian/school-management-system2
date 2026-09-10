@@ -16,6 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UsersRootNavigator } from './src/navigation/UsersRootNavigator';
 import { AppThemeProvider } from './src/providers/AppThemeProvider';
 import { PersistedQueryProvider } from './src/providers/PersistedQueryProvider';
+import { ScreenRefreshBridge } from './src/providers/ScreenRefreshBridge';
 import { UsersPushNotifications } from './src/providers/UsersPushNotifications';
 import { useExpoOtaUpdates } from './src/hooks/useExpoOtaUpdates';
 
@@ -33,12 +34,14 @@ function AppRoot(): React.JSX.Element {
         <SessionProvider>
           <AuthProvider>
             <PersistedQueryProvider>
-              <RbacProvider>
-                <BiometricAuthProvider>
-                  <UsersPushNotifications />
-                  <UsersRootNavigator />
-                </BiometricAuthProvider>
-              </RbacProvider>
+              <ScreenRefreshBridge>
+                <RbacProvider>
+                  <BiometricAuthProvider>
+                    <UsersPushNotifications />
+                    <UsersRootNavigator />
+                  </BiometricAuthProvider>
+                </RbacProvider>
+              </ScreenRefreshBridge>
             </PersistedQueryProvider>
           </AuthProvider>
         </SessionProvider>

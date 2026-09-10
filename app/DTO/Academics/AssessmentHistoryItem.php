@@ -28,6 +28,9 @@ class AssessmentHistoryItem
         public readonly string $status,
         public readonly array $legacySource,
         public readonly ?string $remark = null,
+        public readonly ?string $termName = null,
+        public readonly ?string $termOpeningDate = null,
+        public readonly ?string $academicYearLabel = null,
     ) {
     }
 
@@ -55,6 +58,9 @@ class AssessmentHistoryItem
             'status' => $this->status,
             'remark' => $this->remark,
             'legacy_source' => $this->legacySource,
+            'term_name' => $this->termName,
+            'term_opening_date' => $this->termOpeningDate,
+            'academic_year_label' => $this->academicYearLabel,
         ];
     }
 

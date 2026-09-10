@@ -37,11 +37,31 @@ function toneMeta(direction: ProgressTone): {
   return { label: 'Stable', color: '#64748B', icon: 'remove-outline' };
 }
 
-function barFill(percent: number, tone: string, primary: string): string {
-  if (percent >= 70) return tone === '#059669' ? tone : primary;
-  if (percent >= 50) return primary;
-  if (percent >= 40) return '#D97706';
-  return '#DC2626';
+function clamp01(n: number): number {
+  return Math.max(0, Math.min(1, n));
+}
+
+function mixChannel(a: number, b: number, t: number): number {
+  return Math.round(a + (b - a) * t);
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = hex.replace('#', '');
+  return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+}
+
+function mixHex(from: string, to: string, t: number): string {
+  const a = hexToRgb(from);
+  const b = hexToRgb(to);
+  const p = clamp01(t);
+  return `rgb(${mixChannel(a[0], b[0], p)}, ${mixChannel(a[1], b[1], p)}, ${mixChannel(a[2], b[2], p)})`;
+}
+
+/** Red (low) → orange (mid) → green (high) from the mark scored. */
+function barFill(percent: number): string {
+  const p = clamp01(percent / 100);
+  if (p < 0.5) return mixHex('#DC2626', '#F59E0B', p / 0.5);
+  return mixHex('#F59E0B', '#16A34A', (p - 0.5) / 0.5);
 }
 
 /** Overall / subject progress as a bar chart with angled exam labels. */
@@ -53,7 +73,7 @@ export const ProgressTrendPanel: React.FC<ProgressTrendPanelProps> = ({
   delta = null,
   emptyMessage = 'Not enough scores yet to chart progress.',
 }) => {
-  const { palette, spacing, typography, radius, colors } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
   const meta = toneMeta(direction);
   const latest = points.length > 0 ? points[points.length - 1].percentage : null;
 
@@ -132,7 +152,7 @@ export const ProgressTrendPanel: React.FC<ProgressTrendPanelProps> = ({
               />
               {points.map((p, index) => {
                 const h = Math.max(6, Math.round((Math.min(p.percentage, 100) / 100) * BAR_MAX_H));
-                const fill = barFill(p.percentage, meta.color, colors.primary);
+                const fill = barFill(p.percentage);
                 const isLatest = index === points.length - 1;
                 return (
                   <View key={`bar-${index}-${p.label}-${p.percentage}`} style={styles.col}>

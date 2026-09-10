@@ -14,6 +14,7 @@ import {
   SkeletonListRows,
   Soft3DIcon,
   StatusBadge,
+  useListRefreshControl,
   useTheme,
 } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,8 +28,9 @@ type Nav = StackNavigationProp<TeacherStackParamList>;
 
 export const AssignmentsHubScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography, radius, colors } = useTheme();
   const listQuery = useHomeworkList();
+  const refreshControl = useListRefreshControl(colors.primary);
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
@@ -54,6 +56,7 @@ export const AssignmentsHubScreen: React.FC = () => {
         <FlatList
           data={listQuery.data ?? []}
           keyExtractor={(item) => String(item.id)}
+          refreshControl={refreshControl}
           contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
           renderItem={({ item }) => (
             <Pressable

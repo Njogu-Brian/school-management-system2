@@ -24,6 +24,8 @@ class Assessment extends Model
         'score_percent',
         'remarks',
         'academic_group',
+        'question_count',
+        'batch_key',
     ];
 
     protected $casts = [
@@ -32,6 +34,7 @@ class Assessment extends Model
         'score' => 'decimal:2',
         'out_of' => 'decimal:2',
         'score_percent' => 'decimal:2',
+        'question_count' => 'integer',
     ];
 
     protected static function booted()

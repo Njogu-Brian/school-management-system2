@@ -1,4 +1,4 @@
-import { useDiaryThread, useSendDiaryMessage, type DiaryChannel, type DiaryEntryRecord } from '@erp/core';
+import { useAppMode, useDiaryThread, useRbac, useSendDiaryMessage, type DiaryChannel, type DiaryEntryRecord } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
@@ -7,6 +7,7 @@ import {
   FilterChipRow,
   ScreenContainer,
   SkeletonListRows,
+  useListRefreshControl,
   useTheme,
 } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +27,7 @@ import {
   View,
 } from 'react-native';
 import { showError, showSuccess } from '../utils/feedback';
+import { diaryChannelCopy } from './diaryChannelCopy';
 
 type AttachmentDraft = { uri: string; name: string; type: string };
 
@@ -68,7 +70,16 @@ export const DiaryChatScreen: React.FC = () => {
 
   const entries = useMemo(() => threadQuery.data?.entries ?? [], [threadQuery.data]);
   const title = threadQuery.data?.student_name ?? studentName ?? `Student #${studentId}`;
-  const channelLabel = channel === 'admin_parent' ? 'Admin only' : 'Class teacher / admin';
+  const { mode } = useAppMode();
+  const { hasAnyRole } = useRbac();
+  const viewer = mode === 'home' ? 'parent' : 'staff';
+  const teacherCopy = diaryChannelCopy('teacher_parent', viewer);
+  const officeCopy = diaryChannelCopy('admin_parent', viewer);
+  const channelLabel = diaryChannelCopy(channel, viewer).label;
+  const canUseAdminDiary =
+    viewer === 'parent' ||
+    hasAnyRole('Admin', 'Super Admin', 'Secretary', 'Academic Administrator', 'Director');
+  const refreshControl = useListRefreshControl(colors.primary);
 
   useEffect(() => {
     if (entries.length === 0) return;
@@ -120,22 +131,22 @@ export const DiaryChatScreen: React.FC = () => {
           subtitle={`${channelLabel} conversation`}
           onBack={() => navigation.goBack()}
         />
-        <FilterChipRow label="Send to">
+        <FilterChipRow label={viewer === 'parent' ? 'Conversation' : 'Diary'}>
           <FilterChip
-            label="Class teacher / admin"
+            label={teacherCopy.label}
             active={channel === 'teacher_parent'}
             onPress={() => setChannel('teacher_parent')}
           />
-          <FilterChip
-            label="Admin only"
-            active={channel === 'admin_parent'}
-            onPress={() => setChannel('admin_parent')}
-          />
+          {canUseAdminDiary ? (
+            <FilterChip
+              label={officeCopy.label}
+              active={channel === 'admin_parent'}
+              onPress={() => setChannel('admin_parent')}
+            />
+          ) : null}
         </FilterChipRow>
         <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-          {channel === 'admin_parent'
-            ? 'Admin only — teachers cannot read this thread.'
-            : 'Class teacher / admin — your class teacher and authorized school staff see this thread.'}
+          {diaryChannelCopy(channel, viewer).hint}
         </Text>
       </View>
 
@@ -159,6 +170,7 @@ export const DiaryChatScreen: React.FC = () => {
             ref={listRef}
             data={entries}
             keyExtractor={(item) => String(item.id)}
+            refreshControl={refreshControl}
             contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.lg, flexGrow: 1 }}
             ListEmptyComponent={
               <EmptyState

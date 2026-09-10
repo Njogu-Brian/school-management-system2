@@ -59,3 +59,8 @@ _stitch_inventory/
 /scripts/reconcile_fun_day_faulu.py
 /scripts/extract_statement_match.py
 /scripts/build_paid_transport_list.py
+
+# Local MariaDB / artisan scratch output (never commit)
+/mariadb-start.err
+/mariadb-start.out
+/migrate_test_out.txt

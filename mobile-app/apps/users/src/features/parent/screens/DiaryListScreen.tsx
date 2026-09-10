@@ -1,4 +1,4 @@
-import { useDiaryThreads, type DiaryChannel } from '@erp/core';
+import { useAppMode, useDiaryThreads, type DiaryChannel } from '@erp/core';
 import {
   AcademicScreenHeader,
   EmptyState,
@@ -7,6 +7,7 @@ import {
   ListRowCard,
   ScreenContainer,
   SkeletonListRows,
+  useListRefreshControl,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -15,31 +16,37 @@ import React, { useState } from 'react';
 import { FlatList, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { goBackInStack } from '../../../navigation/navigateToTab';
+import { diaryChannelCopy } from '../../shared/diary/diaryChannelCopy';
 
 type Nav = StackNavigationProp<ParentStackParamList>;
 
 export const DiaryListScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
-  const { spacing } = useTheme();
+  const { spacing, colors } = useTheme();
   const [channel, setChannel] = useState<DiaryChannel>('teacher_parent');
+  const { mode } = useAppMode();
+  const viewer = mode === 'home' ? 'parent' : 'staff';
+  const teacherCopy = diaryChannelCopy('teacher_parent', viewer);
+  const officeCopy = diaryChannelCopy('admin_parent', viewer);
   const threads = useDiaryThreads({ channel });
+  const refreshControl = useListRefreshControl(colors.primary);
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['top', 'bottom']}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
         <AcademicScreenHeader
           title="Messages"
-          subtitle="Teacher and school conversations are separate"
+          subtitle="Class teacher and school office conversations are separate"
           onBack={() => goBackInStack(navigation, 'ParentHome')}
         />
-        <FilterChipRow label="Channel">
+        <FilterChipRow label="Conversation">
           <FilterChip
-            label="Class teacher / admin"
+            label={teacherCopy.label}
             active={channel === 'teacher_parent'}
             onPress={() => setChannel('teacher_parent')}
           />
           <FilterChip
-            label="Admin only"
+            label={officeCopy.label}
             active={channel === 'admin_parent'}
             onPress={() => setChannel('admin_parent')}
           />
@@ -58,7 +65,7 @@ export const DiaryListScreen: React.FC = () => {
         />
       ) : (threads.data ?? []).length === 0 ? (
         <EmptyState
-          title={channel === 'admin_parent' ? 'No school conversations' : 'No teacher conversations'}
+          title={channel === 'admin_parent' ? 'No school office conversations' : 'No class teacher conversations'}
           message="Open a child hub to start a conversation in this channel."
           icon="chatbubbles-outline"
         />
@@ -66,6 +73,7 @@ export const DiaryListScreen: React.FC = () => {
         <FlatList
           data={threads.data ?? []}
           keyExtractor={(item) => String(item.id)}
+          refreshControl={refreshControl}
           contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
           renderItem={({ item }) => (
             <ListRowCard

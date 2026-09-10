@@ -23,6 +23,7 @@ const SECTIONS = [
   { route: 'MarksMatrix' as const, label: 'Marks Matrix', icon: 'apps-outline' as const },
   { route: 'ReportCards' as const, label: 'Report Cards', icon: 'ribbon-outline' as const },
   { route: 'Moderation' as const, label: 'Moderation', icon: 'shield-checkmark-outline' as const },
+  { route: 'SpeedTests' as const, label: 'Speed tests', icon: 'flash-outline' as const },
   { route: 'CbcCurriculum' as const, label: 'CBC Curriculum', icon: 'library-outline' as const },
 ];
 

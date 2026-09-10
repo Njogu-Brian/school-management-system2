@@ -46,6 +46,9 @@ export type TeacherStackParamList = {
   AssignmentsHub: undefined;
   CreateAssignment: undefined;
   AssignmentDetail: { assignmentId: number };
+  SpeedTestsHub: undefined;
+  CreateSpeedTest: undefined;
+  SpeedTestMarks: { batchKey: string; title?: string };
   MyAdvances: undefined;
   ConcernsList: undefined;
   RaiseConcern: { studentId?: number } | undefined;

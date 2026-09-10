@@ -498,6 +498,11 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::post('/lesson-plans/{id}/approve', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'approve']);
     Route::post('/lesson-plans/{id}/reject', [\App\Http\Controllers\Api\ApiLessonPlansController::class, 'reject']);
 
+    Route::get('/speed-tests', [\App\Http\Controllers\Api\ApiSpeedTestController::class, 'index']);
+    Route::post('/speed-tests', [\App\Http\Controllers\Api\ApiSpeedTestController::class, 'store']);
+    Route::get('/speed-tests/{batchKey}', [\App\Http\Controllers\Api\ApiSpeedTestController::class, 'show']);
+    Route::put('/speed-tests/{batchKey}/marks', [\App\Http\Controllers\Api\ApiSpeedTestController::class, 'saveMarks']);
+
     Route::get('/exams', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'exams']);
     Route::get('/exam-sessions', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examSessions']);
     Route::get('/exams/{id}/marking-options', [\App\Http\Controllers\Api\ApiAcademicsController::class, 'examMarkingOptions']);

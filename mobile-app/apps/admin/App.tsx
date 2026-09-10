@@ -18,6 +18,7 @@ import { useExpoOtaUpdates } from './src/hooks/useExpoOtaUpdates';
 import { AdminRootNavigator } from './src/navigation/AdminRootNavigator';
 import { AdminPushNotifications } from './src/providers/AdminPushNotifications';
 import { PersistedQueryProvider } from './src/providers/PersistedQueryProvider';
+import { ScreenRefreshBridge } from './src/providers/ScreenRefreshBridge';
 
 const ThemedStatusBar: React.FC = () => {
   const { isDark } = useTheme();
@@ -53,6 +54,7 @@ export default function App(): React.JSX.Element {
               <SessionProvider>
                 <AuthProvider>
                   <PersistedQueryProvider>
+                    <ScreenRefreshBridge>
                     <RbacProvider>
                       <BiometricAuthProvider>
                         <AdminPushNotifications />
@@ -61,6 +63,7 @@ export default function App(): React.JSX.Element {
                         </ScreenContainerDefaultsProvider>
                       </BiometricAuthProvider>
                     </RbacProvider>
+                    </ScreenRefreshBridge>
                   </PersistedQueryProvider>
                 </AuthProvider>
               </SessionProvider>

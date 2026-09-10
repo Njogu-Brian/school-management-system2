@@ -1,4 +1,4 @@
-import { useStudentDetail, useStudentReportCards } from '@erp/core';
+import { useSpeedTests, useStudentDetail, useStudentReportCards } from '@erp/core';
 import {
   AcademicScreenHeader,
   EmptyState,
@@ -22,6 +22,7 @@ export const ChildResultsScreen: React.FC = () => {
   const studentId = route.params.studentId;
   const detail = useStudentDetail(studentId, { enabled: studentId > 0 });
   const reportCards = useStudentReportCards(studentId);
+  const speedTests = useSpeedTests({ student_id: studentId, enabled: studentId > 0 });
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
@@ -55,6 +56,53 @@ export const ChildResultsScreen: React.FC = () => {
           fontWeight: '700',
           fontSize: typography.caption.fontSize,
           marginBottom: spacing.xs,
+          marginTop: spacing.md,
+          textTransform: 'uppercase',
+          letterSpacing: 0.4,
+        }}
+      >
+        Speed tests
+      </Text>
+      {speedTests.isLoading ? (
+        <SkeletonListRows count={2} />
+      ) : (speedTests.data ?? []).length === 0 ? (
+        <EmptyState
+          title="No speed tests"
+          message="Short quizzes from teachers will appear here."
+          icon="flash-outline"
+        />
+      ) : (
+        (speedTests.data ?? []).map((batch) => {
+          const mine = batch.entries?.[0];
+          const score =
+            mine?.score != null && mine.out_of != null
+              ? `${mine.score}/${mine.out_of}`
+              : mine?.score_percent != null
+                ? `${mine.score_percent.toFixed(0)}%`
+                : 'Awaiting marks';
+          return (
+            <ListRowCard
+              key={batch.batch_key}
+              title={batch.title}
+              subtitle={[batch.subject_name, batch.question_count ? `${batch.question_count} questions` : null]
+                .filter(Boolean)
+                .join(' · ')}
+              meta={score}
+              icon="flash-outline"
+              glyph="chart"
+              accent="info"
+            />
+          );
+        })
+      )}
+
+      <Text
+        style={{
+          color: palette.textSecondary,
+          fontWeight: '700',
+          fontSize: typography.caption.fontSize,
+          marginBottom: spacing.xs,
+          marginTop: spacing.md,
           textTransform: 'uppercase',
           letterSpacing: 0.4,
         }}

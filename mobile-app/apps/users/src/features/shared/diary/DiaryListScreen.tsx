@@ -1,7 +1,9 @@
-import { useDiaryThreads } from '@erp/core';
+import { useAppMode, useDiaryThreads, useRbac, type DiaryChannel } from '@erp/core';
 import {
   AcademicScreenHeader,
   EmptyState,
+  FilterChip,
+  FilterChipRow,
   ScreenContainer,
   SkeletonListRows,
   Soft3DIcon,
@@ -13,10 +15,11 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { goBackInStack } from '../../../navigation/navigateToTab';
+import { diaryChannelCopy } from './diaryChannelCopy';
 
 type DiaryNav = StackNavigationProp<{
   DiaryList: undefined;
-  DiaryChat: { studentId: number; studentName?: string };
+  DiaryChat: { studentId: number; studentName?: string; channel?: DiaryChannel };
   MoreMain: undefined;
   HomeMain: undefined;
 }>;
@@ -25,7 +28,16 @@ export const DiaryListScreen: React.FC = () => {
   const navigation = useNavigation<DiaryNav>();
   const { colors, palette, spacing, typography, radius } = useTheme();
   const [search, setSearch] = useState('');
-  const threadsQuery = useDiaryThreads({ search: search.trim() || undefined });
+  const [channel, setChannel] = useState<DiaryChannel>('teacher_parent');
+  const { mode } = useAppMode();
+  const { hasAnyRole } = useRbac();
+  const viewer = mode === 'home' ? 'parent' : 'staff';
+  const teacherCopy = diaryChannelCopy('teacher_parent', viewer);
+  const officeCopy = diaryChannelCopy('admin_parent', viewer);
+  const canUseAdminDiary =
+    viewer === 'parent' ||
+    hasAnyRole('Admin', 'Super Admin', 'Secretary', 'Academic Administrator', 'Director');
+  const threadsQuery = useDiaryThreads({ search: search.trim() || undefined, channel });
 
   const threads = useMemo(() => threadsQuery.data ?? [], [threadsQuery.data]);
 
@@ -39,9 +51,23 @@ export const DiaryListScreen: React.FC = () => {
           <View style={{ marginBottom: spacing.sm }}>
             <AcademicScreenHeader
               title="Student diary"
-              subtitle="Parent–teacher message threads"
+              subtitle={channel === 'admin_parent' ? 'Admin only conversations' : 'Teacher only conversations'}
               onBack={() => goBackInStack(navigation, 'HomeMain')}
             />
+            <FilterChipRow label="Diary">
+              <FilterChip
+                label={teacherCopy.label}
+                active={channel === 'teacher_parent'}
+                onPress={() => setChannel('teacher_parent')}
+              />
+              {canUseAdminDiary ? (
+                <FilterChip
+                  label={officeCopy.label}
+                  active={channel === 'admin_parent'}
+                  onPress={() => setChannel('admin_parent')}
+                />
+              ) : null}
+            </FilterChipRow>
             <TextField
               label="Search"
               value={search}
@@ -56,6 +82,7 @@ export const DiaryListScreen: React.FC = () => {
               navigation.navigate('DiaryChat', {
                 studentId: item.student_id,
                 studentName: item.student_name ?? undefined,
+                channel,
               })
             }
             style={[

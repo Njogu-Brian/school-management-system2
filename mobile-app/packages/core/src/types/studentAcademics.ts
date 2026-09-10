@@ -18,6 +18,9 @@ export interface AssessmentHistoryRecord {
   status: string;
   remark: string | null;
   legacy_source: { table: string; id: number };
+  term_name?: string | null;
+  term_opening_date?: string | null;
+  academic_year_label?: string | number | null;
 }
 
 export interface PerformanceLevelRecord {
@@ -168,6 +171,9 @@ export interface AssessmentHistoryItem {
   status: string;
   remark: string | null;
   legacySource: { table: string; id: number };
+  termName?: string | null;
+  termOpeningDate?: string | null;
+  academicYearLabel?: string | null;
 }
 
 export interface AcademicSummary {

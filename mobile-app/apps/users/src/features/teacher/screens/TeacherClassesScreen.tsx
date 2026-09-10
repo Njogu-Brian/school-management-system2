@@ -6,6 +6,7 @@ import {
   FilterChipRow,
   ScreenContainer,
   SkeletonListRows,
+  useListRefreshControl,
   useTheme,
 } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
@@ -17,7 +18,7 @@ import type { TeacherStackParamList } from '../../../navigation/teacher/teacherS
 type Nav = StackNavigationProp<TeacherStackParamList>;
 
 export const TeacherClassesScreen: React.FC = () => {
-  const { palette, spacing, typography, radius } = useTheme();
+  const { palette, spacing, typography, radius, colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const [classroomId, setClassroomId] = useState<number | null>(null);
   const classroomsQuery = useClassrooms();
@@ -34,6 +35,7 @@ export const TeacherClassesScreen: React.FC = () => {
     () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [listQuery.data],
   );
+  const refreshControl = useListRefreshControl(colors.primary);
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} edges={['bottom']}>
@@ -68,6 +70,7 @@ export const TeacherClassesScreen: React.FC = () => {
         <FlatList
           data={students}
           keyExtractor={(item) => String(item.id)}
+          refreshControl={refreshControl}
           contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
           onEndReached={() => {
             if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) {

@@ -45,10 +45,12 @@ export interface FilterChipRowProps {
   label?: string;
   children: React.ReactNode;
   style?: ViewStyle;
+  /** Wrap chips onto new lines so they stay tappable inside a vertical form scroll. */
+  wrap?: boolean;
 }
 
-/** Horizontal scroll row of filter chips with optional section label. */
-export const FilterChipRow: React.FC<FilterChipRowProps> = ({ label, children, style }) => {
+/** Row of filter chips with optional section label. */
+export const FilterChipRow: React.FC<FilterChipRowProps> = ({ label, children, style, wrap = false }) => {
   const { palette, typography, spacing } = useTheme();
 
   return (
@@ -68,13 +70,21 @@ export const FilterChipRow: React.FC<FilterChipRowProps> = ({ label, children, s
           {label.toUpperCase()}
         </Text>
       ) : null}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[styles.row, { gap: spacing.xs, paddingVertical: spacing.xs }]}
-      >
-        {children}
-      </ScrollView>
+      {wrap ? (
+        <View style={[styles.row, styles.wrapRow, { gap: spacing.xs, paddingVertical: spacing.xs }]}>
+          {children}
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          keyboardShouldPersistTaps="handled"
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.row, { gap: spacing.xs, paddingVertical: spacing.xs }]}
+        >
+          {children}
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -83,4 +93,5 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1 },
   sectionLabel: { fontWeight: '600', marginLeft: 2 },
   row: { flexDirection: 'row', alignItems: 'center' },
+  wrapRow: { flexWrap: 'wrap' },
 });

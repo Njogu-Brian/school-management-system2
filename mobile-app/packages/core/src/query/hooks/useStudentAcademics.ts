@@ -113,7 +113,7 @@ export function useStudentAssessmentHistory(
     queryFn: async ({ pageParam }): Promise<HistoryPage> => {
       const res = await academicsApi.getAssessmentHistory(studentId, {
         page: pageParam,
-        per_page: 25,
+        per_page: 100,
         type: apiType,
         subject_id: filters.subjectId ?? undefined,
         term_id: filters.termId ?? undefined,
