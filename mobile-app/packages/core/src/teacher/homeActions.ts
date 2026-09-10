@@ -1,5 +1,5 @@
 /**
- * Teacher Home action catalog — classify daily work vs secondary More items.
+ * Teacher Home action catalog — all daily + account tools live on Home (no More tab).
  */
 
 export type TeacherHomeActionId =
@@ -12,7 +12,13 @@ export type TeacherHomeActionId =
   | 'classes'
   | 'lesson_plans'
   | 'settings'
-  | 'profile';
+  | 'profile'
+  | 'staff_clock'
+  | 'leave'
+  | 'payslips'
+  | 'announcements'
+  | 'requirements'
+  | 'academics';
 
 export type TeacherHomeJump = {
   tab: string;
@@ -34,7 +40,13 @@ export type TeacherHomeActionDef = {
     | 'people-outline'
     | 'document-text-outline'
     | 'settings-outline'
-    | 'person-outline';
+    | 'person-outline'
+    | 'time-outline'
+    | 'calendar-outline'
+    | 'wallet-outline'
+    | 'megaphone-outline'
+    | 'clipboard-outline'
+    | 'school-outline';
   jump: TeacherHomeJump;
 };
 
@@ -52,28 +64,28 @@ export const TEACHER_HOME_CORE_ACTIONS: TeacherHomeActionDef[] = [
     label: 'Homework',
     category: 'A',
     icon: 'book-outline',
-    jump: { tab: 'More', screen: 'AssignmentsHub', tabHome: 'MoreMain' },
+    jump: { tab: 'Home', screen: 'AssignmentsHub', tabHome: 'HomeMain' },
   },
   {
     id: 'marks',
     label: 'Marks',
     category: 'A',
     icon: 'create-outline',
-    jump: { tab: 'More', screen: 'MarksHub', tabHome: 'MoreMain' },
+    jump: { tab: 'Home', screen: 'MarksHub', tabHome: 'HomeMain' },
   },
   {
     id: 'diary',
     label: 'Diary',
     category: 'A',
     icon: 'chatbubbles-outline',
-    jump: { tab: 'More', screen: 'DiaryList', tabHome: 'MoreMain' },
+    jump: { tab: 'Home', screen: 'DiaryList', tabHome: 'HomeMain' },
   },
   {
     id: 'transport',
     label: 'Transport',
     category: 'A',
     icon: 'bus-outline',
-    jump: { tab: 'More', screen: 'TeacherTransportHub', tabHome: 'MoreMain' },
+    jump: { tab: 'Home', screen: 'TeacherTransportHub', tabHome: 'HomeMain' },
   },
   {
     id: 'classes',
@@ -87,14 +99,60 @@ export const TEACHER_HOME_CORE_ACTIONS: TeacherHomeActionDef[] = [
     label: 'Notifications',
     category: 'A',
     icon: 'notifications-outline',
-    jump: { tab: 'More', screen: 'Notifications', tabHome: 'MoreMain' },
+    jump: { tab: 'Home', screen: 'Notifications', tabHome: 'HomeMain' },
   },
   {
     id: 'lesson_plans',
     label: 'Lesson plans',
     category: 'A',
     icon: 'document-text-outline',
-    jump: { tab: 'More', screen: 'LessonPlansHub', tabHome: 'MoreMain' },
+    jump: { tab: 'Home', screen: 'LessonPlansHub', tabHome: 'HomeMain' },
+  },
+];
+
+/** Secondary tools formerly under More — now on Home. */
+export const TEACHER_HOME_MORE_ACTIONS: TeacherHomeActionDef[] = [
+  {
+    id: 'academics',
+    label: 'Academics',
+    category: 'B',
+    icon: 'school-outline',
+    jump: { tab: 'Home', screen: 'Academics', tabHome: 'HomeMain' },
+  },
+  {
+    id: 'requirements',
+    label: 'Requirements',
+    category: 'B',
+    icon: 'clipboard-outline',
+    jump: { tab: 'Home', screen: 'RequirementsHub', tabHome: 'HomeMain' },
+  },
+  {
+    id: 'staff_clock',
+    label: 'My attendance',
+    category: 'B',
+    icon: 'time-outline',
+    jump: { tab: 'Home', screen: 'StaffClock', tabHome: 'HomeMain' },
+  },
+  {
+    id: 'leave',
+    label: 'Leave',
+    category: 'B',
+    icon: 'calendar-outline',
+    jump: { tab: 'Home', screen: 'MyLeaveList', tabHome: 'HomeMain' },
+  },
+  {
+    id: 'payslips',
+    label: 'Payslips',
+    category: 'B',
+    icon: 'wallet-outline',
+    jump: { tab: 'Home', screen: 'MyPayslips', tabHome: 'HomeMain' },
+  },
+  {
+    id: 'announcements',
+    label: 'Announcements',
+    category: 'B',
+    icon: 'megaphone-outline',
+    jump: { tab: 'Home', screen: 'Announcements', tabHome: 'HomeMain' },
   },
 ];
 
@@ -104,13 +162,13 @@ export const TEACHER_HOME_ACCOUNT_ACTIONS: TeacherHomeActionDef[] = [
     label: 'Profile',
     category: 'D',
     icon: 'person-outline',
-    jump: { tab: 'More', screen: 'MyProfile', tabHome: 'MoreMain' },
+    jump: { tab: 'Home', screen: 'MyProfile', tabHome: 'HomeMain' },
   },
   {
     id: 'settings',
     label: 'Settings',
     category: 'D',
     icon: 'settings-outline',
-    jump: { tab: 'More', screen: 'Settings', tabHome: 'MoreMain' },
+    jump: { tab: 'Home', screen: 'Settings', tabHome: 'HomeMain' },
   },
 ];
