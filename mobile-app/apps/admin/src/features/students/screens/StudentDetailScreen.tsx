@@ -69,6 +69,7 @@ function summaryAsDetail(summary: StudentSummary): StudentDetail {
     allergiesNotes: null,
     isFullyImmunized: null,
     bloodGroup: null,
+    siblings: [],
   };
 }
 

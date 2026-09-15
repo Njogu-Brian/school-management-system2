@@ -261,10 +261,11 @@ class InvoiceController extends Controller
 
         // Make Blade usage `$invoice->student` safe for archived/alumni records.
         $invoice->setRelation('student', $student);
-        $termNumber = $invoice->term;
-        if (!$termNumber && $invoice->term_id && $invoice->term) {
-            if (preg_match('/\d+/', $invoice->term->name, $matches)) {
-                $termNumber = (int)$matches[0];
+        $termNumber = is_numeric($invoice->getAttribute('term')) ? (int) $invoice->getAttribute('term') : 0;
+        if ($termNumber <= 0) {
+            $termModel = $invoice->academicTerm();
+            if ($termModel && preg_match('/\d+/', (string) $termModel->name, $matches)) {
+                $termNumber = (int) $matches[0];
             }
         }
         $year = $invoice->year;

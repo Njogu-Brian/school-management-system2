@@ -8,7 +8,13 @@ import {
   View,
 } from 'react-native';
 import { Button } from '../primitives/Button';
+import { useAdaptiveLayout } from '../layout/useAdaptiveLayout';
 import { useTheme } from '../theme/ThemeContext';
+
+export type AttendanceNamedEntry = {
+  name: string;
+  reason?: string;
+};
 
 export type AttendanceSubmitSummary = {
   present: number;
@@ -16,6 +22,8 @@ export type AttendanceSubmitSummary = {
   late: number;
   total: number;
   absentNames: string[];
+  absentEntries?: AttendanceNamedEntry[];
+  lateEntries?: AttendanceNamedEntry[];
 };
 
 export function summarizeAttendanceMarks(
@@ -107,10 +115,12 @@ export const AttendanceSubmitDialog: React.FC<AttendanceSubmitDialogProps> = ({
   onCancel,
 }) => {
   const { palette, spacing, typography, radius, opacity, elevation, isDark } = useTheme();
+  const { height, isTablet } = useAdaptiveLayout();
   const dialogBg = isDark ? '#2B3444' : '#FFFFFF';
   const textMain = isDark ? '#F3F6FB' : palette.textMain;
   const textSub = isDark ? '#C5CEDC' : palette.textSub;
   const border = isDark ? 'rgba(255,255,255,0.14)' : palette.borderSubtle;
+  const cardMaxHeight = Math.round(height * 0.88);
 
   return (
     <Modal
@@ -137,31 +147,35 @@ export const AttendanceSubmitDialog: React.FC<AttendanceSubmitDialogProps> = ({
                 borderRadius: radius.dialog,
                 padding: spacing.lg,
                 borderColor: border,
+                maxHeight: cardMaxHeight,
+                maxWidth: isTablet ? 520 : 420,
               },
             ]}
           >
-            <Text
-              style={{
-                color: textMain,
-                fontSize: typography.title.fontSize,
-                fontWeight: typography.title.fontWeight,
-              }}
-            >
-              Confirm attendance
-            </Text>
-            <Text
-              style={{
-                color: textSub,
-                fontSize: typography.body.fontSize,
-                marginTop: spacing.xs,
-                marginBottom: spacing.md,
-              }}
-            >
-              Date: {date}
-            </Text>
+            <View style={styles.cardHeader}>
+              <Text
+                style={{
+                  color: textMain,
+                  fontSize: typography.title.fontSize,
+                  fontWeight: typography.title.fontWeight,
+                }}
+              >
+                Confirm attendance
+              </Text>
+              <Text
+                style={{
+                  color: textSub,
+                  fontSize: typography.body.fontSize,
+                  marginTop: spacing.xs,
+                  marginBottom: spacing.md,
+                }}
+              >
+                Date: {date}
+              </Text>
+            </View>
 
             <ScrollView
-              style={{ maxHeight: 360 }}
+              style={styles.cardScroll}
               nestedScrollEnabled
               keyboardShouldPersistTaps="handled"
             >
@@ -184,19 +198,22 @@ export const AttendanceSubmitDialog: React.FC<AttendanceSubmitDialogProps> = ({
                   >
                     Absent students
                   </Text>
-                  {summary.absentNames.map((name, index) => (
-                    <Text
-                      key={`${index}-${name}`}
-                      style={{
-                        color: textSub,
-                        fontSize: typography.body.fontSize,
-                        lineHeight: typography.body.lineHeight,
-                        paddingVertical: 2,
-                      }}
-                    >
-                      {name}
-                    </Text>
-                  ))}
+                  {(summary.absentEntries ?? summary.absentNames.map((name) => ({ name }))).map(
+                    (entry, index) => (
+                      <Text
+                        key={`${index}-${entry.name}`}
+                        style={{
+                          color: textSub,
+                          fontSize: typography.body.fontSize,
+                          lineHeight: typography.body.lineHeight,
+                          paddingVertical: 2,
+                        }}
+                      >
+                        {entry.name}
+                        {entry.reason ? ` — ${entry.reason}` : ''}
+                      </Text>
+                    ),
+                  )}
                 </View>
               ) : (
                 <Text
@@ -209,9 +226,38 @@ export const AttendanceSubmitDialog: React.FC<AttendanceSubmitDialogProps> = ({
                   No students marked absent.
                 </Text>
               )}
+
+              {(summary.lateEntries ?? []).length > 0 ? (
+                <View style={{ marginBottom: spacing.md }}>
+                  <Text
+                    style={{
+                      color: textMain,
+                      fontSize: typography.body.fontSize,
+                      fontWeight: '700',
+                      marginBottom: spacing.xs,
+                    }}
+                  >
+                    Late students
+                  </Text>
+                  {summary.lateEntries!.map((entry, index) => (
+                    <Text
+                      key={`late-${index}-${entry.name}`}
+                      style={{
+                        color: textSub,
+                        fontSize: typography.body.fontSize,
+                        lineHeight: typography.body.lineHeight,
+                        paddingVertical: 2,
+                      }}
+                    >
+                      {entry.name}
+                      {entry.reason ? ` — ${entry.reason}` : ''}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
             </ScrollView>
 
-            <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+            <View style={[styles.cardActions, { gap: spacing.sm, marginTop: spacing.md }]}>
               <Button
                 label="Confirm & Submit"
                 onPress={onConfirm}
@@ -239,11 +285,13 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 420,
-    maxHeight: '88%',
     borderWidth: StyleSheet.hairlineWidth,
     zIndex: 3,
+    minHeight: 0,
   },
+  cardHeader: { flexShrink: 0 },
+  cardScroll: { flexGrow: 1, flexShrink: 1, minHeight: 0 },
+  cardActions: { flexShrink: 0 },
   statGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

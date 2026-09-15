@@ -89,12 +89,10 @@ class ApiStudentController extends Controller
         $appMode = strtolower((string) $request->header('X-App-Mode', ''));
         $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
 
-        // Teachers can only view students from their assigned classes (Work mode).
+        // Work mode: class/assistant teachers can view pastoral profiles; subject-only cannot.
         if ($user && $user->hasTeacherLikeRole() && ! $scopeAsParent) {
-            $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
-            $user->applyTeacherStudentFilter($query);
-            if (!$query->exists()) {
-                abort(403, 'You do not have access to this student.');
+            if (! $user->canViewStudentPastoralProfile($student)) {
+                abort(403, 'Student profiles are available to class teachers only.');
             }
         }
 
@@ -126,10 +124,8 @@ class ApiStudentController extends Controller
         $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
 
         if ($user && $user->hasTeacherLikeRole() && ! $scopeAsParent) {
-            $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
-            $user->applyTeacherStudentFilter($query);
-            if (! $query->exists()) {
-                abort(403, 'You do not have access to this student.');
+            if (! $user->canViewStudentPastoralProfile($student)) {
+                abort(403, 'Student profiles are available to class teachers only.');
             }
         }
 
@@ -193,10 +189,8 @@ class ApiStudentController extends Controller
         $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
 
         if ($user && $user->hasTeacherLikeRole() && ! $scopeAsParent) {
-            $query = Student::where('id', $id)->where('archive', 0)->where('is_alumni', false);
-            $user->applyTeacherStudentFilter($query);
-            if (! $query->exists()) {
-                abort(403, 'You do not have access to this student.');
+            if (! $user->canViewStudentPastoralProfile($student)) {
+                abort(403, 'Student profiles are available to class teachers only.');
             }
         }
 
@@ -386,9 +380,44 @@ class ApiStudentController extends Controller
                 'guardian_whatsapp_local' => $phoneSvc->extractLocalNumber($parent->guardian_whatsapp, $gCc),
             ] : null,
             'guardians' => $guardians,
+            'siblings' => $this->formatSiblings($s),
             'created_at' => $s->created_at->toIso8601String(),
             'updated_at' => $s->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    protected function formatSiblings(Student $s): array
+    {
+        if (! $s->family_id) {
+            return [];
+        }
+
+        return Student::query()
+            ->where('family_id', $s->family_id)
+            ->where('id', '!=', $s->id)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->with(['classroom', 'stream'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get()
+            ->map(function (Student $sibling) {
+                $fullName = trim(($sibling->first_name ?? '').' '.($sibling->middle_name ?? '').' '.($sibling->last_name ?? ''));
+
+                return [
+                    'id' => $sibling->id,
+                    'full_name' => $fullName,
+                    'admission_number' => $sibling->admission_number ?? '',
+                    'class_name' => $sibling->classroom->name ?? null,
+                    'stream_name' => $sibling->stream->name ?? null,
+                    'avatar' => $sibling->photo_url,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -448,14 +477,14 @@ class ApiStudentController extends Controller
             $parts = [];
             if ($assignment->morningTrip) {
                 $parts[] = 'Morning: '.$assignment->morningTrip->trip_name
-                    .($assignment->morningDropOffPoint?->name ? ' · '.$assignment->morningDropOffPoint->name : '');
+                    .($assignment->morningDropOffPoint?->name ? ' ┬╖ '.$assignment->morningDropOffPoint->name : '');
             }
             if ($assignment->eveningTrip) {
                 $parts[] = 'Evening: '.$assignment->eveningTrip->trip_name
-                    .($assignment->eveningDropOffPoint?->name ? ' · '.$assignment->eveningDropOffPoint->name : '');
+                    .($assignment->eveningDropOffPoint?->name ? ' ┬╖ '.$assignment->eveningDropOffPoint->name : '');
             }
 
-            return implode(' · ', $parts);
+            return implode(' ┬╖ ', $parts);
         }
 
         if ($s->drop_off_point_other && strtoupper(trim((string) $s->drop_off_point_other)) === 'OWN MEANS') {
@@ -469,7 +498,7 @@ class ApiStudentController extends Controller
             $s->drop_off_point_other,
         ]);
 
-        return $bits ? implode(' · ', $bits) : 'No transport assigned';
+        return $bits ? implode(' ┬╖ ', $bits) : 'No transport assigned';
     }
 
     /**

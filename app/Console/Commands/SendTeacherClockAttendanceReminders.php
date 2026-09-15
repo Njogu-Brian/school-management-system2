@@ -14,23 +14,30 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Sends a 9 AM push reminder to teachers who have NOT yet clocked in OR
- * marked attendance for any of their assigned classrooms. Honors school
- * days (skips weekends/holidays/breaks) and active leave.
+ * 08:00 — clock-in reminder for teachers who have not clocked in.
+ * 09:00 — class-attendance reminder for class/assistant teachers only.
  */
 class SendTeacherClockAttendanceReminders extends Command
 {
-    protected $signature = 'reminders:teacher-clock-attendance';
+    protected $signature = 'reminders:teacher-clock-attendance {--kind=clock : clock or attendance}';
 
-    protected $description = 'Daily 9am push reminder for teachers missing clock-in or attendance marking.';
+    protected $description = 'Push reminders: 8am clock-in (all teachers) and 9am class attendance (homeroom only).';
 
     public function handle(ExpoPushService $push): int
     {
-        $today = Carbon::today();
+        $kind = strtolower((string) $this->option('kind'));
+        if (! in_array($kind, ['clock', 'attendance'], true)) {
+            $this->error('kind must be clock or attendance.');
+
+            return self::FAILURE;
+        }
+
+        $today = Carbon::today('Africa/Nairobi');
         $todayStr = $today->toDateString();
 
         if (! SchoolDay::isSchoolDay($todayStr)) {
             $this->info("$todayStr is not a school day — skipping.");
+
             return self::SUCCESS;
         }
 
@@ -40,6 +47,7 @@ class SendTeacherClockAttendanceReminders extends Command
             ->first();
         if (! $term) {
             $this->info("No active term for $todayStr — skipping.");
+
             return self::SUCCESS;
         }
 
@@ -51,6 +59,7 @@ class SendTeacherClockAttendanceReminders extends Command
 
         if ($teachers->isEmpty()) {
             $this->info('No teachers to check.');
+
             return self::SUCCESS;
         }
 
@@ -76,43 +85,65 @@ class SendTeacherClockAttendanceReminders extends Command
 
         $sent = 0;
         foreach ($teachers as $teacher) {
-            $staffId = $teacher->staff?->id;
-            if ($staffId && in_array($staffId, $staffIdsOnLeave, true)) {
+            $staff = $teacher->staff;
+            $staffId = $staff?->id;
+            if (! $staffId) {
                 continue;
             }
-
-            $missingClock = ! $staffId || ! in_array($staffId, $clockedInStaffIds, true);
-            $missingAttendance = ! in_array($teacher->id, $markedAttendanceByTeacher, true);
-
-            if (! $missingClock && ! $missingAttendance) {
+            if (strtolower((string) ($staff->status ?? '')) !== 'active') {
+                continue;
+            }
+            if (strtolower((string) ($staff->employment_status ?? '')) !== 'active') {
+                continue;
+            }
+            if (in_array($staffId, $staffIdsOnLeave, true)) {
                 continue;
             }
 
             $tokens = $this->tokensForUser($teacher->id);
-            if (empty($tokens)) {
+            if ($tokens === []) {
                 continue;
             }
 
-            $parts = [];
-            if ($missingClock) $parts[] = 'clock in';
-            if ($missingAttendance) $parts[] = 'mark attendance';
-            $action = implode(' and ', $parts);
+            if ($kind === 'clock') {
+                if (in_array($staffId, $clockedInStaffIds, true)) {
+                    continue;
+                }
+                $push->sendToTokens(
+                    $tokens,
+                    'Clock in reminder',
+                    'Good morning! Please remember to clock in for today.',
+                    [
+                        'type' => 'teacher_clock_reminder',
+                        'date' => $todayStr,
+                    ]
+                );
+                $sent++;
+
+                continue;
+            }
+
+            if (! $teacher->isHomeroomTeacher()) {
+                continue;
+            }
+            if (in_array($teacher->id, $markedAttendanceByTeacher, true)) {
+                continue;
+            }
 
             $push->sendToTokens(
                 $tokens,
-                'Reminder',
-                "Good morning! Please remember to {$action} for today.",
+                'Attendance reminder',
+                'Please mark class attendance for today.',
                 [
-                    'type' => 'teacher_reminder',
-                    'missing_clock' => $missingClock,
-                    'missing_attendance' => $missingAttendance,
+                    'type' => 'teacher_attendance_reminder',
                     'date' => $todayStr,
                 ]
             );
             $sent++;
         }
 
-        $this->info("Sent reminders to {$sent} teacher(s).");
+        $this->info("Sent {$kind} reminders to {$sent} teacher(s).");
+
         return self::SUCCESS;
     }
 

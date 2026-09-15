@@ -34,5 +34,11 @@ export function mapApiUser(raw: ApiUser): User {
     classTeacherClassroomIds: raw.class_teacher_classroom_ids ?? [],
     assignedClassroomIds: raw.assigned_classroom_ids ?? [],
     assignedSubjectIds: raw.assigned_subject_ids ?? [],
+    isHomeroomTeacher: raw.is_homeroom_teacher ?? Boolean(raw.class_teacher_classroom_ids?.length),
+    isSubjectTeacherOnly: raw.is_subject_teacher_only ?? false,
+    canMarkClassAttendance:
+      raw.can_mark_class_attendance ?? Boolean(raw.class_teacher_classroom_ids?.length),
+    canViewStudentProfiles:
+      raw.can_view_student_profiles ?? Boolean(raw.class_teacher_classroom_ids?.length),
   };
 }

@@ -34,6 +34,8 @@ export type AcademicsStackParamList = {
   CbcStrands: { learningAreaId: number; learningAreaName?: string };
   CbcSubstrand: { substrandId: number; substrandName?: string };
   MarkAttendance: undefined;
+  MarkAbsent: undefined;
+  Timetable: undefined;
   SpeedTests: undefined;
   SpeedTestDetail: { batchKey: string; title?: string };
 };

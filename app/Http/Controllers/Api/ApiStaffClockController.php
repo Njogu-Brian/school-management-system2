@@ -231,21 +231,40 @@ class ApiStaffClockController extends Controller
             return response()->json(['success' => false, 'message' => 'You do not have permission to view team clock history.'], 403);
         }
 
-        $query = Staff::query()->where('status', 'active')->where('employment_status', 'active')->orderBy('first_name')->orderBy('last_name');
+        $query = Staff::query()
+            ->where('status', 'active')
+            ->where('employment_status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name');
 
         if (! $isAdmin) {
             $query->whereIn('id', $subordinateIds);
         }
 
         $rows = $query->get(['id', 'staff_id', 'first_name', 'last_name']);
+        $today = Carbon::today()->toDateString();
+        $todayClock = StaffAttendance::query()
+            ->whereDate('date', $today)
+            ->whereNotNull('check_in_time')
+            ->whereIn('staff_id', $rows->pluck('id'))
+            ->get()
+            ->keyBy('staff_id');
 
         return response()->json([
             'success' => true,
-            'data' => $rows->map(fn (Staff $s) => [
-                'id' => $s->id,
-                'staff_id' => $s->staff_id,
-                'full_name' => $s->full_name,
-            ])->values(),
+            'data' => $rows->map(function (Staff $s) use ($todayClock) {
+                $record = $todayClock->get($s->id);
+
+                return [
+                    'id' => $s->id,
+                    'staff_id' => $s->staff_id,
+                    'full_name' => $s->full_name,
+                    'clocked_in' => $record !== null,
+                    'check_in_time' => $record?->check_in_time
+                        ? Carbon::parse($record->check_in_time)->format('H:i')
+                        : null,
+                ];
+            })->values(),
         ]);
     }
 

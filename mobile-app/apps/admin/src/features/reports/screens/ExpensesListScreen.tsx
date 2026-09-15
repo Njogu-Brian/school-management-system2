@@ -1,6 +1,7 @@
 import { useCan, useInfiniteExpenses } from '@erp/core';
 import {
   AcademicScreenHeader,
+  Button,
   countActiveFilters,
   EmptyState,
   FilterChip,
@@ -81,6 +82,9 @@ export const ExpensesListScreen: React.FC<Props> = ({ navigation }) => {
             title="Expenses"
             subtitle="School expenditure registry"
             onBack={() => navigation.goBack()}
+            rightSlot={
+              <Button label="New" onPress={() => navigation.navigate('CreateExpense')} variant="outlined" />
+            }
           />
         }
         searchBar={

@@ -35,7 +35,7 @@ import {
 } from '@erp/ui';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 type DetailParams = { studentId: number };
 type LooseNav = { navigate: (name: string, params?: object) => void; goBack: () => void; canGoBack: () => boolean };
@@ -437,9 +437,12 @@ const RequirementsTab: React.FC<{ studentId: number; canCollect?: boolean }> = (
   );
 };
 
-const FamilyTab: React.FC<{ student: StudentDetail }> = ({ student }) => {
-  const { spacing } = useTheme();
-  const { parent, guardians, emergencyContact } = student;
+const FamilyTab: React.FC<{ student: StudentDetail; onOpenSibling?: (id: number) => void }> = ({
+  student,
+  onOpenSibling,
+}) => {
+  const { spacing, palette, typography, colors } = useTheme();
+  const { parent, guardians, emergencyContact, siblings } = student;
 
   const parentRows = [
     { label: 'Father', value: [parent?.fatherName, parent?.fatherPhone].filter(Boolean).join(' · ') || '—' },
@@ -451,10 +454,43 @@ const FamilyTab: React.FC<{ student: StudentDetail }> = ({ student }) => {
     label: `${g.relationship}${g.isPrimary ? ' · primary' : ''}`,
     value: [g.name, g.phone].filter(Boolean).join(' · ') || '—',
   }));
+  const siblingRows = (siblings ?? []).map((s) => ({
+    label: s.fullName,
+    value: [s.admissionNumber, s.className, s.streamName].filter(Boolean).join(' · ') || 'Enrolled',
+    id: s.id,
+  }));
 
   return (
     <View style={{ gap: spacing.md }}>
       <FinanceFieldSection title="Parents" rows={parentRows} />
+      {siblingRows.length > 0 ? (
+        <View>
+          <Text
+            style={{
+              color: palette.textSub,
+              fontSize: typography.overline?.fontSize ?? 11,
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              marginBottom: spacing.sm,
+            }}
+          >
+            Siblings
+          </Text>
+          {siblingRows.map((row) => (
+            <Pressable
+              key={row.id}
+              onPress={() => onOpenSibling?.(row.id)}
+              disabled={!onOpenSibling}
+              style={{ paddingVertical: spacing.sm }}
+            >
+              <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{row.label}</Text>
+              <Text style={{ color: colors.primary, marginTop: 2 }}>{row.value}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : (
+        <FinanceFieldSection title="Siblings" rows={[{ label: 'Linked siblings', value: 'None on file' }]} />
+      )}
       {guardianRows.length > 0 ? <FinanceFieldSection title="Contacts" rows={guardianRows} /> : null}
     </View>
   );
@@ -550,7 +586,12 @@ export const StudentDetailScreen: React.FC = () => {
       case 'requirements':
         return <RequirementsTab studentId={studentId} canCollect={isStaff} />;
       case 'family':
-        return <FamilyTab student={student} />;
+        return (
+          <FamilyTab
+            student={student}
+            onOpenSibling={(id) => navigation.navigate('StudentDetail', { studentId: id })}
+          />
+        );
       default:
         return null;
     }

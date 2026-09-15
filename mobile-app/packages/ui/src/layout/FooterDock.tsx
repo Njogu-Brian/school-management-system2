@@ -38,6 +38,7 @@ export const FooterDock: React.FC<FooterDockProps> = ({ children, style }) => {
 
 const styles = StyleSheet.create({
   dock: {
+    flexShrink: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

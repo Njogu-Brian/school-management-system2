@@ -1,7 +1,7 @@
 {
   "name": "school-erp-mobile",
   "version": "1.0.0",
-  "description": "School ERP mobile monorepo — Admin and Users apps only",
+  "description": "School ERP mobile monorepo — Admin and Users Android apps, combined iOS app",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -11,10 +11,12 @@
     "start": "npm run start:users",
     "start:admin": "npm start --workspace=@erp/admin",
     "start:users": "npm start --workspace=@erp/users",
+    "start:ios": "npm start --workspace=@erp/ios",
     "android:admin": "npm run android --workspace=@erp/admin",
     "android:users": "npm run android --workspace=@erp/users",
     "ios:admin": "npm run ios --workspace=@erp/admin",
     "ios:users": "npm run ios --workspace=@erp/users",
+    "ios:combined": "npm start --workspace=@erp/ios",
     "test": "jest --config jest.config.js",
     "test:design-system": "jest --config jest.config.js packages/ui/src/__tests__",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"

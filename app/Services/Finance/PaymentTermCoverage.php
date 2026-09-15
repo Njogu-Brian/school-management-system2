@@ -5,6 +5,7 @@ namespace App\Services\Finance;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Term;
+use App\Services\StudentFeeLedgerService;
 
 /**
  * Groups a payment's allocations by academic term so cross-term receipts
@@ -82,13 +83,83 @@ class PaymentTermCoverage
      */
     public static function forPayment(Payment $payment): array
     {
+        $rows = self::rowsFromLedger($payment);
+        if ($rows === []) {
+            $rows = self::rowsFromAllocations($payment);
+        }
+
+        $current = function_exists('get_current_term_model') ? get_current_term_model() : null;
+
+        return self::group(
+            $rows,
+            $current?->id ? (int) $current->id : null,
+            optional($current?->opening_date)->toDateString()
+        );
+    }
+
+    /**
+     * @return array<int, array{term_id: int, term_name: string|null, year: mixed, opening_date: string|null, amount: float, invoice_number: string|null}>
+     */
+    private static function rowsFromLedger(Payment $payment): array
+    {
+        try {
+            $applications = app(StudentFeeLedgerService::class)->applicationsForPayment($payment);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        if ($applications === []) {
+            return [];
+        }
+
+        $invoiceIds = array_values(array_unique(array_map(
+            fn (array $row) => (int) ($row['invoice_id'] ?? 0),
+            $applications
+        )));
+        $invoiceIds = array_values(array_filter($invoiceIds, fn (int $id) => $id > 0));
+        if ($invoiceIds === []) {
+            return [];
+        }
+
+        $invoices = Invoice::query()->whereIn('id', $invoiceIds)->get()->keyBy('id');
+        $termIds = $invoices->pluck('term_id')->filter()->unique()->values()->all();
+        $termsById = empty($termIds)
+            ? collect()
+            : Term::with('academicYear')->whereIn('id', $termIds)->get()->keyBy('id');
+
+        $rows = [];
+        foreach ($applications as $application) {
+            $invoice = $invoices->get((int) ($application['invoice_id'] ?? 0));
+            if (! $invoice instanceof Invoice || $invoice->isReversed()) {
+                continue;
+            }
+            $termId = (int) ($invoice->term_id ?? 0);
+            $rows[] = self::rowFromInvoice(
+                $invoice,
+                $termsById->get($termId),
+                (float) ($application['amount'] ?? 0)
+            );
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array{term_id: int, term_name: string|null, year: mixed, opening_date: string|null, amount: float, invoice_number: string|null}>
+     */
+    private static function rowsFromAllocations(Payment $payment): array
+    {
         // Do not nested-eager-load invoice.term: invoices.term is an integer column,
         // so loadMissing()/pluck('term') returns ints and crashes.
         $payment->loadMissing(['allocations.invoiceItem.invoice']);
 
         $termIds = [];
         foreach ($payment->allocations as $allocation) {
-            $termId = (int) ($allocation->invoiceItem?->invoice?->term_id ?? 0);
+            $invoice = $allocation->invoiceItem?->invoice;
+            if (! $invoice instanceof Invoice || $invoice->isReversed()) {
+                continue;
+            }
+            $termId = (int) ($invoice->term_id ?? 0);
             if ($termId > 0) {
                 $termIds[$termId] = true;
             }
@@ -98,6 +169,9 @@ class PaymentTermCoverage
         try {
             $linkedInvoice = $payment->invoice;
         } catch (\Throwable $e) {
+            $linkedInvoice = null;
+        }
+        if ($linkedInvoice instanceof Invoice && $linkedInvoice->isReversed()) {
             $linkedInvoice = null;
         }
         $fallbackTermId = (int) ($linkedInvoice?->term_id ?? 0);
@@ -112,12 +186,14 @@ class PaymentTermCoverage
         $rows = [];
         foreach ($payment->allocations as $allocation) {
             $invoice = $allocation->invoiceItem?->invoice;
-            $termId = (int) ($invoice?->term_id ?? 0);
+            if (! $invoice instanceof Invoice || $invoice->isReversed()) {
+                continue;
+            }
+            $termId = (int) ($invoice->term_id ?? 0);
             if ($termId <= 0) {
                 continue;
             }
-            $term = $termsById->get($termId);
-            $rows[] = self::rowFromInvoice($invoice, $term, (float) $allocation->amount);
+            $rows[] = self::rowFromInvoice($invoice, $termsById->get($termId), (float) $allocation->amount);
         }
 
         if ($rows === [] && $linkedInvoice && $fallbackTermId > 0) {
@@ -128,13 +204,7 @@ class PaymentTermCoverage
             );
         }
 
-        $current = function_exists('get_current_term_model') ? get_current_term_model() : null;
-
-        return self::group(
-            $rows,
-            $current?->id ? (int) $current->id : null,
-            optional($current?->opening_date)->toDateString()
-        );
+        return $rows;
     }
 
     private static function rowFromInvoice(?Invoice $invoice, mixed $term, float $amount): array

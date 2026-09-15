@@ -1,4 +1,4 @@
-import { useClassrooms, useInfiniteStudentList } from '@erp/core';
+import { useClassrooms, useCurrentUser, useInfiniteStudentList, UserRole } from '@erp/core';
 import {
   AcademicScreenHeader,
   EmptyState,
@@ -20,8 +20,15 @@ type Nav = StackNavigationProp<TeacherStackParamList>;
 export const TeacherClassesScreen: React.FC = () => {
   const { palette, spacing, typography, radius, colors } = useTheme();
   const navigation = useNavigation<Nav>();
+  const user = useCurrentUser();
   const [classroomId, setClassroomId] = useState<number | null>(null);
   const classroomsQuery = useClassrooms();
+  const homeroomIds = user?.classTeacherClassroomIds ?? [];
+  const isSenior =
+    user?.role === UserRole.SENIOR_TEACHER || user?.role === UserRole.SUPERVISOR;
+  const classrooms = (classroomsQuery.data ?? []).filter((c) =>
+    isSenior ? true : homeroomIds.includes(c.id),
+  );
   const listQuery = useInfiniteStudentList({
     search: '',
     classroomId,
@@ -30,11 +37,12 @@ export const TeacherClassesScreen: React.FC = () => {
     perPage: 40,
   });
 
-  const classrooms = classroomsQuery.data ?? [];
-  const students = useMemo(
-    () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
-    [listQuery.data],
-  );
+  const students = useMemo(() => {
+    const all = listQuery.data?.pages.flatMap((p) => p.items) ?? [];
+    if (isSenior || classroomId != null) return all;
+    if (homeroomIds.length === 0) return [];
+    return all.filter((s) => s.classroomId != null && homeroomIds.includes(s.classroomId));
+  }, [listQuery.data, isSenior, classroomId, homeroomIds]);
   const refreshControl = useListRefreshControl(colors.primary);
 
   return (
@@ -42,7 +50,7 @@ export const TeacherClassesScreen: React.FC = () => {
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
         <AcademicScreenHeader
           title="My students"
-          subtitle="Students in your assigned classes (class-teacher & subject scope)"
+          subtitle="Students in your homeroom class"
         />
         {classrooms.length > 0 ? (
           <FilterChipRow label="Class">

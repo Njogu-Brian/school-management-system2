@@ -47,6 +47,7 @@ export interface AdminDashboardStats {
   outstanding_balance_all?: number;
   admissions_today?: number;
   last_admission?: { date: string; count: number } | null;
+  collected_today?: number;
   collected_this_week?: number;
   collected_this_month?: number;
   collected_this_term?: number;

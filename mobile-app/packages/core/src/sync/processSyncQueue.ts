@@ -52,6 +52,9 @@ async function dispatchItem(item: SyncQueueItem): Promise<void> {
         records: payload.records.map((r) => ({
           student_id: r.student_id,
           status: r.status as 'present' | 'absent' | 'late' | 'unmarked',
+          reason_code_id: r.reason_code_id,
+          reason: r.reason,
+          excuse_notes: r.excuse_notes,
         })),
       });
       if (!res.success) throw new Error(res.message || 'Attendance sync failed.');

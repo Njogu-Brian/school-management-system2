@@ -591,9 +591,7 @@
                                     <div class="input-group phone-input-group">
                                         <span class="input-group-text phone-flag" id="father_phone_prefix">+254</span>
                                         <select name="father_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="father_phone" style="max-width:170px">
-                                            @foreach($countryCodes as $code => $label)
-                                                <option value="{{ $code }}" @selected($fatherCountryCode==$code)>{{ $label }}</option>
-                                            @endforeach
+                                            @include('partials.country_code_options', ['selectedCode' => $fatherCountryCode])
                                         </select>
                                         <input type="text" name="father_phone" id="father_phone" class="form-control phone-input" value="{{ $fatherLocalPhone }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="father_phone_help">
                                     </div>
@@ -611,9 +609,7 @@
                                     <div class="input-group phone-input-group">
                                         <span class="input-group-text phone-flag" id="father_whatsapp_prefix">+254</span>
                                         <select name="father_whatsapp_country_code" class="form-select flex-grow-0 phone-code-select" data-target="father_whatsapp" style="max-width:170px">
-                                            @foreach($countryCodes as $code => $label)
-                                                <option value="{{ $code }}" @selected($fatherWhatsappCountryCode==$code)>{{ $label }}</option>
-                                            @endforeach
+                                            @include('partials.country_code_options', ['selectedCode' => $fatherWhatsappCountryCode])
                                         </select>
                                         <input type="text" name="father_whatsapp" id="father_whatsapp" class="form-control phone-input" value="{{ $fatherWhatsappLocal }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="father_whatsapp_help">
                                     </div>
@@ -674,9 +670,7 @@
                                     <div class="input-group phone-input-group">
                                         <span class="input-group-text phone-flag" id="mother_phone_prefix">+254</span>
                                         <select name="mother_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="mother_phone" style="max-width:170px">
-                                            @foreach($countryCodes as $code => $label)
-                                                <option value="{{ $code }}" @selected($motherCountryCode==$code)>{{ $label }}</option>
-                                            @endforeach
+                                            @include('partials.country_code_options', ['selectedCode' => $motherCountryCode])
                                         </select>
                                         <input type="text" name="mother_phone" id="mother_phone" class="form-control phone-input" value="{{ $motherLocalPhone }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="mother_phone_help">
                                     </div>
@@ -694,9 +688,7 @@
                                     <div class="input-group phone-input-group">
                                         <span class="input-group-text phone-flag" id="mother_whatsapp_prefix">+254</span>
                                         <select name="mother_whatsapp_country_code" class="form-select flex-grow-0 phone-code-select" data-target="mother_whatsapp" style="max-width:170px">
-                                            @foreach($countryCodes as $code => $label)
-                                                <option value="{{ $code }}" @selected($motherWhatsappCountryCode==$code)>{{ $label }}</option>
-                                            @endforeach
+                                            @include('partials.country_code_options', ['selectedCode' => $motherWhatsappCountryCode])
                                         </select>
                                         <input type="text" name="mother_whatsapp" id="mother_whatsapp" class="form-control phone-input" value="{{ $motherWhatsappLocal }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="mother_whatsapp_help">
                                     </div>
@@ -761,9 +753,7 @@
                                     <div class="input-group phone-input-group">
                                         <span class="input-group-text phone-flag" id="guardian_phone_prefix">+254</span>
                                         <select name="guardian_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="guardian_phone" style="max-width:170px">
-                                            @foreach($countryCodes as $code => $label)
-                                                <option value="{{ $code }}" @selected($guardianCountryCode==$code)>{{ $label }}</option>
-                                            @endforeach
+                                            @include('partials.country_code_options', ['selectedCode' => $guardianCountryCode])
                                         </select>
                                         <input type="text" name="guardian_phone" id="guardian_phone" class="form-control phone-input" value="{{ $guardianLocalPhone }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="guardian_phone_help">
                                     </div>
@@ -790,9 +780,7 @@
                                 <div class="input-group phone-input-group">
                                     <span class="input-group-text phone-flag" id="emergency_phone_prefix">+254</span>
                                     <select name="emergency_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="emergency_contact_phone" style="max-width:170px">
-                                        @foreach($countryCodes as $code => $label)
-                                            <option value="{{ $code }}" @selected($emergencyCountryCode==$code)>{{ $label }}</option>
-                                        @endforeach
+                                        @include('partials.country_code_options', ['selectedCode' => $emergencyCountryCode])
                                     </select>
                                     <input type="text" name="emergency_contact_phone" id="emergency_contact_phone" class="form-control phone-input" value="{{ $emergencyLocalPhone }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="emergency_phone_help" required>
                                 </div>

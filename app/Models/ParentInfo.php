@@ -39,7 +39,7 @@ class ParentInfo extends Model
         'guardian_id_type', 'guardian_country_of_residence',
         'guardian_relationship', 'marital_status',
         'father_phone_country_code', 'mother_phone_country_code', 'guardian_phone_country_code',
-        'father_whatsapp_country_code', 'mother_whatsapp_country_code',
+        'father_whatsapp_country_code', 'mother_whatsapp_country_code', 'guardian_whatsapp_country_code',
         'father_id_document', 'mother_id_document',
         // Extended parent info
         'father_occupation', 'father_employer', 'father_work_address', 'father_education_level',

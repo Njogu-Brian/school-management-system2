@@ -91,6 +91,10 @@ class CommunicationNoteController extends Controller
                 ->first();
             $extra['outstanding_amount'] = number_format(round($totalOutstanding, 2), 2);
             $extra['total_amount'] = $latestInvoice ? number_format((float) $latestInvoice->total, 2) : '0.00';
+            $amountRequired = $latestInvoice
+                ? max(0, ((float) $latestInvoice->total * 0.60) - (float) $latestInvoice->paid_amount)
+                : 0;
+            $extra['amount_required'] = number_format(round($amountRequired, 2), 2);
             $extra['invoice_number'] = $latestInvoice ? ($latestInvoice->invoice_number ?? 'N/A') : 'N/A';
             $extra['due_date'] = $latestInvoice && $latestInvoice->due_date ? $latestInvoice->due_date->format('d M Y') : 'N/A';
             $notes[] = [

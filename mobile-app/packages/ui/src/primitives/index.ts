@@ -6,4 +6,6 @@ export * from './FilterChip';
 export * from './StatusBadge';
 export * from './AccentIcon';
 export * from './PinKeypad';
+export * from './DatePickerField';
+export * from './PhoneCountryField';
 export { resolveSoft3DGlyph } from './Soft3DGlyphs';

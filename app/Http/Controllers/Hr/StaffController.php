@@ -593,6 +593,7 @@ class StaffController extends Controller
         $request->validate([
             'assignment_action' => 'required|in:leave_blank,transfer',
             'replacement_staff_id' => 'nullable|integer|exists:staff,id|different:' . $staff->id,
+            'termination_date' => 'required|date',
         ]);
 
         if ($request->assignment_action === 'transfer' && ! $request->filled('replacement_staff_id')) {
@@ -608,7 +609,11 @@ class StaffController extends Controller
         $releaseService = app(StaffTeachingAssignmentReleaseService::class);
         $result = $releaseService->release((int) $staff->id, $replacementId);
 
-        $staff->update(['status' => 'archived']);
+        $staff->update([
+            'status' => 'archived',
+            'termination_date' => $request->input('termination_date'),
+            'employment_status' => 'terminated',
+        ]);
 
         $total = array_sum($result['summary']);
         if ($total === 0) {
@@ -626,7 +631,10 @@ class StaffController extends Controller
 
     public function restore($id)
     {
-        Staff::where('id', $id)->update(['status' => 'active']);
+        Staff::where('id', $id)->update([
+            'status' => 'active',
+            'employment_status' => 'active',
+        ]);
         return back()->with('success', 'Staff restored');
     }
 

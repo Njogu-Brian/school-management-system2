@@ -143,6 +143,9 @@ export const linking: LinkingOptions<DrawerParamList> = {
             path: 'cbc/:learningAreaId',
             parse: { learningAreaId: Number },
           },
+          MarkAttendance: 'attendance',
+          MarkAbsent: 'attendance/absent',
+          Timetable: 'timetable',
         },
       },
       Operations: {
@@ -234,6 +237,7 @@ export const linking: LinkingOptions<DrawerParamList> = {
           BoardPack: 'board-pack',
           ExpenseReports: 'expenses',
           ExpensesList: 'expenses/all',
+          CreateExpense: 'expenses/new',
           IncomeStatement: 'income-statement',
           BalanceSheet: 'balance-sheet',
           Ledger: 'ledger',

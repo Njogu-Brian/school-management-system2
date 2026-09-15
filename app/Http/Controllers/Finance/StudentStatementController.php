@@ -256,7 +256,7 @@ class StudentStatementController extends Controller
                     $detailedTransactions->push([
                         'date' => $itemDate,
                         'type' => 'Invoice Item',
-                        'description' => $voteheadName . ' - ' . ($invoice->term->name ?? 'Term') . ' ' . $year,
+                        'description' => $voteheadName . ' - ' . ($invoice->academicTerm()?->name ?? 'Term') . ' ' . $year,
                         'reference' => $invoice->invoice_number,
                         'votehead' => $voteheadName,
                         'debit' => $itemAmount,
@@ -1107,7 +1107,7 @@ class StudentStatementController extends Controller
                         'narration' => $voteheadName . ' - ' . ($invoice->invoice_number ?? 'N/A'),
                         'reference' => $invoice->invoice_number ?? 'N/A',
                         'votehead' => $voteheadName,
-                        'term_name' => $invoice->term->name ?? '',
+                        'term_name' => $invoice->academicTerm()?->name ?? '',
                         'term_year' => $year,
                         'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
                         'debit' => $itemAmount,
@@ -1120,7 +1120,7 @@ class StudentStatementController extends Controller
                         'narration' => 'Overpayment - ' . $voteheadName,
                         'reference' => $invoice->invoice_number ?? 'N/A',
                         'votehead' => $voteheadName,
-                        'term_name' => $invoice->term->name ?? '',
+                        'term_name' => $invoice->academicTerm()?->name ?? '',
                         'term_year' => $year,
                         'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
                         'debit' => 0,
@@ -1135,7 +1135,7 @@ class StudentStatementController extends Controller
                         'narration' => 'DISCOUNT - ' . $voteheadName,
                         'reference' => $invoice->invoice_number ?? 'N/A',
                         'votehead' => $voteheadName,
-                        'term_name' => $invoice->term->name ?? '',
+                        'term_name' => $invoice->academicTerm()?->name ?? '',
                         'term_year' => $year,
                         'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
                         'debit' => 0,
@@ -1469,7 +1469,7 @@ class StudentStatementController extends Controller
                 fputcsv($file, [
                     $invoice->created_at->format('Y-m-d'),
                     $invoice->invoice_number,
-                    "Invoice for " . ($invoice->term->name ?? 'Term') . " {$year}",
+                    "Invoice for " . ($invoice->academicTerm()?->name ?? 'Term') . " {$year}",
                     number_format($invoice->total, 2)
                 ]);
             }

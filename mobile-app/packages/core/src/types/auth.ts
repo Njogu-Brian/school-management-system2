@@ -18,7 +18,7 @@ export interface LoginResult {
 export type AuthStatus = 'initializing' | 'authenticated' | 'unauthenticated';
 
 /** Which app a session is allowed into (drives the app-mismatch guard, build plan §5.1). */
-export type AppTarget = 'admin' | 'users';
+export type AppTarget = 'admin' | 'users' | 'combined';
 
 /** Google account identity decoded from the ID token (stored in Auth Context). */
 export interface GoogleIdentity {
@@ -60,6 +60,10 @@ export interface ApiUser {
   assigned_classroom_ids?: number[];
   /** Subjects this teacher is assigned to teach. */
   assigned_subject_ids?: number[];
+  is_homeroom_teacher?: boolean;
+  is_subject_teacher_only?: boolean;
+  can_mark_class_attendance?: boolean;
+  can_view_student_profiles?: boolean;
   /** When true, client must force a password change before normal app use. */
   must_change_password?: boolean;
   branches?: Array<{

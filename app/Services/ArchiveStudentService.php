@@ -5,24 +5,31 @@ namespace App\Services;
 use App\Models\Student;
 use App\Models\ArchiveAudit;
 use App\Models\Invoice;
+use App\Models\Term;
+use App\Models\User;
 use App\Services\FamilyArchiveService;
+use App\Services\Finance\InvoiceReversalService;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Database\Eloquent\Model;
 
 class ArchiveStudentService
 {
     /**
     * Archive a student and all per-student records (soft delete).
     * Does NOT delete shared family/parent data.
+    * Later-term unpaid invoices are reversed (audit trail); paid/allocated invoices stay.
     */
-    public function archive(Student $student, ?string $reason = null, ?int $actorId = null, ?string $notes = null): array
+    public function archive(
+        Student $student,
+        ?string $reason = null,
+        ?int $actorId = null,
+        ?string $notes = null,
+        ?string $transferDate = null
+    ): array
     {
         if ($student->archive) {
             return ['skipped' => true, 'message' => 'Student already archived'];
         }
 
-        // Guard: active siblings keep shared records
         $activeSiblings = Student::where('family_id', $student->family_id)
             ->where('id', '!=', $student->id)
             ->where('archive', 0)
@@ -32,74 +39,110 @@ class ArchiveStudentService
             'attendance' => 0,
             'homework_diary' => 0,
             'exam_marks' => 0,
-            'unpaid_current_term_invoices' => 0,
+            'reversed_later_term_invoices' => 0,
         ];
 
-        DB::transaction(function () use ($student, $reason, $actorId, $activeSiblings, &$counts, $notes) {
-            // Delete unpaid invoices for the current term
-            $currentTermId = get_current_term_id();
-            if ($currentTermId) {
-                // Find invoices for the current term that have no payments or allocations
-                $invoices = Invoice::where('student_id', $student->id)
-                    ->where('term_id', $currentTermId)
-                    ->with('items.allocations')
-                    ->get();
-                
-                foreach ($invoices as $invoice) {
-                    // Check if invoice has any payment allocations through its items
-                    $hasPayments = $invoice->items->some(function ($item) {
-                        return $item->allocations->isNotEmpty();
-                    });
-                    
-                    // Only delete if there are no payment allocations
-                    if (!$hasPayments) {
-                        // Delete invoice items first (cascade)
-                        $invoice->items()->delete();
-                        // Delete the invoice
-                        $invoice->delete();
-                        $counts['unpaid_current_term_invoices']++;
-                    }
-                }
-            }
+        $departureDate = $transferDate ? \Carbon\Carbon::parse($transferDate)->toDateString() : now()->toDateString();
+        $actor = $actorId ? User::find($actorId) : auth()->user();
 
-            // Attendance
+        DB::transaction(function () use ($student, $reason, $actorId, $actor, $activeSiblings, &$counts, $notes, $departureDate) {
+            $counts['reversed_later_term_invoices'] = $this->reverseLaterTermUnpaidInvoices(
+                $student,
+                $departureDate,
+                $actor instanceof User ? $actor : null
+            );
+
             $counts['attendance'] = \App\Models\Attendance::where('student_id', $student->id)->delete();
 
-            // Homework diaries/submissions
             $counts['homework_diary'] = \App\Models\Academics\HomeworkDiary::where('student_id', $student->id)->delete();
 
-            // Exam marks (if model/table exists)
             if (class_exists(\App\Models\Academics\ExamMark::class)) {
                 $counts['exam_marks'] = \App\Models\Academics\ExamMark::where('student_id', $student->id)->delete();
             }
 
-            // Mark student as archived (keep row for restoration)
             $student->archive = 1;
             $student->archived_at = now();
             $student->archived_reason = $reason;
             $student->archived_notes = $notes;
             $student->archived_by = $actorId;
+            $student->transfer_date = $departureDate;
             $student->save();
 
-            // Deactivate profile update links that exclusively serve this student (student-only links)
             \App\Models\FamilyUpdateLink::where('student_id', $student->id)
                 ->whereNull('family_id')
                 ->update(['is_active' => false]);
 
-            // Audit
             ArchiveAudit::create([
                 'student_id' => $student->id,
                 'actor_id' => $actorId,
                 'action' => 'archive',
                 'reason' => $reason,
-                'counts' => array_merge($counts, ['active_siblings' => $activeSiblings]),
+                'counts' => array_merge($counts, ['active_siblings' => $activeSiblings, 'transfer_date' => $departureDate]),
             ]);
 
-            // If family has 0 or 1 active members left, remove family and store archived_family_id for restore
             app(FamilyArchiveService::class)->onStudentArchivedOrAlumni($student);
         });
 
         return ['skipped' => false, 'counts' => $counts];
     }
-}
 
+    /**
+     * Reverse invoices for terms that start after the departure term, only when no payment is allocated.
+     */
+    protected function reverseLaterTermUnpaidInvoices(Student $student, string $departureDate, ?User $actor): int
+    {
+        $cutoff = $this->laterTermCutoff($departureDate);
+        if (! $cutoff) {
+            return 0;
+        }
+
+        $laterTermIds = Term::query()
+            ->whereDate('opening_date', '>', $cutoff)
+            ->pluck('id');
+
+        if ($laterTermIds->isEmpty()) {
+            return 0;
+        }
+
+        $invoices = Invoice::query()
+            ->where('student_id', $student->id)
+            ->whereIn('term_id', $laterTermIds)
+            ->whereNull('reversed_at')
+            ->with('items.allocations')
+            ->get();
+
+        $reversal = app(InvoiceReversalService::class);
+        $count = 0;
+        foreach ($invoices as $invoice) {
+            $hasPayments = $invoice->items->some(function ($item) {
+                return $item->allocations->isNotEmpty();
+            });
+            if ($hasPayments) {
+                continue;
+            }
+            $reversal->reverse(
+                $invoice,
+                'Student archived: departure date falls in an earlier term (unpaid later-term invoice reversed).',
+                $actor
+            );
+            $count++;
+        }
+
+        return $count;
+    }
+
+    protected function laterTermCutoff(string $departureDate): ?string
+    {
+        $term = Term::query()
+            ->whereDate('opening_date', '<=', $departureDate)
+            ->whereDate('closing_date', '>=', $departureDate)
+            ->orderByDesc('opening_date')
+            ->first();
+
+        if ($term?->closing_date) {
+            return \Carbon\Carbon::parse($term->closing_date)->toDateString();
+        }
+
+        return $departureDate;
+    }
+}

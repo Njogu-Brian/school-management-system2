@@ -85,7 +85,7 @@
                         <strong>Academic Year:</strong> {{ $invoice->academicYear->name ?? $invoice->year ?? '—' }}
                     </p>
                     <p class="mb-2">
-                        <strong>Term:</strong> {{ $invoice->term->name ?? ($invoice->term ? 'Term ' . $invoice->term : '—') }}
+                        <strong>Term:</strong> {{ $invoice->termDisplayLabel() ?: '—' }}
                     </p>
                     <p class="mb-2">
                         <strong>Issue Date:</strong> {{ $invoice->issued_date ? \Carbon\Carbon::parse($invoice->issued_date)->format('d M Y') : '—' }}
@@ -728,8 +728,7 @@
             @if($allocatedPaymentsForReverse->isNotEmpty())
             <div class="alert alert-warning">
                 <strong>{{ $allocatedPaymentsForReverse->count() }} payment(s)</strong> are allocated to this invoice.
-                Those allocations will be removed. A payment that was only allocated here will also be reversed.
-                A payment that also covers other invoices will stay active as unallocated credit (or remain on those other invoices).
+                Those allocations will be removed. The payments themselves stay on the student as credit and are not reversed.
                 <ul class="mb-0 mt-2">
                     @foreach($allocatedPaymentsForReverse as $payment)
                     <li>
@@ -740,7 +739,7 @@
                 </ul>
             </div>
             @endif
-            <form action="{{ route('finance.invoices.reverse', $invoice) }}" method="POST" onsubmit="return confirm('Reverse this invoice? Allocated payments will be unallocated. Payments that were only allocated to this invoice will be reversed. This cannot be undone.');">
+            <form action="{{ route('finance.invoices.reverse', $invoice) }}" method="POST" onsubmit="return confirm('Reverse this invoice? Allocations will be removed and payments will be kept as credit. This cannot be undone.');">
                 @csrf
                 <div class="mb-3">
                     <label for="invoice_reversal_reason" class="form-label">Reversal reason <span class="text-danger">*</span></label>

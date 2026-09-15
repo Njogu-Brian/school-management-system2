@@ -13,11 +13,16 @@ use App\Services\ParentCredentialsService;
 use App\Services\SMSService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Support\ParentWebPortalGate;
 
 class AuthController extends Controller
 {
-    public function showLoginForm()
+    public function showLoginForm(Request $request)
     {
+        if ($request->boolean('staff')) {
+            $request->session()->forget(['parent_use_app', 'parent_app_username']);
+        }
+
         $settings = Setting::all()->keyBy('key');
 
         $announcements = Announcement::where('active', 1)
@@ -74,6 +79,10 @@ class AuthController extends Controller
             return back()->withErrors(['identifier' => 'Invalid password. Please check your password and try again.']);
         }
 
+        if ($blocked = $this->rejectParentWebLogin($user, $credentials['identifier'])) {
+            return $blocked;
+        }
+
         Auth::login($user, $request->filled('remember'));
 
         /** @var \App\Models\User $user */
@@ -110,6 +119,10 @@ class AuthController extends Controller
 
         if (!$user) {
             return back()->withErrors(['identifier' => 'No account found with this email or phone number.']);
+        }
+
+        if ($blocked = $this->rejectParentWebLogin($user, $normalizedIdentifier ?: $request->identifier)) {
+            return $blocked;
         }
 
         $phone = $this->resolvePhoneFromStaffOrUser($staff, $user);
@@ -190,6 +203,10 @@ class AuthController extends Controller
         if (!$result['valid']) {
             return back()->withErrors(['otp_code' => $result['message']])
                 ->withInput(['identifier' => $normalizedIdentifier, 'otp_sent' => true]);
+        }
+
+        if ($blocked = $this->rejectParentWebLogin($user, $normalizedIdentifier ?: $request->identifier)) {
+            return $blocked;
         }
 
         // Login user
@@ -493,5 +510,15 @@ class AuthController extends Controller
         return $status === \Illuminate\Support\Facades\Password::PASSWORD_RESET
             ? redirect()->route('login')->with('status', __($status))
             : back()->withErrors(['email' => [__($status)]]);
+    }
+
+    protected function rejectParentWebLogin(User $user, ?string $identifier = null)
+    {
+        $user->loadMissing('roles');
+        if ($user->mustUseMobileApp()) {
+            return ParentWebPortalGate::reject($user, $identifier);
+        }
+
+        return null;
     }
 }

@@ -243,7 +243,7 @@ class ApiStudentStatementController extends Controller
         }
 
         foreach ($invoices as $inv) {
-            $termLabel = $inv->term->name ?? 'Term';
+            $termLabel = $inv->academicTerm()?->name ?? 'Term';
             foreach ($inv->items as $item) {
                 if (($item->source ?? null) === 'swimming_attendance') {
                     continue;

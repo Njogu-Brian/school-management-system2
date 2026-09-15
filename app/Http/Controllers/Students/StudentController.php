@@ -1134,7 +1134,7 @@ class StudentController extends Controller
             ActivityLog::log(
                 'update',
                 $student,
-                "Enrolment date changed for {$student->full_name} ({$student->admission_number}): {$previousAdmissionDate} → {$student->admission_date->toDateString()}",
+                "Enrolment date changed for {$student->full_name} ({$student->admission_number}): {$previousAdmissionDate} ΓåÆ {$student->admission_date->toDateString()}",
                 ['admission_date' => $previousAdmissionDate],
                 ['admission_date' => $student->admission_date->toDateString()]
             );
@@ -1528,12 +1528,18 @@ class StudentController extends Controller
     public function archive($id, Request $request)
     {
         $student = Student::withArchived()->findOrFail($id);
+        $request->validate([
+            'transfer_date' => 'required|date',
+            'reason' => 'nullable|string|max:255',
+            'archived_notes' => 'nullable|string|max:2000',
+        ]);
         try {
             $result = $this->archiveService->archive(
                 $student,
                 $request->input('reason'),
                 auth()->id(),
-                $request->input('archived_notes')
+                $request->input('archived_notes'),
+                $request->input('transfer_date')
             );
             return redirect()->route('students.archived')->with('success', 'Student archived successfully.');
         } catch (\Throwable $e) {
@@ -1696,7 +1702,7 @@ class StudentController extends Controller
             $rowData['stream_name']    = $rowData['stream'] ?? '';
             $rowData['category_name']  = $rowData['category'] ?? '';
 
-            // ✅ Handle DOB conversion
+            // Γ£à Handle DOB conversion
             if (!empty($rowData['dob'])) {
                 if (is_numeric($rowData['dob'])) {
                     // Excel serial number to date
@@ -1805,10 +1811,10 @@ class StudentController extends Controller
             if ($existingMatch || $duplicateInFile) {
                 $label = trim(($row['first_name'] ?? '').' '.($row['last_name'] ?? ''));
                 if ($existingMatch) {
-                    $duplicates[] = $label.' — '.$existingMatch->reasonLabel
+                    $duplicates[] = $label.' ΓÇö '.$existingMatch->reasonLabel
                         .($existingMatch->admissionNumber ? ' (Admission #'.$existingMatch->admissionNumber.')' : '');
                 } else {
-                    $duplicates[] = $label.' — duplicate row in this file';
+                    $duplicates[] = $label.' ΓÇö duplicate row in this file';
                 }
                 continue;
             }
@@ -1997,7 +2003,7 @@ class StudentController extends Controller
                                 $sib->last_name,
                             ])));
                             $classDisplay = $sib->classroom
-                                ? ($sib->stream ? $sib->classroom->name . ' – ' . $sib->stream->name : $sib->classroom->name)
+                                ? ($sib->stream ? $sib->classroom->name . ' ΓÇô ' . $sib->stream->name : $sib->classroom->name)
                                 : null;
                             return [
                                 'id' => $sib->id,
@@ -2024,7 +2030,7 @@ class StudentController extends Controller
                 }
                 
                 $classDisplay = $st->classroom
-                    ? ($st->stream ? $st->classroom->name . ' – ' . $st->stream->name : $st->classroom->name)
+                    ? ($st->stream ? $st->classroom->name . ' ΓÇô ' . $st->stream->name : $st->classroom->name)
                     : null;
                 
                 return [
@@ -2038,7 +2044,7 @@ class StudentController extends Controller
                     'stream_name' => $st->stream ? $st->stream->name : null,
                     'class_display' => $classDisplay,
                     'label' => $classDisplay
-                        ? "{$full} ({$st->admission_number}) – {$classDisplay}"
+                        ? "{$full} ({$st->admission_number}) ΓÇô {$classDisplay}"
                         : "{$full} ({$st->admission_number})",
                     'family_id' => $st->family_id,
                     'is_alumni' => $st->is_alumni ?? false,
@@ -2074,7 +2080,7 @@ class StudentController extends Controller
                     'title' => 'Welcome Student (SMS/WA)',
                     'type' => 'sms',
                     'subject' => null,
-                    'content' => "Dear {{parent_name}},\n\nWelcome to {{school_name}}! 🎉\nWe are delighted to inform you that {{student_name}} has been successfully admitted.\n\nAdmission Number: {{admission_number}}\nClass: {{class_name}} {{stream_name}}\n\nUpdate your profile here: {{profile_update_link}}\n\nWarm regards,\n{{school_name}}",
+                    'content' => "Dear {{parent_name}},\n\nWelcome to {{school_name}}! ≡ƒÄë\nWe are delighted to inform you that {{student_name}} has been successfully admitted.\n\nAdmission Number: {{admission_number}}\nClass: {{class_name}} {{stream_name}}\n\nUpdate your profile here: {{profile_update_link}}\n\nWarm regards,\n{{school_name}}",
                 ]
             );
         }
@@ -2085,7 +2091,7 @@ class StudentController extends Controller
                 [
                     'title' => 'Welcome Student (Email)',
                     'type' => 'email',
-                    'subject' => 'Welcome to {{school_name}} – Admission Confirmation',
+                    'subject' => 'Welcome to {{school_name}} ΓÇô Admission Confirmation',
                     'content' => "Dear {{parent_name}},\n\nWe are pleased to welcome you and your child, {{student_name}}, to the {{school_name}} family.\n\nStudent Name: {{student_name}}\nAdmission Number: {{admission_number}}\nClass & Stream: {{class_name}} {{stream_name}}\n\nYou may update your profile or access student information using the link below:\n{{profile_update_link}}\n\nFor any assistance, contact us at {{school_phone}} or {{school_email}}.\n\nWarm regards,\n{{school_name}} Administration",
                 ]
             );
@@ -2179,7 +2185,20 @@ class StudentController extends Controller
             ->limit(50)
             ->get();
 
-        return view('students.show', compact('student', 'communicationHistory', 'communicationUpcoming', 'parentCredentials', 'archiveAudits'));
+        $siblings = collect();
+        if ($student->family_id) {
+            $siblings = Student::query()
+                ->where('family_id', $student->family_id)
+                ->where('id', '!=', $student->id)
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->with(['classroom', 'stream'])
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->get();
+        }
+
+        return view('students.show', compact('student', 'communicationHistory', 'communicationUpcoming', 'parentCredentials', 'archiveAudits', 'siblings'));
     }
 
     public function getStreams(Request $request)
@@ -2348,10 +2367,14 @@ class StudentController extends Controller
 
     public function bulkArchive(Request $request)
     {
-        $request->validate(['student_ids'=>'required|array']);
+        $request->validate([
+            'student_ids'=>'required|array',
+            'transfer_date' => 'nullable|date',
+        ]);
         
         $students = Student::withArchived()->whereIn('id', $request->student_ids)->get();
         $archivedCount = 0;
+        $transferDate = $request->input('transfer_date') ?: now()->toDateString();
         
         foreach ($students as $student) {
             try {
@@ -2359,7 +2382,8 @@ class StudentController extends Controller
                     $student,
                     'Bulk archive',
                     auth()->id(),
-                    null
+                    null,
+                    $transferDate
                 );
                 if (!$result['skipped']) {
                     $archivedCount++;
@@ -2408,82 +2432,7 @@ class StudentController extends Controller
      */
     private function getCountryCodes(): array
     {
-        $codes = [
-            ['code' => '+254', 'label' => 'Kenya (+254)'],
-            ['code' => '+1', 'label' => 'United States / Canada (+1)'],
-            ['code' => '+44', 'label' => 'United Kingdom (+44)'],
-            ['code' => '+27', 'label' => 'South Africa (+27)'],
-            ['code' => '+234', 'label' => 'Nigeria (+234)'],
-            ['code' => '+256', 'label' => 'Uganda (+256)'],
-            ['code' => '+255', 'label' => 'Tanzania (+255)'],
-            ['code' => '+91', 'label' => 'India (+91)'],
-            ['code' => '+971', 'label' => 'United Arab Emirates (+971)'],
-            ['code' => '+61', 'label' => 'Australia (+61)'],
-            ['code' => '+64', 'label' => 'New Zealand (+64)'],
-            ['code' => '+81', 'label' => 'Japan (+81)'],
-            ['code' => '+86', 'label' => 'China (+86)'],
-            ['code' => '+49', 'label' => 'Germany (+49)'],
-            ['code' => '+33', 'label' => 'France (+33)'],
-            ['code' => '+39', 'label' => 'Italy (+39)'],
-            ['code' => '+34', 'label' => 'Spain (+34)'],
-            ['code' => '+46', 'label' => 'Sweden (+46)'],
-            ['code' => '+47', 'label' => 'Norway (+47)'],
-            ['code' => '+45', 'label' => 'Denmark (+45)'],
-            ['code' => '+31', 'label' => 'Netherlands (+31)'],
-            ['code' => '+32', 'label' => 'Belgium (+32)'],
-            ['code' => '+41', 'label' => 'Switzerland (+41)'],
-            ['code' => '+52', 'label' => 'Mexico (+52)'],
-            ['code' => '+55', 'label' => 'Brazil (+55)'],
-            ['code' => '+54', 'label' => 'Argentina (+54)'],
-            ['code' => '+51', 'label' => 'Peru (+51)'],
-            ['code' => '+20', 'label' => 'Egypt (+20)'],
-            ['code' => '+212', 'label' => 'Morocco (+212)'],
-            ['code' => '+974', 'label' => 'Qatar (+974)'],
-            ['code' => '+966', 'label' => 'Saudi Arabia (+966)'],
-            ['code' => '+962', 'label' => 'Jordan (+962)'],
-            ['code' => '+961', 'label' => 'Lebanon (+961)'],
-            ['code' => '+90', 'label' => 'Turkey (+90)'],
-            ['code' => '+94', 'label' => 'Sri Lanka (+94)'],
-            ['code' => '+880', 'label' => 'Bangladesh (+880)'],
-            ['code' => '+92', 'label' => 'Pakistan (+92)'],
-            ['code' => '+60', 'label' => 'Malaysia (+60)'],
-            ['code' => '+65', 'label' => 'Singapore (+65)'],
-            ['code' => '+63', 'label' => 'Philippines (+63)'],
-            ['code' => '+62', 'label' => 'Indonesia (+62)'],
-            ['code' => '+82', 'label' => 'South Korea (+82)'],
-            ['code' => '+853', 'label' => 'Macau (+853)'],
-            ['code' => '+852', 'label' => 'Hong Kong (+852)'],
-            ['code' => '+7', 'label' => 'Russia (+7)'],
-            ['code' => '+380', 'label' => 'Ukraine (+380)'],
-            ['code' => '+48', 'label' => 'Poland (+48)'],
-            ['code' => '+420', 'label' => 'Czech Republic (+420)'],
-            ['code' => '+421', 'label' => 'Slovakia (+421)'],
-            ['code' => '+36', 'label' => 'Hungary (+36)'],
-            ['code' => '+40', 'label' => 'Romania (+40)'],
-            ['code' => '+30', 'label' => 'Greece (+30)'],
-            ['code' => '+386', 'label' => 'Slovenia (+386)'],
-            ['code' => '+385', 'label' => 'Croatia (+385)'],
-            ['code' => '+43', 'label' => 'Austria (+43)'],
-            ['code' => '+372', 'label' => 'Estonia (+372)'],
-            ['code' => '+371', 'label' => 'Latvia (+371)'],
-            ['code' => '+370', 'label' => 'Lithuania (+370)'],
-            ['code' => '+56', 'label' => 'Chile (+56)'],
-            ['code' => '+57', 'label' => 'Colombia (+57)'],
-            ['code' => '+58', 'label' => 'Venezuela (+58)'],
-            ['code' => '+507', 'label' => 'Panama (+507)'],
-            ['code' => '+506', 'label' => 'Costa Rica (+506)'],
-            ['code' => '+66', 'label' => 'Thailand (+66)'],
-            ['code' => '+84', 'label' => 'Vietnam (+84)'],
-        ];
-
-        // Separate Kenya from the rest, then sort the rest alphabetically
-        $kenya = collect($codes)->firstWhere('code', '+254');
-        $others = collect($codes)->reject(fn($item) => $item['code'] === '+254')
-            ->sortBy('label')
-            ->values()
-            ->all();
-
-        return $kenya ? array_merge([$kenya], $others) : $others;
+        return \App\Support\CountryDialCodes::options();
     }
 
     /**

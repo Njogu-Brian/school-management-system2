@@ -143,7 +143,7 @@
         <tr>
             <td>{{ $loop->iteration }}</td>
             <td>{{ $invoice->invoice_number ?? 'N/A' }}</td>
-            <td style="font-size: 8px;">{{ optional($invoice->term)->name ?? '—' }}</td>
+            <td style="font-size: 8px;">{{ $invoice->termDisplayLabel() ?: '—' }}</td>
             <td>{{ $votehead->name ?? 'N/A' }}</td>
             <td class="text-right">Ksh {{ number_format($itemAmount, 2) }}</td>
             <td class="text-right">@if($discountAmount > 0)Ksh {{ number_format($discountAmount, 2) }}@else-@endif</td>
@@ -159,8 +159,12 @@
         $amountPaid = $total_amount ?? $payment->amount;
         $studentBalance = (float) ($total_outstanding_balance ?? $total_balance_after ?? 0);
         $totalInvoices = $total_invoices ?? 0;
-        $hasBalanceDue = $studentBalance > 0.009;
-        $hasCredit = $studentBalance < -0.009;
+        $creditOnAccount = (float) ($payment->unallocated_amount ?? 0);
+        // Only real unallocated money is credit. A negative frozen balance from a
+        // backdated payment must not print as "Credit on account".
+        $hasCredit = $creditOnAccount > 0.009;
+        $displayBalance = $hasCredit ? 0.0 : max(0.0, $studentBalance);
+        $hasBalanceDue = $displayBalance > 0.009;
     @endphp
     <div class="total-row">
         <span>Total Invoices (this receipt):</span>
@@ -173,17 +177,16 @@
     <div class="payment-info">
         Payment Method: {{ $payment_method ?? 'Cash' }}@if($reference ?? $payment->reference ?? null), Reference: {{ $reference ?? $payment->reference }}@endif
     </div>
-    @php $creditOnAccount = $payment->unallocated_amount ?? 0; @endphp
-    @if($creditOnAccount > 0.009 || $hasCredit)
+    @if($hasCredit)
     <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 5px; margin-top: 5px;">
         <span><strong>Credit on account:</strong></span>
-        <span style="color: {{ $brandSuccess }};"><strong>(Ksh {{ number_format($hasCredit ? abs($studentBalance) : $creditOnAccount, 2) }})</strong></span>
+        <span style="color: {{ $brandSuccess }};"><strong>(Ksh {{ number_format($creditOnAccount, 2) }})</strong></span>
     </div>
     @endif
     @if($hasBalanceDue)
     <div class="total-row grand-total" style="border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; color: {{ $brandDanger }};">
         <span style="font-size: 12px; font-weight: bold;">Balance as at this payment:</span>
-        <span style="font-size: 12px; font-weight: bold;">Ksh {{ number_format($studentBalance, 2) }}</span>
+        <span style="font-size: 12px; font-weight: bold;">Ksh {{ number_format($displayBalance, 2) }}</span>
     </div>
     @else
     <div class="total-row grand-total" style="border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; color: {{ $brandSuccess }};">

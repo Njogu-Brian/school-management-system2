@@ -2,6 +2,7 @@ import type {
   StudentEmergencyContact,
   StudentGuardianContact,
   StudentParentInfo,
+  StudentSiblingSummary,
 } from '../types/student';
 import type { StudentRecord } from '../types/student';
 
@@ -60,4 +61,16 @@ export function mapEmergencyContact(raw: StudentRecord): StudentEmergencyContact
     name: raw.emergency_contact_name ?? null,
     phone: raw.emergency_contact_phone ?? null,
   };
+}
+
+export function mapSiblings(raw: StudentRecord['siblings']): StudentSiblingSummary[] {
+  if (!raw?.length) return [];
+  return raw.map((s) => ({
+    id: s.id,
+    fullName: s.full_name,
+    admissionNumber: s.admission_number,
+    className: s.class_name ?? null,
+    streamName: s.stream_name ?? null,
+    avatarUrl: s.avatar ?? null,
+  }));
 }

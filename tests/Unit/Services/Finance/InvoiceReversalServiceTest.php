@@ -55,7 +55,7 @@ class InvoiceReversalServiceTest extends TestCase
     }
 
     #[Test]
-    public function it_unallocates_and_reverses_a_payment_only_on_this_invoice(): void
+    public function it_unallocates_a_payment_without_reversing_it(): void
     {
         $student = Student::factory()->create();
         $invoice = Invoice::factory()->create(['student_id' => $student->id, 'total' => 10000]);
@@ -81,7 +81,7 @@ class InvoiceReversalServiceTest extends TestCase
         $this->service->reverse($invoice, 'Wrong invoice generated');
 
         $payment->refresh();
-        $this->assertTrue((bool) $payment->reversed);
+        $this->assertFalse((bool) $payment->reversed);
         $this->assertSame(0, $payment->allocations()->count());
         $this->assertNull($payment->invoice_id);
         $this->assertTrue($invoice->fresh()->isReversed());

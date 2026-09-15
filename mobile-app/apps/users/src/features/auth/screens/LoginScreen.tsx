@@ -3,12 +3,13 @@ import {
   getRememberedFirstName,
   hasPinUnlockAvailable,
   API_BASE_URL,
+  APP_SURFACE,
   authApi,
   useAuth,
   useBiometricAuth,
   useBranding,
 } from '@erp/core';
-import { Button, ForgotPasswordForm, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
+import { Button, ForgotPasswordForm, ScreenContainer, Soft3DIcon, useAdaptiveLayout, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -60,6 +61,8 @@ export const LoginScreen: React.FC = () => {
   } = useBiometricAuth();
   const { colors, spacing, typography, radius } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isTablet, formMaxWidth } = useAdaptiveLayout();
+  const combined = APP_SURFACE === 'combined';
   const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading, branding, colorOverrides } =
     useBranding();
 
@@ -367,10 +370,17 @@ export const LoginScreen: React.FC = () => {
           backgroundColor: 'rgba(12,16,24,0.94)',
           borderTopLeftRadius: radius.xl,
           borderTopRightRadius: radius.xl,
+          borderBottomLeftRadius: isTablet ? radius.xl : 0,
+          borderBottomRightRadius: isTablet ? radius.xl : 0,
           paddingTop: spacing.xl,
           paddingHorizontal: spacing.lg,
           paddingBottom: insets.bottom + spacing.xl,
           borderColor: 'rgba(255,255,255,0.1)',
+          alignSelf: isTablet ? 'center' : undefined,
+          width: isTablet ? '100%' : undefined,
+          maxWidth: isTablet ? formMaxWidth : undefined,
+          marginHorizontal: isTablet ? spacing.lg : 0,
+          marginBottom: isTablet ? spacing.lg : 0,
         },
       ]}
     >
@@ -407,7 +417,9 @@ export const LoginScreen: React.FC = () => {
               ? `Unlock with ${typeLabel} — or use your PIN`
               : 'Unlock with your PIN — no password needed'
             : sheetGate === 'welcome'
-              ? 'Parents · Teachers · Students · Drivers — sign in or claim access'
+              ? combined
+                ? 'Admin · Staff · Parents · Students — sign in or claim access'
+                : 'Parents · Teachers · Students · Drivers — sign in or claim access'
               : sheetGate === 'recommend'
                 ? `Continue as ${rememberedDisplayName ?? rememberedFirstName ?? 'this account'}, or use a different account`
                 : rememberedFirstName
@@ -696,11 +708,11 @@ export const LoginScreen: React.FC = () => {
         }}
       >
         <Text style={{ color: '#93c5fd', fontWeight: '800', fontSize: typography.caption.fontSize, letterSpacing: 0.6 }}>
-          USERS
+          {combined ? 'SCHOOL' : 'USERS'}
         </Text>
       </View>
       <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.bodyLarge.fontSize, marginTop: spacing.sm }}>
-        Parents · Teachers · Students · Drivers
+        {combined ? 'Admin · Staff · Parents · Students' : 'Parents · Teachers · Students · Drivers'}
       </Text>
     </View>
   );

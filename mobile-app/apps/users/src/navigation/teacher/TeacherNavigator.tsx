@@ -1,3 +1,4 @@
+import { useCurrentUser, UserRole } from '@erp/core';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
@@ -191,11 +192,23 @@ function TeacherActivitiesStack() {
 }
 
 /** Tabs wrap stacks so the bottom bar stays visible on detail screens. */
-export const TeacherNavigator: React.FC = () => (
-  <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={teacherTabBar}>
-    <Tab.Screen name="Home" component={TeacherHomeStack} options={{ tabBarLabel: 'Home' }} />
-    <Tab.Screen name="Classes" component={TeacherClassesStack} options={{ tabBarLabel: 'Classes' }} />
-    <Tab.Screen name="Attendance" component={TeacherAttendanceStack} options={{ tabBarLabel: 'Attendance' }} />
-    <Tab.Screen name="Activities" component={TeacherActivitiesStack} options={{ tabBarLabel: 'Activities' }} />
-  </Tab.Navigator>
-);
+export const TeacherNavigator: React.FC = () => {
+  const user = useCurrentUser();
+  const isSenior =
+    user?.role === UserRole.SENIOR_TEACHER || user?.role === UserRole.SUPERVISOR;
+  const showHomeroomTabs =
+    isSenior || Boolean(user?.isHomeroomTeacher) || (user?.classTeacherClassroomIds?.length ?? 0) > 0;
+
+  return (
+    <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={teacherTabBar}>
+      <Tab.Screen name="Home" component={TeacherHomeStack} options={{ tabBarLabel: 'Home' }} />
+      {showHomeroomTabs ? (
+        <Tab.Screen name="Classes" component={TeacherClassesStack} options={{ tabBarLabel: 'Classes' }} />
+      ) : null}
+      {showHomeroomTabs ? (
+        <Tab.Screen name="Attendance" component={TeacherAttendanceStack} options={{ tabBarLabel: 'Attendance' }} />
+      ) : null}
+      <Tab.Screen name="Activities" component={TeacherActivitiesStack} options={{ tabBarLabel: 'Activities' }} />
+    </Tab.Navigator>
+  );
+};

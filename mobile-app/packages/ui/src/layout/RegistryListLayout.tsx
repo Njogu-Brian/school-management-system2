@@ -105,9 +105,10 @@ export function RegistryListLayout<T>({
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  flex: { flex: 1, minHeight: 0 },
   sticky: {
     zIndex: 2,
+    flexShrink: 0,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

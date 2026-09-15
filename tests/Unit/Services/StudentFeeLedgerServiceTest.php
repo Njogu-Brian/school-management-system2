@@ -111,6 +111,34 @@ class StudentFeeLedgerServiceTest extends TestCase
     }
 
     /** @test */
+    public function applications_for_a_payment_follow_oldest_invoice_first(): void
+    {
+        $student = Student::factory()->create();
+        $term1 = $this->makeInvoice($student, 5000, '2026-01-10');
+        $term2 = $this->makeInvoice($student, 8000, '2026-05-10');
+
+        Payment::factory()->create([
+            'student_id' => $student->id,
+            'amount' => 4000,
+            'payment_date' => '2026-06-01',
+        ]);
+        $later = Payment::factory()->create([
+            'student_id' => $student->id,
+            'amount' => 3000,
+            'payment_date' => '2026-06-15',
+        ]);
+
+        $this->ledger->forgetCache((int) $student->id);
+        $apps = $this->ledger->applicationsForPayment($later);
+
+        $this->assertCount(2, $apps);
+        $this->assertSame((int) $term1->id, $apps[0]['invoice_id']);
+        $this->assertEqualsWithDelta(1000.0, $apps[0]['amount'], 0.01);
+        $this->assertSame((int) $term2->id, $apps[1]['invoice_id']);
+        $this->assertEqualsWithDelta(2000.0, $apps[1]['amount'], 0.01);
+    }
+
+    /** @test */
     public function overpayment_becomes_credit_on_account(): void
     {
         $student = Student::factory()->create();

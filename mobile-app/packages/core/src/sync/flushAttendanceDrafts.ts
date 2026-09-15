@@ -4,6 +4,7 @@ import { SYNC_KINDS } from './types';
 
 export type AttendanceDraftPayload = {
   statusById: Record<number, string>;
+  reasonById?: Record<number, { reason_code_id?: number | null; reason?: string | null; excuse_notes?: string | null }>;
   serverSnapshot?: Record<number, string>;
 };
 
@@ -32,10 +33,17 @@ export async function enqueueAttendanceDrafts(): Promise<number> {
 
     const snapshot = draft.serverSnapshot ?? {};
     const records = Object.entries(draft.statusById)
-      .map(([id, status]) => ({
-        student_id: Number(id),
-        status: String(status),
-      }))
+      .map(([id, status]) => {
+        const studentId = Number(id);
+        const reason = draft.reasonById?.[studentId];
+        return {
+          student_id: studentId,
+          status: String(status),
+          reason_code_id: reason?.reason_code_id,
+          reason: reason?.reason,
+          excuse_notes: reason?.excuse_notes,
+        };
+      })
       .filter(
         (row) => Number.isFinite(row.student_id) && row.status !== snapshotStatus(snapshot, row.student_id),
       );

@@ -22,7 +22,14 @@ export interface AttendanceSyncPayload {
   class_id: number;
   stream_id?: number | null;
   class_label?: string;
-  records: Array<{ student_id: number; status: string; student_name?: string }>;
+  records: Array<{
+    student_id: number;
+    status: string;
+    student_name?: string;
+    reason_code_id?: number | null;
+    reason?: string | null;
+    excuse_notes?: string | null;
+  }>;
   baseSnapshot: Record<number, string>;
 }
 

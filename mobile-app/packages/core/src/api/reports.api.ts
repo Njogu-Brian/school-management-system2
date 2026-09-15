@@ -179,6 +179,18 @@ export const reportsApi = {
     return apiClient.get<PaginatedResponse<ExpenseSummaryRecord>>('/expenses', params);
   },
 
+  createExpense(payload: {
+    expense_date: string;
+    amount?: number;
+    notes?: string;
+    vendor_id?: number;
+    category_id?: number;
+    description?: string;
+    currency?: string;
+  }): Promise<ApiResponse<ExpenseSummaryRecord>> {
+    return apiClient.post<ExpenseSummaryRecord>('/expenses', payload);
+  },
+
   getExpense(id: number): Promise<ApiResponse<ExpenseDetailRecord>> {
     return apiClient.get<ExpenseDetailRecord>(`/expenses/${id}`);
   },

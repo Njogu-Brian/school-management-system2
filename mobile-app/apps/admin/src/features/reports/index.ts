@@ -3,6 +3,7 @@ export { ExecutiveAnalyticsScreen } from './screens/ExecutiveAnalyticsScreen';
 export { BoardPackScreen } from './screens/BoardPackScreen';
 export { ExpenseReportsScreen } from './screens/ExpenseReportsScreen';
 export { ExpensesListScreen } from './screens/ExpensesListScreen';
+export { CreateExpenseScreen } from './screens/CreateExpenseScreen';
 export { ExpenseDetailScreen } from './screens/ExpenseDetailScreen';
 export { IncomeStatementScreen } from './screens/IncomeStatementScreen';
 export { BalanceSheetScreen } from './screens/BalanceSheetScreen';

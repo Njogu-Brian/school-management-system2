@@ -122,6 +122,10 @@ export const queryKeys = {
     lessonPlanDetail: (id: number) => [...queryKeys.academics.all, 'lesson-plan', id] as const,
     teacherTimetable: (staffId: number, termId?: number) =>
       [...queryKeys.academics.all, 'teacher-timetable', staffId, termId ?? 'current'] as const,
+    myTimetable: (termId?: number) =>
+      [...queryKeys.academics.all, 'my-timetable', termId ?? 'current'] as const,
+    classTimetable: (classroomId: number, termId?: number) =>
+      [...queryKeys.academics.all, 'class-timetable', classroomId, termId ?? 'current'] as const,
     studentTimetable: (studentId: number, termId?: number) =>
       [...queryKeys.academics.all, 'student-timetable', studentId, termId ?? 'current'] as const,
   },
@@ -307,5 +311,9 @@ export const queryKeys = {
     all: ['co-curricular'] as const,
     student: (studentId: number, year?: number, term?: number) =>
       [...queryKeys.coCurricular.all, studentId, year ?? 'default', term ?? 'default'] as const,
+  },
+  attendance: {
+    all: ['attendance'] as const,
+    reasonCodes: () => [...queryKeys.attendance.all, 'reason-codes'] as const,
   },
 };

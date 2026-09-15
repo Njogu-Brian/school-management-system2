@@ -198,9 +198,10 @@
                                 @endif
                             </td>
                             <td>
+                                @php $invTermLabel = $inv->termDisplayLabel(); @endphp
                                 {{ $inv->academicYear->name ?? $inv->year ?? '—' }}
-                                @if($inv->term)
-                                    / {{ $inv->term->name ?? 'Term ' . $inv->term }}
+                                @if($invTermLabel)
+                                    / {{ $invTermLabel }}
                                 @endif
                             </td>
                             <td class="text-end">

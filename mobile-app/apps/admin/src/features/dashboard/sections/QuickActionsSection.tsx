@@ -36,6 +36,9 @@ export const QuickActionsSection: React.FC = () => {
         case 'qa_attendance':
           navigateToDrawer(navigation, 'Academics', 'MarkAttendance');
           break;
+        case 'qa_mark_absent':
+          navigateToDrawer(navigation, 'Academics', 'MarkAbsent');
+          break;
         case 'qa_clock':
           navigateToTab(navigation, 'People', 'StaffClock');
           break;

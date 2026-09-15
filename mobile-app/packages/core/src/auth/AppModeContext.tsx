@@ -10,22 +10,20 @@ import type { User } from '../types';
 import { apiClient } from '../api/client';
 import { getAppMode, setAppMode as persistAppMode, type AppMode } from '../storage/appModeStorage';
 import { useCurrentUser } from './hooks';
+import { userCanHome, userCanWork } from './roleUtils';
 
 export type { AppMode };
 
 /** Whether a user can toggle between Work and Home shells (dual identity). */
 export function userHasDualIdentity(user: User | null | undefined): boolean {
-  if (!user) return false;
-  const canWork = user.canWorkMode ?? Boolean(user.staffId);
-  const canHome = user.canHomeMode ?? Boolean(user.parentId);
-  return canWork && canHome;
+  return userCanWork(user) && userCanHome(user);
 }
 
 /** Resolve the shell a user should see given their capabilities and persisted preference. */
 export function resolveEffectiveMode(user: User | null | undefined, persisted: AppMode | null): AppMode {
   if (!user) return 'work';
-  const canWork = user.canWorkMode ?? Boolean(user.staffId);
-  const canHome = user.canHomeMode ?? Boolean(user.parentId);
+  const canWork = userCanWork(user);
+  const canHome = userCanHome(user);
   if (canWork && canHome) {
     return persisted ?? 'work';
   }

@@ -33,7 +33,8 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   onPress,
 }) => {
   const { palette, colors, typography, spacing, radius } = useTheme();
-  const deltaColor = deltaPositive === false ? colors.error : colors.success;
+  const deltaColor =
+    deltaPositive === true ? colors.success : deltaPositive === false ? colors.error : palette.textMuted;
 
   const body = (
     <>

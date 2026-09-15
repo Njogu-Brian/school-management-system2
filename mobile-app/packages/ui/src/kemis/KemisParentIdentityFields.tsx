@@ -1,7 +1,7 @@
 import type { KemisOptions, KemisParentSlotValues, ParentSlot } from '@erp/core';
 import React from 'react';
 import { Text, View } from 'react-native';
-import { TextField } from '../primitives';
+import { PhoneCountryField, TextField } from '../primitives';
 import { useTheme } from '../theme';
 import { OptionSelectField } from './OptionSelectField';
 
@@ -72,17 +72,19 @@ export const KemisParentIdentityFields: React.FC<KemisParentIdentityFieldsProps>
       />
       {showContactFields ? (
         <>
-          <TextField
+          <PhoneCountryField
             label="Phone"
-            value={values.phone}
-            onChangeText={(v) => set('phone', v)}
-            keyboardType="phone-pad"
+            countryCode={values.phone_country_code}
+            nationalNumber={values.phone}
+            onCountryCodeChange={(v) => set('phone_country_code', v)}
+            onNationalNumberChange={(v) => set('phone', v)}
           />
-          <TextField
+          <PhoneCountryField
             label="WhatsApp"
-            value={values.whatsapp}
-            onChangeText={(v) => set('whatsapp', v)}
-            keyboardType="phone-pad"
+            countryCode={values.whatsapp_country_code || values.phone_country_code}
+            nationalNumber={values.whatsapp}
+            onCountryCodeChange={(v) => set('whatsapp_country_code', v)}
+            onNationalNumberChange={(v) => set('whatsapp', v)}
           />
           <TextField
             label="Email"

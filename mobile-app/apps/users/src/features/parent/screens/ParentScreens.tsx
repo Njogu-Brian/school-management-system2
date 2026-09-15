@@ -260,9 +260,8 @@ export const ParentHomeScreen: React.FC = () => {
         meta={meta}
       />
 
-      <View style={{ marginBottom: spacing.md }}>
-        <AppModeSwitch />
-      </View>
+      <AppModeSwitch variant="banner" style={{ marginBottom: spacing.md }} />
+
 
       {childrenQuery.isLoading || !childReady ? (
         <SkeletonListRows count={4} />

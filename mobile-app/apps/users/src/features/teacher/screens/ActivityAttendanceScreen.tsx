@@ -7,18 +7,18 @@ import {
 import {
   AcademicScreenHeader,
   Button,
+  DatePickerField,
+  DockedActionLayout,
   EmptyState,
   FooterDock,
   ScreenContainer,
   SkeletonListRows,
-  useFloatingTabBarClearance,
   useTheme,
 } from '@erp/ui';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import type { TeacherStackParamList } from '../../../navigation/teacher/teacherStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -40,11 +40,9 @@ export const ActivityAttendanceScreen: React.FC = () => {
   const route = useRoute<Route>();
   const { activityId, activityName } = route.params;
   const { colors, palette, spacing, typography } = useTheme();
-  const tabClearance = useFloatingTabBarClearance(false);
 
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [attendedById, setAttendedById] = useState<Record<number, boolean>>({});
   const [serverSnapshot, setServerSnapshot] = useState<Record<number, boolean>>({});
   const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
@@ -146,66 +144,63 @@ export const ActivityAttendanceScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }} clearFloatingTabBar={false}>
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, flex: 1 }}>
-        <AcademicScreenHeader
-          title={activityName}
-          subtitle="Activity roll"
-          onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
-        />
+      <DockedActionLayout
+        header={
+          <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
+            <AcademicScreenHeader
+              title={activityName}
+              subtitle="Activity roll"
+              onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+            />
 
-        <Pressable
-          onPress={() => setShowDatePicker(true)}
-          style={[styles.dateRow, { borderColor: palette.border, backgroundColor: palette.surfaceRaised }]}
-        >
-          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Date</Text>
-          <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.titleSmall.fontSize }}>
-            {dateStr}
-          </Text>
-          <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, fontWeight: '600' }}>
-            Change
-          </Text>
-        </Pressable>
+            <DatePickerField
+              value={selectedDate}
+              onChange={setSelectedDate}
+              maximumDate={new Date()}
+            />
 
-        {showDatePicker ? (
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            maximumDate={new Date()}
-            onChange={(_, date) => {
-              setShowDatePicker(Platform.OS === 'ios');
-              if (date) setSelectedDate(date);
-            }}
-          />
-        ) : null}
+            {schoolDayMessage ? (
+              <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
+                <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
+              </View>
+            ) : null}
 
-        {schoolDayMessage ? (
-          <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
-            <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
+            {students.length > 0 && schoolDayOk !== false ? (
+              <View style={styles.bulkRow}>
+                <Pressable onPress={() => markAll(true)}>
+                  <Text style={{ color: colors.primary, fontWeight: '700' }}>Select all</Text>
+                </Pressable>
+                <Pressable onPress={() => markAll(false)}>
+                  <Text style={{ color: palette.textSecondary, fontWeight: '700' }}>Clear all</Text>
+                </Pressable>
+                <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
+                  {attendedCount}/{students.length} attended
+                </Text>
+              </View>
+            ) : null}
           </View>
-        ) : null}
-
-        {students.length > 0 && schoolDayOk !== false ? (
-          <View style={styles.bulkRow}>
-            <Pressable onPress={() => markAll(true)}>
-              <Text style={{ color: colors.primary, fontWeight: '700' }}>Select all</Text>
-            </Pressable>
-            <Pressable onPress={() => markAll(false)}>
-              <Text style={{ color: palette.textSecondary, fontWeight: '700' }}>Clear all</Text>
-            </Pressable>
-            <Text style={{ color: palette.textMuted, fontSize: typography.caption.fontSize }}>
-              {attendedCount}/{students.length} attended
-            </Text>
-          </View>
-        ) : null}
-
+        }
+        footer={
+          <FooterDock>
+            <Button
+              label="Submit roll"
+              onPress={() => void submit()}
+              loading={saveMutation.isPending}
+              disabled={!canSubmit}
+            />
+          </FooterDock>
+        }
+      >
         {loading ? (
-          <SkeletonListRows variant="avatar" count={6} />
+          <View style={{ paddingHorizontal: spacing.md }}>
+            <SkeletonListRows variant="avatar" count={6} />
+          </View>
         ) : (
           <FlatList
             data={students}
             keyExtractor={(item) => String(item.id)}
-            style={{ flex: 1 }}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: canSubmit ? spacing.sm : tabClearance }}
+            style={{ flex: 1, minHeight: 0 }}
+            contentContainerStyle={{ flexGrow: 1, paddingHorizontal: spacing.md, paddingBottom: spacing.sm }}
             renderItem={({ item }) => {
               const attended = !!attendedById[item.id];
               return (
@@ -249,27 +244,12 @@ export const ActivityAttendanceScreen: React.FC = () => {
             }
           />
         )}
-      </View>
-
-      {canSubmit ? (
-        <FooterDock>
-          <Button label="Submit roll" onPress={() => void submit()} loading={saveMutation.isPending} />
-        </FooterDock>
-      ) : null}
+      </DockedActionLayout>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-  },
   warnBanner: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 10,

@@ -1,7 +1,9 @@
-import { useUnreadNotificationCount } from '@erp/core';
+import { useAppMode, useUnreadNotificationCount } from '@erp/core';
 import { GlobalAppHeader, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React, { useCallback } from 'react';
+import { View } from 'react-native';
+import { AppModeSwitch } from '../features/shared/components/AppModeSwitch';
 
 export interface UsersAppHeaderChromeProps {
   title: string;
@@ -39,6 +41,7 @@ export const UsersAppHeaderChrome: React.FC<UsersAppHeaderChromeProps> = ({
   const navigation = useNavigation();
   const { toggleTheme } = useTheme();
   const unreadQuery = useUnreadNotificationCount();
+  const { canSwitch } = useAppMode();
 
   const onNotifications = useCallback(
     () => navigation.navigate(notificationsRoute as never),
@@ -50,15 +53,18 @@ export const UsersAppHeaderChrome: React.FC<UsersAppHeaderChromeProps> = ({
   );
 
   return (
-    <GlobalAppHeader
-      title={title}
-      onMenuPress={onMenuPress}
-      onSearchPress={onSearchPress}
-      searchPrompt={searchPrompt}
-      onNotificationsPress={onNotifications}
-      onThemeTogglePress={toggleTheme}
-      onProfilePress={onProfile}
-      showNotificationsBadge={(unreadQuery.data ?? 0) > 0}
-    />
+    <View>
+      <GlobalAppHeader
+        title={title}
+        onMenuPress={onMenuPress}
+        onSearchPress={onSearchPress}
+        searchPrompt={searchPrompt}
+        onNotificationsPress={onNotifications}
+        onThemeTogglePress={toggleTheme}
+        onProfilePress={onProfile}
+        showNotificationsBadge={(unreadQuery.data ?? 0) > 0}
+      />
+      {canSwitch ? <AppModeSwitch style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 8 }} /> : null}
+    </View>
   );
 };

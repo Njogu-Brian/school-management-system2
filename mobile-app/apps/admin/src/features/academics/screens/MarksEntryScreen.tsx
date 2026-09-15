@@ -9,10 +9,10 @@ import {
   useNetworkStatus,
   useOfflineDraft,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, DockedActionLayout, FooterDock, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -154,57 +154,72 @@ export const MarksEntryScreen: React.FC<Props> = ({ route, navigation }) => {
   const loading = examQuery.isLoading || marksQuery.isLoading || loadingStudents;
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
-        <AcademicScreenHeader
-          title="Enter marks"
-          subtitle={`${classroomName} · ${subjectName}`}
-          onBack={() => navigation.goBack()}
-        />
-        <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, marginBottom: spacing.md }}>
-          {examQuery.data?.name ?? `Exam #${examId}`}
-        </Text>
-        {hasLocalDraft ? (
-          <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-            Draft auto-saved on this device.
-          </Text>
-        ) : null}
-        {loading ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : (
-          students.map((student) => (
-            <View
-              key={student.id}
-              style={{
-                marginBottom: spacing.md,
-                borderBottomWidth: 1,
-                borderBottomColor: palette.border,
-                paddingBottom: spacing.sm,
-              }}
-            >
-              <Text style={{ color: palette.textPrimary, fontWeight: '600', marginBottom: spacing.xs }}>
-                {student.full_name}
+    <ScreenContainer scroll={false} style={{ flex: 1 }} clearFloatingTabBar={false}>
+      <DockedActionLayout
+        header={
+          <View style={{ padding: spacing.md, paddingBottom: 0 }}>
+            <AcademicScreenHeader
+              title="Enter marks"
+              subtitle={`${classroomName} · ${subjectName}`}
+              onBack={() => navigation.goBack()}
+            />
+            <Text style={{ color: palette.textSecondary, fontSize: typography.body.fontSize, marginBottom: spacing.md }}>
+              {examQuery.data?.name ?? `Exam #${examId}`}
+            </Text>
+            {hasLocalDraft ? (
+              <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+                Draft auto-saved on this device.
               </Text>
-              <TextField
-                label="Marks"
-                value={marks[student.id]?.marks ?? ''}
-                onChangeText={(v) => updateMark(student.id, 'marks', v)}
-                keyboardType="numeric"
-              />
-              <TextField
-                label="Remarks"
-                value={marks[student.id]?.remarks ?? ''}
-                onChangeText={(v) => updateMark(student.id, 'remarks', v)}
-              />
-            </View>
-          ))
+            ) : null}
+          </View>
+        }
+        footer={
+          <FooterDock>
+            <Button
+              label={networkStatus === 'offline' ? 'Queue marks' : 'Save marks'}
+              onPress={() => void onSave()}
+              loading={enterMarks.isPending}
+            />
+          </FooterDock>
+        }
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+        ) : (
+          <FlatList
+            data={students}
+            keyExtractor={(item) => String(item.id)}
+            style={{ flex: 1, minHeight: 0 }}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ padding: spacing.md, paddingTop: spacing.sm, flexGrow: 1 }}
+            renderItem={({ item: student }) => (
+              <View
+                style={{
+                  marginBottom: spacing.md,
+                  borderBottomWidth: 1,
+                  borderBottomColor: palette.border,
+                  paddingBottom: spacing.sm,
+                }}
+              >
+                <Text style={{ color: palette.textPrimary, fontWeight: '600', marginBottom: spacing.xs }}>
+                  {student.full_name}
+                </Text>
+                <TextField
+                  label="Marks"
+                  value={marks[student.id]?.marks ?? ''}
+                  onChangeText={(v) => updateMark(student.id, 'marks', v)}
+                  keyboardType="numeric"
+                />
+                <TextField
+                  label="Remarks"
+                  value={marks[student.id]?.remarks ?? ''}
+                  onChangeText={(v) => updateMark(student.id, 'remarks', v)}
+                />
+              </View>
+            )}
+          />
         )}
-        <Button
-          label={networkStatus === 'offline' ? 'Queue marks' : 'Save marks'}
-          onPress={() => void onSave()}
-          loading={enterMarks.isPending}
-        />
-      </ScrollView>
+      </DockedActionLayout>
     </ScreenContainer>
   );
 };

@@ -4,6 +4,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Soft3DTone } from '../primitives/AccentIcon';
 import { useTheme } from '../theme/ThemeContext';
+import { TABLET_TAB_BAR_MAX_WIDTH, useAdaptiveLayout } from './useAdaptiveLayout';
 
 export interface PremiumTabItem {
   key: string;
@@ -50,6 +51,7 @@ export function useFloatingTabBarClearance(includeSafeArea = true): number {
 export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, onTabPress }) => {
   const { spacing, colors, isDark, zIndex } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isTablet } = useAdaptiveLayout();
   const barBg = isDark ? colors.primaryDark : colors.primary;
   const activePill = isDark ? 'rgba(75,159,255,0.28)' : 'rgba(255,255,255,0.2)';
   const idleIcon = 'rgba(255,255,255,0.72)';
@@ -63,10 +65,20 @@ export const PremiumTabBar: React.FC<PremiumTabBarProps> = ({ items, activeKey, 
         {
           paddingBottom: Math.max(insets.bottom, spacing.sm),
           zIndex: zIndex.nav,
+          alignItems: 'center',
         },
       ]}
     >
-      <View style={[styles.capsule, { backgroundColor: barBg }]}>
+      <View
+        style={[
+          styles.capsule,
+          {
+            backgroundColor: barBg,
+            width: '100%',
+            maxWidth: isTablet ? TABLET_TAB_BAR_MAX_WIDTH : undefined,
+          },
+        ]}
+      >
         {items.map((item) => {
           const focused = item.key === activeKey;
           const iconName = (focused

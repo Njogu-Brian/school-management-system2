@@ -6,6 +6,7 @@ import {
 } from '@react-navigation/drawer';
 import { DrawerActions } from '@react-navigation/native';
 import React from 'react';
+import { useAdaptiveLayout } from '@erp/ui';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import { AcademicsStackNavigator } from './AcademicsStackNavigator';
 import { AdmissionsStackNavigator } from './AdmissionsStackNavigator';
@@ -57,6 +58,7 @@ const DRAWER_SCREENS: Array<{
 export const DrawerNavigator: React.FC = () => {
   const { drawerAreas, tabAreas } = useRbac();
   const { width: windowWidth } = useWindowDimensions();
+  const { isTablet } = useAdaptiveLayout();
 
   const allowedDrawerKeys = new Set(drawerAreas.map((a) => a.key));
 
@@ -70,8 +72,7 @@ export const DrawerNavigator: React.FC = () => {
         ? AREA_TO_DRAWER_ROUTE[firstDrawerScreen.areaKey]
         : 'Workspace';
 
-  const drawerWidth = Math.min(280, Math.round(windowWidth * 0.72));
-  const isTablet = windowWidth >= 900;
+  const drawerWidth = isTablet ? 280 : Math.min(280, Math.round(windowWidth * 0.72));
 
   return (
     <Drawer.Navigator

@@ -38,7 +38,8 @@ class SocialAuthController extends Controller
         $linked = User::where('google_id', $googleId)->first();
         if ($linked) {
             Auth::login($linked, true);
-            return redirect()->route('home');
+
+            return $this->afterSocialLogin($linked);
         }
 
         // If a local account exists for this email, link then login.
@@ -55,7 +56,20 @@ class SocialAuthController extends Controller
         ])->save();
 
         Auth::login($user, true);
-        return redirect()->route('home')->with('status', 'Google account linked. You can now sign in with Google.');
+
+        return $this->afterSocialLogin($user, 'Google account linked. You can now sign in with Google.');
+    }
+
+    protected function afterSocialLogin(User $user, ?string $status = null): RedirectResponse
+    {
+        $user->loadMissing('roles');
+        if ($user->mustUseMobileApp()) {
+            return \App\Support\ParentWebPortalGate::reject($user);
+        }
+
+        $redirect = redirect()->route('home');
+
+        return $status ? $redirect->with('status', $status) : $redirect;
     }
 }
 

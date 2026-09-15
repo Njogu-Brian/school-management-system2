@@ -91,6 +91,13 @@ export const QuickActionFab: React.FC = () => {
       onPress: () => navigateToDrawer(navigation, 'Academics', 'MarkAttendance'),
     },
     {
+      id: 'mark_absent',
+      label: 'Mark as absent',
+      icon: 'close-circle-outline',
+      visible: canAcademics,
+      onPress: () => navigateToDrawer(navigation, 'Academics', 'MarkAbsent'),
+    },
+    {
       id: 'staff_clock',
       label: 'Staff attendance',
       icon: 'time-outline',

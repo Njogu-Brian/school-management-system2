@@ -351,6 +351,11 @@
           <div class="fw-semibold archive-student-name">—</div>
         </div>
         <div>
+          <label class="form-label">Date of transfer / departure <span class="text-danger">*</span></label>
+          <input type="date" name="transfer_date" class="form-control" required value="{{ now()->toDateString() }}">
+          <div class="form-text">Unpaid invoices for later terms are reversed. Paid invoices stay.</div>
+        </div>
+        <div>
           <label class="form-label">Reason</label>
           <select name="reason" class="form-select" required>
             <option value="School fees">School fees</option>
@@ -403,6 +408,10 @@
       archiveModal.querySelector('.archive-student-name').innerText = name;
       archiveModal.querySelector('select[name=\"reason\"]').value = 'School fees';
       archiveModal.querySelector('textarea[name=\"archived_notes\"]').value = '';
+      const dateField = archiveModal.querySelector('input[name=\"transfer_date\"]');
+      if (dateField && !dateField.value) {
+        dateField.value = new Date().toISOString().slice(0, 10);
+      }
       const modal = bootstrap.Modal.getOrCreateInstance(archiveModal);
       modal.show();
     });

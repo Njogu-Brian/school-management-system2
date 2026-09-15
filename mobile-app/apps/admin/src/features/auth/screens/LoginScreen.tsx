@@ -8,7 +8,7 @@ import {
   useBiometricAuth,
   useBranding,
 } from '@erp/core';
-import { Button, ForgotPasswordForm, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
+import { Button, ForgotPasswordForm, ScreenContainer, Soft3DIcon, useAdaptiveLayout, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -58,6 +58,7 @@ export const LoginScreen: React.FC = () => {
   } = useBiometricAuth();
   const { colors, spacing, typography, radius } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isTablet, formMaxWidth } = useAdaptiveLayout();
   const scrollRef = useRef<ScrollViewType>(null);
   const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading, branding, colorOverrides } =
     useBranding();
@@ -357,10 +358,17 @@ export const LoginScreen: React.FC = () => {
           backgroundColor: 'rgba(12,16,24,0.94)',
           borderTopLeftRadius: radius.xl,
           borderTopRightRadius: radius.xl,
+          borderBottomLeftRadius: isTablet ? radius.xl : 0,
+          borderBottomRightRadius: isTablet ? radius.xl : 0,
           paddingTop: spacing.xl,
           paddingHorizontal: spacing.lg,
           paddingBottom: insets.bottom + spacing.xl,
           borderColor: 'rgba(255,255,255,0.1)',
+          alignSelf: isTablet ? 'center' : undefined,
+          width: isTablet ? '100%' : undefined,
+          maxWidth: isTablet ? formMaxWidth : undefined,
+          marginHorizontal: isTablet ? spacing.lg : 0,
+          marginBottom: isTablet ? spacing.lg : 0,
         },
       ]}
     >

@@ -104,41 +104,40 @@ class StudentFeeStatementService
     }
 
     /**
-     * Running balance immediately after this payment, using only events on or before it.
+     * Running fee balance immediately after this payment (ledger model).
+     *
+     * Uses charges vs payments in payment-date order so a backdated receipt that
+     * clears a later invoice does not freeze a false credit on the receipt.
      */
     public function balanceAfterPayment(Payment $payment): array
     {
-        if ($payment->balance_after !== null) {
+        if ($payment->balance_after !== null && ! $this->snapshotLooksLikeFalseCredit($payment)) {
             return [
                 'balance_before' => (float) ($payment->balance_before ?? ((float) $payment->balance_after + (float) $payment->amount)),
                 'balance_after' => (float) $payment->balance_after,
             ];
         }
 
-        $student = $payment->student;
-        if (! $student) {
+        $studentId = (int) $payment->student_id;
+        if ($studentId <= 0) {
             return ['balance_before' => 0.0, 'balance_after' => 0.0];
         }
 
-        $pack = $this->forStudent($student);
-        foreach ($pack['transactions'] as $row) {
-            if (($row['kind'] ?? '') === 'payment' && (int) ($row['payment_id'] ?? 0) === (int) $payment->id) {
-                return [
-                    'balance_before' => (float) $row['balance_before'],
-                    'balance_after' => (float) $row['balance_after'],
-                ];
-            }
+        $row = app(StudentFeeLedgerService::class)->runningBalancesForStudent($studentId)[(int) $payment->id] ?? null;
+        if ($row) {
+            return $row;
         }
 
         return [
-            'balance_before' => (float) $pack['closing_balance'] + (float) $payment->amount,
-            'balance_after' => (float) $pack['closing_balance'],
+            'balance_before' => (float) $payment->amount,
+            'balance_after' => 0.0,
         ];
     }
 
     /**
      * Persist balance_before / balance_after on fee payments that do not yet have a snapshot.
-     * Existing values stay frozen so later payments cannot rewrite older receipts.
+     * Existing values stay frozen so later payments cannot rewrite older receipts,
+     * except false-credit snapshots (allocated payment frozen as a negative balance).
      */
     public function persistPaymentSnapshots(int $studentId): void
     {
@@ -151,21 +150,45 @@ class StudentFeeStatementService
             return;
         }
 
-        $pack = $this->forStudent($student);
-        Payment::withoutEvents(function () use ($pack) {
-            foreach ($pack['transactions'] as $row) {
-                if (($row['kind'] ?? '') !== 'payment' || empty($row['payment_id'])) {
+        $balances = app(StudentFeeLedgerService::class)->runningBalancesForStudent($studentId);
+        Payment::withoutEvents(function () use ($studentId, $balances) {
+            $payments = Payment::query()
+                ->where('student_id', $studentId)
+                ->where('reversed', false)
+                ->get(['id', 'balance_after', 'balance_before', 'allocated_amount', 'unallocated_amount', 'amount']);
+
+            foreach ($payments as $payment) {
+                $row = $balances[(int) $payment->id] ?? null;
+                if (! $row) {
                     continue;
                 }
-                Payment::where('id', $row['payment_id'])
-                    ->whereNull('balance_after')
-                    ->update([
-                        'balance_before' => $row['balance_before'],
-                        'balance_after' => $row['balance_after'],
-                        'updated_at' => now(),
-                    ]);
+                $shouldWrite = $payment->balance_after === null
+                    || $this->snapshotLooksLikeFalseCredit($payment);
+                if (! $shouldWrite) {
+                    continue;
+                }
+                Payment::where('id', $payment->id)->update([
+                    'balance_before' => $row['balance_before'],
+                    'balance_after' => $row['balance_after'],
+                    'updated_at' => now(),
+                ]);
             }
         });
+    }
+
+    /**
+     * Allocated payment frozen with a negative balance while nothing is unallocated.
+     * Happens when payment_date is before the invoice it actually cleared.
+     */
+    private function snapshotLooksLikeFalseCredit(Payment $payment): bool
+    {
+        if ($payment->balance_after === null) {
+            return false;
+        }
+
+        return (float) $payment->balance_after < -0.009
+            && (float) ($payment->unallocated_amount ?? 0) <= 0.009
+            && (float) ($payment->allocated_amount ?? 0) > 0.009;
     }
 
     private function buildEvents(Student $student, ?int $year = null, $termId = null): array

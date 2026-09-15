@@ -1,7 +1,9 @@
-import { useUnreadNotificationCount } from '@erp/core';
+import { useAppMode, useUnreadNotificationCount } from '@erp/core';
 import { GlobalAppHeader, useTheme } from '@erp/ui';
 import { useNavigation } from '@react-navigation/native';
 import React, { useCallback } from 'react';
+import { View } from 'react-native';
+import { AppModeSwitch } from '../features/shared/components/AppModeSwitch';
 import { navigateToTab } from './navigateWorkspace';
 
 export interface AppHeaderChromeProps {
@@ -45,6 +47,7 @@ export const AppHeaderChrome: React.FC<AppHeaderChromeProps> = ({
   const navigation = useNavigation();
   const { toggleTheme } = useTheme();
   const unreadQuery = useUnreadNotificationCount();
+  const { canSwitch } = useAppMode();
 
   const onSearch = useCallback(
     () => navigateDashboardNested(navigation as unknown as NavLike, 'GlobalSearch'),
@@ -60,14 +63,17 @@ export const AppHeaderChrome: React.FC<AppHeaderChromeProps> = ({
   );
 
   return (
-    <GlobalAppHeader
-      title={title}
-      onMenuPress={onMenuPress}
-      onSearchPress={showGlobalSearch ? onSearch : undefined}
-      onNotificationsPress={onNotifications}
-      onThemeTogglePress={toggleTheme}
-      onProfilePress={onProfile}
-      showNotificationsBadge={(unreadQuery.data ?? 0) > 0}
-    />
+    <View>
+      <GlobalAppHeader
+        title={title}
+        onMenuPress={onMenuPress}
+        onSearchPress={showGlobalSearch ? onSearch : undefined}
+        onNotificationsPress={onNotifications}
+        onThemeTogglePress={toggleTheme}
+        onProfilePress={onProfile}
+        showNotificationsBadge={(unreadQuery.data ?? 0) > 0}
+      />
+      {canSwitch ? <AppModeSwitch style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 8 }} /> : null}
+    </View>
   );
 };

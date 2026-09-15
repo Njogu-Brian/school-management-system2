@@ -308,6 +308,37 @@
           </div>
         </div>
 
+        <div class="settings-card mb-3">
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <span class="fw-bold">Siblings</span>
+            @if(($siblings ?? collect())->isNotEmpty())
+              <span class="badge bg-light text-dark">{{ $siblings->count() }}</span>
+            @endif
+          </div>
+          <div class="card-body">
+            @if(($siblings ?? collect())->isEmpty())
+              <div class="text-muted">No siblings are linked to this student.</div>
+            @else
+              <div class="list-group list-group-flush">
+                @foreach($siblings as $sibling)
+                  <a href="{{ route('students.show', $sibling->id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center px-0">
+                    <div>
+                      <div class="fw-semibold">{{ $sibling->full_name }}</div>
+                      <div class="text-muted small">
+                        {{ $sibling->admission_number }}
+                        @if($sibling->classroom)
+                          · {{ $sibling->classroom->name }}{{ $sibling->stream?->name ? ' · '.$sibling->stream->name : '' }}
+                        @endif
+                      </div>
+                    </div>
+                    <i class="bi bi-chevron-right text-muted"></i>
+                  </a>
+                @endforeach
+              </div>
+            @endif
+          </div>
+        </div>
+
         @php
           $canManageParentCreds = auth()->user() && auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary']);
           $parentAccounts = $parentCredentials['accounts'] ?? [];

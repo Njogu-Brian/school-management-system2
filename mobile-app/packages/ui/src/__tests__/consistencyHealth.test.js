@@ -45,6 +45,8 @@ describe('Admin V3 consistency health', () => {
     const layout = fs.readFileSync(path.join(UI_SRC, 'layout/index.ts'), 'utf8');
     expect(layout).toContain('ScreenHeader');
     expect(layout).toContain('PremiumTabBar');
+    expect(layout).toContain('DockedActionLayout');
+    expect(layout).toContain('useAdaptiveLayout');
 
     const primitives = fs.readFileSync(path.join(UI_SRC, 'primitives/index.ts'), 'utf8');
     expect(primitives).toContain('AccentIcon');

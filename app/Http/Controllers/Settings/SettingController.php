@@ -175,6 +175,29 @@ class SettingController extends Controller
         return back()->with('success', 'System options updated.');
     }
 
+    public function uploadMobileApk(Request $request, \App\Services\MobileAppApkService $apk)
+    {
+        $request->validate([
+            'apk' => 'required|file|max:102400',
+        ]);
+
+        $file = $request->file('apk');
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        if ($ext !== 'apk') {
+            return back()->withErrors(['apk' => 'Upload an Android .apk file.']);
+        }
+
+        try {
+            $stored = $apk->store($file);
+        } catch (\Throwable $e) {
+            Log::error('Mobile APK upload failed', ['error' => $e->getMessage()]);
+
+            return back()->with('error', 'Could not store the APK: '.$e->getMessage());
+        }
+
+        return back()->with('success', 'Android APK uploaded. Previous build was replaced. File: '.$stored['filename']);
+    }
+
     /**
      * Update Branding (school logo, login background, and finance colors/fonts)
      */

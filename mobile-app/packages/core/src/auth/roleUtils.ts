@@ -48,9 +48,11 @@ export function normalizeRole(role: unknown): UserRole | null {
   return map[key] ?? null;
 }
 
-/** Roles allowed into a given app binary. */
+/** Roles allowed into a given app binary. Combined (iOS) accepts every recognized role. */
 export function rolesForApp(target: AppTarget): readonly UserRole[] {
-  return target === 'admin' ? ADMIN_APP_ROLES : USERS_APP_ROLES;
+  if (target === 'admin') return ADMIN_APP_ROLES;
+  if (target === 'combined') return [...ADMIN_APP_ROLES, ...USERS_APP_ROLES];
+  return USERS_APP_ROLES;
 }
 
 function hasLinkedParentProfile(user: User): boolean {
@@ -68,7 +70,8 @@ export function effectiveRole(user: User | null | undefined): UserRole | null {
 /**
  * Whether a user may enter the given app. Returns false for unauthenticated users
  * and for recognized-but-wrong-app roles (→ Access Denied). The Admin App passes
- * `'admin'`; the Users App passes `'users'` using the same helper.
+ * `'admin'`; the Users App passes `'users'` using the same helper. The iOS combined
+ * binary passes `'combined'` and accepts every recognized role.
  *
  * Directors may always enter the Users app (parent shell, or link-child screen).
  * Other admin roles may enter Users when linked to a parent profile.
@@ -77,6 +80,9 @@ export function canAccessApp(user: User | null, target: AppTarget): boolean {
   const role = effectiveRole(user);
   if (!user || role == null) {
     return false;
+  }
+  if (target === 'combined') {
+    return true;
   }
   if (rolesForApp(target).includes(role)) {
     return true;
@@ -88,4 +94,30 @@ export function canAccessApp(user: User | null, target: AppTarget): boolean {
     return true;
   }
   return false;
+}
+
+/** Work shell is available for admin roles and any staff identity. */
+export function userCanWork(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (user.canWorkMode) return true;
+  if (user.staffId) return true;
+  const role = effectiveRole(user);
+  if (role == null) return false;
+  if (isAdminAppRole(role)) return true;
+  return (
+    role === UserRole.TEACHER ||
+    role === UserRole.SENIOR_TEACHER ||
+    role === UserRole.SUPERVISOR ||
+    role === UserRole.DRIVER ||
+    role === UserRole.TRANSPORT
+  );
+}
+
+/** Home (parent) shell is available when a parent profile is linked. */
+export function userCanHome(user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (user.canHomeMode) return true;
+  if (user.parentId) return true;
+  const role = effectiveRole(user);
+  return role === UserRole.PARENT || role === UserRole.GUARDIAN;
 }

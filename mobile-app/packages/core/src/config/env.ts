@@ -6,6 +6,18 @@ import Constants from 'expo-constants';
  */
 const extra = Constants.expoConfig?.extra as Record<string, string | boolean | undefined> | undefined;
 
+/** Which binary this JS bundle belongs to. Combined is the iOS/iPadOS app. */
+export type AppSurface = 'admin' | 'users' | 'combined';
+
+export const APP_SURFACE: AppSurface =
+  extra?.APP_SURFACE === 'admin' || extra?.APP_SURFACE === 'users' || extra?.APP_SURFACE === 'combined'
+    ? extra.APP_SURFACE
+    : 'users';
+
+export function isCombinedApp(): boolean {
+  return APP_SURFACE === 'combined';
+}
+
 const DEFAULT_API_BASE_URL = 'https://erp.royalkingsschools.sc.ke/api';
 
 /** Build-time / fallback tenant API (used until a school code is resolved). */

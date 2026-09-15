@@ -5,16 +5,25 @@ import {
   queueOrExecute,
   studentsApi,
   SYNC_KINDS,
+  useAttendanceReasonCodes,
   useClassrooms,
+  useCurrentUser,
   useMarkAttendance,
   useNetworkStatus,
   useOfflineDraft,
+  UserRole,
   type AttendanceMarkStatus,
+  type AttendanceReasonFields,
 } from '@erp/core';
 import {
   AcademicScreenHeader,
+  AttendanceReasonSheet,
   AttendanceSubmitDialog,
+  attendanceReasonKey,
+  attendanceReasonLabel,
   Button,
+  DatePickerField,
+  DockedActionLayout,
   EmptyState,
   FilterChip,
   FilterChipRow,
@@ -22,14 +31,13 @@ import {
   ScreenContainer,
   SkeletonListRows,
   summarizeAttendanceMarks,
+  useAdaptiveLayout,
   useTheme,
 } from '@erp/ui';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -41,7 +49,9 @@ type StudentRow = { id: number; name: string; admission: string };
 
 type AttendanceDraft = {
   statusById: Record<number, AttendanceMarkStatus>;
+  reasonById?: Record<number, AttendanceReasonFields>;
   serverSnapshot: Record<number, string>;
+  serverReasonById?: Record<number, AttendanceReasonFields>;
 };
 
 const STATUS_OPTIONS: AttendanceMarkStatus[] = ['present', 'absent', 'late'];
@@ -107,19 +117,28 @@ export const MarkAttendanceScreen: React.FC = () => {
    */
   const isTabRoot = route.name === 'AttendanceMain' || route.name === 'Attendance';
   const { colors, palette, spacing, typography } = useTheme();
+  const { listColumns } = useAdaptiveLayout();
   const networkStatus = useNetworkStatus();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateStr = formatDateYmd(selectedDate);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const classroomsQuery = useClassrooms();
+  const user = useCurrentUser();
+  const homeroomIds = user?.classTeacherClassroomIds ?? [];
+  const isSenior =
+    user?.role === UserRole.SENIOR_TEACHER || user?.role === UserRole.SUPERVISOR;
   const markMutation = useMarkAttendance();
+  const reasonCodesQuery = useAttendanceReasonCodes();
+  const reasonCodes = reasonCodesQuery.data ?? [];
 
   const [classId, setClassId] = useState<number | null>(null);
   const [streamId, setStreamId] = useState<number | null>(null);
   const [streams, setStreams] = useState<Array<{ id: number; name: string }>>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [statusById, setStatusById] = useState<Record<number, AttendanceMarkStatus>>({});
+  const [reasonById, setReasonById] = useState<Record<number, AttendanceReasonFields>>({});
   const [serverSnapshot, setServerSnapshot] = useState<Record<number, string>>({});
+  const [serverReasonById, setServerReasonById] = useState<Record<number, AttendanceReasonFields>>({});
+  const [reasonStudentId, setReasonStudentId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [schoolDayOk, setSchoolDayOk] = useState<boolean | null>(null);
   const [schoolDayMessage, setSchoolDayMessage] = useState<string | null>(null);
@@ -182,28 +201,41 @@ export const MarkAttendanceScreen: React.FC = () => {
       setStudents(rows);
       const byId: Record<number, AttendanceMarkStatus> = {};
       const snapshot: Record<number, string> = {};
-      const existing = new Map(
-        (attRes.data ?? []).map((r) => [r.student_id, r.status as AttendanceMarkStatus]),
-      );
+      const reasons: Record<number, AttendanceReasonFields> = {};
+      const existing = new Map((attRes.data ?? []).map((r) => [r.student_id, r]));
       for (const s of rows) {
-        const status = existing.get(s.id) ?? 'unmarked';
+        const row = existing.get(s.id);
+        const status = (row?.status as AttendanceMarkStatus | undefined) ?? 'unmarked';
         byId[s.id] = status;
         snapshot[s.id] = status;
+        if (row && (row.reason_code_id || row.reason || row.excuse_notes)) {
+          reasons[s.id] = {
+            reason_code_id: row.reason_code_id ?? null,
+            reason: row.reason ?? null,
+            excuse_notes: row.excuse_notes ?? null,
+          };
+        }
       }
 
       const savedDraft = draftRef.current;
       if (draftLoadedRef.current && savedDraft?.statusById) {
         setStatusById({ ...byId, ...savedDraft.statusById });
+        setReasonById({ ...reasons, ...(savedDraft.reasonById ?? {}) });
         setServerSnapshot(savedDraft.serverSnapshot ?? snapshot);
+        setServerReasonById(savedDraft.serverReasonById ?? reasons);
       } else {
         setStatusById(byId);
+        setReasonById(reasons);
         setServerSnapshot(snapshot);
+        setServerReasonById(reasons);
       }
     } catch (err) {
       const savedDraft = draftRef.current;
       if (draftLoadedRef.current && savedDraft?.statusById) {
         setStatusById(savedDraft.statusById);
+        setReasonById(savedDraft.reasonById ?? {});
         setServerSnapshot(savedDraft.serverSnapshot ?? {});
+        setServerReasonById(savedDraft.serverReasonById ?? {});
         showSuccess('Offline', 'Showing your saved draft. Server data unavailable.');
       } else {
         showError('Error', err instanceof Error ? err.message : 'Failed to load class.');
@@ -221,18 +253,33 @@ export const MarkAttendanceScreen: React.FC = () => {
     if (!classId) {
       setStudents([]);
       setStatusById({});
+      setReasonById({});
       setServerSnapshot({});
+      setServerReasonById({});
     }
   }, [classId]);
 
   const setStatus = (studentId: number, status: AttendanceMarkStatus) => {
     setStatusById((prev) => ({ ...prev, [studentId]: status }));
+    if (status === 'present' || status === 'unmarked') {
+      setReasonById((prev) => {
+        const next = { ...prev };
+        delete next[studentId];
+        return next;
+      });
+      return;
+    }
+    setReasonStudentId(studentId);
   };
 
   const isDirty = useMemo(() => {
     if (students.length === 0) return false;
-    return students.some((s) => (statusById[s.id] ?? 'unmarked') !== (serverSnapshot[s.id] ?? 'unmarked'));
-  }, [students, statusById, serverSnapshot]);
+    return students.some((s) => {
+      const status = statusById[s.id] ?? 'unmarked';
+      if (status !== (serverSnapshot[s.id] ?? 'unmarked')) return true;
+      return attendanceReasonKey(reasonById[s.id]) !== attendanceReasonKey(serverReasonById[s.id]);
+    });
+  }, [students, statusById, serverSnapshot, reasonById, serverReasonById]);
 
   useEffect(() => {
     if (!draftKey || students.length === 0) return;
@@ -242,9 +289,11 @@ export const MarkAttendanceScreen: React.FC = () => {
     }
     setDraft({
       statusById,
+      reasonById,
       serverSnapshot,
+      serverReasonById,
     });
-  }, [statusById, draftKey, students.length, isDirty, setDraft, clearDraft, serverSnapshot]);
+  }, [statusById, reasonById, draftKey, students.length, isDirty, setDraft, clearDraft, serverSnapshot, serverReasonById]);
 
   const changedRecords = useMemo(
     () =>
@@ -253,9 +302,14 @@ export const MarkAttendanceScreen: React.FC = () => {
           student_id: s.id,
           status: (statusById[s.id] ?? 'unmarked') as AttendanceMarkStatus,
           student_name: s.name,
+          ...(statusById[s.id] === 'absent' || statusById[s.id] === 'late' ? reasonById[s.id] ?? {} : {}),
         }))
-        .filter((r) => r.status !== (serverSnapshot[r.student_id] ?? 'unmarked')),
-    [students, statusById, serverSnapshot],
+        .filter((r) => {
+          const prev = serverSnapshot[r.student_id] ?? 'unmarked';
+          if (r.status !== prev) return true;
+          return attendanceReasonKey(reasonById[r.student_id]) !== attendanceReasonKey(serverReasonById[r.student_id]);
+        }),
+    [students, statusById, serverSnapshot, reasonById, serverReasonById],
   );
 
   const onlyUnmarksPending = useMemo(() => {
@@ -266,10 +320,18 @@ export const MarkAttendanceScreen: React.FC = () => {
   const canSubmit =
     classId != null && students.length > 0 && (schoolDayOk !== false || onlyUnmarksPending);
 
-  const summary = useMemo(
-    () => summarizeAttendanceMarks(students, statusById),
-    [students, statusById],
-  );
+  const summary = useMemo(() => {
+    const base = summarizeAttendanceMarks(students, statusById);
+    return {
+      ...base,
+      absentEntries: students
+        .filter((s) => (statusById[s.id] ?? 'unmarked') === 'absent')
+        .map((s) => ({ name: s.name, reason: attendanceReasonLabel(reasonById[s.id], reasonCodes) })),
+      lateEntries: students
+        .filter((s) => (statusById[s.id] ?? 'unmarked') === 'late')
+        .map((s) => ({ name: s.name, reason: attendanceReasonLabel(reasonById[s.id], reasonCodes) })),
+    };
+  }, [students, statusById, reasonById, reasonCodes]);
 
   const openConfirm = () => {
     if (!classId) return;
@@ -298,8 +360,15 @@ export const MarkAttendanceScreen: React.FC = () => {
         student_id: s.id,
         status: (submittedStatus[s.id] ?? 'unmarked') as AttendanceMarkStatus,
         student_name: s.name,
+        ...(submittedStatus[s.id] === 'absent' || submittedStatus[s.id] === 'late'
+          ? reasonById[s.id] ?? {}
+          : {}),
       }))
-      .filter((r) => r.status !== (submittedSnapshot[r.student_id] ?? 'unmarked'));
+      .filter((r) => {
+        const prev = submittedSnapshot[r.student_id] ?? 'unmarked';
+        if (r.status !== prev) return true;
+        return attendanceReasonKey(reasonById[r.student_id]) !== attendanceReasonKey(serverReasonById[r.student_id]);
+      });
     if (records.length === 0) {
       setConfirmOpen(false);
       return;
@@ -331,7 +400,13 @@ export const MarkAttendanceScreen: React.FC = () => {
             date: submittedDate,
             class_id: submittedClassId,
             stream_id: submittedStreamId,
-            records: records.map((r) => ({ student_id: r.student_id, status: r.status })),
+            records: records.map((r) => ({
+              student_id: r.student_id,
+              status: r.status,
+              reason_code_id: r.reason_code_id,
+              reason: r.reason,
+              excuse_notes: r.excuse_notes,
+            })),
           });
         },
         networkStatus,
@@ -350,6 +425,7 @@ export const MarkAttendanceScreen: React.FC = () => {
           snap[s.id] = submittedStatus[s.id] ?? 'unmarked';
         }
         setServerSnapshot(snap);
+        setServerReasonById({ ...reasonById });
         draftRef.current = null;
         await clearDraft();
       } else {
@@ -369,7 +445,9 @@ export const MarkAttendanceScreen: React.FC = () => {
     }
   };
 
-  const classrooms = classroomsQuery.data ?? [];
+  const classrooms = (classroomsQuery.data ?? []).filter((c) =>
+    isSenior || homeroomIds.length === 0 ? isSenior : homeroomIds.includes(c.id),
+  );
   const markedCount = summary.total;
 
   return (
@@ -379,167 +457,171 @@ export const MarkAttendanceScreen: React.FC = () => {
       clearFloatingTabBar={false}
       edges={isTabRoot ? ['bottom'] : undefined}
     >
-      <View style={styles.body}>
-        <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, flexShrink: 0 }}>
-          {isTabRoot ? null : (
-            <AcademicScreenHeader
-              title="Mark attendance"
-              subtitle="School-day calendar applies (same as web)"
-              onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
-            />
-          )}
+      <DockedActionLayout
+        header={
+          <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
+            {isTabRoot ? null : (
+              <AcademicScreenHeader
+                title="Mark attendance"
+                subtitle="School-day calendar applies (same as web)"
+                onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+              />
+            )}
 
-          {isDirty ? (
-            <View style={[styles.warnBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
-              <Text style={{ color: colors.primary, fontSize: typography.body.fontSize }}>
-                Unsubmitted changes — saved as a draft on this device until you submit.
-              </Text>
-            </View>
-          ) : null}
+            {isDirty ? (
+              <View style={[styles.warnBanner, { backgroundColor: `${colors.primary}14`, borderColor: colors.primary }]}>
+                <Text style={{ color: colors.primary, fontSize: typography.body.fontSize }}>
+                  Unsubmitted changes — saved as a draft on this device until you submit.
+                </Text>
+              </View>
+            ) : null}
 
-          <Pressable
-            onPress={() => setShowDatePicker(true)}
-            style={[styles.dateRow, { borderColor: palette.border, backgroundColor: palette.surfaceRaised }]}
-          >
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>Date</Text>
-            <Text style={{ color: palette.textPrimary, fontWeight: '700', fontSize: typography.titleSmall.fontSize }}>
-              {dateStr}
-            </Text>
-            <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, fontWeight: '600' }}>
-              Change
-            </Text>
-          </Pressable>
-
-          {showDatePicker ? (
-            <DateTimePicker
+            <DatePickerField
               value={selectedDate}
-              mode="date"
+              onChange={setSelectedDate}
               maximumDate={new Date()}
-              onChange={(_, date) => {
-                setShowDatePicker(Platform.OS === 'ios');
-                if (date) setSelectedDate(date);
-              }}
             />
-          ) : null}
 
-          {schoolDayMessage ? (
-            <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
-              <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
-            </View>
-          ) : null}
+            {schoolDayMessage ? (
+              <View style={[styles.warnBanner, { backgroundColor: `${colors.warning}18`, borderColor: colors.warning }]}>
+                <Text style={{ color: colors.warning, fontSize: typography.body.fontSize }}>{schoolDayMessage}</Text>
+              </View>
+            ) : null}
 
-          <FilterChipRow label="Class">
-            {classrooms.map((c) => (
-              <FilterChip key={c.id} label={c.name} active={classId === c.id} onPress={() => setClassId(c.id)} />
-            ))}
-          </FilterChipRow>
-
-          {streams.length > 0 ? (
-            <FilterChipRow label="Stream">
-              <FilterChip label="All" active={streamId == null} onPress={() => setStreamId(null)} />
-              {streams.map((s) => (
-                <FilterChip
-                  key={s.id}
-                  label={s.name}
-                  active={streamId === s.id}
-                  onPress={() => setStreamId(s.id)}
-                />
+            <FilterChipRow label="Class">
+              {classrooms.map((c) => (
+                <FilterChip key={c.id} label={c.name} active={classId === c.id} onPress={() => setClassId(c.id)} />
               ))}
             </FilterChipRow>
-          ) : null}
 
-          {classId && students.length > 0 ? (
-            <Text
-              style={{
-                color: palette.textMuted,
-                fontSize: typography.caption.fontSize,
-                marginBottom: spacing.sm,
-              }}
-            >
-              {markedCount}/{students.length} marked
-            </Text>
-          ) : null}
-        </View>
+            {streams.length > 0 ? (
+              <FilterChipRow label="Stream">
+                <FilterChip label="All" active={streamId == null} onPress={() => setStreamId(null)} />
+                {streams.map((s) => (
+                  <FilterChip
+                    key={s.id}
+                    label={s.name}
+                    active={streamId === s.id}
+                    onPress={() => setStreamId(s.id)}
+                  />
+                ))}
+              </FilterChipRow>
+            ) : null}
 
-        <View style={styles.listWrap}>
-          {loading ? (
-            <View style={{ paddingHorizontal: spacing.md }}>
-              <SkeletonListRows variant="avatar" count={6} />
-            </View>
-          ) : (
-            <FlatList
-              data={students}
-              keyExtractor={(item) => String(item.id)}
-              style={styles.list}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{
-                paddingHorizontal: spacing.md,
-                paddingBottom: spacing.sm,
-              }}
-              renderItem={({ item }) => {
-                const status = statusById[item.id] ?? 'unmarked';
-                return (
-                  <View
-                    style={[
-                      styles.row,
-                      { borderColor: palette.border, backgroundColor: palette.surfaceRaised },
-                    ]}
-                  >
-                    <View style={{ flex: 1, minWidth: 0, marginRight: spacing.sm }}>
-                      <Text
-                        style={{ color: palette.textPrimary, fontWeight: '600' }}
-                        numberOfLines={2}
-                      >
-                        {item.name}
-                      </Text>
-                      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
-                        {item.admission}
-                      </Text>
-                    </View>
-                    <View style={styles.statusRow}>
-                      {STATUS_OPTIONS.map((opt) => (
-                        <StatusButton
-                          key={opt}
-                          status={opt}
-                          active={status === opt}
-                          onPress={() => setStatus(item.id, status === opt ? 'unmarked' : opt)}
-                          colors={colors}
-                          palette={palette}
-                          typography={typography}
-                        />
-                      ))}
-                    </View>
-                  </View>
-                );
-              }}
-              ListEmptyComponent={
-                classId ? (
-                  <EmptyState
-                    title="No students"
-                    message="No students in this class."
-                    icon="people-outline"
-                  />
-                ) : (
-                  <EmptyState
-                    title="Select a class"
-                    message="Choose a class to begin marking attendance."
-                    icon="school-outline"
-                  />
-                )
-              }
+            {classId && students.length > 0 ? (
+              <Text
+                style={{
+                  color: palette.textMuted,
+                  fontSize: typography.caption.fontSize,
+                  marginBottom: spacing.sm,
+                }}
+              >
+                {markedCount}/{students.length} marked
+              </Text>
+            ) : null}
+          </View>
+        }
+        footer={
+          <FooterDock>
+            <Button
+              label={networkStatus === 'offline' ? 'Submit (queue offline)' : 'Submit attendance'}
+              onPress={openConfirm}
+              disabled={!canSubmit || !isDirty || submitting}
+              loading={submitting}
             />
-          )}
-        </View>
-      </View>
-
-      <FooterDock>
-        <Button
-          label={networkStatus === 'offline' ? 'Submit (queue offline)' : 'Submit attendance'}
-          onPress={openConfirm}
-          disabled={!canSubmit || !isDirty || submitting}
-          loading={submitting}
-        />
-      </FooterDock>
+          </FooterDock>
+        }
+      >
+        {loading ? (
+          <View style={{ paddingHorizontal: spacing.md }}>
+            <SkeletonListRows variant="avatar" count={6} />
+          </View>
+        ) : (
+          <FlatList
+            data={students}
+            key={listColumns}
+            numColumns={listColumns}
+            keyExtractor={(item) => String(item.id)}
+            style={styles.list}
+            keyboardShouldPersistTaps="handled"
+            columnWrapperStyle={listColumns > 1 ? styles.columnWrap : undefined}
+            contentContainerStyle={{
+              paddingHorizontal: spacing.md,
+              paddingBottom: spacing.sm,
+              flexGrow: 1,
+            }}
+            renderItem={({ item }) => {
+              const status = statusById[item.id] ?? 'unmarked';
+              const needsReason = status === 'absent' || status === 'late';
+              const reasonText = attendanceReasonLabel(reasonById[item.id], reasonCodes);
+              return (
+                <View
+                  style={[
+                    styles.row,
+                    listColumns > 1 ? styles.rowMulti : null,
+                    { borderColor: palette.border, backgroundColor: palette.surfaceRaised },
+                  ]}
+                >
+                  <View style={{ flex: 1, minWidth: 0, marginRight: spacing.sm }}>
+                    <Text
+                      style={{ color: palette.textPrimary, fontWeight: '600' }}
+                      numberOfLines={2}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                      {item.admission}
+                    </Text>
+                    {needsReason ? (
+                      <Pressable onPress={() => setReasonStudentId(item.id)} hitSlop={8}>
+                        <Text
+                          style={{
+                            color: colors.primary,
+                            fontSize: typography.caption.fontSize,
+                            marginTop: 4,
+                            fontWeight: '600',
+                          }}
+                          numberOfLines={2}
+                        >
+                          {reasonText || 'Add reason'}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <View style={styles.statusRow}>
+                    {STATUS_OPTIONS.map((opt) => (
+                      <StatusButton
+                        key={opt}
+                        status={opt}
+                        active={status === opt}
+                        onPress={() => setStatus(item.id, status === opt ? 'unmarked' : opt)}
+                        colors={colors}
+                        palette={palette}
+                        typography={typography}
+                      />
+                    ))}
+                  </View>
+                </View>
+              );
+            }}
+            ListEmptyComponent={
+              classId ? (
+                <EmptyState
+                  title="No students"
+                  message="No students in this class."
+                  icon="people-outline"
+                />
+              ) : (
+                <EmptyState
+                  title="Select a class"
+                  message="Choose a class to begin marking attendance."
+                  icon="school-outline"
+                />
+              )
+            }
+          />
+        )}
+      </DockedActionLayout>
 
       <AttendanceSubmitDialog
         visible={confirmOpen}
@@ -551,23 +633,29 @@ export const MarkAttendanceScreen: React.FC = () => {
           if (!submitting) setConfirmOpen(false);
         }}
       />
+      <AttendanceReasonSheet
+        visible={reasonStudentId != null}
+        studentName={students.find((s) => s.id === reasonStudentId)?.name}
+        statusLabel={
+          reasonStudentId != null && statusById[reasonStudentId] === 'late' ? 'late' : 'absent'
+        }
+        codes={reasonCodes}
+        value={reasonStudentId != null ? reasonById[reasonStudentId] : null}
+        onSave={(next) => {
+          if (reasonStudentId != null) {
+            setReasonById((prev) => ({ ...prev, [reasonStudentId]: next }));
+          }
+          setReasonStudentId(null);
+        }}
+        onSkip={() => setReasonStudentId(null)}
+      />
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  body: { flex: 1 },
-  listWrap: { flex: 1, minHeight: 0 },
-  list: { flex: 1 },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-  },
+  list: { flex: 1, minHeight: 0 },
+  columnWrap: { gap: 8 },
   warnBanner: {
     borderWidth: 1,
     borderRadius: 8,
@@ -582,6 +670,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
+  rowMulti: { flex: 1, minWidth: 0 },
   statusRow: { flexDirection: 'row', gap: 6, flexShrink: 0 },
   statusBtn: {
     width: 44,

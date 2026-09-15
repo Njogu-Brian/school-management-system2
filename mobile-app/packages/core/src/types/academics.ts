@@ -225,13 +225,17 @@ export interface ExamClassSheetRecord {
 export interface TimetableSlotRecord {
   id: number;
   day: string;
+  period?: number;
   start_time: string;
   end_time: string;
   subject_id: number;
   subject_name: string;
-  teacher_id?: number;
+  teacher_id?: number | null;
   teacher_name?: string | null;
   room?: string | null;
+  classroom_id?: number | null;
+  classroom_name?: string | null;
+  is_break?: boolean;
 }
 
 export interface TimetableRecord {

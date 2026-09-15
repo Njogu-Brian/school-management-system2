@@ -25,6 +25,9 @@ const SECTIONS = [
   { route: 'Moderation' as const, label: 'Moderation', icon: 'shield-checkmark-outline' as const },
   { route: 'SpeedTests' as const, label: 'Speed tests', icon: 'flash-outline' as const },
   { route: 'CbcCurriculum' as const, label: 'CBC Curriculum', icon: 'library-outline' as const },
+  { route: 'MarkAttendance' as const, label: 'Mark attendance', icon: 'clipboard-outline' as const },
+  { route: 'MarkAbsent' as const, label: 'Mark as absent', icon: 'close-circle-outline' as const },
+  { route: 'Timetable' as const, label: 'Timetable', icon: 'grid-outline' as const },
 ];
 
 export const AcademicsDashboardScreen: React.FC = () => {

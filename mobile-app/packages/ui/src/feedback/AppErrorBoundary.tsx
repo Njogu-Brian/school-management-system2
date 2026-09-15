@@ -6,7 +6,7 @@ import { COLORS } from '../theme/tokens';
 interface AppErrorBoundaryProps {
   children: React.ReactNode;
   /** users | admin — included in crash reports */
-  appName?: 'users' | 'admin';
+  appName?: 'users' | 'admin' | 'combined';
 }
 
 interface AppErrorBoundaryState {
@@ -15,7 +15,7 @@ interface AppErrorBoundaryState {
 }
 
 type IssueReporter = (payload: {
-  app?: 'users' | 'admin';
+  app?: 'users' | 'admin' | 'combined';
   platform?: string;
   app_version?: string;
   message: string;

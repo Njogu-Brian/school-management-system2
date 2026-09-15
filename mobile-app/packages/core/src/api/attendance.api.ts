@@ -3,7 +3,21 @@ import { apiClient } from './client';
 
 export type AttendanceMarkStatus = 'present' | 'absent' | 'late' | 'unmarked';
 
-export interface ClassAttendanceRow {
+export interface AttendanceReasonCode {
+  id: number;
+  code: string;
+  name: string;
+  requires_excuse?: boolean;
+  is_medical?: boolean;
+}
+
+export interface AttendanceReasonFields {
+  reason_code_id?: number | null;
+  reason?: string | null;
+  excuse_notes?: string | null;
+}
+
+export interface ClassAttendanceRow extends AttendanceReasonFields {
   student_id: number;
   status: AttendanceMarkStatus;
 }
@@ -12,7 +26,7 @@ export interface MarkAttendancePayload {
   date: string;
   class_id: number;
   stream_id?: number | null;
-  records: Array<{ student_id: number; status: AttendanceMarkStatus }>;
+  records: Array<{ student_id: number; status: AttendanceMarkStatus } & AttendanceReasonFields>;
 }
 
 export const attendanceApi = {
@@ -35,7 +49,18 @@ export const attendanceApi = {
     return apiClient.get('/attendance/school-day', { date });
   },
 
+  getReasonCodes(): Promise<ApiResponse<AttendanceReasonCode[]>> {
+    return apiClient.get<AttendanceReasonCode[]>('/attendance/reason-codes');
+  },
+
   mark(payload: MarkAttendancePayload): Promise<ApiResponse<{ message: string; count: number }>> {
     return apiClient.post<{ message: string; count: number }>('/attendance/mark', payload);
+  },
+
+  markAbsent(payload: {
+    date: string;
+    student_ids: number[];
+  } & AttendanceReasonFields): Promise<ApiResponse<{ message: string; count: number }>> {
+    return apiClient.post<{ message: string; count: number }>('/attendance/mark-absent', payload);
   },
 };

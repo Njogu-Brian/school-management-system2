@@ -125,6 +125,34 @@
         border-radius: 6px;
     }
 
+    .app-download {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid #e5e7eb;
+        text-align: left;
+        font-size: 14px;
+    }
+    .app-download-prominent {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+    }
+    .app-username {
+        background: #f3f4f6;
+        border-radius: 8px;
+        padding: 10px 12px;
+        word-break: break-all;
+    }
+    .ios-note {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+        color: #334155;
+        text-align: left;
+    }
+
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(10px); }
         to   { opacity: 1; transform: translateY(0); }
@@ -168,12 +196,19 @@
     @endif
 
     {{-- ✅ Show status messages --}}
-    @if (session('status'))
+    @if (session('status') && ! session('parent_use_app'))
         <div class="alert alert-success text-start">
             {{ session('status') }}
         </div>
     @endif
 
+    @if (session('parent_use_app'))
+        @include('auth.partials.app-download-cta', [
+            'prominent' => true,
+            'username' => session('parent_app_username'),
+        ])
+        <a href="{{ route('login', ['staff' => 1]) }}" class="d-inline-block mt-3 small text-decoration-none">Staff sign in</a>
+    @else
     {{-- ✅ OTP Login Form (shown when OTP is requested) --}}
     @if(session('otp_sent'))
         <form method="POST" action="{{ route('login') }}" class="text-start" id="otpLoginForm">
@@ -246,13 +281,9 @@
         </form>
     @endif
 
-    @if (config('app.mobile_app_download_url'))
-        <div class="mt-3 pt-3 border-top">
-            <a href="{{ config('app.mobile_app_download_url') }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small d-inline-flex align-items-center gap-1">
-                <span>📱</span>
-                <span>Download Android app (latest APK)</span>
-            </a>
-        </div>
+    <div class="mt-2">
+        @include('auth.partials.app-download-cta', ['prominent' => false])
+    </div>
     @endif
 
     <script>
@@ -317,6 +348,7 @@
         });
     </script>
 
+    @unless(session('parent_use_app'))
     {{-- Announcements --}}
     <div class="announcements mt-4">
         <strong>Announcements</strong>
@@ -335,5 +367,6 @@
             @endforelse
         </ul>
     </div>
+    @endunless
 </div>
 @endsection

@@ -8,6 +8,7 @@ import {
   useClassrooms,
   useCurrentUser,
   useUnreadNotificationCount,
+  UserRole,
   type TeacherHomeActionDef,
 } from '@erp/core';
 import {
@@ -32,6 +33,8 @@ import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 import { confirmAction } from '../../shared/utils/feedback';
 
 type Nav = StackNavigationProp<TeacherStackParamList>;
+
+const CLASS_TEACHER_ACTION_IDS = new Set(['attendance', 'transport', 'classes', 'requirements']);
 
 function ActionGrid({
   actions,
@@ -76,6 +79,25 @@ export const TeacherHomeScreen: React.FC = () => {
   const roleLabel = formatRoleLabel(user?.roleName ?? user?.role, 'Teacher');
   const unread = unreadQuery.data ?? 0;
   const refreshing = manualRefreshing || classroomsQuery.isRefetching || unreadQuery.isRefetching;
+  const isSenior =
+    user?.role === UserRole.SENIOR_TEACHER || user?.role === UserRole.SUPERVISOR;
+  const showClassTeacherTools =
+    isSenior || Boolean(user?.isHomeroomTeacher) || classTeacherCount > 0;
+
+  const coreActions = useMemo(
+    () =>
+      TEACHER_HOME_CORE_ACTIONS.filter(
+        (action) => showClassTeacherTools || !CLASS_TEACHER_ACTION_IDS.has(action.id),
+      ),
+    [showClassTeacherTools],
+  );
+  const moreActions = useMemo(
+    () =>
+      TEACHER_HOME_MORE_ACTIONS.filter(
+        (action) => showClassTeacherTools || !CLASS_TEACHER_ACTION_IDS.has(action.id),
+      ),
+    [showClassTeacherTools],
+  );
 
   const meta = useMemo(() => {
     const parts: string[] = [];
@@ -140,9 +162,7 @@ export const TeacherHomeScreen: React.FC = () => {
         meta={meta}
       />
 
-      <View style={{ marginBottom: spacing.md }}>
-        <AppModeSwitch />
-      </View>
+      <AppModeSwitch variant="banner" style={{ marginBottom: spacing.md }} />
 
       {classroomsQuery.isLoading ? (
         <SkeletonListRows count={2} />
@@ -167,11 +187,15 @@ export const TeacherHomeScreen: React.FC = () => {
               <SurfaceCard
                 key={c.id}
                 accent="brand"
-                onPress={() => navigateToTab(navigation, 'Classes', 'ClassesMain')}
+                onPress={
+                  showClassTeacherTools
+                    ? () => navigateToTab(navigation, 'Classes', 'ClassesMain')
+                    : undefined
+                }
               >
                 <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{c.name}</Text>
                 <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
-                  Tap to open classes
+                  {showClassTeacherTools ? 'Tap to open classes' : 'Assigned teaching class'}
                 </Text>
               </SurfaceCard>
             ))
@@ -195,11 +219,11 @@ export const TeacherHomeScreen: React.FC = () => {
       ) : null}
 
       <DashboardSection title="Daily work" subtitle="Core teaching tasks">
-        <ActionGrid actions={TEACHER_HOME_CORE_ACTIONS} unread={unread} onPress={goTo} />
+        <ActionGrid actions={coreActions} unread={unread} onPress={goTo} />
       </DashboardSection>
 
       <DashboardSection title="More tools" subtitle="Self-service and school tools">
-        <ActionGrid actions={TEACHER_HOME_MORE_ACTIONS} onPress={goTo} />
+        <ActionGrid actions={moreActions} onPress={goTo} />
       </DashboardSection>
 
       <DashboardSection title="Account">

@@ -263,6 +263,28 @@ export function useBalanceSheet(options?: { enabled?: boolean }) {
   });
 }
 
+export function useCreateExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      expense_date: string;
+      amount: number;
+      notes?: string;
+      description?: string;
+    }) => {
+      const res = await reportsApi.createExpense(payload);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to create expense.');
+      }
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [...queryKeys.reports.all, 'expenses-list'] });
+      void qc.invalidateQueries({ queryKey: [...queryKeys.reports.all, 'expenses'] });
+    },
+  });
+}
+
 export function useUploadExpenseAttachment() {
   const qc = useQueryClient();
   return useMutation({

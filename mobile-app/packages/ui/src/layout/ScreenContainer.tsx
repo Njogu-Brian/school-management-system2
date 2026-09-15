@@ -209,6 +209,6 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
 };
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  flex: { flex: 1, minHeight: 0 },
   scrollContent: { flexGrow: 1 },
 });

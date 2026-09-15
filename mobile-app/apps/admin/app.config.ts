@@ -19,7 +19,7 @@ const config: ExpoConfig = {
   slug: 'royal-kings-admin',
   scheme: 'royalkingsadmin',
   version: APP_VERSION,
-  orientation: 'portrait',
+  orientation: 'default',
   userInterfaceStyle: 'automatic',
   // Bridgeless/new-arch left on; NetInfo is guarded in JS if native link is missing.
   newArchEnabled: true,
@@ -49,7 +49,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.admin',
-    versionCode: 15,
+    versionCode: 16,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -57,7 +57,12 @@ const config: ExpoConfig = {
     },
     permissions: ['USE_BIOMETRIC', 'USE_FINGERPRINT'],
   },
-  plugins: ['expo-local-authentication', 'expo-image-picker', 'expo-updates'],
+  plugins: [
+    'expo-local-authentication',
+    'expo-image-picker',
+    'expo-updates',
+    '../../plugins/withAndroidTabletSupport',
+  ],
   experiments: {
     // Keep Metro resolution aligned with native autolinking in the monorepo.
     autolinkingModuleResolution: true,
@@ -66,6 +71,7 @@ const config: ExpoConfig = {
     API_BASE_URL: apiBase,
     CONTROL_PLANE_BASE_URL: controlPlaneBase,
     REQUIRE_SCHOOL_CODE: requireSchoolCode,
+    APP_SURFACE: 'admin',
     eas: {
       projectId: process.env.EAS_PROJECT_ID ?? EAS_PROJECT_ID,
     },

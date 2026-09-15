@@ -33,12 +33,12 @@ class DiscountService
             $studentId = $student?->id ?? (int) ($invoice->student_id ?? 0);
             $familyId = $student?->family_id ?? $invoice->family_id;
             
-            // Get term number from term_id relationship if term integer is not set
-            $termNumber = $invoice->term;
-            if (!$termNumber && $invoice->term_id && $invoice->relationLoaded('term') && $invoice->term) {
-                // Extract term number from term name (e.g., "Term 3" -> 3)
-                if (preg_match('/\d+/', $invoice->term->name, $matches)) {
-                    $termNumber = (int)$matches[0];
+            // Get term number from the integer column, or from the Term model if unset
+            $termNumber = is_numeric($invoice->getAttribute('term')) ? (int) $invoice->getAttribute('term') : 0;
+            if ($termNumber <= 0) {
+                $termModel = $invoice->academicTerm();
+                if ($termModel && preg_match('/\d+/', (string) $termModel->name, $matches)) {
+                    $termNumber = (int) $matches[0];
                 }
             }
             

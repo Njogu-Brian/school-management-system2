@@ -1,6 +1,7 @@
 export * from './config/roles';
 export * from './config/navigation';
 export * from './config/env';
+export * from './data/countryDialCodes';
 export * from './types';
 export * from './storage';
 export * from './api';

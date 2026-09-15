@@ -80,6 +80,7 @@ export interface StudentRecord {
   emergency_contact_phone?: string | null;
   guardians?: StudentGuardianRecord[];
   parent?: StudentParentBlock | null;
+  siblings?: StudentSiblingRecord[];
   created_at?: string;
   updated_at?: string;
 }
@@ -128,6 +129,18 @@ export interface StudentParentBlock {
   guardian_id_number?: string | null;
   marital_status?: string | null;
   school_notifications_muted_parent?: string | null;
+  father_phone_country_code?: string | null;
+  mother_phone_country_code?: string | null;
+  guardian_phone_country_code?: string | null;
+}
+
+export interface StudentSiblingRecord {
+  id: number;
+  full_name: string;
+  admission_number: string;
+  class_name?: string | null;
+  stream_name?: string | null;
+  avatar?: string | null;
 }
 
 export interface ClassroomRecord {
@@ -217,6 +230,16 @@ export interface StudentDetail extends StudentSummary {
   orphanStatus: string | null;
   hasSpecialNeeds: boolean;
   disabilityType: string | null;
+  siblings: StudentSiblingSummary[];
+}
+
+export interface StudentSiblingSummary {
+  id: number;
+  fullName: string;
+  admissionNumber: string;
+  className: string | null;
+  streamName: string | null;
+  avatarUrl: string | null;
 }
 
 export interface StudentGuardianContact {

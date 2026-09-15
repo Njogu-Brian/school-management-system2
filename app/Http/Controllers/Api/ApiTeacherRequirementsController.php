@@ -36,7 +36,16 @@ class ApiTeacherRequirementsController extends Controller
             ->where('archive', 0)
             ->where('is_alumni', false);
 
-        if ($this->isTeacherOnly($user)) {
+        if ($user->isSubjectTeacherOnly()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Collecting requirements is available to class teachers only.',
+            ], 403);
+        }
+
+        if ($this->isTeacherOnly($user) && $user->shouldRestrictToHomeroomDuties()) {
+            $user->applyHomeroomStudentFilter($query);
+        } elseif ($this->isTeacherOnly($user)) {
             $user->applyTeacherStudentFilter($query);
         }
 
@@ -80,8 +89,8 @@ class ApiTeacherRequirementsController extends Controller
 
         $student = Student::with(['classroom', 'stream'])->findOrFail($studentId);
 
-        if ($this->isTeacherOnly($user) && ! $user->canTeacherAccessClassroom((int) $student->classroom_id)) {
-            return response()->json(['success' => false, 'message' => 'Not assigned to this student.'], 403);
+        if ($user->isSubjectTeacherOnly() || ($this->isTeacherOnly($user) && ! $user->canViewStudentPastoralProfile($student))) {
+            return response()->json(['success' => false, 'message' => 'Not assigned as class teacher for this student.'], 403);
         }
 
         $currentTerm = get_current_term_model();
@@ -171,8 +180,8 @@ class ApiTeacherRequirementsController extends Controller
         ]);
 
         $student = Student::findOrFail($validated['student_id']);
-        if ($this->isTeacherOnly($user) && ! $user->canTeacherAccessClassroom((int) $student->classroom_id)) {
-            return response()->json(['success' => false, 'message' => 'Not assigned to this student.'], 403);
+        if ($user->isSubjectTeacherOnly() || ($this->isTeacherOnly($user) && ! $user->canViewStudentPastoralProfile($student))) {
+            return response()->json(['success' => false, 'message' => 'Not assigned as class teacher for this student.'], 403);
         }
 
         $currentTerm = get_current_term_model();

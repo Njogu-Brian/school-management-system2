@@ -22,6 +22,8 @@ import {
   ReportCardHistoryScreen,
   ReportCardsScreen,
   MarkAttendanceScreen,
+  MarkAbsentScreen,
+  TimetableScreen,
 } from '../features/academics';
 import { SpeedTestsScreen } from '../features/academics/screens/SpeedTestsScreen';
 import { SpeedTestDetailScreen } from '../features/academics/screens/SpeedTestDetailScreen';
@@ -52,6 +54,8 @@ export const AcademicsStackNavigator: React.FC = () => (
     <Stack.Screen name="CbcStrands" component={CbcStrandsScreen} />
     <Stack.Screen name="CbcSubstrand" component={CbcSubstrandScreen} />
     <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
+    <Stack.Screen name="MarkAbsent" component={MarkAbsentScreen} />
+    <Stack.Screen name="Timetable" component={TimetableScreen} />
     <Stack.Screen name="SpeedTests" component={SpeedTestsScreen} />
     <Stack.Screen name="SpeedTestDetail" component={SpeedTestDetailScreen} />
   </Stack.Navigator>

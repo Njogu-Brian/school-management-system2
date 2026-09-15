@@ -92,6 +92,68 @@ class StudentFeeLedgerService
         return $snapshot;
     }
 
+    /**
+     * How this payment was applied onto non-reversed invoices (oldest first).
+     *
+     * @return array<int, array{invoice_id: int, amount: float}>
+     */
+    public function applicationsForPayment(Payment $payment): array
+    {
+        if ((int) $payment->student_id <= 0 || ! self::isFeePayment($payment)) {
+            return [];
+        }
+
+        $snapshot = $this->snapshot((int) $payment->student_id, false);
+
+        return $snapshot['applications'][(int) $payment->id] ?? [];
+    }
+
+    /**
+     * Running fee balance before/after each fee payment (ledger model).
+     *
+     * Charges are the full non-reversed invoice pool. Payments are applied in
+     * payment_date / id order. A backdated payment can therefore clear a later
+     * invoice without freezing a false "credit on account" on the receipt.
+     *
+     * @return array<int, array{balance_before: float, balance_after: float}>
+     */
+    public function runningBalancesForStudent(int $studentId): array
+    {
+        if ($studentId <= 0) {
+            return [];
+        }
+
+        $snapshot = $this->snapshot($studentId, false);
+        $charged = round((float) ($snapshot['charged'] ?? 0), 2);
+        $paidSoFar = 0.0;
+        $out = [];
+
+        $payments = Payment::query()
+            ->where('student_id', $studentId)
+            ->where('reversed', false)
+            ->where(function ($q) {
+                $q->whereNull('receipt_number')
+                    ->orWhere('receipt_number', 'not like', 'SWIM-%');
+            })
+            ->orderBy('payment_date')
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Payment $p) => self::isFeePayment($p))
+            ->values();
+
+        foreach ($payments as $payment) {
+            $before = round($charged - $paidSoFar, 2);
+            $paidSoFar = round($paidSoFar + (float) $payment->amount, 2);
+            $after = round($charged - $paidSoFar, 2);
+            $out[(int) $payment->id] = [
+                'balance_before' => $before,
+                'balance_after' => $after,
+            ];
+        }
+
+        return $out;
+    }
+
     public function forgetCache(?int $studentId = null): void
     {
         if ($studentId === null) {
@@ -110,6 +172,7 @@ class StudentFeeLedgerService
             'credit' => 0.0,
             'invoices' => [],
             'payments' => [],
+            'applications' => [],
         ];
     }
 
@@ -156,9 +219,12 @@ class StudentFeeLedgerService
 
         $paid = 0.0;
         $paymentState = [];
+        $applications = [];
         foreach ($payments as $payment) {
             $left = round((float) $payment->amount, 2);
             $applied = 0.0;
+            $paymentId = (int) $payment->id;
+            $applications[$paymentId] = [];
             foreach ($invoiceState as $id => $state) {
                 if ($left <= 0.009) {
                     break;
@@ -170,9 +236,15 @@ class StudentFeeLedgerService
                 $invoiceState[$id]['remaining'] = round($state['remaining'] - $take, 2);
                 $left = round($left - $take, 2);
                 $applied = round($applied + $take, 2);
+                if ($take > 0.009) {
+                    $applications[$paymentId][] = [
+                        'invoice_id' => (int) $id,
+                        'amount' => $take,
+                    ];
+                }
             }
             $paid = round($paid + (float) $payment->amount, 2);
-            $paymentState[(int) $payment->id] = [
+            $paymentState[$paymentId] = [
                 'model' => $payment,
                 'allocated_amount' => $applied,
                 'unallocated_amount' => max(0.0, round((float) $payment->amount - $applied, 2)),
@@ -212,6 +284,7 @@ class StudentFeeLedgerService
             'credit' => $credit,
             'invoices' => $invoicesOut,
             'payments' => $paymentState,
+            'applications' => $applications,
         ];
     }
 

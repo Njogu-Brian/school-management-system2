@@ -49,6 +49,10 @@ export interface User {
   assignedClassroomIds?: number[];
   /** Subjects this teacher is assigned to teach (drives "subjects you teach" filters). */
   assignedSubjectIds?: number[];
+  isHomeroomTeacher?: boolean;
+  isSubjectTeacherOnly?: boolean;
+  canMarkClassAttendance?: boolean;
+  canViewStudentProfiles?: boolean;
 
   /** Set after Google sign-in when the ID token is decoded client-side. */
   googleId?: string | null;

@@ -55,6 +55,8 @@ export interface StaffClockRosterItem {
   id: number;
   staff_id: string;
   full_name: string;
+  clocked_in?: boolean;
+  check_in_time?: string | null;
 }
 
 interface ClockPayload {

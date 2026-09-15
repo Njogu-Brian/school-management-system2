@@ -69,6 +69,22 @@ export const academicsApi = {
     return apiClient.get<TimetableRecord>(`/timetables/teacher/${staffId}`, query);
   },
 
+  getMyTimetable(params?: { term_id?: number }): Promise<ApiResponse<TimetableRecord>> {
+    const query: Record<string, number> = {};
+    if (params?.term_id != null) query.term_id = params.term_id;
+    return apiClient.get<TimetableRecord>('/timetables/mine', query);
+  },
+
+  getClassTimetable(
+    classroomId: number,
+    params?: { term_id?: number; stream_id?: number },
+  ): Promise<ApiResponse<TimetableRecord>> {
+    const query: Record<string, number> = { classroom_id: classroomId };
+    if (params?.term_id != null) query.term_id = params.term_id;
+    if (params?.stream_id != null) query.stream_id = params.stream_id;
+    return apiClient.get<TimetableRecord>('/timetables/class', query);
+  },
+
   getStudentTimetable(
     studentId: number,
     params?: { term_id?: number },

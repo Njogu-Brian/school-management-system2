@@ -147,7 +147,7 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Term:</span>
-                    <span class="detail-value">{{ $invoice->term->name ?? 'N/A' }}</span>
+                    <span class="detail-value">{{ $invoice->termDisplayLabel() ?: 'N/A' }}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Total Amount:</span>

@@ -484,6 +484,14 @@ class AuthApiController extends Controller
                 $data['class_teacher_classroom_ids'] = $user->getClassTeacherClassroomIds();
                 $data['assigned_classroom_ids'] = $user->getAssignedClassroomIds();
                 $data['assigned_subject_ids'] = $user->getAssignedSubjectIds();
+                $data['is_homeroom_teacher'] = $user->isHomeroomTeacher();
+                $data['is_subject_teacher_only'] = $user->isSubjectTeacherOnly();
+                $data['can_mark_class_attendance'] = $user->isHomeroomTeacher()
+                    || $user->isSeniorTeacherUser()
+                    || $user->isDeputySeniorTeacherUser();
+                $data['can_view_student_profiles'] = $user->isHomeroomTeacher()
+                    || $user->isSeniorTeacherUser()
+                    || $user->isDeputySeniorTeacherUser();
             }
             $data['avatar'] = $staff->photo_url ?: null;
         }

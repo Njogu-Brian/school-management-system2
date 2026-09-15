@@ -19,6 +19,8 @@ export const TeacherMoreHubScreen: React.FC = () => {
 
   const isSenior =
     user?.role === UserRole.SENIOR_TEACHER || user?.role === UserRole.SUPERVISOR;
+  const showClassTeacherTools =
+    isSenior || Boolean(user?.isHomeroomTeacher) || (user?.classTeacherClassroomIds?.length ?? 0) > 0;
 
   const items = useMemo(() => {
     const base: Array<{
@@ -41,7 +43,9 @@ export const TeacherMoreHubScreen: React.FC = () => {
         | 'clipboard-outline';
     }> = [
       { title: 'Academics hub', subtitle: 'All academic tools', route: 'Academics', icon: 'book-outline' },
-      { title: 'Collect requirements', subtitle: 'Class requirements', route: 'RequirementsHub', icon: 'clipboard-outline' },
+      ...(showClassTeacherTools
+        ? [{ title: 'Collect requirements', subtitle: 'Class requirements', route: 'RequirementsHub' as const, icon: 'clipboard-outline' as const }]
+        : []),
       { title: 'My attendance', subtitle: 'Staff clock in/out', route: 'StaffClock', icon: 'time-outline' },
       { title: 'My leave', subtitle: 'Leave history', route: 'MyLeaveList', icon: 'list-outline' },
       { title: 'Apply for leave', subtitle: 'New leave request', route: 'LeaveApply', icon: 'calendar-outline' },
@@ -62,7 +66,7 @@ export const TeacherMoreHubScreen: React.FC = () => {
       });
     }
     return base;
-  }, [isSenior]);
+  }, [isSenior, showClassTeacherTools]);
 
   return (
     <ScreenContainer scroll edges={['bottom']} contentContainerStyle={{ padding: spacing.md }}>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\AttendanceReasonCode;
 use App\Models\CommunicationLog;
 use App\Models\CommunicationTemplate;
 use App\Models\Student;
@@ -38,8 +39,11 @@ class ApiAttendanceController extends Controller
         $user = $request->user();
 
         if ($user && $user->hasTeacherLikeRole()) {
-            if (! $user->canTeacherAccessClassroom($classId)) {
-                return response()->json(['success' => false, 'message' => 'You are not assigned to this class.'], 403);
+            if (! $user->canMarkClassAttendanceForClassroom($classId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only class teachers can mark attendance for this class.',
+                ], 403);
             }
         }
 
@@ -60,6 +64,9 @@ class ApiAttendanceController extends Controller
             ->map(fn ($a) => [
                 'student_id' => $a->student_id,
                 'status' => $a->status === 'absent' && $a->is_excused ? 'absent' : $a->status,
+                'reason' => $a->reason,
+                'reason_code_id' => $a->reason_code_id,
+                'excuse_notes' => $a->excuse_notes,
             ])
             ->values();
 
@@ -88,6 +95,17 @@ class ApiAttendanceController extends Controller
     }
 
     /**
+     * Preset absence/late reasons used on web and mobile.
+     */
+    public function reasonCodes()
+    {
+        $codes = AttendanceReasonCode::active()
+            ->get(['id', 'code', 'name', 'requires_excuse', 'is_medical']);
+
+        return response()->json(['success' => true, 'data' => $codes]);
+    }
+
+    /**
      * Mark attendance for a class/stream.
      * Request: { date, class_id, stream_id?, records: [{ student_id, status }, ...] }
      * status: present|absent|late|unmarked (unmarked = delete record)
@@ -101,6 +119,9 @@ class ApiAttendanceController extends Controller
             'records' => 'required|array|min:1',
             'records.*.student_id' => 'required|integer|exists:students,id',
             'records.*.status' => 'required|in:present,absent,late,unmarked',
+            'records.*.reason_code_id' => 'nullable|integer|exists:attendance_reason_codes,id',
+            'records.*.reason' => 'nullable|string|max:500',
+            'records.*.excuse_notes' => 'nullable|string|max:1000',
         ]);
 
         $date = Carbon::parse($request->date)->toDateString();
@@ -131,8 +152,11 @@ class ApiAttendanceController extends Controller
             ], 422);
         }
 
-        if ($user->hasTeacherLikeRole() && ! $user->canTeacherAccessClassroom($classId)) {
-            return response()->json(['success' => false, 'message' => 'You are not assigned to this class.'], 403);
+        if ($user->hasTeacherLikeRole() && ! $user->canMarkClassAttendanceForClassroom($classId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only class teachers can mark attendance for this class.',
+            ], 403);
         }
 
         $count = 0;
@@ -175,7 +199,7 @@ class ApiAttendanceController extends Controller
                 $oldStatus = $attendance->exists ? $attendance->status : null;
 
                 $attendance->status = $status;
-                $attendance->is_excused = false;
+                $this->applyReasonToAttendance($attendance, $status, is_array($rec) ? $rec : []);
                 $attendance->marked_by = $user->id;
                 $attendance->marked_at = now();
                 $attendance->save();
@@ -183,7 +207,7 @@ class ApiAttendanceController extends Controller
                 $count++;
 
                 if ($status === 'absent' && $isToday && $student->parent) {
-                    $this->notifyParentAbsent($student);
+                    $this->notifyParentAbsent($student, $attendance->reason);
                     try {
                         app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
                     } catch (\Throwable $e) {
@@ -202,7 +226,146 @@ class ApiAttendanceController extends Controller
         ]);
     }
 
-    protected function notifyParentAbsent(Student $student): void
+    /**
+     * Mark selected students absent without going class by class.
+     * Request: { date, student_ids: [1, 2, ...] }
+     */
+    public function markAbsent(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+            'student_ids' => 'required|array|min:1|max:200',
+            'student_ids.*' => 'required|integer|exists:students,id',
+            'reason_code_id' => 'nullable|integer|exists:attendance_reason_codes,id',
+            'reason' => 'nullable|string|max:500',
+            'excuse_notes' => 'nullable|string|max:1000',
+        ]);
+
+        $date = Carbon::parse($request->date)->toDateString();
+        $user = $request->user();
+        $isToday = Carbon::parse($date)->isToday();
+
+        if ($user && $user->isAcademicAdministratorUser()) {
+            return response()->json(['success' => false, 'message' => 'Academic administrators cannot mark attendance.'], 403);
+        }
+
+        if (Carbon::parse($date)->isFuture()) {
+            return response()->json(['success' => false, 'message' => 'Cannot mark attendance for a future date.'], 422);
+        }
+
+        if (! $this->attendanceCalendar->isValidSchoolDay($date)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Attendance cannot be recorded on this date (weekend, holiday, or other non-school day).',
+            ], 422);
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $request->input('student_ids', []))));
+        $query = Student::whereIn('id', $ids)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->with('parent');
+        if ($user && $user->hasTeacherLikeRole()) {
+            if ($user->shouldRestrictToHomeroomDuties()) {
+                $user->applyHomeroomStudentFilter($query);
+            } else {
+                $user->applyTeacherStudentFilter($query);
+            }
+        }
+        $students = $query->get();
+        if ($students->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'No matching students were found.'], 422);
+        }
+
+        $reasonPayload = [
+            'reason_code_id' => $request->input('reason_code_id'),
+            'reason' => $request->input('reason'),
+            'excuse_notes' => $request->input('excuse_notes'),
+        ];
+
+        $count = 0;
+        DB::transaction(function () use ($students, $date, $user, $isToday, $reasonPayload, &$count) {
+            foreach ($students as $student) {
+                if (! $this->attendanceCalendar->canMarkAttendanceForDate($student, $date)) {
+                    continue;
+                }
+
+                $attendance = Attendance::firstOrNew([
+                    'student_id' => $student->id,
+                    'date' => $date,
+                ]);
+                $attendance->status = 'absent';
+                $this->applyReasonToAttendance($attendance, 'absent', $reasonPayload);
+                $attendance->marked_by = $user->id;
+                $attendance->marked_at = now();
+                $attendance->save();
+                $count++;
+
+                if ($isToday && $student->parent) {
+                    $this->notifyParentAbsent($student, $attendance->reason);
+                    try {
+                        app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'message' => $count === 1
+                    ? '1 student marked absent.'
+                    : "{$count} students marked absent.",
+                'count' => $count,
+            ],
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $rec
+     */
+    protected function applyReasonToAttendance(Attendance $attendance, string $status, array $rec): void
+    {
+        if ($status === 'present' || $status === 'unmarked') {
+            $attendance->reason = null;
+            $attendance->reason_code_id = null;
+            $attendance->is_excused = false;
+            $attendance->is_medical_leave = false;
+            $attendance->excuse_notes = null;
+
+            return;
+        }
+
+        $reasonCodeId = isset($rec['reason_code_id']) && $rec['reason_code_id'] !== '' && $rec['reason_code_id'] !== null
+            ? (int) $rec['reason_code_id']
+            : null;
+        $freeReason = trim((string) ($rec['reason'] ?? ''));
+        $notes = trim((string) ($rec['excuse_notes'] ?? $freeReason));
+
+        $presetReason = null;
+        $isMedical = false;
+        $isExcused = false;
+        if ($reasonCodeId) {
+            $code = AttendanceReasonCode::find($reasonCodeId);
+            if ($code) {
+                $presetReason = $code->name;
+                $isMedical = (bool) $code->is_medical;
+                $isExcused = (bool) $code->requires_excuse;
+            } else {
+                $reasonCodeId = null;
+            }
+        }
+
+        $attendance->reason = $presetReason ?: ($freeReason !== '' ? $freeReason : null);
+        $attendance->reason_code_id = $reasonCodeId;
+        $attendance->is_excused = $isExcused;
+        $attendance->is_medical_leave = $isMedical;
+        $attendance->excuse_notes = $notes !== '' ? $notes : null;
+    }
+
+    protected function notifyParentAbsent(Student $student, ?string $reason = null): void
     {
         try {
             $tpl = CommunicationTemplate::where('code', 'attendance_absent_sms')->first();
@@ -219,10 +382,13 @@ class ApiAttendanceController extends Controller
 
             $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
             $messageTemplate = str_replace(
-                ['{{student_name}}', '{{attendance_status}}', '{{attendance_date}}', '{{school_name}}'],
-                [$student->full_name, 'absent', 'today', $schoolName],
+                ['{{student_name}}', '{{attendance_status}}', '{{attendance_date}}', '{{attendance_reason}}', '{{school_name}}'],
+                [$student->full_name, 'absent', 'today', $reason ?: '', $schoolName],
                 $tpl->content ?? ''
             );
+            if (filled($reason) && ! str_contains((string) ($tpl->content ?? ''), '{{attendance_reason}}')) {
+                $messageTemplate = rtrim($messageTemplate)."\nReason: ".$reason;
+            }
 
             $parentNotify = app(\App\Services\ParentSchoolNotificationService::class);
             foreach ($parentNotify->smsRecipients($student->parent) as $r) {

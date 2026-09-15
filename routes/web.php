@@ -10,6 +10,7 @@ use Laragear\WebAuthn\Http\Routes as WebAuthnRoutes;
 |--------------------------------------------------------------------------
 */
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AppDownloadController;
 use App\Http\Controllers\SocialAuthController;
 use App\Http\Controllers\DashboardController;
 
@@ -153,6 +154,9 @@ use App\Http\Controllers\BackupRestoreController;
 |--------------------------------------------------------------------------
 */
 Route::get('/', fn () => redirect()->route('login'));
+
+Route::get('/app/play-store', [AppDownloadController::class, 'playStore'])->name('app.play-store');
+Route::get('/app/android.apk', [AppDownloadController::class, 'apk'])->name('app.apk');
 
 // Public legal pages (no auth — required for Play Store / App Store listings)
 Route::view('/privacy', 'legal.privacy')->name('privacy');
@@ -1093,6 +1097,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/update-general',  [SettingController::class, 'updateSettings'])->name('update.general');
             Route::post('/update-regional', [SettingController::class, 'updateRegional'])->name('update.regional');
             Route::post('/update-system',   [SettingController::class, 'updateSystem'])->name('update.system');
+            Route::post('/mobile-apk',      [SettingController::class, 'uploadMobileApk'])->name('mobile-apk.upload');
             Route::post('/id-settings',     [SettingController::class, 'updateIdSettings'])->name('ids.save');
 
             // Modules update

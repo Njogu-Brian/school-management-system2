@@ -22,10 +22,10 @@ class ReceiptService
         $payment->load([
             'student.classroom',
             'student.family.updateLink',
-            'invoice.term.academicYear',
+            'invoice.academicYear',
             'paymentMethod',
             'allocations.invoiceItem.votehead',
-            'allocations.invoiceItem.invoice.term.academicYear',
+            'allocations.invoiceItem.invoice.academicYear',
         ]);
 
         // Get school settings and document header/footer
@@ -46,18 +46,46 @@ class ReceiptService
 
         $ledger = app(StudentFeeLedgerService::class)->snapshot((int) $student->id);
         $asAt = $this->balanceAsAtPayment($payment);
+        // Keep receipt footer aligned with ledger when an older freeze is a false credit.
+        if ((float) $asAt['balance_after'] < -0.009
+            && (float) ($payment->unallocated_amount ?? 0) <= 0.009
+            && (float) ($payment->allocated_amount ?? 0) > 0.009) {
+            $repaired = app(StudentFeeStatementService::class)->balanceAfterPayment($payment->fresh());
+            $asAt = $repaired;
+            if (\Illuminate\Support\Facades\Schema::hasColumn('payments', 'balance_after')) {
+                Payment::withoutEvents(function () use ($payment, $repaired) {
+                    Payment::where('id', $payment->id)->update([
+                        'balance_before' => $repaired['balance_before'],
+                        'balance_after' => $repaired['balance_after'],
+                        'updated_at' => now(),
+                    ]);
+                });
+                $payment->balance_before = $repaired['balance_before'];
+                $payment->balance_after = $repaired['balance_after'];
+            }
+        }
 
         $paymentAllocations = $payment->allocations;
         $contextTermIds = $paymentAllocations
             ->map(function ($allocation) {
-                return optional(optional($allocation->invoiceItem)->invoice)->term_id;
+                $invoice = optional(optional($allocation->invoiceItem)->invoice);
+                if (! $invoice || (method_exists($invoice, 'isReversed') && $invoice->isReversed())) {
+                    return null;
+                }
+
+                return $invoice->term_id;
             })
             ->filter()
             ->unique()
             ->values();
 
         if ($contextTermIds->isEmpty() && optional($payment->invoice)->term_id) {
-            $contextTermIds = collect([$payment->invoice->term_id]);
+            $linked = $payment->invoice;
+            if (! $linked || (method_exists($linked, 'isReversed') && $linked->isReversed())) {
+                $contextTermIds = collect();
+            } else {
+                $contextTermIds = collect([$linked->term_id]);
+            }
         }
 
         $invoices = \App\Models\Invoice::where('student_id', $student->id)
@@ -76,7 +104,7 @@ class ReceiptService
                     }
                 }
             })
-            ->with(['items.votehead', 'term.academicYear'])
+            ->with(['items.votehead'])
             ->get();
 
         $receiptItems = collect();
@@ -103,14 +131,7 @@ class ReceiptService
         $termCoverage = \App\Services\Finance\PaymentTermCoverage::forPayment($payment);
         $termLabels = $invoices
             ->map(function ($invoice) {
-                $term = $invoice->relationLoaded('term') ? $invoice->getRelation('term') : null;
-                if (!is_object($term) || !method_exists($term, 'academicYear')) {
-                    return null;
-                }
-                $year = $term->academicYear?->year;
-                $name = $term->name ?? '';
-
-                return trim($name . ($year ? ' (' . $year . ')' : ''));
+                return $invoice->termDisplayLabel() ?: null;
             })
             ->filter()
             ->unique()
@@ -349,7 +370,7 @@ class ReceiptService
             'student.classroom',
             'student.stream',
             'student.parent',
-            'invoice.term.academicYear',
+            'invoice.academicYear',
             'installments' => fn ($q) => $q->orderBy('installment_number'),
             'creator',
         ]);

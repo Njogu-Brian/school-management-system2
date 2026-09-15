@@ -144,7 +144,23 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     /** True when this account is linked to parent_info (Users app parent features). */
     public function isLinkedParentAccount(): bool
     {
-        return (bool) $this->parent_id || $this->hasAnyRole(['Parent', 'Guardian', 'parent']);
+        return (bool) $this->parent_id || $this->hasAnyRole(['Parent', 'Guardian', 'parent', 'guardian']);
+    }
+
+    /**
+     * Parent-only accounts must use the mobile app, not the staff web portal.
+     * Teachers, admins, drivers, and other staff who also have children still use the portal.
+     */
+    public function mustUseMobileApp(): bool
+    {
+        if ($this->hasElevatedStaffRole() || $this->hasTeacherLikeRole()) {
+            return false;
+        }
+        if ($this->hasAnyRole(['Driver', 'driver', 'Transport', 'transport', 'Student', 'student'])) {
+            return false;
+        }
+
+        return $this->isLinkedParentAccount();
     }
 
     /**
@@ -233,6 +249,65 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
             fn ($a) => (int) $a->classroom_id,
             $this->getHomeroomAssignments()
         )));
+    }
+
+    public function isHomeroomTeacher(): bool
+    {
+        return $this->getHomeroomAssignments() !== [];
+    }
+
+    /**
+     * Regular teacher with subject assignments but no class-teacher / assistant slot.
+     * Senior and deputy keep school-wide tools.
+     */
+    public function isSubjectTeacherOnly(): bool
+    {
+        if (! $this->hasTeacherLikeRole()) {
+            return false;
+        }
+        if ($this->isSeniorTeacherUser() || $this->isDeputySeniorTeacherUser()) {
+            return false;
+        }
+
+        return ! $this->isHomeroomTeacher();
+    }
+
+    public function canMarkClassAttendanceForClassroom(int $classroomId): bool
+    {
+        if (! $this->hasTeacherLikeRole()) {
+            return false;
+        }
+        if ($this->isSeniorTeacherUser() || $this->isDeputySeniorTeacherUser()) {
+            return $this->canTeacherAccessClassroom($classroomId);
+        }
+        $cid = (int) $classroomId;
+        foreach ($this->getHomeroomAssignments() as $assignment) {
+            if ((int) $assignment->classroom_id === $cid) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function canViewStudentPastoralProfile(\App\Models\Student $student): bool
+    {
+        if ($this->hasElevatedStaffRole() || $this->isSeniorTeacherUser() || $this->isDeputySeniorTeacherUser()) {
+            return true;
+        }
+        if (! $this->hasTeacherLikeRole()) {
+            return false;
+        }
+        foreach ($this->getHomeroomAssignments() as $assignment) {
+            if ((int) $student->classroom_id !== (int) $assignment->classroom_id) {
+                continue;
+            }
+            if ($assignment->stream_id === null || (int) $student->stream_id === (int) $assignment->stream_id) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -734,6 +809,41 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
                 $outer->whereRaw('1 = 0');
             }
         });
+    }
+
+    /**
+     * Limit to class-teacher / assistant homeroom students (not subject classes).
+     */
+    public function applyHomeroomStudentFilter($query): void
+    {
+        $assignments = $this->getHomeroomAssignments();
+        if ($assignments === []) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function ($outer) use ($assignments) {
+            foreach ($assignments as $assignment) {
+                $outer->orWhere(function ($q) use ($assignment) {
+                    $q->where('classroom_id', $assignment->classroom_id);
+                    if ($assignment->stream_id !== null) {
+                        $q->where('stream_id', $assignment->stream_id);
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * Regular teachers (not senior/deputy) whose class tools are homeroom-only.
+     */
+    public function shouldRestrictToHomeroomDuties(): bool
+    {
+        return $this->hasTeacherLikeRole()
+            && ! $this->isSeniorTeacherUser()
+            && ! $this->isDeputySeniorTeacherUser()
+            && ! $this->hasElevatedStaffRole();
     }
 
     /**

@@ -1,5 +1,5 @@
 import { useSchool } from '@erp/core';
-import { Button, ScreenContainer, useTheme } from '@erp/ui';
+import { Button, ScreenContainer, useAdaptiveLayout, useTheme } from '@erp/ui';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ export const SchoolCodeScreen: React.FC = () => {
   const { selectSchoolByCode, submitting, error } = useSchool();
   const { colors, spacing, typography, radius, palette } = useTheme();
   const insets = useSafeAreaInsets();
+  const { isTablet, formMaxWidth } = useAdaptiveLayout();
   const [code, setCode] = useState('');
 
   const onContinue = async () => {
@@ -30,7 +31,18 @@ export const SchoolCodeScreen: React.FC = () => {
         style={[styles.flex, { paddingTop: insets.top + spacing.xl }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={[styles.card, { backgroundColor: palette.surface, borderRadius: radius.lg }]}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: palette.surface,
+              borderRadius: radius.lg,
+              alignSelf: isTablet ? 'center' : undefined,
+              width: isTablet ? '100%' : undefined,
+              maxWidth: isTablet ? formMaxWidth : undefined,
+            },
+          ]}
+        >
           <Text style={[typography.title, { color: palette.textPrimary, marginBottom: spacing.sm }]}>
             Enter school code
           </Text>

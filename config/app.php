@@ -92,6 +92,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Google Play listing (Users app)
+    |--------------------------------------------------------------------------
+    |
+    | Used on the web login screen. Android devices are sent to the Play Store
+    | app (market/intent), not a desktop website.
+    |
+    */
+    'play_store_package' => env('PLAY_STORE_PACKAGE', 'com.royalkingsschools.users'),
+    'play_store_url' => env(
+        'PLAY_STORE_URL',
+        'https://play.google.com/store/apps/details?id=com.royalkingsschools.users'
+    ),
+
+    /*
+    |--------------------------------------------------------------------------
     | Parent “Claim access” (OTP self-signup)
     |--------------------------------------------------------------------------
     |

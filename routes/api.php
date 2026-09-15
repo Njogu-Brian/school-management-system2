@@ -443,6 +443,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/reports/board-pack', [\App\Http\Controllers\Api\ApiBoardPackController::class, 'show']);
 
     Route::get('/expenses', [\App\Http\Controllers\Api\ApiExpensesController::class, 'index']);
+    Route::post('/expenses', [\App\Http\Controllers\Api\ApiExpensesController::class, 'store']);
     Route::get('/expenses/{id}', [\App\Http\Controllers\Api\ApiExpensesController::class, 'show']);
     Route::post('/expenses/{id}/submit', [\App\Http\Controllers\Api\ApiExpensesController::class, 'submit']);
     Route::post('/expenses/{id}/approve', [\App\Http\Controllers\Api\ApiExpensesController::class, 'approve']);
@@ -468,7 +469,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::delete('/notifications/{id}', [\App\Http\Controllers\Api\ApiNotificationController::class, 'destroy']);
     Route::get('/attendance/class', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'classAttendance']);
     Route::get('/attendance/school-day', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'schoolDay']);
+    Route::get('/attendance/reason-codes', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'reasonCodes']);
     Route::post('/attendance/mark', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'mark']);
+    Route::post('/attendance/mark-absent', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'markAbsent']);
 
     // Activities (extra-curricular activity fees + swimming) — teacher attendance marking
     Route::get('/activities', [\App\Http\Controllers\Api\ApiActivityController::class, 'index']);
@@ -478,6 +481,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
 
     Route::get('/classes/{classId}/fee-clearance-roster', [ApiFeeClearanceController::class, 'classRoster']);
 
+    Route::get('/timetables/mine', [\App\Http\Controllers\Api\ApiTimetableController::class, 'mine']);
+    Route::get('/timetables/class', [\App\Http\Controllers\Api\ApiTimetableController::class, 'classGrid']);
     Route::get('/timetables/teacher/{staffId}', [\App\Http\Controllers\Api\ApiTimetableController::class, 'teacher']);
     Route::get('/timetables/student/{studentId}', [\App\Http\Controllers\Api\ApiTimetableController::class, 'student']);
 

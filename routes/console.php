@@ -61,18 +61,21 @@ Schedule::command('parent-wallet:send-saving-reminders')
 
 Schedule::command('reminders:teacher-clock-in')
     ->dailyAt('08:00')
+    ->timezone('Africa/Nairobi')
     ->weekdays()
     ->name('reminders-teacher-clock-in')
     ->withoutOverlapping();
 
 Schedule::command('reminders:class-teacher-attendance')
     ->dailyAt('09:00')
+    ->timezone('Africa/Nairobi')
     ->weekdays()
     ->name('reminders-class-teacher-attendance')
     ->withoutOverlapping();
 
 Schedule::command('reminders:class-teacher-unmarked-attendance')
     ->dailyAt('14:00')
+    ->timezone('Africa/Nairobi')
     ->weekdays()
     ->name('reminders-class-teacher-unmarked-attendance')
     ->withoutOverlapping();

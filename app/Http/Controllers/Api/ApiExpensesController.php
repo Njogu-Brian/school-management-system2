@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\ExpenseAttachment;
+use App\Models\ExpenseCategory;
 use App\Services\ExpenseWorkflowService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class ApiExpensesController extends Controller
@@ -100,6 +102,103 @@ class ApiExpensesController extends Controller
         ]);
     }
 
+    /**
+     * Create a draft expense (amount + date, optional vendor/notes/lines).
+     */
+    public function store(Request $request)
+    {
+        $user = $request->user();
+        if (! $user?->can('create', Expense::class)) {
+            return response()->json(['success' => false, 'message' => 'You are not allowed to create expenses.'], 403);
+        }
+
+        $data = $request->validate([
+            'expense_date' => 'required|date',
+            'amount' => 'nullable|numeric|min:0.01',
+            'notes' => 'nullable|string|max:2000',
+            'vendor_id' => 'nullable|exists:vendors,id',
+            'category_id' => 'nullable|exists:expense_categories,id',
+            'description' => 'nullable|string|max:1000',
+            'source_type' => 'nullable|string|max:50',
+            'currency' => 'nullable|string|size:3',
+            'due_date' => 'nullable|date|after_or_equal:expense_date',
+            'lines' => 'nullable|array|min:1',
+            'lines.*.category_id' => 'required_with:lines|exists:expense_categories,id',
+            'lines.*.description' => 'required_with:lines|string|max:1000',
+            'lines.*.qty' => 'required_with:lines|numeric|min:0.01',
+            'lines.*.unit_cost' => 'required_with:lines|numeric|min:0',
+            'lines.*.tax_rate' => 'nullable|numeric|min:0|max:100',
+            'lines.*.department' => 'nullable|string|max:255',
+            'lines.*.cost_center' => 'nullable|string|max:255',
+        ]);
+
+        $lines = $data['lines'] ?? null;
+        if (! is_array($lines) || $lines === []) {
+            $amount = (float) ($data['amount'] ?? 0);
+            if ($amount <= 0) {
+                return response()->json(['success' => false, 'message' => 'Amount is required.'], 422);
+            }
+            $categoryId = isset($data['category_id'])
+                ? (int) $data['category_id']
+                : (int) (ExpenseCategory::query()
+                    ->where('is_active', true)
+                    ->where(function ($q) {
+                        $q->where('is_header', false)->orWhereNull('is_header');
+                    })
+                    ->orderBy('id')
+                    ->value('id') ?? 0);
+            if ($categoryId <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No expense category is configured. Add a category on the portal first.',
+                ], 422);
+            }
+            $lines = [[
+                'category_id' => $categoryId,
+                'description' => $data['description'] ?? ($data['notes'] ?: 'Expense'),
+                'qty' => 1,
+                'unit_cost' => $amount,
+                'tax_rate' => 0,
+            ]];
+        }
+
+        $expense = DB::transaction(function () use ($request, $data, $lines) {
+            $expense = Expense::create([
+                'source_type' => $data['source_type'] ?? 'vendor_bill',
+                'vendor_id' => $data['vendor_id'] ?? null,
+                'requested_by' => $request->user()->id,
+                'expense_date' => $data['expense_date'],
+                'due_date' => $data['due_date'] ?? null,
+                'currency' => strtoupper($data['currency'] ?? 'KES'),
+                'status' => Expense::STATUS_DRAFT,
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            foreach ($lines as $line) {
+                $expense->lines()->create([
+                    'category_id' => $line['category_id'],
+                    'department' => $line['department'] ?? null,
+                    'cost_center' => $line['cost_center'] ?? null,
+                    'description' => $line['description'],
+                    'qty' => $line['qty'],
+                    'unit_cost' => $line['unit_cost'],
+                    'tax_rate' => $line['tax_rate'] ?? 0,
+                ]);
+            }
+
+            $expense->recalculateTotals();
+            $expense->save();
+
+            return $expense;
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Expense draft created.',
+            'data' => $this->serializeSummary($expense->fresh('vendor')),
+        ], 201);
+    }
+
     public function storeAttachment(Request $request, int $id)
     {
         $expense = Expense::findOrFail($id);
@@ -113,7 +212,8 @@ class ApiExpensesController extends Controller
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('expense-attachments', 'public');
+        $disk = config('filesystems.public_disk', 'public');
+        $path = $file->store('expense-attachments', $disk);
 
         $attachment = ExpenseAttachment::create([
             'expense_id' => $expense->id,
@@ -139,8 +239,13 @@ class ApiExpensesController extends Controller
 
         $attachment = ExpenseAttachment::where('expense_id', $expense->id)->findOrFail($attachmentId);
 
-        if ($attachment->path && Storage::disk('public')->exists($attachment->path)) {
-            Storage::disk('public')->delete($attachment->path);
+        $disk = config('filesystems.public_disk', 'public');
+        if ($attachment->path) {
+            if (Storage::disk($disk)->exists($attachment->path)) {
+                Storage::disk($disk)->delete($attachment->path);
+            } elseif (Storage::disk('public')->exists($attachment->path)) {
+                Storage::disk('public')->delete($attachment->path);
+            }
         }
         $attachment->delete();
 
@@ -153,7 +258,7 @@ class ApiExpensesController extends Controller
             'id' => $a->id,
             'file_name' => basename($a->path ?? ''),
             'mime_type' => $a->mime_type,
-            'url' => $a->path ? asset('storage/'.ltrim($a->path, '/')) : null,
+            'url' => storage_public_url($a->path) ?: ($a->path ? asset('storage/'.ltrim($a->path, '/')) : null),
             'uploaded_by' => $a->uploader?->name,
             'uploaded_at' => $a->created_at?->toIso8601String(),
         ];

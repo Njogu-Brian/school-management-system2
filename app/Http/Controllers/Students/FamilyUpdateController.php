@@ -1334,8 +1334,7 @@ class FamilyUpdateController extends Controller
 
     private function getCountryCodes(): array
     {
-        $codes = include resource_path('data/country_codes.php');
-        return is_array($codes) ? $codes : [];
+        return \App\Support\CountryDialCodes::options();
     }
 
     /**

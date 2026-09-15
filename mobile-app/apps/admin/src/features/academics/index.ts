@@ -20,3 +20,5 @@ export { CbcCurriculumScreen } from './screens/CbcCurriculumScreen';
 export { CbcStrandsScreen } from './screens/CbcStrandsScreen';
 export { CbcSubstrandScreen } from './screens/CbcSubstrandScreen';
 export { MarkAttendanceScreen } from './screens/MarkAttendanceScreen';
+export { MarkAbsentScreen } from './screens/MarkAbsentScreen';
+export { TimetableScreen } from './screens/TimetableScreen';

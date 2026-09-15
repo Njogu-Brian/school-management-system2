@@ -41,6 +41,48 @@
     <div class="settings-card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
+                <h5 class="mb-1">Mobile app (Android APK)</h5>
+                <div class="section-note">Upload replaces the previous APK. Stored on S3 when configured; phones download via the login page.</div>
+            </div>
+            <span class="pill-badge"><i class="bi bi-phone"></i> Users app</span>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ route('settings.mobile-apk.upload') }}" enctype="multipart/form-data" class="row g-3 align-items-end">
+                @csrf
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">APK file</label>
+                    <input type="file" name="apk" class="form-control" accept=".apk,application/vnd.android.package-archive" required>
+                    @error('apk')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="col-md-6">
+                    <button type="submit" class="btn btn-settings-primary">
+                        <i class="bi bi-upload"></i> Upload &amp; replace
+                    </button>
+                </div>
+            </form>
+            <div class="mt-3 small text-muted">
+                @if(!empty($settings['mobile_app_apk_filename']->value))
+                    Current file: <strong>{{ $settings['mobile_app_apk_filename']->value }}</strong>
+                    @if(!empty($settings['mobile_app_apk_uploaded_at']->value))
+                        · uploaded {{ \Carbon\Carbon::parse($settings['mobile_app_apk_uploaded_at']->value)->timezone(config('app.timezone'))->format('d M Y H:i') }}
+                    @endif
+                @else
+                    No APK uploaded yet. Login still offers Google Play.
+                @endif
+                <div class="mt-2">
+                    <a href="{{ route('app.play-store') }}" target="_blank" rel="noopener">Google Play listing</a>
+                    ·
+                    <a href="{{ route('app.apk') }}">Download current APK</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
                 <h5 class="mb-1">Backup Schedule & Automation</h5>
                 <div class="section-note">Keep your database backed up on a predictable cadence.</div>
             </div>

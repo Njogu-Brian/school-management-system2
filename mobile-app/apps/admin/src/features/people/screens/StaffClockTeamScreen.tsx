@@ -2,32 +2,36 @@ import { useStaffClockRoster, useStaffMemberClockHistory } from '@erp/core';
 import {
   AcademicScreenHeader,
   EmptyState,
-  FilterChip,
-  FilterChipRow,
   ScreenContainer,
+  SearchBar,
   SkeletonListRows,
+  StatusBadge,
   useTheme,
 } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
-import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { PeopleStackParamList } from '../../../navigation/peopleStackTypes';
 
 type Props = StackScreenProps<PeopleStackParamList, 'StaffClockTeam'>;
 
 export const StaffClockTeamScreen: React.FC<Props> = ({ navigation }) => {
-  const { palette, spacing, typography } = useTheme();
+  const { palette, spacing, typography, radius } = useTheme();
   const rosterQuery = useStaffClockRoster();
+  const [search, setSearch] = useState('');
   const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
   const historyQuery = useStaffMemberClockHistory(selectedStaffId ?? 0, {
     enabled: selectedStaffId != null && selectedStaffId > 0,
   });
 
-  useEffect(() => {
-    if (rosterQuery.data?.length && !selectedStaffId) {
-      setSelectedStaffId(rosterQuery.data[0].id);
-    }
-  }, [rosterQuery.data, selectedStaffId]);
+  const roster = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const rows = rosterQuery.data ?? [];
+    const filtered = q
+      ? rows.filter((m) => m.full_name.toLowerCase().includes(q) || String(m.staff_id ?? '').toLowerCase().includes(q))
+      : rows;
+    return [...filtered].sort((a, b) => Number(Boolean(b.clocked_in)) - Number(Boolean(a.clocked_in)) || a.full_name.localeCompare(b.full_name));
+  }, [rosterQuery.data, search]);
 
   const selectedName =
     historyQuery.data?.staff?.full_name ??
@@ -38,32 +42,61 @@ export const StaffClockTeamScreen: React.FC<Props> = ({ navigation }) => {
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
         <AcademicScreenHeader
-          title="Team clock history"
-          subtitle="Last 90 days per staff member"
+          title="Team attendance"
+          subtitle="Active staff only · today clock-in"
           onBack={() => navigation.goBack()}
         />
 
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Search staff…" />
+
         {rosterQuery.isLoading ? (
-          <SkeletonListRows variant="compact" count={5} />
-        ) : (rosterQuery.data?.length ?? 0) === 0 ? (
+          <SkeletonListRows variant="compact" count={6} />
+        ) : roster.length === 0 ? (
           <EmptyState
             title="No staff available"
-            message="No staff available for your access level."
+            message="Archived or inactive staff are hidden from this roster."
             icon="people-outline"
           />
         ) : (
-          <>
-            <FilterChipRow label="Select a staff member">
-              {(rosterQuery.data ?? []).map((member) => (
-                <FilterChip
+          <View style={{ marginTop: spacing.md }}>
+            {roster.map((member) => {
+              const active = selectedStaffId === member.id;
+              return (
+                <Pressable
                   key={member.id}
-                  label={member.full_name}
-                  active={selectedStaffId === member.id}
                   onPress={() => setSelectedStaffId(member.id)}
-                />
-              ))}
-            </FilterChipRow>
+                  style={{
+                    backgroundColor: active ? palette.surfaceMuted : palette.surfaceRaised,
+                    borderColor: active ? palette.primary : palette.borderSubtle,
+                    borderWidth: 1,
+                    borderRadius: radius.md,
+                    padding: spacing.md,
+                    marginBottom: spacing.sm,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: spacing.sm,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{member.full_name}</Text>
+                    <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginTop: 2 }}>
+                      {member.clocked_in
+                        ? `Clocked in ${member.check_in_time ?? ''}`.trim()
+                        : 'Not clocked in'}
+                    </Text>
+                  </View>
+                  <StatusBadge
+                    label={member.clocked_in ? 'In' : 'Out'}
+                    tone={member.clocked_in ? 'success' : 'warning'}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
+        {selectedStaffId ? (
+          <>
             <Text
               style={{
                 color: palette.textPrimary,
@@ -75,7 +108,6 @@ export const StaffClockTeamScreen: React.FC<Props> = ({ navigation }) => {
             >
               {selectedName}
             </Text>
-
             {historyQuery.isLoading ? (
               <SkeletonListRows variant="compact" count={4} />
             ) : (historyQuery.data?.history.length ?? 0) === 0 ? (
@@ -124,7 +156,7 @@ export const StaffClockTeamScreen: React.FC<Props> = ({ navigation }) => {
               ))
             )}
           </>
-        )}
+        ) : null}
       </ScrollView>
     </ScreenContainer>
   );

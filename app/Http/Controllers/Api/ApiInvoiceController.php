@@ -104,7 +104,7 @@ class ApiInvoiceController extends Controller
         return array_merge($base, [
             'issue_date' => ($inv->issued_date ?? $inv->created_at)?->format('Y-m-d'),
             'items' => $this->formatInvoiceLineItems($inv),
-            'term_name' => $inv->term->name ?? null,
+            'term_name' => $inv->academicTerm()?->name ?? null,
             'academic_year_name' => $inv->academicYear->name ?? null,
             'notes' => $inv->notes,
         ]);

@@ -1,0 +1,72 @@
+import {
+  appIssuesApi,
+  AuthProvider,
+  BiometricAuthProvider,
+  RbacProvider,
+  SchoolProvider,
+  SessionProvider,
+} from '@erp/core';
+import { AppErrorBoundary, registerAppIssueReporter, useTheme } from '@erp/ui';
+import Constants from 'expo-constants';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { IosRootNavigator } from './src/navigation/IosRootNavigator';
+import { AppThemeProvider } from './src/providers/AppThemeProvider';
+import { IosPushNotifications } from './src/providers/IosPushNotifications';
+import { PersistedQueryProvider } from './src/providers/PersistedQueryProvider';
+
+const ThemedStatusBar: React.FC = () => {
+  const { isDark } = useTheme();
+  return <StatusBar style={isDark ? 'light' : 'dark'} translucent />;
+};
+
+function AppRoot(): React.JSX.Element {
+  return (
+    <>
+      <ThemedStatusBar />
+      <SchoolProvider>
+        <SessionProvider>
+          <AuthProvider>
+            <PersistedQueryProvider>
+              <RbacProvider>
+                <BiometricAuthProvider>
+                  <IosPushNotifications />
+                  <IosRootNavigator />
+                </BiometricAuthProvider>
+              </RbacProvider>
+            </PersistedQueryProvider>
+          </AuthProvider>
+        </SessionProvider>
+      </SchoolProvider>
+    </>
+  );
+}
+
+export default function App(): React.JSX.Element {
+  useEffect(() => {
+    registerAppIssueReporter(async (payload) => {
+      await appIssuesApi.report({
+        ...payload,
+        app: 'combined',
+        platform: payload.platform ?? Platform.OS,
+        app_version: Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? undefined,
+      });
+    });
+    return () => registerAppIssueReporter(null);
+  }, []);
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppThemeProvider>
+          <AppErrorBoundary appName="combined">
+            <AppRoot />
+          </AppErrorBoundary>
+        </AppThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}

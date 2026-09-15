@@ -486,6 +486,9 @@ class ApiDashboardController extends Controller
         });
         $weekStart = Carbon::parse($today)->startOfWeek();
         $monthStart = Carbon::parse($today)->startOfMonth();
+        $collectedToday = (float) (clone $paymentBase)
+            ->whereDate('payment_date', $today)
+            ->sum('amount');
         $collectedThisWeek = (float) (clone $paymentBase)
             ->where('payment_date', '>=', $weekStart)
             ->sum('amount');
@@ -547,6 +550,7 @@ class ApiDashboardController extends Controller
             'total_payments' => round($feesCollected, 2),
             'outstanding_balance' => round($totalBalance, 2),
             'outstanding_balance_all' => round($outstandingAll, 2),
+            'collected_today' => round($collectedToday, 2),
             'collected_this_week' => round($collectedThisWeek, 2),
             'collected_this_month' => round($collectedThisMonth, 2),
             'collected_this_term' => round($collectedThisTerm, 2),

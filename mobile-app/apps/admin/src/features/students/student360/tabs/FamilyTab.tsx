@@ -1,6 +1,7 @@
 import { studentsApi, type StudentDetail } from '@erp/core';
 import { Button, EmptyState, Soft3DIcon, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { openEmail, openPhoneActions } from '../../../../utils/contactActions';
@@ -111,7 +112,8 @@ function SectionTitle({ title }: { title: string }) {
 
 export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
   const { spacing, palette, typography, colors } = useTheme();
-  const { parent, guardians, emergencyContact } = student;
+  const navigation = useNavigation();
+  const { parent, guardians, emergencyContact, siblings } = student;
   const [accounts, setAccounts] = useState<ParentAccount[]>([]);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -199,13 +201,14 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
       parent?.guardianEmail
     );
   const hasEmergency = !!(emergencyContact.name || emergencyContact.phone);
-  const isEmpty = !hasParent && guardians.length === 0 && !hasEmergency;
+  const siblingList = siblings ?? [];
+  const isEmpty = !hasParent && guardians.length === 0 && !hasEmergency && siblingList.length === 0;
 
   if (isEmpty) {
     return (
       <EmptyState
         title="No family records"
-        message="No parent, guardian, or emergency contacts are on file for this student."
+        message="No parent, sibling, guardian, or emergency contacts are on file for this student."
         icon="people-outline"
       />
     );
@@ -241,6 +244,67 @@ export const FamilyTab: React.FC<FamilyTabProps> = ({ student }) => {
             email={parent?.guardianEmail}
           />
         </>
+      )}
+
+      <SectionTitle title="Siblings" />
+      {siblingList.length === 0 ? (
+        <EmptyState
+          title="No siblings"
+          message="This student is not linked to any brothers or sisters in school."
+          icon="people-outline"
+        />
+      ) : (
+        siblingList.map((sibling) => (
+          <Pressable
+            key={sibling.id}
+            onPress={() =>
+              (navigation as { navigate: (name: string, params: object) => void }).navigate('StudentDetail', {
+                studentId: sibling.id,
+              })
+            }
+            style={[
+              styles.card,
+              {
+                backgroundColor: palette.surfaceRaised,
+                borderColor: palette.borderSubtle,
+                borderRadius: 12,
+                padding: spacing.md,
+                marginBottom: spacing.sm,
+              },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <Soft3DIcon name="people-outline" size={36} />
+              <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                <Text
+                  style={{
+                    color: palette.textMuted,
+                    fontSize: typography.caption.fontSize,
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  Sibling
+                </Text>
+                <Text
+                  style={{
+                    color: palette.textMain,
+                    fontSize: typography.bodyLarge.fontSize,
+                    fontWeight: '700',
+                    marginTop: 2,
+                  }}
+                >
+                  {sibling.fullName}
+                </Text>
+                <Text style={{ color: palette.textSecondary, marginTop: 2 }}>
+                  {[sibling.admissionNumber, sibling.className, sibling.streamName].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+            </View>
+          </Pressable>
+        ))
       )}
 
       <SectionTitle title="Portal login" />

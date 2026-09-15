@@ -1,3 +1,4 @@
+import { useCurrentUser, UserRole } from '@erp/core';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { AcademicScreenHeader, ScreenContainer, Soft3DIcon, useTheme } from '@erp/ui';
@@ -34,6 +35,12 @@ const ITEMS: Array<{
 export const TeacherAcademicsHubScreen: React.FC = () => {
   const { palette, spacing, typography, radius } = useTheme();
   const navigation = useNavigation<Nav>();
+  const user = useCurrentUser();
+  const isSenior =
+    user?.role === UserRole.SENIOR_TEACHER || user?.role === UserRole.SUPERVISOR;
+  const showClassTeacherTools =
+    isSenior || Boolean(user?.isHomeroomTeacher) || (user?.classTeacherClassroomIds?.length ?? 0) > 0;
+  const items = ITEMS.filter((item) => item.route !== 'RequirementsHub' || showClassTeacherTools);
 
   return (
     <ScreenContainer scroll contentContainerStyle={{ padding: spacing.md }}>
@@ -42,7 +49,7 @@ export const TeacherAcademicsHubScreen: React.FC = () => {
         subtitle="Subjects you teach — marks, plans, and class work"
         onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
       />
-      {ITEMS.map((item) => (
+      {items.map((item) => (
         <Pressable
           key={item.route}
           onPress={() => navigation.navigate(item.route as never)}

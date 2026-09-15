@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAdaptiveLayout } from '../layout/useAdaptiveLayout';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface FilterBottomSheetProps {
@@ -32,11 +33,12 @@ export const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   const { palette, colors, spacing, typography, radius, opacity } = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const maxSheetHeight = height * 0.82;
+  const { isTablet, formMaxWidth } = useAdaptiveLayout();
+  const maxSheetHeight = height * (isTablet ? 0.72 : 0.82);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, isTablet ? styles.overlayTablet : null]}>
         <Pressable
           style={[styles.backdrop, { backgroundColor: `rgba(0,0,0,${opacity.scrim})` }]}
           onPress={onClose}
@@ -53,6 +55,15 @@ export const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
               paddingBottom: insets.bottom + spacing.md,
               maxHeight: maxSheetHeight,
             },
+            isTablet
+              ? {
+                  width: '100%',
+                  maxWidth: formMaxWidth,
+                  alignSelf: 'center',
+                  borderRadius: radius.sheet,
+                  marginBottom: spacing.lg,
+                }
+              : null,
           ]}
         >
           <View style={[styles.handle, { backgroundColor: palette.border }]} />
@@ -73,10 +84,11 @@ export const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
           </View>
 
           <ScrollView
-            style={{ flexGrow: 0 }}
+            style={{ flexGrow: 1, flexShrink: 1, minHeight: 0 }}
             contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
           >
             {children}
           </ScrollView>
@@ -139,8 +151,9 @@ const elevationStyle = {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
+  overlayTablet: { justifyContent: 'center', paddingHorizontal: 24 },
   backdrop: { ...StyleSheet.absoluteFillObject },
-  sheet: { width: '100%' },
+  sheet: { width: '100%', minHeight: 0 },
   handle: {
     width: 36,
     height: 4,

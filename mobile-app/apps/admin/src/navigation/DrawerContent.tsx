@@ -7,7 +7,7 @@ import {
   useCurrentUser,
   useRbac,
 } from '@erp/core';
-import { Soft3DIcon, useTheme, type Soft3DTone } from '@erp/ui';
+import { Soft3DIcon, useAdaptiveLayout, useTheme, type Soft3DTone } from '@erp/ui';
 import { BlurView } from 'expo-blur';
 import {
   DrawerContentComponentProps,
@@ -70,12 +70,13 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
   const { palette, colors, spacing, typography, radius, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
+  const { isTablet } = useAdaptiveLayout();
   const activeKey = getActiveKey(props.state);
   const { drawerAreas } = useRbac();
   const { schoolName, logoUrl } = useBranding();
   const user = useCurrentUser();
   const { logout } = useAuth();
-  const isWide = windowWidth >= 900;
+  const isWide = isTablet;
   const [compact, setCompact] = useState(false);
   const showLabels = !isWide || !compact;
 

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
+import { useAdaptiveLayout } from '../layout/useAdaptiveLayout';
 import { useTheme } from '../theme/ThemeContext';
 import { AccentIcon, type AccentTone } from '../primitives/AccentIcon';
 
@@ -20,6 +21,8 @@ export const QuickAction: React.FC<QuickActionProps> = ({
   disabled = false,
 }) => {
   const { palette, spacing, typography, radius, elevation } = useTheme();
+  const { gridColumns } = useAdaptiveLayout();
+  const maxWidth = gridColumns === 4 ? '23%' : gridColumns === 3 ? '31%' : '48%';
 
   return (
     <Pressable
@@ -37,6 +40,7 @@ export const QuickAction: React.FC<QuickActionProps> = ({
           paddingVertical: spacing.md,
           paddingHorizontal: spacing.sm,
           opacity: disabled ? 0.5 : pressed ? 0.9 : 1,
+          maxWidth,
         },
       ]}
     >
@@ -63,6 +67,5 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     minWidth: 100,
     flex: 1,
-    maxWidth: '48%',
   },
 });

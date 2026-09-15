@@ -29,6 +29,40 @@ export function useTeacherTimetable(staffId: number, options?: { termId?: number
   });
 }
 
+export function useMyTimetable(options?: { termId?: number; enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
+  return useQuery({
+    queryKey: queryKeys.academics.myTimetable(options?.termId),
+    queryFn: async () => {
+      const res = await academicsApi.getMyTimetable(options?.termId != null ? { term_id: options.termId } : undefined);
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load timetable.');
+      }
+      return res.data;
+    },
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useClassTimetable(classroomId: number, options?: { termId?: number; enabled?: boolean }) {
+  const enabled = (options?.enabled ?? true) && classroomId > 0;
+  return useQuery({
+    queryKey: queryKeys.academics.classTimetable(classroomId, options?.termId),
+    queryFn: async () => {
+      const res = await academicsApi.getClassTimetable(
+        classroomId,
+        options?.termId != null ? { term_id: options.termId } : undefined,
+      );
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load timetable.');
+      }
+      return res.data;
+    },
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
 export function useStudentTimetable(studentId: number, options?: { termId?: number; enabled?: boolean }) {
   const enabled = (options?.enabled ?? true) && studentId > 0;
   return useQuery({

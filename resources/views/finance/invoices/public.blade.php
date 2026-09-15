@@ -140,7 +140,7 @@
                 </div>
             @endif
 
-            <div class="summary-row"><span>Term</span><span>{{ $invoice->term->name ?? '—' }} / {{ $invoice->academicYear->year ?? $invoice->year ?? '—' }}</span></div>
+            <div class="summary-row"><span>Term</span><span>{{ $invoice->termDisplayLabel() ?: '—' }} / {{ $invoice->academicYear->year ?? $invoice->year ?? '—' }}</span></div>
             @if($invoice->issued_date)
                 <div class="summary-row"><span>Issued</span><span>{{ \Carbon\Carbon::parse($invoice->issued_date)->format('d M Y') }}</span></div>
             @endif

@@ -186,7 +186,7 @@
                         <select name="invoice_id" class="finance-form-select">
                             <option value="">Auto-create invoice</option>
                             @foreach($invoices as $invoice)
-                                <option value="{{ $invoice->id }}">{{ $invoice->invoice_number }} ({{ $invoice->term->name ?? 'Term' }})</option>
+                                <option value="{{ $invoice->id }}">{{ $invoice->invoice_number }} ({{ $invoice->termDisplayLabel() ?: 'Term' }})</option>
                             @endforeach
                         </select>
                     </div>

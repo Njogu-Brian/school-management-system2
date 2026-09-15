@@ -3,15 +3,14 @@
 namespace App\Services\Finance;
 
 use App\Models\AuditLog;
-use App\Models\BankStatementTransaction;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\Student;
 use App\Models\Term;
 use App\Models\User;
 use App\Services\FeeClearanceRecomputeService;
-use App\Services\FinancialAuditService;
 use App\Services\PaymentPlanSyncService;
 use App\Services\StudentFeeLedgerService;
 use Illuminate\Support\Collection;
@@ -23,9 +22,8 @@ class InvoiceReversalService
     /**
      * Fully reverse an invoice.
      *
-     * Allocations on this invoice are removed. A payment that was only allocated
-     * here is reversed. A payment that also covers other invoices is unallocated
-     * from this invoice only and stays active.
+     * Allocations on this invoice are removed. The payments themselves stay
+     * on the student as credit (they are not reversed).
      *
      * @return array{payments_reversed: int, payments_unallocated: int, message: string}
      */
@@ -42,30 +40,32 @@ class InvoiceReversalService
 
         $userId = $user?->id ?? auth()->id();
 
-        return DB::transaction(function () use ($invoice, $reason, $user, $userId) {
-            $invoice->load(['items.allocations.payment']);
+        return DB::transaction(function () use ($invoice, $reason, $userId) {
+            $itemIds = InvoiceItem::withTrashed()
+                ->where('invoice_id', $invoice->id)
+                ->pluck('id');
 
-            $allocations = PaymentAllocation::query()
-                ->whereHas('invoiceItem', fn ($q) => $q->where('invoice_id', $invoice->id))
-                ->with('payment')
-                ->lockForUpdate()
-                ->get();
+            $allocations = $itemIds->isEmpty()
+                ? collect()
+                : PaymentAllocation::query()
+                    ->whereIn('invoice_item_id', $itemIds)
+                    ->with('payment')
+                    ->get();
 
             $affectedPayments = $allocations
-                ->pluck('payment')
-                ->filter()
-                ->unique('id')
+                ->map(fn (PaymentAllocation $a) => $a->payment)
+                ->filter(fn ($payment) => $payment instanceof Payment)
+                ->unique(fn (Payment $payment) => $payment->id)
                 ->values();
 
             $directPayments = Payment::query()
                 ->where('invoice_id', $invoice->id)
                 ->where('reversed', false)
-                ->lockForUpdate()
                 ->get();
 
             $affectedPayments = $affectedPayments
                 ->concat($directPayments)
-                ->unique('id')
+                ->unique(fn (Payment $payment) => $payment->id)
                 ->values();
 
             $oldValues = [
@@ -81,7 +81,6 @@ class InvoiceReversalService
                 ])->all(),
             ];
 
-            // Reverse the invoice first so allocation deletes cannot re-apply money here.
             $invoice->forceFill([
                 'status' => 'reversed',
                 'reversed_at' => now(),
@@ -98,24 +97,6 @@ class InvoiceReversalService
             Payment::query()
                 ->where('invoice_id', $invoice->id)
                 ->update(['invoice_id' => null]);
-
-            $paymentsReversed = collect();
-            $paymentsUnallocatedOnly = collect();
-
-            foreach ($affectedPayments as $payment) {
-                $payment = $payment->fresh();
-                if (! $payment || $payment->reversed) {
-                    continue;
-                }
-
-                $remainingAllocations = $payment->allocations()->count();
-                if ($remainingAllocations === 0) {
-                    $this->reversePayment($payment, $reason, $user);
-                    $paymentsReversed->push($payment);
-                } else {
-                    $paymentsUnallocatedOnly->push($payment);
-                }
-            }
 
             $studentId = (int) $invoice->student_id;
             if ($studentId > 0) {
@@ -146,137 +127,31 @@ class InvoiceReversalService
                 ]);
             }
 
-            $this->logInvoiceReversal($invoice->fresh(), $oldValues, $paymentsReversed, $paymentsUnallocatedOnly);
+            $this->logInvoiceReversal($invoice->fresh(), $oldValues, $affectedPayments);
 
-            $reversedCount = $paymentsReversed->count();
-            $unallocatedCount = $paymentsUnallocatedOnly->count() + $reversedCount;
-
+            $unallocatedCount = $affectedPayments->count();
             $message = 'Invoice reversed.';
             if ($unallocatedCount > 0) {
-                $message .= " {$unallocatedCount} payment(s) unallocated from this invoice.";
-            }
-            if ($reversedCount > 0) {
-                $message .= " {$reversedCount} payment(s) reversed because they were only allocated to this invoice.";
+                $message .= " {$unallocatedCount} payment(s) unallocated from this invoice and kept as credit.";
             }
 
             return [
-                'payments_reversed' => $reversedCount,
+                'payments_reversed' => 0,
                 'payments_unallocated' => $unallocatedCount,
                 'message' => $message,
             ];
         });
     }
 
-    private function reversePayment(Payment $payment, string $reason, ?User $user = null): void
+    private function logInvoiceReversal(Invoice $invoice, array $oldValues, Collection $paymentsUnallocated): void
     {
-        if ($payment->reversed) {
-            return;
-        }
-
-        $oldValues = [
-            'reversed' => false,
-            'amount' => $payment->amount,
-            'allocated_amount' => $payment->allocated_amount,
-        ];
-
-        foreach ($payment->allocations as $allocation) {
-            $allocation->delete();
-        }
-
-        $payment->update([
-            'reversed' => true,
-            'reversed_by' => $user?->id ?? auth()->id(),
-            'reversed_at' => now(),
-            'reversal_reason' => $reason,
-            'allocated_amount' => 0,
-            'unallocated_amount' => 0,
-            'invoice_id' => null,
-        ]);
-        $payment->increment('version');
-
-        try {
-            app(FeePaymentPostingService::class)->reverse($payment->fresh(), $user ?? auth()->user());
-        } catch (\Throwable $e) {
-            Log::warning('Fee GL reversal failed during invoice reversal', [
-                'payment_id' => $payment->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        try {
-            FinancialAuditService::logPaymentReversal($payment->fresh(), $oldValues);
-        } catch (\Throwable $e) {
-            Log::warning('Failed to log payment reversal during invoice reversal', [
-                'payment_id' => $payment->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        $this->unlinkBankStatementTransactions($payment->fresh());
-    }
-
-    private function unlinkBankStatementTransactions(Payment $payment): void
-    {
-        $directLinked = BankStatementTransaction::query()
-            ->where('payment_id', $payment->id)
-            ->get();
-
-        $referenceLinked = collect();
-        if ($payment->transaction_code) {
-            $possibleRefs = collect([$payment->transaction_code]);
-            if (preg_match('/^(.*)-\d+$/', $payment->transaction_code, $matches)) {
-                $possibleRefs->push($matches[1]);
-            }
-            $referenceLinked = BankStatementTransaction::query()
-                ->whereIn('reference_number', $possibleRefs->unique()->values()->all())
-                ->get();
-        }
-
-        $bankTransactions = $directLinked->merge($referenceLinked)->unique('id');
-
-        foreach ($bankTransactions as $bankTransaction) {
-            $transactionReference = $bankTransaction->reference_number ?? $payment->transaction_code;
-            $remainingPayments = 0;
-            if ($transactionReference) {
-                $remainingPayments = Payment::query()
-                    ->where('reversed', false)
-                    ->where(function ($q) use ($transactionReference) {
-                        $q->where('transaction_code', $transactionReference)
-                            ->orWhere('transaction_code', 'LIKE', $transactionReference . '-%');
-                    })
-                    ->count();
-            }
-
-            $transactionPaymentReversed = false;
-            if ($bankTransaction->payment_id) {
-                $linked = Payment::find($bankTransaction->payment_id);
-                $transactionPaymentReversed = $linked && $linked->reversed;
-            }
-
-            if ($remainingPayments === 0 || $transactionPaymentReversed) {
-                $bankTransaction->update([
-                    'payment_created' => false,
-                    'payment_id' => null,
-                ]);
-                $bankTransaction->increment('version');
-            }
-        }
-    }
-
-    private function logInvoiceReversal(
-        Invoice $invoice,
-        array $oldValues,
-        Collection $paymentsReversed,
-        Collection $paymentsUnallocatedOnly
-    ): void {
         try {
             AuditLog::log('invoice_reversed', $invoice, $oldValues, [
                 'status' => 'reversed',
                 'reversed_by' => $invoice->reversed_by,
                 'reversed_at' => optional($invoice->reversed_at)->toDateTimeString(),
                 'reversal_reason' => $invoice->reversal_reason,
-                'payments_reversed' => $paymentsReversed->pluck('id')->all(),
-                'payments_unallocated' => $paymentsUnallocatedOnly->pluck('id')->all(),
+                'payments_unallocated' => $paymentsUnallocated->pluck('id')->all(),
             ], ['financial', 'invoice', 'reversal']);
         } catch (\Throwable $e) {
             Log::warning('Failed to log invoice reversal audit', [

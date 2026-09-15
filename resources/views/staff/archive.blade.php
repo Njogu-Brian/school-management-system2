@@ -77,6 +77,11 @@
             </div>
             <div class="card-body">
                 <div class="mb-3">
+                    <label class="form-label" for="termination_date">Last day / termination date <span class="text-danger">*</span></label>
+                    <input type="date" name="termination_date" id="termination_date" class="form-control" required
+                        value="{{ old('termination_date', now()->toDateString()) }}">
+                </div>
+                <div class="mb-3">
                     <div class="form-check mb-2">
                         <input class="form-check-input" type="radio" name="assignment_action" id="actionLeaveBlank" value="leave_blank"
                             @checked(old('assignment_action', 'leave_blank') === 'leave_blank')>

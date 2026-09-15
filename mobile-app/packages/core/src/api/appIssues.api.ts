@@ -27,7 +27,7 @@ export interface AppClientIssuesPayload {
 
 export const appIssuesApi = {
   report(payload: {
-    app?: 'users' | 'admin';
+    app?: 'users' | 'admin' | 'combined';
     platform?: string;
     app_version?: string;
     role?: string;
@@ -40,7 +40,7 @@ export const appIssuesApi = {
   },
 
   list(params?: {
-    app?: 'users' | 'admin';
+    app?: 'users' | 'admin' | 'combined';
     page?: number;
     per_page?: number;
   }): Promise<ApiResponse<AppClientIssuesPayload>> {

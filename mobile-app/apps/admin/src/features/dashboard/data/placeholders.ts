@@ -77,6 +77,12 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     permissions: ['academics.view', 'dashboard.view'],
   },
   {
+    id: 'qa_mark_absent',
+    label: 'Mark as absent',
+    icon: 'close-circle-outline',
+    permissions: ['academics.view', 'dashboard.view'],
+  },
+  {
     id: 'qa_clock',
     label: 'Staff attendance',
     icon: 'time-outline',

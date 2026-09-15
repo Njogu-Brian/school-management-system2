@@ -51,8 +51,8 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.users',
-    versionCode: 13,
-    softwareKeyboardLayoutMode: 'pan',
+    versionCode: 14,
+    softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: primaryColor,
@@ -60,6 +60,7 @@ const config: ExpoConfig = {
     permissions: ['USE_BIOMETRIC', 'USE_FINGERPRINT', 'ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
   },
   plugins: [
+    '../../plugins/withAndroidTabletSupport',
     'expo-local-authentication',
     'expo-updates',
     'expo-location',
@@ -74,6 +75,7 @@ const config: ExpoConfig = {
     API_BASE_URL: apiBase,
     CONTROL_PLANE_BASE_URL: controlPlaneBase,
     REQUIRE_SCHOOL_CODE: requireSchoolCode,
+    APP_SURFACE: 'users',
     eas: {
       projectId: EAS_PROJECT_ID,
     },

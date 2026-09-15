@@ -8,6 +8,7 @@
   "sideEffects": false,
   "peerDependencies": {
     "@expo/vector-icons": "*",
+    "@react-native-community/datetimepicker": "*",
     "expo-blur": "*",
     "expo-linear-gradient": "*",
     "react": "*",

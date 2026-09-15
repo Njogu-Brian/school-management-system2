@@ -143,6 +143,11 @@ export const ReportsHubScreen: React.FC<Props> = ({ navigation }) => {
                   onPress={() => navigation.navigate('ExpensesList')}
                 />
                 <QuickAction
+                  label="New expense"
+                  icon="add-circle-outline"
+                  onPress={() => navigation.navigate('CreateExpense')}
+                />
+                <QuickAction
                   label="Income statement"
                   icon="stats-chart-outline"
                   onPress={() => navigation.navigate('IncomeStatement')}

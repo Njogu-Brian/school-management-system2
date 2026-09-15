@@ -269,22 +269,7 @@ class FamilyIntegrityReportController extends Controller
      */
     protected function countryDialCodesForSelect(): array
     {
-        $path = resource_path('data/country_codes.php');
-        if (! is_file($path)) {
-            return [['code' => '+254', 'label' => 'Kenya (+254)']];
-        }
-
-        /** @var array<string, string> $map */
-        $map = include $path;
-        $rows = [];
-        foreach ($map as $code => $label) {
-            $rows[] = ['code' => $code, 'label' => $label];
-        }
-        usort($rows, fn ($a, $b) => strcmp($a['label'], $b['label']));
-        $kenya = array_values(array_filter($rows, fn ($r) => $r['code'] === '+254'));
-        $others = array_values(array_filter($rows, fn ($r) => $r['code'] !== '+254'));
-
-        return array_merge($kenya, $others);
+        return \App\Support\CountryDialCodes::options();
     }
 
     /**

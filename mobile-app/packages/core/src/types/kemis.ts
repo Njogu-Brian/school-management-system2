@@ -35,7 +35,9 @@ export interface KemisParentSlotValues {
   id_number: string;
   country_of_residence: string;
   phone: string;
+  phone_country_code: string;
   whatsapp: string;
+  whatsapp_country_code: string;
   email: string;
 }
 
@@ -63,7 +65,9 @@ export const emptyKemisParentSlotValues = (): KemisParentSlotValues => ({
   id_number: '',
   country_of_residence: '',
   phone: '',
+  phone_country_code: '+254',
   whatsapp: '',
+  whatsapp_country_code: '+254',
   email: '',
 });
 
@@ -83,7 +87,9 @@ export function resolvedParentSlotName(
     id_number: '',
     country_of_residence: '',
     phone: '',
+    phone_country_code: '+254',
     whatsapp: '',
+    whatsapp_country_code: '+254',
     email: '',
   });
   if (fromParts) return fromParts;
@@ -120,7 +126,9 @@ export function kemisParentSlotPayload(
     [`${slot}_id_number`]: values.id_number || null,
     [`${slot}_country_of_residence`]: values.country_of_residence || null,
     [`${slot}_phone`]: values.phone || null,
+    [`${slot}_phone_country_code`]: values.phone_country_code || '+254',
     [`${slot}_whatsapp`]: values.whatsapp || null,
+    [`${slot}_whatsapp_country_code`]: values.whatsapp_country_code || values.phone_country_code || '+254',
     [`${slot}_email`]: values.email || null,
   };
 }
@@ -155,8 +163,11 @@ export function kemisParentSlotFromApi(
     id_type: String(raw?.[`${slot}_id_type`] ?? ''),
     id_number: String(raw?.[`${slot}_id_number`] ?? ''),
     country_of_residence: String(raw?.[`${slot}_country_of_residence`] ?? ''),
-    phone: String(raw?.[`${slot}_phone`] ?? ''),
-    whatsapp: String(raw?.[`${slot}_whatsapp`] ?? ''),
+    phone: String(raw?.[`${slot}_phone_local`] ?? raw?.[`${slot}_phone`] ?? ''),
+    phone_country_code: String(raw?.[`${slot}_phone_country_code`] ?? '+254') || '+254',
+    whatsapp: String(raw?.[`${slot}_whatsapp_local`] ?? raw?.[`${slot}_whatsapp`] ?? ''),
+    whatsapp_country_code:
+      String(raw?.[`${slot}_whatsapp_country_code`] ?? raw?.[`${slot}_phone_country_code`] ?? '+254') || '+254',
     email: String(raw?.[`${slot}_email`] ?? ''),
   };
 }

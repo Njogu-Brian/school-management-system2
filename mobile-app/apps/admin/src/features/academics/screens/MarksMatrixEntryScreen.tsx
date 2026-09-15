@@ -7,10 +7,10 @@ import {
   useNetworkStatus,
   useOfflineDraft,
 } from '@erp/core';
-import { AcademicScreenHeader, Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
+import { AcademicScreenHeader, Button, DockedActionLayout, FooterDock, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import type { StackScreenProps } from '@react-navigation/stack';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -159,36 +159,62 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
   };
 
   return (
-    <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }} keyboardShouldPersistTaps="handled">
-        <AcademicScreenHeader title="Marks matrix entry" subtitle="Students × exams" onBack={() => navigation.goBack()} />
-
-        {hasLocalDraft ? (
-          <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-            Draft auto-saved on this device.
-          </Text>
-        ) : null}
-
+    <ScreenContainer
+      scroll={false}
+      style={{ flex: 1 }}
+      clearFloatingTabBar={matrixQuery.isLoading || exams.length === 0}
+    >
+      <DockedActionLayout
+        header={
+          <View style={{ padding: spacing.md, paddingBottom: 0 }}>
+            <AcademicScreenHeader title="Marks matrix entry" subtitle="Students × exams" onBack={() => navigation.goBack()} />
+            {hasLocalDraft ? (
+              <Text style={{ color: colors.primary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+                Draft auto-saved on this device.
+              </Text>
+            ) : null}
+            {matrixQuery.isLoading || exams.length === 0 ? null : (
+              <>
+                <TextField
+                  label="Search students"
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Name or admission #"
+                />
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
+                  {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'}
+                </Text>
+              </>
+            )}
+          </View>
+        }
+        footer={
+          !matrixQuery.isLoading && exams.length > 0 ? (
+            <FooterDock>
+              <Button
+                label={networkStatus === 'offline' ? 'Queue marks' : 'Submit marks'}
+                onPress={() => void save()}
+                loading={saveMutation.isPending}
+              />
+            </FooterDock>
+          ) : null
+        }
+      >
         {matrixQuery.isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
         ) : exams.length === 0 ? (
-          <Text style={{ color: palette.textSecondary, textAlign: 'center', marginTop: 24 }}>
+          <Text style={{ color: palette.textSecondary, textAlign: 'center', marginTop: 24, paddingHorizontal: spacing.md }}>
             No open exams in marking status for this class and exam type.
           </Text>
         ) : (
-          <>
-            <TextField
-              label="Search students"
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Name or admission #"
-            />
-            <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-              {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'}
-            </Text>
-
-            {filteredStudents.map((s, idx) => (
-              <View key={s.id} style={[styles.card, { borderColor: palette.border, marginBottom: spacing.md }]}>
+          <FlatList
+            data={filteredStudents}
+            keyExtractor={(item) => String(item.id)}
+            style={{ flex: 1, minHeight: 0 }}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ padding: spacing.md, paddingTop: spacing.sm, flexGrow: 1 }}
+            renderItem={({ item: s, index: idx }) => (
+              <View style={[styles.card, { borderColor: palette.border, marginBottom: spacing.md }]}>
                 <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>
                   {idx + 1}. {s.full_name}
                 </Text>
@@ -224,16 +250,10 @@ export const MarksMatrixEntryScreen: React.FC<Props> = ({ navigation, route }) =
                   })}
                 </ScrollView>
               </View>
-            ))}
-
-            <Button
-              label={networkStatus === 'offline' ? 'Queue marks' : 'Submit marks'}
-              onPress={() => void save()}
-              loading={saveMutation.isPending}
-            />
-          </>
+            )}
+          />
         )}
-      </ScrollView>
+      </DockedActionLayout>
     </ScreenContainer>
   );
 };

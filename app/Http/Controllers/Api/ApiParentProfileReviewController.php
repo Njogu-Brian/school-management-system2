@@ -114,8 +114,15 @@ class ApiParentProfileReviewController extends Controller
             'father_phone' => ['nullable', 'string', 'max:50'],
             'mother_phone' => ['nullable', 'string', 'max:50'],
             'guardian_phone' => ['nullable', 'string', 'max:50'],
+            'father_phone_country_code' => 'nullable|string|max:12',
+            'mother_phone_country_code' => 'nullable|string|max:12',
+            'guardian_phone_country_code' => 'nullable|string|max:12',
             'father_whatsapp' => ['nullable', 'string', 'max:50'],
             'mother_whatsapp' => ['nullable', 'string', 'max:50'],
+            'guardian_whatsapp' => ['nullable', 'string', 'max:50'],
+            'father_whatsapp_country_code' => 'nullable|string|max:12',
+            'mother_whatsapp_country_code' => 'nullable|string|max:12',
+            'guardian_whatsapp_country_code' => 'nullable|string|max:12',
             'guardian_email' => 'nullable|email|max:255',
             'marital_status' => 'nullable|in:married,single_parent,co_parenting',
         ],
@@ -125,12 +132,35 @@ class ApiParentProfileReviewController extends Controller
         DB::transaction(function () use ($validated, $parent, $accessibleIds) {
             $parentData = [];
             foreach ([
-                'father_phone', 'father_email', 'father_whatsapp',
-                'mother_phone', 'mother_email', 'mother_whatsapp',
-                'guardian_phone', 'guardian_relationship', 'marital_status', 'guardian_email',
+                'father_email',
+                'mother_email',
+                'guardian_relationship', 'marital_status', 'guardian_email',
             ] as $field) {
                 if (array_key_exists($field, $validated)) {
                     $parentData[$field] = $validated[$field] ?: null;
+                }
+            }
+            $phoneSvc = app(\App\Services\PhoneNumberService::class);
+            foreach (['father', 'mother', 'guardian'] as $slot) {
+                $ccKey = "{$slot}_phone_country_code";
+                $waCcKey = "{$slot}_whatsapp_country_code";
+                $phoneCc = $phoneSvc->normalizeCountryCode(
+                    $validated[$ccKey] ?? $parent->{$ccKey} ?? '+254'
+                );
+                $whatsappCc = $phoneSvc->normalizeCountryCode(
+                    $validated[$waCcKey] ?? $parent->{$waCcKey} ?? $phoneCc
+                );
+                if (array_key_exists($ccKey, $validated) || array_key_exists("{$slot}_phone", $validated)) {
+                    $parentData[$ccKey] = $phoneCc;
+                }
+                if (array_key_exists("{$slot}_phone", $validated)) {
+                    $parentData["{$slot}_phone"] = $phoneSvc->formatWithCountryCode($validated["{$slot}_phone"], $phoneCc);
+                }
+                if (array_key_exists($waCcKey, $validated) || array_key_exists("{$slot}_whatsapp", $validated)) {
+                    $parentData[$waCcKey] = $whatsappCc;
+                }
+                if (array_key_exists("{$slot}_whatsapp", $validated)) {
+                    $parentData["{$slot}_whatsapp"] = $phoneSvc->formatWithCountryCode($validated["{$slot}_whatsapp"], $whatsappCc);
                 }
             }
             foreach (['father', 'mother', 'guardian'] as $slot) {
@@ -234,6 +264,14 @@ class ApiParentProfileReviewController extends Controller
 
     private function formatParent(ParentInfo $parent): array
     {
+        $phone = app(\App\Services\PhoneNumberService::class);
+        $fCc = $parent->father_phone_country_code ?? '+254';
+        $mCc = $parent->mother_phone_country_code ?? '+254';
+        $gCc = $parent->guardian_phone_country_code ?? '+254';
+        $fWaCc = $parent->father_whatsapp_country_code ?? $fCc;
+        $mWaCc = $parent->mother_whatsapp_country_code ?? $mCc;
+        $gWaCc = $parent->guardian_whatsapp_country_code ?? $gCc;
+
         return [
             'id' => $parent->id,
             'father_name' => $parent->father_name,
@@ -244,7 +282,11 @@ class ApiParentProfileReviewController extends Controller
             'father_id_number' => $parent->father_id_number,
             'father_country_of_residence' => $parent->father_country_of_residence,
             'father_phone' => $parent->father_phone,
+            'father_phone_country_code' => $fCc,
+            'father_phone_local' => $phone->extractLocalNumber($parent->father_phone, $fCc),
             'father_whatsapp' => $parent->father_whatsapp,
+            'father_whatsapp_country_code' => $fWaCc,
+            'father_whatsapp_local' => $phone->extractLocalNumber($parent->father_whatsapp, $fWaCc),
             'father_email' => $parent->father_email,
             'mother_name' => $parent->mother_name,
             'mother_first_name' => $parent->mother_first_name,
@@ -254,7 +296,11 @@ class ApiParentProfileReviewController extends Controller
             'mother_id_number' => $parent->mother_id_number,
             'mother_country_of_residence' => $parent->mother_country_of_residence,
             'mother_phone' => $parent->mother_phone,
+            'mother_phone_country_code' => $mCc,
+            'mother_phone_local' => $phone->extractLocalNumber($parent->mother_phone, $mCc),
             'mother_whatsapp' => $parent->mother_whatsapp,
+            'mother_whatsapp_country_code' => $mWaCc,
+            'mother_whatsapp_local' => $phone->extractLocalNumber($parent->mother_whatsapp, $mWaCc),
             'mother_email' => $parent->mother_email,
             'guardian_name' => $parent->guardian_name,
             'guardian_first_name' => $parent->guardian_first_name,
@@ -264,6 +310,11 @@ class ApiParentProfileReviewController extends Controller
             'guardian_id_number' => $parent->guardian_id_number,
             'guardian_country_of_residence' => $parent->guardian_country_of_residence,
             'guardian_phone' => $parent->guardian_phone,
+            'guardian_phone_country_code' => $gCc,
+            'guardian_phone_local' => $phone->extractLocalNumber($parent->guardian_phone, $gCc),
+            'guardian_whatsapp' => $parent->guardian_whatsapp,
+            'guardian_whatsapp_country_code' => $gWaCc,
+            'guardian_whatsapp_local' => $phone->extractLocalNumber($parent->guardian_whatsapp, $gWaCc),
             'guardian_relationship' => $parent->guardian_relationship,
             'guardian_email' => $parent->guardian_email,
             'marital_status' => $parent->marital_status,

@@ -4,6 +4,7 @@ export type ReportsStackParamList = {
   BoardPack: undefined;
   ExpenseReports: undefined;
   ExpensesList: undefined;
+  CreateExpense: undefined;
   ExpenseDetail: { expenseId: number };
   IncomeStatement: undefined;
   BalanceSheet: undefined;

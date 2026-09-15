@@ -39,7 +39,7 @@ export const AdminParentHomeScreen: React.FC = () => {
         </Pressable>
       </View>
 
-      <AppModeSwitch style={{ marginBottom: spacing.lg }} />
+      <AppModeSwitch variant="banner" style={{ marginBottom: spacing.lg }} />
 
       <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
         My children

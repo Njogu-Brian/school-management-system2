@@ -127,6 +127,35 @@ class StudentFeeStatementServiceTest extends TestCase
         $this->assertEquals(5000.0, (float) $pack['closing_balance']);
     }
 
+    /** @test */
+    public function backdated_payment_that_clears_a_later_invoice_does_not_freeze_false_credit(): void
+    {
+        $student = Student::factory()->create();
+        $this->makeBilledInvoice($student, 20000, '2026-01-10');
+        $term3 = $this->makeBilledInvoice($student, 26700, '2026-07-28');
+
+        Payment::factory()->create([
+            'student_id' => $student->id,
+            'amount' => 20000,
+            'payment_date' => '2026-02-01',
+        ]);
+
+        $backdated = Payment::factory()->create([
+            'student_id' => $student->id,
+            'amount' => 11100,
+            'payment_date' => '2026-05-14',
+        ]);
+
+        $backdated->refresh();
+        $this->assertEquals(15600.0, (float) $backdated->balance_after);
+        $this->assertEquals(0.0, (float) $backdated->unallocated_amount);
+        $this->assertEquals(11100.0, (float) $term3->fresh()->paid_amount);
+
+        $receipt = app(ReceiptService::class)->buildReceiptData($backdated->fresh());
+        $this->assertEquals(15600.0, (float) $receipt['total_balance_after']);
+        $this->assertEquals(0.0, (float) $receipt['payment']->unallocated_amount);
+    }
+
     private function makeBilledInvoice(
         Student $student,
         float $amount,
