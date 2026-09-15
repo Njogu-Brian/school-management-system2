@@ -65,3 +65,20 @@ _stitch_inventory/
 /mariadb-start.err
 /mariadb-start.out
 /migrate_test_out.txt
+
+# Local one-off audits, Excel dumps, PDFs, and scratch scripts (keep on disk, never commit)
+/app.json
+/audit_student_finances.php
+/tmp_inspect_statements.php
+/Term3_*.xlsx
+/*.xlsx
+/*.b64
+/fee_*.pdf
+/transport_fee_*.pdf
+/investigation_*.b64
+/tmp_*
+/tmp_extract/
+/tmp_timetable_img/
+/scripts/generate_section_timetables.py
+/scripts/revise_fee_communications_review.py
+/scripts/prepare_cashbook_*.py
