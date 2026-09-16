@@ -49,7 +49,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.royalkingsschools.admin',
-    versionCode: 16,
+    versionCode: 17,
     softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -58,6 +58,7 @@ const config: ExpoConfig = {
     permissions: ['USE_BIOMETRIC', 'USE_FINGERPRINT'],
   },
   plugins: [
+    '../../plugins/withAndroid16KbPageSize',
     'expo-local-authentication',
     'expo-image-picker',
     'expo-updates',

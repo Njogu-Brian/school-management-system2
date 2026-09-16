@@ -16,6 +16,7 @@ on:
     paths:
       - 'mobile-app/apps/users/**'
       - 'mobile-app/packages/**'
+      - 'mobile-app/plugins/**'
       - '.github/workflows/eas-build-users.yml'
 
 concurrency:
@@ -59,7 +60,7 @@ jobs:
             if (!m) { console.error('versionCode missing in android/app/build.gradle'); process.exit(1); }
             const code = Number(m[1]);
             console.log('Users native versionCode =', code);
-            if (code < 6) { console.error('versionCode must be > Play production (5)'); process.exit(1); }
+            if (code < 15) { console.error('versionCode must be > Play production (14)'); process.exit(1); }
           "
 
       - name: EAS Build (Android AAB)

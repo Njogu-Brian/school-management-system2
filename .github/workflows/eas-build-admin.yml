@@ -16,6 +16,7 @@ on:
     paths:
       - 'mobile-app/apps/admin/**'
       - 'mobile-app/packages/**'
+      - 'mobile-app/plugins/**'
       - '.github/workflows/eas-build-admin.yml'
 
 concurrency:
@@ -58,7 +59,7 @@ jobs:
             const code = Number((text.match(/versionCode:\s*(\d+)/)||[])[1]||0);
             const ver = (text.match(/APP_VERSION\s*=\s*'([^']+)'/)||[])[1];
             console.log('Admin version', ver, 'versionCode', code);
-            if (code < 13) { console.error('Admin versionCode must be > Play Console active (12)'); process.exit(1); }
+            if (code < 17) { console.error('Admin versionCode must be > Play Console active (16)'); process.exit(1); }
           "
 
       - name: EAS Build (Android AAB)

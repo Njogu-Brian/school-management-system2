@@ -8,4 +8,14 @@ module.exports = {
       packageName: 'com.royalkingsschools.admin',
     },
   },
+  // Monorepo root still lists these native modules; Admin does not use them
+  // and their prebuilt .so files fail Play's 16 KB page-size check.
+  dependencies: {
+    'react-native-pdf': {
+      platforms: { android: null, ios: null },
+    },
+    'react-native-sms-retriever': {
+      platforms: { android: null, ios: null },
+    },
+  },
 };
