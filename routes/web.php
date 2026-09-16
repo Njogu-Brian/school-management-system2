@@ -1244,13 +1244,17 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         ->middleware('role:Super Admin|Admin|Secretary')
         ->name('students.details-ajax');
 
-    Route::resource('students', StudentController::class)
-        ->only(['index', 'show'])
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher|Deputy Senior Teacher');
-
+    // Create must be registered before show. Otherwise GET /students/create is
+    // captured as students.show with {student}=create and resolveRouteBinding 404s.
     Route::resource('students', StudentController::class)
         ->only(['create', 'store', 'edit', 'update'])
+        ->whereNumber('student')
         ->middleware('role:Super Admin|Admin|Secretary|Teacher');
+
+    Route::resource('students', StudentController::class)
+        ->only(['index', 'show'])
+        ->whereNumber('student')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher|Deputy Senior Teacher');
 
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.archive');

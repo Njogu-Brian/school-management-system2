@@ -3,6 +3,7 @@
 namespace Tests\Feature\Students;
 
 use App\Models\User;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class StudentAdmissionWorkflowTest extends TestCase
@@ -11,7 +12,7 @@ class StudentAdmissionWorkflowTest extends TestCase
     {
         $user = $this->createUser([], 'Admin');
 
-        $response = $this->actingAs($user)->get(route('students.create'));
+        $response = $this->actingAs($user)->get('/students/create');
 
         $response->assertOk()
             ->assertSee('admissionWizard')
@@ -26,10 +27,11 @@ class StudentAdmissionWorkflowTest extends TestCase
 
     public function test_view_only_role_cannot_open_admission_workflow(): void
     {
-        $user = $this->createUser([], 'Parent');
+        Role::firstOrCreate(['name' => 'Senior Teacher']);
+        $user = $this->createUser([], 'Senior Teacher');
 
         $this->actingAs($user)
-            ->get(route('students.create'))
+            ->get('/students/create')
             ->assertForbidden();
     }
 
