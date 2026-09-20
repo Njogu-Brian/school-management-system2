@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\InvalidatesTransactionListingCounts;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
@@ -9,6 +10,7 @@ use Carbon\Carbon;
 class MpesaC2BTransaction extends Model
 {
     use HasFactory;
+    use InvalidatesTransactionListingCounts;
 
     /**
      * The table associated with the model.

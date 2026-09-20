@@ -29,9 +29,9 @@ export const QuickActionFab: React.FC = () => {
   const canFinance = useCan('finance.view');
   const canComm = useCan('communication.view');
   const canOps = useCan('operations.view');
-  const canApprovals = useCan(['approvals.view', 'dashboard.approvals.view']);
   const canPeople = useCan(['people.view', 'staff.view']);
   const canAcademics = useCan(['academics.view', 'dashboard.view']);
+  const canStudents = useCan('students.view');
 
   const allActions: Action[] = [
     {
@@ -84,6 +84,20 @@ export const QuickActionFab: React.FC = () => {
       onPress: () => navigateToDrawer(navigation, 'Operations', 'RequisitionsList'),
     },
     {
+      id: 'parents',
+      label: 'Parent contacts',
+      icon: 'call-outline',
+      visible: canStudents,
+      onPress: () => navigateToTab(navigation, 'Students', 'ParentsContact'),
+    },
+    {
+      id: 'attendance_report',
+      label: 'Attendance report',
+      icon: 'calendar-outline',
+      visible: canStudents || canAcademics,
+      onPress: () => navigateToTab(navigation, 'Students', 'AttendanceReport'),
+    },
+    {
       id: 'attendance',
       label: 'Mark attendance',
       icon: 'clipboard-outline',
@@ -110,13 +124,6 @@ export const QuickActionFab: React.FC = () => {
       icon: 'briefcase-outline',
       visible: canPeople,
       onPress: () => navigateToTab(navigation, 'People', 'StaffRegistry'),
-    },
-    {
-      id: 'approvals',
-      label: 'View approvals',
-      icon: 'checkmark-done-outline',
-      visible: canApprovals,
-      onPress: () => navigateToDrawer(navigation, 'Approvals', 'ApprovalsHome'),
     },
   ];
   const actions = allActions.filter((a) => a.visible);

@@ -58,9 +58,11 @@ export const StatementLedger: React.FC<StatementLedgerProps> = ({
       ]}
     >
       {rows.map((row, index) => {
-        const canOpen = Boolean(
-          onRowPress && (row.invoice_id || row.payment_id || row.entity_type === 'invoice' || row.entity_type === 'payment'),
-        );
+        // Openable only when there is an id to open with. Treating
+        // `entity_type === 'invoice'` as sufficient made rows look tappable even
+        // when invoice_id was null, so the tap fired and the handler quietly did
+        // nothing — a dead row that reads as a broken link.
+        const canOpen = Boolean(onRowPress) && (Number(row.invoice_id) > 0 || Number(row.payment_id) > 0);
         const Row = canOpen ? Pressable : View;
         return (
           <Row

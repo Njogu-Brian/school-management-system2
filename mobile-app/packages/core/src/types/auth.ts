@@ -66,6 +66,8 @@ export interface ApiUser {
   can_view_student_profiles?: boolean;
   /** When true, client must force a password change before normal app use. */
   must_change_password?: boolean;
+  /** When true, parent must complete their own name/phone and any missing child name/DOB. */
+  identity_gate_required?: boolean;
   branches?: Array<{
     id: number;
     name: string;

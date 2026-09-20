@@ -7,6 +7,7 @@ export * from './auth.api';
 export * from './schools.api';
 export * from './parentClaim.api';
 export * from './parentProfileReview.api';
+export * from './parentIdentityGate.api';
 export * from './parentWallet.api';
 export * from './parentTransport.api';
 export * from './parentCoCurricular.api';

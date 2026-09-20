@@ -59,6 +59,10 @@ export function toStudentDetail(raw: StudentRecord, gradeLevel?: number | string
           tripId: raw.transport.morning.trip_id ?? null,
           tripName: raw.transport.morning.trip_name ?? null,
           vehicle: raw.transport.morning.vehicle ?? null,
+          vehiclePhotoUrl: raw.transport.morning.vehicle_photo_url ?? null,
+          driverName: raw.transport.morning.driver_name ?? null,
+          driverPhone: raw.transport.morning.driver_phone ?? null,
+          driverPhotoUrl: raw.transport.morning.driver_photo_url ?? null,
           dropOffPointId: raw.transport.morning.drop_off_point_id ?? null,
           dropOffPoint: raw.transport.morning.drop_off_point ?? null,
         }
@@ -68,6 +72,10 @@ export function toStudentDetail(raw: StudentRecord, gradeLevel?: number | string
           tripId: raw.transport.evening.trip_id ?? null,
           tripName: raw.transport.evening.trip_name ?? null,
           vehicle: raw.transport.evening.vehicle ?? null,
+          vehiclePhotoUrl: raw.transport.evening.vehicle_photo_url ?? null,
+          driverName: raw.transport.evening.driver_name ?? null,
+          driverPhone: raw.transport.evening.driver_phone ?? null,
+          driverPhotoUrl: raw.transport.evening.driver_photo_url ?? null,
           dropOffPointId: raw.transport.evening.drop_off_point_id ?? null,
           dropOffPoint: raw.transport.evening.drop_off_point ?? null,
         }

@@ -1,9 +1,17 @@
 import type { AttendanceTrendPoint } from '@erp/core';
-import { EmptyState, StudentSummaryWidgets, type StudentSummaryWidgetData, useTheme } from '@erp/ui';
-import React, { useMemo } from 'react';
+import { useStudentAttendanceCalendar } from '@erp/core';
+import {
+  AttendanceMonthCalendar,
+  EmptyState,
+  StudentSummaryWidgets,
+  type StudentSummaryWidgetData,
+  useTheme,
+} from '@erp/ui';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 export interface AttendanceTabProps {
+  studentId: number;
   isLoading: boolean;
   isError: boolean;
   onRetry?: () => void;
@@ -11,10 +19,12 @@ export interface AttendanceTabProps {
   absent: number;
   late: number;
   percentage: number | null;
+  consecutiveAbsences?: number | null;
   trend: AttendanceTrendPoint[];
 }
 
 export const AttendanceTab: React.FC<AttendanceTabProps> = ({
+  studentId,
   isLoading,
   isError,
   onRetry,
@@ -22,9 +32,17 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   absent,
   late,
   percentage,
+  consecutiveAbsences,
   trend,
 }) => {
   const { palette, colors, spacing, typography, radius } = useTheme();
+  const now = useMemo(() => new Date(), []);
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const calendar = useStudentAttendanceCalendar(studentId, year, month, {
+    enabled: studentId > 0,
+  });
 
   const widgets = useMemo(
     (): StudentSummaryWidgetData[] => [
@@ -40,6 +58,13 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
     ],
     [present, absent, late, percentage],
   );
+
+  const shiftMonth = (delta: number) => {
+    const d = new Date(year, month - 1 + delta, 1);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth() + 1);
+    setSelectedDate(null);
+  };
 
   if (isLoading) {
     return (
@@ -66,6 +91,56 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
   return (
     <View>
       <StudentSummaryWidgets widgets={widgets} />
+
+      {(consecutiveAbsences ?? 0) >= 2 ? (
+        <View
+          style={{
+            marginTop: spacing.sm,
+            padding: spacing.sm,
+            borderRadius: radius.md,
+            backgroundColor: `${colors.error}14`,
+          }}
+        >
+          <Text style={{ color: colors.error, fontWeight: '700' }}>
+            {consecutiveAbsences} consecutive absences
+          </Text>
+        </View>
+      ) : null}
+
+      <Text
+        style={[
+          styles.section,
+          {
+            color: palette.textSub,
+            fontSize: typography.overline.fontSize,
+            letterSpacing: typography.overline.letterSpacing,
+            marginTop: spacing.lg,
+            marginBottom: spacing.sm,
+          },
+        ]}
+      >
+        Attendance calendar
+      </Text>
+      {calendar.isLoading ? (
+        <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
+      ) : calendar.isError ? (
+        <EmptyState
+          title="Could not load calendar"
+          message={calendar.error instanceof Error ? calendar.error.message : 'Try again later.'}
+          icon="alert-circle-outline"
+          actionLabel="Retry"
+          onAction={() => void calendar.refetch()}
+        />
+      ) : (
+        <AttendanceMonthCalendar
+          year={year}
+          month={month}
+          days={calendar.data ?? []}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          onShiftMonth={shiftMonth}
+        />
+      )}
 
       <Text
         style={[

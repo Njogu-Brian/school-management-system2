@@ -41,16 +41,27 @@ class MediaController extends Controller
             abort(404);
         }
 
+        // Cache the redirect itself. Without this every avatar render costs a
+        // PHP request to re-issue the same 302 — scrolling a 40-student list was
+        // 40 framework boots. The signed URL is stable within its window (see
+        // media_signed_url), so caching the hop is safe for that long.
+        $minutes = max(1, min((int) $request->query('m', 10), MEDIA_SIGNED_URL_MAX_MINUTES));
+        $cacheHeaders = [
+            'Cache-Control' => 'public, max-age=' . ($minutes * 60),
+        ];
+
         // If disk supports temporaryUrl (S3), redirect to it (keeps the browser URL short).
         if (method_exists($storage, 'temporaryUrl')) {
-            $minutes = (int) $request->query('m', 10);
-            $minutes = max(1, min($minutes, 60));
-            return redirect()->away($storage->temporaryUrl($path, now()->addMinutes($minutes)));
+            return redirect()
+                ->away($storage->temporaryUrl($path, now()->addMinutes($minutes)))
+                ->withHeaders($cacheHeaders);
         }
 
         // Local: redirect to the normal URL.
         $u = $storage->url($path);
-        return redirect()->to(str_starts_with($u, 'http') ? $u : url($u));
+        return redirect()
+            ->to(str_starts_with($u, 'http') ? $u : url($u))
+            ->withHeaders($cacheHeaders);
     }
 
     protected function decodePath(string $encoded): string

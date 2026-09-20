@@ -3,4 +3,7 @@ export * from './screens/StudentDetailScreen';
 export * from './screens/ReportCardDetailScreen';
 export * from './screens/MedicalRecordFormScreen';
 export * from './screens/StudentEditScreen';
+export * from './screens/ParentsContactScreen';
+export * from './screens/ArchivedStudentsScreen';
+export * from './screens/AttendanceReportScreen';
 export * from './models';

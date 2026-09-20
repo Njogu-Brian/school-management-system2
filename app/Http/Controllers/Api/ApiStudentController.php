@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Student;
-use App\Models\Academics\Classroom;
-use App\Models\Academics\Stream;
+use App\Models\Term;
+use App\Services\AttendanceAnalyticsService;
 use App\Services\PhoneNumberService;
 use App\Services\StudentBalanceService;
 use App\Services\StudentSearchService;
@@ -71,17 +71,153 @@ class ApiStudentController extends Controller
         ]);
     }
 
+    /**
+     * Parent / guardian contact directory for active students.
+     */
+    public function parentsContact(Request $request)
+    {
+        $perPage = min(50, max(10, (int) $request->input('per_page', 20)));
+        $user = $request->user();
+
+        $query = Student::with(['parent', 'classroom', 'stream'])
+            ->where('archive', 0)
+            ->where('is_alumni', false);
+
+        if ($user && $user->hasTeacherLikeRole()) {
+            $user->applyTeacherStudentFilter($query);
+        }
+
+        if ($request->filled('search')) {
+            app(StudentSearchService::class)->applySearch($query, (string) $request->search);
+        }
+        if ($request->filled('classroom_id') || $request->filled('class_id')) {
+            $query->where('classroom_id', $request->classroom_id ?? $request->class_id);
+        }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
+        }
+
+        $paginated = $query->orderBy('first_name')->paginate($perPage);
+        $data = $paginated->getCollection()->map(fn ($s) => $this->formatParentContact($s))->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'data' => $data,
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+                'from' => $paginated->firstItem(),
+                'to' => $paginated->lastItem(),
+            ],
+        ]);
+    }
+
+    /**
+     * Archived students, with the term they left in (from transfer/archive date).
+     */
+    public function archived(Request $request)
+    {
+        $perPage = min(50, max(10, (int) $request->input('per_page', 20)));
+        $user = $request->user();
+
+        $query = Student::withArchived()
+            ->where('archive', 1)
+            ->where('is_alumni', false)
+            ->with(['parent', 'classroom', 'stream']);
+
+        if ($user && $user->hasTeacherLikeRole()) {
+            $user->applyTeacherStudentFilter($query);
+        }
+
+        if ($request->filled('search')) {
+            app(StudentSearchService::class)->applySearch($query, (string) $request->search);
+        }
+        if ($request->filled('classroom_id') || $request->filled('class_id')) {
+            $query->where('classroom_id', $request->classroom_id ?? $request->class_id);
+        }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
+        }
+
+        $termId = $request->filled('term_id') ? (int) $request->term_id : null;
+        if ($termId) {
+            $term = Term::find($termId);
+            if ($term && $term->opening_date && $term->closing_date) {
+                $query->whereRaw(
+                    'DATE(COALESCE(transfer_date, archived_at)) BETWEEN ? AND ?',
+                    [$term->opening_date->toDateString(), $term->closing_date->toDateString()]
+                );
+            }
+        }
+
+        $paginated = $query->orderByDesc('archived_at')->paginate($perPage);
+
+        $terms = Term::query()
+            ->with('academicYear:id,year')
+            ->orderByDesc('opening_date')
+            ->get(['id', 'name', 'academic_year_id', 'opening_date', 'closing_date', 'is_current']);
+
+        $data = $paginated->getCollection()->map(function ($s) use ($terms) {
+            $exitDate = $s->transfer_date
+                ? $s->transfer_date->toDateString()
+                : ($s->archived_at ? $s->archived_at->toDateString() : null);
+            $term = $this->termForDate($exitDate, $terms);
+
+            return [
+                'id' => $s->id,
+                'full_name' => trim(($s->first_name ?? '').' '.($s->middle_name ?? '').' '.($s->last_name ?? '')),
+                'admission_number' => $s->admission_number ?? '',
+                'class_name' => $s->classroom->name ?? null,
+                'stream_name' => $s->stream->name ?? null,
+                'classroom_id' => $s->classroom_id,
+                'stream_id' => $s->stream_id,
+                'archived_at' => $s->archived_at?->toIso8601String(),
+                'transfer_date' => $s->transfer_date?->toDateString(),
+                'archived_reason' => $s->archived_reason,
+                'archived_notes' => $s->archived_notes,
+                'term' => $term,
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'data' => $data,
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+                'from' => $paginated->firstItem(),
+                'to' => $paginated->lastItem(),
+                'available_terms' => $terms->map(fn ($t) => [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'academic_year_id' => $t->academic_year_id,
+                    'academic_year' => $t->academicYear->year ?? null,
+                    'opening_date' => $t->opening_date?->toDateString(),
+                    'closing_date' => $t->closing_date?->toDateString(),
+                    'is_current' => (bool) $t->is_current,
+                ])->values(),
+            ],
+        ]);
+    }
+
     public function show(Request $request, $id)
     {
-        $student = Student::with([
+        $student = Student::withArchived()->with([
             'parent',
             'classroom',
             'stream',
             'category',
             'trip.vehicle',
+            'trip.driver',
             'dropOffPoint',
             'assignments.morningTrip.vehicle',
+            'assignments.morningTrip.driver',
             'assignments.eveningTrip.vehicle',
+            'assignments.eveningTrip.driver',
             'assignments.morningDropOffPoint',
             'assignments.eveningDropOffPoint',
         ])->findOrFail($id);
@@ -118,7 +254,7 @@ class ApiStudentController extends Controller
      */
     public function stats(Request $request, int $id)
     {
-        $student = Student::findOrFail($id);
+        $student = Student::withArchived()->findOrFail($id);
         $user = $request->user();
         $appMode = strtolower((string) $request->header('X-App-Mode', ''));
         $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
@@ -153,6 +289,8 @@ class ApiStudentController extends Controller
             'expected_school_days' => $expectedSchoolDays,
             'attendance_records_count' => $records->count(),
             'attendance_days_marked' => $records->count(),
+            'consecutive_absences' => app(AttendanceAnalyticsService::class)
+                ->consecutiveCountsForStudents(collect([$student]))[$student->id] ?? 0,
             'exam_average' => null,
         ];
 
@@ -183,7 +321,7 @@ class ApiStudentController extends Controller
             'month' => 'required|integer|min:1|max:12',
         ]);
 
-        $student = Student::findOrFail($id);
+        $student = Student::withArchived()->findOrFail($id);
         $user = $request->user();
         $appMode = strtolower((string) $request->header('X-App-Mode', ''));
         $scopeAsParent = $user && $user->shouldScopeAsParent($appMode === 'home' ? 'home' : null);
@@ -226,6 +364,62 @@ class ApiStudentController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $rows]);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Term>  $terms
+     * @return array{id:int,name:string,academic_year:mixed}|null
+     */
+    protected function termForDate(?string $date, $terms): ?array
+    {
+        if (! $date) {
+            return null;
+        }
+
+        foreach ($terms as $term) {
+            $start = $term->opening_date?->toDateString();
+            $end = $term->closing_date?->toDateString();
+            if (! $start || ! $end) {
+                continue;
+            }
+            if ($date >= $start && $date <= $end) {
+                return [
+                    'id' => $term->id,
+                    'name' => $term->name,
+                    'academic_year' => $term->academicYear->year ?? null,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    protected function formatParentContact(Student $s): array
+    {
+        $parent = $s->parent;
+        $fullName = trim(($s->first_name ?? '').' '.($s->middle_name ?? '').' '.($s->last_name ?? ''));
+
+        return [
+            'id' => $s->id,
+            'full_name' => $fullName,
+            'admission_number' => $s->admission_number ?? '',
+            'class_name' => $s->classroom->name ?? null,
+            'stream_name' => $s->stream->name ?? null,
+            'classroom_id' => $s->classroom_id,
+            'stream_id' => $s->stream_id,
+            'father_name' => $parent?->father_name,
+            'father_phone' => $parent?->father_phone,
+            'father_whatsapp' => $parent?->father_whatsapp,
+            'mother_name' => $parent?->mother_name,
+            'mother_phone' => $parent?->mother_phone,
+            'mother_whatsapp' => $parent?->mother_whatsapp,
+            'guardian_name' => $parent?->guardian_name,
+            'guardian_phone' => $parent?->guardian_phone,
+            'guardian_whatsapp' => $parent?->guardian_whatsapp,
+            'primary_phone' => $parent
+                ? ($parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone)
+                : null,
+        ];
     }
 
     protected function formatStudent(Student $s, ?\App\Models\User $user = null): array
@@ -431,7 +625,9 @@ class ApiStudentController extends Controller
             ? $s->assignments->first()
             : $s->assignments()->with([
                 'morningTrip.vehicle',
+                'morningTrip.driver',
                 'eveningTrip.vehicle',
+                'eveningTrip.driver',
                 'morningDropOffPoint',
                 'eveningDropOffPoint',
             ])->first();
@@ -446,28 +642,51 @@ class ApiStudentController extends Controller
         return [
             'mode' => $legacyMode,
             'summary' => $this->transportSummary($s, $assignment),
-            'morning' => $assignment ? [
-                'trip_id' => $assignment->morning_trip_id,
-                'trip_name' => $assignment->morningTrip?->trip_name,
-                'vehicle' => $assignment->morningTrip?->vehicle?->vehicle_number,
-                'drop_off_point_id' => $assignment->morning_drop_off_point_id,
-                'drop_off_point' => $assignment->morningDropOffPoint?->name,
-            ] : null,
-            'evening' => $assignment ? [
-                'trip_id' => $assignment->evening_trip_id,
-                'trip_name' => $assignment->eveningTrip?->trip_name,
-                'vehicle' => $assignment->eveningTrip?->vehicle?->vehicle_number,
-                'drop_off_point_id' => $assignment->evening_drop_off_point_id,
-                'drop_off_point' => $assignment->eveningDropOffPoint?->name,
-            ] : null,
-            'legacy' => [
-                'trip_id' => $s->trip_id,
-                'trip_name' => $s->trip?->trip_name,
-                'vehicle' => $s->trip?->vehicle?->vehicle_number,
-                'drop_off_point_id' => $s->drop_off_point_id,
-                'drop_off_point' => $s->dropOffPoint?->name,
-                'drop_off_point_other' => $s->drop_off_point_other,
-            ],
+            'morning' => $this->formatTransportLeg(
+                $assignment?->morningTrip,
+                $assignment?->morning_drop_off_point_id,
+                $assignment?->morningDropOffPoint?->name
+            ),
+            'evening' => $this->formatTransportLeg(
+                $assignment?->eveningTrip,
+                $assignment?->evening_drop_off_point_id,
+                $assignment?->eveningDropOffPoint?->name
+            ),
+            'legacy' => array_merge(
+                $this->formatTransportLeg(
+                    $s->trip,
+                    $s->drop_off_point_id,
+                    $s->dropOffPoint?->name
+                ) ?? [],
+                ['drop_off_point_other' => $s->drop_off_point_other]
+            ),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function formatTransportLeg($trip, $dropOffPointId, ?string $dropOffPointName): ?array
+    {
+        if (! $trip && ! $dropOffPointId && ! filled($dropOffPointName)) {
+            return null;
+        }
+
+        $vehicle = $trip?->vehicle;
+        $driver = $trip?->driver;
+        $driverName = $driver?->full_name ?: ($vehicle?->driver_name ?: null);
+        $driverPhone = $driver?->phone_number ?: null;
+
+        return [
+            'trip_id' => $trip?->id,
+            'trip_name' => $trip?->trip_name,
+            'vehicle' => $vehicle?->vehicle_number,
+            'vehicle_photo_url' => $vehicle?->photo_url,
+            'driver_name' => $driverName,
+            'driver_phone' => $driverPhone,
+            'driver_photo_url' => $driver?->photo_url,
+            'drop_off_point_id' => $dropOffPointId,
+            'drop_off_point' => $dropOffPointName,
         ];
     }
 

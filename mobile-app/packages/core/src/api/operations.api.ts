@@ -9,8 +9,11 @@ export interface TransportRouteSummary {
   description?: string | null;
   vehicle_id?: number | null;
   vehicle_registration?: string | null;
+  vehicle_photo_url?: string | null;
   driver_id?: number | null;
   driver_name?: string | null;
+  driver_phone?: string | null;
+  driver_photo_url?: string | null;
   status?: string;
   students_count?: number | null;
   students?: RouteStudentRecord[];
@@ -73,6 +76,8 @@ export interface VehicleRecord {
   type?: string | null;
   capacity?: number | null;
   chassis_number?: string | null;
+  photo?: string | null;
+  photo_url?: string | null;
   trips_count?: number;
 }
 

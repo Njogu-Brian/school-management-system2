@@ -1455,4 +1455,281 @@ class ParentCredentialsService
 
         return "{{school_name}} parent app\nUsername: {{username}}\nPassword: {{password}}";
     }
+
+    /**
+     * Slot belonging to the signed-in parent (login phone → father / mother / guardian).
+     */
+    public function identitySlotForUser(ParentInfo $parent, User $user): string
+    {
+        $matched = $this->matchIdentitySlot($parent, $user);
+        if ($matched) {
+            return $matched;
+        }
+
+        $userPhone = normalize_contact_for_parent_match($user->phone_number ?? '');
+        $takenByOther = [];
+        foreach (['father', 'mother', 'guardian'] as $slot) {
+            $contact = $this->slotContact($parent, $slot);
+            $slotPhone = normalize_contact_for_parent_match($contact['phone'] ?? '');
+            if ($slotPhone !== '' && $userPhone !== '' && $slotPhone !== $userPhone) {
+                $takenByOther[$slot] = true;
+            }
+        }
+        foreach (['father', 'mother', 'guardian'] as $slot) {
+            if (! isset($takenByOther[$slot])) {
+                return $slot;
+            }
+        }
+
+        return 'father';
+    }
+
+    /**
+     * Live check: this signed-in parent (not the other parent) plus children name/DOB.
+     *
+     * @return array<string, mixed>
+     */
+    public function identityGateForUser(User $user): array
+    {
+        $empty = [
+            'required' => false,
+            'slot' => null,
+            'slot_label' => null,
+            'parent' => ['name' => '', 'phone' => ''],
+            'children' => [],
+            'missing' => [
+                'parent_name' => false,
+                'parent_phone' => false,
+                'child_details' => false,
+            ],
+        ];
+
+        if (! $user->parent_id) {
+            return $empty;
+        }
+
+        $parent = ParentInfo::query()->find($user->parent_id);
+        if (! $parent) {
+            return $empty;
+        }
+
+        $slot = $this->identitySlotForUser($parent, $user);
+        $contact = $this->slotContact($parent, $slot);
+        $slotName = trim((string) ($contact['name'] ?? ''));
+        if ($this->identityNameIsPlaceholder($slotName) && ! $this->identityNameIsPlaceholder((string) $user->name)) {
+            $slotName = trim((string) $user->name);
+        }
+        $slotPhone = trim((string) ($contact['phone'] ?? ''));
+        if ($slotPhone === '' && filled($user->phone_number)) {
+            $slotPhone = (string) $user->phone_number;
+        }
+
+        $nameMissing = $this->identityNameIsPlaceholder($slotName) || mb_strlen($slotName) < 2;
+        $phoneMissing = strlen(normalize_contact_for_parent_match($slotPhone)) < 9;
+
+        $studentIds = method_exists($user, 'accessibleStudentIds') ? $user->accessibleStudentIds() : [];
+        $childrenQuery = Student::query()->where('archive', 0);
+        if ($studentIds !== []) {
+            $childrenQuery->whereIn('id', $studentIds);
+        } else {
+            $childrenQuery->where('parent_id', $parent->id);
+        }
+
+        $children = $childrenQuery
+            ->orderBy('id')
+            ->get()
+            ->map(function (Student $s) {
+                $first = trim((string) ($s->first_name ?? ''));
+                $last = trim((string) ($s->last_name ?? ''));
+                $dob = $s->dob ? $s->dob->format('Y-m-d') : '';
+                $needsName = $first === '' || $last === '';
+                $needsDob = $dob === '';
+
+                return [
+                    'id' => (int) $s->id,
+                    'admission_number' => $s->admission_number,
+                    'first_name' => $first,
+                    'last_name' => $last,
+                    'dob' => $dob,
+                    'needs_name' => $needsName,
+                    'needs_dob' => $needsDob,
+                    'required' => $needsName || $needsDob,
+                ];
+            })
+            ->values()
+            ->all();
+
+        $childMissing = collect($children)->contains(fn (array $c) => $c['required']);
+
+        return [
+            'required' => $nameMissing || $phoneMissing || $childMissing,
+            'slot' => $slot,
+            'slot_label' => match ($slot) {
+                'mother' => 'Mother',
+                'guardian' => 'Guardian',
+                default => 'Father',
+            },
+            'parent' => [
+                'name' => $nameMissing ? '' : $slotName,
+                'phone' => $slotPhone,
+            ],
+            'children' => $children,
+            'missing' => [
+                'parent_name' => $nameMissing,
+                'parent_phone' => $phoneMissing,
+                'child_details' => $childMissing,
+            ],
+        ];
+    }
+
+    /**
+     * Persist only this parent's slot + any children with missing name/DOB.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function applyIdentityGate(User $user, array $payload): array
+    {
+        $parent = ParentInfo::query()->find($user->parent_id);
+        if (! $parent) {
+            throw new \RuntimeException('Parent record not found.');
+        }
+
+        $slot = $this->identitySlotForUser($parent, $user);
+        $name = trim((string) ($payload['name'] ?? ''));
+        $phone = trim((string) ($payload['phone'] ?? ''));
+
+        if ($this->identityNameIsPlaceholder($name) || mb_strlen($name) < 2) {
+            throw new \InvalidArgumentException('Enter your full name.');
+        }
+        $normalizedPhone = app(LoginIdentifierService::class)->normalizePhone($phone);
+        if (strlen(normalize_contact_for_parent_match($normalizedPhone)) < 9) {
+            throw new \InvalidArgumentException('Enter a valid phone number.');
+        }
+
+        $nameParts = $this->splitPersonName($name);
+        $parent->forceFill(match ($slot) {
+            'mother' => [
+                'mother_name' => $name,
+                'mother_first_name' => $nameParts['first'],
+                'mother_middle_name' => $nameParts['middle'],
+                'mother_last_name' => $nameParts['last'],
+                'mother_phone' => $normalizedPhone,
+            ],
+            'guardian' => [
+                'guardian_name' => $name,
+                'guardian_first_name' => $nameParts['first'],
+                'guardian_middle_name' => $nameParts['middle'],
+                'guardian_last_name' => $nameParts['last'],
+                'guardian_phone' => $normalizedPhone,
+            ],
+            default => [
+                'father_name' => $name,
+                'father_first_name' => $nameParts['first'],
+                'father_middle_name' => $nameParts['middle'],
+                'father_last_name' => $nameParts['last'],
+                'father_phone' => $normalizedPhone,
+            ],
+        })->save();
+
+        $user->name = $name;
+        $user->phone_number = $normalizedPhone;
+        $user->save();
+
+        $gate = $this->identityGateForUser($user->fresh());
+        $incomingChildren = collect($payload['children'] ?? [])->keyBy('id');
+        $accessible = method_exists($user, 'accessibleStudentIds') ? $user->accessibleStudentIds() : [];
+
+        foreach ($gate['children'] as $child) {
+            if (! ($child['required'] ?? false)) {
+                continue;
+            }
+            $row = $incomingChildren->get($child['id']);
+            if (! is_array($row)) {
+                throw new \InvalidArgumentException('Update each child name and date of birth.');
+            }
+            if ($accessible !== [] && ! in_array((int) $child['id'], array_map('intval', $accessible), true)) {
+                continue;
+            }
+            $first = trim((string) ($row['first_name'] ?? ''));
+            $last = trim((string) ($row['last_name'] ?? ''));
+            $dob = trim((string) ($row['dob'] ?? ''));
+            if ($first === '' || $last === '') {
+                throw new \InvalidArgumentException('Enter the child first and last name.');
+            }
+            if ($dob === '') {
+                throw new \InvalidArgumentException('Enter the child date of birth.');
+            }
+            Student::query()->where('id', $child['id'])->update([
+                'first_name' => $first,
+                'last_name' => $last,
+                'dob' => $dob,
+            ]);
+        }
+
+        return $this->identityGateForUser($user->fresh());
+    }
+
+    public function identityNameIsPlaceholder(?string $name): bool
+    {
+        $name = trim((string) $name);
+        if ($name === '') {
+            return true;
+        }
+
+        return (bool) preg_match('/^parent(\s*#\s*|\s+)\d+$/i', $name);
+    }
+
+    /**
+     * @return array{first:string,middle:?string,last:string}
+     */
+    protected function splitPersonName(string $name): array
+    {
+        $parts = preg_split('/\s+/', trim($name)) ?: [];
+        $first = $parts[0] ?? $name;
+        if (count($parts) < 2) {
+            return ['first' => $first, 'middle' => null, 'last' => $first];
+        }
+        $last = (string) array_pop($parts);
+        array_shift($parts);
+        $middle = $parts !== [] ? implode(' ', $parts) : null;
+
+        return [
+            'first' => $first,
+            'middle' => filled($middle) ? $middle : null,
+            'last' => $last,
+        ];
+    }
+
+    protected function matchIdentitySlot(ParentInfo $parent, User $user): ?string
+    {
+        foreach (['father', 'mother', 'guardian'] as $slot) {
+            $contact = $this->slotContact($parent, $slot);
+            $emails = array_filter([(string) ($contact['email'] ?? '')]);
+            $phones = array_values(array_filter([
+                (string) ($contact['phone'] ?? ''),
+                match ($slot) {
+                    'father' => (string) ($parent->father_whatsapp ?? ''),
+                    'mother' => (string) ($parent->mother_whatsapp ?? ''),
+                    default => (string) ($parent->guardian_whatsapp ?? ''),
+                },
+            ]));
+            if ($this->userMatchesSlot($user, $emails, $phones)) {
+                return $slot;
+            }
+            $slotName = trim((string) ($contact['name'] ?? ''));
+            $userName = trim((string) ($user->name ?? ''));
+            if (
+                $slotName !== ''
+                && $userName !== ''
+                && ! $this->identityNameIsPlaceholder($slotName)
+                && ! $this->identityNameIsPlaceholder($userName)
+                && strtolower($slotName) === strtolower($userName)
+            ) {
+                return $slot;
+            }
+        }
+
+        return null;
+    }
 }

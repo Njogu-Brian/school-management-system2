@@ -14,6 +14,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import type { AcademicsStackParamList } from '../../../navigation/academicsStackTypes';
+import { navigateToTab } from '../../../navigation/navigateWorkspace';
 import { ExamBreakdownChart } from '../components/ExamBreakdownChart';
 
 const SECTIONS = [
@@ -129,6 +130,11 @@ export const AcademicsDashboardScreen: React.FC = () => {
                 onPress={() => openSection(section.route)}
               />
             ))}
+            <QuickAction
+              label="Attendance report"
+              icon="calendar-outline"
+              onPress={() => navigateToTab(navigation, 'Students', 'AttendanceReport')}
+            />
           </View>
         </DashboardSection>
       </ScrollView>

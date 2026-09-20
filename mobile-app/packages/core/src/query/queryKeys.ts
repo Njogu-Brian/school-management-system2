@@ -57,6 +57,9 @@ export const queryKeys = {
     ) => [...queryKeys.students.all, 'assessment-history', id, filters ?? {}] as const,
     reportCards: (id: number) => [...queryKeys.students.all, 'report-cards', id] as const,
     reportCardDetail: (id: number) => [...queryKeys.students.all, 'report-card', id] as const,
+    parentsContact: (filters?: object) =>
+      [...queryKeys.students.all, 'parents-contact', filters ?? {}] as const,
+    archived: (filters?: object) => [...queryKeys.students.all, 'archived', filters ?? {}] as const,
   },
   staff: {
     all: ['staff'] as const,
@@ -315,5 +318,8 @@ export const queryKeys = {
   attendance: {
     all: ['attendance'] as const,
     reasonCodes: () => [...queryKeys.attendance.all, 'reason-codes'] as const,
+    report: (filters?: object) => [...queryKeys.attendance.all, 'report', filters ?? {}] as const,
+    consecutive: (filters?: object) =>
+      [...queryKeys.attendance.all, 'consecutive', filters ?? {}] as const,
   },
 };

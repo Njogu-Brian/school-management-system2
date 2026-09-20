@@ -12,6 +12,7 @@ use App\Services\PaymentAllocationService;
 use App\Services\SwimmingTransactionService;
 use App\Services\UnifiedTransactionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -57,8 +58,8 @@ class BankStatementController extends Controller
             ->selectRaw('COUNT(*) as total_transactions')
             ->selectRaw('SUM(amount) as total_amount')
             ->selectRaw('SUM(CASE WHEN status = "draft" THEN 1 ELSE 0 END) as draft_count')
-            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND (SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) <= 0.01 THEN 1 ELSE 0 END) as confirmed_count')
-            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND (SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) >= bank_statement_transactions.amount - 0.01 THEN 1 ELSE 0 END) as collected_count')
+            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND (SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND payments.base_transaction_code = bank_statement_transactions.reference_number) <= 0.01 THEN 1 ELSE 0 END) as confirmed_count')
+            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND (SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND payments.base_transaction_code = bank_statement_transactions.reference_number) >= bank_statement_transactions.amount - 0.01 THEN 1 ELSE 0 END) as collected_count')
             ->selectRaw('SUM(CASE WHEN is_archived = true THEN 1 ELSE 0 END) as archived_count')
             ->selectRaw('SUM(CASE WHEN is_duplicate = true THEN 1 ELSE 0 END) as duplicate_count')
             ->selectRaw('SUM(CASE WHEN status = "rejected" THEN 1 ELSE 0 END) as rejected_count')
@@ -80,15 +81,50 @@ class BankStatementController extends Controller
      */
     public function index(Request $request)
     {
-        $query = BankStatementTransaction::with(['student', 'family', 'bankAccount', 'payment', 'duplicateOfPayment', 'duplicateOfTransaction'])
+        // Relations are NOT eager loaded here on purpose. This query is first run
+        // as a lightweight key-only scan (see $bankKeys below) and the relations
+        // are loaded in a second pass for the ~25 rows actually on the page.
+        $query = BankStatementTransaction::query()
             ->orderBy('transaction_date', 'desc')
-            ->orderBy('created_at', 'desc');
+            ->orderBy('created_at', 'desc')
+            // Final tiebreaker. Rows imported in the same batch share a
+            // transaction_date and created_at, and without a unique last key the
+            // order is whatever the storage engine returns — which let rows
+            // repeat on one page and vanish from another.
+            ->orderBy('id', 'desc');
 
         // View filters (all, auto-assigned, manual-assigned, draft, unassigned, confirmed, collected, archived)
         $view = $request->get('view', 'all');
+
+        // Flag cross-type duplicates before the listing queries run so the
+        // is_duplicate filters below are consistent. Throttled because it is a
+        // write path that scans the whole C2B table — it used to run on every
+        // single page view.
+        $this->syncCrossTypeDuplicates();
+
         $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
         $swimmingAllocationFilter = $request->get('swimming_allocation'); // wallet | unmatched | null
-        $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%")))';
+
+        // Sum of active payments for a bank transaction, covering both the exact
+        // reference and any "<ref>-<suffix>" split payments.
+        //
+        // payments.base_transaction_code is an indexed stored generated column
+        // holding the part of transaction_code before the first hyphen, so a code
+        // with no hyphen maps to itself and a split code maps to its parent. That
+        // makes this a plain indexed equality.
+        //
+        // The previous form, `transaction_code LIKE CONCAT(reference_number, '-%')`,
+        // built its pattern from another table's column, so MySQL could not use an
+        // index and re-scanned payments once per bank row: 36.4 s for one tab
+        // count at 6k transactions / 9k payments, versus 40 ms this way.
+        //
+        // Keep this a single equality. Adding an `OR transaction_code = ...` arm
+        // as a belt-and-braces exact match puts the plan straight back to a full
+        // scan (measured: 36.4 s again) because the optimiser will not index-merge
+        // inside a correlated subquery. The equality is exact as long as no
+        // reference_number contains a hyphen — verified against production and
+        // monitored by warnOnHyphenatedReferences().
+        $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND payments.base_transaction_code = bank_statement_transactions.reference_number)';
         $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
         $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
         $hasLinkedPaymentIdsColumn = Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids');
@@ -283,7 +319,7 @@ class BankStatementController extends Controller
         }
 
         // When filtering by a specific statement file, only show bank transactions from that PDF (exclude C2B - they don't belong to uploaded statements)
-        $c2bTransactions = collect();
+        $c2bKeys = collect();
         if (!$request->filled('statement_file')) {
             $c2bQuery = $this->getC2BTransactionsQuery($request, $view);
             // Swimming wallet allocation filter for C2B uses swimming_ledger credits (source = this C2B transaction).
@@ -325,41 +361,58 @@ class BankStatementController extends Controller
                     }
                 }
             }
-            $c2bTransactions = $c2bQuery->get();
-            $this->checkCrossTypeDuplicates($c2bTransactions);
+            // Key-only scan: just enough columns to merge, sort and total the two
+            // sources. No model hydration and no eager loading for rows that will
+            // never be rendered.
+            $c2bKeys = $c2bQuery->toBase()
+                ->select('id', 'trans_amount', 'trans_time', 'created_at')
+                ->get();
         }
 
-        $bankTransactions = $query->get();
-        
+        $bankKeys = $query->toBase()
+            ->select('id', 'amount', 'transaction_type', 'transaction_date', 'created_at')
+            ->get();
+
         // Get sort parameter (amount_desc, amount_asc, or date for default)
         $sort = $request->get('sort', 'date');
-        
-        // Combine and sort transactions
-        $allTransactions = $bankTransactions->concat($c2bTransactions);
-        
-        if ($sort === 'amount_desc') {
-            // Sort by amount descending (highest to lowest)
-            $allTransactions = $allTransactions->sortByDesc(function($txn) {
-                return $txn instanceof \App\Models\MpesaC2BTransaction 
-                    ? $txn->trans_amount 
-                    : $txn->amount;
-            })->values();
-        } elseif ($sort === 'amount_asc') {
-            // Sort by amount ascending (lowest to highest)
-            $allTransactions = $allTransactions->sortBy(function($txn) {
-                return $txn instanceof \App\Models\MpesaC2BTransaction 
-                    ? $txn->trans_amount 
-                    : $txn->amount;
-            })->values();
-        } else {
-            // Default: sort by date/time descending (newest first)
-            $allTransactions = $allTransactions->sortByDesc(function($txn) {
-                return $txn instanceof \App\Models\MpesaC2BTransaction 
-                    ? ($txn->trans_time ?? $txn->created_at)
-                    : ($txn->transaction_date ?? $txn->created_at);
-            })->values();
-        }
-        
+
+        // Combine both sources into a uniform shape so they can be sorted together.
+        // The two date columns are not comparable as raw strings: bank
+        // transaction_date is a DATE, while c2b trans_time is a varchar that the
+        // model casts to datetime. Normalise both to Unix timestamps, running the
+        // c2b value back through the model cast so whatever format M-Pesa stored
+        // is interpreted exactly as it is everywhere else in the app.
+        $c2bCaster = new MpesaC2BTransaction();
+
+        $keys = $bankKeys
+            ->map(fn ($row) => [
+                'source' => 'bank',
+                'id' => (int) $row->id,
+                'amount' => (float) $row->amount,
+                'sort_ts' => strtotime((string) ($row->transaction_date ?: $row->created_at)) ?: 0,
+            ])
+            ->concat($c2bKeys->map(function ($row) use ($c2bCaster) {
+                $transTime = $row->trans_time === null
+                    ? null
+                    : $c2bCaster->newFromBuilder(['trans_time' => $row->trans_time])->trans_time;
+
+                return [
+                    'source' => 'c2b',
+                    'id' => (int) $row->id,
+                    'amount' => (float) $row->trans_amount,
+                    'sort_ts' => $transTime instanceof \DateTimeInterface
+                        ? $transTime->getTimestamp()
+                        : (strtotime((string) $row->created_at) ?: 0),
+                ];
+            }));
+
+        // PHP's sort is stable, so the SQL ordering still acts as the tiebreaker.
+        $keys = match ($sort) {
+            'amount_desc' => $keys->sortByDesc('amount')->values(),
+            'amount_asc' => $keys->sortBy('amount')->values(),
+            default => $keys->sortByDesc('sort_ts')->values(),
+        };
+
         // Paginate manually with per-page option
         $perPageOptions = [20, 50, 100, 200];
         $perPage = $request->get('per_page', 25);
@@ -367,20 +420,42 @@ class BankStatementController extends Controller
         if (!in_array($perPage, $perPageOptions)) {
             $perPage = 25; // Default fallback
         }
-        $currentPage = $request->get('page', 1);
-        $items = $allTransactions->slice(($currentPage - 1) * $perPage, $perPage)->values();
+        $currentPage = max(1, (int) $request->get('page', 1));
+        $pageKeys = $keys->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        // Second pass: hydrate only the current page, now with relations.
+        $bankIds = $pageKeys->where('source', 'bank')->pluck('id')->all();
+        $c2bIds = $pageKeys->where('source', 'c2b')->pluck('id')->all();
+
+        $bankModels = $bankIds
+            ? BankStatementTransaction::with(['student', 'family', 'bankAccount', 'payment', 'duplicateOfPayment', 'duplicateOfTransaction'])
+                ->whereIn('id', $bankIds)->get()->keyBy('id')
+            : collect();
+        $c2bModels = $c2bIds
+            ? MpesaC2BTransaction::with(['student', 'payment', 'invoice', 'duplicateOf'])
+                ->whereIn('id', $c2bIds)->get()->keyBy('id')
+            : collect();
+
         // Auto-link bank transactions on this page by reference number (payment transaction_code)
-        $pageBankTransactions = $items->filter(fn ($t) => $t instanceof BankStatementTransaction)->values();
-        $this->autoLinkBankTransactionsByReference($pageBankTransactions);
+        $this->autoLinkBankTransactionsByReference($bankModels->values());
         // Refresh any that were updated so the view shows linked state
-        foreach ($pageBankTransactions as $t) {
+        foreach ($bankModels as $t) {
             if ($t->relationLoaded('payment') || $t->payment_id) {
                 $t->refresh();
             }
         }
+
+        // Re-apply the merged ordering to the hydrated models.
+        $items = $pageKeys
+            ->map(fn ($key) => $key['source'] === 'bank'
+                ? ($bankModels[$key['id']] ?? null)
+                : ($c2bModels[$key['id']] ?? null))
+            ->filter()
+            ->values();
+
         $transactions = new \Illuminate\Pagination\LengthAwarePaginator(
             $items,
-            $allTransactions->count(),
+            $keys->count(),
             $perPage,
             $currentPage,
             ['path' => $request->url(), 'query' => $request->query()]
@@ -393,141 +468,157 @@ class BankStatementController extends Controller
         $totalAmount = null;
         $totalCount = null;
         if ($view === 'all' || $view === 'swimming') {
-            $totalAmount = $bankTransactions->sum('amount') + $c2bTransactions->sum('trans_amount');
-            $totalCount = $bankTransactions->count() + $c2bTransactions->count();
+            $totalAmount = $bankKeys->sum('amount') + $c2bKeys->sum('trans_amount');
+            $totalCount = $bankKeys->count() + $c2bKeys->count();
         } elseif ($view === 'archived') {
             // For archived, only calculate total for credit (money IN) transactions
-            $totalAmount = $bankTransactions->where('transaction_type', 'credit')->sum('amount') 
-                         + $c2bTransactions->sum('trans_amount'); // C2B are always credit
-            $totalCount = $bankTransactions->where('transaction_type', 'credit')->count() 
-                        + $c2bTransactions->count();
+            $creditBankKeys = $bankKeys->where('transaction_type', 'credit');
+            $totalAmount = $creditBankKeys->sum('amount')
+                         + $c2bKeys->sum('trans_amount'); // C2B are always credit
+            $totalCount = $creditBankKeys->count()
+                        + $c2bKeys->count();
         }
 
-        // Get counts for each view (exclude swimming and debit transactions from non-swimming views)
-        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
-        $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%")))';
-        $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
-        $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
-        $linkedIdsListSqlCounts = $hasLinkedPaymentIdsColumn
-            ? "REPLACE(REPLACE(REPLACE(REPLACE(bank_statement_transactions.linked_payment_ids, '[', ''), ']', ''), ' ', ''), '\"', '')"
-            : "''";
-        $bankIsCollectedSqlWithLinked = $hasLinkedPaymentIdsColumn
-            ? '(' . $bankIsCollectedSql . ' OR (bank_statement_transactions.linked_payment_ids IS NOT NULL AND LENGTH(bank_statement_transactions.linked_payment_ids) > 2 AND (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reversed=0 AND p.deleted_at IS NULL AND FIND_IN_SET(p.id, ' . $linkedIdsListSqlCounts . ') > 0) >= bank_statement_transactions.amount - 0.01))'
-            : $bankIsCollectedSql;
-        $bankIsUncollectedSql = $bankActiveSumSql . ' <= 0.01';
+        // Get counts for each view (exclude swimming and debit transactions from non-swimming views).
+        // These are nine COUNT queries, several of which embed the correlated
+        // payments subquery. They are global badge numbers — unaffected by the
+        // date and search filters — so they are cached rather than recomputed on
+        // every page view. The key carries a stamp that any write to either
+        // transaction source bumps, so assigning or collecting still updates the
+        // badges immediately.
+        $countsCacheKey = sprintf(
+            'bst:listing_counts:%s:%s',
+            $view,
+            BankStatementTransaction::listingCountsStamp()
+        );
+        $counts = Cache::remember($countsCacheKey, now()->addMinutes(10), function () use ($view, $hasLinkedPaymentIdsColumn) {
+            $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+            $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND payments.base_transaction_code = bank_statement_transactions.reference_number)';
+            $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
+            $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
+            $linkedIdsListSqlCounts = $hasLinkedPaymentIdsColumn
+                ? "REPLACE(REPLACE(REPLACE(REPLACE(bank_statement_transactions.linked_payment_ids, '[', ''), ']', ''), ' ', ''), '\"', '')"
+                : "''";
+            $bankIsCollectedSqlWithLinked = $hasLinkedPaymentIdsColumn
+                ? '(' . $bankIsCollectedSql . ' OR (bank_statement_transactions.linked_payment_ids IS NOT NULL AND LENGTH(bank_statement_transactions.linked_payment_ids) > 2 AND (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reversed=0 AND p.deleted_at IS NULL AND FIND_IN_SET(p.id, ' . $linkedIdsListSqlCounts . ') > 0) >= bank_statement_transactions.amount - 0.01))'
+                : $bankIsCollectedSql;
+            $bankIsUncollectedSql = $bankActiveSumSql . ' <= 0.01';
         
-        $counts = [
-            'all' => BankStatementTransaction::where('is_archived', false)
-                ->where(function($q) {
-                    $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
-                })
-                ->where('transaction_type', 'credit')
-                ->count(),
-            'auto-assigned' => BankStatementTransaction::where('match_status', 'matched')
-                ->where('match_confidence', '>=', 0.85)
-                ->where('payment_created', false) // Exclude collected transactions
-                ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')') // Exclude already collected (e.g. via linked_payment_ids)
-                ->where('is_duplicate', false)
-                ->where('is_archived', false)
-                ->where('transaction_type', 'credit') // Only credit transactions
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
-                ->count(),
-            'manual-assigned' => BankStatementTransaction::where('is_duplicate', false)
-                ->where('is_archived', false)
-                ->where('transaction_type', 'credit') // Only credit transactions
-                ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')') // Exclude already collected (e.g. via linked_payment_ids)
-                ->where(function ($q) use ($bankIsPartialSql) {
-                    $q->where(function ($q2) {
-                        $q2->where('match_status', 'manual')
-                           ->where('payment_created', false);
-                    })->orWhere(function ($q2) use ($bankIsPartialSql) {
-                        $q2->where('status', 'confirmed')
-                           ->whereRaw($bankIsPartialSql);
-                    });
-                })
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
-                ->count(),
-            'draft' => BankStatementTransaction::where(function($q) {
-                    $q->where('match_status', 'multiple_matches')
-                      ->orWhere(function($q2) {
-                          $q2->where('match_status', 'matched')
-                             ->where('match_confidence', '>', 0)
-                             ->where('match_confidence', '<', 0.85);
-                      });
-                })
-                ->where('payment_created', false) // Exclude collected transactions
-                ->whereRaw($bankIsUncollectedSql) // Exclude already collected by payment ref
-                ->where('is_duplicate', false)
-                ->where('is_archived', false)
-                ->where('transaction_type', 'credit') // Only credit transactions
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
-                ->count(),
-            'unassigned' => BankStatementTransaction::where('match_status', 'unmatched')
-                ->whereNull('student_id')
-                ->whereRaw($bankIsUncollectedSql) // Exclude already collected
-                ->where('is_duplicate', false)
-                ->where('is_archived', false)
-                ->where('transaction_type', 'credit') // Only credit transactions
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
-                ->count(),
-            'collected' => BankStatementTransaction::where('is_duplicate', false)
-                ->where('is_archived', false)
-                ->where('transaction_type', 'credit') // Only credit transactions
-                ->whereRaw($bankIsCollectedSqlWithLinked)
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
-                ->count(),
-            'duplicate' => BankStatementTransaction::where('is_duplicate', true)
-                ->where('is_archived', false)
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
-                ->count(),
-            'archived' => BankStatementTransaction::where('is_archived', true)
-                ->where('transaction_type', 'credit') // Only money IN transactions
-                ->count(),
-            'swimming' => Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')
-                ? BankStatementTransaction::where('is_swimming_transaction', true)
-                    ->where('is_archived', false)
-                    ->where(function ($q) {
+            $counts = [
+                'all' => BankStatementTransaction::where('is_archived', false)
+                    ->where(function($q) {
                         $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
                     })
-                    ->count()
-                : 0,
-        ];
+                    ->where('transaction_type', 'credit')
+                    ->count(),
+                'auto-assigned' => BankStatementTransaction::where('match_status', 'matched')
+                    ->where('match_confidence', '>=', 0.85)
+                    ->where('payment_created', false) // Exclude collected transactions
+                    ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')') // Exclude already collected (e.g. via linked_payment_ids)
+                    ->where('is_duplicate', false)
+                    ->where('is_archived', false)
+                    ->where('transaction_type', 'credit') // Only credit transactions
+                    ->when($hasSwimmingColumn, function($q) {
+                        $q->where(function($subQ) {
+                            $subQ->where('is_swimming_transaction', false)
+                                 ->orWhereNull('is_swimming_transaction');
+                        });
+                    })
+                    ->count(),
+                'manual-assigned' => BankStatementTransaction::where('is_duplicate', false)
+                    ->where('is_archived', false)
+                    ->where('transaction_type', 'credit') // Only credit transactions
+                    ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')') // Exclude already collected (e.g. via linked_payment_ids)
+                    ->where(function ($q) use ($bankIsPartialSql) {
+                        $q->where(function ($q2) {
+                            $q2->where('match_status', 'manual')
+                               ->where('payment_created', false);
+                        })->orWhere(function ($q2) use ($bankIsPartialSql) {
+                            $q2->where('status', 'confirmed')
+                               ->whereRaw($bankIsPartialSql);
+                        });
+                    })
+                    ->when($hasSwimmingColumn, function($q) {
+                        $q->where(function($subQ) {
+                            $subQ->where('is_swimming_transaction', false)
+                                 ->orWhereNull('is_swimming_transaction');
+                        });
+                    })
+                    ->count(),
+                'draft' => BankStatementTransaction::where(function($q) {
+                        $q->where('match_status', 'multiple_matches')
+                          ->orWhere(function($q2) {
+                              $q2->where('match_status', 'matched')
+                                 ->where('match_confidence', '>', 0)
+                                 ->where('match_confidence', '<', 0.85);
+                          });
+                    })
+                    ->where('payment_created', false) // Exclude collected transactions
+                    ->whereRaw($bankIsUncollectedSql) // Exclude already collected by payment ref
+                    ->where('is_duplicate', false)
+                    ->where('is_archived', false)
+                    ->where('transaction_type', 'credit') // Only credit transactions
+                    ->when($hasSwimmingColumn, function($q) {
+                        $q->where(function($subQ) {
+                            $subQ->where('is_swimming_transaction', false)
+                                 ->orWhereNull('is_swimming_transaction');
+                        });
+                    })
+                    ->count(),
+                'unassigned' => BankStatementTransaction::where('match_status', 'unmatched')
+                    ->whereNull('student_id')
+                    ->whereRaw($bankIsUncollectedSql) // Exclude already collected
+                    ->where('is_duplicate', false)
+                    ->where('is_archived', false)
+                    ->where('transaction_type', 'credit') // Only credit transactions
+                    ->when($hasSwimmingColumn, function($q) {
+                        $q->where(function($subQ) {
+                            $subQ->where('is_swimming_transaction', false)
+                                 ->orWhereNull('is_swimming_transaction');
+                        });
+                    })
+                    ->count(),
+                'collected' => BankStatementTransaction::where('is_duplicate', false)
+                    ->where('is_archived', false)
+                    ->where('transaction_type', 'credit') // Only credit transactions
+                    ->whereRaw($bankIsCollectedSqlWithLinked)
+                    ->when($hasSwimmingColumn, function($q) {
+                        $q->where(function($subQ) {
+                            $subQ->where('is_swimming_transaction', false)
+                                 ->orWhereNull('is_swimming_transaction');
+                        });
+                    })
+                    ->count(),
+                'duplicate' => BankStatementTransaction::where('is_duplicate', true)
+                    ->where('is_archived', false)
+                    ->when($hasSwimmingColumn, function($q) {
+                        $q->where(function($subQ) {
+                            $subQ->where('is_swimming_transaction', false)
+                                 ->orWhereNull('is_swimming_transaction');
+                        });
+                    })
+                    ->count(),
+                'archived' => BankStatementTransaction::where('is_archived', true)
+                    ->where('transaction_type', 'credit') // Only money IN transactions
+                    ->count(),
+                'swimming' => Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')
+                    ? BankStatementTransaction::where('is_swimming_transaction', true)
+                        ->where('is_archived', false)
+                        ->where(function ($q) {
+                            $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
+                        })
+                        ->count()
+                    : 0,
+            ];
 
-        // Add C2B counts to existing counts
-        $c2bCounts = $this->getC2BCounts($view);
-        foreach ($c2bCounts as $key => $count) {
-            $counts[$key] = ($counts[$key] ?? 0) + $count;
-        }
+            // Add C2B counts to existing counts
+            $c2bCounts = $this->getC2BCounts($view);
+            foreach ($c2bCounts as $key => $count) {
+                $counts[$key] = ($counts[$key] ?? 0) + $count;
+            }
+
+            return $counts;
+        });
         
         $perPageOptions = [20, 50, 100, 200];
         $currentPerPage = $request->get('per_page', 25);
@@ -535,39 +626,55 @@ class BankStatementController extends Controller
             $currentPerPage = 25;
         }
         
-        // Enrich transactions with payment totals for badges (ref-based + linked existing payments)
-        $transactions->getCollection()->transform(function ($transaction) {
+        // Enrich transactions with payment totals for badges (ref-based + linked existing payments).
+        // Both lookups are resolved in one query each for the whole page rather
+        // than two queries per row.
+        //
+        // The two sources are merged by payment id before summing. They overlap:
+        // autoLinkBankTransactionsByReference() populates linked_payment_ids from
+        // the very payments the reference match already found, so adding the two
+        // sums together counted those payments twice and made fully-paid
+        // transactions look over-collected.
+        $pageRefs = $transactions->getCollection()
+            ->map(fn ($t) => $t instanceof \App\Models\MpesaC2BTransaction
+                ? $t->trans_id
+                : $t->reference_number)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $pageLinkedIds = $transactions->getCollection()
+            ->filter(fn ($t) => $t instanceof \App\Models\BankStatementTransaction)
+            ->flatMap(fn ($t) => is_array($t->linked_payment_ids) ? $t->linked_payment_ids : [])
+            ->unique()
+            ->values()
+            ->all();
+
+        $paymentsByRef = $this->activePaymentsByReference($pageRefs);
+
+        $linkedAmounts = $pageLinkedIds
+            ? \App\Models\Payment::whereIn('id', $pageLinkedIds)
+                ->where('reversed', false)
+                ->whereNull('deleted_at')
+                ->pluck('amount', 'id')
+            : collect();
+
+        $transactions->getCollection()->transform(function ($transaction) use ($paymentsByRef, $linkedAmounts) {
             if ($transaction instanceof \App\Models\BankStatementTransaction) {
-                $ref = $transaction->reference_number;
-                $activeTotal = 0.0;
-                if ($ref) {
-                    $activeTotal = (float) \App\Models\Payment::where('reversed', false)
-                        ->whereNull('deleted_at')
-                        ->where(function ($q) use ($ref) {
-                            $q->where('transaction_code', $ref)
-                              ->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                        })
-                        ->sum('amount');
-                }
+                // Keyed by payment id so a payment found by both routes counts once.
+                $amounts = $paymentsByRef[$transaction->reference_number] ?? [];
                 $linkedIds = $transaction->linked_payment_ids;
-                if (is_array($linkedIds) && !empty($linkedIds)) {
-                    $activeTotal += (float) \App\Models\Payment::whereIn('id', $linkedIds)
-                        ->where('reversed', false)->whereNull('deleted_at')->sum('amount');
+                if (is_array($linkedIds)) {
+                    foreach ($linkedIds as $linkedId) {
+                        if (isset($linkedAmounts[$linkedId])) {
+                            $amounts[(int) $linkedId] = (float) $linkedAmounts[$linkedId];
+                        }
+                    }
                 }
-                $transaction->active_payment_total = $activeTotal;
+                $transaction->active_payment_total = array_sum($amounts);
             } elseif ($transaction instanceof \App\Models\MpesaC2BTransaction) {
-                $ref = $transaction->trans_id ?? null;
-                $activeTotal = 0.0;
-                if ($ref) {
-                    $activeTotal = (float) \App\Models\Payment::where('reversed', false)
-                        ->whereNull('deleted_at')
-                        ->where(function ($q) use ($ref) {
-                            $q->where('transaction_code', $ref)
-                              ->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                        })
-                        ->sum('amount');
-                }
-                $transaction->active_payment_total = $activeTotal;
+                $transaction->active_payment_total = array_sum($paymentsByRef[$transaction->trans_id] ?? []);
             }
             return $transaction;
         });
@@ -600,8 +707,10 @@ class BankStatementController extends Controller
      */
     protected function getC2BTransactionsQuery(Request $request, string $view)
     {
-        $query = MpesaC2BTransaction::with(['student', 'payment', 'invoice', 'duplicateOf']);
-        $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%")))';
+        // As with the bank query, relations are loaded later for the current page
+        // only — see the second pass in index().
+        $query = MpesaC2BTransaction::query();
+        $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND payments.base_transaction_code = mpesa_c2b_transactions.trans_id)';
         $c2bLinkedPaymentSql = '(SELECT COALESCE(amount,0) FROM payments WHERE payments.id = mpesa_c2b_transactions.payment_id AND payments.reversed = 0 AND payments.deleted_at IS NULL)';
         $c2bIsPartialSql = $c2bActiveSumSql . ' > 0.01 AND ' . $c2bActiveSumSql . ' < mpesa_c2b_transactions.trans_amount - 0.01';
         $c2bIsCollectedSql = '(' . $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01 OR (mpesa_c2b_transactions.payment_id IS NOT NULL AND ' . $c2bLinkedPaymentSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01))';
@@ -713,7 +822,12 @@ class BankStatementController extends Controller
             });
         }
 
-        return $query->orderBy('trans_time', 'desc')->orderBy('created_at', 'desc');
+        // orderBy('id') is the final tiebreaker — see the note on the bank query
+        // in index(): without it, paginating rows that share a timestamp is
+        // non-deterministic.
+        return $query->orderBy('trans_time', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc');
     }
 
     /**
@@ -722,7 +836,7 @@ class BankStatementController extends Controller
     protected function getC2BCounts(string $view): array
     {
         $hasSwimmingColumn = Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction');
-        $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%")))';
+        $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND payments.base_transaction_code = mpesa_c2b_transactions.trans_id)';
         $c2bLinkedPaymentSql = '(SELECT COALESCE(amount,0) FROM payments WHERE payments.id = mpesa_c2b_transactions.payment_id AND payments.reversed = 0 AND payments.deleted_at IS NULL)';
         $c2bIsPartialSql = $c2bActiveSumSql . ' > 0.01 AND ' . $c2bActiveSumSql . ' < mpesa_c2b_transactions.trans_amount - 0.01';
         $c2bIsCollectedSql = '(' . $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01 OR (mpesa_c2b_transactions.payment_id IS NOT NULL AND ' . $c2bLinkedPaymentSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01))';
@@ -800,6 +914,102 @@ class BankStatementController extends Controller
         ];
 
         return $counts;
+    }
+
+    /**
+     * Find active (non-reversed, non-deleted) payments for each of the given
+     * references, matching the reference itself plus any "<ref>-<suffix>" split
+     * payments derived from it.
+     *
+     * Returns a map of reference => [payment id => amount]. Keeping the ids means
+     * callers can merge this with other payment sources without double counting.
+     * One query for the whole set.
+     *
+     * The SQL LIKE only narrows the candidate rows; the final bucketing uses a
+     * literal prefix test, so a reference containing a SQL wildcard cannot pull
+     * in unrelated payments.
+     *
+     * @param  array<int, string>  $refs
+     * @return array<string, array<int, float>>
+     */
+    protected function activePaymentsByReference(array $refs): array
+    {
+        $refs = array_values(array_unique(array_filter($refs, fn ($r) => $r !== null && $r !== '')));
+
+        if (empty($refs)) {
+            return [];
+        }
+
+        $payments = Payment::query()
+            ->where('reversed', false)
+            ->whereNull('deleted_at')
+            ->where(function ($q) use ($refs) {
+                foreach ($refs as $ref) {
+                    $q->orWhere('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                }
+            })
+            ->get(['id', 'transaction_code', 'amount']);
+
+        $byRef = array_fill_keys($refs, []);
+
+        foreach ($payments as $payment) {
+            $code = (string) $payment->transaction_code;
+            foreach ($refs as $ref) {
+                if ($code === $ref || str_starts_with($code, $ref . '-')) {
+                    $byRef[$ref][(int) $payment->id] = (float) $payment->amount;
+                }
+            }
+        }
+
+        return $byRef;
+    }
+
+    /**
+     * Scan un-flagged C2B transactions for cross-type duplicates, at most once
+     * every few minutes.
+     *
+     * checkCrossTypeDuplicates() issues one query per row and writes when it
+     * finds a match, so running it inline on each request made the Transactions
+     * page cost grow with the size of the C2B table. The throttle keeps the same
+     * end result — duplicates still get flagged — without paying for it on every
+     * page view. Chunking also caps peak memory regardless of table size.
+     */
+    protected function syncCrossTypeDuplicates(): void
+    {
+        if (! Cache::add('bst:cross_type_dupe_scan', 1, now()->addMinutes(10))) {
+            return;
+        }
+
+        $this->warnOnHyphenatedReferences();
+
+        MpesaC2BTransaction::where(function ($q) {
+            $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
+        })
+            ->orderBy('id')
+            ->chunkById(500, fn ($chunk) => $this->checkCrossTypeDuplicates($chunk));
+    }
+
+    /**
+     * Guard the assumption behind payments.base_transaction_code.
+     *
+     * The collected/partial/uncollected filters match payments on the reference
+     * up to its first hyphen. That is exact only while bank references contain no
+     * hyphen themselves — true for all production data checked, but a new bank
+     * statement format could break it, and the failure would be silent
+     * undercounting rather than an error. Log loudly if it ever happens.
+     */
+    protected function warnOnHyphenatedReferences(): void
+    {
+        $offenders = BankStatementTransaction::where('reference_number', 'LIKE', '%-%')->count();
+
+        if ($offenders > 0) {
+            Log::warning('Bank references containing a hyphen found; collected totals may undercount split payments.', [
+                'count' => $offenders,
+                'samples' => BankStatementTransaction::where('reference_number', 'LIKE', '%-%')
+                    ->limit(5)->pluck('reference_number')->all(),
+            ]);
+        }
     }
 
     /**

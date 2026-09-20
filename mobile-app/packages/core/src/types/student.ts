@@ -52,6 +52,10 @@ export interface StudentRecord {
       trip_id?: number | null;
       trip_name?: string | null;
       vehicle?: string | null;
+      vehicle_photo_url?: string | null;
+      driver_name?: string | null;
+      driver_phone?: string | null;
+      driver_photo_url?: string | null;
       drop_off_point_id?: number | null;
       drop_off_point?: string | null;
     } | null;
@@ -59,6 +63,10 @@ export interface StudentRecord {
       trip_id?: number | null;
       trip_name?: string | null;
       vehicle?: string | null;
+      vehicle_photo_url?: string | null;
+      driver_name?: string | null;
+      driver_phone?: string | null;
+      driver_photo_url?: string | null;
       drop_off_point_id?: number | null;
       drop_off_point?: string | null;
     } | null;
@@ -179,6 +187,19 @@ export interface StudentSummary {
   gradeLevel: number | string | null;
 }
 
+/** One morning/evening transport assignment from student 360 / parent detail. */
+export interface StudentTransportLeg {
+  tripId: number | null;
+  tripName: string | null;
+  vehicle: string | null;
+  vehiclePhotoUrl: string | null;
+  driverName: string | null;
+  driverPhone: string | null;
+  driverPhotoUrl: string | null;
+  dropOffPointId: number | null;
+  dropOffPoint: string | null;
+}
+
 /** Detail header model (no 360 tabs in Batch 1). */
 export interface StudentDetail extends StudentSummary {
   dateOfBirth: string | null;
@@ -200,20 +221,8 @@ export interface StudentDetail extends StudentSummary {
   dropOffPointName: string | null;
   dropOffPointOther: string | null;
   transportSummary: string | null;
-  transportMorning: {
-    tripId: number | null;
-    tripName: string | null;
-    vehicle: string | null;
-    dropOffPointId: number | null;
-    dropOffPoint: string | null;
-  } | null;
-  transportEvening: {
-    tripId: number | null;
-    tripName: string | null;
-    vehicle: string | null;
-    dropOffPointId: number | null;
-    dropOffPoint: string | null;
-  } | null;
+  transportMorning: StudentTransportLeg | null;
+  transportEvening: StudentTransportLeg | null;
   preferredHospital: string | null;
   hasAllergies: boolean;
   allergiesNotes: string | null;

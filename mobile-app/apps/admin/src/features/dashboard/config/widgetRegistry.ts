@@ -21,9 +21,4 @@ export const DASHBOARD_WIDGET_REGISTRY: readonly DashboardWidgetDefinition[] = [
     permissions: [AdminPermission.FINANCE_VIEW],
     defaultState: 'success',
   },
-  {
-    id: 'pending_approvals_kpi',
-    permissions: [AdminPermission.DASHBOARD_VIEW, AdminPermission.DASHBOARD_APPROVALS_VIEW],
-    defaultState: 'success',
-  },
 ];

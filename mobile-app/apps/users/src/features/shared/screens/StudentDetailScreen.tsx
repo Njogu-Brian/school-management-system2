@@ -14,6 +14,7 @@ import {
   useTeacherTransportStudents,
   UserRole,
   type StudentDetail,
+  type StudentTransportLeg,
   type TeacherTransportLeg,
 } from '@erp/core';
 import {
@@ -35,7 +36,7 @@ import {
 } from '@erp/ui';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 type DetailParams = { studentId: number };
 type LooseNav = { navigate: (name: string, params?: object) => void; goBack: () => void; canGoBack: () => boolean };
@@ -369,13 +370,35 @@ const TransportTab: React.FC<{ student: StudentDetail; isStaff: boolean }> = ({ 
     );
   }
 
-  const assignmentRows = [
-    { label: 'Trip / route ID', value: student.tripId != null ? String(student.tripId) : '—' },
-    { label: 'Drop-off point ID', value: student.dropOffPointId != null ? String(student.dropOffPointId) : '—' },
-    { label: 'Drop-off (other)', value: student.dropOffPointOther ?? '—' },
-  ];
+  const morning = student.transportMorning;
+  const evening = student.transportEvening;
+  const hasAssignment = Boolean(
+    morning?.tripName ||
+      evening?.tripName ||
+      student.tripName ||
+      student.dropOffPointName ||
+      student.dropOffPointOther ||
+      (student.transportSummary && student.transportSummary !== 'No transport assigned'),
+  );
 
-  if (student.tripId == null && !student.dropOffPointOther) {
+  const assignmentRows: Array<{ label: string; value: string }> = [];
+  const pushLeg = (label: string, leg: StudentTransportLeg | null) => {
+    if (!leg?.tripName && !leg?.dropOffPoint && !leg?.vehicle) return;
+    assignmentRows.push({ label: `${label} trip`, value: leg.tripName ?? '—' });
+    assignmentRows.push({ label: `${label} vehicle`, value: leg.vehicle ?? '—' });
+    assignmentRows.push({ label: `${label} drop-off`, value: leg.dropOffPoint ?? '—' });
+    if (leg.driverName) assignmentRows.push({ label: `${label} driver`, value: leg.driverName });
+  };
+  pushLeg('Morning', morning);
+  pushLeg('Evening', evening);
+  if (assignmentRows.length === 0 && student.tripName) {
+    assignmentRows.push({ label: 'Trip', value: student.tripName });
+    assignmentRows.push({ label: 'Drop-off', value: student.dropOffPointName ?? student.dropOffPointOther ?? '—' });
+  } else if (student.dropOffPointOther) {
+    assignmentRows.push({ label: 'Notes', value: student.dropOffPointOther });
+  }
+
+  if (!hasAssignment) {
     return (
       <EmptyState
         title="No transport assignment"
@@ -384,7 +407,19 @@ const TransportTab: React.FC<{ student: StudentDetail; isStaff: boolean }> = ({ 
       />
     );
   }
-  return <FinanceFieldSection title="Transport assignment" rows={assignmentRows} />;
+
+  const photoUrl = morning?.vehiclePhotoUrl || evening?.vehiclePhotoUrl;
+  return (
+    <View>
+      {photoUrl ? (
+        <Image
+          source={{ uri: photoUrl }}
+          style={{ width: '100%', height: 140, borderRadius: 12, marginBottom: 12 }}
+        />
+      ) : null}
+      <FinanceFieldSection title="Transport assignment" rows={assignmentRows} />
+    </View>
+  );
 };
 
 const RequirementsTab: React.FC<{ studentId: number; canCollect?: boolean }> = ({ studentId, canCollect }) => {

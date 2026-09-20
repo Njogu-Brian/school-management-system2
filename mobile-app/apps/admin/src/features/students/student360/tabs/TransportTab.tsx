@@ -1,30 +1,56 @@
-import { useTransportRoute, type StudentDetail } from '@erp/core';
+import { type StudentDetail, type StudentTransportLeg } from '@erp/core';
 import { EmptyState, FinanceFieldSection, useTheme } from '@erp/ui';
 import React, { useMemo } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { Image, Text } from 'react-native';
 
 export interface TransportTabProps {
   student: StudentDetail;
 }
 
-/** Transport trip from `GET /routes/{trip_id}` (trip-backed routes API). */
-export const TransportTab: React.FC<TransportTabProps> = ({ student }) => {
-  const { colors, spacing } = useTheme();
-  const routeQuery = useTransportRoute(student.tripId, { enabled: student.tripId != null });
-
-  const assignmentRows = useMemo(
-    () => [
-      { label: 'Trip / route ID', value: student.tripId != null ? String(student.tripId) : '—' },
-      {
-        label: 'Drop-off point ID',
-        value: student.dropOffPointId != null ? String(student.dropOffPointId) : '—',
-      },
-      { label: 'Drop-off (other)', value: student.dropOffPointOther ?? '—' },
-    ],
-    [student],
+function hasTransportAssignment(student: StudentDetail): boolean {
+  return Boolean(
+    student.transportMorning?.tripName ||
+      student.transportEvening?.tripName ||
+      student.tripName ||
+      student.dropOffPointName ||
+      student.dropOffPointOther ||
+      (student.transportSummary && student.transportSummary !== 'No transport assigned'),
   );
+}
 
-  if (student.tripId == null) {
+function legRows(label: string, leg: StudentTransportLeg | null, fallbackName?: string | null) {
+  if (!leg && !fallbackName) return [];
+  return [
+    { label: `${label} trip`, value: leg?.tripName ?? fallbackName ?? '—' },
+    { label: `${label} vehicle`, value: leg?.vehicle ?? '—' },
+    { label: `${label} drop-off`, value: leg?.dropOffPoint ?? '—' },
+    { label: `${label} driver`, value: leg?.driverName ?? '—' },
+  ];
+}
+
+/** Transport assignment using trip/drop-off names from student detail. */
+export const TransportTab: React.FC<TransportTabProps> = ({ student }) => {
+  const { palette, spacing, radius } = useTheme();
+
+  const morning = student.transportMorning;
+  const evening = student.transportEvening;
+  const photoUrl = morning?.vehiclePhotoUrl || evening?.vehiclePhotoUrl;
+
+  const assignmentRows = useMemo(() => {
+    const rows = [
+      ...legRows('Morning', morning),
+      ...legRows('Evening', evening, student.tripName),
+    ];
+    if (student.dropOffPointOther) {
+      rows.push({ label: 'Notes', value: student.dropOffPointOther });
+    }
+    if (rows.length === 0 && student.transportSummary) {
+      rows.push({ label: 'Assignment', value: student.transportSummary });
+    }
+    return rows;
+  }, [morning, evening, student.tripName, student.dropOffPointOther, student.transportSummary]);
+
+  if (!hasTransportAssignment(student)) {
     return (
       <EmptyState
         title="No transport assignment"
@@ -34,47 +60,26 @@ export const TransportTab: React.FC<TransportTabProps> = ({ student }) => {
     );
   }
 
-  if (routeQuery.isLoading) {
-    return (
-      <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (routeQuery.isError) {
-    return (
-      <EmptyState
-        title="Could not load transport"
-        message={(routeQuery.error as Error).message}
-        icon="alert-circle-outline"
-        actionLabel="Retry"
-        onAction={() => void routeQuery.refetch()}
-      />
-    );
-  }
-
-  const route = routeQuery.data;
-  const routeRows = route
-    ? [
-        { label: 'Route name', value: route.name },
-        { label: 'Vehicle', value: route.vehicle_registration ?? '—' },
-        { label: 'Driver', value: route.driver_name ?? '—' },
-        { label: 'Status', value: route.status ?? '—' },
-      ]
-    : [];
-
-  const stopRows =
-    route?.drop_points?.map((stop, index) => ({
-      label: `Stop ${index + 1}`,
-      value: [stop.name, stop.pickup_time].filter(Boolean).join(' · ') || '—',
-    })) ?? [];
-
   return (
     <>
-      <FinanceFieldSection title="Assignment" rows={assignmentRows} />
-      {routeRows.length > 0 ? <FinanceFieldSection title="Route" rows={routeRows} /> : null}
-      {stopRows.length > 0 ? <FinanceFieldSection title="Stops" rows={stopRows} /> : null}
+      {photoUrl ? (
+        <Image
+          source={{ uri: photoUrl }}
+          style={{
+            width: '100%',
+            height: 140,
+            borderRadius: radius.lg,
+            marginBottom: spacing.md,
+            backgroundColor: palette.surface,
+          }}
+        />
+      ) : null}
+      {student.transportSummary ? (
+        <Text style={{ color: palette.textMain, fontWeight: '700', marginBottom: spacing.sm }}>
+          {student.transportSummary}
+        </Text>
+      ) : null}
+      {assignmentRows.length > 0 ? <FinanceFieldSection title="Assignment" rows={assignmentRows} /> : null}
     </>
   );
 };

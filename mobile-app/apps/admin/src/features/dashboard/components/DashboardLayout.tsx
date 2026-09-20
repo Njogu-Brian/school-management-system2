@@ -3,37 +3,19 @@ import {
   Button,
   DashboardHero,
   EmptyState,
-  ScrollableTabBar,
   ScreenContainer,
   useTheme,
 } from '@erp/ui';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { confirmAction } from '../../shared/utils/feedback';
-import {
-  AlertsSection,
-  CriticalKpisSection,
-  ExecutiveDashboardSection,
-  OperationalStatusSection,
-  PendingApprovalsSection,
-  QuickActionsSection,
-} from '../sections';
+import { CriticalKpisSection, OperationalStatusSection, QuickActionsSection } from '../sections';
 import { QuickActionFab } from './QuickActionFab';
-
-type DashboardTab = 'overview' | 'executive' | 'approvals' | 'alerts';
-
-const DASHBOARD_TABS = [
-  { key: 'overview' as const, label: 'Overview' },
-  { key: 'executive' as const, label: 'Executive' },
-  { key: 'approvals' as const, label: 'Approvals' },
-  { key: 'alerts' as const, label: 'Alerts' },
-];
 
 export const DashboardLayout: React.FC = () => {
   const canViewDashboard = useCan('dashboard.view');
   const { spacing, palette, colors } = useTheme();
   const { user, logout } = useAuth();
-  const [tab, setTab] = useState<DashboardTab>('overview');
 
   const greeting = useMemo(() => timeOfDayGreeting(), []);
   const displayName = (user?.name ?? 'Admin').split(' ')[0];
@@ -42,7 +24,6 @@ export const DashboardLayout: React.FC = () => {
     () => ({
       paddingHorizontal: spacing.md,
       paddingTop: spacing.sm,
-      /** ScreenContainer applies tab clearance. */
       paddingBottom: spacing.md,
       backgroundColor: palette.background,
     }),
@@ -69,28 +50,14 @@ export const DashboardLayout: React.FC = () => {
           greeting={greeting}
           userName={displayName}
           roleLabel={formatRoleLabel(user?.roleName ?? user?.role, 'Admin')}
-          title="Command Center"
-          subtitle="Live pulse across your school"
-          meta="KPIs · Approvals · Alerts"
+          title="Overview"
+          subtitle="Population, attendance, and school pulse"
+          meta="Tap present, absent, or unmarked to open today's list"
         />
 
-        <ScrollableTabBar
-          variant="segmented"
-          tabs={DASHBOARD_TABS}
-          activeTab={tab}
-          onTabChange={setTab}
-        />
-
-        {tab === 'overview' ? (
-          <>
-            <CriticalKpisSection />
-            <QuickActionsSection />
-            <OperationalStatusSection />
-          </>
-        ) : null}
-        {tab === 'executive' ? <ExecutiveDashboardSection /> : null}
-        {tab === 'approvals' ? <PendingApprovalsSection /> : null}
-        {tab === 'alerts' ? <AlertsSection /> : null}
+        <CriticalKpisSection />
+        <QuickActionsSection />
+        <OperationalStatusSection />
 
         <Button
           label="Sign out"

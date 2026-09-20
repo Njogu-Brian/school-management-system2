@@ -177,6 +177,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'show']);
     Route::put('/parent/profile-review', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'update']);
     Route::post('/parent/profile-review/complete', [\App\Http\Controllers\Api\ApiParentProfileReviewController::class, 'complete']);
+    Route::get('/parent/identity-gate', [\App\Http\Controllers\Api\ApiParentIdentityGateController::class, 'show']);
+    Route::put('/parent/identity-gate', [\App\Http\Controllers\Api\ApiParentIdentityGateController::class, 'update']);
     Route::get('/parent/forced-actions', [\App\Http\Controllers\Api\ApiParentForcedActionsController::class, 'index']);
     Route::post('/parent/forced-actions/{id}/complete', [\App\Http\Controllers\Api\ApiParentForcedActionsController::class, 'complete']);
     Route::post('/parent/forced-actions', [\App\Http\Controllers\Api\ApiParentForcedActionsController::class, 'storeForParent']);
@@ -254,6 +256,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     });
     Route::get('/student-categories', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'categories']);
     Route::get('/students/search', [\App\Http\Controllers\Students\StudentController::class, 'search']);
+    Route::get('/students/parents-contact', [\App\Http\Controllers\Api\ApiStudentController::class, 'parentsContact']);
+    Route::get('/students/archived', [\App\Http\Controllers\Api\ApiStudentController::class, 'archived']);
     Route::get('/students', [\App\Http\Controllers\Api\ApiStudentController::class, 'index']);
     Route::post('/students', [\App\Http\Controllers\Api\ApiStudentWriteController::class, 'store']);
     Route::get('/students/{id}/stats', [\App\Http\Controllers\Api\ApiStudentController::class, 'stats']);
@@ -470,8 +474,11 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::get('/attendance/class', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'classAttendance']);
     Route::get('/attendance/school-day', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'schoolDay']);
     Route::get('/attendance/reason-codes', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'reasonCodes']);
+    Route::get('/attendance/report', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'report']);
+    Route::get('/attendance/consecutive', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'consecutive']);
     Route::post('/attendance/mark', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'mark']);
     Route::post('/attendance/mark-absent', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'markAbsent']);
+    Route::post('/attendance/mark-students', [\App\Http\Controllers\Api\ApiAttendanceController::class, 'markStudents']);
 
     // Activities (extra-curricular activity fees + swimming) — teacher attendance marking
     Route::get('/activities', [\App\Http\Controllers\Api\ApiActivityController::class, 'index']);

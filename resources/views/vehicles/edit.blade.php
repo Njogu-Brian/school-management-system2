@@ -49,6 +49,19 @@
                         <input type="text" name="chassis_number" id="chassis_number" class="form-control" value="{{ old('chassis_number', $vehicle->chassis_number) }}">
                     </div>
                     <div class="col-md-6">
+                        <label for="driver_name" class="form-label fw-semibold">Driver name (optional)</label>
+                        <input type="text" name="driver_name" id="driver_name" class="form-control" value="{{ old('driver_name', $vehicle->driver_name) }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="photo" class="form-label fw-semibold">Vehicle photo</label>
+                        <input type="file" name="photo" id="photo" class="form-control" accept="image/*">
+                        @if($vehicle->photo_url)
+                            <div class="mt-2">
+                                <img src="{{ $vehicle->photo_url }}" alt="Vehicle" style="max-height: 96px; border-radius: 8px;">
+                            </div>
+                        @endif
+                    </div>
+                    <div class="col-md-6">
                         <label for="insurance_document" class="form-label fw-semibold">Insurance Document</label>
                         <input type="file" name="insurance_document" id="insurance_document" class="form-control">
                         @if($vehicle->insurance_document)

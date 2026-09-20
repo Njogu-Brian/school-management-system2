@@ -54,6 +54,7 @@ export * from './hooks/useActivities';
 export * from './hooks/useTransportLive';
 export * from './hooks/useParentClaim';
 export * from './hooks/useParentProfileReview';
+export * from './hooks/useParentIdentityGate';
 export * from './hooks/useParentWallet';
 export * from './hooks/useParentCoCurricular';
 export * from './hooks/useParentAbsence';

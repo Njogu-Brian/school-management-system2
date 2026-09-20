@@ -20,6 +20,7 @@ export interface KpiCardProps {
   /** @deprecated Glyphs own their colors. */
   accentTone?: AccentTone;
   onPress?: () => void;
+  onStatPress?: (stat: KpiStatChip) => void;
 }
 
 /** Premium KPI body — free-standing soft-3D icon + large value. */
@@ -31,12 +32,13 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   icon = 'stats-chart',
   stats,
   onPress,
+  onStatPress,
 }) => {
   const { palette, colors, typography, spacing, radius } = useTheme();
   const deltaColor =
     deltaPositive === true ? colors.success : deltaPositive === false ? colors.error : palette.textMuted;
 
-  const body = (
+  const header = (
     <>
       <View style={styles.header}>
         <AccentIcon name={icon} size={48} />
@@ -79,21 +81,28 @@ export const KpiCard: React.FC<KpiCardProps> = ({
           {delta}
         </Text>
       ) : null}
-      {stats && stats.length > 0 ? (
-        <View style={[styles.statsRow, { gap: spacing.xs, marginTop: spacing.sm }]}>
-          {stats.map((chip) => (
-            <View
-              key={chip.label}
-              style={[
-                styles.statChip,
-                {
-                  backgroundColor: palette.surfaceMuted,
-                  borderRadius: radius.sm,
-                  paddingHorizontal: spacing.sm,
-                  paddingVertical: spacing.xs,
-                },
-              ]}
-            >
+    </>
+  );
+
+  const statsRow =
+    stats && stats.length > 0 ? (
+      <View style={[styles.statsRow, { gap: spacing.xs, marginTop: spacing.sm }]}>
+        {stats.map((chip) => (
+          <Pressable
+            key={chip.label}
+            onPress={onStatPress ? () => onStatPress(chip) : undefined}
+            disabled={!onStatPress}
+            accessibilityRole={onStatPress ? 'button' : undefined}
+            style={[
+              styles.statChip,
+              {
+                backgroundColor: palette.surfaceMuted,
+                borderRadius: radius.sm,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: spacing.xs,
+              },
+            ]}
+          >
               <Text
                 style={{
                   color: palette.textMuted,
@@ -111,24 +120,25 @@ export const KpiCard: React.FC<KpiCardProps> = ({
                   marginTop: 2,
                 }}
               >
-                {chip.value}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-    </>
+              {chip.value}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    ) : null;
+
+  return (
+    <View>
+      {onPress ? (
+        <Pressable onPress={onPress} accessibilityRole="button">
+          {header}
+        </Pressable>
+      ) : (
+        header
+      )}
+      {statsRow}
+    </View>
   );
-
-  if (onPress) {
-    return (
-      <Pressable onPress={onPress} accessibilityRole="button">
-        {body}
-      </Pressable>
-    );
-  }
-
-  return body;
 };
 
 const styles = StyleSheet.create({

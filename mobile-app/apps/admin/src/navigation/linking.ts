@@ -41,6 +41,9 @@ export const linking: LinkingOptions<DrawerParamList> = {
             path: 'students',
             screens: {
               StudentRegistry: '',
+              ParentsContact: 'parents-contact',
+              ArchivedStudents: 'archived',
+              AttendanceReport: 'attendance-report',
               StudentDetail: {
                 path: ':studentId/:tab?',
                 parse: {

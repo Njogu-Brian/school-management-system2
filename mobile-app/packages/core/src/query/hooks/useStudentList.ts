@@ -71,3 +71,65 @@ export function useInfiniteStudentList(
     staleTime: 45_000,
   });
 }
+
+export function useInfiniteParentsContact(
+  filters: { search?: string; classroomId?: number | null; streamId?: number | null },
+  options?: { enabled?: boolean },
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.students.parentsContact(filters),
+    queryFn: async ({ pageParam }) => {
+      const { studentsApi } = await import('../../api/students.api');
+      const res = await studentsApi.listParentsContact({
+        search: filters.search,
+        class_id: filters.classroomId ?? undefined,
+        stream_id: filters.streamId ?? undefined,
+        page: pageParam as number,
+        per_page: 20,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load parent contacts.');
+      }
+      return res.data;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.current_page < lastPage.last_page ? lastPage.current_page + 1 : undefined,
+    enabled: options?.enabled !== false,
+    staleTime: 45_000,
+  });
+}
+
+export function useInfiniteArchivedStudents(
+  filters: {
+    search?: string;
+    classroomId?: number | null;
+    streamId?: number | null;
+    termId?: number | null;
+  },
+  options?: { enabled?: boolean },
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.students.archived(filters),
+    queryFn: async ({ pageParam }) => {
+      const { studentsApi } = await import('../../api/students.api');
+      const res = await studentsApi.listArchived({
+        search: filters.search,
+        class_id: filters.classroomId ?? undefined,
+        stream_id: filters.streamId ?? undefined,
+        term_id: filters.termId ?? undefined,
+        page: pageParam as number,
+        per_page: 20,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Failed to load archived students.');
+      }
+      return res.data;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.current_page < lastPage.last_page ? lastPage.current_page + 1 : undefined,
+    enabled: options?.enabled !== false,
+    staleTime: 45_000,
+  });
+}

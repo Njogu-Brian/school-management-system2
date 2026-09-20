@@ -1,11 +1,19 @@
-import { useAuth, useInfiniteNotifications, usePushNotifications, UserRole } from '@erp/core';
+import { queryKeys, useAuth, usePushNotifications, UserRole } from '@erp/core';
 import { useToast } from '@erp/ui';
-import React, { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * Registers push for Users App roles and pops an in-app banner while the app is open.
+ *
+ * The banner used to be driven by polling `GET /notifications` every 20 seconds
+ * and diffing the ids against a seen-set — on every screen, for every signed-in
+ * user, alongside push that was already delivering the same events. The push
+ * foreground callback now does both jobs: it shows the banner and invalidates the
+ * notification queries so the unread badge and any open list refresh straight
+ * away.
  */
 export const UsersPushNotifications: React.FC = () => {
   const { user } = useAuth();
@@ -21,31 +29,13 @@ export const UsersPushNotifications: React.FC = () => {
   const { showToast } = useToast();
   const [banner, setBanner] = React.useState<{ title: string; body: string } | null>(null);
   const insets = useSafeAreaInsets();
-  const seenIds = useRef<Set<string>>(new Set());
-  const primed = useRef(false);
+  const queryClient = useQueryClient();
 
   usePushNotifications(enabled, ({ title, body }) => {
     setBanner({ title, body });
     showToast({ message: body ? `${title}: ${body}` : title, tone: 'info', durationMs: 5000 });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
   });
-
-  const unread = useInfiniteNotifications({ isRead: false, enabled: Boolean(user) && enabled });
-
-  useEffect(() => {
-    const items = unread.data?.pages?.[0]?.items ?? [];
-    if (!primed.current) {
-      items.forEach((item) => seenIds.current.add(item.id));
-      primed.current = true;
-      return;
-    }
-    const fresh = items.find((item) => !seenIds.current.has(item.id));
-    if (!fresh) return;
-    seenIds.current.add(fresh.id);
-    const title = fresh.title || 'School alert';
-    const body = fresh.body || '';
-    setBanner({ title, body });
-    showToast({ message: body ? `${title}: ${body}` : title, tone: 'info', durationMs: 5000 });
-  }, [unread.data, showToast]);
 
   useEffect(() => {
     if (!banner) return;

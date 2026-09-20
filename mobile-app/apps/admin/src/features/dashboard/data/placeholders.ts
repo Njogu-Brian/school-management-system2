@@ -59,16 +59,28 @@ export const QUICK_ACTION_PLACEHOLDERS: QuickActionPlaceholder[] = [
     permissions: ['students.view'],
   },
   {
-    id: 'qa_approvals',
-    label: 'Approvals inbox',
-    icon: 'checkbox-outline',
-    permissions: ['approvals.view', 'dashboard.approvals.view', 'dashboard.view'],
+    id: 'qa_parents',
+    label: 'Parent contacts',
+    icon: 'call-outline',
+    permissions: ['students.view'],
+  },
+  {
+    id: 'qa_archived',
+    label: 'Archived students',
+    icon: 'archive-outline',
+    permissions: ['students.view'],
   },
   {
     id: 'qa_admissions',
     label: 'Applications',
     icon: 'school-outline',
     permissions: ['admissions.view'],
+  },
+  {
+    id: 'qa_attendance_report',
+    label: 'Attendance report',
+    icon: 'calendar-outline',
+    permissions: ['students.view', 'academics.view', 'dashboard.view'],
   },
   {
     id: 'qa_attendance',

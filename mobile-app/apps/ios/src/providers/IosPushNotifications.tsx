@@ -1,11 +1,16 @@
-import { useAuth, useInfiniteNotifications, usePushNotifications } from '@erp/core';
+import { queryKeys, useAuth, usePushNotifications } from '@erp/core';
 import { useToast } from '@erp/ui';
-import React, { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * Registers push for every signed-in combined-app role and shows an in-app banner.
+ *
+ * See UsersPushNotifications: the 20-second notification poll this used to run
+ * duplicated push, so the push callback now shows the banner and invalidates the
+ * notification queries instead.
  */
 export const IosPushNotifications: React.FC = () => {
   const { user } = useAuth();
@@ -13,31 +18,13 @@ export const IosPushNotifications: React.FC = () => {
   const { showToast } = useToast();
   const [banner, setBanner] = React.useState<{ title: string; body: string } | null>(null);
   const insets = useSafeAreaInsets();
-  const seenIds = useRef<Set<string>>(new Set());
-  const primed = useRef(false);
+  const queryClient = useQueryClient();
 
   usePushNotifications(enabled, ({ title, body }) => {
     setBanner({ title, body });
     showToast({ message: body ? `${title}: ${body}` : title, tone: 'info', durationMs: 5000 });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
   });
-
-  const unread = useInfiniteNotifications({ isRead: false, enabled });
-
-  useEffect(() => {
-    const items = unread.data?.pages?.[0]?.items ?? [];
-    if (!primed.current) {
-      items.forEach((item) => seenIds.current.add(item.id));
-      primed.current = true;
-      return;
-    }
-    const fresh = items.find((item) => !seenIds.current.has(item.id));
-    if (!fresh) return;
-    seenIds.current.add(fresh.id);
-    const title = fresh.title || 'School alert';
-    const body = fresh.body || '';
-    setBanner({ title, body });
-    showToast({ message: body ? `${title}: ${body}` : title, tone: 'info', durationMs: 5000 });
-  }, [unread.data, showToast]);
 
   useEffect(() => {
     if (!banner) return;

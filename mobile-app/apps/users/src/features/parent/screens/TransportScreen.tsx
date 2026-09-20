@@ -3,6 +3,7 @@ import {
   transportSpecialApi,
   useStudentDetail,
   type ParentTransportOptions,
+  type StudentTransportLeg,
 } from '@erp/core';
 import {
   AcademicScreenHeader,
@@ -21,7 +22,7 @@ import {
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo, useState } from 'react';
-import { RefreshControl, Text, View } from 'react-native';
+import { RefreshControl, Image, Linking, Pressable, Text, View } from 'react-native';
 import type { ParentStackParamList } from '../../../navigation/parent/parentStackTypes';
 import { goBackInStack } from '../../../navigation/navigateToTab';
 import { showError, showSuccess } from '../../shared/utils/feedback';
@@ -188,14 +189,11 @@ export const TransportScreen: React.FC = () => {
                 <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>
                   {d?.transportSummary || 'No transport assigned'}
                 </Text>
-                {morning?.tripName ? (
-                  <Text style={{ color: palette.textSecondary, marginTop: spacing.sm, fontSize: typography.caption.fontSize }}>
-                    Morning · {[morning.tripName, morning.vehicle, morning.dropOffPoint].filter(Boolean).join(' · ')}
-                  </Text>
-                ) : null}
-                {evening?.tripName ? (
-                  <Text style={{ color: palette.textSecondary, marginTop: 4, fontSize: typography.caption.fontSize }}>
-                    Evening · {[evening.tripName, evening.vehicle, evening.dropOffPoint].filter(Boolean).join(' · ')}
+                {morning ? <AssignmentLegCard title="Morning" leg={morning} /> : null}
+                {evening ? <AssignmentLegCard title="Evening" leg={evening} /> : null}
+                {!morning?.tripName && !evening?.tripName && !morning && !evening ? (
+                  <Text style={{ color: palette.textSecondary, marginTop: spacing.sm }}>
+                    {d?.dropOffPointOther || 'No trip assigned yet.'}
                   </Text>
                 ) : null}
               </>
@@ -337,5 +335,50 @@ export const TransportScreen: React.FC = () => {
         </>
       )}
     </ScreenContainer>
+  );
+};
+
+const AssignmentLegCard: React.FC<{ title: string; leg: StudentTransportLeg }> = ({ title, leg }) => {
+  const { palette, spacing, typography, radius } = useTheme();
+  if (!leg.tripName && !leg.vehicle && !leg.dropOffPoint) return null;
+
+  const callDriver = () => {
+    if (!leg.driverPhone) return;
+    void Linking.openURL(`tel:${leg.driverPhone}`);
+  };
+
+  return (
+    <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+      <Text style={{ color: palette.textPrimary, fontWeight: '700' }}>{title}</Text>
+      {leg.vehiclePhotoUrl ? (
+        <Image
+          source={{ uri: leg.vehiclePhotoUrl }}
+          style={{ width: '100%', height: 140, borderRadius: radius.md, backgroundColor: palette.surface }}
+        />
+      ) : null}
+      <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+        {[leg.tripName, leg.vehicle, leg.dropOffPoint].filter(Boolean).join(' · ')}
+      </Text>
+      {leg.driverName || leg.driverPhone || leg.driverPhotoUrl ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          {leg.driverPhotoUrl ? (
+            <Image
+              source={{ uri: leg.driverPhotoUrl }}
+              style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: palette.surface }}
+            />
+          ) : null}
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: palette.textPrimary, fontWeight: '600' }}>{leg.driverName ?? 'Driver'}</Text>
+            {leg.driverPhone ? (
+              <Pressable onPress={callDriver}>
+                <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+                  {leg.driverPhone}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 };

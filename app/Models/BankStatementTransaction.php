@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\InvalidatesTransactionListingCounts;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class BankStatementTransaction extends Model
 {
+    use InvalidatesTransactionListingCounts;
+
     protected $fillable = [
         'bank_account_id',
         'statement_file_path',

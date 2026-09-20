@@ -12,6 +12,7 @@ import {
   DashboardHero,
   EmptyState,
   ListEmptyState,
+  QuickAction,
   RegistryListLayout,
   ScreenContainer,
   SkeletonListRows,
@@ -28,6 +29,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   StyleSheet,
+  View,
 } from 'react-native';
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { useStudentRegistryState } from '../hooks/useStudentRegistryState';
@@ -166,12 +168,31 @@ export const StudentRegistryScreen: React.FC = () => {
         data={students}
         keyExtractor={(item) => String(item.id)}
         hero={
-          <DashboardHero
-            variant="students"
-            title="Students"
-            subtitle={enrolled != null ? `${enrolled} enrolled` : 'Student registry'}
-            meta={heroMeta}
-          />
+          <>
+            <DashboardHero
+              variant="students"
+              title="Students"
+              subtitle={enrolled != null ? `${enrolled} enrolled` : 'Student registry'}
+              meta={heroMeta}
+            />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm }}>
+              <QuickAction
+                label="Parent contacts"
+                icon="call-outline"
+                onPress={() => navigation.navigate('ParentsContact')}
+              />
+              <QuickAction
+                label="Attendance"
+                icon="calendar-outline"
+                onPress={() => navigation.navigate('AttendanceReport')}
+              />
+              <QuickAction
+                label="Archived"
+                icon="archive-outline"
+                onPress={() => navigation.navigate('ArchivedStudents')}
+              />
+            </View>
+          </>
         }
         searchBar={
           <StudentSearchBar

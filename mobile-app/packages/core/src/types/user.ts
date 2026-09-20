@@ -42,6 +42,8 @@ export interface User {
 
   /** When true, app must force password change before normal use. */
   mustChangePassword?: boolean;
+  /** Signed-in parent must fill own name/phone and missing child name/DOB. */
+  identityGateRequired?: boolean;
 
   /** Classrooms where this teacher is the assigned class teacher (homeroom / class-teacher duties). */
   classTeacherClassroomIds?: number[];

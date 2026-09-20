@@ -42,7 +42,7 @@ export function searchMenuItems(query: string): SearchHit[] {
         title: `${area.label} — ${section}`,
         subtitle: area.description,
         route: AREA_ROUTE[area.key],
-        metadata: { entity_type: 'menu', entity_id: area.key },
+        metadata: { entity_type: 'menu', entity_id: area.key, section },
       });
     }
   }

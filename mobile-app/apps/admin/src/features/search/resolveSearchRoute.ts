@@ -25,10 +25,23 @@ export function resolveSearchRoute(navigation: WorkspaceNavigation, hit: SearchH
   if (meta.entity_type === 'menu') {
     const area = MENU_AREA[String(meta.entity_id)] as AdminAreaKey | undefined;
     if (!area) return;
+    const section = String(meta.section ?? '').toLowerCase();
     if (area === 'dashboard') {
+      if (section.includes('attendance') || section.includes('population')) {
+        navigateToTab(navigation, 'Students', 'AttendanceReport');
+        return;
+      }
       navigateToTab(navigation, 'Dashboard', 'DashboardHome');
     } else if (area === 'students') {
-      navigateToTab(navigation, 'Students', 'StudentRegistry');
+      if (section.includes('parent')) {
+        navigateToTab(navigation, 'Students', 'ParentsContact');
+      } else if (section.includes('archiv')) {
+        navigateToTab(navigation, 'Students', 'ArchivedStudents');
+      } else if (section.includes('attendance')) {
+        navigateToTab(navigation, 'Students', 'AttendanceReport');
+      } else {
+        navigateToTab(navigation, 'Students', 'StudentRegistry');
+      }
     } else if (area === 'finance') {
       navigateToTab(navigation, 'Finance', 'FinanceDashboard');
     } else if (area === 'people') {

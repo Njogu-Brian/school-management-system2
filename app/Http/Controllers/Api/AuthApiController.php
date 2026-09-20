@@ -462,13 +462,26 @@ class AuthApiController extends Controller
         $roleName = $this->resolvePrimaryRoleName($user);
         $permissions = $user->getAllPermissions()->pluck('name')->values()->toArray();
 
+        $displayName = trim((string) $user->name);
+        $identityGate = null;
+        if ($user->parent_id) {
+            $identityGate = app(ParentCredentialsService::class)->identityGateForUser($user);
+            if (app(ParentCredentialsService::class)->identityNameIsPlaceholder($displayName)) {
+                $slotName = trim((string) ($identityGate['parent']['name'] ?? ''));
+                $displayName = $slotName !== '' ? $slotName : 'Parent';
+            }
+        }
+
         $data = [
             'id' => $user->id,
-            'name' => $user->name,
+            'name' => $displayName !== '' ? $displayName : $user->name,
             'email' => $user->email,
             'role' => $roleName,
             'permissions' => $permissions,
         ];
+        if ($identityGate !== null) {
+            $data['identity_gate_required'] = (bool) ($identityGate['required'] ?? false);
+        }
 
         $staff = $user->staff;
         if ($staff) {

@@ -3,6 +3,7 @@ import {
   canAccessApp,
   effectiveRole,
   isAdminAppRole,
+  useAppMode,
   useAuth,
   useSchool,
   UserRole,
@@ -21,6 +22,7 @@ import {
   BiometricEnableScreen,
   // ForceChangePasswordScreen — kept in features/auth; re-enable gate below when ready
   LoginScreen,
+  ParentIdentityGateScreen,
   PinEnableScreen,
   SchoolCodeScreen,
 } from '../features/auth';
@@ -79,11 +81,25 @@ const RootGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
   return (
     <OfflineShell>
       <AppModeProvider>
-        <NavigationContainer theme={navTheme}>
-          <RoleBasedNavigator />
-        </NavigationContainer>
+        <HomeIdentityGate navTheme={navTheme} />
       </AppModeProvider>
     </OfflineShell>
+  );
+};
+
+const HomeIdentityGate: React.FC<{ navTheme: Theme }> = ({ navTheme }) => {
+  const { user } = useAuth();
+  const { mode, ready } = useAppMode();
+  if (!ready) {
+    return <AuthLoadingScreen />;
+  }
+  if (mode === 'home' && user?.parentId && user.identityGateRequired) {
+    return <ParentIdentityGateScreen />;
+  }
+  return (
+    <NavigationContainer theme={navTheme}>
+      <RoleBasedNavigator />
+    </NavigationContainer>
   );
 };
 

@@ -53,7 +53,14 @@
                         <tbody>
                             @forelse($vehicles as $vehicle)
                                 <tr>
-                                    <td class="fw-semibold">{{ $vehicle->vehicle_number }}</td>
+                                    <td class="fw-semibold">
+                                        <div class="d-flex align-items-center gap-2">
+                                            @if($vehicle->photo_url)
+                                                <img src="{{ $vehicle->photo_url }}" alt="" width="48" height="48" style="object-fit: cover; border-radius: 8px;">
+                                            @endif
+                                            <span>{{ $vehicle->vehicle_number }}</span>
+                                        </div>
+                                    </td>
                                     <td>{{ $vehicle->driver_name ?? '—' }}</td>
                                     <td>
                                         @php

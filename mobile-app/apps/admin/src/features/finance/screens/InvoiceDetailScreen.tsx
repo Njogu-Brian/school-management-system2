@@ -57,18 +57,28 @@ export const InvoiceDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   );
 
   const sharePaymentLink = async () => {
-    const link = paymentLinkQuery.data;
-    if (!link?.url) {
-      showError('Payment link', 'No payment link is available for this student.');
-      return;
-    }
-    const studentName = invoice?.student_name ?? 'Student';
-    const balance = formatKes(invoice?.balance ?? link.amount);
-    const message = `School fees payment for ${studentName}\nBalance: ${balance}\nPay here: ${link.short_url ?? link.url}`;
     try {
+      const result = await paymentLinkQuery.refetch();
+      const err = result.error as { message?: string } | undefined;
+      if (err?.message) {
+        throw new Error(err.message);
+      }
+      const link = result.data;
+      if (!link?.url) {
+        throw new Error('Could not create a payment link for this student.');
+      }
+      const studentName = invoice?.student_name ?? 'Student';
+      const balance = formatKes(invoice?.balance ?? link.amount);
+      const message = `School fees payment for ${studentName}\nBalance: ${balance}\nPay here: ${link.short_url ?? link.url}`;
       await Share.share({ message, title: 'M-Pesa payment link' });
     } catch (err) {
-      showError('Share failed', (err as Error).message);
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err && 'message' in err
+            ? String((err as { message: string }).message)
+            : 'Could not load a payment link.';
+      showError('Payment link', message);
     }
   };
 

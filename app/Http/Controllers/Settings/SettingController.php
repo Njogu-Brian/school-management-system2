@@ -11,12 +11,17 @@ use App\Models\Department;
 use App\Models\JobTitle;
 use App\Models\CustomField;
 use App\Services\DatabaseBackupService;
+use App\Services\ImageOptimizer;
 use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 
 class SettingController extends Controller
 {
+    public function __construct(private ImageOptimizer $imageOptimizer)
+    {
+    }
+
     /**
      * Show General Settings page
      */
@@ -80,6 +85,11 @@ class SettingController extends Controller
             }
 
             // Save images to public images dir (uses PUBLIC_WEB_ROOT when set for split deployment)
+            $bounds = [
+                'school_logo' => [512, 512],
+                'login_background' => [1920, 1080],
+            ];
+
             foreach (['school_logo', 'login_background'] as $imageKey) {
                 if ($request->hasFile($imageKey)) {
                     $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
@@ -88,6 +98,9 @@ class SettingController extends Controller
                         @mkdir($targetDir, 0755, true);
                     }
                     $request->file($imageKey)->move($targetDir, $filename);
+
+                    [$maxWidth, $maxHeight] = $bounds[$imageKey];
+                    $this->imageOptimizer->optimize($targetDir . DIRECTORY_SEPARATOR . $filename, $maxWidth, $maxHeight);
 
                     Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
                 }
@@ -229,7 +242,15 @@ class SettingController extends Controller
             Setting::updateOrCreate(['key' => 'login_background'], ['value' => '']);
         }
 
-        // Handle file uploads (uses PUBLIC_WEB_ROOT when set for split deployment)
+        // Handle file uploads (uses PUBLIC_WEB_ROOT when set for split deployment).
+        // Both of these are fetched on essentially every page load, so they are
+        // downscaled to the largest size they are ever actually displayed at
+        // rather than stored at whatever resolution the camera produced.
+        $bounds = [
+            'school_logo' => [512, 512],
+            'login_background' => [1920, 1080],
+        ];
+
         foreach (['school_logo', 'login_background'] as $imageKey) {
             if ($request->hasFile($imageKey)) {
                 $file = $request->file($imageKey);
@@ -239,6 +260,9 @@ class SettingController extends Controller
                     @mkdir($targetDir, 0755, true);
                 }
                 $file->move($targetDir, $filename);
+
+                [$maxWidth, $maxHeight] = $bounds[$imageKey];
+                $this->imageOptimizer->optimize($targetDir . DIRECTORY_SEPARATOR . $filename, $maxWidth, $maxHeight);
 
                 Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
             }

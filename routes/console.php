@@ -33,9 +33,14 @@ Schedule::command('queue:work --stop-when-empty --max-time=10800')
     ->name('queue-work')
     ->withoutOverlapping(200);
 
+// Needs minute precision because the send time is configurable, but the gate is
+// evaluated here so the job is queued only on the minute it can actually work —
+// it used to be dispatched 1,440 times a day to return immediately 1,439 of them.
 Schedule::job(new SendFeeRemindersJob)
     ->everyMinute()
-    ->name('send-fee-reminders');
+    ->name('send-fee-reminders')
+    ->withoutOverlapping()
+    ->when(fn () => SendFeeRemindersJob::shouldRunNow());
 
 Schedule::command('sms:check-balance-alert')
     ->everyFifteenMinutes()

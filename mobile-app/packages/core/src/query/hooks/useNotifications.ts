@@ -2,6 +2,17 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { notificationsApi } from '../../api/notifications.api';
 import { queryKeys } from '../queryKeys';
 
+/**
+ * Unread badge count.
+ *
+ * No timer. This used to poll every 60 seconds from every screen carrying the
+ * header chrome — 1,440 requests per device per day purely to redraw a number.
+ * Push is already registered (see usePushNotifications), and both the foreground
+ * listener and every read/acknowledge mutation invalidate
+ * `queryKeys.notifications.all`, so the badge still updates the moment anything
+ * changes. `refetchOnWindowFocus` covers notifications that arrived while the app
+ * was backgrounded.
+ */
 export function useUnreadNotificationCount(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.notifications.unreadCount(),
@@ -14,15 +25,24 @@ export function useUnreadNotificationCount(options?: { enabled?: boolean }) {
     },
     enabled: options?.enabled !== false,
     staleTime: 30_000,
-    refetchInterval: 60_000,
   });
 }
 
+/**
+ * Paged notification list.
+ *
+ * `refetchIntervalMs` is opt-in and off by default. The default used to be a
+ * 20-second poll, and because the push providers mount this hook globally it ran
+ * on every screen for every signed-in user — roughly 4,320 requests per device
+ * per day, duplicating push notifications that were already delivering the same
+ * events. Screens that genuinely want a live list can pass an interval.
+ */
 export function useInfiniteNotifications(options?: {
   enabled?: boolean;
   isRead?: boolean;
   category?: string;
   search?: string;
+  refetchIntervalMs?: number;
 }) {
   return useInfiniteQuery({
     queryKey: queryKeys.notifications.list({
@@ -54,7 +74,8 @@ export function useInfiniteNotifications(options?: {
     getNextPageParam: (last) => (last.hasMore ? last.currentPage + 1 : undefined),
     enabled: options?.enabled !== false,
     staleTime: 30_000,
-    refetchInterval: options?.enabled === false ? false : 20_000,
+    refetchInterval:
+      options?.enabled === false || !options?.refetchIntervalMs ? false : options.refetchIntervalMs,
   });
 }
 

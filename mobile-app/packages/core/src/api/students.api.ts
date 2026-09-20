@@ -172,4 +172,99 @@ export const studentsApi = {
   ): Promise<ApiResponse<{ user_id: number; login: string | null; must_change_password: boolean }>> {
     return apiClient.post(`/students/${studentId}/parent-credentials/require-password-change`, payload ?? {});
   },
+
+  listParentsContact(
+    params?: ParentContactListParams,
+  ): Promise<ApiResponse<PaginatedResponse<ParentContactRecord>>> {
+    const query: Record<string, string | number> = {};
+    if (params?.search) query.search = params.search;
+    if (params?.class_id != null) query.classroom_id = params.class_id;
+    if (params?.stream_id != null) query.stream_id = params.stream_id;
+    if (params?.page != null) query.page = params.page;
+    if (params?.per_page != null) query.per_page = params.per_page;
+    return apiClient.get<PaginatedResponse<ParentContactRecord>>('/students/parents-contact', query);
+  },
+
+  listArchived(
+    params?: ArchivedStudentListParams,
+  ): Promise<ApiResponse<ArchivedStudentPage>> {
+    const query: Record<string, string | number> = {};
+    if (params?.search) query.search = params.search;
+    if (params?.class_id != null) query.classroom_id = params.class_id;
+    if (params?.stream_id != null) query.stream_id = params.stream_id;
+    if (params?.term_id != null) query.term_id = params.term_id;
+    if (params?.page != null) query.page = params.page;
+    if (params?.per_page != null) query.per_page = params.per_page;
+    return apiClient.get<ArchivedStudentPage>('/students/archived', query);
+  },
 };
+
+export interface ParentContactListParams {
+  search?: string;
+  class_id?: number | null;
+  stream_id?: number | null;
+  page?: number;
+  per_page?: number;
+}
+
+export interface ParentContactRecord {
+  id: number;
+  full_name: string;
+  admission_number: string;
+  class_name?: string | null;
+  stream_name?: string | null;
+  classroom_id?: number | null;
+  stream_id?: number | null;
+  father_name?: string | null;
+  father_phone?: string | null;
+  father_whatsapp?: string | null;
+  mother_name?: string | null;
+  mother_phone?: string | null;
+  mother_whatsapp?: string | null;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  guardian_whatsapp?: string | null;
+  primary_phone?: string | null;
+}
+
+export interface ArchivedStudentListParams {
+  search?: string;
+  class_id?: number | null;
+  stream_id?: number | null;
+  term_id?: number | null;
+  page?: number;
+  per_page?: number;
+}
+
+export interface ArchivedStudentTerm {
+  id: number;
+  name: string;
+  academic_year?: string | number | null;
+}
+
+export interface ArchivedStudentRecord {
+  id: number;
+  full_name: string;
+  admission_number: string;
+  class_name?: string | null;
+  stream_name?: string | null;
+  classroom_id?: number | null;
+  stream_id?: number | null;
+  archived_at?: string | null;
+  transfer_date?: string | null;
+  archived_reason?: string | null;
+  archived_notes?: string | null;
+  term?: ArchivedStudentTerm | null;
+}
+
+export interface ArchivedStudentPage extends PaginatedResponse<ArchivedStudentRecord> {
+  available_terms?: Array<{
+    id: number;
+    name: string;
+    academic_year_id?: number;
+    academic_year?: string | number | null;
+    opening_date?: string | null;
+    closing_date?: string | null;
+    is_current?: boolean;
+  }>;
+}

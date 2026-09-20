@@ -124,6 +124,8 @@ class ApiVehicleController extends Controller
             'type' => $vehicle->type,
             'capacity' => $vehicle->capacity,
             'chassis_number' => $vehicle->chassis_number,
+            'photo' => $vehicle->photo,
+            'photo_url' => $vehicle->photo_url,
             'trips_count' => (int) ($vehicle->trips_count ?? $vehicle->trips()->count()),
             'created_at' => $vehicle->created_at?->toIso8601String(),
             'updated_at' => $vehicle->updated_at?->toIso8601String(),

@@ -27,11 +27,17 @@ export const QuickActionsSection: React.FC = () => {
         case 'qa_students':
           navigateToTab(navigation, 'Students', 'StudentRegistry');
           break;
+        case 'qa_parents':
+          navigateToTab(navigation, 'Students', 'ParentsContact');
+          break;
+        case 'qa_archived':
+          navigateToTab(navigation, 'Students', 'ArchivedStudents');
+          break;
         case 'qa_admissions':
           navigateToDrawer(navigation, 'Admissions', 'AdmissionsWorkspace');
           break;
-        case 'qa_approvals':
-          navigateToDrawer(navigation, 'Approvals', 'ApprovalsHome');
+        case 'qa_attendance_report':
+          navigateToTab(navigation, 'Students', 'AttendanceReport');
           break;
         case 'qa_attendance':
           navigateToDrawer(navigation, 'Academics', 'MarkAttendance');

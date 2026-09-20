@@ -48,6 +48,15 @@
                         <input type="text" name="chassis_number" id="chassis_number" class="form-control" value="{{ old('chassis_number') }}">
                     </div>
                     <div class="col-md-6">
+                        <label for="driver_name" class="form-label fw-semibold">Driver name (optional)</label>
+                        <input type="text" name="driver_name" id="driver_name" class="form-control" value="{{ old('driver_name') }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="photo" class="form-label fw-semibold">Vehicle photo</label>
+                        <input type="file" name="photo" id="photo" class="form-control" accept="image/*">
+                        <div class="form-text">Shown to parents on the transport assignment. JPEG or PNG.</div>
+                    </div>
+                    <div class="col-md-6">
                         <label for="insurance_document" class="form-label fw-semibold">Insurance Document</label>
                         <input type="file" name="insurance_document" id="insurance_document" class="form-control">
                     </div>

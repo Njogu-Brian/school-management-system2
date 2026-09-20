@@ -180,6 +180,66 @@ class AttendanceAnalyticsService
     }
 
     /**
+     * Consecutive absence counts for a set of students as of a date.
+     * Counts back over school days and stops at present, late, or unmarked.
+     *
+     * @param  Collection<int, Student>  $students
+     * @return array<int, int>  student_id => count
+     */
+    public function consecutiveCountsForStudents(Collection $students, $asOfDate = null): array
+    {
+        if ($students->isEmpty()) {
+            return [];
+        }
+
+        $asOf = $asOfDate ? Carbon::parse($asOfDate)->startOfDay() : Carbon::today();
+        $from = $asOf->copy()->subDays(45);
+
+        $ids = $students->pluck('id')->all();
+        $rows = Attendance::query()
+            ->whereIn('student_id', $ids)
+            ->whereBetween('date', [$from->toDateString(), $asOf->toDateString()])
+            ->get(['student_id', 'date', 'status']);
+
+        $byStudent = [];
+        foreach ($rows as $row) {
+            $day = Carbon::parse($row->date)->toDateString();
+            $byStudent[$row->student_id][$day] = $row->status;
+        }
+
+        $schoolDays = [];
+        for ($d = $asOf->copy(); $d->gte($from); $d->subDay()) {
+            if ($this->attendanceCalendar->isValidSchoolDay($d->toDateString())) {
+                $schoolDays[] = $d->toDateString();
+            }
+        }
+
+        $counts = [];
+        foreach ($students as $student) {
+            $floor = $this->attendanceCalendar->effectiveEnrolmentDate($student);
+            $floorDate = $floor ? $floor->toDateString() : null;
+            $map = $byStudent[$student->id] ?? [];
+            $consecutive = 0;
+
+            foreach ($schoolDays as $day) {
+                if ($floorDate && $day < $floorDate) {
+                    break;
+                }
+                $status = $map[$day] ?? null;
+                if ($status === 'absent') {
+                    $consecutive++;
+                    continue;
+                }
+                break;
+            }
+
+            $counts[(int) $student->id] = $consecutive;
+        }
+
+        return $counts;
+    }
+
+    /**
      * Get students with consecutive absences above threshold
      */
     public function getStudentsWithConsecutiveAbsences($threshold = 3, $classroomId = null, $streamId = null): Collection

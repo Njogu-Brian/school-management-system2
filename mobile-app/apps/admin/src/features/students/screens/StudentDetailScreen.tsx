@@ -23,6 +23,7 @@ import { ActivityIndicator, Pressable, Share, StyleSheet, Text } from 'react-nat
 import type { StudentsStackParamList } from '../../../navigation/studentsStackTypes';
 import { navigateToTab } from '../../../navigation/navigateWorkspace';
 import { showError } from '../../shared/utils/feedback';
+import { MpesaPromptSheet } from '../../finance/components/MpesaPromptSheet';
 import { AttendanceTab } from '../student360/tabs/AttendanceTab';
 import { DocumentsTab } from '../student360/tabs/DocumentsTab';
 import { FamilyTab } from '../student360/tabs/FamilyTab';
@@ -62,13 +63,30 @@ function summaryAsDetail(summary: StudentSummary): StudentDetail {
     guardians: [],
     emergencyContact: { name: null, phone: null },
     tripId: null,
+    tripName: null,
+    tripVehicle: null,
     dropOffPointId: null,
+    dropOffPointName: null,
     dropOffPointOther: null,
+    transportSummary: null,
+    transportMorning: null,
+    transportEvening: null,
     preferredHospital: null,
     hasAllergies: false,
     allergiesNotes: null,
     isFullyImmunized: null,
     bloodGroup: null,
+    religion: null,
+    nationality: null,
+    countyOfBirth: null,
+    subCountyOfBirth: null,
+    locationOfBirth: null,
+    birthCertificateEntryNo: null,
+    medicalCondition: null,
+    learnerInterests: [],
+    orphanStatus: null,
+    hasSpecialNeeds: false,
+    disabilityType: null,
     siblings: [],
   };
 }
@@ -79,6 +97,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const canViewAcademics = useCan('academics.view');
   const { colors, spacing } = useTheme();
   const [activeTab, setActiveTab] = useState<Student360TabId>(initialTab ?? 'overview');
+  const [promptOpen, setPromptOpen] = useState(false);
 
   const detailQuery = useStudentDetail(studentId);
   const statsQuery = useStudentStats(studentId);
@@ -99,23 +118,33 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     enabled: activeTab === 'attendance' || activeTab === 'overview',
   });
   const paymentLinkQuery = useStudentPaymentLink(studentId, {
-    enabled: canViewFees && activeTab === 'fees',
+    enabled: canViewFees && studentId > 0,
   });
 
   const sharePaymentLink = async () => {
-    const link = paymentLinkQuery.data;
-    if (!link?.url) {
-      showError('Payment link', 'No payment link is available for this student.');
-      return;
-    }
-    const studentName =
-      detailQuery.data?.fullName ?? summary?.fullName ?? 'Student';
-    const balance = formatKes(statementQuery.data?.closing_balance ?? link.amount);
-    const message = `School fees payment for ${studentName}\nBalance: ${balance}\nPay here: ${link.short_url ?? link.url}`;
     try {
+      const result = await paymentLinkQuery.refetch();
+      const err = result.error as { message?: string } | undefined;
+      if (err?.message) {
+        throw new Error(err.message);
+      }
+      const link = result.data;
+      if (!link?.url) {
+        throw new Error('Could not create a payment link for this student.');
+      }
+      const studentName =
+        detailQuery.data?.fullName ?? summary?.fullName ?? 'Student';
+      const balance = formatKes(statementQuery.data?.closing_balance ?? link.amount);
+      const message = `School fees payment for ${studentName}\nBalance: ${balance}\nPay here: ${link.short_url ?? link.url}`;
       await Share.share({ message, title: 'M-Pesa payment link' });
     } catch (err) {
-      showError('Share failed', (err as Error).message);
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err && 'message' in err
+            ? String((err as { message: string }).message)
+            : 'Could not load a payment link.';
+      showError('Payment link', message);
     }
   };
 
@@ -210,6 +239,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       case 'attendance':
         return (
           <AttendanceTab
+            studentId={studentId}
             isLoading={attendanceQuery.isLoading}
             isError={attendanceQuery.isError}
             onRetry={attendanceQuery.refetch}
@@ -219,6 +249,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             percentage={
               statsQuery.data?.attendance_percentage ?? attendanceQuery.summary.percentage
             }
+            consecutiveAbsences={statsQuery.data?.consecutive_absences}
             trend={attendanceQuery.trend}
           />
         );
@@ -258,6 +289,7 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             }
             onSharePaymentLink={() => void sharePaymentLink()}
             sharePaymentLinkLoading={paymentLinkQuery.isFetching}
+            onPromptParent={() => setPromptOpen(true)}
           />
         );
       case 'family':
@@ -294,6 +326,13 @@ export const StudentDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         </Pressable>
         {tabContent}
       </Student360Layout>
+      <MpesaPromptSheet
+        visible={promptOpen}
+        onClose={() => setPromptOpen(false)}
+        studentId={studentId}
+        studentName={student?.fullName ?? summary?.fullName ?? ''}
+        amount={statement?.closing_balance}
+      />
     </ScreenContainer>
   );
 };

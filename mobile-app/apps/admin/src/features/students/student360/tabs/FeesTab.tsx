@@ -18,6 +18,7 @@ export interface FeesTabProps {
   onPaymentPress?: (paymentId: number) => void;
   onSharePaymentLink?: () => void;
   sharePaymentLinkLoading?: boolean;
+  onPromptParent?: () => void;
 }
 
 export const FeesTab: React.FC<FeesTabProps> = ({
@@ -34,6 +35,7 @@ export const FeesTab: React.FC<FeesTabProps> = ({
   onPaymentPress,
   onSharePaymentLink,
   sharePaymentLinkLoading,
+  onPromptParent,
 }) => {
   const { palette, colors, spacing, typography } = useTheme();
 
@@ -80,24 +82,40 @@ export const FeesTab: React.FC<FeesTabProps> = ({
     <View>
       <StudentSummaryWidgets widgets={widgets} />
 
-      {onSharePaymentLink ? (
-        <Pressable
-          onPress={onSharePaymentLink}
-          disabled={sharePaymentLinkLoading}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            marginTop: spacing.sm,
-            marginBottom: spacing.md,
-            paddingVertical: spacing.sm,
-          }}
-        >
-          <Ionicons name="share-outline" size={18} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontWeight: '700' }}>
-            {sharePaymentLinkLoading ? 'Preparing link…' : 'Share payment link'}
-          </Text>
-        </Pressable>
+      {onSharePaymentLink || onPromptParent ? (
+        <View style={{ marginTop: spacing.sm, marginBottom: spacing.md, gap: 4 }}>
+          {onPromptParent ? (
+            <Pressable
+              onPress={onPromptParent}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                paddingVertical: spacing.sm,
+              }}
+            >
+              <Ionicons name="phone-portrait-outline" size={18} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>Prompt parent to pay</Text>
+            </Pressable>
+          ) : null}
+          {onSharePaymentLink ? (
+            <Pressable
+              onPress={onSharePaymentLink}
+              disabled={sharePaymentLinkLoading}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                paddingVertical: spacing.sm,
+              }}
+            >
+              <Ionicons name="share-outline" size={18} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>
+                {sharePaymentLinkLoading ? 'Preparing link…' : 'Share payment link'}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
 
       <Section title="Invoices" palette={palette} typography={typography} spacing={spacing}>

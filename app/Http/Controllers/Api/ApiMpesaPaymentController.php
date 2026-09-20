@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
-use App\Models\PaymentLink;
 use App\Models\PaymentTransaction;
 use App\Models\Student;
 use App\Services\PaymentGateways\MpesaGateway;
@@ -26,7 +25,8 @@ class ApiMpesaPaymentController extends Controller
         if (! $user) {
             abort(401);
         }
-        if ($user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+        if ($user->canViewStudentFeeAmounts() || $user->can('finance.view')
+            || $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
             return;
         }
         if ($user->hasAnyRole(['Parent', 'Guardian']) && $user->canAccessStudent($studentId)) {
@@ -161,36 +161,14 @@ class ApiMpesaPaymentController extends Controller
             if (! $user->canAccessStudent($student->id)) {
                 abort(403, 'You do not have access to this student.');
             }
-        } elseif (! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Finance Officer', 'Accountant'])) {
+        } elseif (! $user->canViewStudentFeeAmounts() && ! $user->can('finance.view')) {
             abort(403, 'You do not have permission to load payment links.');
         }
 
-        if ($student->family) {
-            $link = ensure_family_payment_link($student->family->id);
-        } else {
-            $link = PaymentLink::active()
-                ->where('student_id', $student->id)
-                ->orderByDesc('id')
-                ->first();
-
-            if (! $link) {
-                $balance = Invoice::where('student_id', $student->id)->get()->sum(fn ($inv) => max(0, (float) $inv->balance));
-                $balance = round($balance > 0 ? $balance : 0, 2);
-
-                $link = PaymentLink::create([
-                    'student_id' => $student->id,
-                    'invoice_id' => null,
-                    'family_id' => null,
-                    'amount' => $balance,
-                    'currency' => 'KES',
-                    'description' => 'School fee payment',
-                    'status' => 'active',
-                    'expires_at' => now()->addDays(90),
-                    'max_uses' => 999,
-                    'created_by' => Auth::id(),
-                    'metadata' => ['source' => 'api_mobile'],
-                ]);
-            }
+        $student->loadMissing('family');
+        $link = get_or_create_payment_link_for_student($student);
+        if (! $link && $student->family_id) {
+            $link = ensure_family_payment_link($student->family_id);
         }
 
         if (! $link) {
@@ -206,6 +184,8 @@ class ApiMpesaPaymentController extends Controller
                 'payment_link_id' => $link->id,
                 'url' => $link->getPaymentUrl(),
                 'short_url' => $link->getShortUrl(),
+                'amount' => (float) ($link->amount ?? 0),
+                'currency' => $link->currency ?? 'KES',
             ],
         ]);
     }

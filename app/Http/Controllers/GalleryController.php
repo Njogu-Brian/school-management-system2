@@ -3,11 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\GalleryImage;
+use App\Services\ImageOptimizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 
 class GalleryController extends Controller
 {
+    public function __construct(private ImageOptimizer $imageOptimizer)
+    {
+    }
+
     /**
      * Public gallery page with slideshow
      */
@@ -38,6 +43,8 @@ class GalleryController extends Controller
         foreach ($request->file('images') as $file) {
             $filename = time() . '_' . uniqid() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
             $file->move($targetDir, $filename);
+            // Gallery images are shown in a slideshow, so 1600px wide is ample.
+            $this->imageOptimizer->optimize($targetDir . DIRECTORY_SEPARATOR . $filename, 1600, 1200);
             GalleryImage::create([
                 'filename'   => $filename,
                 'sort_order' => ++$maxOrder,

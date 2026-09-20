@@ -8,6 +8,7 @@ export type ParentHomeActionId =
   | 'transport'
   | 'diary'
   | 'homework'
+  | 'requirements'
   | 'academic'
   | 'fees'
   | 'notifications'
@@ -43,7 +44,8 @@ export type ParentHomeActionDef = {
     | 'people-outline'
     | 'megaphone-outline'
     | 'alert-circle-outline'
-    | 'sparkles-outline';
+    | 'sparkles-outline'
+    | 'clipboard-outline';
   jump: ParentHomeJump;
 };
 
@@ -110,6 +112,19 @@ export const PARENT_HOME_CORE_ACTIONS: ParentHomeActionDef[] = [
     jump: {
       tab: 'ParentHomeTab',
       screen: 'ChildHomework',
+      tabHome: 'ParentHome',
+      requiresStudentId: true,
+    },
+  },
+  {
+    // Parents need this on Home, not two taps deep in the child hub: it drives
+    // what they have to buy or bring in for the term.
+    id: 'requirements',
+    label: 'Requirements',
+    icon: 'clipboard-outline',
+    jump: {
+      tab: 'ParentHomeTab',
+      screen: 'ChildRequirements',
       tabHome: 'ParentHome',
       requiresStudentId: true,
     },

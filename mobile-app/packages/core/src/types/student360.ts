@@ -4,6 +4,7 @@ export interface StudentStatsRecord {
   expected_school_days?: number;
   attendance_records_count?: number;
   attendance_days_marked?: number;
+  consecutive_absences?: number;
   /** Currently due fees (term started / due_date reached). */
   fees_balance?: number;
   fees_due?: number;

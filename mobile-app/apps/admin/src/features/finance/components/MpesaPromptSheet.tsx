@@ -17,7 +17,8 @@ export interface MpesaPromptSheetProps {
   onClose: () => void;
   studentId: number;
   studentName: string;
-  invoice: InvoiceDetailRecord;
+  invoice?: InvoiceDetailRecord | null;
+  amount?: number;
 }
 
 export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
@@ -26,6 +27,7 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
   studentId,
   studentName,
   invoice,
+  amount: amountOverride,
 }) => {
   const { palette, spacing, typography, radius } = useTheme();
   const [phone, setPhone] = useState('');
@@ -46,9 +48,14 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
     if (!visible) return;
     setPhone('');
     setShareSiblings(false);
-  }, [visible, invoice.id]);
+  }, [visible, invoice?.id]);
 
-  const amount = invoice.balance > 0 ? invoice.balance : 0;
+  const amount =
+    amountOverride != null && amountOverride > 0
+      ? amountOverride
+      : invoice && invoice.balance > 0
+        ? invoice.balance
+        : 0;
 
   const submit = async (phoneNumber: string) => {
     if (!phoneNumber.trim()) {
@@ -56,7 +63,7 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
       return;
     }
     if (amount <= 0) {
-      showError('Nothing to pay', 'This invoice has no outstanding balance.');
+      showError('Nothing to pay', 'This student has no outstanding balance.');
       return;
     }
 
@@ -65,7 +72,7 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
       const payload: Parameters<typeof studentsApi.promptMpesa>[1] = {
         phone_number: phoneNumber.trim(),
         amount,
-        invoice_id: shareSiblings ? null : invoice.id,
+        invoice_id: shareSiblings || !invoice?.id ? null : invoice.id,
         share_with_siblings: shareSiblings && siblings.length > 0,
       };
 
@@ -128,7 +135,9 @@ export const MpesaPromptSheet: React.FC<MpesaPromptSheetProps> = ({
               Prompt parent to pay
             </Text>
             <Text style={{ color: palette.textSub, marginTop: spacing.xs, marginBottom: spacing.md }}>
-              {invoice.invoice_number} · Balance {amount.toLocaleString('en-KE')} KES
+              {invoice?.invoice_number
+                ? `${invoice.invoice_number} · Balance ${amount.toLocaleString('en-KE')} KES`
+                : `Outstanding ${amount.toLocaleString('en-KE')} KES`}
             </Text>
 
             <TextField

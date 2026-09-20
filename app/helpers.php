@@ -90,12 +90,27 @@ if (!function_exists('system_setting_set')) {
  * Directory where branding images (logo, login background) are stored.
  * When PUBLIC_WEB_ROOT is set (split deployment), returns that path + /images.
  * Otherwise returns public_path('images').
+ *
+ * PUBLIC_WEB_ROOT is meant to be the web root, so that this path stays the
+ * filesystem counterpart of the "/images/<file>" URL that public_image_url()
+ * builds. Pointing it at the images directory itself instead produced
+ * public/images/images/, where uploads landed but no URL could reach them — the
+ * logo simply 404'd with nothing in the logs. An already-correct trailing
+ * "images" segment is therefore treated as the target rather than doubled.
  */
 if (!function_exists('public_images_path')) {
     function public_images_path(string $subpath = ''): string {
-        $base = config('app.public_web_root')
-            ? rtrim(config('app.public_web_root'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'images'
-            : public_path('images');
+        $root = config('app.public_web_root');
+
+        if ($root) {
+            $root = rtrim(str_replace('/', DIRECTORY_SEPARATOR, $root), DIRECTORY_SEPARATOR);
+            $base = basename($root) === 'images'
+                ? $root
+                : $root . DIRECTORY_SEPARATOR . 'images';
+        } else {
+            $base = public_path('images');
+        }
+
         return $subpath !== '' ? $base . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $subpath), DIRECTORY_SEPARATOR) : $base;
     }
 }
@@ -1314,7 +1329,15 @@ if (!function_exists('storage_private')) {
  * - S3 (private buckets / Block Public Access): returns a temporary signed URL
  */
 if (!function_exists('storage_public_url')) {
-    function storage_public_url(?string $path, int $minutes = 10): ?string
+    /**
+     * Public assets (student/staff photos, branding) default to a long window so
+     * the URL stays cacheable. At the previous 10 minutes, the signature changed
+     * on every API response, so the same photo arrived under a different URI each
+     * time and no image cache — browser, React Native, or CDN — could ever hit.
+     * It also outlived nothing: mobile persists API responses for 24 hours, so
+     * cached avatar URLs were already dead on arrival.
+     */
+    function storage_public_url(?string $path, int $minutes = 10080): ?string
     {
         if (!$path) {
             return null;
@@ -1343,6 +1366,9 @@ if (!function_exists('storage_private_url')) {
  * This avoids exposing extremely long S3 pre-signed URLs to users.
  */
 if (!function_exists('media_signed_url')) {
+    /** Upper bound on any signed media window, in minutes (30 days). */
+    define('MEDIA_SIGNED_URL_MAX_MINUTES', 43200);
+
     function media_signed_url(string $diskName, string $path, int $minutes = 10): ?string
     {
         $path = str_replace('\\', '/', $path);
@@ -1354,11 +1380,27 @@ if (!function_exists('media_signed_url')) {
         // base64url encode the path to keep route segments safe.
         $encoded = rtrim(strtr(base64_encode($path), '+/', '-_'), '=');
 
+        $minutes = max(1, min($minutes, MEDIA_SIGNED_URL_MAX_MINUTES));
+        $ttl = $minutes * 60;
+
+        // Snap the expiry to a fixed grid instead of `now() + ttl`.
+        //
+        // This is what makes the URL cacheable: every call for the same path
+        // inside a window produces a byte-identical URL, so clients reuse their
+        // cached copy. With a moving `now()` the signature changed on every
+        // request and each render re-downloaded the image and re-hit PHP.
+        //
+        // Remaining validity therefore ranges from one to two full windows,
+        // never less — so a URL handed out at the end of a window does not
+        // expire moments later.
+        $windowStart = intdiv(time(), $ttl) * $ttl;
+        $expiresAt = \Illuminate\Support\Carbon::createFromTimestampUTC($windowStart + (2 * $ttl));
+
         // Pass requested minutes as query param so controller can match expiry.
         return \Illuminate\Support\Facades\URL::temporarySignedRoute(
             'media.signed',
-            now()->addMinutes(max(1, min($minutes, 60))),
-            ['disk' => $diskName, 'encodedPath' => $encoded, 'm' => max(1, min($minutes, 60))]
+            $expiresAt,
+            ['disk' => $diskName, 'encodedPath' => $encoded, 'm' => $minutes]
         );
     }
 }

@@ -8,8 +8,10 @@ use App\Models\AttendanceReasonCode;
 use App\Models\CommunicationLog;
 use App\Models\CommunicationTemplate;
 use App\Models\Student;
+use App\Services\AttendanceAnalyticsService;
 use App\Services\SMSService;
 use App\Services\StudentAttendanceCalendarService;
+use App\Services\StudentSearchService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -103,6 +105,327 @@ class ApiAttendanceController extends Controller
             ->get(['id', 'code', 'name', 'requires_excuse', 'is_medical']);
 
         return response()->json(['success' => true, 'data' => $codes]);
+    }
+
+    /**
+     * School-day attendance report: present / absent / late / unmarked for a date.
+     */
+    public function report(Request $request, AttendanceAnalyticsService $analytics)
+    {
+        $request->validate([
+            'date' => 'required|date',
+            'status' => 'nullable|in:all,present,absent,late,unmarked',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'search' => 'nullable|string|max:120',
+            'per_page' => 'nullable|integer|min:10|max:100',
+        ]);
+
+        $date = Carbon::parse($request->date)->toDateString();
+        $statusFilter = $request->input('status', 'all') ?: 'all';
+        $perPage = (int) $request->input('per_page', 30);
+        $user = $request->user();
+
+        $studentQuery = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false);
+
+        if ($request->filled('classroom_id')) {
+            $studentQuery->where('classroom_id', (int) $request->classroom_id);
+        }
+        if ($request->filled('stream_id')) {
+            $studentQuery->where('stream_id', (int) $request->stream_id);
+        }
+        if ($request->filled('search')) {
+            app(StudentSearchService::class)->applySearch($studentQuery, (string) $request->search);
+        }
+        if ($user && $user->hasTeacherLikeRole()) {
+            $user->applyTeacherStudentFilter($studentQuery);
+        }
+
+        $allIds = (clone $studentQuery)->pluck('id');
+        $total = $allIds->count();
+
+        $marks = $allIds->isEmpty()
+            ? collect()
+            : Attendance::query()
+                ->whereDate('date', $date)
+                ->whereIn('student_id', $allIds)
+                ->orderByDesc('id')
+                ->get(['id', 'student_id', 'status', 'reason', 'reason_code_id', 'is_excused', 'excuse_notes'])
+                ->unique('student_id')
+                ->keyBy('student_id');
+
+        $present = $marks->where('status', 'present')->count();
+        $absent = $marks->where('status', 'absent')->count();
+        $late = $marks->where('status', 'late')->count();
+        $unmarked = max(0, $total - $marks->count());
+
+        $filteredIds = $allIds;
+        if ($statusFilter === 'present') {
+            $filteredIds = $marks->where('status', 'present')->keys();
+        } elseif ($statusFilter === 'absent') {
+            $filteredIds = $marks->where('status', 'absent')->keys();
+        } elseif ($statusFilter === 'late') {
+            $filteredIds = $marks->where('status', 'late')->keys();
+        } elseif ($statusFilter === 'unmarked') {
+            $filteredIds = $allIds->diff($marks->keys())->values();
+        }
+
+        $pageQuery = Student::query()
+            ->with(['classroom', 'stream'])
+            ->whereIn('id', $filteredIds)
+            ->orderBy('first_name');
+
+        $paginated = $pageQuery->paginate($perPage);
+        $pageStudents = $paginated->getCollection();
+        $consecutive = $analytics->consecutiveCountsForStudents($pageStudents, $date);
+
+        $rows = $pageStudents->map(function (Student $s) use ($marks, $consecutive) {
+            $mark = $marks->get($s->id);
+            $status = $mark->status ?? 'unmarked';
+
+            return [
+                'student_id' => $s->id,
+                'full_name' => trim(($s->first_name ?? '').' '.($s->middle_name ?? '').' '.($s->last_name ?? '')),
+                'admission_number' => $s->admission_number ?? '',
+                'classroom_id' => $s->classroom_id,
+                'classroom_name' => $s->classroom->name ?? null,
+                'stream_id' => $s->stream_id,
+                'stream_name' => $s->stream->name ?? null,
+                'status' => $status,
+                'reason' => $mark->reason ?? null,
+                'reason_code_id' => $mark->reason_code_id ?? null,
+                'is_excused' => (bool) ($mark->is_excused ?? false),
+                'excuse_notes' => $mark->excuse_notes ?? null,
+                'consecutive_absences' => (int) ($consecutive[$s->id] ?? 0),
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'date' => $date,
+                'is_school_day' => $this->attendanceCalendar->isValidSchoolDay($date),
+                'is_future' => Carbon::parse($date)->isFuture(),
+                'summary' => [
+                    'total' => $total,
+                    'present' => $present,
+                    'absent' => $absent,
+                    'late' => $late,
+                    'unmarked' => $unmarked,
+                ],
+                'data' => $rows,
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+                'from' => $paginated->firstItem(),
+                'to' => $paginated->lastItem(),
+            ],
+        ]);
+    }
+
+    /**
+     * Students with consecutive absences at or above a threshold.
+     */
+    public function consecutive(Request $request, AttendanceAnalyticsService $analytics)
+    {
+        $request->validate([
+            'date' => 'nullable|date',
+            'threshold' => 'nullable|integer|min:1|max:30',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'search' => 'nullable|string|max:120',
+            'per_page' => 'nullable|integer|min:10|max:100',
+        ]);
+
+        $date = $request->filled('date')
+            ? Carbon::parse($request->date)->toDateString()
+            : Carbon::today()->toDateString();
+        $threshold = (int) $request->input('threshold', 3);
+        $perPage = (int) $request->input('per_page', 30);
+        $user = $request->user();
+
+        $studentQuery = Student::query()
+            ->with(['classroom', 'stream'])
+            ->where('archive', 0)
+            ->where('is_alumni', false);
+
+        if ($request->filled('classroom_id')) {
+            $studentQuery->where('classroom_id', (int) $request->classroom_id);
+        }
+        if ($request->filled('stream_id')) {
+            $studentQuery->where('stream_id', (int) $request->stream_id);
+        }
+        if ($request->filled('search')) {
+            app(StudentSearchService::class)->applySearch($studentQuery, (string) $request->search);
+        }
+        if ($user && $user->hasTeacherLikeRole()) {
+            $user->applyTeacherStudentFilter($studentQuery);
+        }
+
+        $students = $studentQuery->orderBy('first_name')->get();
+        $counts = $analytics->consecutiveCountsForStudents($students, $date);
+
+        $matched = $students
+            ->filter(fn (Student $s) => ($counts[$s->id] ?? 0) >= $threshold)
+            ->sortByDesc(fn (Student $s) => $counts[$s->id] ?? 0)
+            ->values();
+
+        $total = $matched->count();
+        $page = max(1, (int) $request->input('page', 1));
+        $slice = $matched->slice(($page - 1) * $perPage, $perPage)->values();
+
+        $todayMarks = $slice->isEmpty()
+            ? collect()
+            : Attendance::query()
+                ->whereDate('date', $date)
+                ->whereIn('student_id', $slice->pluck('id'))
+                ->orderByDesc('id')
+                ->get(['student_id', 'status'])
+                ->unique('student_id')
+                ->keyBy('student_id');
+
+        $rows = $slice->map(function (Student $s) use ($counts, $todayMarks) {
+            $mark = $todayMarks->get($s->id);
+
+            return [
+                'student_id' => $s->id,
+                'full_name' => trim(($s->first_name ?? '').' '.($s->middle_name ?? '').' '.($s->last_name ?? '')),
+                'admission_number' => $s->admission_number ?? '',
+                'classroom_id' => $s->classroom_id,
+                'classroom_name' => $s->classroom->name ?? null,
+                'stream_id' => $s->stream_id,
+                'stream_name' => $s->stream->name ?? null,
+                'status' => $mark->status ?? 'unmarked',
+                'consecutive_absences' => (int) ($counts[$s->id] ?? 0),
+            ];
+        })->values();
+
+        $lastPage = max(1, (int) ceil($total / $perPage));
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'date' => $date,
+                'threshold' => $threshold,
+                'data' => $rows,
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'from' => $total === 0 ? null : (($page - 1) * $perPage) + 1,
+                'to' => $total === 0 ? null : min($page * $perPage, $total),
+            ],
+        ]);
+    }
+
+    /**
+     * Mark attendance for arbitrary students (report screen).
+     * Request: { date, records: [{ student_id, status, ... }] }
+     */
+    public function markStudents(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+            'records' => 'required|array|min:1|max:200',
+            'records.*.student_id' => 'required|integer|exists:students,id',
+            'records.*.status' => 'required|in:present,absent,late,unmarked',
+            'records.*.reason_code_id' => 'nullable|integer|exists:attendance_reason_codes,id',
+            'records.*.reason' => 'nullable|string|max:500',
+            'records.*.excuse_notes' => 'nullable|string|max:1000',
+        ]);
+
+        $date = Carbon::parse($request->date)->toDateString();
+        $user = $request->user();
+        $isToday = Carbon::parse($date)->isToday();
+
+        if ($user && $user->isAcademicAdministratorUser()) {
+            return response()->json(['success' => false, 'message' => 'Academic administrators cannot mark attendance.'], 403);
+        }
+
+        if (Carbon::parse($date)->isFuture()) {
+            return response()->json(['success' => false, 'message' => 'Cannot mark attendance for a future date.'], 422);
+        }
+
+        $hasNonUnmark = collect($request->input('records', []))->contains(
+            fn ($rec) => ($rec['status'] ?? '') !== 'unmarked'
+        );
+        if ($hasNonUnmark && ! $this->attendanceCalendar->isValidSchoolDay($date)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Attendance cannot be recorded on this date (weekend, holiday, or other non-school day).',
+            ], 422);
+        }
+
+        $ids = collect($request->input('records', []))->pluck('student_id')->map(fn ($id) => (int) $id)->unique()->values();
+        $query = Student::whereIn('id', $ids)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->with('parent');
+        if ($user && $user->hasTeacherLikeRole()) {
+            if ($user->shouldRestrictToHomeroomDuties()) {
+                $user->applyHomeroomStudentFilter($query);
+            } else {
+                $user->applyTeacherStudentFilter($query);
+            }
+        }
+        $students = $query->get()->keyBy('id');
+        if ($students->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'No matching students were found.'], 422);
+        }
+
+        $count = 0;
+        DB::transaction(function () use ($request, $date, $user, $isToday, $students, &$count) {
+            foreach ($request->records as $rec) {
+                $student = $students->get((int) $rec['student_id']);
+                if (! $student) {
+                    continue;
+                }
+
+                $status = $rec['status'];
+                if ($status !== 'unmarked' && ! $this->attendanceCalendar->canMarkAttendanceForDate($student, $date)) {
+                    continue;
+                }
+
+                if ($status === 'unmarked') {
+                    Attendance::where('student_id', $student->id)->whereDate('date', $date)->forceDelete();
+                    $count++;
+                    continue;
+                }
+
+                $attendance = Attendance::firstOrNew([
+                    'student_id' => $student->id,
+                    'date' => $date,
+                ]);
+                $attendance->status = $status;
+                $this->applyReasonToAttendance($attendance, $status, is_array($rec) ? $rec : []);
+                $attendance->marked_by = $user->id;
+                $attendance->marked_at = now();
+                $attendance->save();
+                $count++;
+
+                if ($status === 'absent' && $isToday && $student->parent) {
+                    $this->notifyParentAbsent($student, $attendance->reason);
+                    try {
+                        app(\App\Services\ParentAppNotifyService::class)->notifyChildAbsent($student);
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'message' => $count === 1
+                    ? 'Attendance updated for 1 student.'
+                    : "Attendance updated for {$count} students.",
+                'count' => $count,
+            ],
+        ]);
     }
 
     /**
