@@ -92,26 +92,27 @@ class KemisProfile
         return ['selected' => $selected, 'other' => $other];
     }
 
-    public static function studentKemisValidationRules(string $prefix = ''): array
+    public static function studentKemisValidationRules(string $prefix = '', bool $required = true): array
     {
         $p = $prefix === '' ? '' : rtrim($prefix, '.').'.';
         $religionPath = $p === '' ? 'religion' : $p.'religion';
         $snePath = $p === '' ? 'has_special_needs' : $p.'has_special_needs';
+        $presence = $required ? 'required' : 'nullable';
 
         return [
-            $p.'nationality' => ['required', 'string', 'max:100', Rule::in(config('kemis.nationalities', []))],
-            $p.'county_of_birth' => ['required', 'string', 'max:100', Rule::in(config('kemis.counties', []))],
-            $p.'sub_county_of_birth' => 'required|string|max:120',
-            $p.'location_of_birth' => 'required|string|max:150',
-            $p.'birth_certificate_entry_no' => 'required|string|max:80',
+            $p.'nationality' => [$presence, 'string', 'max:100', Rule::in(config('kemis.nationalities', []))],
+            $p.'county_of_birth' => [$presence, 'string', 'max:100', Rule::in(config('kemis.counties', []))],
+            $p.'sub_county_of_birth' => $presence.'|string|max:120',
+            $p.'location_of_birth' => $presence.'|string|max:150',
+            $p.'birth_certificate_entry_no' => $presence.'|string|max:80',
             $p.'medical_condition' => 'nullable|string|max:255',
-            $p.'religion' => ['required', 'string', 'max:255'],
+            $p.'religion' => [$presence, 'string', 'max:255'],
             $p.'religion_other' => 'nullable|required_if:'.$religionPath.',Other|string|max:255',
             $p.'learner_interests' => 'nullable|array',
             $p.'learner_interests.*' => 'nullable|string|max:100',
             $p.'learner_interests_other' => 'nullable|string|max:100',
-            $p.'orphan_status' => ['required', Rule::in(array_keys(config('kemis.orphan_statuses', [])))],
-            $p.'has_special_needs' => 'required|boolean',
+            $p.'orphan_status' => [$presence, Rule::in(array_keys(config('kemis.orphan_statuses', [])))],
+            $p.'has_special_needs' => ($required ? 'required' : 'nullable').'|boolean',
             $p.'disability_type' => ['nullable', 'required_if:'.$snePath.',1', 'string', 'max:100', Rule::in(config('kemis.disability_types', []))],
         ];
     }
@@ -335,13 +336,15 @@ class KemisProfile
      *
      * @return array<string, mixed>
      */
-    public static function sharedContactValidationRules(): array
+    public static function sharedContactValidationRules(bool $required = true): array
     {
+        $presence = $required ? 'required' : 'nullable';
+
         return [
-            'residential_area' => 'required|string|max:255',
-            'emergency_contact_name' => 'required|string|max:255',
-            'emergency_contact_phone' => ['required', 'string', 'max:80', 'regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
-            'preferred_hospital' => 'required|string|max:255',
+            'residential_area' => $presence.'|string|max:255',
+            'emergency_contact_name' => $presence.'|string|max:255',
+            'emergency_contact_phone' => [$presence, 'string', 'max:80'],
+            'preferred_hospital' => $presence.'|string|max:255',
         ];
     }
 

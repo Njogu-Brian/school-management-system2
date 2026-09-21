@@ -4,21 +4,39 @@ import {
   hasPinUnlockAvailable,
   API_BASE_URL,
   APP_SURFACE,
+  PRODUCT,
+  PRODUCT_WEBSITE_URL,
   authApi,
+  apiClient,
+  isCombinedApp,
   useAuth,
   useBiometricAuth,
   useBranding,
+  useSchoolOptional,
 } from '@erp/core';
-import { Button, ForgotPasswordForm, ScreenContainer, Soft3DIcon, useAdaptiveLayout, useTheme } from '@erp/ui';
+import {
+  Button,
+  ChangeSchoolLink,
+  EdulynkMark,
+  ForgotPasswordForm,
+  KeyboardScrollProvider,
+  ScreenContainer,
+  Soft3DIcon,
+  useAdaptiveLayout,
+  useEnsureInputVisible,
+  useKeyboardHeight,
+  useTheme,
+} from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -26,6 +44,7 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollView as ScrollViewType,
   type TextInputProps,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,7 +81,10 @@ export const LoginScreen: React.FC = () => {
   const { colors, spacing, typography, radius } = useTheme();
   const insets = useSafeAreaInsets();
   const { isTablet, formMaxWidth } = useAdaptiveLayout();
-  const combined = APP_SURFACE === 'combined';
+  const scrollRef = useRef<ScrollViewType>(null);
+  const keyboardHeight = useKeyboardHeight();
+  const combined = isCombinedApp() || APP_SURFACE === 'combined';
+  const schoolCtx = useSchoolOptional();
   const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading, branding, colorOverrides } =
     useBranding();
 
@@ -126,7 +148,7 @@ export const LoginScreen: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const base = API_BASE_URL.replace(/\/$/, '');
+        const base = (apiClient.getBaseURL() || API_BASE_URL).replace(/\/$/, '');
         const res = await fetch(`${base}/public/announcements?limit=5`);
         const json = (await res.json()) as {
           success?: boolean;
@@ -142,7 +164,7 @@ export const LoginScreen: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [schoolCtx?.school?.apiBaseUrl]);
 
   const busy = submitting || biometricSubmitting;
   const canPasswordSubmit = identifier.trim().length > 0 && password.length > 0 && !busy;
@@ -151,7 +173,7 @@ export const LoginScreen: React.FC = () => {
   const showBackground = Boolean(loginBackgroundUrl) && !bgFailed;
   const canQuickUnlock = (unlockAvailable && !isLocked) || pinAvailable;
   const showQuick = unlockSurface === 'quick' && canQuickUnlock;
-  const showPinOnly = unlockSurface === 'pin' && pinAvailable;
+  const showPinOnly = unlockSurface === 'pin';
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -163,8 +185,11 @@ export const LoginScreen: React.FC = () => {
 
   const gradientStops = useMemo((): [string, string, string] => {
     const primary = branding?.colors?.primary ?? colorOverrides.primary ?? colors.primary;
+    if (combined) {
+      return [primary, PRODUCT.colors.navy, PRODUCT.colors.navyDeep];
+    }
     return [primary, '#003366', '#0c1018'];
-  }, [branding?.colors, colorOverrides.primary, colors.primary]);
+  }, [branding?.colors, colorOverrides.primary, colors.primary, combined]);
 
   const handlePasswordSubmit = async (): Promise<void> => {
     if (!canPasswordSubmit) return;
@@ -199,17 +224,19 @@ export const LoginScreen: React.FC = () => {
     if (isLocked) {
       showError(
         'Biometric sign-in locked',
-        'Sign in with your email and password. You can use biometrics again after a successful sign-in.',
+        'Sign in with your password or PIN. You can use biometrics again after a successful sign-in.',
       );
-      setUnlockSurface('password');
       return;
     }
     try {
       await unlock();
     } catch (err) {
+      const name = err instanceof Error ? err.name : '';
+      if (name === 'BiometricCancelledError') {
+        return;
+      }
       showError('Unlock failed', err instanceof Error ? err.message : 'Biometric unlock failed.');
       await refreshBiometric();
-      setUnlockSurface(pinAvailable ? 'pin' : 'password');
     }
   };
 
@@ -329,6 +356,12 @@ export const LoginScreen: React.FC = () => {
             loading={submitting}
             disabled={!canPasswordSubmit}
           />
+          <Pressable
+            onPress={() => setUnlockSurface('pin')}
+            style={{ marginTop: spacing.md, alignItems: 'center' }}
+          >
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Sign in with PIN</Text>
+          </Pressable>
         </>
       ) : (
         <>
@@ -546,6 +579,8 @@ export const LoginScreen: React.FC = () => {
           <PinUnlockPanel
             variant="onDark"
             onUsePassword={() => setUnlockSurface('password')}
+            identifier={identifier}
+            onIdentifierChange={setIdentifier}
           />
           {unlockAvailable && !isLocked ? (
             <Pressable
@@ -647,6 +682,7 @@ export const LoginScreen: React.FC = () => {
           </Text>
         </Pressable>
       ) : null}
+      {combined ? <ChangeSchoolLink onDark /> : null}
     </View>
   );
 
@@ -668,6 +704,10 @@ export const LoginScreen: React.FC = () => {
           style={{ width: 72, height: 72, borderRadius: 18, marginBottom: spacing.md, backgroundColor: '#fff' }}
           onError={() => setLogoFailed(true)}
         />
+      ) : combined ? (
+        <View style={{ marginBottom: spacing.md }}>
+          <EdulynkMark size={72} variant="white" />
+        </View>
       ) : (
         <View
           style={{
@@ -708,26 +748,49 @@ export const LoginScreen: React.FC = () => {
         }}
       >
         <Text style={{ color: '#93c5fd', fontWeight: '800', fontSize: typography.caption.fontSize, letterSpacing: 0.6 }}>
-          {combined ? 'SCHOOL' : 'USERS'}
+          {combined ? 'EDULYNK' : 'USERS'}
         </Text>
       </View>
       <Text style={{ color: 'rgba(255,255,255,0.78)', fontSize: typography.bodyLarge.fontSize, marginTop: spacing.sm }}>
         {combined ? 'Admin · Staff · Parents · Students' : 'Parents · Teachers · Students · Drivers'}
       </Text>
+      {combined ? (
+        <Pressable
+          onPress={() => void Linking.openURL(PRODUCT_WEBSITE_URL)}
+          accessibilityRole="link"
+          style={{ marginTop: spacing.sm }}
+        >
+          <Text style={{ color: PRODUCT.colors.cyan, fontWeight: '700', fontSize: typography.caption.fontSize }}>
+            {PRODUCT.websiteHost}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 
   const content = (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={{ minHeight: 280 }}>{hero}</View>
-        {sheet}
-      </ScrollView>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+    >
+      <KeyboardScrollProvider scrollRef={scrollRef}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingBottom: Math.max(insets.bottom, 16) + keyboardHeight,
+          }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ minHeight: keyboardHeight > 0 ? 72 : 280 }}>{hero}</View>
+          {sheet}
+        </ScrollView>
+      </KeyboardScrollProvider>
     </KeyboardAvoidingView>
   );
 
@@ -795,6 +858,7 @@ function DarkField({
 } & TextInputProps) {
   const { spacing, typography, radius } = useTheme();
   const [focused, setFocused] = useState(false);
+  const ensureVisible = useEnsureInputVisible();
   return (
     <View style={{ marginBottom: spacing.md }}>
       <Text
@@ -827,6 +891,7 @@ function DarkField({
           onFocus={(e) => {
             setFocused(true);
             props.onFocus?.(e);
+            requestAnimationFrame(() => ensureVisible?.());
           }}
           onBlur={(e) => {
             setFocused(false);

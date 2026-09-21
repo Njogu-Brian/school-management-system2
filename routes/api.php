@@ -26,6 +26,8 @@ Route::post('/login', [AuthApiController::class, 'login']);
 Route::post('/login/google', [AuthApiController::class, 'loginWithGoogle']);
 Route::post('/login/otp/request', [AuthApiController::class, 'requestLoginOtp']);
 Route::post('/login/otp/verify', [AuthApiController::class, 'verifyLoginOtp']);
+Route::post('/login/pin', [AuthApiController::class, 'loginWithPin'])->middleware('throttle:8,1');
+Route::post('/login/biometric', [AuthApiController::class, 'loginWithBiometric'])->middleware('throttle:8,1');
 Route::post('/password/email', [AuthApiController::class, 'requestPasswordResetEmailLink']);
 Route::post('/password/sms-link', [AuthApiController::class, 'requestPasswordResetSmsLink']);
 Route::post('/password/otp', [AuthApiController::class, 'requestPasswordResetOtp']);
@@ -205,6 +207,10 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\TouchLastSeen::class])->
     Route::post('/parent-wallet/saving-plans/{id}/pay-now', [\App\Http\Controllers\Api\ApiParentWalletController::class, 'paySavingPlanNow']);
 
     Route::post('/password/change', [ApiAccountController::class, 'changePassword']);
+    Route::put('/account/unlock-pin', [ApiAccountController::class, 'setUnlockPin']);
+    Route::delete('/account/unlock-pin', [ApiAccountController::class, 'clearUnlockPin']);
+    Route::put('/account/biometric-unlock', [ApiAccountController::class, 'registerBiometricUnlock']);
+    Route::delete('/account/biometric-unlock', [ApiAccountController::class, 'revokeBiometricUnlock']);
     Route::get('/users/password-change-targets', [\App\Http\Controllers\Api\ApiForcePasswordChangeController::class, 'targets']);
     Route::post('/users/require-password-change', [\App\Http\Controllers\Api\ApiForcePasswordChangeController::class, 'requireChange']);
     Route::post('/device-tokens', [\App\Http\Controllers\Api\ApiDeviceTokenController::class, 'store']);

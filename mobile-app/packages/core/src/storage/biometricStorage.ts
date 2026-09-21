@@ -1,21 +1,37 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 import * as LocalAuthentication from 'expo-local-authentication';
-import * as SecureStore from 'expo-secure-store';
 import { ASYNC_KEYS, BIOMETRIC_SECURE_KEYS } from './keys';
-
-const SECURE_OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-};
+import { deleteKeychainItem, getKeychainItem, setKeychainItem } from './keychain';
 
 export const BIOMETRIC_MAX_FAILURES = 5;
 
-/** Session + optional password credentials used to re-authenticate after logout. */
+/**
+ * Device-local biometric unlock. Face ID / fingerprint never leave this phone.
+ * `selector` + `secret` are stored in this device's keychain and registered on the
+ * server so a fresh session can be issued after logout or expiry — without PIN or password.
+ */
 export type BiometricAuthBundle = {
-  token: string;
+  selector: string;
+  secret: string;
   userId?: number;
   identifier?: string;
-  password?: string;
 };
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export async function generateBiometricUnlockPair(): Promise<{ selector: string; secret: string }> {
+  const bytes = await Crypto.getRandomBytesAsync(32);
+  const hex = bytesToHex(bytes);
+  return {
+    selector: hex.slice(0, 32),
+    secret: hex,
+  };
+}
 
 /** Device has biometric hardware and the user has enrolled biometrics. */
 export async function canUseBiometrics(): Promise<boolean> {
@@ -44,7 +60,12 @@ export async function promptBiometrics(
     return 'success';
   }
   const err = 'error' in result ? String(result.error) : '';
-  if (err === 'user_cancel' || err === 'system_cancel' || err === 'app_cancel') {
+  if (
+    err === 'user_cancel' ||
+    err === 'system_cancel' ||
+    err === 'app_cancel' ||
+    err === 'user_fallback'
+  ) {
     return 'cancel';
   }
   return 'failed';
@@ -59,7 +80,7 @@ export async function authenticateWithBiometrics(
 export async function setBiometricEnabled(enabled: boolean): Promise<void> {
   await AsyncStorage.setItem(ASYNC_KEYS.BIOMETRIC_ENABLED, JSON.stringify(enabled));
   if (!enabled) {
-    await SecureStore.deleteItemAsync(BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE, SECURE_OPTIONS);
+    await deleteKeychainItem(BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE);
     await clearBiometricFailureCount();
   }
 }
@@ -69,50 +90,44 @@ export async function getBiometricEnabled(): Promise<boolean> {
   return raw ? (JSON.parse(raw) as boolean) : false;
 }
 
-/**
- * Store Sanctum token (+ optional login credentials) behind device biometrics.
- * Credentials let the user sign in again after logout without retyping a password.
- */
-export async function saveBiometricAuthBundle(
-  token: string,
-  extras?: { userId?: number; identifier?: string; password?: string },
-): Promise<void> {
+export async function saveBiometricAuthBundle(bundle: BiometricAuthBundle): Promise<void> {
   const existing = await getBiometricAuthBundle();
   const payload: BiometricAuthBundle = {
-    token,
-    userId: extras?.userId ?? existing?.userId,
-    identifier: extras?.identifier ?? existing?.identifier,
-    password: extras?.password ?? existing?.password,
+    selector: bundle.selector,
+    secret: bundle.secret,
+    userId: bundle.userId ?? existing?.userId,
+    identifier: bundle.identifier ?? existing?.identifier,
   };
-  await SecureStore.setItemAsync(
-    BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE,
-    JSON.stringify(payload),
-    SECURE_OPTIONS,
-  );
+  await setKeychainItem(BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE, JSON.stringify(payload));
   await clearBiometricFailureCount();
 }
 
 export async function getBiometricAuthBundle(): Promise<BiometricAuthBundle | null> {
   try {
-    const raw = await SecureStore.getItemAsync(BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE, SECURE_OPTIONS);
+    const raw = await getKeychainItem(BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE);
     if (!raw) {
       return null;
     }
-    return JSON.parse(raw) as BiometricAuthBundle;
+    const parsed = JSON.parse(raw) as Partial<BiometricAuthBundle> & { token?: string };
+    if (!parsed.selector || !parsed.secret) {
+      return null;
+    }
+    return {
+      selector: parsed.selector,
+      secret: parsed.secret,
+      userId: parsed.userId,
+      identifier: parsed.identifier,
+    };
   } catch {
     return null;
   }
 }
 
 export async function clearBiometricAuthBundle(): Promise<void> {
-  try {
-    await SecureStore.deleteItemAsync(BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE, SECURE_OPTIONS);
-  } catch {
-    /* no-op */
-  }
+  await deleteKeychainItem(BIOMETRIC_SECURE_KEYS.AUTH_BUNDLE);
 }
 
-/** Disable biometrics and wipe the stored session/credentials binding. */
+/** Disable biometrics and wipe the stored device unlock secret. */
 export async function clearBiometricEnrollment(): Promise<void> {
   await setBiometricEnabled(false);
 }
@@ -137,7 +152,7 @@ export async function isBiometricLoginLocked(): Promise<boolean> {
   return (await getBiometricFailureCount()) >= BIOMETRIC_MAX_FAILURES;
 }
 
-/** True when biometrics are enabled and a saved session/credentials bundle exists. */
+/** True when this phone has enrolled Face ID / fingerprint unlock for the last account. */
 export async function hasBiometricUnlockAvailable(): Promise<boolean> {
   if (!(await getBiometricEnabled())) {
     return false;
@@ -149,5 +164,5 @@ export async function hasBiometricUnlockAvailable(): Promise<boolean> {
     return false;
   }
   const bundle = await getBiometricAuthBundle();
-  return Boolean(bundle?.token || (bundle?.identifier && bundle?.password));
+  return Boolean(bundle?.selector && bundle?.secret);
 }

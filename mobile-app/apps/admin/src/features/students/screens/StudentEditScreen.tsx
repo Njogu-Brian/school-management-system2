@@ -12,6 +12,7 @@ import {
   useKemisOptions,
   useStudentCategories,
   useUpdateStudent,
+  errorMessage,
   type KemisLearnerValues,
   type KemisParentSlotValues,
 } from '@erp/core';
@@ -156,7 +157,7 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
       showSuccess('Saved', 'Student profile updated.');
       navigation.goBack();
     } catch (err) {
-      showError('Error', err instanceof Error ? err.message : 'Update failed.');
+      showError('Error', errorMessage(err, 'Update failed.'));
     }
   };
 
@@ -170,7 +171,12 @@ export const StudentEditScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <ScreenContainer scroll={false} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: spacing.xl }}
+      >
         <AcademicScreenHeader title="Edit student" onBack={() => navigation.goBack()} />
 
         <SectionTitle label="Student" palette={palette} typography={typography} spacing={spacing} />

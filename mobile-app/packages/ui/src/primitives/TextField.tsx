@@ -8,6 +8,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { useEnsureInputVisible } from '../layout/keyboard';
 
 export interface TextFieldProps extends Omit<TextInputProps, 'style'> {
   label?: string;
@@ -29,6 +30,7 @@ export const TextField: React.FC<TextFieldProps> = ({
 }) => {
   const { palette, colors, radius, spacing, typography, elevation } = useTheme();
   const [focused, setFocused] = useState(false);
+  const ensureVisible = useEnsureInputVisible();
 
   const borderColor = error ? colors.error : focused ? palette.primary : palette.borderSubtle;
   const hasSlots = leftSlot != null || rightSlot != null;
@@ -61,6 +63,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       onFocus={(e) => {
         setFocused(true);
         onFocus?.(e);
+        requestAnimationFrame(() => ensureVisible?.());
       }}
       onBlur={(e) => {
         setFocused(false);

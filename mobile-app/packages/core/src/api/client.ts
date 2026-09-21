@@ -40,7 +40,7 @@ class ApiClient {
 
   /** Current tenant API base URL (after school-code resolve). */
   getBaseURL(): string {
-    return String(this.client.defaults.baseURL ?? '');
+    return String(this.client.defaults.baseURL || '').replace(/\/$/, '');
   }
 
   /**
@@ -132,6 +132,9 @@ class ApiClient {
         const url = String(error.config?.url ?? '');
         const isAuthRoute =
           url.endsWith('/login') ||
+          url.includes('/login/pin') ||
+          url.includes('/login/biometric') ||
+          url.includes('/login/otp') ||
           url.includes('/logout') ||
           url.includes('/auth/refresh') ||
           url.endsWith('/user');

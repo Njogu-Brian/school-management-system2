@@ -1,5 +1,5 @@
 import { authApi } from '../../api/auth.api';
-import type { ApiError } from '../../types';
+import { errorMessage } from '../../utils/errors';
 import { mapApiUser } from '../mapUser';
 import type { AuthProviderResult, IAuthProvider, PasswordAuthInput } from './types';
 
@@ -28,9 +28,5 @@ export class PasswordAuthProvider implements IAuthProvider {
 }
 
 export function toAuthError(err: unknown): string {
-  return (
-    (err as ApiError)?.message ||
-    (err instanceof Error ? err.message : null) ||
-    'Authentication failed. Please try again.'
-  );
+  return errorMessage(err, 'Authentication failed. Please try again.');
 }

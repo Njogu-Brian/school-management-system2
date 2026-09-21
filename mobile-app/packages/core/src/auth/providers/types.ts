@@ -28,4 +28,4 @@ export type GoogleAuthInput = {
 
 export type BiometricAuthInput = Record<string, never>;
 
-export type PinAuthInput = { pin: string };
+export type PinAuthInput = { pin: string; identifier?: string };

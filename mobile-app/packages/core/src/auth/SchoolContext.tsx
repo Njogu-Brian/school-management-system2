@@ -145,3 +145,8 @@ export function useSchool(): SchoolContextValue {
   }
   return ctx;
 }
+
+/** Safe when BrandingProvider mounts outside SchoolProvider (Royal Kings apps). */
+export function useSchoolOptional(): SchoolContextValue | null {
+  return useContext(SchoolContext);
+}

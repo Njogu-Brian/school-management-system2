@@ -1,0 +1,61 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "preview": {
+      "channel": "preview",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false,
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_CONTROL_PLANE_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_REQUIRE_SCHOOL_CODE": "true",
+        "EXPO_PUBLIC_PRODUCT_WEBSITE_URL": "https://edulynk.co.ke"
+      }
+    },
+    "preview-simulator": {
+      "channel": "preview",
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_CONTROL_PLANE_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_REQUIRE_SCHOOL_CODE": "true",
+        "EXPO_PUBLIC_PRODUCT_WEBSITE_URL": "https://edulynk.co.ke"
+      }
+    },
+    "production": {
+      "channel": "production",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_CONTROL_PLANE_BASE_URL": "https://erp.royalkingsschools.sc.ke/api",
+        "EXPO_PUBLIC_REQUIRE_SCHOOL_CODE": "true",
+        "EXPO_PUBLIC_PRODUCT_WEBSITE_URL": "https://edulynk.co.ke"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "internal"
+      }
+    }
+  }
+}

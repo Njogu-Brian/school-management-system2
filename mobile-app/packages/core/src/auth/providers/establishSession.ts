@@ -4,7 +4,7 @@ import { saveUser } from '../../storage/authStorage';
 
 /**
  * Shared post-auth hook: persist token + user after any provider succeeds.
- * Biometrics never skip this — they only rehydrate an existing backend session.
+ * Biometric unlock also lands here — Face ID on this phone mints a fresh session.
  */
 export async function establishSessionFromResult(
   session: Pick<SessionContextValue, 'setSession'>,

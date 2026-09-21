@@ -1,14 +1,19 @@
 import {
-  clearPinEnrollment,
   getRememberedUsername,
+  isCombinedApp,
   isPinEnabled,
   PIN_MAX_LENGTH,
   PIN_MIN_LENGTH,
+  PRODUCT,
+  PRODUCT_WEBSITE_URL,
+  REQUIRE_SCHOOL_CODE,
   useAuth,
+  useSchoolOptional,
 } from '@erp/core';
 import {
   AcademicScreenHeader,
   Button,
+  ChangeSchoolLink,
   ConfirmDialog,
   PinKeypad,
   ScreenContainer,
@@ -18,7 +23,6 @@ import { useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSurfaceModeControl } from '../../../providers/AppThemeProvider';
 import { showError, showSuccess } from '../../shared/utils/feedback';
 
@@ -27,10 +31,12 @@ const LEGAL_BASE = 'https://erp.royalkingsschools.sc.ke';
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
-  const { logout, enablePin } = useAuth();
+  const { logout, enablePin, disablePin } = useAuth();
   const { palette, spacing, typography, radius, themeMode, setThemeMode, colors } = useTheme();
   const { surfaceMode, setSurfaceMode } = useSurfaceModeControl();
+  const schoolCtx = useSchoolOptional();
+  const combined = isCombinedApp();
+  const legalBase = combined ? PRODUCT_WEBSITE_URL : LEGAL_BASE;
 
   const [pinOn, setPinOn] = useState(false);
   const [rememberedUser, setRememberedUser] = useState<string | null>(null);
@@ -84,7 +90,7 @@ export const SettingsScreen: React.FC = () => {
     setPinLoading(true);
     try {
       await enablePin(pinConfirm);
-      showSuccess('PIN saved', 'You can unlock with your PIN next time you open the app.');
+      showSuccess('PIN saved', 'You can use this PIN to unlock on this phone and any other device.');
       closePinSetup();
       await refreshSecurity();
     } catch (err) {
@@ -94,8 +100,8 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
-  const disablePin = async () => {
-    await clearPinEnrollment();
+  const removePin = async () => {
+    await disablePin();
     setDisableConfirmOpen(false);
     showSuccess('PIN removed', 'Sign in with your password next time.');
     await refreshSecurity();
@@ -117,7 +123,7 @@ export const SettingsScreen: React.FC = () => {
       <View style={[styles.section, { backgroundColor: palette.surface, borderColor: palette.border, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md }]}>
         <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>Security</Text>
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.md }}>
-          App PIN unlocks without retyping your password. Your sign-in username is saved on this device for faster unlock.
+          Your PIN is saved on your account, like a password — you can use it to unlock on any device. Face ID and fingerprint stay on this phone only.
         </Text>
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.xs }}>
           PIN status:{' '}
@@ -191,7 +197,7 @@ export const SettingsScreen: React.FC = () => {
               fontSize: typography.caption.fontSize,
             }}
           >
-            {PIN_MIN_LENGTH}–{PIN_MAX_LENGTH} digits · used to unlock this app quickly
+            {PIN_MIN_LENGTH}–{PIN_MAX_LENGTH} digits · same PIN on every device, like your password
           </Text>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: spacing.lg }}>
             {pinDots.map((filled, i) => (
@@ -285,12 +291,15 @@ export const SettingsScreen: React.FC = () => {
           About & legal
         </Text>
         <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
-          Royal Kings Users · v{Constants.expoConfig?.version ?? '1.0.0'}
+          {combined ? PRODUCT.name : 'Royal Kings Users'} · v{Constants.expoConfig?.version ?? '1.0.0'}
         </Text>
         {(
           [
-            { label: 'Privacy policy', url: `${LEGAL_BASE}/privacy` },
-            { label: 'Terms of use', url: `${LEGAL_BASE}/terms` },
+            ...(combined
+              ? [{ label: PRODUCT.websiteHost, url: PRODUCT_WEBSITE_URL }]
+              : []),
+            { label: 'Privacy policy', url: `${legalBase}/privacy` },
+            { label: 'Terms of use', url: `${legalBase}/terms` },
           ] as const
         ).map((row) => (
           <Pressable
@@ -307,6 +316,29 @@ export const SettingsScreen: React.FC = () => {
         ))}
       </View>
 
+      {(REQUIRE_SCHOOL_CODE || combined) && schoolCtx ? (
+        <View
+          style={{
+            backgroundColor: palette.surface,
+            borderRadius: radius.lg,
+            borderWidth: 1,
+            borderColor: palette.border,
+            padding: spacing.md,
+            marginBottom: spacing.md,
+          }}
+        >
+          <Text style={{ color: palette.textPrimary, fontWeight: '700', marginBottom: spacing.sm }}>
+            School
+          </Text>
+          <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize }}>
+            {schoolCtx.school
+              ? `Connected to ${schoolCtx.school.name} (${schoolCtx.school.code})`
+              : 'No school connected'}
+          </Text>
+          <ChangeSchoolLink />
+        </View>
+      ) : null}
+
       <Button label="Sign out" variant="ghost" onPress={logout} />
 
       <ConfirmDialog
@@ -316,7 +348,7 @@ export const SettingsScreen: React.FC = () => {
         confirmLabel="Disable PIN"
         cancelLabel="Cancel"
         destructive
-        onConfirm={() => void disablePin()}
+        onConfirm={() => void removePin()}
         onCancel={() => setDisableConfirmOpen(false)}
       />
     </ScreenContainer>

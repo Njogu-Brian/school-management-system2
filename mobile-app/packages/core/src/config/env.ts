@@ -18,6 +18,12 @@ export function isCombinedApp(): boolean {
   return APP_SURFACE === 'combined';
 }
 
+/** Public product site shown on Edulynk sign-in (not the tenant ERP). */
+export const PRODUCT_WEBSITE_URL =
+  (typeof extra?.PRODUCT_WEBSITE_URL === 'string' && extra.PRODUCT_WEBSITE_URL) ||
+  process.env.EXPO_PUBLIC_PRODUCT_WEBSITE_URL ||
+  'https://edulynk.co.ke';
+
 const DEFAULT_API_BASE_URL = 'https://erp.royalkingsschools.sc.ke/api';
 
 /** Build-time / fallback tenant API (used until a school code is resolved). */

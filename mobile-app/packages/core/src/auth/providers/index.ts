@@ -6,6 +6,7 @@ export {
   BiometricUnlockStrategy,
   BiometricLoginLockedError,
   BiometricNoBundleError,
+  BiometricCancelledError,
 } from './BiometricAuthProvider';
 export {
   PinUnlockStrategy,

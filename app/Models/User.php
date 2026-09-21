@@ -26,6 +26,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'name', 'email', 'password', 'must_change_password',
         'google_id', 'google_email',
         'parent_id', 'phone_number', 'parent_profile_review_required',
+        'unlock_pin_hash', 'unlock_pin_set_at',
         'credentials_sent_at', 'credentials_sent_via',
         'first_app_login_at', 'password_changed_at', 'profile_completed_at',
         'last_login_at', 'last_seen_at',
@@ -34,6 +35,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'unlock_pin_hash',
     ];
 
     protected $casts = [
@@ -47,6 +49,7 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'profile_completed_at' => 'datetime',
         'last_login_at' => 'datetime',
         'last_seen_at' => 'datetime',
+        'unlock_pin_set_at' => 'datetime',
     ];
 
     /** Mark durable mobile/API login activity (survives token revoke). */

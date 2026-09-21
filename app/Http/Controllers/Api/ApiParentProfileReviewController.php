@@ -97,8 +97,8 @@ class ApiParentProfileReviewController extends Controller
 
         $accessibleIds = $user->accessibleStudentIds();
 
-        $validated = KemisProfile::validateRequest($request, array_merge(
-            KemisProfile::sharedContactValidationRules(),
+        $validated = $request->validate(array_merge(
+            KemisProfile::sharedContactValidationRules(false),
             KemisProfile::parentKemisValidationRules(),
             [
             'students' => 'sometimes|array',
@@ -126,7 +126,7 @@ class ApiParentProfileReviewController extends Controller
             'guardian_email' => 'nullable|email|max:255',
             'marital_status' => 'nullable|in:married,single_parent,co_parenting',
         ],
-            KemisProfile::studentKemisValidationRules('students.*')
+            KemisProfile::studentKemisValidationRules('students.*', false)
         ));
 
         DB::transaction(function () use ($validated, $parent, $accessibleIds) {

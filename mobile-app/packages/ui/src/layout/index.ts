@@ -1,4 +1,5 @@
 export * from './ScreenContainer';
+export * from './keyboard';
 export * from './FooterDock';
 export * from './DockedActionLayout';
 export * from './useAdaptiveLayout';

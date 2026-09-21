@@ -1,18 +1,16 @@
 import { authApi } from '../../api/auth.api';
-import { sessionsApi } from '../../api/sessions.api';
+import { errorMessage } from '../../utils/errors';
 import {
   clearPinFailureCount,
-  getPinAuthBundle,
+  createPin,
+  getRememberedUsername,
   hasPinUnlockAvailable,
   incrementPinFailureCount,
   isPinLoginLocked,
   PIN_MAX_FAILURES,
-  savePinAuthBundle,
-  verifyPin,
 } from '../../storage/pinStorage';
 import { mapApiUser } from '../mapUser';
-import { PasswordAuthProvider } from './PasswordAuthProvider';
-import type { AuthProviderResult, IAuthProvider } from './types';
+import type { AuthProviderResult, IAuthProvider, PinAuthInput } from './types';
 
 export class PinLoginLockedError extends Error {
   constructor() {
@@ -25,16 +23,15 @@ export class PinLoginLockedError extends Error {
 
 export class PinNoBundleError extends Error {
   constructor() {
-    super('No saved session for PIN unlock. Sign in once with your email and password.');
+    super('Enter your username, then your PIN — or sign in with your password once.');
     this.name = 'PinNoBundleError';
   }
 }
 
-const passwordProvider = new PasswordAuthProvider();
-
-export type PinAuthInput = { pin: string };
-
-/** PIN unlock — verifies local PIN then reuses stored credentials/token. */
+/**
+ * Account PIN — same digits on every device, like a password.
+ * Local keypad cache is only for convenience after a successful unlock.
+ */
 export class PinUnlockStrategy implements IAuthProvider {
   readonly method = 'pin' as const;
 
@@ -47,79 +44,37 @@ export class PinUnlockStrategy implements IAuthProvider {
       throw new PinLoginLockedError();
     }
 
-    const ok = await verifyPin(input.pin);
-    if (!ok) {
-      const failures = await incrementPinFailureCount();
-      if (failures >= PIN_MAX_FAILURES) {
-        throw new PinLoginLockedError();
-      }
-      throw new Error('Incorrect PIN.');
-    }
+    const identifier =
+      input.identifier?.trim() || (await getRememberedUsername())?.trim() || '';
 
-    const bundle = await getPinAuthBundle();
-    if (!bundle) {
+    if (!identifier) {
       throw new PinNoBundleError();
     }
 
-    if (bundle.identifier && bundle.password) {
-      try {
-        const result = await passwordProvider.authenticate({
-          identifier: bundle.identifier,
-          password: bundle.password,
-          remember: true,
-        });
-        await clearPinFailureCount();
-        await savePinAuthBundle({
-          token: result.token,
-          userId: result.user.id,
-          identifier: bundle.identifier,
-          password: bundle.password,
-        });
-        return { ...result, method: 'pin' };
-      } catch {
-        /* fall through to token unlock */
-      }
-    }
-
-    if (!bundle.token) {
-      throw new PinNoBundleError();
-    }
-
-    const profile = await authApi.getProfileWithToken(bundle.token);
-    if (!profile.success || !profile.data) {
-      const failures = await incrementPinFailureCount();
-      if (failures >= PIN_MAX_FAILURES) {
-        throw new PinLoginLockedError();
-      }
-      throw new Error(profile.message || 'Session expired. Sign in again.');
-    }
-
-    let token = bundle.token;
-    let expiresAt: string | null = null;
     try {
-      const refreshed = await sessionsApi.refreshWithToken(bundle.token);
-      if (refreshed.success && refreshed.data?.token) {
-        token = refreshed.data.token;
-        expiresAt = refreshed.data.expires_at ?? null;
+      const res = await authApi.loginWithPin({ identifier, pin: input.pin });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Incorrect PIN.');
       }
-    } catch {
-      /* keep existing token */
+      await clearPinFailureCount();
+      await createPin(input.pin, {
+        token: res.data.token,
+        userId: res.data.user.id,
+        identifier,
+      });
+      return {
+        method: 'pin',
+        token: res.data.token,
+        user: mapApiUser(res.data.user),
+        expiresAt: res.data.expires_at ?? null,
+        rememberMe: true,
+      };
+    } catch (err) {
+      const failures = await incrementPinFailureCount();
+      if (failures >= PIN_MAX_FAILURES) {
+        throw new PinLoginLockedError();
+      }
+      throw new Error(errorMessage(err, 'Incorrect PIN.'));
     }
-
-    await clearPinFailureCount();
-    await savePinAuthBundle({
-      token,
-      userId: profile.data.id,
-      identifier: bundle.identifier,
-      password: bundle.password,
-    });
-
-    return {
-      method: 'pin',
-      token,
-      user: mapApiUser(profile.data),
-      expiresAt,
-      rememberMe: true,
-    };
   }
 }

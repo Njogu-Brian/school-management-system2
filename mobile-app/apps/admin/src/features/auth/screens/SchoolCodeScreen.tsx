@@ -29,7 +29,7 @@ export const SchoolCodeScreen: React.FC = () => {
     <ScreenContainer edges={['left', 'right']}>
       <KeyboardAvoidingView
         style={[styles.flex, { paddingTop: insets.top + spacing.xl }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <View
           style={[

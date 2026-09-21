@@ -1,8 +1,9 @@
-import { useAuth, useParentIdentityGate, useUpdateParentIdentityGate } from '@erp/core';
+import { errorMessage, useAppMode, useAuth, useParentIdentityGate, useUpdateParentIdentityGate } from '@erp/core';
 import { Button, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { showError, showSuccess } from '../../shared/utils/feedback';
+import { AppModeSwitch } from '../../shared/components/AppModeSwitch';
 
 /**
  * Blocks the parent app until this signed-in parent (father or mother, by login phone)
@@ -11,6 +12,7 @@ import { showError, showSuccess } from '../../shared/utils/feedback';
 export const ParentIdentityGateScreen: React.FC = () => {
   const { palette, colors, spacing, typography } = useTheme();
   const { refreshUser } = useAuth();
+  const { canSwitch, setMode } = useAppMode();
   const query = useParentIdentityGate();
   const save = useUpdateParentIdentityGate();
 
@@ -85,7 +87,7 @@ export const ParentIdentityGateScreen: React.FC = () => {
       }
       showSuccess('Saved', 'Thank you. Your details are up to date.');
     } catch (err) {
-      showError('Could not save', err instanceof Error ? err.message : 'Try again.');
+      showError('Could not save', errorMessage(err, 'Try again.'));
     }
   };
 
@@ -106,7 +108,7 @@ export const ParentIdentityGateScreen: React.FC = () => {
           We need a few details
         </Text>
         <Text style={{ color: palette.textSecondary, marginBottom: spacing.md }}>
-          {query.error instanceof Error ? query.error.message : 'Could not load your profile.'}
+          {errorMessage(query.error, 'Could not load your profile.')}
         </Text>
         <Button label="Try again" onPress={() => void query.refetch()} />
       </ScreenContainer>
@@ -117,10 +119,18 @@ export const ParentIdentityGateScreen: React.FC = () => {
 
   return (
     <ScreenContainer scroll>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Text style={{ color: palette.textPrimary, fontSize: typography.title.fontSize, fontWeight: '700' }}>
-          Complete your details
-        </Text>
+      <AppModeSwitch variant="banner" style={{ marginBottom: spacing.md }} />
+      {canSwitch ? (
+        <Pressable
+          onPress={() => void setMode('work')}
+          style={{ marginBottom: spacing.md, alignSelf: 'flex-start' }}
+        >
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>Continue as staff</Text>
+        </Pressable>
+      ) : null}
+      <Text style={{ color: palette.textPrimary, fontSize: typography.title.fontSize, fontWeight: '700' }}>
+        Complete your details
+      </Text>
         <Text style={{ color: palette.textSecondary, marginTop: spacing.xs, marginBottom: spacing.lg }}>
           Signed in as {slotLabel}. Only your details are needed — the other parent is not asked to fill this.
         </Text>
@@ -172,7 +182,6 @@ export const ParentIdentityGateScreen: React.FC = () => {
           loading={save.isPending}
           style={{ marginTop: spacing.lg }}
         />
-      </KeyboardAvoidingView>
     </ScreenContainer>
   );
 };

@@ -1,4 +1,4 @@
-import { getNavArea, useCan, useSchoolSettings } from '@erp/core';
+import { getNavArea, isCombinedApp, REQUIRE_SCHOOL_CODE, useCan, useSchoolOptional, useSchoolSettings } from '@erp/core';
 import {
   PlaceholderScreen,
   ScreenContainer,
@@ -27,6 +27,8 @@ export const SettingsScreen: React.FC = () => {
   const { surfaceMode, setSurfaceMode } = useSurfaceModeControl();
   const canView = useCan('settings.view');
   const schoolQuery = useSchoolSettings({ enabled: canView });
+  const schoolCtx = useSchoolOptional();
+  const showChangeSchool = REQUIRE_SCHOOL_CODE || isCombinedApp();
 
   const schoolName = schoolQuery.data?.school_name?.trim() || 'Settings';
   const schoolSubtitle =
@@ -90,10 +92,24 @@ export const SettingsScreen: React.FC = () => {
             tone: 'amber' as const,
             onPress: () => navigation.navigate('SettingsAbout'),
           },
+          ...(showChangeSchool
+            ? [
+                {
+                  id: 'change-school',
+                  label: 'Change school',
+                  subtitle: schoolCtx?.school
+                    ? `Connected as ${schoolCtx.school.code}`
+                    : 'Enter a different school code',
+                  icon: 'swap-horizontal-outline' as const,
+                  tone: 'rose' as const,
+                  onPress: () => void schoolCtx?.clearSchool(),
+                },
+              ]
+            : []),
         ],
       },
     ],
-    [navigation],
+    [navigation, schoolCtx, showChangeSchool],
   );
 
   if (!canView) {

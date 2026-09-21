@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { authApi } from '../api/auth.api';
+import { accountApi } from '../api/account.api';
 import { apiClient } from '../api/client';
 import type { ApiError, ApiUser, AuthStatus, GoogleIdentity, LoginCredentials, User } from '../types';
 import { getCachedUser, saveUser } from '../storage/authStorage';
@@ -18,8 +19,6 @@ import {
   clearBiometricEnrollment,
   getBiometricAuthBundle,
   getBiometricEnabled,
-  saveBiometricAuthBundle,
-  setBiometricEnabled,
 } from '../storage/biometricStorage';
 import {
   clearPinEnrollment,
@@ -35,8 +34,13 @@ import { parseGoogleIdToken } from './googleIdentity';
 import { establishSessionFromResult } from './providers/establishSession';
 import { PasswordAuthProvider, toAuthError } from './providers/PasswordAuthProvider';
 import { GoogleSignInStrategy } from './providers/GoogleAuthProvider';
-import { BiometricUnlockStrategy, BiometricLoginLockedError } from './providers/BiometricAuthProvider';
+import {
+  BiometricUnlockStrategy,
+  BiometricLoginLockedError,
+  BiometricCancelledError,
+} from './providers/BiometricAuthProvider';
 import { PinUnlockStrategy, PinLoginLockedError } from './providers/PinAuthProvider';
+import { ensureDeviceBiometricUnlock } from './ensureDeviceBiometricUnlock';
 import type { AuthMethod, AuthProviderResult } from './providers/types';
 import { useSession } from './SessionContext';
 import { useSchool } from './SchoolContext';
@@ -92,10 +96,10 @@ export interface AuthContextValue {
   verifyLoginOtp: (identifier: string, code: string) => Promise<void>;
   /** Establish a session from a completed parent-claim signup (`{ token, user }`). */
   completeParentClaim: (data: { token: string; user: ApiUser; expires_at?: string | null }) => Promise<void>;
-  /** Unlock an existing session with device biometrics (no backend login). */
+  /** Face ID / fingerprint on this phone — issues a fresh session, no PIN or password. */
   unlockWithBiometrics: () => Promise<void>;
-  /** Unlock with app PIN. */
-  unlockWithPin: (pin: string) => Promise<void>;
+  /** Account PIN (same digits on every device, like a password). */
+  unlockWithPin: (pin: string, identifier?: string) => Promise<void>;
   dismissBiometricEnrollment: () => void;
   enableBiometrics: () => Promise<void>;
   skipBiometricEnrollment: () => void;
@@ -124,7 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logoutRef = useRef<() => Promise<void>>(async () => {});
   /** Last password/OTP credentials — used when enabling biometrics/PIN so unlock can re-login. */
-  const lastCredentialsRef = useRef<{ identifier: string; password: string } | null>(null);
+  const lastCredentialsRef = useRef<{ identifier: string; password?: string } | null>(null);
 
   const maybeOfferPinEnrollment = useCallback(async () => {
     if (await isPinEnabled()) {
@@ -155,8 +159,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const creds = lastCredentialsRef.current;
-      if (creds?.identifier) {
-        await setRememberedUsername(creds.identifier);
+      const identifier = creds?.identifier || result.user.email || result.user.phone || undefined;
+      const password = creds?.password || undefined;
+      if (identifier) {
+        await setRememberedUsername(identifier);
       }
       const firstName = result.user?.name?.trim()?.split(/\s+/)[0];
       if (firstName) {
@@ -174,8 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await savePinAuthBundle({
           token: result.token,
           userId: result.user.id,
-          identifier: creds?.identifier,
-          password: creds?.password,
+          identifier,
+          password,
         });
       }
 
@@ -199,11 +205,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setStatus('authenticated');
           return;
         } else if (enabled && deviceOk) {
-          await saveBiometricAuthBundle(result.token, {
-            userId: result.user.id,
-            identifier: creds?.identifier,
-            password: creds?.password,
-          });
+          try {
+            await ensureDeviceBiometricUnlock({
+              userId: result.user.id,
+              identifier,
+            });
+          } catch {
+            /* session is already established; biometric can be retried from settings */
+          }
         }
 
         if (await maybeOfferPinEnrollment()) {
@@ -279,6 +288,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await saveUser(mapped);
           setUser(mapped);
           setStatus('authenticated');
+          void (async () => {
+            if (!(await getBiometricEnabled())) return;
+            await ensureDeviceBiometricUnlock({
+              userId: mapped.id,
+              identifier: mapped.email || mapped.phone || undefined,
+            });
+          })().catch(() => undefined);
           return;
         }
         setStatus('unauthenticated');
@@ -329,6 +345,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const result = await runner();
         await completeAuth(result, { offerBiometricEnrollment: offerEnrollment });
       } catch (err) {
+        if (err instanceof BiometricCancelledError) {
+          throw err;
+        }
         const message = toAuthError(err);
         setError(message);
         throw err;
@@ -375,7 +394,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!res.success || !res.data) {
           throw new Error(res.message || 'Invalid OTP.');
         }
-        lastCredentialsRef.current = null;
+        lastCredentialsRef.current = { identifier: identifier.trim() };
         return {
           method: 'otp' as const,
           token: res.data.token,
@@ -421,7 +440,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const unlockWithPin = useCallback(
-    (pin: string) => runAuth(() => pinProvider.authenticate({ pin }), false),
+    (pin: string, identifier?: string) =>
+      runAuth(() => pinProvider.authenticate({ pin, identifier }), false),
     [runAuth],
   );
 
@@ -446,16 +466,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Biometric verification was cancelled.');
     }
     const creds = lastCredentialsRef.current;
-    await setBiometricEnabled(true);
-    await saveBiometricAuthBundle(token, {
+    await ensureDeviceBiometricUnlock({
       userId: user?.id,
-      identifier: creds?.identifier,
-      password: creds?.password,
+      identifier: creds?.identifier || user?.email || user?.phone || undefined,
     });
     setBiometricEnrollmentPending(false);
     // Biometrics covers unlock; PIN stays optional in Settings.
     setPinEnrollmentPending(false);
-  }, [session.token, user?.id]);
+  }, [session.token, user?.id, user?.email, user?.phone]);
 
   const skipBiometricEnrollment = useCallback(() => {
     setBiometricEnrollmentPending(false);
@@ -469,15 +487,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('No active session to protect with a PIN.');
       }
       const creds = lastCredentialsRef.current;
+      const identifier = creds?.identifier || user?.email || user?.phone || undefined;
+      const res = await accountApi.setUnlockPin({ pin, pin_confirmation: pin });
+      if (!res.success) {
+        throw new Error(res.message || 'Could not save PIN on your account.');
+      }
       await createPin(pin, {
         token,
         userId: user?.id,
-        identifier: creds?.identifier,
+        identifier,
         password: creds?.password,
       });
       setPinEnrollmentPending(false);
     },
-    [session.token, user?.id],
+    [session.token, user?.id, user?.email, user?.phone],
   );
 
   const skipPinEnrollment = useCallback(() => {
@@ -486,6 +509,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const disablePin = useCallback(async () => {
     await clearPinEnrollment();
+    await accountApi.clearUnlockPin().catch(() => undefined);
   }, []);
 
   const refreshUser = useCallback(async () => {

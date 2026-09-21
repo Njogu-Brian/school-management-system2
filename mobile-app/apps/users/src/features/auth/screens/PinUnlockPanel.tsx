@@ -1,11 +1,11 @@
 import {
   getRememberedUsername,
-  hasPinUnlockAvailable,
   PIN_MAX_LENGTH,
   PIN_MIN_LENGTH,
+  errorMessage,
   useAuth,
 } from '@erp/core';
-import { Button, PinKeypad, ScreenContainer, useTheme } from '@erp/ui';
+import { Button, PinKeypad, ScreenContainer, TextField, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -13,29 +13,28 @@ import { showError } from '../../shared/utils/feedback';
 
 type Props = {
   onUsePassword: () => void;
-  /** Match login sheet chrome */
   variant?: 'default' | 'onDark';
-  /** Hide the password fallback link (parent already shows one) */
   hidePasswordLink?: boolean;
+  identifier?: string;
+  onIdentifierChange?: (value: string) => void;
 };
 
 export const PinUnlockPanel: React.FC<Props> = ({
   onUsePassword,
   variant = 'default',
   hidePasswordLink = false,
+  identifier: identifierProp,
+  onIdentifierChange,
 }) => {
   const { unlockWithPin, submitting } = useAuth();
   const { spacing, typography, colors, palette } = useTheme();
   const [pin, setPin] = useState('');
-  const [username, setUsername] = useState<string | null>(null);
-  const [available, setAvailable] = useState(false);
+  const [remembered, setRemembered] = useState<string | null>(null);
   const onDark = variant === 'onDark';
+  const username = (identifierProp ?? remembered ?? '').trim();
 
   useEffect(() => {
-    void (async () => {
-      setAvailable(await hasPinUnlockAvailable());
-      setUsername(await getRememberedUsername());
-    })();
+    void getRememberedUsername().then(setRemembered);
   }, []);
 
   const onKey = (key: string) => {
@@ -49,10 +48,10 @@ export const PinUnlockPanel: React.FC<Props> = ({
   const submit = async () => {
     if (pin.length < PIN_MIN_LENGTH) return;
     try {
-      await unlockWithPin(pin);
+      await unlockWithPin(pin, username || undefined);
     } catch (err) {
       setPin('');
-      showError('PIN unlock', err instanceof Error ? err.message : 'Unlock failed.');
+      showError('PIN unlock', errorMessage(err, 'Unlock failed.'));
     }
   };
 
@@ -67,8 +66,6 @@ export const PinUnlockPanel: React.FC<Props> = ({
     () => Array.from({ length: Math.max(pin.length, PIN_MIN_LENGTH) }, (_, i) => i < pin.length),
     [pin.length],
   );
-
-  if (!available) return null;
 
   return (
     <View style={{ width: '100%', alignItems: 'center' }}>
@@ -87,7 +84,18 @@ export const PinUnlockPanel: React.FC<Props> = ({
         <Text style={{ color: onDark ? 'rgba(255,255,255,0.65)' : palette.textSecondary, marginTop: 4 }}>
           {username}
         </Text>
-      ) : null}
+      ) : (
+        <View style={{ width: '100%', marginTop: spacing.md }}>
+          <TextField
+            label="Username, email or phone"
+            value={identifierProp ?? ''}
+            onChangeText={onIdentifierChange}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="username"
+          />
+        </View>
+      )}
 
       <View style={{ flexDirection: 'row', gap: 8, marginVertical: spacing.md }}>
         {dots.map((filled, i) => (
@@ -129,7 +137,6 @@ export const PinUnlockPanel: React.FC<Props> = ({
   );
 };
 
-/** Full-screen PIN unlock when preferred. */
 export const PinUnlockScreen: React.FC<{ onUsePassword: () => void }> = ({ onUsePassword }) => (
   <ScreenContainer edges={['top', 'bottom']} contentContainerStyle={{ padding: 24, justifyContent: 'center' }}>
     <PinUnlockPanel onUsePassword={onUsePassword} />

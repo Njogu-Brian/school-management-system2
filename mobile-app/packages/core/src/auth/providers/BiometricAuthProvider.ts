@@ -1,5 +1,5 @@
 import { authApi } from '../../api/auth.api';
-import { sessionsApi } from '../../api/sessions.api';
+import { errorMessage } from '../../utils/errors';
 import {
   promptBiometrics,
   clearBiometricFailureCount,
@@ -7,17 +7,15 @@ import {
   incrementBiometricFailureCount,
   isBiometricLoginLocked,
   hasBiometricUnlockAvailable,
-  saveBiometricAuthBundle,
   BIOMETRIC_MAX_FAILURES,
 } from '../../storage/biometricStorage';
 import { mapApiUser } from '../mapUser';
-import { PasswordAuthProvider } from './PasswordAuthProvider';
 import type { AuthProviderResult, BiometricAuthInput, IAuthProvider } from './types';
 
 export class BiometricLoginLockedError extends Error {
   constructor() {
     super(
-      `Biometric sign-in is locked after ${BIOMETRIC_MAX_FAILURES} failed attempts. Sign in with your password.`,
+      `Biometric sign-in is locked after ${BIOMETRIC_MAX_FAILURES} failed attempts. Sign in with your password or PIN.`,
     );
     this.name = 'BiometricLoginLockedError';
   }
@@ -25,19 +23,23 @@ export class BiometricLoginLockedError extends Error {
 
 export class BiometricNoBundleError extends Error {
   constructor() {
-    super('No saved session found. Sign in once with your email and password.');
+    super('Biometrics are only set up on this phone. Sign in with your password or PIN, then enable biometrics here.');
     this.name = 'BiometricNoBundleError';
   }
 }
 
-const passwordProvider = new PasswordAuthProvider();
+export class BiometricCancelledError extends Error {
+  constructor() {
+    super('Biometric authentication was cancelled.');
+    this.name = 'BiometricCancelledError';
+  }
+}
 
 /**
- * Biometric unlock:
- * 1. Prefer stored credentials → fresh `POST /login` (works after logout).
- * 2. Fall back to saved Sanctum token + refresh.
+ * This-device Face ID / fingerprint unlock.
+ * After the OS confirms the person, a device secret (not the password) opens a new session.
+ * That secret never copies to another phone.
  */
-/** Strategy implementation — use the React `BiometricAuthProvider` for unlock UI state. */
 export class BiometricUnlockStrategy implements IAuthProvider {
   readonly method = 'biometric' as const;
 
@@ -52,7 +54,7 @@ export class BiometricUnlockStrategy implements IAuthProvider {
 
     const prompt = await promptBiometrics('Unlock with biometrics');
     if (prompt === 'cancel') {
-      throw new Error('Biometric authentication was cancelled.');
+      throw new BiometricCancelledError();
     }
     if (prompt !== 'success') {
       const failures = await incrementBiometricFailureCount();
@@ -63,67 +65,32 @@ export class BiometricUnlockStrategy implements IAuthProvider {
     }
 
     const bundle = await getBiometricAuthBundle();
-    if (!bundle) {
+    if (!bundle?.selector || !bundle.secret) {
       throw new BiometricNoBundleError();
     }
 
-    if (bundle.identifier && bundle.password) {
-      try {
-        const result = await passwordProvider.authenticate({
-          identifier: bundle.identifier,
-          password: bundle.password,
-          remember: true,
-        });
-        await clearBiometricFailureCount();
-        await saveBiometricAuthBundle(result.token, {
-          userId: result.user.id,
-          identifier: bundle.identifier,
-          password: bundle.password,
-        });
-        return { ...result, method: 'biometric' };
-      } catch {
-        /* fall through to token unlock */
+    try {
+      const res = await authApi.loginWithBiometric({
+        selector: bundle.selector,
+        secret: bundle.secret,
+      });
+      if (!res.success || !res.data) {
+        throw new Error(res.message || 'Biometric unlock failed.');
       }
-    }
-
-    if (!bundle.token) {
-      throw new BiometricNoBundleError();
-    }
-
-    const profile = await authApi.getProfileWithToken(bundle.token);
-    if (!profile.success || !profile.data) {
+      await clearBiometricFailureCount();
+      return {
+        method: 'biometric',
+        token: res.data.token,
+        user: mapApiUser(res.data.user),
+        expiresAt: res.data.expires_at ?? null,
+        rememberMe: true,
+      };
+    } catch (err) {
       const failures = await incrementBiometricFailureCount();
       if (failures >= BIOMETRIC_MAX_FAILURES) {
         throw new BiometricLoginLockedError();
       }
-      throw new Error(profile.message || 'Session expired. Sign in again.');
+      throw new Error(errorMessage(err, 'Biometric unlock failed.'));
     }
-
-    let token = bundle.token;
-    let expiresAt: string | null = null;
-    try {
-      const refreshed = await sessionsApi.refreshWithToken(bundle.token);
-      if (refreshed.success && refreshed.data?.token) {
-        token = refreshed.data.token;
-        expiresAt = refreshed.data.expires_at ?? null;
-      }
-    } catch {
-      /* keep existing token if refresh is unavailable */
-    }
-
-    await clearBiometricFailureCount();
-    await saveBiometricAuthBundle(token, {
-      userId: profile.data.id,
-      identifier: bundle.identifier,
-      password: bundle.password,
-    });
-
-    return {
-      method: 'biometric',
-      token,
-      user: mapApiUser(profile.data),
-      expiresAt,
-      rememberMe: true,
-    };
   }
 }

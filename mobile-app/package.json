@@ -12,6 +12,8 @@
     "start:admin": "npm start --workspace=@erp/admin",
     "start:users": "npm start --workspace=@erp/users",
     "start:ios": "npm start --workspace=@erp/ios",
+    "start:edulynk": "npm start --workspace=@erp/edulynk",
+    "android:edulynk": "npm run android --workspace=@erp/edulynk",
     "android:admin": "npm run android --workspace=@erp/admin",
     "android:users": "npm run android --workspace=@erp/users",
     "ios:admin": "npm run ios --workspace=@erp/admin",

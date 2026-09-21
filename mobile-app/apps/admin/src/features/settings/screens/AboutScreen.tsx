@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import { isCombinedApp, PRODUCT, PRODUCT_WEBSITE_URL } from '@erp/core';
 import { AcademicScreenHeader, FinanceFieldSection, ScreenContainer, useTheme } from '@erp/ui';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-const SUPPORT_PHONE = '0719396233';
-const SUPPORT_EMAIL = 'info@royalkingsschools.sc.ke';
-const WEBSITE = 'https://royalkingsschools.sc.ke';
-/** Live on ERP (public, no login) — use for Play Store privacy URL */
-const LEGAL_BASE = 'https://erp.royalkingsschools.sc.ke';
+const RK_SUPPORT_PHONE = '0719396233';
+const RK_SUPPORT_EMAIL = 'info@royalkingsschools.sc.ke';
+const RK_WEBSITE = 'https://royalkingsschools.sc.ke';
+const RK_LEGAL_BASE = 'https://erp.royalkingsschools.sc.ke';
 
 export interface AboutScreenProps {
   onBack?: () => void;
@@ -34,6 +34,11 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
       ? 'Original app (no live update yet)'
       : 'Live update applied';
   const updateId = Updates.updateId ? Updates.updateId.slice(0, 8) : '—';
+  const combined = isCombinedApp();
+  const SUPPORT_PHONE = combined ? PRODUCT.phoneDisplay : RK_SUPPORT_PHONE;
+  const SUPPORT_EMAIL = combined ? PRODUCT.salesEmail : RK_SUPPORT_EMAIL;
+  const WEBSITE = combined ? PRODUCT_WEBSITE_URL : RK_WEBSITE;
+  const LEGAL_BASE = combined ? PRODUCT_WEBSITE_URL : RK_LEGAL_BASE;
 
   const supportRows: LinkRow[] = [
     {
@@ -41,7 +46,7 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
       label: 'Phone',
       value: SUPPORT_PHONE,
       icon: 'call-outline',
-      url: `tel:${SUPPORT_PHONE}`,
+      url: `tel:${combined ? PRODUCT.phone : RK_SUPPORT_PHONE}`,
     },
     {
       id: 'email',
@@ -139,7 +144,7 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
           color: palette.textPrimary,
         }}
       >
-        Royal Kings ERP Admin
+        {combined ? 'Edulynk' : 'Royal Kings ERP Admin'}
       </Text>
       <Text
         style={{
@@ -149,7 +154,9 @@ export const AboutScreen: React.FC<AboutScreenProps> = ({ onBack }) => {
           lineHeight: typography.body.lineHeight,
         }}
       >
-        School administration on mobile.
+        {combined
+          ? 'School administration, teaching, and parent tools in one app.'
+          : 'School administration on mobile.'}
       </Text>
 
       <FinanceFieldSection

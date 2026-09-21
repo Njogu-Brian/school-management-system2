@@ -27,7 +27,9 @@ class ApiStudentWriteController extends Controller
     protected function assertCanManageStudents(Request $request): void
     {
         $user = $request->user();
-        if (! $user || ! $user->hasAnyRole(['Super Admin', 'Admin', 'Secretary'])) {
+        if (! $user || ! $user->hasAnyRole([
+            'Super Admin', 'Admin', 'Secretary', 'Director', 'Academic Administrator',
+        ])) {
             abort(403, 'You do not have permission to manage students.');
         }
     }
@@ -300,10 +302,12 @@ class ApiStudentWriteController extends Controller
             $request->merge(['stream_id' => null]);
         }
 
+        $this->normalizeLocalPhones($request);
+
         $request->validate(array_merge(
-            KemisProfile::studentKemisValidationRules(),
+            KemisProfile::studentKemisValidationRules('', false),
             KemisProfile::parentKemisValidationRules(),
-            KemisProfile::sharedContactValidationRules(),
+            KemisProfile::sharedContactValidationRules(false),
             [
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
@@ -316,12 +320,12 @@ class ApiStudentWriteController extends Controller
             'trip_id' => 'nullable|exists:trips,id',
             'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
             'drop_off_point_other' => 'nullable|string|max:255',
-            'father_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
-            'mother_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
-            'guardian_phone' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
-            'father_whatsapp' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
-            'mother_whatsapp' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
-            'guardian_whatsapp' => ['nullable', 'string', 'max:50', 'regex:/^[0-9]{4,15}$/'],
+            'father_phone' => ['nullable', 'string', 'max:50'],
+            'mother_phone' => ['nullable', 'string', 'max:50'],
+            'guardian_phone' => ['nullable', 'string', 'max:50'],
+            'father_whatsapp' => ['nullable', 'string', 'max:50'],
+            'mother_whatsapp' => ['nullable', 'string', 'max:50'],
+            'guardian_whatsapp' => ['nullable', 'string', 'max:50'],
             'father_email' => 'nullable|email',
             'mother_email' => 'nullable|email',
             'guardian_email' => 'nullable|email',
@@ -337,7 +341,7 @@ class ApiStudentWriteController extends Controller
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
             'kcpe_kjsea_year' => 'nullable|integer|min:1990|max:'.(now()->year + 1),
-            'admission_date' => 'required|date',
+            'admission_date' => 'nullable|date',
             'father_phone_country_code' => 'nullable|string|max:8',
             'mother_phone_country_code' => 'nullable|string|max:8',
             'guardian_phone_country_code' => 'nullable|string|max:8',
@@ -347,6 +351,17 @@ class ApiStudentWriteController extends Controller
             ?: ParentInfo::resolvedSlotName($request, 'mother')
             ?: ParentInfo::resolvedSlotName($request, 'guardian');
         $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
+        if ((! $parentName || ! $parentPhone) && $student->parent) {
+            $existing = $student->parent;
+            $parentName = $parentName
+                ?: ParentInfo::resolvedSlotName($existing->toArray(), 'father')
+                ?: ParentInfo::resolvedSlotName($existing->toArray(), 'mother')
+                ?: ParentInfo::resolvedSlotName($existing->toArray(), 'guardian');
+            $parentPhone = $parentPhone
+                ?: $existing->father_phone
+                ?: $existing->mother_phone
+                ?: $existing->guardian_phone;
+        }
         if (! $parentName || ! $parentPhone) {
             return response()->json([
                 'success' => false,
@@ -525,6 +540,22 @@ class ApiStudentWriteController extends Controller
 
         if (! empty($updates)) {
             $parent->update($updates);
+        }
+    }
+
+    /** Strip country-code formatting so mobile payloads pass local-phone checks. */
+    protected function normalizeLocalPhones(Request $request): void
+    {
+        foreach ([
+            'father_phone', 'mother_phone', 'guardian_phone',
+            'father_whatsapp', 'mother_whatsapp', 'guardian_whatsapp',
+            'emergency_contact_phone',
+        ] as $field) {
+            if (! $request->exists($field) || $request->input($field) === null) {
+                continue;
+            }
+            $digits = preg_replace('/\D+/', '', (string) $request->input($field));
+            $request->merge([$field => $digits === '' ? null : $digits]);
         }
     }
 }

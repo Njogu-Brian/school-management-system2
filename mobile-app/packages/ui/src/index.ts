@@ -1,4 +1,5 @@
 export * from './theme';
+export * from './brand';
 export * from './layout';
 export * from './filters';
 export * from './feedback';

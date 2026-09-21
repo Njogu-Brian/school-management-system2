@@ -1,4 +1,5 @@
 export * from './keys';
+export * from './keychain';
 export * from './secureStorage';
 export * from './authStorage';
 export * from './schoolStorage';

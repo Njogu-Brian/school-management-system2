@@ -4,6 +4,7 @@ import {
   type ProfileReviewData,
   type ProfileReviewUpdatePayload,
 } from '../../api/parentProfileReview.api';
+import { errorMessage } from '../../utils/errors';
 
 const PROFILE_REVIEW_KEY = ['parent', 'profile-review'] as const;
 
@@ -23,9 +24,13 @@ export function useUpdateParentProfileReview() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: ProfileReviewUpdatePayload) => {
-      const res = await parentProfileReviewApi.update(payload);
-      if (!res.success) throw new Error(res.message || 'Could not save your details.');
-      return res.message ?? '';
+      try {
+        const res = await parentProfileReviewApi.update(payload);
+        if (!res.success) throw new Error(res.message || 'Could not save your details.');
+        return res.message ?? '';
+      } catch (err) {
+        throw new Error(errorMessage(err, 'Could not save your details.'));
+      }
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: PROFILE_REVIEW_KEY }),
   });

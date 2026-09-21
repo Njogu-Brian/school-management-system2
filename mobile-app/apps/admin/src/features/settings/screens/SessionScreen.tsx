@@ -127,7 +127,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
       setPinOn(true);
       setRemembered(await getRememberedUsername());
       closePinSetup();
-      showSuccess('PIN saved', 'You can unlock with your PIN next time.');
+      showSuccess('PIN saved', 'You can use this PIN on this phone and any other device.');
     } catch (err) {
       showError('PIN', err instanceof Error ? err.message : 'Could not save PIN.');
     } finally {
@@ -192,6 +192,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
       <Text style={{ color: palette.textSecondary, fontSize: typography.caption.fontSize, marginBottom: spacing.sm }}>
         Status: {pinOn ? 'On' : 'Off'}
         {remembered ? ` · Remembered user: ${remembered}` : ''}
+        {'\n'}Works on any device, like your password. Face ID and fingerprint stay on this phone.
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         <Button
@@ -245,7 +246,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
               fontSize: typography.caption.fontSize,
             }}
           >
-            {PIN_MIN_LENGTH}–{PIN_MAX_LENGTH} digits · unlock Admin without retyping your password
+            {PIN_MIN_LENGTH}–{PIN_MAX_LENGTH} digits · same PIN on every device, like your password
           </Text>
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: spacing.lg }}>
             {pinDots.map((filled, i) => (

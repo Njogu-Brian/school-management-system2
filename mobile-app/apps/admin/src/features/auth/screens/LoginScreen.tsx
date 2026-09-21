@@ -8,7 +8,7 @@ import {
   useBiometricAuth,
   useBranding,
 } from '@erp/core';
-import { Button, ForgotPasswordForm, ScreenContainer, Soft3DIcon, useAdaptiveLayout, useTheme } from '@erp/ui';
+import { Button, ForgotPasswordForm, KeyboardScrollProvider, ScreenContainer, Soft3DIcon, useAdaptiveLayout, useEnsureInputVisible, useKeyboardHeight, useTheme } from '@erp/ui';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -60,6 +60,7 @@ export const LoginScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { isTablet, formMaxWidth } = useAdaptiveLayout();
   const scrollRef = useRef<ScrollViewType>(null);
+  const keyboardHeight = useKeyboardHeight();
   const { schoolName, logoUrl, loginBackgroundUrl, loading: brandingLoading, branding, colorOverrides } =
     useBranding();
 
@@ -140,7 +141,7 @@ export const LoginScreen: React.FC = () => {
   const showBackground = Boolean(loginBackgroundUrl) && !bgFailed;
   const canQuickUnlock = (unlockAvailable && !isLocked) || pinAvailable;
   const showQuick = unlockSurface === 'quick' && canQuickUnlock;
-  const showPinOnly = unlockSurface === 'pin' && pinAvailable;
+  const showPinOnly = unlockSurface === 'pin';
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -188,17 +189,19 @@ export const LoginScreen: React.FC = () => {
     if (isLocked) {
       showError(
         'Biometric sign-in locked',
-        'Sign in with your email and password. You can use biometrics again after a successful sign-in.',
+        'Sign in with your password or PIN. You can use biometrics again after a successful sign-in.',
       );
-      setUnlockSurface('password');
       return;
     }
     try {
       await unlock();
     } catch (err) {
+      const name = err instanceof Error ? err.name : '';
+      if (name === 'BiometricCancelledError') {
+        return;
+      }
       showError('Unlock failed', err instanceof Error ? err.message : 'Biometric unlock failed.');
       await refreshBiometric();
-      setUnlockSurface(pinAvailable ? 'pin' : 'password');
     }
   };
 
@@ -316,6 +319,12 @@ export const LoginScreen: React.FC = () => {
             loading={submitting}
             disabled={!canPasswordSubmit}
           />
+          <Pressable
+            onPress={() => setUnlockSurface('pin')}
+            style={{ marginTop: spacing.md, alignItems: 'center' }}
+          >
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>Sign in with PIN</Text>
+          </Pressable>
         </>
       ) : (
         <>
@@ -524,6 +533,8 @@ export const LoginScreen: React.FC = () => {
           <PinUnlockPanel
             variant="onDark"
             onUsePassword={() => setUnlockSurface('password')}
+            identifier={identifier}
+            onIdentifierChange={setIdentifier}
           />
           {unlockAvailable && !isLocked ? (
             <Pressable
@@ -641,20 +652,26 @@ export const LoginScreen: React.FC = () => {
   const content = (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: spacing.xl }}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        bounces={false}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={{ minHeight: 220 }}>{hero}</View>
-        {sheet}
-      </ScrollView>
+      <KeyboardScrollProvider scrollRef={scrollRef}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingBottom: Math.max(insets.bottom, 16) + keyboardHeight + spacing.xl,
+          }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ minHeight: keyboardHeight > 0 ? 72 : 220 }}>{hero}</View>
+          {sheet}
+        </ScrollView>
+      </KeyboardScrollProvider>
     </KeyboardAvoidingView>
   );
 
@@ -718,6 +735,7 @@ function DarkField({
 } & TextInputProps) {
   const { spacing, typography, radius } = useTheme();
   const [focused, setFocused] = useState(false);
+  const ensureVisible = useEnsureInputVisible();
   return (
     <View style={{ marginBottom: spacing.md }}>
       <Text
@@ -750,6 +768,7 @@ function DarkField({
           onFocus={(e) => {
             setFocused(true);
             props.onFocus?.(e);
+            requestAnimationFrame(() => ensureVisible?.());
           }}
           onBlur={(e) => {
             setFocused(false);

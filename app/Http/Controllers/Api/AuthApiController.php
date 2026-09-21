@@ -59,21 +59,101 @@ class AuthApiController extends Controller
 
         $user->load('roles', 'roles.permissions', 'staff');
 
-        // Revoke other tokens for this user (single device) or keep many - we'll keep one per login
-        $user->tokens()->delete();
+        return $this->respondWithToken($user);
+    }
 
-        $expiresAt = now()->addDays(7);
-        $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
-        $user->markAppLogin();
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'token' => $token,
-                'user' => $this->formatUserForApi($user),
-                'expires_at' => $expiresAt->toIso8601String(),
-            ],
+    /**
+     * PIN unlock — same PIN works on any device once it has been saved on the account.
+     */
+    public function loginWithPin(Request $request)
+    {
+        $request->validate([
+            'identifier' => 'required|string',
+            'pin' => ['required', 'string', 'regex:/^\d{4,6}$/'],
         ]);
+
+        $identifier = (string) $request->input('identifier');
+        $pin = (string) $request->input('pin');
+        $failKey = 'login_pin_fail:'.sha1(mb_strtolower($identifier).'|'.$request->ip());
+        $fails = (int) Cache::get($failKey, 0);
+        if ($fails >= 5) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many PIN attempts. Sign in with your password, then try again later.',
+            ], 429);
+        }
+
+        $ids = app(LoginIdentifierService::class);
+        [$user] = $ids->findUserAndStaff($identifier);
+        $hash = $user && Schema::hasColumn('users', 'unlock_pin_hash')
+            ? (string) ($user->unlock_pin_hash ?? '')
+            : '';
+
+        if (! $user || $hash === '' || ! Hash::check($pin, $hash)) {
+            Cache::put($failKey, $fails + 1, now()->addMinutes(15));
+            return response()->json([
+                'success' => false,
+                'message' => 'The provided PIN is incorrect.',
+            ], 401);
+        }
+
+        Cache::forget($failKey);
+        $user->load('roles', 'roles.permissions', 'staff');
+
+        return $this->respondWithToken($user);
+    }
+
+    /**
+     * Device-bound biometric unlock. The Face ID / fingerprint never leaves the phone;
+     * a keychain secret registered on this device issues a fresh session.
+     */
+    public function loginWithBiometric(Request $request)
+    {
+        $request->validate([
+            'selector' => ['required', 'string', 'min:16', 'max:64'],
+            'secret' => ['required', 'string', 'min:32', 'max:128'],
+        ]);
+
+        if (! Schema::hasTable('user_biometric_unlocks')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Biometric unlock is not available yet.',
+            ], 503);
+        }
+
+        $selector = (string) $request->input('selector');
+        $secret = (string) $request->input('secret');
+        $failKey = 'login_bio_fail:'.sha1($selector.'|'.$request->ip());
+        $fails = (int) Cache::get($failKey, 0);
+        if ($fails >= 8) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many biometric attempts. Sign in with your password or PIN.',
+            ], 429);
+        }
+
+        $row = \App\Models\UserBiometricUnlock::query()->where('selector', $selector)->first();
+        if (! $row || ! Hash::check($secret, (string) $row->secret_hash)) {
+            Cache::put($failKey, $fails + 1, now()->addMinutes(15));
+            return response()->json([
+                'success' => false,
+                'message' => 'Biometric unlock is not valid on this device.',
+            ], 401);
+        }
+
+        Cache::forget($failKey);
+        $row->forceFill(['last_used_at' => now()])->save();
+        $user = User::query()->find($row->user_id);
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found.',
+            ], 401);
+        }
+
+        $user->load('roles', 'roles.permissions', 'staff');
+
+        return $this->respondWithToken($user);
     }
 
     /**
@@ -125,19 +205,8 @@ class AuthApiController extends Controller
         }
 
         $user->load('roles', 'roles.permissions', 'staff');
-        $user->tokens()->delete();
-        $expiresAt = now()->addDays(7);
-        $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
-        $user->markAppLogin();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'token' => $token,
-                'user' => $this->formatUserForApi($user),
-                'expires_at' => $expiresAt->toIso8601String(),
-            ],
-        ]);
+        return $this->respondWithToken($user);
     }
 
     public function requestLoginOtp(Request $request, OtpService $otpService)
@@ -212,19 +281,8 @@ class AuthApiController extends Controller
         }
 
         $user->load('roles', 'roles.permissions', 'staff');
-        $user->tokens()->delete();
-        $expiresAt = now()->addDays(7);
-        $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
-        $user->markAppLogin();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'token' => $token,
-                'user' => $this->formatUserForApi($user),
-                'expires_at' => $expiresAt->toIso8601String(),
-            ],
-        ]);
+        return $this->respondWithToken($user);
     }
 
     public function requestPasswordResetEmailLink(Request $request)
@@ -463,6 +521,9 @@ class AuthApiController extends Controller
         $permissions = $user->getAllPermissions()->pluck('name')->values()->toArray();
 
         $displayName = trim((string) $user->name);
+        if (empty($user->parent_id)) {
+            $this->attachParentIdFromContact($user);
+        }
         $identityGate = null;
         if ($user->parent_id) {
             $identityGate = app(ParentCredentialsService::class)->identityGateForUser($user);
@@ -514,13 +575,12 @@ class AuthApiController extends Controller
             $data['phone'] = (string) $user->phone_number;
         }
 
-        // Parent: User has parent_id -> parent_info
         if ($user->parent_id) {
             $data['parent_id'] = $user->parent_id;
         }
 
         // Dual-identity / mode flags for the mobile Work|Home switcher.
-        $hasParent = ! empty($user->parent_id);
+        $hasParent = ! empty($user->parent_id) || $user->hasAnyRole(['Parent', 'Guardian']);
         $hasStaff = $staff !== null;
         $data['can_home_mode'] = $hasParent;
         $data['can_work_mode'] = $hasStaff
@@ -598,5 +658,54 @@ class AuthApiController extends Controller
     protected function normalizePhone(string $phone): string
     {
         return app(LoginIdentifierService::class)->normalizePhone($phone);
+    }
+
+    /**
+     * Keep other device sessions (biometric / PIN) alive. Only prune expired tokens.
+     */
+    protected function respondWithToken(User $user)
+    {
+        $user->tokens()->where('expires_at', '<', now())->delete();
+
+        $expiresAt = now()->addDays(7);
+        $token = $user->createToken('mobile-app', ['*'], $expiresAt)->plainTextToken;
+        $user->markAppLogin();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'token' => $token,
+                'user' => $this->formatUserForApi($user),
+                'expires_at' => $expiresAt->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Teachers who are also parents often have a staff login but a missing users.parent_id.
+     */
+    protected function attachParentIdFromContact(User $user): void
+    {
+        if (! Schema::hasColumn('users', 'parent_id')) {
+            return;
+        }
+
+        $contacts = array_filter([
+            Schema::hasColumn('users', 'phone_number') ? (string) ($user->phone_number ?? '') : '',
+            (string) ($user->email ?? ''),
+            (string) ($user->staff?->phone_number ?? ''),
+            (string) ($user->staff?->work_email ?? ''),
+        ]);
+
+        $ids = app(LoginIdentifierService::class);
+        foreach ($contacts as $contact) {
+            $match = $ids->findParentSlotByContact($contact);
+            if (! $match) {
+                continue;
+            }
+            $user->parent_id = $match['parent']->id;
+            $user->saveQuietly();
+            break;
+        }
     }
 }

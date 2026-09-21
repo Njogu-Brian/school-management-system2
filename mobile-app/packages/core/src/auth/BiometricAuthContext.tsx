@@ -18,7 +18,7 @@ import { useAuth } from './AuthContext';
 export interface BiometricAuthContextValue {
   /** Device supports Face ID / fingerprint / other enrolled biometrics. */
   deviceSupportsBiometrics: boolean;
-  /** User has enabled biometrics and a saved session bundle exists. */
+  /** User has enabled Face ID / fingerprint unlock on this phone. */
   unlockAvailable: boolean;
   /** Biometric unlock locked after too many failures. */
   isLocked: boolean;
@@ -34,8 +34,8 @@ export interface BiometricAuthContextValue {
 const BiometricAuthContext = createContext<BiometricAuthContextValue | undefined>(undefined);
 
 /**
- * Biometric unlock provider. Biometrics only rehydrate an existing Sanctum session —
- * the user must sign in with email and password at least once before unlock is offered.
+ * Face ID / fingerprint unlock for this device only. After the OS confirms the person,
+ * a device secret opens a new session — no password or PIN on this phone.
  */
 export const BiometricAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { unlockWithBiometrics, submitting, error } = useAuth();

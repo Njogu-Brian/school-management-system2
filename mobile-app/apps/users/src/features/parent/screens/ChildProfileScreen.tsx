@@ -12,6 +12,7 @@ import {
   useParentProfileReview,
   useUpdateParentProfileReview,
   downloadAuthenticatedFile,
+  errorMessage,
   type KemisLearnerValues,
   type KemisParentSlotValues,
   type ProfileReviewUpdatePayload,
@@ -134,7 +135,7 @@ export const ChildProfileScreen: React.FC = () => {
       setEditing(false);
       void query.refetch();
     } catch (err) {
-      showError('Could not save', err instanceof Error ? err.message : 'Please try again.');
+      showError('Could not save', errorMessage(err, 'Please try again.'));
     }
   };
 

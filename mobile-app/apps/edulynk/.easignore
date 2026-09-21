@@ -1,0 +1,23 @@
+# Local prebuild / native — EAS generates these on the build server.
+android/
+ios/
+
+.expo/
+node_modules/
+
+# Sibling app artifacts — not needed for Edulynk builds
+../admin/dist/
+../admin/.expo-tmp-export/
+../admin/.expo/
+../admin/android/
+../admin/ios/
+../users/android/
+../users/ios/
+../users/.expo/
+../ios/android/
+../ios/ios/
+
+../../android/
+../../docs/
+**/*.log
+**/.DS_Store

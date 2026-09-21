@@ -1,6 +1,7 @@
 export * from './config/roles';
 export * from './config/navigation';
 export * from './config/env';
+export * from './config/product';
 export * from './data/countryDialCodes';
 export * from './types';
 export * from './storage';
@@ -17,6 +18,7 @@ export * from './staff';
 export * from './finance';
 export * from './academics';
 export * from './utils/downloadFile';
+export * from './utils/errors';
 export * from './utils/greeting';
 export * from './utils/passwordPolicy';
 export * from './hooks/useNetworkStatus';

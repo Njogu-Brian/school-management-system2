@@ -37,7 +37,11 @@ export const ClaimScreenShell: React.FC<{
       style={styles.flex}
     >
       <StatusBar style="light" />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+      >
         <ScrollView
           contentContainerStyle={{
             flexGrow: 1,
@@ -46,6 +50,8 @@ export const ClaimScreenShell: React.FC<{
             paddingHorizontal: spacing.lg,
           }}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           <Pressable onPress={onBack} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.lg }}>

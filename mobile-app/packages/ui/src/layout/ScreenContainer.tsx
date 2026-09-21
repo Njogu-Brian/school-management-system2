@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useRef } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
+import { KeyboardScrollProvider, useKeyboardHeight } from './keyboard';
 import { useFloatingTabBarClearance } from './PremiumTabBar';
 
 type Edge = 'top' | 'bottom' | 'left' | 'right';
@@ -134,6 +135,8 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
       ? 0
       : systemNavPad;
   const resolvedPaddingBottom = minPaddingBottom(contentContainerStyle, bottomClearance);
+  const keyboardHeight = useKeyboardHeight();
+  const scrollRef = useRef<ScrollView>(null);
 
   const resolvedEdges = useMemo(() => {
     if (edges.includes('bottom')) return edges;
@@ -154,20 +157,28 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
     : scrollProps?.refreshControl;
 
   const body = scroll ? (
-    <ScrollView
-      style={styles.flex}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[
-        styles.scrollContent,
-        contentContainerStyle,
-        bottomClearance > 0 ? { paddingBottom: resolvedPaddingBottom } : null,
-      ]}
-      showsVerticalScrollIndicator={false}
-      {...scrollProps}
-      refreshControl={refreshControl}
-    >
-      {children}
-    </ScrollView>
+    <KeyboardScrollProvider scrollRef={scrollRef}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.flex}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        automaticallyAdjustKeyboardInsets
+        contentContainerStyle={[
+          styles.scrollContent,
+          contentContainerStyle,
+          {
+            paddingBottom:
+              resolvedPaddingBottom + (Platform.OS === 'android' ? keyboardHeight : 0),
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        {...scrollProps}
+        refreshControl={refreshControl}
+      >
+        {children}
+      </ScrollView>
+    </KeyboardScrollProvider>
   ) : (
     <View
       style={[

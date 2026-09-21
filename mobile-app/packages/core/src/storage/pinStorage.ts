@@ -1,11 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
-import * as SecureStore from 'expo-secure-store';
 import { ASYNC_KEYS, PIN_SECURE_KEYS } from './keys';
-
-const SECURE_OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-};
+import { deleteKeychainItem, getKeychainItem, setKeychainItem } from './keychain';
 
 export const PIN_MAX_FAILURES = 5;
 export const PIN_MIN_LENGTH = 4;
@@ -81,13 +77,9 @@ export async function isPinLoginLocked(): Promise<boolean> {
 export async function clearPinEnrollment(): Promise<void> {
   await setPinEnabledFlag(false);
   await clearPinFailureCount();
-  try {
-    await SecureStore.deleteItemAsync(PIN_SECURE_KEYS.PIN_HASH, SECURE_OPTIONS);
-    await SecureStore.deleteItemAsync(PIN_SECURE_KEYS.PIN_SALT, SECURE_OPTIONS);
-    await SecureStore.deleteItemAsync(PIN_SECURE_KEYS.AUTH_BUNDLE, SECURE_OPTIONS);
-  } catch {
-    /* no-op */
-  }
+  await deleteKeychainItem(PIN_SECURE_KEYS.PIN_HASH);
+  await deleteKeychainItem(PIN_SECURE_KEYS.PIN_SALT);
+  await deleteKeychainItem(PIN_SECURE_KEYS.AUTH_BUNDLE);
 }
 
 export async function createPin(
@@ -103,13 +95,9 @@ export async function createPin(
       .join(''),
   );
   const hash = await hashPin(pin, salt);
-  await SecureStore.setItemAsync(PIN_SECURE_KEYS.PIN_SALT, salt, SECURE_OPTIONS);
-  await SecureStore.setItemAsync(PIN_SECURE_KEYS.PIN_HASH, hash, SECURE_OPTIONS);
-  await SecureStore.setItemAsync(
-    PIN_SECURE_KEYS.AUTH_BUNDLE,
-    JSON.stringify(bundle),
-    SECURE_OPTIONS,
-  );
+  await setKeychainItem(PIN_SECURE_KEYS.PIN_SALT, salt);
+  await setKeychainItem(PIN_SECURE_KEYS.PIN_HASH, hash);
+  await setKeychainItem(PIN_SECURE_KEYS.AUTH_BUNDLE, JSON.stringify(bundle));
   await setPinEnabledFlag(true);
   await clearPinFailureCount();
   if (bundle.identifier) {
@@ -118,8 +106,8 @@ export async function createPin(
 }
 
 export async function verifyPin(pin: string): Promise<boolean> {
-  const salt = await SecureStore.getItemAsync(PIN_SECURE_KEYS.PIN_SALT, SECURE_OPTIONS);
-  const expected = await SecureStore.getItemAsync(PIN_SECURE_KEYS.PIN_HASH, SECURE_OPTIONS);
+  const salt = await getKeychainItem(PIN_SECURE_KEYS.PIN_SALT);
+  const expected = await getKeychainItem(PIN_SECURE_KEYS.PIN_HASH);
   if (!salt || !expected) {
     return false;
   }
@@ -127,9 +115,15 @@ export async function verifyPin(pin: string): Promise<boolean> {
   return actual === expected;
 }
 
+export async function hasLocalPinHash(): Promise<boolean> {
+  const salt = await getKeychainItem(PIN_SECURE_KEYS.PIN_SALT);
+  const expected = await getKeychainItem(PIN_SECURE_KEYS.PIN_HASH);
+  return Boolean(salt && expected);
+}
+
 export async function getPinAuthBundle(): Promise<PinAuthBundle | null> {
   try {
-    const raw = await SecureStore.getItemAsync(PIN_SECURE_KEYS.AUTH_BUNDLE, SECURE_OPTIONS);
+    const raw = await getKeychainItem(PIN_SECURE_KEYS.AUTH_BUNDLE);
     if (!raw) return null;
     return JSON.parse(raw) as PinAuthBundle;
   } catch {
@@ -146,20 +140,14 @@ export async function savePinAuthBundle(bundle: PinAuthBundle): Promise<void> {
     identifier: bundle.identifier ?? existing?.identifier,
     password: bundle.password ?? existing?.password,
   };
-  await SecureStore.setItemAsync(
-    PIN_SECURE_KEYS.AUTH_BUNDLE,
-    JSON.stringify(next),
-    SECURE_OPTIONS,
-  );
+  await setKeychainItem(PIN_SECURE_KEYS.AUTH_BUNDLE, JSON.stringify(next));
   if (next.identifier) {
     await setRememberedUsername(next.identifier);
   }
 }
 
-/** True when PIN unlock can be offered on the login screen. */
+/** True when this phone already has PIN unlock enrolled (quick unlock). New devices use username + PIN. */
 export async function hasPinUnlockAvailable(): Promise<boolean> {
-  if (!(await isPinEnabled())) return false;
   if (await isPinLoginLocked()) return false;
-  const bundle = await getPinAuthBundle();
-  return Boolean(bundle?.token || (bundle?.identifier && bundle?.password));
+  return isPinEnabled();
 }
