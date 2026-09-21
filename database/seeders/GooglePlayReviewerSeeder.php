@@ -24,8 +24,8 @@ class GooglePlayReviewerSeeder extends Seeder
 {
     public function run(): void
     {
-        $email = strtolower(trim((string) env('PLAY_REVIEWER_EMAIL', 'play.review@royalkingsschools.sc.ke')));
-        $password = (string) env('PLAY_REVIEWER_PASSWORD', 'PlayRev26');
+        $email = strtolower(trim((string) (env('PLAY_REVIEWER_EMAIL') ?: 'play.review@royalkingsschools.sc.ke')));
+        $password = (string) (env('PLAY_REVIEWER_PASSWORD') ?: 'PlayRev26');
         $name = 'Google Play Reviewer';
 
         $role = Role::firstOrCreate(
