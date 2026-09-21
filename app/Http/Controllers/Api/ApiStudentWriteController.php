@@ -18,6 +18,7 @@ use App\Support\KemisProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Mobile API: create/update students with multipart uploads (aligned with web StudentController).
@@ -467,7 +468,10 @@ class ApiStudentWriteController extends Controller
                     foreach (['father', 'mother', 'guardian'] as $slot) {
                         $parentUpdate = array_merge($parentUpdate, KemisProfile::parentIdentityAttributesFromInput($request->all(), $slot));
                     }
-                    $student->parent->update($parentUpdate);
+                    $student->parent->update(array_intersect_key(
+                        $parentUpdate,
+                        array_flip(Schema::getColumnListing('parent_info'))
+                    ));
                     $this->handleParentIdUploads($student->parent, $request);
                 }
             });

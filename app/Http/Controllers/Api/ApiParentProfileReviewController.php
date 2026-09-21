@@ -167,6 +167,7 @@ class ApiParentProfileReviewController extends Controller
                 $parentData = array_merge($parentData, KemisProfile::parentIdentityAttributesFromInput($validated, $slot));
             }
             if (!empty($parentData)) {
+                $parentData = array_intersect_key($parentData, array_flip(Schema::getColumnListing('parent_info')));
                 $parent->fill($parentData);
                 $parent->save();
             }
@@ -210,7 +211,7 @@ class ApiParentProfileReviewController extends Controller
                         }
                     }
 
-                    $student->fill($updateData);
+                    $student->fill(array_intersect_key($updateData, array_flip(Schema::getColumnListing('students'))));
                     $student->save();
                 }
             }
