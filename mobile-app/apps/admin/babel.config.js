@@ -1,7 +1,7 @@
 /**
  * Babel config for the Admin App.
  *
- * - `babel-preset-expo` auto-includes the worklets/reanimated transform on SDK 54,
+ * - `babel-preset-expo` auto-includes the worklets/reanimated transform on SDK 58,
  *   so no separate reanimated plugin is needed (matches the Staff App).
  * - `module-resolver` maps the shared workspace packages to their source so the apps
  *   consume @erp/* without a build step (build plan §2).

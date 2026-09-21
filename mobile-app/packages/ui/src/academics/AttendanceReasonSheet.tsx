@@ -158,9 +158,9 @@ export const AttendanceReasonSheet: React.FC<AttendanceReasonSheetProps> = ({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scrim: { ...StyleSheet.absoluteFillObject },
+  scrim: { ...StyleSheet.absoluteFill },
   center: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,

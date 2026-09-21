@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   iosScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   iosSheet: {

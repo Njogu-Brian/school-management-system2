@@ -93,7 +93,7 @@ export const DrawerContent: React.FC<DrawerContentComponentProps> = (props) => {
     <BlurView
       intensity={Platform.OS === 'ios' ? 64 : 80}
       tint={isDark ? 'dark' : 'light'}
-      experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+      blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
       style={StyleSheet.absoluteFill}
     />
   );

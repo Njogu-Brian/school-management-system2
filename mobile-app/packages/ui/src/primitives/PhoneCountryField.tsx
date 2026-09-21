@@ -171,5 +171,5 @@ export const PhoneCountryField: React.FC<PhoneCountryFieldProps> = ({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject },
+  backdrop: { ...StyleSheet.absoluteFill },
 });

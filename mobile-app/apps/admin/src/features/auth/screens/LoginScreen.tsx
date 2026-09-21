@@ -710,7 +710,7 @@ export const LoginScreen: React.FC = () => {
         >
           <LinearGradient
             colors={['rgba(0,0,0,0.25)', 'rgba(12,16,24,0.55)', 'rgba(12,16,24,0.92)']}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
           {content}
         </ImageBackground>

@@ -1,7 +1,9 @@
 type CrossTabNav = {
   navigate: (name: string, params?: object) => void;
   getParent: () => CrossTabNav | undefined;
-  getState?: () => { index?: number; key?: string; routes?: Array<{ name: string }> };
+  getState?: () =>
+    | { index?: number; key?: string; routes?: Array<{ name: string }> }
+    | undefined;
   canGoBack?: () => boolean;
   goBack?: () => void;
 };

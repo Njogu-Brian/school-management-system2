@@ -20,7 +20,6 @@ const config: ExpoConfig = {
   version: APP_VERSION,
   orientation: 'default',
   userInterfaceStyle: 'automatic',
-  newArchEnabled: true,
   icon: './assets/icon.png',
   splash: {
     image: './assets/splash-icon.png',
@@ -71,6 +70,11 @@ const config: ExpoConfig = {
         photosPermission: 'Allow Royal Kings Users to update your profile photo.',
       },
     ],
+    '@react-native-community/datetimepicker',
+    'expo-secure-store',
+    'expo-sharing',
+    'expo-status-bar',
+    'expo-web-browser',
   ],
   extra: {
     API_BASE_URL: apiBase,

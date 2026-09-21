@@ -152,7 +152,7 @@ const elevationStyle = {
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   overlayTablet: { justifyContent: 'center', paddingHorizontal: 24 },
-  backdrop: { ...StyleSheet.absoluteFillObject },
+  backdrop: { ...StyleSheet.absoluteFill },
   sheet: { width: '100%', minHeight: 0 },
   handle: {
     width: 36,

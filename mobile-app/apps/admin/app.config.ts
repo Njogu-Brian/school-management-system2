@@ -21,8 +21,6 @@ const config: ExpoConfig = {
   version: APP_VERSION,
   orientation: 'default',
   userInterfaceStyle: 'automatic',
-  // Bridgeless/new-arch left on; NetInfo is guarded in JS if native link is missing.
-  newArchEnabled: true,
   icon: './assets/icon.png',
   splash: {
     image: './assets/splash-icon.png',
@@ -63,6 +61,11 @@ const config: ExpoConfig = {
     'expo-image-picker',
     'expo-updates',
     '../../plugins/withAndroidTabletSupport',
+    '@react-native-community/datetimepicker',
+    'expo-secure-store',
+    'expo-sharing',
+    'expo-status-bar',
+    'expo-web-browser',
   ],
   experiments: {
     // Keep Metro resolution aligned with native autolinking in the monorepo.

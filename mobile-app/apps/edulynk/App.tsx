@@ -21,7 +21,7 @@ import { PersistedQueryProvider } from './src/providers/PersistedQueryProvider';
 
 const ThemedStatusBar: React.FC = () => {
   const { isDark } = useTheme();
-  return <StatusBar style={isDark ? 'light' : 'dark'} translucent />;
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
 };
 
 function AppRoot(): React.JSX.Element {
