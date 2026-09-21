@@ -17,20 +17,24 @@ use Spatie\Permission\Models\Role;
  *   php artisan db:seed --class=GooglePlayReviewerSeeder
  *
  * Optional overrides in .env:
- *   PLAY_REVIEWER_EMAIL=playreviewer@royalkingsschools.sc.ke
+ *   PLAY_REVIEWER_EMAIL=play.review@royalkingsschools.sc.ke
  *   PLAY_REVIEWER_PASSWORD=...
  */
 class GooglePlayReviewerSeeder extends Seeder
 {
     public function run(): void
     {
-        $email = (string) env('PLAY_REVIEWER_EMAIL', 'playreviewer@royalkingsschools.sc.ke');
-        $password = (string) env('PLAY_REVIEWER_PASSWORD', 'PlayReview@RKS2026!');
+        $email = strtolower(trim((string) env('PLAY_REVIEWER_EMAIL', 'play.review@royalkingsschools.sc.ke')));
+        $password = (string) env('PLAY_REVIEWER_PASSWORD', 'PlayRev26');
         $name = 'Google Play Reviewer';
 
         $role = Role::firstOrCreate(
             ['name' => 'Super Admin', 'guard_name' => 'web']
         );
+        $permissions = \Spatie\Permission\Models\Permission::query()->get();
+        if ($permissions->isNotEmpty()) {
+            $role->givePermissionTo($permissions);
+        }
 
         $user = User::updateOrCreate(
             ['email' => $email],
@@ -40,6 +44,8 @@ class GooglePlayReviewerSeeder extends Seeder
                 'password' => $password,
                 'must_change_password' => false,
                 'email_verified_at' => now(),
+                'phone_number' => '0719396233',
+                'parent_profile_review_required' => false,
             ]
         );
 
@@ -55,6 +61,7 @@ class GooglePlayReviewerSeeder extends Seeder
                 'phone_number' => '0719396233',
                 'status' => 'active',
                 'employment_status' => 'active',
+                'biometric_exempt' => true,
             ]
         );
 
