@@ -27,7 +27,7 @@ export const authApi = {
   /** `POST /login/google` — exchange Google ID token for a Sanctum session. */
   loginWithGoogle(data: GoogleLoginRequest): Promise<ApiResponse<ApiLoginData>> {
     return apiClient.post<ApiLoginData>('/login/google', data);
-  }
+  },
 
   /** `POST /login/pin` — account PIN (works on any device). */
   loginWithPin(payload: { identifier: string; pin: string }): Promise<ApiResponse<ApiLoginData>> {
